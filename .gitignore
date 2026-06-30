@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Builds and package output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tooling caches
+.turbo/
+.next/
+.vite/
+.vitest/
+.cache/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Local agent/runtime artifacts
+.codex/
+.claude/
