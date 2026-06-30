@@ -42,7 +42,7 @@ flowchart TD
     B -->|"No — needs you"| C["Parked at the door<br/>(durable, survives interruption)"]
     C --> D["You see what changes,<br/>and why it was flagged"]
     D -->|"Approve, narrowly"| E["Resumes from here"]
-    D -->|"Reject"| F["Stops, on the record"]
+    D -->|"Reject"| F["Rejected — terminal,<br/>on the record"]
 ```
 
 ## A safe resume after interruption

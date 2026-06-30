@@ -36,6 +36,12 @@ is track-scoped and freely tunable.
 This is the "policy is protected; config is free" line from the package. See
 [Jig — the execution engine](./jig.md) guarantee 2 for the full detail.
 
+**Repo-level floors** are themselves a distinct, **repo-scoped policy artifact** — a small policy
+the repo owner authors once, separate from any track's policy. It sets the floors every track in
+the repo inherits: minimum gating, required reviews, and the anti-gaming protections. A track's
+own policy may **tighten** these floors but never weaken them, and because the floors govern
+safety, changing the repo-level artifact is itself a governed action (guarantee 2, CFG-1).
+
 ## How tracks relate to the products
 
 Each track feeds Jig its own execution plan and configuration. The supporting products —
@@ -62,14 +68,41 @@ The decomposition nests cleanly:
 - a **story** is one landed change with its own done conditions;
 - **policy** and **work profile** are set per track and govern how its stories run.
 
-## Story outcomes
+## Runner and worker — the authority boundary
 
-Every story reaches one product-visible outcome. The full internal lifecycle is design's to
-define; the states an owner sees and acts on are:
+Two roles carry Jig's control boundary, and the difference between them is what makes delegation
+safe:
+
+- The **worker** is the contained coding agent — the thing that reads a story, writes code, and
+  runs checks. It is the **Agent** seam, executing inside the **Execution Host** seam. The worker
+  is *contained*: it never holds privileged credentials and cannot push, open a PR, merge, or
+  widen its own authority.
+- The **runner** is Jig's own trusted component. It holds privileged authority — credentials, and
+  the power to push, open PRs, and merge — and performs those irreversible actions on the worker's
+  behalf, only under policy and evidence gates. The runner is **Jig-core, not a seam**: the four
+  swappable seams (guarantee 4) are Agent, Execution Host, Forge, and Work Source; the runner is
+  the fixed part that governs them.
+
+This split is the spine of guarantee 1 — the thing that writes code is never the thing that ships
+it (FENCE-3, MERGE-2, SEC-3).
+
+## Story and run outcomes
+
+The full internal lifecycle is design's to define; the product-visible states an owner sees and
+acts on are these.
+
+A **story** ends in one terminal outcome, or sits in the one transient waiting state:
 
 - **landed** — merged, on evidence that satisfied policy;
 - **done** — evidence is met, but the merge is still pending. Branch protection, a merge queue,
   or a conflict can hold a done story (see guarantee 1, MERGE-4);
-- **parked** — waiting on an owner decision, such as an approval at the doorbell;
+- **rejected** — the owner declined the story at the doorbell. Terminal and on the record; it is
+  not resumed. (Distinct from *blocked* — Jig finding the work cannot proceed — and from
+  *stopped*, which pauses the whole run rather than ending a story.);
 - **blocked** — cannot proceed; the reason is recorded;
-- **stopped** — the run was halted cleanly and can be resumed later.
+- **parked** _(transient)_ — waiting on an owner decision, such as an approval at the doorbell. A
+  parked story resumes when the owner approves, or becomes *rejected* if they decline.
+
+**stopped** is a **run**-level state, not a story outcome: the whole run was halted cleanly.
+Stories that had not yet reached a terminal outcome stay where they were and resume from their
+last safe checkpoint when the run restarts (see guarantee 3).

@@ -45,13 +45,19 @@ Jig starts where planning ends:
 ```mermaid
 flowchart TD
     A["You provide:<br/>approved plan + policy"] --> B["Jig runs the ready work<br/>in parallel, up to your limit"]
-    B --> C{"Each story:<br/>safe to land on evidence?"}
-    C -->|Yes| D["Landed<br/>with replayable evidence"]
+    B --> C{"Each story:<br/>evidence meets policy?"}
+    C -->|Yes| D["Done<br/>evidence met"]
     C -->|Needs your call| E["Parked<br/>waiting on your decision"]
     C -->|Can't proceed| F["Blocked<br/>with a logged reason"]
-    E -->|You decide| B
-    D --> G["A run you can replay,<br/>end to end"]
+    D --> H{"Mergeable now?"}
+    H -->|Yes| L["Landed<br/>merged on evidence"]
+    H -->|Held| K["Done,<br/>merge pending"]
+    E -->|Approve| B
+    E -->|Reject| R["Rejected<br/>terminal, on the record"]
+    L --> G["A run you can replay,<br/>end to end"]
     F --> G
+    K --> G
+    R --> G
 ```
 
 The supporting products can help produce the product definition, design, and plan. They are

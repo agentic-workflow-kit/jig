@@ -100,7 +100,8 @@ how the work gets done. Jig derives live behavior from those choices and the pla
   model, effort, prompt strategy, and role realization. It is freely tunable because it does
   not lower the safety floor.
 - **CFG-3. Configuration is per track.** Each independent line of work has its own policy and
-  work profile, while repo-level floors remain intact.
+  work profile, while repo-level floors — a repo-scoped policy artifact a track can tighten but
+  not weaken — remain intact.
 - **CFG-4. The actual is computed, not hand-set.** You set intent and limits; Jig derives what
   can safely run from policy and the plan's current eligible work.
 - **CFG-5. Setup is guided by your intent.** Jig starts by asking how you want to work and maps
@@ -117,8 +118,11 @@ how the work gets done. Jig derives live behavior from those choices and the pla
   say — and Jig runs it only when the workspace is stale, skipping it when the tree is already
   fresh.
 - **CFG-10. You set how much it asks.** A manual posture sends every escalation to you; an
-  assisted posture auto-grants low-risk actions and reserves the risky ones. Which actions
-  auto-grant follows a fixed risk rule you can predict — and no model adjudicates for you
+  assisted posture auto-grants low-risk actions and reserves the risky ones. The boundary is by
+  category and fixed: reversible, non-privileged actions that do not touch rule-governing files
+  may auto-grant, while anything touching credentials, push or merge, rule-governing files, or
+  otherwise irreversible effects always goes to a human. The exact classifier is design's; the
+  category boundary is the product promise — predictable, and never adjudicated by a model
   (LLM-decided autonomy is deferred; see [what Jig isn't (yet)](./jig.md#what-jig-isnt-yet)).
 
 How much Jig asks you is a dial you set (CFG-10), not a fixed personality:
