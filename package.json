@@ -4,9 +4,17 @@
   "description": "Repository tooling for Jig, the agentic-workflow-kit delivery engine.",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.5.1",
+  "packageManager": "pnpm@11.9.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0",
+    "pnpm": ">=11.9.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^26",
+      "onFail": "warn"
+    }
   },
   "scripts": {
     "dev:setup": "bash scripts/dev-setup.sh",

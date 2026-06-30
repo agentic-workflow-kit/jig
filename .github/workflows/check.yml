@@ -13,8 +13,6 @@ jobs:
   check:
     name: check
     runs-on: ubuntu-latest
-    env:
-      PNPM_STORE_DIR: ${{ github.workspace }}/.pnpm-store
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -22,24 +20,18 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 11.5.1
+          version: 11.9.0
 
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          # engines.node floor — CI verifies the >=22 support claim (.nvmrc=26 is the local dev version)
-          node-version: 22
-
-      - name: Cache pnpm store
-        uses: actions/cache@v6
-        with:
-          path: .pnpm-store
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
+          # supported floor — CI verifies the >=22.13.0 claim (.nvmrc=26 is the local dev line).
+          # cache: pnpm uses setup-node's built-in pnpm store cache (action-setup runs first).
+          node-version: 22.13.0
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm --store-dir "$PNPM_STORE_DIR" install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: check
-        run: pnpm --config.store-dir="$PNPM_STORE_DIR" check
+        run: pnpm check
