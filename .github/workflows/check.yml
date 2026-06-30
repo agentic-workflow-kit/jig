@@ -27,7 +27,8 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          # engines.node floor — CI verifies the >=22 support claim (.nvmrc=26 is the local dev version)
+          node-version: 22
 
       - name: Cache pnpm store
         uses: actions/cache@v6
