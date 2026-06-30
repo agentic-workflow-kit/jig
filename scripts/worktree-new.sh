@@ -6,9 +6,9 @@
 # checkout.
 #
 # Sibling root resolution:
-#   1. $CODE_WORKTREE_ROOT/<repo-name>/   when CODE_WORKTREE_ROOT is set
-#   2. else the parent directory of this checkout
-# The worktree lands at <root>/wt/<branch> (slashes in the branch become dashes).
+#   1. $CODE_WORKTREE_ROOT when CODE_WORKTREE_ROOT is set
+#   2. else the parent directory of the primary checkout
+# The worktree lands at <root>/worktrees/<repo-name>/<branch> (slashes in the branch become dashes).
 #
 # Usage: pnpm worktree:new <branch> [<base-ref>]
 #
@@ -26,17 +26,30 @@ fi
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 repo_name="$(basename "${repo_root}")"
 
-# Base ref: explicit arg, else the remote default branch, else main.
-base="${2:-$(git -C "${repo_root}" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)}"
-base="${base:-main}"
+if [[ "${repo_root}" == */worktrees/*/* ]]; then
+  repo_name="$(basename "$(dirname "${repo_root}")")"
+fi
 
-# Sibling root — external, never nested under the repo.
+# Base ref: explicit arg, else the remote default branch, else origin/main, else main.
+base="${2:-$(git -C "${repo_root}" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)}"
+if [ -z "${base}" ]; then
+  if git -C "${repo_root}" show-ref --verify --quiet refs/remotes/origin/main; then
+    base="origin/main"
+  else
+    base="main"
+  fi
+fi
+
+# Sibling root — external, never nested under the repo. If this script runs from an existing
+# grouped worktree, climb back to the family root so nested creation does not compound.
 if [ -n "${CODE_WORKTREE_ROOT:-}" ]; then
-  family_root="${CODE_WORKTREE_ROOT%/}/${repo_name}"
+  family_root="${CODE_WORKTREE_ROOT%/}"
+elif [[ "${repo_root}" == */worktrees/"${repo_name}"/* ]]; then
+  family_root="${repo_root%%/worktrees/${repo_name}/*}"
 else
   family_root="$(dirname "${repo_root}")"
 fi
-target="${family_root}/wt/${branch//\//-}"
+target="${family_root}/worktrees/${repo_name}/${branch//\//-}"
 
 # Enforce the invariant: the target must not live under the current checkout.
 case "${target}/" in
@@ -49,7 +62,7 @@ esac
 
 mkdir -p "$(dirname "${target}")"
 echo "- creating worktree: ${target}  (branch ${branch} from ${base})"
-git -C "${repo_root}" worktree add -b "${branch}" "${target}" "${base}"
+git -C "${repo_root}" worktree add --no-track -b "${branch}" "${target}" "${base}"
 
 # Run the canonical setup inside the new worktree when it exists; else a frozen install.
 if (cd "${target}" && pnpm run 2>/dev/null | grep -q '^  dev:setup'); then
