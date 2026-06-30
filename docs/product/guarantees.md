@@ -65,8 +65,8 @@ Policy decides which categories, and how much of each, a story needs before it m
   not the thing that ships it.
 - **MERGE-3.** Done conditions are explicit and policy-bound. The owner decides what evidence
   is required before work may land.
-- **MERGE-4.** Done and merged are separate milestones. Jig proves a story is *done* — its
-  evidence is met — independently of whether its PR is *mergeable right now*. Branch protection,
+- **MERGE-4.** Done and merged are separate milestones. Jig proves a story is _done_ — its
+  evidence is met — independently of whether its PR is _mergeable right now_. Branch protection,
   a merge queue, or a conflict can hold a done story without erasing that the work is done.
 - **MERGE-5.** Blocked work shows up where you already work. When a run has a safe branch and
   permission to push, a block surfaces as a real pull request with the failure reasons in a
