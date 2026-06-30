@@ -43,3 +43,33 @@ define-product, product→design, design→plan — each operate per-track: a de
 design _for a track_, a plan is a plan _for a track_, a policy is set _for a track_.
 Nothing in the suite forces a single product definition or a single plan across all tracks
 in a repo.
+
+## Stories — the unit of work
+
+A **story** is the unit of work Jig executes and lands: one reviewable change with its own
+done conditions. An [execution plan](./jig.md#the-execution-plan--jigs-one-input) is a set of
+stories. (The engineering design sometimes calls this unit a *task*; at product altitude they
+are the same thing — the unit Jig schedules, runs, and lands.)
+
+Stories declare **dependencies** on one another. Jig keeps a story ineligible until its
+prerequisites have landed, so work never starts out of order, and a blocked story halts its
+downstream dependents while independent stories keep moving (see guarantee 3, ISO-1).
+
+The decomposition nests cleanly:
+
+- a **track** is one independent line of work and carries one **plan**;
+- a **plan** is a set of **stories** with their declared dependencies;
+- a **story** is one landed change with its own done conditions;
+- **policy** and **work profile** are set per track and govern how its stories run.
+
+## Story outcomes
+
+Every story reaches one product-visible outcome. The full internal lifecycle is design's to
+define; the states an owner sees and acts on are:
+
+- **landed** — merged, on evidence that satisfied policy;
+- **done** — evidence is met, but the merge is still pending. Branch protection, a merge queue,
+  or a conflict can hold a done story (see guarantee 1, MERGE-4);
+- **parked** — waiting on an owner decision, such as an approval at the doorbell;
+- **blocked** — cannot proceed; the reason is recorded;
+- **stopped** — the run was halted cleanly and can be resumed later.

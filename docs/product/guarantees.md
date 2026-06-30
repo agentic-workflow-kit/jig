@@ -52,6 +52,13 @@ self-report. Jig is responsible for keeping the authority boundary real.
 
 ### 1.5 Merge-on-evidence
 
+**What counts as evidence.** At product altitude, evidence falls into three categories: (a)
+**automated checks** — tests, builds, linters, and gates the runner observes directly, never
+taken from the worker's word; (b) **review** — an approval from a human or delegated reviewer
+the policy requires; and (c) **capability proof** — fresh attestation that a driver can safely
+perform what is being trusted (see [earned trust](#12-earned-trust--capability-attestation)).
+Policy decides which categories, and how much of each, a story needs before it may land.
+
 - **MERGE-1.** Completing and landing work requires independent evidence aligned to the policy,
   never the worker's self-report alone.
 - **MERGE-2.** Push, PR creation, and merge are runner authority. The thing that writes code is

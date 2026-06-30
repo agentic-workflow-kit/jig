@@ -75,6 +75,28 @@ move — not a free-form conversation with an agent.
 You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
 software.
 
+## The execution plan — Jig's one input
+
+Jig's only hard input is a valid **execution plan** (together with a policy). Everything
+upstream is optional; whatever produced the plan, Jig runs the plan.
+
+At product altitude, an execution plan carries:
+
+- a set of **stories** — the units of work Jig delivers and lands (defined in
+  [concepts](./concepts.md#stories--the-unit-of-work));
+- the **dependencies** between them — so Jig runs work in a safe order and never starts a story
+  before its prerequisites land;
+- each story's **done conditions** — the evidence that must hold before that story may land. The
+  owner sets these through policy (see [Merge-on-evidence](./guarantees.md#15-merge-on-evidence)).
+
+The plan is one artifact per track. Its exact schema is design's to define; what it must
+*carry* is the product contract above.
+
+**Producing a plan.** You can author a plan directly — it is a structured artifact, not a
+conversation with an agent — or generate it with the upstream supporting products
+(define-product → design → plan). Those products are strong defaults that make planning easier;
+Jig requires only the finished plan, however you arrived at it.
+
 ## The five guarantees
 
 These are the outcome-level commitments Jig makes. Each has a full, ID-bearing specification —
