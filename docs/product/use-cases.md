@@ -19,7 +19,7 @@ supervising each one. You set a cautious policy posture and point Jig at the pla
 stories that are ready, in parallel up to the limit you set, and lands each one **only on real
 evidence** — never on the agent's say-so. One story tries to change a file that governs your
 safety rules; Jig **pauses it and asks you**, rather than quietly merging. Another fails its
-checks; Jig **stops it and records why**, without holding up the independent stories.
+checks; Jig **blocks it and records why**, without holding up the independent stories.
 
 By morning: nine landed with evidence you can replay, two waiting on a decision only you should
 make, one blocked with a reason. **You spent your judgment on the two decisions that mattered —
@@ -61,7 +61,7 @@ costs you the time since the last checkpoint — not the run.**
 _Shows guarantee 4 — runs against your stack._
 
 You want to move a track from one coding agent to another — a new model, a different vendor,
-your own in-house runner. You change the agent in that track's work profile; the policy, the
+your own in-house agent. You change the agent in that track's work profile; the policy, the
 gates, and the evidence bar stay exactly as they were. Before the new agent earns any autonomy,
 Jig makes it **prove** the capabilities it claims; until it does, you get more checkpoints, not
 weaker guarantees. **You change who does the work without renegotiating what "safe" means.**
