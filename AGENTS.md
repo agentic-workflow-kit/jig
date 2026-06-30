@@ -37,7 +37,8 @@ reference for lessons only, never an authority.
   exists, work is test-driven — 90% coverage minimum, aim 95%.
 - **`main`-based:** branch from `main`, PR into it, green `check` required, review conversations
   resolved, squash-merge. Conventional commit subjects (`feat:`/`fix:`/`docs:`/…); no
-  attribution footers.
+  attribution footers. Worktrees for non-trivial work are external siblings of this checkout —
+  never nested inside it.
 - **No emojis** anywhere. **Immutability** — return new values, don't mutate inputs. Handle
   errors explicitly and validate external input at boundaries. Diagrams in Mermaid, inline. No
   hardcoded secrets — credentials via environment only; redact secrets, tokens, and PII in logs;
