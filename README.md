@@ -3,50 +3,68 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status: early / planned](https://img.shields.io/badge/status-early%20%2F%20planned-f5a623.svg)](#status)
 
-> The productized face of the agentic-workflow-kit suite: a cohesive product surface for the main
-> package, supporting products, and learning loop.
+> The deterministic execution engine of the agentic-workflow-kit suite: give it an approved
+> plan and a policy, and it turns that plan into reviewed, landed work — or a deliberate,
+> inspectable stop.
 
-`jig` is planned as the approachable entry point for the broader agentic software-development
-lifecycle. It will package the product experience around the suite: what to run, what artifacts to
-expect, how the layers compose, and how learning from previous runs improves future work.
+`jig` is the tool you run (`jig`, the package `@agentic-workflow-kit/jig`). You hand it an
+**execution plan** and a **policy**; it delivers the work as far as the policy allows, pulls
+you in for the decisions only you should make, and lands changes **only on evidence** — never
+on the agent's say-so. When work shouldn't continue, it stops in a named, recoverable state.
+
+It exists because long-running agentic delivery breaks at the seams — control, trust,
+recovery, and integration. Jig keeps the parts only a human should own (direction, policy,
+risky calls) and delegates the rest under guarantees you can inspect.
 
 ## Status
 
-> 🚧 Early / planned. Real product content will arrive by porting in the product layer. This repository
-> is intentionally scaffolded first so the public project shape, license, and contribution surfaces are
-> ready before implementation begins.
+> 🚧 Early. The **product layer is drafted** (see [`docs/product/`](docs/product/)); the
+> engineering design and implementation are being built **fresh in this repo** next. This
+> repository is the canonical home for Jig going forward.
 
-## What It Will Become
+## What Jig promises
 
-`jig` is the product layer that makes the suite feel coherent rather than like a pile of independent
-skills. It is expected to connect:
+Five guarantees, in plain terms — the full contract is in
+[`docs/product/jig.md`](docs/product/jig.md):
 
-- product intent and PRD authoring;
-- technical design through [`technical-design`](https://github.com/agentic-workflow-kit/technical-design);
-- delivery planning and orchestrated implementation;
-- a learning loop that turns run outcomes into better future guidance.
+1. **Control & trust** — the worker only does what you authorized, earns autonomy by proof,
+   can't weaken its own guardrails, and never ships on its own assertion.
+2. **You own the configuration** — policy expresses risk and safety; the work profile
+   expresses how work gets done; both are per-track and legible.
+3. **Never lose work; resume safely** — progress survives interruption, irreversible actions
+   aren't repeated, and one blocked story doesn't sink independent work.
+4. **Runs against your stack** — agents, execution hosts, forges, and work sources sit behind
+   swappable seams; weak drivers reduce autonomy rather than weakening guarantees.
+5. **See everything** — every governed decision and outcome is captured in durable, structured
+   records you and your tools can inspect.
 
-## Why It Exists
+## Documentation
 
-Agentic development workflows are most useful when they are explicit about stage, ownership, and
-artifact boundaries. `jig` is where those pieces become a product: a guided surface that can help a
-team move from intent to design to delivery without blurring the stages together.
+| Doc | What it covers |
+|---|---|
+| [docs/product/jig.md](docs/product/jig.md) | **Canonical product page** — audience, job, promise, workflow, guarantees, boundaries. |
+| [docs/product/concepts.md](docs/product/concepts.md) | Product concepts — starting with **tracks**. |
+| [docs/design/](docs/design/) | Engineering design — *how* the promises are met. _(Next step.)_ |
 
-## Relationship to the Org
+## Relationship to the suite
 
-`jig` lives inside [`agentic-workflow-kit`](https://github.com/agentic-workflow-kit), a polyrepo
-ecosystem of standalone layers. Each repo should be useful on its own, while still composing into the
-larger lifecycle.
+`jig` lives inside [`agentic-workflow-kit`](https://github.com/agentic-workflow-kit), a
+polyrepo family of standalone, composable products spanning an agentic software-development
+lifecycle. **Jig is the delivery/execution stage** — it runs where planning ends. The upstream
+products (product definition, technical design, planning) are **peers** that produce Jig's
+input; they're strong defaults, not prerequisites. Jig's one hard input boundary is a valid
+execution plan.
 
 ```text
 PRODUCT ---------> DESIGN ----------> DELIVERY --------> LEARNING
-jig               technical-design   planned layer      planned loop
+define / PRD      technical-design   jig (run)          planned loop
 ```
 
 ## Contributing
 
-This repository is early. Small docs fixes and focused issue reports are welcome, but substantial
-product or API proposals should start as an issue before a pull request.
+This repository is early. Small docs fixes and focused issue reports are welcome, but
+substantial product or API proposals should start as an issue before a pull request. See the
+org-wide [contribution guidelines](https://github.com/agentic-workflow-kit/.github/blob/main/CONTRIBUTING.md).
 
 ## License
 
