@@ -42,7 +42,9 @@ Five guarantees, in plain terms — the full contract is in
 
 | Doc | What it covers |
 |---|---|
-| [docs/product/jig.md](docs/product/jig.md) | **Canonical product page** — audience, job, promise, workflow, guarantees, boundaries. |
+| [docs/product/jig.md](docs/product/jig.md) | **Product hub** — audience, job, promise, workflow, guarantee summary, boundaries. Start here. |
+| [docs/product/guarantees.md](docs/product/guarantees.md) | The five guarantees in full, ID-bearing detail. |
+| [docs/product/use-cases.md](docs/product/use-cases.md) | Worked scenarios that make each guarantee concrete. |
 | [docs/product/concepts.md](docs/product/concepts.md) | Product concepts — starting with **tracks**. |
 | [docs/design/](docs/design/) | Engineering design — *how* the promises are met. _(Next step.)_ |
 
