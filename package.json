@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@11.5.1",
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "scripts": {
     "format": "prettier --write \"**/*.{md,yml,yaml,json}\"",
