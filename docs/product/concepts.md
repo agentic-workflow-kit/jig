@@ -54,7 +54,7 @@ in a repo.
 
 A **story** is the unit of work Jig executes and lands: one reviewable change with its own
 done conditions. An [execution plan](./jig.md#the-execution-plan--jigs-one-input) is a set of
-stories. (The engineering design sometimes calls this unit a *task*; at product altitude they
+stories. (The engineering design sometimes calls this unit a _task_; at product altitude they
 are the same thing — the unit Jig schedules, runs, and lands.)
 
 Stories declare **dependencies** on one another. Jig keeps a story ineligible until its
@@ -75,7 +75,7 @@ safe:
 
 - The **worker** is the contained coding agent — the thing that reads a story, writes code, and
   runs checks. It is the **Agent** seam, executing inside the **Execution Host** seam. The worker
-  is *contained*: it never holds privileged credentials and cannot push, open a PR, merge, or
+  is _contained_: it never holds privileged credentials and cannot push, open a PR, merge, or
   widen its own authority.
 - The **runner** is Jig's own trusted component. It holds privileged authority — credentials, and
   the power to push, open PRs, and merge — and performs those irreversible actions on the worker's
@@ -97,11 +97,11 @@ A **story** ends in one terminal outcome, or sits in the one transient waiting s
 - **done** — evidence is met, but the merge is still pending. Branch protection, a merge queue,
   or a conflict can hold a done story (see guarantee 1, MERGE-4);
 - **rejected** — the owner declined the story at the doorbell. Terminal and on the record; it is
-  not resumed. (Distinct from *blocked* — Jig finding the work cannot proceed — and from
-  *stopped*, which pauses the whole run rather than ending a story.);
+  not resumed. (Distinct from _blocked_ — Jig finding the work cannot proceed — and from
+  _stopped_, which pauses the whole run rather than ending a story.);
 - **blocked** — cannot proceed; the reason is recorded;
 - **parked** _(transient)_ — waiting on an owner decision, such as an approval at the doorbell. A
-  parked story resumes when the owner approves, or becomes *rejected* if they decline.
+  parked story resumes when the owner approves, or becomes _rejected_ if they decline.
 
 **stopped** is a **run**-level state, not a story outcome: the whole run was halted cleanly.
 Stories that had not yet reached a terminal outcome stay where they were and resume from their

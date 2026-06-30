@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+.git/
+dist/
+build/
+coverage/
+.turbo/
+.next/
+.vite/
+.vitest/
+.cache/
+.codex/
+.claude/
+pnpm-lock.yaml

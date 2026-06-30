@@ -22,6 +22,20 @@ risky calls) and delegates the rest under guarantees you can inspect.
 > engineering design and implementation are being built **fresh in this repo** next. This
 > repository is the canonical home for Jig going forward.
 
+## Development
+
+This repository currently has a tooling-only package. It validates the docs and repo metadata; it
+does not publish `@agentic-workflow-kit/jig` yet and intentionally has no package exports or CLI
+entry point.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm check
+```
+
+`pnpm check` is the required local and CI gate. The CI workflow exposes a job named `check` for pull
+requests and pushes to `main`.
+
 ## What Jig promises
 
 Five guarantees, in plain terms — the full contract is in
@@ -40,13 +54,13 @@ Five guarantees, in plain terms — the full contract is in
 
 ## Documentation
 
-| Doc | What it covers |
-|---|---|
-| [docs/product/jig.md](docs/product/jig.md) | **Product hub** — audience, job, promise, workflow, guarantee summary, boundaries. Start here. |
-| [docs/product/guarantees.md](docs/product/guarantees.md) | The five guarantees in full, ID-bearing detail. |
-| [docs/product/use-cases.md](docs/product/use-cases.md) | Worked scenarios that make each guarantee concrete. |
-| [docs/product/concepts.md](docs/product/concepts.md) | Product concepts — starting with **tracks**. |
-| [docs/design/](docs/design/) | Engineering design — *how* the promises are met. _(Next step.)_ |
+| Doc                                                      | What it covers                                                                                 |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [docs/product/jig.md](docs/product/jig.md)               | **Product hub** — audience, job, promise, workflow, guarantee summary, boundaries. Start here. |
+| [docs/product/guarantees.md](docs/product/guarantees.md) | The five guarantees in full, ID-bearing detail.                                                |
+| [docs/product/use-cases.md](docs/product/use-cases.md)   | Worked scenarios that make each guarantee concrete.                                            |
+| [docs/product/concepts.md](docs/product/concepts.md)     | Product concepts — starting with **tracks**.                                                   |
+| [docs/design/](docs/design/)                             | Engineering design — _how_ the promises are met. _(Next step.)_                                |
 
 ## Relationship to the suite
 

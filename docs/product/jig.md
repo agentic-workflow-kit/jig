@@ -22,14 +22,14 @@ design and delivery planning own how those promises are implemented and verified
 
 ## Product Spine
 
-| Question | Product answer |
-|---|---|
-| User | An owner/operator with product and design judgment who cannot safely supervise every agent action manually. |
-| Job | Turn an approved execution plan into reviewed, landed work while preserving human control. |
-| Current alternative | A chain of one-off agent sessions, manual PR and review follow-up, ad hoc notes, and fragile recovery. |
-| Before | The owner cannot tell whether the agent stayed inside policy, what evidence justified a merge, or how to resume safely after interruption. |
-| After | The owner delegates execution under policy and receives evidence, escalation points, recovery, and a reconstructible outcome. |
-| Non-fit | Jig is not a product-definition tool, a design authoring tool, an LLM project manager, or a way to bypass review judgment. |
+| Question            | Product answer                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| User                | An owner/operator with product and design judgment who cannot safely supervise every agent action manually.                                |
+| Job                 | Turn an approved execution plan into reviewed, landed work while preserving human control.                                                 |
+| Current alternative | A chain of one-off agent sessions, manual PR and review follow-up, ad hoc notes, and fragile recovery.                                     |
+| Before              | The owner cannot tell whether the agent stayed inside policy, what evidence justified a merge, or how to resume safely after interruption. |
+| After               | The owner delegates execution under policy and receives evidence, escalation points, recovery, and a reconstructible outcome.              |
+| Non-fit             | Jig is not a product-definition tool, a design authoring tool, an LLM project manager, or a way to bypass review judgment.                 |
 
 ## Workflow
 
@@ -96,7 +96,7 @@ At product altitude, an execution plan carries:
   owner sets these through policy (see [Merge-on-evidence](./guarantees.md#15-merge-on-evidence)).
 
 The plan is one artifact per track. Its exact schema is design's to define; what it must
-*carry* is the product contract above.
+_carry_ is the product contract above.
 
 **Producing a plan.** You can author a plan directly — it is a structured artifact, not a
 conversation with an agent — or generate it with the upstream supporting products

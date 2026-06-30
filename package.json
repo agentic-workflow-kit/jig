@@ -1,0 +1,20 @@
+{
+  "name": "@agentic-workflow-kit/jig-repo",
+  "version": "0.0.0",
+  "description": "Repository tooling for Jig, the agentic-workflow-kit delivery engine.",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "format": "prettier --write \"**/*.{md,yml,yaml,json}\"",
+    "format:check": "prettier --check \"**/*.{md,yml,yaml,json}\"",
+    "lint": "pnpm format:check",
+    "check": "pnpm lint"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}

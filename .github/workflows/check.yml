@@ -1,0 +1,44 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    env:
+      PNPM_STORE_DIR: ${{ github.workspace }}/.pnpm-store
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: .pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm --store-dir "$PNPM_STORE_DIR" install --frozen-lockfile
+
+      - name: check
+        run: pnpm --config.store-dir="$PNPM_STORE_DIR" check
