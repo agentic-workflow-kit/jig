@@ -1,0 +1,31 @@
+{
+  "plan": {
+    "id": "plan-minimal-local",
+    "version": "execution-plan-shape-v0",
+    "title": "Minimal Local Plan",
+    "track": {
+      "id": "local-track",
+      "policyRef": "test/fixtures/m5b-local-mvp/local-policy.json",
+      "workProfileRef": "local-work-profile",
+      "repoFloorRef": "local-floor"
+    },
+    "stories": [
+      {
+        "id": "STORY-1",
+        "title": "Minimal Story",
+        "intent": "Execute one local work item",
+        "scope": ["."],
+        "dependsOn": [],
+        "doneEvidence": [
+          {
+            "category": "automated-check",
+            "name": "scripted-check"
+          }
+        ]
+      }
+    ],
+    "constraints": {
+      "maxParallelStories": 1
+    }
+  }
+}

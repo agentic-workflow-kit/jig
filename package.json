@@ -16,6 +16,9 @@
       "onFail": "warn"
     }
   },
+  "bin": {
+    "jig": "bin/jig.js"
+  },
   "scripts": {
     "dev:setup": "bash scripts/dev-setup.sh",
     "worktree:new": "bash scripts/worktree-new.sh",
@@ -24,9 +27,13 @@
     "format:check": "prettier --check \"**/*.{md,yml,yaml,json}\"",
     "lint": "pnpm format:check",
     "delivery:check": "node scripts/check-delivery-foundation.mjs",
-    "check": "pnpm lint && pnpm delivery:check"
+    "check": "pnpm lint && pnpm delivery:check && pnpm test",
+    "test": "node --test test/*.test.js",
+    "coverage": "c8 node --test test/*.test.js"
   },
   "devDependencies": {
+    "c8": "^11.0.0",
+    "glob": "^13.0.6",
     "prettier": "^3.6.2"
   }
 }

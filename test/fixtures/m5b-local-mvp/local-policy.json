@@ -1,0 +1,8 @@
+{
+  "policy": {
+    "id": "local-dry-run-policy",
+    "rules": {
+      "allowLocalDryRun": true
+    }
+  }
+}

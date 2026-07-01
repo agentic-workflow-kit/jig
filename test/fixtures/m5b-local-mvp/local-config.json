@@ -1,0 +1,10 @@
+{
+  "runner": {
+    "mode": "local-dry-run",
+    "recordDir": "runs"
+  },
+  "drivers": {
+    "agent": "scripted-stub",
+    "executionHost": "local"
+  }
+}
