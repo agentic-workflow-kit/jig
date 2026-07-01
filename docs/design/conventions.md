@@ -140,8 +140,9 @@ not:**
 
 - **`INV` is not shared between two different kinds — "invariant IDs" and "the `INV` handoff
   category" are two descriptions of the same ledger.** The brief's kind (b) ("invariant IDs") and
-  kind (c) ("`INV` as the handoff category for invariants") both name `notes/runtime-design-m5a.md`'s
-  one `INV-001..008` table. There is exactly one `INV` ledger; "invariant ID" and "`INV` handoff
+  kind (c) ("`INV` as the handoff category for invariants") both name
+  `notes/runtime-design-m5a.md`'s one `INV-*` ledger. There is exactly one `INV` ledger; "invariant
+  ID" and "`INV` handoff
   category" are two names for looking at the same rows (an invariant, as a fact about the system,
   and a handoff category, as a slot in the Planner Handoff Summary table, are the same table row
   seen from two purposes). This is co-reference, not collision — nothing here needs disambiguating
