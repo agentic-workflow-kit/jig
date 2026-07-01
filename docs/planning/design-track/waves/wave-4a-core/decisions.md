@@ -95,3 +95,8 @@ distorted source quotes. One disposition recorded:
   **Disposition: fix.** `records.md` must state that Records owns the store shape, consistency model,
   and invariants, while Bootstrap owns constructing and wiring the store at launch, including the
   first binding-record append, without redesigning Bootstrap.
+- **D-010** — `w4-s2` build-time review S-001 (agreement-integrity, **recommended**): the
+  plan/policy/evidence design named Wave 4b execution-host framing only generically, while the story
+  requires the downstream consumer to be citable as `w4-s6-execution-host`.
+  **Disposition: fix.** `plan-intake.md` must name `w4-s6-execution-host` directly as the
+  frame-time consumer of the evidence/attestation model.
