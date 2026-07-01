@@ -35,22 +35,46 @@ governed in [`../core/`](../core/README.md).
   scheduling input; the Work source seam never bypasses the plan.
 
 ```mermaid
-flowchart LR
-    Core["Jig-core"]
-    Agent["Agent port<br/>(scripted-worker stub built)"]
-    Host["Execution host port<br/>(named extension point)"]
-    Forge["Forge port<br/>(named extension point)"]
-    Source["Work source port<br/>(named extension point)"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    Core --> Agent
-    Core --> Host
-    Core --> Forge
-    Core --> Source
+  core("`**Jig-core**`")
+  agent("`**Agent port**
+scripted-worker stub built`")
+  host("`**Execution host port**
+named extension point`")
+  forge("`**Forge port**
+named extension point`")
+  source("`**Work source port**
+named extension point`")
 
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    class Core core;
-    class Agent,Host,Forge,Source seam;
+  core --> agent
+  core --> host
+  core --> forge
+  core --> source
+
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef seamBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  class core coreBox;
+  class agent,host,forge,source seamBox;
 ```
 
 ## Notes

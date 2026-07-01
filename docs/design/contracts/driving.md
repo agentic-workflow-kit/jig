@@ -25,26 +25,49 @@ provider contracts — it only calls into [`../core/`](../core/README.md).
   a tool), or embedding software, respectively.
 
 ```mermaid
-flowchart LR
-    Term["Consumer: terminal"]
-    Tool["Consumer: your own agent via MCP"]
-    Embed["Consumer: embedding software"]
-    Adapter["Operator-surface adapter<br/>CLI / MCP / SDK"]
-    Call["One control-plane call<br/>+ one audit event"]
-    Core["Jig-core"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    Term --> Adapter
-    Tool --> Adapter
-    Embed --> Adapter
-    Adapter --> Call
-    Call --> Core
+  term("`**Terminal**`")
+  tool("`**Your own agent**
+via MCP`")
+  embed("`**Embedding software**`")
+  adapter("`**Operator-surface adapter**
+CLI / MCP / SDK`")
+  onecall("`**One control-plane call**
++ one audit event`")
+  core("`**Jig-core**`")
 
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Core core;
-    class Adapter,Call seam;
-    class Term,Tool,Embed neutral;
+  term --> adapter
+  tool --> adapter
+  embed --> adapter
+  adapter --> onecall
+  onecall --> core
+
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef seamBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  class core coreBox;
+  class adapter,onecall seamBox;
+  class term,tool,embed commonBox;
 ```
 
 ## Notes

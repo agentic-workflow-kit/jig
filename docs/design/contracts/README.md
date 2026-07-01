@@ -25,37 +25,56 @@ behind all three lives in [`../core/`](../core/README.md); core is not a seam.
 This file is an index, not a port; see the linked files for the ports each boundary kind owns.
 
 ```mermaid
-flowchart LR
-    subgraph Driving["Driving"]
-        CLI["CLI / MCP / SDK"]
-    end
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    subgraph Data["Data"]
-        PlanIn["Execution-plan contract<br/>(in)"]
-        RecordsOut["Observability-records contract<br/>(out)"]
-    end
+  core("`**core/**
+the trusted runner`")
 
-    subgraph Providers["Providers"]
-        Agent["Agent"]
-        Host["Execution host"]
-        Forge["Forge"]
-        Source["Work source"]
-    end
+  subgraph driving["Driving — how consumers call jig"]
+    direction LR
+    cli("`**CLI / MCP / SDK**`")
+  end
 
-    Core["../core/"]
+  subgraph data["Data contracts — in and out"]
+    direction LR
+    planin("`**Execution-plan**
+in`") ~~~ recordsout("`**Observability-records**
+out`")
+  end
 
-    Driving --> Core
-    PlanIn --> Core
-    Core --> RecordsOut
-    Agent --- Core
-    Host --- Core
-    Forge --- Core
-    Source --- Core
+  subgraph providers["Providers — four swappable seams"]
+    direction LR
+    agent("`**Agent**`") ~~~ host("`**Execution host**`") ~~~ forge("`**Forge**`") ~~~ source("`**Work source**`")
+  end
 
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    class Core core;
-    class CLI,PlanIn,RecordsOut,Agent,Host,Forge,Source seam;
+  driving --> core
+  planin --> core
+  core --> recordsout
+  providers --- core
+
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef seamBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  class core coreBox;
+  class cli,planin,recordsout,agent,host,forge,source seamBox;
 ```
 
 ## Notes
