@@ -25,6 +25,7 @@ shape, not a frozen schema; **log / archive** = decision records and reference m
 | Design charter      | [`charter.md`](./charter.md)                                              | overview    | —                                                        |
 | Conventions         | [`conventions.md`](./conventions.md)                                      | overview    | —                                                        |
 | Core overview       | `core/README.md`                                                          | overview    | —                                                        |
+| Domain model        | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md)  | **stub**    | `review-technical-design` pass                           |
 | Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md` | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
 | Contracts overview  | `contracts/README.md`                                                     | overview    | —                                                        |
 | Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`        | contract v0 | field-level schema (intentionally not frozen)            |

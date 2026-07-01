@@ -265,6 +265,8 @@ or stopped`")
 | Repo-level floors | Repo-scoped policy every track inherits; a track may tighten but never weaken; changing it is itself governed.                                                                                              | CFG-3                  |
 | Work profile      | The realization: model, effort, prompt strategy, role realization. Freely tunable — it never lowers the safety floor.                                                                                       | CFG-2                  |
 
+The domain model of this group — each entity's owns / reads / does-not-own, the Track-level relations, and the lifecycle terms it carries — is authored in [`../domain/configuration-and-work.md`](../domain/configuration-and-work.md).
+
 ### B. Jig-core — the trusted runner (governs the seams)
 
 | Entity                 | Responsibility (owns)                                                                                                                                                                                                                       | Product IDs                               |
