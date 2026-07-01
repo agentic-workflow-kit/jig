@@ -77,6 +77,13 @@ Design reconciles _to_ the product layer. The current design maps back to the ID
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
 found. No product conflicts are known.
 
+## Planning track
+
+The deep-design pass is organized under
+[the planning design track](../planning/design-track/README.md). That planning layer sequences the
+authoring work and records traceability; it does **not** mean the stubbed design files below are
+already complete.
+
 ## Deferred
 
 - field-level JSON Schema or TypeScript interfaces;
