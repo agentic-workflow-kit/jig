@@ -99,16 +99,16 @@ surfaces** as the framing units for later authoring.
 
 ### Relations
 
-| From                                  | Relation             | To                                                            | Notes                                                                                                                          |
-| ------------------------------------- | -------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Implementation sequencing surface     | orders               | Core realization phase surface                                | Core implementation comes first because bootstrap, runner, records, authorization, and plan intake define the executable spine |
-| Implementation sequencing surface     | orders after         | Provider realization phase surface                            | Provider realizations follow the core spine and consume its contracts read-only                                                |
-| Implementation sequencing surface     | carries forward into | Hardening and gate surface                                    | Later phases convert red-team, contract, and proof expectations into delivery gates                                            |
-| Core realization phase surface        | preserves            | Execution-plan and observability-records contract v0 surfaces | These are cited seam contracts, not locally frozen or redesigned                                                               |
-| Provider realization phase surface    | implements against   | Wave 3 ports + Wave 4a core contracts                         | Provider work must not redefine core policy/evidence/authorization/state semantics                                             |
-| Hardening and gate surface            | pressure-tests       | Core and provider realizations                                | Uses Wave 5 red-team posture, contract checks, golden traces, and conformance expectations as gates                            |
-| Future delivery track                 | consumes             | Wave 6 story output                                           | Wave 6 hands off sequencing; it does not execute delivery itself                                                               |
-| U9 collector (forward reference only) | later collects       | Traceability and review/red-team integration                  | Wave 6 keeps these obligations visible but does not author them                                                                |
+| From                               | Relation             | To                                                            | Notes                                                                                                                          |
+| ---------------------------------- | -------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Implementation sequencing surface  | orders               | Core realization phase surface                                | Core implementation comes first because bootstrap, runner, records, authorization, and plan intake define the executable spine |
+| Implementation sequencing surface  | orders after         | Provider realization phase surface                            | Provider realizations follow the core spine and consume its contracts read-only                                                |
+| Implementation sequencing surface  | carries forward into | Hardening and gate surface                                    | Later phases convert red-team, contract, and proof expectations into delivery gates                                            |
+| Core realization phase surface     | preserves            | Execution-plan and observability-records contract v0 surfaces | These are cited seam contracts, not locally frozen or redesigned                                                               |
+| Provider realization phase surface | implements against   | Wave 3 ports + Wave 4a core contracts                         | Provider work must not redefine core policy/evidence/authorization/state semantics                                             |
+| Hardening and gate surface         | pressure-tests       | Core and provider realizations                                | Uses Wave 5 red-team posture, contract checks, golden traces, and conformance expectations as gates                            |
+| Future delivery track              | consumes             | Wave 6 story output                                           | Wave 6 hands off sequencing; it does not execute delivery itself                                                               |
+| U9 collector                       | collects             | Traceability and review/red-team integration                  | Wave 6 keeps these obligations visible but does not author them                                                                |
 
 ### Seams and External Boundaries
 

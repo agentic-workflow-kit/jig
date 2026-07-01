@@ -81,10 +81,9 @@ implements against Wave 3's Execution host port and consumes Wave 4a's core cont
   DRIVE-3 (honest containment reporting; stronger-isolation powers unlock only when genuinely strong
   enough), ISO-4 (each run works in its own isolated workspace), STACK-1/2/4/5, EARN-1/2 this provider
   reconciles to.
-- [`../../README.md`](../../README.md) — the track charter's wave table: "Wave 5 — red team:
+- [`../../README.md`](../../../README.md) — the track charter's wave table: "Wave 5 — red team:
   Adversarially probe the design settled by Waves 1-4 for gaps, contradictions, and under-specified
-  authority" — the only extant reference to the red-team wave; no `wave-5-red-team/` directory or
-  `review-and-red-team.md` file exists on disk yet (both are forward references).
+  authority," plus the U9 collector that records scope/routing without inventing findings.
 - `docs/design/notes/runtime-design-m5a.md` — `SURF-006` (`ExecutionHostPort` defined at design
   altitude, no adapter in M5b — a named extension point) — kept a namespace distinct from `INV-*` and
   product IDs.
@@ -127,13 +126,11 @@ The five durable deliverable types this session must produce:
   owns the design posture and the proof requirement/seed** — outbound network access must be confined
   and the confinement _proven_ (not self-reported); it names the isolation-strength categories a host
   self-reports against and seeds what a proof must demonstrate, supplied as an attestation claim into
-  `w4-s2`'s evidence model. **(2) Wave 5 (red team, future)** authors the full adversarial phone-home
+  `w4-s2`'s evidence model. **(2) Wave 5 (red team)** authors the full adversarial phone-home
   scenario — the attack surface, probe sequence, and gap analysis stress-testing whether the proof
-  requirement suffices. **(3) A future U9's `review-and-red-team.md`** collects Wave 5's findings
-  alongside this part's design posture into one integration-level record. Wave 5 and the collector
-  file do not exist on disk yet; name them as **forward references to planned coordinator artifacts**
-  (consistent with how Wave 4a named `w4-s6` before Wave 4b existed) — this session does **not** author
-  the scenario or the collector.
+  requirement suffices. **(3) U9's `review-and-red-team.md`** collects Wave 5's findings alongside
+  this part's design posture into one integration-level record. This session does **not** author the
+  scenario or the collector, and it does not assert findings Wave 5 has not produced.
 - How does the containment proof frame **against** `w4-s1`'s records/evidence surface (the capability
   event family) and `w4-s2`'s EARN-2 attestation model — as a **supplied claim** — while the
   **guardrail** holds: the host owns the mechanism, proof, and honest report, and does **not** own
@@ -166,9 +163,9 @@ The five durable deliverable types this session must produce:
   redefine `w4-s3`'s freshness/sufficiency judgment (EARN-1/2), `w4-s2`'s evidence-category taxonomy,
   or `w4-s1`'s log consistency model. The host **proves and reports**; core **judges and records**.
 - **The Wave 5 red-team scenario** — this part owns the SEC-2 design posture and proof requirement/
-  seed only (D-003); the full adversarial phone-home scenario is **Wave 5**'s, and its collection is a
-  future **U9** `review-and-red-team.md` concern. This session names them as forward references; it
-  does not author the scenario or the collector.
+  seed only (D-003); the full adversarial phone-home scenario is **Wave 5**'s, and its collection is
+  **U9** `review-and-red-team.md`'s concern. This session does not author the scenario or the
+  collector.
 - **ISO-4's scheduling/eligibility discipline** — that stays **Wave 2's**. This part owns the host's
   isolated-workspace-per-run **mechanism**, not which work is eligible to run in parallel.
 - The **Agent port's own request/observe behavior** — that is `w4-s5`. This session states only that
@@ -200,8 +197,8 @@ The five durable deliverable types this session must produce:
   the containment mechanism, proof, and honest report; it does **not** re-own `w4-s3`'s judgment,
   `w4-s2`'s taxonomy, or `w4-s1`'s log model — all cited read-only.
 - The **SEC-2 three-way boundary** (this part / Wave 5 / U9's `review-and-red-team.md`) is stated in
-  a form consistent with D-003 and the frame, naming Wave 5 and the collector as forward references
-  to not-yet-existing artifacts.
+  a form consistent with D-003 and the frame, naming Wave 5 and the collector as current
+  planning-track/U9 artifacts without asserting future findings.
 - The **s6 ↔ s5 containment seam** is stated **consistently** with `w4-s5`'s story; the **boundary-rule
   statement** is present (implements against Wave 3's port; consumes Wave 4a read-only; supplies a
   proof, `w4-s3` judges, `w4-s1` records).

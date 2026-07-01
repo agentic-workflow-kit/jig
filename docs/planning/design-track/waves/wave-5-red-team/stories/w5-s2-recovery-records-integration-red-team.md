@@ -205,5 +205,5 @@ This session runs the technical-design method itself:
    into this wave's decisions.md; settled = zero open blocking suggestions.
 
 Handoff: when settled, update status and hand the routed findings forward to the owning Wave 2 / Wave
-4a / product surfaces or the future U9 collector as appropriate; preserve `INV-003`, `INV-006`, and
-the read-only `INV-009`+ candidate posture exactly in the final probe outputs.
+4a / product surfaces or the U9 collector as appropriate; preserve `INV-003`, `INV-006`, and the
+read-only `INV-009`+ candidate posture exactly in the final probe outputs.

@@ -93,19 +93,17 @@ over its authored design docs.
 
 ## Wave table
 
-| Wave                                                                      | Purpose                                                                                                                |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [Wave 0 — design charter & conventions](./waves/wave-0-charter/README.md) | Establish this track's charter and the shared conventions/ledgers later waves build on. Scaffold/method; no jig frame. |
-| Wave 1 — domain model                                                     | Deepen jig's entity and domain model beyond the `core/README.md` overview.                                             |
-| Wave 2 — state machines                                                   | Deepen the run and story state machines named in `core/README.md` and `runtime-design-m5a.md`.                         |
-| Wave 3 — ports                                                            | Deepen the four driver-seam ports and the operator/control-plane surfaces.                                             |
-| Wave 4a — core parts                                                      | Deepen core: records, plan/policy/evidence, authority, bootstrap.                                                      |
-| Wave 4b — provider parts                                                  | Deepen the provider seams: agent, execution-host, forge, work-source — implemented against Wave 3's ports.             |
-| Wave 5 — red team                                                         | Adversarially probe the design settled by Waves 1–4 for gaps, contradictions, and under-specified authority.           |
-| Wave 6 — implementation phasing                                           | Sequence the settled design into implementation-ready phases (handoff to a future delivery track, not code itself).    |
-
-Waves 1–6 are named here for context; this unit (Wave 0) does not author their charters or
-stories. Each wave's own charter and stories are authored when that wave starts.
+| Wave                                                                               | Purpose                                                                                                             |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [Wave 0 — design charter & conventions](./waves/wave-0-charter/README.md)          | Establish this track's charter and the shared conventions/ledgers later waves build on. Scaffold/method; no frame.  |
+| [Wave 1 — domain model](./waves/wave-1-domain/README.md)                           | Deepen jig's entity and domain model beyond the `core/README.md` overview.                                          |
+| [Wave 2 — state machines](./waves/wave-2-state-machines/README.md)                 | Deepen the run and story state machines named in `core/README.md` and `runtime-design-m5a.md`.                      |
+| [Wave 3 — ports](./waves/wave-3-ports/README.md)                                   | Deepen the four driver-seam ports and the operator/control-plane surfaces.                                          |
+| [Wave 4a — core parts](./waves/wave-4a-core/README.md)                             | Deepen core: records, plan/policy/evidence, authority, bootstrap.                                                   |
+| [Wave 4b — provider parts](./waves/wave-4b-providers/README.md)                    | Deepen the provider seams: agent, execution-host, forge, work-source — implemented against Wave 3's ports.          |
+| [Wave 5 — red team](./waves/wave-5-red-team/README.md)                             | Adversarially probe the design settled by Waves 1–4 for gaps, contradictions, and under-specified authority.        |
+| [Wave 6 — implementation phasing](./waves/wave-6-implementation-phasing/README.md) | Sequence the settled design into implementation-ready phases (handoff to a future delivery track, not code itself). |
+| [U9 — integration artifacts](./waves.md)                                           | Carry the cross-wave rollup, dependency graph, traceability matrix, and review/red-team collection.                 |
 
 ## ID and status conventions
 
@@ -114,15 +112,16 @@ defined in [`session-template.md`](./session-template.md) and continued by
 [`waves/wave-0-charter/stories/w0-s2-conventions-and-ledgers.md`](./waves/wave-0-charter/stories/w0-s2-conventions-and-ledgers.md),
 which briefs the session that establishes the full convention set.
 
-## Track-level artifacts (authored at track integration, not here)
+## Track-level integration artifacts
 
-The following track-wide artifacts are placeholders — named so later waves know they exist, but
-not authored by this unit:
+The U9 integration pass maintains the track-wide artifacts that make this planning scaffold durable:
 
-- `dependency-dag.md` — the cross-wave dependency graph, once more than one wave has stories.
-- `waves.md` — a rolled-up view across all wave charters, once Waves 1–6 exist.
-- `traceability.md` — the matrix tracing design_targets and reconciles_to IDs across the whole
-  track, updated as sessions settle.
+- [`dependency-dag.md`](./dependency-dag.md) — the cross-wave dependency graph.
+- [`waves.md`](./waves.md) — the rolled-up view across all wave charters.
+- [`traceability.md`](./traceability.md) — the matrix tracing design targets, product IDs,
+  invariant linkages, and candidate ownership across the whole track.
+- [`review-and-red-team.md`](./review-and-red-team.md) — the integration-level review and red-team
+  posture, including Wave 5 scope and routed findings.
 
 ## Related
 

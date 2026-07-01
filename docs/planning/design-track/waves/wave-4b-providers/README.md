@@ -185,9 +185,9 @@ model — all cited read-only.
   `w4-s2`'s taxonomy, or `w4-s1`'s log model?
 - **SEC-2 three-way boundary (`w4-s6`, per D-003, worded per the frame):** how does SEC-2 get an
   owner without duplicating or orphaning the red-team work — `w4-s6` owns the design posture and the
-  proof requirement/seed; **Wave 5** (red team, future) authors the full adversarial phone-home
-  scenario; a future **U9** `review-and-red-team.md` collects both? Wave 5 and the collector file do
-  not exist on disk yet; they are named as **forward references to planned coordinator artifacts**.
+  proof requirement/seed; **Wave 5** (red team) authors the full adversarial phone-home scenario;
+  **U9** `review-and-red-team.md` collects both? The charter preserves that split without asserting
+  findings Wave 5 has not produced.
 - For **`w4-s7`**: how does the Forge port's adapter execute the runner's push/PR/merge as the
   runner's **exclusive** delegate (never the worker — MERGE-2, FENCE-3, SEC-3), respecting a forge's
   own branch-protection and merge-queue rules rather than overriding them, and how does it perform
@@ -219,9 +219,8 @@ model — all cited read-only.
   policy, evidence, or state rule routes that finding back to core's design (Wave 4a), never defines
   it locally.
 - **The Wave 5 red-team scenario** — `w4-s6` owns the SEC-2 design posture and proof requirement/seed
-  only; the full adversarial phone-home scenario is **Wave 5**'s, and its collection is a future
-  **U9** `review-and-red-team.md` concern (D-003). This wave names those as forward references; it
-  does not author the scenario or the collector.
+  only; the full adversarial phone-home scenario is **Wave 5**'s, and its collection is **U9**
+  `review-and-red-team.md`'s concern (D-003). This wave does not author the scenario or the collector.
 - Anything **Wave 3** already settled: the four provider port **shapes** and their owns/implements/
   must-not splits. This wave deepens each seam's adapter-level detail **behind** its port, preserving
   and citing the port line as the seed; it does not redesign the port boundary.

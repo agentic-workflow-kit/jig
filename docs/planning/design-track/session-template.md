@@ -34,7 +34,7 @@ track.
 id: wN-sM-slug
 wave: N
 status: designed
-depends_on: [] # story IDs; must match dependency-dag.md
+depends_on: [] # story IDs inside this wave; if a story-dag.md exists for the wave, this must match it
 design_targets: [] # design docs this session authors or deepens (docs/design/...)
 reconciles_to: [] # product IDs + invariant IDs, e.g. FENCE-1, INV-001
 ---

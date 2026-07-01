@@ -1,14 +1,16 @@
 ---
-title: "Jig — planning"
+title: "Jig — repo-local planning"
 status: draft — planning layer
 ---
 
-# Jig — planning
+# Jig — repo-local planning
 
-This is where jig's **delivery and design planning** lives: the layer that organizes work into
-waves, sessions, and stories. Product owns _what and why_ (`docs/product/`); design owns _how_
-(`docs/design/`); planning organizes the work those two layers hand off, and never overrides
-either.
+This is Jig's repo-local **delivery and design planning** area. It is not the suite Planning layer
+(`design-to-plan`) and does not produce Jig execution plans for users.
+
+This area organizes work into waves, sessions, and stories. Product owns _what and why_
+(`docs/product/`); design owns _how_ (`docs/design/`); planning organizes the work those two layers
+hand off, and never overrides either.
 
 A planning finding that contradicts a product or design commitment is routed back to the owning
 doc — named as feedback, not silently resolved here (this mirrors jig's own STOP-003: a v0

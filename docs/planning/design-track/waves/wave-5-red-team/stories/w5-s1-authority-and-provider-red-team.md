@@ -216,5 +216,5 @@ This session runs the technical-design method itself:
    wave's decisions.md; settled = zero open blocking suggestions.
 
 Handoff: when settled, update status and hand the routed findings forward to the owning Wave 4a/4b
-surfaces or the future U9 collector as appropriate; preserve the SEC-2 three-way split exactly in the
-final probe outputs.
+surfaces or the U9 collector as appropriate; preserve the SEC-2 three-way split exactly in the final
+probe outputs.

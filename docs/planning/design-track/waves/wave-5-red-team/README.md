@@ -28,7 +28,7 @@ subsystems:
 
 This wave authors **planning-track** artifacts only: the charter, the two story briefs, and later
 the red-team session outputs those stories produce. Findings route back to existing owners or to the
-future U9 collector; Wave 5 does not rewrite the design itself.
+U9 collector; Wave 5 does not rewrite the design itself.
 
 ## Required input docs
 
