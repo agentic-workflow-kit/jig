@@ -65,3 +65,11 @@ re-review) / `reject` / `defer` (record, do not change).
 | ----- | --------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D-004 | S-001 — `pnpm format:check` failed on the newly added `docs/design/core/orchestration.md` run transition table.       | blocking | architecture-enforceability | fix         | Accurate gate failure. Routed to the same implementer for formatter-only repair; re-review: **settled**. No design-scope change requested.              |
 | D-005 | S-002 — `pnpm format:check` failed on the newly added `docs/design/notes/wave-2-execution-review.md` D-004 log table. | blocking | architecture-enforceability | fix         | Accurate coordinator-log gate failure. Fixed directly by the coordinator because this log is coordinator-owned review evidence; re-review: **settled**. |
+
+## w2-s3-invariant-catalog → [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)
+
+- Reviewer verdict, round 1: **settled** — no `S-###` findings. `INV-009..INV-018` were reviewed as
+  additive ledger rows in the convention-defined home; no state machine or transition table was
+  authored; `INV-001..INV-008` remained byte-identical to the committed ledger; numbering is
+  contiguous and no planning/core lifecycle files were retro-edited.
+- No `D-###` disposition row was minted for w2-s3 because the reviewer reported no findings.
