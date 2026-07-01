@@ -52,6 +52,15 @@ provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
 - GitHub/Forge is excluded from the first local MVP because it multiplies side effects and
   authority risk before the local runner, policy, and records path are proven.
 
+## Terminology Guard
+
+- **Scripted-worker stub** means the M5b exercised worker path for the first local dry-run slice.
+- **Agent provider** means a later provider seam realization, not part of Phase 1.
+- **Execution host provider** means a later provider seam realization, not part of Phase 1.
+- **Local dry-run harness** means the Phase 1 local proof path around the scripted-worker stub; it
+  must not be described as a real Agent provider, real Execution host provider, sandbox, or SEC-2
+  containment proof.
+
 ## Primary References
 
 - Product: [`../../product/jig.md`](../../product/jig.md),
