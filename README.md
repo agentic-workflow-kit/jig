@@ -61,6 +61,7 @@ Five guarantees, in plain terms — the full contract is in
 | [docs/product/use-cases.md](docs/product/use-cases.md)   | Worked scenarios that make each guarantee concrete.                                            |
 | [docs/product/concepts.md](docs/product/concepts.md)     | Product concepts — starting with **tracks**.                                                   |
 | [docs/design/](docs/design/)                             | Engineering design — _how_ the promises are met. _(Next step.)_                                |
+| [skills/](skills/)                                       | Local agent runbooks. These are composition guidance, not runtime or CLI surfaces.             |
 
 ## Relationship to the suite
 
