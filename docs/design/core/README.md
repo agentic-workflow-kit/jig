@@ -24,52 +24,124 @@ design-layer naming choice, not a silent divergence.
 ## The relations, at a glance
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 60,
+    "rankSpacing": 55
+  }
+}}%%
 flowchart TB
-    Owner(["Owner / operator"])
 
-    subgraph CFG["CONFIGURATION — you author, per track"]
-        direction LR
-        Track["Track"]
-        Plan["Execution plan<br/>work items + deps + done conditions"]
-        Policy["Policy<br/>+ repo-level floors"]
-        Profile["Work profile"]
-    end
+  owner("`**Owner / operator**
+authors + decides`")
 
-    subgraph CORE["JIG-CORE — trusted runner (fixed, not a seam)"]
-        direction LR
-        Entry["Operator surface<br/>one command · one call · one audit"]
-        Runner["Runner<br/>orchestrates + holds privileged authority"]
-        Fence["Fence<br/>authorizes every request, fail-closed"]
-        Doorbell["Doorbell<br/>escalates real decisions"]
-        Records["Run records<br/>append-only log + projections"]
-    end
+  subgraph config["Configuration — you author, per track"]
+    direction LR
 
-    subgraph SEAMS["SEAMS — swappable, governed (STACK-2)"]
-        direction LR
-        Agent["Agent = worker<br/>writes code, runs checks"]
-        Host["Execution host<br/>contains the worker"]
-        Forge["Forge<br/>push / PR / merge target"]
-        Source["Work source"]
-    end
+    track("`**Track**
+one line of work`")
+    plan("`**Execution plan**
+work items + deps`")
+    policy("`**Policy**
+safety contract`")
+    profile("`**Work profile**
+how work is done`")
 
-    Owner -->|authors| CFG
-    CFG -->|binds the run| CORE
-    CORE -->|drives work through| SEAMS
-    CORE -.->|records · notices · ask-why| Owner
+    track ~~~ plan ~~~ policy ~~~ profile
+  end
 
-    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Owner neutral;
-    class Track,Plan,Policy,Profile config;
-    class Entry,Runner,Fence,Doorbell,Records core;
-    class Agent,Host,Forge,Source seam;
+  subgraph core["Jig-core — the trusted runner (governs the seams)"]
+    direction LR
 
-    style CFG fill:#F6F5FE,stroke:#534AB7,color:#3C3489
-    style CORE fill:#F0FAF6,stroke:#0F6E56,color:#085041
-    style SEAMS fill:#FDF5F1,stroke:#993C1D,color:#712B13
+    runner("`**Runner**
+holds the keys`")
+    fence("`**Fence**
+grants or denies`")
+    doorbell("`**Doorbell**
+escalates to you`")
+    records("`**Run records**
+the evidence log`")
+
+    runner ~~~ fence ~~~ doorbell ~~~ records
+  end
+
+  subgraph seams["Seams — swappable, governed at the boundary"]
+    direction LR
+
+    worker("`**Agent / worker**
+writes code`")
+    host("`**Execution host**
+runs the worker`")
+    forge("`**Forge**
+push / PR / merge`")
+    source("`**Work source**
+supplies work items`")
+
+    worker ~~~ host ~~~ forge ~~~ source
+  end
+
+  subgraph legend[" "]
+    direction LR
+
+    l1(" ")
+    lt1["you author"]
+
+    l2(" ")
+    lt2["jig-core (trusted)"]
+
+    l3(" ")
+    lt3["swappable seam"]
+
+    l4(" ")
+    lt4["you"]
+
+    l1 ~~~ lt1 ~~~ l2 ~~~ lt2 ~~~ l3 ~~~ lt3 ~~~ l4 ~~~ lt4
+  end
+
+  owner -->|authors, starts| config
+  config -->|plan + policy| core
+  core -->|drives + governs| seams
+  seams ~~~ legend
+
+  classDef ownerBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  classDef youAuthor fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
+  classDef trusted fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef seam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+
+  classDef legendAuthor fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:6,ry:6;
+  classDef legendTrusted fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendSeam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:6,ry:6;
+  classDef legendYou fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
+  classDef legendText fill:transparent,stroke:transparent,color:#666666;
+
+  class owner ownerBox;
+  class track,plan,policy,profile youAuthor;
+  class runner,fence,doorbell,records trusted;
+  class worker,host,forge,source seam;
+
+  class l1 legendAuthor;
+  class l2 legendTrusted;
+  class l3 legendSeam;
+  class l4 legendYou;
+  class lt1,lt2,lt3,lt4 legendText;
+
+  style config fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+  style core fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+  style seams fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+
+  style legend fill:transparent,stroke:transparent,color:transparent
 ```
 
 ## How a run flows
