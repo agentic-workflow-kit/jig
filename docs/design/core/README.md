@@ -265,6 +265,8 @@ or stopped`")
 | Repo-level floors | Repo-scoped policy every track inherits; a track may tighten but never weaken; changing it is itself governed.                                                                                              | CFG-3                  |
 | Work profile      | The realization: model, effort, prompt strategy, role realization. Freely tunable — it never lowers the safety floor.                                                                                       | CFG-2                  |
 
+The domain model of this group — each entity's owns / reads / does-not-own, the Track-level relations, and the lifecycle terms it carries — is authored in [`../domain/configuration-and-work.md`](../domain/configuration-and-work.md).
+
 ### B. Jig-core — the trusted runner (governs the seams)
 
 | Entity                 | Responsibility (owns)                                                                                                                                                                                                                       | Product IDs                               |
@@ -292,6 +294,8 @@ or stopped`")
 | Run      | One execution of a plan under a policy; reconstructible end to end.                                               | jig.md           |
 | Evidence | What gates landing — automated checks + review + capability proof; never the worker's self-report alone.          | MERGE-1, MERGE-3 |
 | Notice   | A triaged attention item per parked/blocked/stale/overdue condition: what it is, how urgent, what you can do now. | SEE-5            |
+
+The domain model of this group — Run, Evidence, Notice, and the Run-records event-log entity they derive from, each with its owns / reads / does-not-own, the runtime seam, and the lifecycle terms it carries — is authored in [`../domain/runtime-and-observation.md`](../domain/runtime-and-observation.md).
 
 ## The spine in one paragraph
 
