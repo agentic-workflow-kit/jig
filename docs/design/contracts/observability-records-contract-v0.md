@@ -24,41 +24,41 @@ in this document shows intent only.
 
 The record shape derives from these product commitments:
 
-- [FENCE-1](../product/guarantees.md#11-the-fence--runtime-authorization),
-  [FENCE-2](../product/guarantees.md#11-the-fence--runtime-authorization), and
-  [FENCE-3](../product/guarantees.md#11-the-fence--runtime-authorization): records must show
+- [FENCE-1](../../product/guarantees.md#11-the-fence--runtime-authorization),
+  [FENCE-2](../../product/guarantees.md#11-the-fence--runtime-authorization), and
+  [FENCE-3](../../product/guarantees.md#11-the-fence--runtime-authorization): records must show
   requested, authorized, denied, and runner-owned privileged actions.
-- [EARN-1](../product/guarantees.md#12-earned-trust--capability-attestation) and
-  [EARN-2](../product/guarantees.md#12-earned-trust--capability-attestation): capability
+- [EARN-1](../../product/guarantees.md#12-earned-trust--capability-attestation) and
+  [EARN-2](../../product/guarantees.md#12-earned-trust--capability-attestation): capability
   proof must be recorded with driver and run context.
-- [GUARD-1](../product/guarantees.md#13-anti-gaming) and
-  [GUARD-2](../product/guarantees.md#13-anti-gaming): records must preserve the policy in
+- [GUARD-1](../../product/guarantees.md#13-anti-gaming) and
+  [GUARD-2](../../product/guarantees.md#13-anti-gaming): records must preserve the policy in
   force and any re-approval caused by rule-governing changes.
-- [DOOR-1](../product/guarantees.md#14-the-doorbell--approval-and-escalation),
-  [DOOR-2](../product/guarantees.md#14-the-doorbell--approval-and-escalation), and
-  [DOOR-3](../product/guarantees.md#14-the-doorbell--approval-and-escalation): escalations,
+- [DOOR-1](../../product/guarantees.md#14-the-doorbell--approval-and-escalation),
+  [DOOR-2](../../product/guarantees.md#14-the-doorbell--approval-and-escalation), and
+  [DOOR-3](../../product/guarantees.md#14-the-doorbell--approval-and-escalation): escalations,
   parked states, owner decisions, and narrow grants must survive interruption.
-- [MERGE-1](../product/guarantees.md#15-merge-on-evidence) through
-  [MERGE-5](../product/guarantees.md#15-merge-on-evidence): done, merge, blocked PR, status,
+- [MERGE-1](../../product/guarantees.md#15-merge-on-evidence) through
+  [MERGE-5](../../product/guarantees.md#15-merge-on-evidence): done, merge, blocked PR, status,
   and evidence decisions must be reconstructible.
-- [SEC-1](../product/guarantees.md#16-security--no-leaks-no-phone-home),
-  [SEC-2](../product/guarantees.md#16-security--no-leaks-no-phone-home), and
-  [SEC-3](../product/guarantees.md#16-security--no-leaks-no-phone-home): records must be
+- [SEC-1](../../product/guarantees.md#16-security--no-leaks-no-phone-home),
+  [SEC-2](../../product/guarantees.md#16-security--no-leaks-no-phone-home), and
+  [SEC-3](../../product/guarantees.md#16-security--no-leaks-no-phone-home): records must be
   redacted by default and must not leak credentials, secrets, or sensitive values.
-- [RESUME-1](../product/guarantees.md#31-interruption-resume) through
-  [RESUME-5](../product/guarantees.md#31-interruption-resume): records must support safe
+- [RESUME-1](../../product/guarantees.md#31-interruption-resume) through
+  [RESUME-5](../../product/guarantees.md#31-interruption-resume): records must support safe
   checkpoint resume and no double effect.
-- [ISO-1](../product/guarantees.md#32-work-level-failure-isolation) through
-  [ISO-4](../product/guarantees.md#32-work-level-failure-isolation): story outcomes and
+- [ISO-1](../../product/guarantees.md#32-work-level-failure-isolation) through
+  [ISO-4](../../product/guarantees.md#32-work-level-failure-isolation): story outcomes and
   downstream effects must be dependency-aware.
-- [LIVE-1](../product/guarantees.md#33-liveness--noticing-a-stuck-run) and
-  [LIVE-2](../product/guarantees.md#33-liveness--noticing-a-stuck-run): stuck, silent, idle,
+- [LIVE-1](../../product/guarantees.md#33-liveness--noticing-a-stuck-run) and
+  [LIVE-2](../../product/guarantees.md#33-liveness--noticing-a-stuck-run): stuck, silent, idle,
   or overdue conditions must become visible records and notices.
-- [STACK-1](../product/guarantees.md#4-stack-portability) through
-  [DRIVE-3](../product/guarantees.md#41-trusting-a-driver): driver capabilities, limits, and
+- [STACK-1](../../product/guarantees.md#4-stack-portability) through
+  [DRIVE-3](../../product/guarantees.md#41-trusting-a-driver): driver capabilities, limits, and
   authority boundaries must be attributable.
-- [SEE-1](../product/guarantees.md#5-full-observability) through
-  [SEE-6](../product/guarantees.md#5-full-observability): records are a structured product
+- [SEE-1](../../product/guarantees.md#5-full-observability) through
+  [SEE-6](../../product/guarantees.md#5-full-observability): records are a structured product
   surface, the evidence trail, the notice queue, and the redacted export basis.
 
 ## Required Record Properties
@@ -292,7 +292,7 @@ outcomes must be reconstructible. This document therefore centers governed event
 causal basis rather than free-form transcript capture.
 
 The future Learning loop is treated as a between-runs consumer, consistent with the product
-boundary in [`jig.md`](../product/jig.md#product-boundaries). This document does not make
+boundary in [`jig.md`](../../product/jig.md#product-boundaries). This document does not make
 Learning part of Jig's hot path.
 
 The legacy `workflow-kit` prototype was treated as reference-only prior art. No legacy
