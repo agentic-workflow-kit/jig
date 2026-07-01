@@ -25,7 +25,7 @@ design-layer naming choice, not a silent divergence.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
-flowchart TB
+flowchart LR
     Owner(["Owner / operator"])
 
     subgraph CFG["CONFIGURATION — you author, per track"]
@@ -53,23 +53,11 @@ flowchart TB
         Source["Work source"]
     end
 
-    Owner -->|authors| Track
-    Track --> Plan & Policy & Profile
-    Owner -->|start / preview| Entry
-    Entry --> Runner
-    Plan --> Runner
-    Policy -->|fixed at launch| Runner
-    Source -.->|supplies work items| Runner
-    Runner -->|drives each work item| Agent
-    Agent -->|runs inside| Host
-    Agent -->|requests action| Fence
-    Fence -->|grant / deny| Runner
-    Fence -->|route risky| Doorbell
-    Doorbell -->|approve / reject| Owner
-    Runner -->|push / PR / merge on evidence| Forge
-    Runner --> Records
-    Fence --> Records
-    Records -->|notices · ask-why| Owner
+    Owner -->|authors| CFG
+    Owner -->|start / preview| CORE
+    CFG -->|binds the run| CORE
+    CORE -->|drives work through| SEAMS
+    CORE -->|records · notices · ask-why| Owner
 
     classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
     classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
