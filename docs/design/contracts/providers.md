@@ -268,6 +268,17 @@ authorization, or log semantics they already own.
 Seed interface preserved: **Forge port** — abstracts the code host a run pushes to, opens PRs
 against, and merges through.
 
+This section deepens the existing Forge seed in place rather than replacing it. The preserved port
+line above, the file-level Owns / Interface / Notes / diagram, and the port-invocation point that
+the runner invokes this seam at the `done -> landed` boundary remain the governing seed statements
+for this seam. The Forge provider implements behind that port, consuming the runner-owned
+orchestration surface from [`../core/orchestration.md`](../core/orchestration.md), the
+evidence-sufficiency and GUARD-2 preconditions from [`../core/plan-intake.md`](../core/plan-intake.md)
+and [`../core/authorization.md`](../core/authorization.md), and the records/log surface from
+[`../core/records.md`](../core/records.md) read-only. It does not redefine evidence sufficiency,
+GUARD-2 detection or re-approval, done-versus-landed semantics, blocked-state ownership, or log
+consistency those core and prior-wave surfaces already own.
+
 **Core owns**
 
 - The rule that push, PR creation, and merge are runner authority, never worker authority.
@@ -276,12 +287,36 @@ against, and merges through.
 - The decision that branch protection, merge queues, and other forge-side controls are respected as
   governing constraints, not bypass targets.
 - The record/evidence boundary for what is attempted, blocked, or landed.
+- The runner-only invocation point for this seam at the `done -> landed` boundary, including the
+  rule that the worker never invokes landing authority directly and a forge adapter does not become
+  a second caller of the transition.
+- The GUARD-2 precondition that rule-governing-surface pauses and re-approval are cleared before
+  landing is attempted; this seam consumes that cleared precondition and does not detect or resolve
+  it.
+- The blocked-transition ownership split: Wave 2 owns when a work item becomes `blocked`; this seam
+  owns only the forge-side act of surfacing that already-blocked condition when the runner can do
+  so safely.
+- The records fallback and log-consistency posture: when a forge-side action cannot be completed
+  safely, the durable fallback record remains a Records concern rather than a local reinvention by
+  this seam.
 
 **Provider implements**
 
 - A concrete integration to the code host behind the runner-owned seam.
 - The mechanics needed for the runner to push, open PRs, and merge through the forge.
 - Truthful surfacing of forge-side constraints and outcomes back to the core.
+- A runner-exclusive landing adapter that executes push / PR / merge only as the runner's delegate,
+  never as worker-held authority and never as an alternate policy or lifecycle owner.
+- Respect for forge-side branch protection, merge queues, and related controls as real governing
+  constraints the adapter must observe and surface, not bypass or locally reinterpret.
+- The mechanical MERGE-5 block-surfacing act at the forge seam: when the runner has a safe branch
+  and permission to act, the adapter must open or update the PR-side surface, post status, and
+  surface failure reasons through the forge without changing what `blocked` means; when it cannot
+  safely do so, the durable fallback record remains a Records concern rather than a local
+  reinvention by this seam.
+- Adapter-level idempotency as a seam contract: a resume or retry must not silently double-apply a
+  push, PR, or merge side effect the runner already recorded or completed. This is a contract-test
+  concern for adapters at this seam, not a new lifecycle or ledger surface.
 
 **Provider must not**
 
@@ -289,6 +324,14 @@ against, and merges through.
 - Redefine what counts as evidence-met, done, or landed.
 - Hide forge-side blockers or silently widen authority around branch protection or queues.
 - Become a second policy or state authority for merge decisions.
+- Re-judge evidence sufficiency, capability freshness, or completion readiness that core already
+  judged before invoking the seam.
+- Detect, classify, or capture GUARD-2 rule-governing-surface re-approval on its own; that remains
+  with the plan/policy/evidence and authority-spine surfaces this seam consumes.
+- Redefine blocked-state ownership, invent a second records fallback, or treat forge-surface
+  reporting as the source of truth for log consistency.
+- Treat resume/retry as permission to repeat irreversible forge effects without checking whether the
+  runner has already completed or recorded them.
 
 ### Work source port
 
