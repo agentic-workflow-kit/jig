@@ -7,7 +7,7 @@ that owns your subject, then plan before non-trivial work.
 `jig` is the deterministic delivery engine of the agentic-workflow-kit suite: it takes an
 approved **execution plan** plus a **policy** and turns it into reviewed, landed work — or a
 deliberate, inspectable stop. It owns two contracts other tools build on: the **execution-plan
-schema** (its one hard input boundary) and the **observability / event records** (its durable
+contract** (its one hard input boundary) and the **observability / event records** (its durable
 output). Treat both as versioned seams — changing their shape is a breaking change for
 downstream consumers.
 

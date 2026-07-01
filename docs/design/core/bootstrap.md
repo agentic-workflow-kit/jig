@@ -31,10 +31,13 @@ without committing to a run identity.
 
 ```mermaid
 flowchart TD
-    Drive["Owner drives: preview or start"]
+    Drive["Owner drives"]
     Load["Load + validate plan<br/>(via plan-intake)"]
     Rej["Plan rejected — no run"]
     Bind["Bind policy + repo floors<br/>(frozen at launch)"]
+    Mode{"preview or start?"}
+    PrevRec["Write preview record<br/>(run.previewed)"]
+    PrevStop["Stop — no run committed<br/>(no workspace, providers, or run id)"]
     Resolve["Resolve track + work profile"]
     Wire["Set up workspace,<br/>wire provider adapters"]
     Preflight["Storage preflight"]
@@ -44,7 +47,10 @@ flowchart TD
     Drive --> Load
     Load -->|invalid| Rej
     Load -->|valid| Bind
-    Bind --> Resolve
+    Bind --> Mode
+    Mode -->|preview| PrevRec
+    PrevRec --> PrevStop
+    Mode -->|start| Resolve
     Resolve --> Wire
     Wire --> Preflight
     Preflight --> Alloc
@@ -53,7 +59,7 @@ flowchart TD
     classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
     classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
     class Load,Bind,Resolve,Wire,Preflight,Alloc config;
-    class Drive,Rej,Ready neutral;
+    class Drive,Rej,Ready,Mode,PrevRec,PrevStop neutral;
 ```
 
 ## Notes

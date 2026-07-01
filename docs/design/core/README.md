@@ -156,7 +156,7 @@ detail lives in [`../contracts/providers.md`](../contracts/providers.md).
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
 flowchart TD
-    Drive["Owner drives: preview or start<br/>(via the operator surface)"]
+    Drive["Owner drives: start a run<br/>(via the operator surface)"]
 
     subgraph BOOT["BOOTSTRAP / INIT — compose and launch a run"]
         direction TB

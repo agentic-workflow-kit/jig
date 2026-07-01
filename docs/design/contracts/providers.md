@@ -30,7 +30,9 @@ governed in [`../core/`](../core/README.md).
 - **Execution host port** — abstracts where the worker is contained.
 - **Forge port** — abstracts the code host a run pushes to, opens PRs against, and merges
   through.
-- **Work source port** — abstracts where work items originate.
+- **Work source port** — abstracts where work items originate. It may supply provenance or
+  future import/sync behavior, but the validated execution plan remains jig's only runtime
+  scheduling input; the Work source seam never bypasses the plan.
 
 ```mermaid
 flowchart LR
