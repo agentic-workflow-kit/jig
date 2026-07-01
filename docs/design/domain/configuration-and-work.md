@@ -331,9 +331,9 @@ None from this session. (Stated explicitly per [`conventions.md`](../conventions
 
 This session adds **no new `INV-*` entry**. It names entities, ownership, and relations — not new
 runtime rules — so no new invariant is warranted. The `INV-*` ledger continues verbatim from
-[`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) (`INV-001` through `INV-008`)
+[`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) (`INV-001` through `INV-018`)
 with no renumbering, per [`conventions.md`](../conventions.md#1-the-inv--invariant-ledger-continues-as-one-running-list);
-the next available number, should a later wave add one, is **`INV-009`**.
+the next available number, should a later wave add one, is **`INV-019`**.
 
 Two existing invariants bound entities this area names, and this model stays consistent with them
 without owning their runtime enforcement:

@@ -37,22 +37,21 @@ in current precedent rather than newly invented here:
 
 **Canonical home.** The invariant table as currently tabulated in
 [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md) **is** the ledger's canonical
-home, present and future — `INV-009` and every later invariant are written there, as new rows
+home, present and future — existing and later invariants are written there, as new rows
 appended to that table. That file is archival in the sense of
 [`README.md`](./README.md#notes-intake-and-reference) ("archive") — meaning it is **not a
 redistribution or restructuring target**: its content is not shredded out into per-area files,
 and the ledger is not re-homed into a new file merely to make it feel "live." It **is**, however,
-an **append-only continuation** target for the one ledger it hosts: adding an `INV-009+` row is a
+an **append-only continuation** target for the one ledger it hosts: adding a new `INV-*` row is a
 preserving append, not a restructuring, so where the next invariant lands is unambiguous — the
 same table, one row lower. If a future wave's invariant count grows large enough to make one
 table unwieldy, a restructuring (partitioning or re-homing the table) is itself a decision to log
 in that wave's `decisions.md`, not a default this convention pre-approves.
 
-**Continuation rule.** The next available invariant number is **`INV-009`**. This session does
-not mint it: no new invariant is added by this story (see "Invariants" below). A later wave that
+**Continuation rule.** The next available invariant number is **`INV-019`**. A later wave that
 finds a genuine new invariant:
 
-1. numbers it the next integer after the highest existing `INV-*` (starting at `INV-009`);
+1. numbers it the next integer after the highest existing `INV-*`;
 2. **appends** it as a new row to the invariant table in
    [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md) — an append-only continuation
    that alters no existing row, `INV-001` through the last-prior entry;
@@ -228,13 +227,11 @@ None from this session. (Per §5 above, this is stated explicitly rather than le
 
 ## Invariants
 
-`INV-001` through `INV-008` in [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md)
-continue verbatim, per §1 above. This session adds **no new invariant**: stating how the ledger
-continues, how the ADR log continues, how IDs are namespaced, how decision logs are shaped, and
-how open questions carry forward is governance of the design-layer's own bookkeeping, not a claim
-about jig's runtime behavior. The next available number, `INV-009`, is recorded here as
-next-available only — reserved for the first real invariant a later wave adds, not minted by this
-session.
+`INV-001` through `INV-018` in [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md)
+continue verbatim, per §1 above. This conventions session added **no new invariant**: stating how
+the ledger continues, how the ADR log continues, how IDs are namespaced, how decision logs are
+shaped, and how open questions carry forward is governance of the design-layer's own bookkeeping,
+not a claim about jig's runtime behavior. The next available number is `INV-019`.
 
 ## Risks and deferred decisions
 

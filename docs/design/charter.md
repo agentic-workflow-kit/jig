@@ -106,13 +106,13 @@ No open questions from this session.
 
 ## Invariants
 
-`INV-001` through `INV-008` in
+`INV-001` through `INV-018` in
 [`docs/design/notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md) continue with no
 renumbering. This story adds no new `INV-*` entry: stating the boundary, stub, and deliverable
 rules at design altitude is governance of how later design sessions work, not a new invariant
 about jig's runtime behavior. If a future session finds a genuine new invariant is needed, it
-continues numbering from `INV-009` and records why in that wave's `decisions.md`, per this
-charter's own deliverable rule.
+numbers it after the highest existing `INV-*` entry (currently `INV-019`) and records why in that
+wave's `decisions.md`, per this charter's own deliverable rule.
 
 ## Risks and deferred decisions
 

@@ -170,8 +170,8 @@ for an owner decision; it does not silently "age into" completion while work rem
 
 ### Candidate invariants (for w2-s3 consolidation) — run lifecycle
 
-This section names run-lifecycle invariant candidates only; it assigns **no** new `INV-*`
-numbers. `w2-s3-invariant-catalog` continues the ledger from `INV-009`.
+This section names the run-lifecycle invariant candidates that `w2-s3-invariant-catalog`
+consolidated into the ledger as part of `INV-009..INV-018`.
 
 - **Launch-binding immutability across resume.** A resumed run keeps the policy, work-profile,
   and repo-floor bindings fixed at launch; resume never widens or silently swaps them. Authority:
@@ -311,11 +311,10 @@ conflates them.
 
 ### Candidate invariants (for w2-s3 consolidation)
 
-This section **names** the invariant candidates the closed table surfaces; it assigns **no**
-`INV-*` numbers — numbering is `w2-s3-invariant-catalog`'s consolidation checkpoint (which
-continues the ledger from `INV-009`), not this session's. Each candidate states what it
-constrains, the authority that holds it, and the product IDs it reconciles to, so `w2-s3` can
-number it deterministically.
+This section **names** the invariant candidates the closed table surfaces. `w2-s3-invariant-catalog`
+has since consolidated the Wave 2 candidate set into `INV-009..INV-018`; the candidate text here
+stays as the source back-citation for that ledger continuation. Each candidate states what it
+constrains, the authority that holds it, and the product IDs it reconciles to.
 
 - **Closed guarded transition set.** Every legal work-item transition is in the table above with
   a named guard; any transition not drawn is illegal. Authority: the runner's work-item state
@@ -374,10 +373,9 @@ number it deterministically.
   this transition table would have to be touched again. The risk is scoped: the closed edge set is
   unaffected either way, so the churn would land on the `started → blocked` guard cell and its
   note, not on the diagram.
-- **Deferred — `w2-s3` numbers the candidate invariants.** The candidate invariants above carry no
-  `INV-*` numbers by design; numbering is `w2-s3-invariant-catalog`'s consolidation checkpoint
-  (continuing the ledger from `INV-009`). Until then, treating them as named-but-unnumbered
-  candidates is a deliberate choice, not an oversight.
+- **Resolved — `w2-s3` numbered the candidate invariants.** The candidate invariants above were
+  deliberately named before they were numbered; `w2-s3-invariant-catalog` has since consolidated
+  the Wave 2 candidate set into `INV-009..INV-018`.
 - **Deferred — run-lifecycle and recovery sequencing.** How an unattended `parked` item is
   sequenced into a run-level `stopped`, and the run state machine itself, are named here as a seam
   only and owned by `w2-s2-run-lifecycle-and-recovery`; this doc does not pre-empt that sequencing.
