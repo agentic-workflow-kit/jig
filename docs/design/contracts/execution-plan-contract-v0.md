@@ -24,38 +24,38 @@ this document shows intent only.
 
 The plan shape derives from these product commitments:
 
-- [FENCE-1](../product/guarantees.md#11-the-fence--runtime-authorization),
-  [FENCE-2](../product/guarantees.md#11-the-fence--runtime-authorization), and
-  [FENCE-3](../product/guarantees.md#11-the-fence--runtime-authorization): work must declare
+- [FENCE-1](../../product/guarantees.md#11-the-fence--runtime-authorization),
+  [FENCE-2](../../product/guarantees.md#11-the-fence--runtime-authorization), and
+  [FENCE-3](../../product/guarantees.md#11-the-fence--runtime-authorization): work must declare
   the authority it needs so the runner can fail closed and keep privileged actions out of the
   worker.
-- [GUARD-1](../product/guarantees.md#13-anti-gaming) and
-  [GUARD-2](../product/guarantees.md#13-anti-gaming): the plan must identify rule-governing
+- [GUARD-1](../../product/guarantees.md#13-anti-gaming) and
+  [GUARD-2](../../product/guarantees.md#13-anti-gaming): the plan must identify rule-governing
   surfaces and policy-sensitive changes that require re-approval.
-- [MERGE-1](../product/guarantees.md#15-merge-on-evidence),
-  [MERGE-3](../product/guarantees.md#15-merge-on-evidence), and
-  [MERGE-4](../product/guarantees.md#15-merge-on-evidence): done conditions and mergeability
+- [MERGE-1](../../product/guarantees.md#15-merge-on-evidence),
+  [MERGE-3](../../product/guarantees.md#15-merge-on-evidence), and
+  [MERGE-4](../../product/guarantees.md#15-merge-on-evidence): done conditions and mergeability
   must be explicit and separable.
-- [CFG-1](../product/guarantees.md#2-configuration-ownership),
-  [CFG-2](../product/guarantees.md#2-configuration-ownership),
-  [CFG-3](../product/guarantees.md#2-configuration-ownership), and
-  [CFG-4](../product/guarantees.md#2-configuration-ownership): policy and work profile are
+- [CFG-1](../../product/guarantees.md#2-configuration-ownership),
+  [CFG-2](../../product/guarantees.md#2-configuration-ownership),
+  [CFG-3](../../product/guarantees.md#2-configuration-ownership), and
+  [CFG-4](../../product/guarantees.md#2-configuration-ownership): policy and work profile are
   track-scoped, and live behavior is derived rather than hand-set.
-- [RESUME-1](../product/guarantees.md#31-interruption-resume),
-  [RESUME-2](../product/guarantees.md#31-interruption-resume), and
-  [RESUME-5](../product/guarantees.md#31-interruption-resume): the plan must give Jig enough
+- [RESUME-1](../../product/guarantees.md#31-interruption-resume),
+  [RESUME-2](../../product/guarantees.md#31-interruption-resume), and
+  [RESUME-5](../../product/guarantees.md#31-interruption-resume): the plan must give Jig enough
   identity and dependency structure to checkpoint and resume safely.
-- [ISO-1](../product/guarantees.md#32-work-level-failure-isolation),
-  [ISO-2](../product/guarantees.md#32-work-level-failure-isolation), and
-  [ISO-4](../product/guarantees.md#32-work-level-failure-isolation): story eligibility,
+- [ISO-1](../../product/guarantees.md#32-work-level-failure-isolation),
+  [ISO-2](../../product/guarantees.md#32-work-level-failure-isolation), and
+  [ISO-4](../../product/guarantees.md#32-work-level-failure-isolation): story eligibility,
   isolation, and failure handling depend on declared dependencies and constraints.
-- [STACK-2](../product/guarantees.md#4-stack-portability),
-  [STACK-3](../product/guarantees.md#4-stack-portability),
-  [STACK-4](../product/guarantees.md#4-stack-portability), and
-  [DRIVE-2](../product/guarantees.md#41-trusting-a-driver): agent, execution host, forge,
+- [STACK-2](../../product/guarantees.md#4-stack-portability),
+  [STACK-3](../../product/guarantees.md#4-stack-portability),
+  [STACK-4](../../product/guarantees.md#4-stack-portability), and
+  [DRIVE-2](../../product/guarantees.md#41-trusting-a-driver): agent, execution host, forge,
   and work source choices remain behind swappable seams and declared capabilities.
-- [SEE-1](../product/guarantees.md#5-full-observability) and
-  [SEE-2](../product/guarantees.md#5-full-observability): the plan must carry stable
+- [SEE-1](../../product/guarantees.md#5-full-observability) and
+  [SEE-2](../../product/guarantees.md#5-full-observability): the plan must carry stable
   references the run record can cite later.
 
 ## Required Plan Properties
@@ -83,9 +83,9 @@ A plan is one artifact per track. It must reference the policy and work profile 
 that track without copying every setting into each story. The plan must also be clear about
 repo-level floors or inherited policy constraints the track cannot weaken.
 
-This preserves [CFG-1](../product/guarantees.md#2-configuration-ownership),
-[CFG-2](../product/guarantees.md#2-configuration-ownership), and
-[CFG-3](../product/guarantees.md#2-configuration-ownership): policy is the safety contract;
+This preserves [CFG-1](../../product/guarantees.md#2-configuration-ownership),
+[CFG-2](../../product/guarantees.md#2-configuration-ownership), and
+[CFG-3](../../product/guarantees.md#2-configuration-ownership): policy is the safety contract;
 work profile is the realization; both are track-scoped.
 
 ### Story Set
@@ -112,8 +112,8 @@ A plan must state story dependencies as a graph Jig can use for eligibility. A s
 eligible until its prerequisites have landed, not merely started or self-reported complete.
 
 The plan must also be able to represent independent stories so Jig can run safe parallel work
-without false coupling. This is the input basis for [ISO-1](../product/guarantees.md#32-work-level-failure-isolation)
-and [ISO-4](../product/guarantees.md#32-work-level-failure-isolation).
+without false coupling. This is the input basis for [ISO-1](../../product/guarantees.md#32-work-level-failure-isolation)
+and [ISO-4](../../product/guarantees.md#32-work-level-failure-isolation).
 
 ### Done and Evidence Requirements
 
@@ -130,9 +130,9 @@ runtime command schema:
 - evidence artifacts or record references Jig should preserve;
 - merge blockers that can leave a story done but not landed.
 
-This preserves [MERGE-1](../product/guarantees.md#15-merge-on-evidence),
-[MERGE-3](../product/guarantees.md#15-merge-on-evidence), and
-[MERGE-4](../product/guarantees.md#15-merge-on-evidence).
+This preserves [MERGE-1](../../product/guarantees.md#15-merge-on-evidence),
+[MERGE-3](../../product/guarantees.md#15-merge-on-evidence), and
+[MERGE-4](../../product/guarantees.md#15-merge-on-evidence).
 
 ### Authority and Approval Needs
 
@@ -209,7 +209,7 @@ fixture.
       "producer": "human-approved-planning",
       "references": [
         "jig/docs/product/guarantees.md",
-        ".github/MILESTONES.md#M1"
+        "agentic-workflow-kit/.github/MILESTONES.md#M1"
       ]
     },
     "stories": [
@@ -217,7 +217,7 @@ fixture.
         "id": "STORY-1",
         "title": "Describe execution-plan contract shape",
         "intent": "Give Planning a clear view of what Jig requires at its hard input boundary.",
-        "scope": ["docs/design/execution-plan-contract-v0.md"],
+        "scope": ["docs/design/contracts/execution-plan-contract-v0.md"],
         "dependsOn": [],
         "doneEvidence": [
           {
@@ -239,7 +239,7 @@ fixture.
         "id": "STORY-2",
         "title": "Describe run-record contract shape",
         "intent": "Give Learning a clear view of what Jig records expose after a run.",
-        "scope": ["docs/design/observability-records-contract-v0.md"],
+        "scope": ["docs/design/contracts/observability-records-contract-v0.md"],
         "dependsOn": ["STORY-1"],
         "doneEvidence": [
           {

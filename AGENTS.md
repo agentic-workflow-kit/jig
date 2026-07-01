@@ -7,7 +7,7 @@ that owns your subject, then plan before non-trivial work.
 `jig` is the deterministic delivery engine of the agentic-workflow-kit suite: it takes an
 approved **execution plan** plus a **policy** and turns it into reviewed, landed work — or a
 deliberate, inspectable stop. It owns two contracts other tools build on: the **execution-plan
-schema** (its one hard input boundary) and the **observability / event records** (its durable
+contract** (its one hard input boundary) and the **observability / event records** (its durable
 output). Treat both as versioned seams — changing their shape is a breaking change for
 downstream consumers.
 
@@ -41,6 +41,7 @@ reference for lessons only, never an authority.
   `worktrees/jig/<branch>` — never nested inside it. Use `pnpm worktree:new <branch>` to create one
   and `pnpm worktree:clean <branch>` after merge.
 - **No emojis** anywhere. **Immutability** — return new values, don't mutate inputs. Handle
-  errors explicitly and validate external input at boundaries. Diagrams in Mermaid, inline. No
+  errors explicitly and validate external input at boundaries. Diagrams in Mermaid, inline — styled with a `%%{init}%%` theme block, colored `subgraph`
+  regions, and `classDef` category colors (no committed image assets). No
   hardcoded secrets — credentials via environment only; redact secrets, tokens, and PII in logs;
   if you find an exposed secret, stop and rotate it.

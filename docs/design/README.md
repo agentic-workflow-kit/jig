@@ -1,40 +1,85 @@
 ---
 title: Jig — design
-status: seeded — contract design v0
+status: draft — design layer
 ---
 
 # Jig — design
 
-This is where Jig's **engineering design** lives: the implementation reference for _how_
-the product commitments in [`docs/product/jig.md`](../product/jig.md) are satisfied.
+This is where Jig's **engineering design** lives: the implementation reference for _how_ the
+product commitments in [`docs/product/`](../product/) are satisfied. Product owns _what_ and
+_why_; design owns _how_ and reconciles to product — where they conflict, design names it rather
+than silently resolving.
 
-The design layer is now seeded with Jig's two shared contract seams:
+The design is organised by one cut: **fixed logic vs. edge interfaces.**
 
-- [Execution-plan contract v0](./execution-plan-contract-v0.md) — the high-level shape of
-  Jig's hard input boundary. Planning produces to this seam.
-- [Observability records contract v0](./observability-records-contract-v0.md) — the high-level
-  shape of Jig's durable output boundary. Learning consumes this seam.
+## Status — what's ready, what's WIP
 
-These documents are design-altitude v0 contract shapes. They name what the seams must carry
-so downstream design can proceed without reading Jig internals, but they are not frozen
-field-level schemas. Exact field names, validation details, storage layout, API surfaces, and
-implementation packages remain later design and implementation decisions.
+The scaffold is complete; the per-area detail is the work in progress. Legend: **overview** =
+agreed at this altitude, ready to read; **stub** = skeleton only (purpose, responsibilities,
+interface, one diagram) — the detailed design is pending; **contract v0** = an agreed v0 seam
+shape, not a frozen schema; **log / archive** = decision records and reference material.
 
-## Product Reconciliation
+| Area                | Files                                                                     | Status      | Pending                                                  |
+| ------------------- | ------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| Layer index         | `README.md`                                                               | overview    | —                                                        |
+| Core overview       | `core/README.md`                                                          | overview    | —                                                        |
+| Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md` | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
+| Contracts overview  | `contracts/README.md`                                                     | overview    | —                                                        |
+| Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`        | contract v0 | field-level schema (intentionally not frozen)            |
+| Driving / providers | `contracts/{driving, providers}.md`                                       | **stub**    | deepen in place                                          |
+| Decisions           | `decisions/*`                                                             | log         | grows as decisions are made                              |
+| Notes               | `notes/*`                                                                 | archive     | —                                                        |
 
-Design reconciles _to_ the product layer. Product owns what and why; design owns how those
-promises are implemented and verified. The current v0 seam docs map back to the ID-bearing
-commitments in [the five guarantees](../product/guarantees.md) and explicitly name product
-conflicts where found.
+A stub is deepened **in place**; new sub-files are added only if an area outgrows a single file
+(none are planned yet). Per-file `status:` frontmatter mirrors this table.
 
-No product conflicts are known in this seeded design layer.
+## [`core/`](./core/) — jig's fixed logic
+
+The trusted part that never swaps. Start at the **[system overview](./core/README.md)** — the
+entity model, the structure diagram, and the bootstrap→core flow. Then the per-area files:
+
+- [`bootstrap.md`](./core/bootstrap.md) — the launch / composition root: load, validate, bind,
+  wire, identify, ready.
+- [`plan-intake.md`](./core/plan-intake.md) — parse + validate a plan instance; reject unknown
+  formats.
+- [`orchestration.md`](./core/orchestration.md) — the runner: run/work-item state machines,
+  eligibility, runner-only actions.
+- [`authorization.md`](./core/authorization.md) — the fence, doorbell, and capability attestation
+  (the fail-closed spine).
+- [`records.md`](./core/records.md) — the append-only event log, pure projections, and export.
+
+## [`contracts/`](./contracts/) — jig's edge interfaces
+
+Every interface at jig's boundary — what others call or implement — in three kinds. See the
+**[boundary map](./contracts/README.md)**.
+
+- [`driving.md`](./contracts/driving.md) — how consumers drive jig: CLI, MCP, SDK.
+- the two **data contracts** —
+  [`execution-plan-contract-v0.md`](./contracts/execution-plan-contract-v0.md) (input) and
+  [`observability-records-contract-v0.md`](./contracts/observability-records-contract-v0.md)
+  (output).
+- [`providers.md`](./contracts/providers.md) — the four swappable provider seams.
+
+## [`decisions/`](./decisions/) — the decision log
+
+One ADR per design decision; see the [decision index](./decisions/README.md). Seeded from the
+M5a slice.
+
+## [`notes/`](./notes/) — intake and reference
+
+Archival material, not the main reading path: the DDD intake frame, the reference-only
+workflow-kit reuse log, and the dense M5a runtime-design record. See the
+[notes index](./notes/README.md).
+
+## Product reconciliation
+
+Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
+commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
+found. No product conflicts are known.
 
 ## Deferred
 
-The following design topics are intentionally outside this M1 seed:
-
 - field-level JSON Schema or TypeScript interfaces;
-- CLI, API, package, or source-code layout;
+- package or source-code layout;
 - provider driver protocols beyond the product-level seam obligations;
-- Technical Design handoff contracts owned by the `technical-design` repo;
-- M5 MVP implementation planning.
+- the implementation code itself.
