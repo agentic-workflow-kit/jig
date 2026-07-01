@@ -25,11 +25,11 @@ design-layer naming choice, not a silent divergence.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
-flowchart LR
+flowchart TB
     Owner(["Owner / operator"])
 
     subgraph CFG["CONFIGURATION — you author, per track"]
-        direction TB
+        direction LR
         Track["Track"]
         Plan["Execution plan<br/>work items + deps + done conditions"]
         Policy["Policy<br/>+ repo-level floors"]
@@ -37,7 +37,7 @@ flowchart LR
     end
 
     subgraph CORE["JIG-CORE — trusted runner (fixed, not a seam)"]
-        direction TB
+        direction LR
         Entry["Operator surface<br/>one command · one call · one audit"]
         Runner["Runner<br/>orchestrates + holds privileged authority"]
         Fence["Fence<br/>authorizes every request, fail-closed"]
@@ -46,7 +46,7 @@ flowchart LR
     end
 
     subgraph SEAMS["SEAMS — swappable, governed (STACK-2)"]
-        direction TB
+        direction LR
         Agent["Agent = worker<br/>writes code, runs checks"]
         Host["Execution host<br/>contains the worker"]
         Forge["Forge<br/>push / PR / merge target"]
@@ -54,10 +54,9 @@ flowchart LR
     end
 
     Owner -->|authors| CFG
-    Owner -->|start / preview| CORE
     CFG -->|binds the run| CORE
     CORE -->|drives work through| SEAMS
-    CORE -->|records · notices · ask-why| Owner
+    CORE -.->|records · notices · ask-why| Owner
 
     classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
     classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
