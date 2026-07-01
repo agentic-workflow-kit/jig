@@ -20,7 +20,7 @@ layer's bookkeeping runs on.
 
 ## 1. The `INV-*` invariant ledger continues as one running list
 
-`INV-001` through `INV-008`, tabulated in
+`INV-001` through `INV-018`, tabulated in
 [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md), are the full invariant ledger to
 date and continue **verbatim, with no renumbering or duplication**. The ledger is, and stays, a
 **single running list** — not per-area lists rolled up by a track-level index.
