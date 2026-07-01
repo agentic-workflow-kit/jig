@@ -20,8 +20,8 @@ Priority is a client-value planning signal, not a schema, package, or tracker.
 | Minimal execution-plan parser/validator | Rejects bad input before any run exists.                                   |       P0 | Phase 1                            |
 | Simple config                           | Lets users set workspace, agent command, and local run behavior.           |       P0 | Phase 1                            |
 | Simple local policy                     | Enables a trusted local MVP without complex approvals.                     |       P0 | Phase 1                            |
-| Local process host                      | Runs the configured worker command in a local workspace.                   |       P0 | Phase 1                            |
-| Simple CLI-agent adapter                | Lets Jig invoke a local command or script as the worker.                   |       P0 | Phase 1                            |
+| Local dry-run harness                   | Exercises the local run path without claiming a real execution-host seam.  |       P0 | Phase 1                            |
+| Scripted-worker stub                    | Lets Jig drive deterministic worker behavior before real agent adapters.   |       P0 | Phase 1                            |
 | Sequential execution engine             | Executes local plan items and records success or failure.                  |       P0 | Phase 1                            |
 | Local run logs/events                   | Lets users inspect what happened after a run.                              |       P0 | Phase 1                            |
 | Human-readable summary                  | Shows outcome, failed item if any, and record location.                    |       P0 | Phase 1                            |
@@ -56,8 +56,9 @@ Priority is a client-value planning signal, not a schema, package, or tracker.
 
 ## Inventory Notes
 
-- P0 uses local inputs and local execution only. It must not require GitHub, Forge, remote hosts,
-  Learning-loop consumers, provider manifests, or full observability projections.
+- P0 uses local inputs and the scripted-worker stub only. It must not require real agent adapters,
+  execution-host adapters, GitHub, Forge, remote hosts, Learning-loop consumers, provider manifests,
+  or full observability projections.
 - P1 turns the first local run into a useful small workflow runner while keeping provider and
   recovery hardening out of the first MVP.
 - P2 hardens trust, recovery, and provider seams once the local runner produces real records.

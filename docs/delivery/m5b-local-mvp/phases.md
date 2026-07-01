@@ -69,8 +69,8 @@ local plan file
 -> simple config
 -> simple local policy
 -> local engine
--> local process host
--> simple CLI agent
+-> local dry-run harness
+-> scripted-worker stub
 -> structured local logs / run summary
 ```
 
@@ -81,7 +81,7 @@ local plan file
 - Validate the plan through the plan-intake boundary and reject unknown, malformed, or incompatible
   input before a run exists.
 - Bind simple local policy before execution.
-- Run a configured local command or script through a local process host.
+- Drive the scripted-worker stub through a local dry-run harness.
 - Execute one plan item sequentially.
 - Capture worker exit code, stdout/stderr, and a structured event trail in a local run directory.
 - Print a human-readable summary with final state and record location.
@@ -91,14 +91,14 @@ local plan file
 - A minimal valid local fixture runs successfully.
 - An invalid plan fixture is rejected without creating a committed run.
 - A worker failure fixture records the failed item, exit code, stdout/stderr, and final summary.
-- The worker never receives privileged credentials or Forge authority.
+- The scripted-worker stub never receives privileged credentials or Forge authority.
 - The local run record is durable enough for direct inspection without Learning-loop tooling.
 
 **Evidence/tests:**
 
 - CLI smoke test for valid run.
 - Invalid-plan rejection test.
-- Worker-failure capture test.
+- Scripted-worker failure capture test.
 - Golden local run directory fixture such as `run.json`, `events.jsonl`, `stdout.log`, and
   `stderr.log`, without freezing the v0 contract schema.
 - `corepack pnpm check`.
@@ -107,9 +107,10 @@ local plan file
 
 - Stop if work-source provenance bypasses `PlanValidator`.
 - Stop if a console-only run leaves no durable local record.
-- Stop if the local process host is described as sandboxed or SEC-2-compliant without proof.
-- Stop if GitHub, Forge, remote host, resume, provider manifests, or Learning-loop integration
-  becomes required for first MVP success.
+- Stop if the local dry-run harness is described as a real execution-host adapter, sandbox, or
+  SEC-2-compliant host without proof.
+- Stop if a real agent adapter, execution-host adapter, GitHub, Forge, remote host, resume, provider
+  manifests, or Learning-loop integration becomes required for first MVP success.
 
 **Relevant references:**
 
@@ -124,6 +125,7 @@ local plan file
 
 - Full observability projections.
 - Resume.
+- Real agent or execution-host adapters.
 - Rich policy approval flows.
 - Provider manifests.
 - Forge/GitHub integration.
@@ -299,8 +301,8 @@ diagnostics, redaction/export posture, and workspace continuity checks.
 
 ## Phase 5 — Integrated Provider Runs
 
-**Client value:** An operator can move beyond the simple local CLI-agent path while Jig preserves
-the same authority, evidence, and recovery boundaries.
+**Client value:** An operator can move beyond the scripted local stub while Jig preserves the same
+authority, evidence, and recovery boundaries.
 
 **Goal:** Introduce provider seam realizations only after local core semantics, records, policy, and
 recovery have proven themselves.

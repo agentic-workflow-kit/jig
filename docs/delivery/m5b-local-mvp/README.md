@@ -11,10 +11,10 @@ internal components such as plan intake, records, authorization, bootstrap, or o
 
 The first usable product milestone is a local plan runner, not GitHub or Forge integration. It
 should let an operator run a local plan file from a terminal with simple local configuration,
-simple local policy, a local process host, a simple CLI-agent adapter, structured local run logs,
-and a human-readable summary. It must produce durable enough local records to inspect what happened,
-while deferring full observability projections, resume, provider manifests, remote hosts, Forge,
-GitHub, and Learning-loop integration.
+simple local policy, the scripted-worker stub named by design, structured local run logs, and a
+human-readable summary. It must produce durable enough local records to inspect what happened, while
+deferring real agent adapters, execution-host adapters, full observability projections, resume,
+provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
 
 ## Milestones
 
@@ -28,8 +28,8 @@ GitHub, and Learning-loop integration.
    and approval paths.
 4. **Reliable Local Runs** — an operator can recover from interruption and diagnose runs through
    durable local records.
-5. **Integrated Provider Runs** — an operator can move beyond the simple local CLI-agent path into
-   real provider seams and stronger integrations.
+5. **Integrated Provider Runs** — an operator can move beyond the scripted local stub into real
+   provider seams and stronger integrations.
 
 ## Roadmap Files
 
