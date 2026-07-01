@@ -1,0 +1,14 @@
+{
+  "run": {
+    "id": "run-minimal-local-failure",
+    "status": "failure",
+    "planId": "plan-minimal-local"
+  },
+  "events": [
+    { "family": "run.started" },
+    { "family": "story.started", "storyId": "STORY-1" },
+    { "family": "evidence.observed", "storyId": "STORY-1", "result": "failed" },
+    { "family": "story.failed", "storyId": "STORY-1" },
+    { "family": "run.stopped" }
+  ]
+}

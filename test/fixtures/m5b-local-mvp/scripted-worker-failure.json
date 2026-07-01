@@ -1,0 +1,10 @@
+{
+  "storyId": "STORY-1",
+  "outcome": "failure",
+  "error": "Simulated worker failure",
+  "evidence": {
+    "category": "automated-check",
+    "name": "scripted-check",
+    "result": "failed"
+  }
+}
