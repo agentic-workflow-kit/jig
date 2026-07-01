@@ -57,10 +57,10 @@ both.
   D-002 red-team/probe-only scope; D-003 preserve the SEC-2 three-way split; D-004 this story owns
   the authority/provider/SEC-2 probe surface; D-005 read-only invariant handling; D-006
   `contract/seam design` / `strategic-only` plus routed findings back to existing owners or U9.
-- [`../../../HANDOFF.md`](../../../HANDOFF.md) and
-  `/Users/aryekogan/.codex/attachments/988f1259-87d6-45e5-a852-467e967a351a/pasted-text.txt` — the
-  governing statement that Wave 5 owns the full phone-home / SEC-2 adversarial scenario deferred
-  by Wave 4b.
+- [`../../../README.md`](../../../README.md) and
+  [`../../wave-4b-providers/decisions.md`](../../wave-4b-providers/decisions.md) — the durable
+  pre-U9 statement that Wave 5 is the red-team wave and that SEC-2 ownership stays split across
+  `w4-s6` posture/proof seed, this story's adversarial scenario, and later U9 collection.
 - [`../../wave-4b-providers/decisions.md`](../../wave-4b-providers/decisions.md) — especially D-003
   (SEC-2 three-way split), D-004 (provider boundary rule and orphaned-ID ownership), and D-005
   (provider-side `INV-009`+ candidates).

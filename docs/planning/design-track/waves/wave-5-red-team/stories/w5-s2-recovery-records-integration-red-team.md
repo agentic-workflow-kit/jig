@@ -55,10 +55,10 @@ stay consistent with the v0 observability contract and the product guarantees?
   D-002 red-team/probe-only scope; D-004 this story owns the recovery/records/bootstrap probe
   surface; D-005 read-only invariant handling; D-006 `contract/seam design` / `strategic-only` plus
   routed findings back to existing owners or U9.
-- [`../../../HANDOFF.md`](../../../HANDOFF.md) and
-  `/Users/aryekogan/.codex/attachments/988f1259-87d6-45e5-a852-467e967a351a/pasted-text.txt` — the
-  governing Wave 5 scope and the approved split that keeps this story on recovery/records/bootstrap
-  integration rather than authority/provider/SEC-2 ownership.
+- [`../../../README.md`](../../../README.md), [`../frame.md`](../frame.md), and
+  [`../decisions.md`](../decisions.md) — the durable pre-U9 Wave 5 scope and approved split that
+  keep this story on recovery/records/bootstrap integration rather than
+  authority/provider/SEC-2 ownership.
 - [`../../wave-2-state-machines/frame.md`](../../wave-2-state-machines/frame.md) and
   [`../../wave-2-state-machines/stories/w2-s2-run-lifecycle-and-recovery.md`](../../wave-2-state-machines/stories/w2-s2-run-lifecycle-and-recovery.md)
   — the run-lifecycle and recovery semantics this story probes: `previewed → started → stopped \|

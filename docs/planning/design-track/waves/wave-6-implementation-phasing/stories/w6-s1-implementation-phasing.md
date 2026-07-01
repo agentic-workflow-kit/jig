@@ -59,10 +59,11 @@ must stop and hand unresolved integration collection back to U9 or the owning de
   stub-first first slice; D-005 Wave 5 outputs as hardening/gate inputs; D-006 out-of-scope
   contract/U9 ownership; D-007 optimize for gates and ownership boundaries rather than package
   layout or tracker structure; D-008 `contract/seam design` / `strategic-only`.
-- [`../../../HANDOFF.md`](../../../HANDOFF.md) and
-  `/Users/aryekogan/.codex/attachments/988f1259-87d6-45e5-a852-467e967a351a/pasted-text.txt` — the
-  governing statement that Wave 6 is a light implementation-phasing wave and a handoff to a future
-  delivery track, not code itself.
+- [`../../../README.md`](../../../README.md),
+  [`../../wave-5-red-team/README.md`](../../wave-5-red-team/README.md), and
+  [`../../wave-5-red-team/decisions.md`](../../wave-5-red-team/decisions.md) — the durable pre-U9
+  statement that Wave 6 is a light implementation-phasing wave, follows Wave 5's gate posture, and
+  hands sequencing forward to a future delivery track rather than code itself.
 - [`../../wave-5-red-team/frame.md`](../../wave-5-red-team/frame.md),
   [`../../wave-5-red-team/decisions.md`](../../wave-5-red-team/decisions.md),
   [`../../wave-5-red-team/README.md`](../../wave-5-red-team/README.md), and both Wave 5 story briefs

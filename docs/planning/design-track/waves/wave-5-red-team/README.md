@@ -42,11 +42,13 @@ future U9 collector; Wave 5 does not rewrite the design itself.
   owners or U9.
 - [`../../session-template.md`](../../session-template.md) — the exact wave-charter and story
   skeletons this wave follows.
-- [`../../HANDOFF.md`](../../HANDOFF.md) and
-  `/Users/aryekogan/.codex/attachments/988f1259-87d6-45e5-a852-467e967a351a/pasted-text.txt` — the
-  governing scope for Wave 5: a light red-team wave, the two story IDs, and the explicit
-  instruction that Wave 5 owns the full phone-home / SEC-2 adversarial scenario deferred by Wave
-  4b.
+- [`../../README.md`](../../README.md) and [`../../session-template.md`](../../session-template.md)
+  — the durable pre-U9 track scope for Wave 5: a light red-team wave with planning-track-only
+  outputs and the standard charter/story artifact shape.
+- [`../wave-4b-providers/decisions.md`](../wave-4b-providers/decisions.md) and
+  [`../wave-4b-providers/stories/w4-s6-execution-host-provider.md`](../wave-4b-providers/stories/w4-s6-execution-host-provider.md)
+  — the pre-U9 ownership carry-forward that makes Wave 5 responsible for the full phone-home /
+  SEC-2 adversarial scenario deferred by Wave 4b.
 - The immediate prior-wave authority for Wave 5's ownership split and boundary rule:
   [`../wave-4b-providers/decisions.md`](../wave-4b-providers/decisions.md),
   [`../wave-4b-providers/README.md`](../wave-4b-providers/README.md),

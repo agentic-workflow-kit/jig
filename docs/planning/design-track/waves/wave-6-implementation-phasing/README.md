@@ -51,10 +51,12 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
   `strategic-only`.
 - [`../../session-template.md`](../../session-template.md) — the exact wave-charter and story
   skeletons this wave follows.
-- [`../../HANDOFF.md`](../../HANDOFF.md) and
-  `/Users/aryekogan/.codex/attachments/988f1259-87d6-45e5-a852-467e967a351a/pasted-text.txt` — the
-  governing Wave 6 scope: a light implementation-phasing wave, story `w6-s1-implementation-phasing`,
-  and no charter/story authoring beyond this wave's own planning-track artifacts.
+- [`../../README.md`](../../README.md) and [`../../session-template.md`](../../session-template.md)
+  — the durable pre-U9 Wave 6 scope: a light implementation-phasing wave with planning-track-only
+  outputs and the standard charter/story artifact shape.
+- [`../wave-5-red-team/README.md`](../wave-5-red-team/README.md) and
+  [`../wave-5-red-team/decisions.md`](../wave-5-red-team/decisions.md) — the immediate pre-U9
+  authority that makes Wave 5 a hardening/gate input and leaves final integration collection to U9.
 - The immediate prior-wave authority for how hardening inputs are treated:
   [`../wave-5-red-team/frame.md`](../wave-5-red-team/frame.md),
   [`../wave-5-red-team/decisions.md`](../wave-5-red-team/decisions.md),
