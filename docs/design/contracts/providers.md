@@ -134,12 +134,30 @@ relationships these seams participate in:
 Seed interface preserved: **Agent port** — abstracts the coding worker: request work, produce code,
 run checks, report progress.
 
+This section deepens the existing Agent seed in place rather than replacing it. The preserved port
+line above, the file-level Owns / Interface / Notes / diagram, and the port-invocation points
+remain the governing seed statements for this seam. The Agent provider implements behind that
+port, consuming core contracts read-only: the Fence's authorization decision from
+[`../core/authorization.md`](../core/authorization.md), the runner-owned lifecycle/orchestration
+surface from [`../core/orchestration.md`](../core/orchestration.md), the capability/evidence model
+framed in [`../core/plan-intake.md`](../core/plan-intake.md), and the records surface in
+[`../core/records.md`](../core/records.md). It does not redefine policy, evidence sufficiency,
+authorization, or state semantics those core surfaces already own.
+
 **Core owns**
 
 - The meaning of the worker seam as a contained, non-privileged actor.
 - The rule that every worker request is authorized before execution, fail-closed, through the Fence.
 - The rule that the worker holds no forge credentials and no privileged landing authority.
 - The semantics of work-item and run lifecycle terms the worker reports against.
+- The structural no-privileged-method guarantee already recorded as
+  [`INV-002`](../notes/runtime-design-m5a.md): the Agent seam exposes request / observe behavior
+  only, and a privileged push / PR / merge / credential path is outside the seam rather than merely
+  disallowed by policy.
+- The stub posture recorded in [`SURF-003`](../notes/runtime-design-m5a.md),
+  [`CTX-005`](../notes/runtime-design-m5a.md), and
+  [`DEL-004`](../notes/runtime-design-m5a.md): the scripted-worker stub is the one built adapter at
+  this seam, while any real agent driver remains a named extension point behind the same port.
 
 **Provider implements**
 
@@ -147,6 +165,16 @@ run checks, report progress.
   the port.
 - The request and observation behavior needed for the runner to drive a work item through this seam.
 - Capability proof specific to the driver and run context before greater autonomy is granted.
+- A contained worker surface that runs inside the Execution host seam while staying only on the
+  Agent side of that boundary: this seam assumes the worker is contained by the host, but it does
+  not define the host's containment model, proof mechanism, or isolation-strength categories.
+- A capability-attestation claim about what the adapter can safely do in the current driver/run
+  context. The provider supplies the claim; core judges freshness and sufficiency before autonomy is
+  widened, in line with [`EARN-1`](../../product/guarantees.md) and
+  [`EARN-2`](../../product/guarantees.md).
+- The visible stub-vs-real-driver posture of the seam: the scripted-worker stub may satisfy the
+  port with predetermined request / observe behavior, while a future real driver must satisfy the
+  same seam without changing its authority boundary.
 
 **Provider must not**
 
@@ -154,35 +182,102 @@ run checks, report progress.
 - Self-authorize a request or redefine what counts as grant, deny, or route.
 - Treat self-report as sufficient evidence for completion or landing.
 - Redefine lifecycle meaning or widen authority mid-run.
+- Present capability attestation as self-certifying proof; freshness and sufficiency are judged by
+  core, not by the provider.
+- Recast the scripted-worker stub as a general-capability driver or blur the seam between the built
+  stub and a future real adapter.
+- Define the execution host's containment mechanism, no-phone-home proof, or isolation taxonomy from
+  the Agent side of the seam.
 
 ### Execution host port
 
 Seed interface preserved: **Execution host port** — abstracts where the worker is contained.
 
+This section deepens the existing Execution-host seed in place rather than replacing it. The
+preserved port line above, the file-level Owns / Interface / Notes / diagram, and the
+port-invocation point that the Agent port runs inside this host remain the governing seed
+statements for this seam. The Execution host provider implements behind that port, consuming the
+Wave 4a core contracts read-only: the records/evidence surface from
+[`../core/records.md`](../core/records.md), the evidence/attestation model from
+[`../core/plan-intake.md`](../core/plan-intake.md), and the freshness/sufficiency judgment from
+[`../core/authorization.md`](../core/authorization.md). It supplies containment proof and honest
+reporting into those core-owned surfaces; it does not redefine policy, evidence taxonomy,
+authorization, or log semantics they already own.
+
 **Core owns**
 
-- The guarantee that confinement is real enough to preserve the no-phone-home boundary.
-- The meaning of isolation-strength reporting and the policy consequences of weaker or missing proof.
-- The rule that stronger autonomy unlocks only when containment is proven, not asserted.
+- The guarantee that confinement is real enough to preserve the no-phone-home boundary: outbound
+  network access is confined, and the confinement is proven rather than taken on the worker's or
+  host's word.
+- The containment-proof discipline this seam is held to: the host must supply evidence that the
+  declared boundary actually held for the run context it is claiming, not merely report a posture.
+- The meaning of isolation-strength reporting and the policy consequences of weaker, missing, stale,
+  or overstated proof.
+- The rule that stronger autonomy unlocks only when containment is proven, not asserted; the host
+  supplies proof, while core judges whether that proof is fresh and sufficient.
 - The fact that credentials and irreversible authority stay outside the worker environment.
+- The host-side structural contribution to ISO-4: the worker runs in a run-scoped isolated
+  workspace whose boundary prevents parallel runs from colliding through shared execution
+  environment state.
 
 **Provider implements**
 
-- A concrete containment environment for the worker.
-- Honest reporting about the isolation posture the environment actually provides.
-- The host-side behavior needed to let the runner and worker operate within the declared boundary.
+- A concrete containment environment for the worker that contains the Agent port from the host side
+  of the shared seam: the worker runs inside this host, but the host does not redefine the Agent
+  port's request/observe behavior.
+- A containment-proof discipline that produces a host-supplied claim rather than a self-certifying
+  assertion. The proof must demonstrate the confinement boundary the host claims, for the run and
+  driver context it claims, in a form the core evidence model can judge.
+- An isolation-strength category catalog the host reports against honestly, with categories stated
+  as host-reported strength claims rather than as automatic grants of autonomy. At minimum the seam
+  must distinguish between: no meaningful confinement proof, confinement present but weaker than
+  the strongest available boundary, and confinement strong enough to support the highest autonomy
+  posture core may later allow.
+- Honest reporting about the isolation posture the environment actually provides, including when the
+  host can only prove a weaker category than requested or cannot prove confinement at all.
+- The host-side behavior needed to let the runner and worker operate within the declared boundary,
+  including the run-scoped workspace isolation this seam contributes to ISO-4.
+- The supplied-claim side of the SEC-2 / EARN-2 boundary: the host emits proof and honest report
+  into the evidence model; core decides how that changes autonomy and records the outcome.
+- The design posture side of the SEC-2 three-way boundary: this seam owns the requirement that the
+  no-phone-home boundary be provable and honestly reported; later red-team adversarial probing and
+  later integration collection remain outside this section.
+- Candidate-only invariant rows, kept outside the numbered ledger and flagged for U9
+  reconciliation: `containment-proven-not-asserted` and `isolation-strength-honestly-reported`.
+- A tactical failure-token catalog the host can produce/report without judging policy consequence:
+  `containment unproven`, `isolation-strength overstated`, and `workspace collision`. The host
+  reports the condition it encountered or could prove; core judges freshness/sufficiency and
+  records the outcome through its own evidence and records surfaces.
 
 **Provider must not**
 
-- Treat self-report as proof that confinement held.
+- Treat self-report as proof that confinement held, or blur the distinction between claimed
+  isolation strength and proved isolation strength.
 - Redefine the no-phone-home guarantee as best-effort or informational only.
+- Decide for itself that its proof is fresh enough or sufficient enough; that judgment stays with
+  core.
+- Invent its own evidence taxonomy, log model, or policy consequence model to compensate for weaker
+  isolation.
 - Move privileged credentials into the worker environment.
 - Reinterpret policy, evidence, or authorization semantics to compensate for weaker isolation.
+- Collapse the SEC-2 ownership split by authoring the future red-team scenario or claiming
+  collection findings that belong to later integration work.
 
 ### Forge port
 
 Seed interface preserved: **Forge port** — abstracts the code host a run pushes to, opens PRs
 against, and merges through.
+
+This section deepens the existing Forge seed in place rather than replacing it. The preserved port
+line above, the file-level Owns / Interface / Notes / diagram, and the port-invocation point that
+the runner invokes this seam at the `done -> landed` boundary remain the governing seed statements
+for this seam. The Forge provider implements behind that port, consuming the runner-owned
+orchestration surface from [`../core/orchestration.md`](../core/orchestration.md), the
+evidence-sufficiency and GUARD-2 preconditions from [`../core/plan-intake.md`](../core/plan-intake.md)
+and [`../core/authorization.md`](../core/authorization.md), and the records/log surface from
+[`../core/records.md`](../core/records.md) read-only. It does not redefine evidence sufficiency,
+GUARD-2 detection or re-approval, done-versus-landed semantics, blocked-state ownership, or log
+consistency those core and prior-wave surfaces already own.
 
 **Core owns**
 
@@ -192,12 +287,36 @@ against, and merges through.
 - The decision that branch protection, merge queues, and other forge-side controls are respected as
   governing constraints, not bypass targets.
 - The record/evidence boundary for what is attempted, blocked, or landed.
+- The runner-only invocation point for this seam at the `done -> landed` boundary, including the
+  rule that the worker never invokes landing authority directly and a forge adapter does not become
+  a second caller of the transition.
+- The GUARD-2 precondition that rule-governing-surface pauses and re-approval are cleared before
+  landing is attempted; this seam consumes that cleared precondition and does not detect or resolve
+  it.
+- The blocked-transition ownership split: Wave 2 owns when a work item becomes `blocked`; this seam
+  owns only the forge-side act of surfacing that already-blocked condition when the runner can do
+  so safely.
+- The records fallback and log-consistency posture: when a forge-side action cannot be completed
+  safely, the durable fallback record remains a Records concern rather than a local reinvention by
+  this seam.
 
 **Provider implements**
 
 - A concrete integration to the code host behind the runner-owned seam.
 - The mechanics needed for the runner to push, open PRs, and merge through the forge.
 - Truthful surfacing of forge-side constraints and outcomes back to the core.
+- A runner-exclusive landing adapter that executes push / PR / merge only as the runner's delegate,
+  never as worker-held authority and never as an alternate policy or lifecycle owner.
+- Respect for forge-side branch protection, merge queues, and related controls as real governing
+  constraints the adapter must observe and surface, not bypass or locally reinterpret.
+- The mechanical MERGE-5 block-surfacing act at the forge seam: when the runner has a safe branch
+  and permission to act, the adapter must open or update the PR-side surface, post status, and
+  surface failure reasons through the forge without changing what `blocked` means; when it cannot
+  safely do so, the durable fallback record remains a Records concern rather than a local
+  reinvention by this seam.
+- Adapter-level idempotency as a seam contract: a resume or retry must not silently double-apply a
+  push, PR, or merge side effect the runner already recorded or completed. This is a contract-test
+  concern for adapters at this seam, not a new lifecycle or ledger surface.
 
 **Provider must not**
 
@@ -205,6 +324,14 @@ against, and merges through.
 - Redefine what counts as evidence-met, done, or landed.
 - Hide forge-side blockers or silently widen authority around branch protection or queues.
 - Become a second policy or state authority for merge decisions.
+- Re-judge evidence sufficiency, capability freshness, or completion readiness that core already
+  judged before invoking the seam.
+- Detect, classify, or capture GUARD-2 rule-governing-surface re-approval on its own; that remains
+  with the plan/policy/evidence and authority-spine surfaces this seam consumes.
+- Redefine blocked-state ownership, invent a second records fallback, or treat forge-surface
+  reporting as the source of truth for log consistency.
+- Treat resume/retry as permission to repeat irreversible forge effects without checking whether the
+  runner has already completed or recorded them.
 
 ### Work source port
 
@@ -215,15 +342,24 @@ only runtime scheduling input; the Work source seam never bypasses the plan.
 **Core owns**
 
 - The rule that the validated execution plan is jig's only runtime scheduling input.
+- The `PlanValidator` boundary (`w4-s2`) that every source-supplied candidate still crosses before
+  any work reaches runtime execution.
 - The meaning of plan-bound eligibility and dependency order once work enters runtime execution.
 - The authority boundary between provenance/import behavior and runtime orchestration.
 - The decision to reject unknown or incompatible plan shapes at the plan boundary, not guess.
+- The plan-intake judgment about what becomes part of a validated plan, rather than treating source
+  material as already accepted work.
 
 **Provider implements**
 
-- A concrete origin, import, or sync adapter that can supply candidate work provenance.
-- The behavior needed to surface source context to planning or intake without becoming the runner.
-- Honest representation of what came from the source versus what jig validated and scheduled.
+- A shape-level source seam that can surface candidate work items and/or provenance to planning or
+  intake upstream of runtime execution.
+- The behavior needed to surface source context to planning or intake without becoming the runner
+  or a second scheduling input.
+- Honest representation of what came from the source versus what jig validated, accepted into the
+  plan, and later scheduled.
+- A provenance/origination surface that keeps imported or source-derived material explicitly in the
+  candidate stage until plan intake validates it.
 
 **Provider must not**
 
@@ -231,6 +367,17 @@ only runtime scheduling input; the Work source seam never bypasses the plan.
 - Become a competing runtime scheduler or redefine dependency/eligibility semantics.
 - Freeze contract fields locally to fit one source's needs.
 - Reinterpret imported work as already authorized, eligible, or complete.
+- Decide scheduling order, readiness, or runtime eligibility; those remain Orchestration concerns
+  once a plan is validated.
+- Invent a concrete import format, sync cadence, or source-specific contract freeze inside this
+  seam.
+
+**Candidate invariant (unnumbered, dedup deferred)**
+
+- **work-source-never-bypasses-plan** — anything the Work source seam supplies remains candidate
+  input until it crosses `PlanValidator`; no work item reaches the runner except through the
+  validated plan. This wording is very likely identical to Wave 3's own unnumbered candidate for
+  the same boundary; both citations should stand side by side and any dedup stays deferred to U9.
 
 ## Cross-port invariant candidates
 

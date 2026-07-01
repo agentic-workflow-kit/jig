@@ -79,8 +79,9 @@ resumed \| completed`, RESUME-1..5, GUARD-1 across resume, liveness-driven stops
 - `docs/design/contracts/observability-records-contract-v0.md` — the seam properties this composed
   surface must still satisfy: run identity/input binding, event causality, blocks/stops/notices,
   recovery/resume, redaction/export posture, and learning-loop-readable outputs.
-- `docs/design/core/records.md` and `docs/design/core/bootstrap.md` — the current design homes the
-  story cites and may route findings back to, but does not edit.
+- `docs/design/core/orchestration.md`, `docs/design/core/records.md`, and
+  `docs/design/core/bootstrap.md` — the current design homes the story cites and may route findings
+  back to, but does not edit.
 - `docs/product/guarantees.md` — exact IDs this story reconciles to: RESUME-1/2/3/4/5, GUARD-1/2,
   ISO-4, SEE-1/3/5/6, LIVE-1/2, SEC-1.
 - `docs/product/concepts.md` — product-visible run/story outcomes and the runner/worker boundary this
@@ -181,8 +182,10 @@ The five durable deliverable types this session must produce:
 - This authored story brief and the later planning-track probe outputs it drives.
 - The cited Wave 2 and Wave 4a frames and story briefs listed above, especially `w2-s2`, `w4-s1`,
   and `w4-s4`.
-- `docs/design/contracts/observability-records-contract-v0.md`, `docs/design/core/records.md`,
-  `docs/design/core/bootstrap.md`, `docs/product/guarantees.md`, and `docs/product/concepts.md`.
+- `docs/design/contracts/observability-records-contract-v0.md`,
+  `docs/design/core/orchestration.md`, `docs/design/core/records.md`,
+  `docs/design/core/bootstrap.md`, `docs/product/guarantees.md`, and
+  `docs/product/concepts.md`.
 - The design-review report and this wave's [`../decisions.md`](../decisions.md) dispositions.
 
 ## Design review & handoff

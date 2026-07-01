@@ -68,8 +68,8 @@ U9 collector; Wave 5 does not rewrite the design itself.
 - Product/design sources the frame cites for exact IDs and seam properties:
   `docs/product/guarantees.md`, `docs/product/concepts.md`,
   `docs/design/contracts/execution-plan-contract-v0.md`,
-  `docs/design/contracts/observability-records-contract-v0.md`,
-  `docs/design/core/records.md`, `docs/design/core/bootstrap.md`,
+  `docs/design/contracts/observability-records-contract-v0.md`, `docs/design/core/records.md`,
+  `docs/design/core/bootstrap.md`, `docs/design/core/orchestration.md`,
   `docs/design/contracts/providers.md`, and `docs/design/notes/runtime-design-m5a.md`.
 
 ## Required output docs
