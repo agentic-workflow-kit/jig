@@ -29,35 +29,76 @@ the doorbell escalation channel to the owner, who approves, rejects, or override
 ## Diagram
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
 flowchart TB
-    Req["Worker request"]
-    Cat{"Fence category?"}
-    Grant["Grant"]
-    Deny["Deny — fail closed<br/>(outside declared scope)"]
-    Runner["Runner performs the<br/>privileged action, if any"]
 
-    subgraph ESC["Escalation — routed to the owner"]
-        direction TB
-        Route["Route to doorbell<br/>credentials · push / merge ·<br/>rule-governing · irreversible"]
-        Owner["Owner approves or rejects"]
-        Route --> Owner
-    end
+  req("`**Worker request**
+wants to act`")
+  fence("`**Fence**
+fixed category check`")
+  grant("`**Grant**
+reversible, in scope,
+non-privileged`")
+  route("`**Route to doorbell**
+credentials, push / merge,
+rule-governing, irreversible`")
+  deny("`**Deny — fail closed**
+outside declared scope`")
+  owner("`**Owner decides**
+approve / reject`")
+  runner("`**Runner acts**
+performs the privileged action`")
 
-    Req --> Cat
-    Cat -->|reversible, in scope| Grant
-    Cat -->|risky| Route
-    Cat -->|out of scope| Deny
-    Owner -->|approve| Grant
-    Owner -->|reject| Deny
-    Grant --> Runner
+  req --> fence
+  fence -->|safe| grant
+  fence -->|risky| route
+  fence -->|out of scope| deny
+  route --> owner
+  owner -->|approve| grant
+  owner -->|reject| deny
+  grant --> runner
 
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Req seam;
-    class Cat,Grant,Runner core;
-    class Deny,Route,Owner neutral;
+  subgraph legend[" "]
+    direction LR
+    l1(" ") ~~~ lt1["worker (no credentials)"] ~~~ l2(" ") ~~~ lt2["jig-core (fence / runner)"] ~~~ l3(" ") ~~~ lt3["owner / escalation"]
+  end
+  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+
+  runner ~~~ legend
+
+  classDef seamBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  classDef legendSeam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:6,ry:6;
+  classDef legendCore fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendOwner fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
+  classDef legendText fill:transparent,stroke:transparent,color:#666666;
+
+  class req seamBox;
+  class fence,grant,runner coreBox;
+  class route,deny,owner commonBox;
+  class l1 legendSeam;
+  class l2 legendCore;
+  class l3 legendOwner;
+  class lt1,lt2,lt3 legendText;
 
     style ESC fill:#FBFAF7,stroke:#5F5E5A,color:#444441
 ```
