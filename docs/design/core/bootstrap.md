@@ -6,8 +6,8 @@ status: draft — stub
 # Bootstrap — the launch / composition root
 
 Bootstrap is the phase that turns authored configuration into a validated, bound, wired,
-identified, ready run; `preview` is its side-effect-free form, exercising the same path without
-committing to a run identity.
+identified, ready run; `preview` is its recorded-but-non-committing form, exercising the same path
+without committing to a run identity.
 
 ## Owns
 
@@ -58,8 +58,9 @@ flowchart TD
 
 ## Notes
 
-- `preview` walks load, validate, and bind without committing: no run identity is allocated and
-  no side effects occur.
+- `preview` walks load, validate, and bind and is still recorded — it emits its own audit event
+  (`run.previewed`), honoring the one-command / one-audit invariant — but it commits no run: no
+  run identity is allocated and no workspace, provider, or privileged side effects occur.
 - Policy (plus repo-level floors) is immutable for the life of the run once bound here.
 - Named extension points: capability attestation depth, and resume (re-entering bootstrap for an
   already-allocated run) are deferred to their own seams, not designed here.

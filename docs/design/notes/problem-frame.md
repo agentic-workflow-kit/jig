@@ -13,7 +13,7 @@ methodology: ddd
 
 ## 1. Scope and Goal
 
-- **Source request:** org milestone **M5a** (`.github/MILESTONES.md`, milestone M5 _Approach_) —
+- **Source request:** org milestone **M5a** (`agentic-workflow-kit/.github/MILESTONES.md`, milestone M5 _Approach_) —
   name the full local-runtime architecture at high altitude and mark each seam's M5 posture so
   M5b can implement a thin walking skeleton. M5a is what satisfies M5 entry criterion 3 ("Jig
   design has named the first local execution host and the minimum policy posture"), currently
@@ -36,7 +36,7 @@ methodology: ddd
 
 | Source                                                                                                   | Authority                | Establishes                                                                                                                                  | Gaps / stale risk                                                                                     |
 | -------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `.github/MILESTONES.md` (M5 / M5a-M5b)                                                                   | authoritative — scope    | M5a/M5b split, the per-seam posture table, dry-run-first exit criteria, the authority-record requirement, and the no-op kill-assumption      | Leaves "worker posture in dry-run" (Q1) and "minimum policy posture" (Q2) to this design              |
+| `agentic-workflow-kit/.github/MILESTONES.md` (M5 / M5a-M5b)                                              | authoritative — scope    | M5a/M5b split, the per-seam posture table, dry-run-first exit criteria, the authority-record requirement, and the no-op kill-assumption      | Leaves "worker posture in dry-run" (Q1) and "minimum policy posture" (Q2) to this design              |
 | [`../../product/jig.md`](../../product/jig.md)                                                           | authoritative — product  | Local-first execution host now; operator-initiated; preview and dry-run are first-class driving actions; "no model decides"                  | None material to this slice                                                                           |
 | [`../../product/guarantees.md`](../../product/guarantees.md)                                             | authoritative — ID spec  | The invariants the design must preserve: FENCE-1..3, MERGE-1..5, CFG-1..10, RESUME-\*, ISO-\*, SEE-1..6, STACK/DRIVE                         | These are outcome commitments, not field schemas; design reconciles to them                           |
 | [`../../product/concepts.md`](../../product/concepts.md)                                                 | authoritative — concepts | Runner = Jig-core (not a seam); the four swappable seams; product-visible story states (landed/done/rejected/blocked/parked) and run stopped | Defines the named end-states the slice must reach                                                     |

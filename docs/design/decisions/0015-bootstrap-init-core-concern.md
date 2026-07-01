@@ -16,7 +16,8 @@ workspace, wire the provider adapters, run a storage preflight, and allocate run
 Recognise **bootstrap / init** as a distinct core concern — the composition root and launch
 sequence. It sits on the seam between contracts (loaded and wired) and core (the ready run it
 produces). Its home is [`core/bootstrap.md`](../core/bootstrap.md). In the runtime flow it is the
-first phase; in the folder layout it is a core file. `preview` is its side-effect-free form.
+first phase; in the folder layout it is a core file. `preview` is its recorded-but-non-committing
+form (it emits its `run.previewed` audit event but commits no run).
 
 ## Consequences
 

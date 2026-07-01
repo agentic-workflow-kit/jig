@@ -209,7 +209,7 @@ fixture.
       "producer": "human-approved-planning",
       "references": [
         "jig/docs/product/guarantees.md",
-        ".github/MILESTONES.md#M1"
+        "agentic-workflow-kit/.github/MILESTONES.md#M1"
       ]
     },
     "stories": [

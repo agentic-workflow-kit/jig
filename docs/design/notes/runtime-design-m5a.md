@@ -41,7 +41,7 @@ The methodology-neutral contract surface. Here the consumer is jig's M5b impleme
 
 | ID      | Type     | Reference                                                                                                | Required for M5b                                                         | Notes                       |
 | ------- | -------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------- |
-| SRC-001 | decision | `.github/MILESTONES.md` (M5 / M5a-M5b Approach)                                                          | Dry-run-first scope, posture table, authority-record requirement         | Org milestone               |
+| SRC-001 | decision | `agentic-workflow-kit/.github/MILESTONES.md` (M5 / M5a-M5b Approach)                                     | Dry-run-first scope, posture table, authority-record requirement         | Org milestone               |
 | SRC-002 | source   | [`../../product/guarantees.md`](../../product/guarantees.md)                                             | The ID-bearing invariants the runtime must preserve                      | FENCE/MERGE/CFG/SEE/ISO/... |
 | SRC-003 | source   | [`../../product/jig.md`](../../product/jig.md)                                                           | Local-first, operator-initiated, runner/worker boundary, preview/dry-run | Product hub                 |
 | SRC-004 | source   | [`../../product/concepts.md`](../../product/concepts.md)                                                 | Track/story model, runner=core, product-visible run/story states         | Concepts                    |
@@ -106,14 +106,14 @@ The methodology-neutral contract surface. Here the consumer is jig's M5b impleme
 
 ## 2. Source and Context Audit
 
-| Source                                        | Used for                                                    | Notes                             |
-| --------------------------------------------- | ----------------------------------------------------------- | --------------------------------- |
-| `.github/MILESTONES.md` (M5)                  | Scope, posture table, exit criteria, kill-assumptions       | Authoritative scope               |
-| `docs/product/guarantees.md`                  | The invariants (FENCE/MERGE/CFG/SEE/ISO/RESUME/GUARD/STACK) | Authoritative product             |
-| `docs/product/concepts.md`                    | Run/story model, runner=core, the product-visible state set | Authoritative product             |
-| `docs/design/contracts/*-contract-v0.md`      | The input and output seam properties (not frozen schemas)   | jig-owned seams                   |
-| `docs/design/notes/problem-frame.md`          | Frame, source map, depth selection                          | This slice's intake               |
-| `docs/design/notes/prior-art-workflow-kit.md` | Reference-only lessons carried (RL-1..10)                   | workflow-kit v-next, never ported |
+| Source                                            | Used for                                                    | Notes                             |
+| ------------------------------------------------- | ----------------------------------------------------------- | --------------------------------- |
+| `agentic-workflow-kit/.github/MILESTONES.md` (M5) | Scope, posture table, exit criteria, kill-assumptions       | Authoritative scope               |
+| `docs/product/guarantees.md`                      | The invariants (FENCE/MERGE/CFG/SEE/ISO/RESUME/GUARD/STACK) | Authoritative product             |
+| `docs/product/concepts.md`                        | Run/story model, runner=core, the product-visible state set | Authoritative product             |
+| `docs/design/contracts/*-contract-v0.md`          | The input and output seam properties (not frozen schemas)   | jig-owned seams                   |
+| `docs/design/notes/problem-frame.md`              | Frame, source map, depth selection                          | This slice's intake               |
+| `docs/design/notes/prior-art-workflow-kit.md`     | Reference-only lessons carried (RL-1..10)                   | workflow-kit v-next, never ported |
 
 ## 3. Assumptions and Blockers
 
@@ -369,8 +369,11 @@ globally, so the mergeability-**held** form of done-not-landed (which needs the 
 deferred; the `story.done` record carries `mergeability: not-evaluated` rather than silently
 omitting the contract-named field. The run ends `stopped` because STORY-C parked unattended.
 
-**Happy-only variant:** a plan of STORY-A plus its held dependent STORY-B ends `run.completed` (no
-human needed; STORY-B recorded `waiting`). Both run terminals are exercised.
+**Held-dependent variant:** a plan of STORY-A plus its held dependent STORY-B ends `run.stopped`:
+STORY-A reaches `done`, but dry-run suppresses landing, so STORY-B stays `waiting` — never
+eligible — and no further progress is possible. Whether a dry-run can legitimately reach
+`run.completed` given that nothing lands is a question to resolve when the design is deepened.
+This fixture exercises the `stopped` terminal; `completed`-in-dry-run is deferred.
 
 ### Illustrative record (excerpt)
 
