@@ -16,8 +16,9 @@ The design is organised by one cut: **fixed logic vs. edge interfaces.**
 
 The scaffold is complete; the per-area detail is the work in progress. Legend: **overview** =
 agreed at this altitude, ready to read; **stub** = skeleton only (purpose, responsibilities,
-interface, one diagram) — the detailed design is pending; **contract v0** = an agreed v0 seam
-shape, not a frozen schema; **log / archive** = decision records and reference material.
+interface, one diagram) — the detailed design is pending; **draft** = deepened design doc at its
+current wave altitude; **contract v0** = an agreed v0 seam shape, not a frozen schema; **log /
+archive** = decision records and reference material.
 
 | Area                | Files                                                                                                                                                | Status      | Pending                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
@@ -26,10 +27,11 @@ shape, not a frozen schema; **log / archive** = decision records and reference m
 | Conventions         | [`conventions.md`](./conventions.md)                                                                                                                 | overview    | —                                                        |
 | Core overview       | `core/README.md`                                                                                                                                     | overview    | —                                                        |
 | Domain model        | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md), [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) | **stub**    | `review-technical-design` pass                           |
-| Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md`                                                                            | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
+| Core lifecycle/auth | `core/{bootstrap, orchestration, authorization}.md`                                                                                                  | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
+| Core data ports     | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass          |
 | Contracts overview  | `contracts/README.md`                                                                                                                                | overview    | —                                                        |
 | Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)            |
-| Driving / providers | `contracts/{driving, providers}.md`                                                                                                                  | **stub**    | deepen in place                                          |
+| Driving / providers | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | provider adapters and conformance details deferred       |
 | Decisions           | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                              |
 | Notes               | `notes/*`                                                                                                                                            | archive     | —                                                        |
 

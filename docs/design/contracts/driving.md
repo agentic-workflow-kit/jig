@@ -1,6 +1,6 @@
 ---
 title: "Driving contracts — how consumers drive jig"
-status: draft — stub
+status: draft
 ---
 
 # Driving contracts — how consumers drive jig
@@ -70,6 +70,95 @@ CLI / MCP / SDK`")
   class term,tool,embed commonBox;
 ```
 
+## Port boundary and anti-corruption stance
+
+The existing interface and Mermaid diagram above are the preserved seed for this boundary. Wave 3
+deepens them in place rather than replacing them: the operator-control port remains the single
+driving surface behind CLI, MCP, and SDK adapters, while core policy, authorization, orchestration,
+and provider seams remain cited sources rather than edge-owned behavior.
+
+The anti-corruption stance is different from the swappable provider seams. This edge is not where
+run logic lives and it is not a place to redefine provider capability, authorization, or lifecycle
+semantics. The edge translates operator intent into one control-plane call through the cited core
+surface and records one audit event for that action; it does not reach around the port into core or
+into provider contracts directly.
+
+## Owns / implements / must-not
+
+### Core owns
+
+- The operator-control port contract and the deliberate driving-action vocabulary at the current
+  altitude.
+- The one-command / one-control-plane-call / one-audit-event invariant.
+- The meaning of the control-plane calls once they enter core.
+- The rule that orchestration, eligibility, authorization, and provider interaction remain out of
+  the edge.
+
+### An adapter implements
+
+- Thin realization of the port for terminal, MCP/tool, or embedding use.
+- Surface-specific packaging of operator intent into a call on the single port.
+- Surface-specific presentation of results that come back from core.
+
+### Must not
+
+- Hold run logic, eligibility rules, or authorization decisions in the adapter layer.
+- Import provider contracts or call provider seams directly from the edge.
+- Bypass the cited core surfaces to perform privileged or lifecycle-significant work.
+- Turn one operator action into multiple hidden control-plane operations with ambiguous audit
+  posture.
+
+## Driving actions at current altitude
+
+The preserved seed action set remains: start, preview, watch, inspect, ask-why, decide, and stop.
+This section stays at design altitude only. It names the deliberate actions the port carries without
+freezing exact method signatures or adapter-specific representation.
+
+## Invocation into cited core surfaces
+
+This doc does not author any new state or transition. It names the already-settled invocation
+relationship only: the driving edge calls into cited core surfaces, especially
+[`../core/orchestration.md`](../core/orchestration.md), and cited authorization flow remains owned
+by [`../core/authorization.md`](../core/authorization.md). The `decide` action surfaces an
+owner-facing control through the same operator boundary; it does not redesign or bypass the Fence.
+
+## Audit-event posture
+
+- One operator action maps to one control-plane call and one audit event, including invalid input.
+- Audit posture belongs to the driving boundary even when the requested action does not proceed.
+- The edge contributes the operator-facing entry record, while the meaning and downstream effects of
+  the call remain core-owned.
+
+## Edge discipline and contract posture
+
+- The driving edge imports no provider contracts and holds no run logic.
+- CLI, MCP, and SDK remain thin realizations of the same port rather than separate control planes.
+- A future change to provider, authorization, or lifecycle semantics routes back to the owning core
+  or provider seam rather than being hidden in an adapter.
+
+## Port-boundary invariant candidates
+
+These are unnumbered candidates only. If a future consolidated ledger needs numbering, the next
+available invariant number is `INV-019`.
+
+- **One action, one call, one audit event.** The operator boundary preserves a single deliberate
+  driving act rather than fanning it into hidden multi-step control paths.
+- **Edge holds no run logic.** Orchestration, eligibility, and authorization semantics remain in
+  core.
+- **Edge imports no provider contracts.** Driving adapters do not couple directly to swappable
+  provider seams.
+- **Owner decisions stay on the same operator boundary.** A routed decision returns through the
+  operator surface rather than a second ad hoc control channel.
+
+## Risks and deferred decisions
+
+- **Risk — adapter drift.** CLI, MCP, and SDK surfaces may diverge in behavior if they grow local
+  control logic instead of staying thin realizations of the same port.
+- **Deferred — exact port signatures.** Method names, parameter representation, and adapter-specific
+  shapes remain intentionally unfrozen here.
+- **Deferred — future non-operator triggers.** Webhook or scheduler-triggered entry paths remain a
+  separate design question and do not change the current operator-driven boundary.
+
 ## Notes
 
 - The edge holds no run logic and imports no provider contracts; all three adapters are thin
@@ -84,4 +173,7 @@ CLI / MCP / SDK`")
 - `docs/product/jig.md` — "Driving a run" (start, preview, watch, inspect, ask-why, decide, stop;
   "You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
   software"); "Operator-initiated" (see "What Jig isn't (yet)").
-- `SEE-1` — full run visibility, surfaced through inspect/ask-why.
+- `SEE-1` — full run visibility, surfaced through inspect/ask-why on the operator boundary.
+- `SURF-001` — `OperatorControlPort` as the single operator entry surface behind CLI / MCP / SDK
+  realizations.
+- `ENF-001` — the edge imports no provider contracts and holds no run logic.

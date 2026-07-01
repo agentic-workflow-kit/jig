@@ -18,6 +18,8 @@ into the durable design as it deepens.
 - [`runtime-design-m5a.md`](./runtime-design-m5a.md) — the dense M5a runtime design record in
   handoff-contract format; the source to mine when deepening the [`../core/`](../core/) and
   [`../contracts/`](../contracts/) stubs.
+- `wave-*-execution-review.md` — build-time review-disposition logs for each design-track wave's
+  execution pass.
 
 The durable design lives in [`../core/`](../core/) and [`../contracts/`](../contracts/); this
 folder preserves the M5a slice's intake and record.
