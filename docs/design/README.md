@@ -22,6 +22,7 @@ shape, not a frozen schema; **log / archive** = decision records and reference m
 | Area                | Files                                                                     | Status      | Pending                                                  |
 | ------------------- | ------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | Layer index         | `README.md`                                                               | overview    | —                                                        |
+| Design charter      | [`charter.md`](./charter.md)                                              | overview    | —                                                        |
 | Core overview       | `core/README.md`                                                          | overview    | —                                                        |
 | Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md` | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
 | Contracts overview  | `contracts/README.md`                                                     | overview    | —                                                        |
