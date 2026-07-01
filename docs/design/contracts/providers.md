@@ -134,12 +134,30 @@ relationships these seams participate in:
 Seed interface preserved: **Agent port** — abstracts the coding worker: request work, produce code,
 run checks, report progress.
 
+This section deepens the existing Agent seed in place rather than replacing it. The preserved port
+line above, the file-level Owns / Interface / Notes / diagram, and the port-invocation points
+remain the governing seed statements for this seam. The Agent provider implements behind that
+port, consuming core contracts read-only: the Fence's authorization decision from
+[`../core/authorization.md`](../core/authorization.md), the runner-owned lifecycle/orchestration
+surface from [`../core/orchestration.md`](../core/orchestration.md), the capability/evidence model
+framed in [`../core/plan-intake.md`](../core/plan-intake.md), and the records surface in
+[`../core/records.md`](../core/records.md). It does not redefine policy, evidence sufficiency,
+authorization, or state semantics those core surfaces already own.
+
 **Core owns**
 
 - The meaning of the worker seam as a contained, non-privileged actor.
 - The rule that every worker request is authorized before execution, fail-closed, through the Fence.
 - The rule that the worker holds no forge credentials and no privileged landing authority.
 - The semantics of work-item and run lifecycle terms the worker reports against.
+- The structural no-privileged-method guarantee already recorded as
+  [`INV-002`](../notes/runtime-design-m5a.md): the Agent seam exposes request / observe behavior
+  only, and a privileged push / PR / merge / credential path is outside the seam rather than merely
+  disallowed by policy.
+- The stub posture recorded in [`SURF-003`](../notes/runtime-design-m5a.md),
+  [`CTX-005`](../notes/runtime-design-m5a.md), and
+  [`DEL-004`](../notes/runtime-design-m5a.md): the scripted-worker stub is the one built adapter at
+  this seam, while any real agent driver remains a named extension point behind the same port.
 
 **Provider implements**
 
@@ -147,6 +165,16 @@ run checks, report progress.
   the port.
 - The request and observation behavior needed for the runner to drive a work item through this seam.
 - Capability proof specific to the driver and run context before greater autonomy is granted.
+- A contained worker surface that runs inside the Execution host seam while staying only on the
+  Agent side of that boundary: this seam assumes the worker is contained by the host, but it does
+  not define the host's containment model, proof mechanism, or isolation-strength categories.
+- A capability-attestation claim about what the adapter can safely do in the current driver/run
+  context. The provider supplies the claim; core judges freshness and sufficiency before autonomy is
+  widened, in line with [`EARN-1`](../../product/guarantees.md) and
+  [`EARN-2`](../../product/guarantees.md).
+- The visible stub-vs-real-driver posture of the seam: the scripted-worker stub may satisfy the
+  port with predetermined request / observe behavior, while a future real driver must satisfy the
+  same seam without changing its authority boundary.
 
 **Provider must not**
 
@@ -154,6 +182,12 @@ run checks, report progress.
 - Self-authorize a request or redefine what counts as grant, deny, or route.
 - Treat self-report as sufficient evidence for completion or landing.
 - Redefine lifecycle meaning or widen authority mid-run.
+- Present capability attestation as self-certifying proof; freshness and sufficiency are judged by
+  core, not by the provider.
+- Recast the scripted-worker stub as a general-capability driver or blur the seam between the built
+  stub and a future real adapter.
+- Define the execution host's containment mechanism, no-phone-home proof, or isolation taxonomy from
+  the Agent side of the seam.
 
 ### Execution host port
 
