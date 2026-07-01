@@ -10,7 +10,9 @@ supersede it once the track reaches U9.
 
 **Run the Wave 4b per-unit review — it was NOT run before commit** (the user asked to stop and hand
 off). Everything through Wave 4b authoring is committed; the 4b build-time QA review is the one
-skipped step. Start there, then continue with Waves 5 → 6 → U9. Details in §7.
+skipped step. **Resume at the review agent, then spawn an implementer and reuse it to fix the
+findings, and finish the full review → fix → re-verify → commit loop BEFORE proceeding to Wave 5.**
+Then continue with Waves 5 → 6 → U9. Full runbook in §7.
 
 ---
 
@@ -112,29 +114,47 @@ Modes/depths so far: W1 `system-entity-model`/`strategic-only`; W2 `lifecycle/st
 `ports-and-adapters`, s6 `tactical-ddd`/`tactical-ddd` (the one escalated provider — closes Wave 3's
 and Wave 4a's forecast that the concurrency/provider-adapter tactical axis lands in Wave 4b).
 
-## 7. IMMEDIATE PENDING — Wave 4b per-unit review
+## 7. IMMEDIATE PENDING — Wave 4b per-unit review (resume here)
 
-Not run before commit, at the user's instruction. Do this first:
+Not run before commit, at the user's instruction. **This is exactly where you (Codex) pick up: start
+at the review agent, then spawn-and-reuse an implementer to fix findings, and complete the whole
+review → fix → re-verify loop BEFORE proceeding to Wave 5.** Do not start W5/W6/U9 until Wave 4b is
+APPROVE (zero open blocking findings).
 
-1. Dispatch an **independent** reviewer (sonnet, xhigh) over `docs/planning/design-track/waves/
-wave-4b-providers/` — the charter (`README.md`), the four stories, and the four `frames/`, checked
-   against the four frames, `wave-4b-providers/decisions.md` (D-001..D-006), and the cited jig sources.
-2. Apply the three `review-technical-design` lenses at scaffold altitude + the planning checklist.
-   Verify specifically: depths match D-002 (s5/s7/s8 `ports-and-adapters`, s6 `tactical-ddd`) and are
-   valid `frame-technical-design/SKILL.md` enums; the **boundary rule** is stated in every story
-   (providers consume Wave 4a contracts read-only, never redefine core policy/evidence/authorization/
-   state); the **SEC-2 three-way boundary** (D-003) is worded identically in s6's frame and story, with
-   Wave 5 / U9 named as forward references; the **s6↔s5 containment seam** is worded identically; the
-   **s8 INV dedup flag** (D-005: work-source-never-bypasses-plan likely == Wave 3's candidate, recorded
-   side-by-side, not merged/duplicated) is present; `depends_on: []` on all four with the D-006
-   contention rationale; **no `story-dag.md`** (correct per D-006); `reconciles_to` uses exact IDs (no
-   ranges); `INV-002` cited not re-minted (s5); three ID namespaces distinct; house conventions.
-3. Record findings as `D-007`+ in `wave-4b-providers/decisions.md` (replace the "PENDING — deferred"
-   note at the bottom of that file with the actual dispositions). Route any **blocking** fix through an
-   implementer (never hand-edit); re-verify with the same reviewer.
-4. If fixes were made, `pnpm check` green, then commit them as a follow-up `docs:` unit
-   (e.g. `docs: apply Wave 4b per-unit review fixes`). If the review is clean (zero blocking), record
-   APPROVE in `decisions.md` and commit that decisions-log update.
+Note on agent reuse: this session's sub-agents are gone — you spawn your **own** reviewer and your
+**own** implementer. The reuse discipline is about a single continuous agent context within this fix
+loop, not the original author. So:
+
+1. **Reviewer (spawn one).** Dispatch an **independent** reviewer (sonnet, xhigh) over
+   `docs/planning/design-track/waves/wave-4b-providers/` — the charter (`README.md`), the four stories,
+   and the four `frames/`, checked against the four frames, `wave-4b-providers/decisions.md`
+   (D-001..D-006), and the cited jig sources.
+2. **Lenses + checks.** Apply the three `review-technical-design` lenses at scaffold altitude + the
+   planning checklist. Verify specifically: depths match D-002 (s5/s7/s8 `ports-and-adapters`, s6
+   `tactical-ddd`) and are valid `frame-technical-design/SKILL.md` enums; the **boundary rule** is
+   stated in every story (providers consume Wave 4a contracts read-only, never redefine core
+   policy/evidence/authorization/state); the **SEC-2 three-way boundary** (D-003) is worded identically
+   in s6's frame and story, with Wave 5 / U9 named as forward references; the **s6↔s5 containment seam**
+   is worded identically; the **s8 INV dedup flag** (D-005: work-source-never-bypasses-plan likely ==
+   Wave 3's candidate, recorded side-by-side, not merged/duplicated) is present; `depends_on: []` on all
+   four with the D-006 contention rationale; **no `story-dag.md`** (correct per D-006); `reconciles_to`
+   uses exact IDs (no ranges); `INV-002` cited not re-minted (s5); three ID namespaces distinct; house
+   conventions.
+3. **Disposition (coordinator = you).** Record findings as `D-007`+ in `wave-4b-providers/decisions.md`
+   (replace the "PENDING — deferred" note at the bottom of that file with the actual dispositions).
+   `blocking` → fix; `recommended`/`nit` → fix if cheap else `defer` with rationale (Wave 4a's F-1 is a
+   worked example of dispositioning a recommended finding).
+4. **Implementer (spawn ONE, then REUSE it).** For every fix — blocking or accepted-recommended — spawn
+   a single implementer (sonnet, high) and **reuse that same agent** (SendMessage / `resumedAgentId`)
+   for all fix rounds this loop. **You (coordinator) never hand-edit authored content** — the reviewer
+   found it, the implementer fixes it, you only edit `decisions.md` and run git. Give the implementer
+   the finding + file/line + the exact resolved intent; have it return a before/after.
+5. **Re-verify.** Resume the **same reviewer** (not a fresh one) to re-check just the changed content →
+   APPROVE. Loop 3→5 until zero open blocking (5-round cap → block + escalate to the user).
+6. **Commit.** `eval "$(fnm env)" && corepack pnpm format && corepack pnpm check` green, then commit as
+   a follow-up `docs:` unit (e.g. `docs: apply Wave 4b per-unit review fixes`). If the review is clean
+   (zero blocking, nothing to fix), just record APPROVE in `decisions.md` and commit that log update.
+   **Only after this commit do you move to Wave 5.**
 
 ## 8. Remaining waves (after the 4b review)
 
