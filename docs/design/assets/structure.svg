@@ -1,0 +1,61 @@
+<svg width="680" height="512" viewBox="0 0 680 512" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Jig system entities and how they relate</title>
+<desc>Four groups: configuration you author, the trusted jig-core runner, the four swappable seams, and the records that flow back to you.</desc>
+<style>
+  text{font-family:-apple-system,'Segoe UI',Roboto,system-ui,sans-serif}
+  .t{font-size:14px;fill:#2C2C2A}
+  .ts{font-size:12px;fill:#5F5E5A}
+  .th{font-size:14px;font-weight:500;fill:#2C2C2A}
+  .box{fill:#FBFBF9;stroke:#B4B2A9}
+  .arr{stroke:#888780;stroke-width:1.5;fill:none}
+  .c-purple>rect{fill:#EEEDFE;stroke:#534AB7}.c-purple .th,.c-purple .t{fill:#26215C}.c-purple .ts{fill:#3C3489}
+  .c-teal>rect{fill:#E1F5EE;stroke:#0F6E56}.c-teal .th,.c-teal .t{fill:#04342C}.c-teal .ts{fill:#085041}
+  .c-coral>rect{fill:#FAECE7;stroke:#993C1D}.c-coral .th,.c-coral .t{fill:#4A1B0C}.c-coral .ts{fill:#712B13}
+  .c-gray>rect{fill:#F1EFE8;stroke:#5F5E5A}.c-gray .th,.c-gray .t{fill:#2C2C2A}.c-gray .ts{fill:#444441}
+</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+<g class="c-gray"><rect x="240" y="24" width="200" height="46" rx="8"/><text class="th" x="340" y="46" text-anchor="middle">Owner / operator</text><text class="ts" x="340" y="62" text-anchor="middle">authors + decides</text></g>
+
+<line class="arr" x1="340" y1="70" x2="340" y2="94" marker-end="url(#arrow)"/>
+<text class="ts" x="350" y="87">authors, starts</text>
+
+<rect class="box" x="40" y="96" width="600" height="104" rx="10"/>
+<text class="th" x="56" y="117">Configuration — you author, per track</text>
+<g class="c-purple"><rect x="56" y="128" width="130" height="50" rx="8"/><text class="th" x="121" y="150" text-anchor="middle">Track</text><text class="ts" x="121" y="166" text-anchor="middle">one line of work</text></g>
+<g class="c-purple"><rect x="202" y="128" width="130" height="50" rx="8"/><text class="th" x="267" y="150" text-anchor="middle">Execution plan</text><text class="ts" x="267" y="166" text-anchor="middle">work items + deps</text></g>
+<g class="c-purple"><rect x="348" y="128" width="130" height="50" rx="8"/><text class="th" x="413" y="150" text-anchor="middle">Policy</text><text class="ts" x="413" y="166" text-anchor="middle">safety contract</text></g>
+<g class="c-purple"><rect x="494" y="128" width="130" height="50" rx="8"/><text class="th" x="559" y="150" text-anchor="middle">Work profile</text><text class="ts" x="559" y="166" text-anchor="middle">how work is done</text></g>
+
+<line class="arr" x1="340" y1="200" x2="340" y2="222" marker-end="url(#arrow)"/>
+<text class="ts" x="350" y="215">plan + policy</text>
+
+<rect class="box" x="40" y="224" width="600" height="104" rx="10"/>
+<text class="th" x="56" y="245">Jig-core — the trusted runner (governs the seams)</text>
+<g class="c-teal"><rect x="56" y="256" width="130" height="50" rx="8"/><text class="th" x="121" y="278" text-anchor="middle">Runner</text><text class="ts" x="121" y="294" text-anchor="middle">holds the keys</text></g>
+<g class="c-teal"><rect x="202" y="256" width="130" height="50" rx="8"/><text class="th" x="267" y="278" text-anchor="middle">Fence</text><text class="ts" x="267" y="294" text-anchor="middle">grants or denies</text></g>
+<g class="c-teal"><rect x="348" y="256" width="130" height="50" rx="8"/><text class="th" x="413" y="278" text-anchor="middle">Doorbell</text><text class="ts" x="413" y="294" text-anchor="middle">escalates to you</text></g>
+<g class="c-teal"><rect x="494" y="256" width="130" height="50" rx="8"/><text class="th" x="559" y="278" text-anchor="middle">Run records</text><text class="ts" x="559" y="294" text-anchor="middle">the evidence log</text></g>
+
+<line class="arr" x1="340" y1="328" x2="340" y2="350" marker-end="url(#arrow)"/>
+<text class="ts" x="350" y="343">drives + governs</text>
+
+<rect class="box" x="40" y="352" width="600" height="104" rx="10"/>
+<text class="th" x="56" y="373">Seams — swappable, governed at the boundary</text>
+<g class="c-coral"><rect x="56" y="384" width="130" height="50" rx="8"/><text class="th" x="121" y="406" text-anchor="middle">Agent / worker</text><text class="ts" x="121" y="422" text-anchor="middle">writes code</text></g>
+<g class="c-coral"><rect x="202" y="384" width="130" height="50" rx="8"/><text class="th" x="267" y="406" text-anchor="middle">Execution host</text><text class="ts" x="267" y="422" text-anchor="middle">runs the worker</text></g>
+<g class="c-coral"><rect x="348" y="384" width="130" height="50" rx="8"/><text class="th" x="413" y="406" text-anchor="middle">Forge</text><text class="ts" x="413" y="422" text-anchor="middle">push / PR / merge</text></g>
+<g class="c-coral"><rect x="494" y="384" width="130" height="50" rx="8"/><text class="th" x="559" y="406" text-anchor="middle">Work source</text><text class="ts" x="559" y="422" text-anchor="middle">supplies the work</text></g>
+
+<polyline class="arr" points="640,276 662,276 662,47 442,47" fill="none" marker-end="url(#arrow)"/>
+<text class="ts" x="552" y="40" text-anchor="middle">records, notices</text>
+
+<g class="c-purple"><rect x="56" y="476" width="14" height="14" rx="3"/></g>
+<text class="ts" x="76" y="487">you author</text>
+<g class="c-teal"><rect x="168" y="476" width="14" height="14" rx="3"/></g>
+<text class="ts" x="188" y="487">jig-core (trusted)</text>
+<g class="c-coral"><rect x="330" y="476" width="14" height="14" rx="3"/></g>
+<text class="ts" x="350" y="487">swappable seam</text>
+<g class="c-gray"><rect x="470" y="476" width="14" height="14" rx="3"/></g>
+<text class="ts" x="490" y="487">you</text>
+</svg>

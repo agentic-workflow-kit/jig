@@ -23,60 +23,7 @@ design-layer naming choice, not a silent divergence.
 
 ## The relations, at a glance
 
-```mermaid
-flowchart TB
-    Owner(["Owner / operator"])
-
-    subgraph CFG["Configuration — you author, per track"]
-        Track["Track"]
-        Plan["Execution plan<br/>work items + dependencies + done conditions"]
-        Policy["Policy<br/>+ repo-level floors"]
-        Profile["Work profile"]
-    end
-
-    subgraph CORE["Jig-core — the trusted runner (fixed, not a seam)"]
-        Entry["Operator surface<br/>one command, one call, one audit"]
-        Runner["Runner<br/>orchestrates + holds privileged authority"]
-        Fence["Fence<br/>authorizes every request, fail-closed"]
-        Doorbell["Doorbell<br/>escalates real decisions"]
-        Records["Run records<br/>append-only log + projections"]
-    end
-
-    subgraph SEAMS["Seams — swappable, governed (STACK-2)"]
-        Agent["Agent = worker<br/>writes code, runs checks"]
-        Host["Execution host<br/>contains the worker"]
-        Forge["Forge<br/>push / PR / merge target"]
-        Source["Work source"]
-    end
-
-    Owner -->|authors| Track
-    Track --> Plan & Policy & Profile
-    Owner -->|start / preview| Entry
-    Entry --> Runner
-    Plan --> Runner
-    Policy -->|fixed at launch| Runner
-
-    Runner -->|drives each work item| Agent
-    Agent -->|runs inside| Host
-    Agent -->|requests action| Fence
-    Fence -->|grant / deny| Runner
-    Fence -->|route risky| Doorbell
-    Doorbell -->|approve / reject / override| Owner
-
-    Runner -->|push / PR / merge<br/>on evidence only| Forge
-    Runner --> Records
-    Fence --> Records
-    Records -->|notices, ask-why| Owner
-
-    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Owner neutral;
-    class Track,Plan,Policy,Profile config;
-    class Entry,Runner,Fence,Doorbell,Records core;
-    class Agent,Host,Forge,Source seam;
-```
+![Jig system entities](../assets/structure.svg)
 
 ## How a run flows
 
@@ -87,56 +34,7 @@ plan, bind the policy (frozen at launch), wire the providers, and allocate run i
 lands only on evidence. The four provider seams are drawn here as one abstracted boundary; their
 detail lives in [`../contracts/providers.md`](../contracts/providers.md).
 
-```mermaid
-flowchart TD
-    Drive["Owner drives: preview or start<br/>(via the operator surface)"]
-
-    subgraph BOOT["Bootstrap / init — compose and launch a run"]
-        direction TB
-        B1["Load + validate plan"]
-        B2["Load + bind policy<br/>(frozen at launch)"]
-        B3["Resolve track + work profile,<br/>set up workspace, wire providers"]
-        B4["Storage preflight,<br/>allocate run id + write binding record"]
-        B1 --> B2 --> B3 --> B4
-    end
-
-    subgraph CORE["Core loop — drive the launched run"]
-        direction TB
-        C1{"Next eligible work item?"}
-        C2["Drive the work item"]
-        C3{"Fence: authorize each request"}
-        C4["Record outcome,<br/>land only on evidence"]
-        C1 -->|yes| C2 --> C3
-        C3 -->|grant| C4
-        C3 -->|deny| C4
-        C3 -->|route| Door["Doorbell to owner"]
-        Door --> C4
-        C4 --> C1
-    end
-
-    Rej["Plan rejected — no run"]
-    Done["Run completed / stopped"]
-    Providers[["Providers (seams), abstracted:<br/>agent, host, forge, work source"]]
-    Records[("Run records — append-only, the evidence")]
-
-    Drive --> B1
-    B1 -.->|invalid| Rej
-    B4 -->|run ready| C1
-    C1 -->|no| Done
-    C2 <--> Providers
-    C4 <--> Providers
-    BOOT -.-> Records
-    CORE -.-> Records
-
-    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Drive,Door,Rej,Done,Records neutral;
-    class B1,B2,B3,B4 config;
-    class C1,C2,C3,C4 core;
-    class Providers seam;
-```
+![Bootstrap to core flow](../assets/flow.svg)
 
 ## Responsibilities, by group
 
