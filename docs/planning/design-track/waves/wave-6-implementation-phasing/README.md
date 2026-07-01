@@ -15,7 +15,9 @@ frame and D-002, this wave is **sequencing / handoff only**: it introduces no ne
 provider seams, runtime states, `docs/design/**` targets, implementation tickets, or execution
 artifacts. Its job is to turn the already-settled design into a dependency-driven phase model the
 future delivery track can execute against while preserving the current contract boundaries and
-deferred-ownership lines.
+deferred-ownership lines. Before phasing, Wave 6 triages Wave 5 routed findings so unresolved
+red-team pressure becomes explicit stop conditions, evidence/test requirements, routed-owner work,
+or cited already-resolved design facts.
 
 Per D-003, the phase order is driven by **implementation dependency and contract readiness**, not by
 planning-wave chronology alone. The expected phase shape is:
@@ -57,6 +59,11 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
 - [`../wave-5-red-team/README.md`](../wave-5-red-team/README.md) and
   [`../wave-5-red-team/decisions.md`](../wave-5-red-team/decisions.md) — the immediate pre-U9
   authority that makes Wave 5 a hardening/gate input and leaves final integration collection to U9.
+- Wave 5 settled output packages:
+  [`w5-s1 authority/provider red-team`](../wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/README.md)
+  and
+  [`w5-s2 recovery/records integration red-team`](../wave-5-red-team/outputs/w5-s2-recovery-records-integration-red-team/README.md)
+  — the source-backed routed findings and open questions that Wave 6 must classify before phasing.
 - The immediate prior-wave authority for how hardening inputs are treated:
   [`../wave-5-red-team/frame.md`](../wave-5-red-team/frame.md),
   [`../wave-5-red-team/decisions.md`](../wave-5-red-team/decisions.md),
@@ -81,8 +88,10 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
 - This charter: `docs/planning/design-track/waves/wave-6-implementation-phasing/README.md`.
 - `docs/planning/design-track/waves/wave-6-implementation-phasing/stories/w6-s1-implementation-phasing.md`
   — the single implementation-phasing story brief.
-- The later story-session output this brief prescribes: a **planning-track implementation-phasing
-  handoff artifact**, not `docs/design/**`, code, schemas, or a real tracker. It should carry the
+- [`prerequisite-triage.md`](./prerequisite-triage.md) — the Wave 5 findings/open-question triage
+  required before phasing.
+- [`implementation-phasing.md`](./implementation-phasing.md) — the planning-track implementation
+  phasing handoff artifact, not `docs/design/**`, code, schemas, or a real tracker. It carries the
   ordered phases, dependency rationale, gate/stop conditions, and future delivery handoff notes the
   later delivery track consumes.
 - This wave's existing [`decisions.md`](./decisions.md), which remains coordinator-owned and records
@@ -104,6 +113,8 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
 - How do **Wave 5 outputs** enter implementation as later hardening/gate inputs — especially SEC-2,
   recovery/records contradictions, and routed findings — without collapsing Wave 5's ownership or
   U9's collector role?
+- Which Wave 5 findings must become implementation stop conditions, which become evidence/test
+  requirements, which route away, and which are already resolved by current design?
 - What exactly is handed to the **future delivery track**, and what remains outside this wave by
   decision: contract edits, package layout, tracker execution, and U9 integration artifacts?
 
@@ -133,6 +144,8 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
 - The single story explicitly sequences implementation by **dependency and contract readiness**:
   foundation/contracts, core spine, local scripted-worker path, providers, hardening/gates, future
   delivery handoff.
+- The prerequisite triage classifies every required Wave 5 finding/open question without resolving
+  it locally, and the implementation-phasing handoff carries those classifications into phase gates.
 - The charter and story both preserve the **local-first/stub-first** first slice, the
   **core-before-provider** boundary, the **cited/unfrozen** v0-contract posture, Wave 5 as
   hardening/gate input, and U9 ownership of final integration collection.
@@ -148,6 +161,8 @@ implementation-phasing handoff artifact that story produces. U9 still owns final
 - [`frame.md`](./frame.md) and [`decisions.md`](./decisions.md) for the Wave 6 frame-time contract and
   frame-gate dispositions.
 - The authored story brief under [`stories/`](./stories/).
+- [`prerequisite-triage.md`](./prerequisite-triage.md) and
+  [`implementation-phasing.md`](./implementation-phasing.md).
 - The cited prior-wave frames, decisions, charters, and story briefs listed above, especially Wave
   5's approved output and the Wave 4a / Wave 4b charters that settle the core/provider dependency
   boundary.

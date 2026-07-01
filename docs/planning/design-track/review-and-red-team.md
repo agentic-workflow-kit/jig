@@ -121,6 +121,10 @@ Wave 4b and Wave 5 sources:
 
 - SEC-2 hardening waits on the `w4-s6` posture plus the `w5-s1` adversarial scenario.
 - Recovery/records hardening waits on the `w5-s2` probe package and routed contradictions.
+- Wave 6 classifies Wave 5 findings in
+  [`wave-6-implementation-phasing/prerequisite-triage.md`](./waves/wave-6-implementation-phasing/prerequisite-triage.md)
+  before phasing: unresolved red-team pressure becomes an implementation stop condition,
+  evidence/test requirement, routed-owner item, or cited already-resolved design fact.
 - Contract-preservation checks, golden traces, and conformance expectations belong in later delivery
   phases, not in the planning-track scaffolding itself.
 

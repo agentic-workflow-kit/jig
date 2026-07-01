@@ -48,6 +48,10 @@ or provider surfaces, and it does not collapse their ownership boundaries. Its j
 order in which those already-settled surfaces should be realized, what must exist before the next
 phase starts, which gates and stop conditions bound the work, and where a future delivery track
 must stop and hand unresolved integration collection back to U9 or the owning design surface.
+Before the phase model is usable, this story classifies Wave 5 routed findings and open questions in
+[`../prerequisite-triage.md`](../prerequisite-triage.md); the ordered handoff in
+[`../implementation-phasing.md`](../implementation-phasing.md) then carries those classifications as
+phase stop conditions or evidence gates.
 
 ## Inputs to read
 
@@ -69,6 +73,11 @@ must stop and hand unresolved integration collection back to U9 or the owning de
   [`../../wave-5-red-team/README.md`](../../wave-5-red-team/README.md), and both Wave 5 story briefs
   — the red-team outputs and routed-finding posture this story must place as later hardening/gate
   inputs rather than re-owning locally.
+- Wave 5 settled output packages:
+  [`w5-s1 authority/provider red-team`](../../wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/README.md)
+  and
+  [`w5-s2 recovery/records integration red-team`](../../wave-5-red-team/outputs/w5-s2-recovery-records-integration-red-team/README.md)
+  — the source-backed findings/open questions that must be triaged before phasing.
 - [`../../wave-4a-core/README.md`](../../wave-4a-core/README.md) and
   [`../../wave-4a-core/decisions.md`](../../wave-4a-core/decisions.md) — the fixed-logic spine
   this story must sequence before provider realizations: records, plan/policy/evidence,
@@ -98,10 +107,12 @@ must stop and hand unresolved integration collection back to U9 or the owning de
 
 The five durable deliverable types this session must produce:
 
-1. Durable planning-track handoff artifact(s), not `docs/design/**`: the authored
-   implementation-phasing package consisting of the ordered phase model, per-phase dependency
-   rationale, gate/stop matrix, and future delivery handoff notes produced from this brief.
-   `design_targets` stays empty by design.
+1. Durable planning-track handoff artifacts, not `docs/design/**`:
+   [`../prerequisite-triage.md`](../prerequisite-triage.md) and
+   [`../implementation-phasing.md`](../implementation-phasing.md). The first classifies Wave 5
+   prerequisite findings/open questions; the second gives the ordered phase model, per-phase
+   dependency rationale, gate/stop matrix, and future delivery handoff notes. `design_targets` stays
+   empty by design.
 2. Open questions, logged (never invented answers) — especially where implementation order depends
    on unresolved red-team findings, future provider split decisions, or U9 integration work that
    this wave does not own.
@@ -128,6 +139,8 @@ The five durable deliverable types this session must produce:
 - How do **Wave 5 red-team outputs** attach to implementation as later hardening/gate inputs,
   especially for SEC-2, recovery/records contradictions, and routed findings, without turning Wave 6
   into a collector or redesign wave?
+- Which Wave 5 items are explicit implementation stop conditions, which are evidence/test
+  requirements, which route to later owners, and which are already resolved by current design?
 - What exactly is handed to the **future delivery track**, and what remains outside this story's
   ownership: v0 contract edits, package layout, real tracker execution, hard-numbered invariant
   reconciliation, and U9 integration artifacts?
@@ -175,6 +188,8 @@ The five durable deliverable types this session must produce:
 - The implementation-phasing brief is specific enough to launch a future session that can author a
   sequencing/handoff artifact without inventing new design ownership, `docs/design/**` targets, code
   work, or a real tracker.
+- The prerequisite triage classifies the required Wave 5 authority/provider and
+  recovery/records/bootstrap findings without resolving them locally.
 - The phase order is explicit and dependency-driven: foundation/contracts, core spine, local
   scripted-worker path, providers, hardening/gates, future delivery handoff.
 - The brief states the **local-first/stub-first** first slice, the **core-before-provider**
@@ -190,6 +205,8 @@ The five durable deliverable types this session must produce:
 
 - The wave frame at [`../frame.md`](../frame.md).
 - This authored story brief and the later planning-track implementation-phasing outputs it drives.
+- [`../prerequisite-triage.md`](../prerequisite-triage.md) and
+  [`../implementation-phasing.md`](../implementation-phasing.md).
 - The cited Wave 5, Wave 4a, Wave 4b, Wave 3, Wave 2, and Wave 1 artifacts listed above,
   especially the Wave 4a / 4b charters and Wave 5 approved output that define the dependency and
   hardening boundaries.
@@ -207,10 +224,10 @@ This session runs the technical-design method itself:
 1. frame-technical-design -> a problem frame (source map, `InputResolution`, `AgreedSystemModel`,
    `architecture_mode`, `ddd_depth`). This wave's build-time frame at [`../frame.md`](../frame.md)
    seeds it.
-2. author-technical-design -> the planning-track implementation-phasing handoff artifact. Because
-   `design_targets` is intentionally empty, the authored output is the phase model, per-phase
-   dependency rationale, gate/stop matrix, and future delivery handoff notes this story prescribes,
-   not a `docs/design/**` artifact or a real tracker.
+2. author-technical-design -> the planning-track prerequisite triage and implementation-phasing
+   handoff artifacts. Because `design_targets` is intentionally empty, the authored output is the
+   Wave 5 triage, phase model, per-phase dependency rationale, gate/stop matrix, and future delivery
+   handoff notes this story prescribes, not a `docs/design/**` artifact or a real tracker.
 3. review-technical-design -> three lenses (architecture-enforceability: the phase order preserves
    core-before-provider boundaries, local-first/stub-first posture, and Wave 5/U9 handoff lines.
    domain-correctness: the phase model actually sequences the FENCE / MERGE / STACK / DRIVE / SEE /
