@@ -36,3 +36,21 @@ test('CLI smoke test: scripted worker failure', () => {
     assert.match(output, /Failed Item: STORY-1/);
   }
 });
+
+test('CLI smoke test: failure diagnostics existence', () => {
+  try {
+    execSync('node bin/jig.js run test/fixtures/m5b-local-mvp/minimal-plan.json --scripted-output test/fixtures/m5b-local-mvp/scripted-worker-failure.json', { encoding: 'utf8', stdio: 'pipe' });
+    assert.fail('Should have failed');
+  } catch (err) {
+    const output = err.stdout.toString();
+    const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+)/);
+    if (runDirMatch) {
+      const runDir = runDirMatch[1];
+      const runRecord = JSON.parse(readFileSync(join(runDir, 'run.json'), 'utf8'));
+      const failedEvent = runRecord.events.find(e => e.family === 'story.failed');
+      assert.ok(failedEvent.diagnostics, 'Missing diagnostics in failed event');
+      assert.strictEqual(failedEvent.diagnostics.exitCode, 1);
+      assert.match(failedEvent.diagnostics.stdout, /Check failed/);
+    }
+  }
+});

@@ -10,6 +10,17 @@ export class LocalHarness {
 
     this.recordManager.recordEvent({ family: 'run.started' });
 
+    // Enforce local dry-run policy
+    if (!policy.policy || !policy.policy.rules || policy.policy.rules.allowLocalDryRun !== true) {
+      const reason = 'Policy denial: allowLocalDryRun is not true';
+      this.recordManager.recordEvent({
+        family: 'run.denied',
+        reason
+      });
+      await this.recordManager.finalize('failure');
+      return 'failure';
+    }
+
     let runStatus = 'success';
 
     for (const story of plan.stories) {
@@ -27,7 +38,16 @@ export class LocalHarness {
           this.recordManager.recordEvent({ family: 'story.done', storyId: story.id });
         } else {
           runStatus = 'failure';
-          this.recordManager.recordEvent({ family: 'story.failed', storyId: story.id });
+          this.recordManager.recordEvent({
+            family: 'story.failed',
+            storyId: story.id,
+            diagnostics: {
+              exitCode: result.exitCode,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              error: result.error
+            }
+          });
           break;
         }
       } catch (err) {

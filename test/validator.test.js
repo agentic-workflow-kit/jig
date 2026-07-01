@@ -36,3 +36,25 @@ test('PlanValidator rejects malformed story', () => {
   const plan = { plan: { id: 'id', version: 'execution-plan-shape-v0', stories: [{ id: 'S1' }] } };
   assert.throws(() => PlanValidator.validate(plan), /missing "id" or "title"/);
 });
+
+test('PlanValidator rejects path traversal in plan id', () => {
+  const plan = {
+    plan: {
+      id: '../escaped',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1' }]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
+});
+
+test('PlanValidator rejects path traversal in story id', () => {
+  const plan = {
+    plan: {
+      id: 'valid-id',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1/../../etc/passwd', title: 'T1' }]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
+});
