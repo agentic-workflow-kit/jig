@@ -49,6 +49,11 @@ flowchart TD
     Wire --> Preflight
     Preflight --> Alloc
     Alloc --> Ready
+
+    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Load,Bind,Resolve,Wire,Preflight,Alloc config;
+    class Drive,Rej,Ready neutral;
 ```
 
 ## Notes

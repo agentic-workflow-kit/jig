@@ -35,6 +35,11 @@ flowchart LR
     Log --> Inspect["Inspect / ask why"]
     Log --> Notices["Notices"]
     Log --> Export["Export<br/>(write-once, redacted)"]
+
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Events,Log,Project,State,Summary,Metrics core;
+    class Inspect,Notices,Export neutral;
 ```
 
 ## Notes

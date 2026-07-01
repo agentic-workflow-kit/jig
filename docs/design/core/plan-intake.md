@@ -32,6 +32,11 @@ flowchart LR
     Instance --> Validate
     Validate -->|conforms| Valid
     Validate -->|does not conform| Invalid
+
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Instance,Validate,Valid core;
+    class Invalid neutral;
 ```
 
 ## Notes

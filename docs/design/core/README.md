@@ -67,6 +67,15 @@ flowchart TB
     Runner --> Records
     Fence --> Records
     Records -->|notices, ask-why| Owner
+
+    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Owner neutral;
+    class Track,Plan,Policy,Profile config;
+    class Entry,Runner,Fence,Doorbell,Records core;
+    class Agent,Host,Forge,Source seam;
 ```
 
 ## How a run flows
@@ -118,6 +127,15 @@ flowchart TD
     C4 <--> Providers
     BOOT -.-> Records
     CORE -.-> Records
+
+    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Drive,Door,Rej,Done,Records neutral;
+    class B1,B2,B3,B4 config;
+    class C1,C2,C3,C4 core;
+    class Providers seam;
 ```
 
 ## Responsibilities, by group

@@ -48,6 +48,11 @@ stateDiagram-v2
         transient: waiting on
         an owner decision
     end note
+
+    classDef active fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef terminal fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class eligible,started,parked active
+    class done,landed,rejected,blocked terminal
 ```
 
 The run itself has a separate, run-level lifecycle: previewed → started → stopped / resumed /

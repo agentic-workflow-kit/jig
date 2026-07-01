@@ -38,6 +38,13 @@ flowchart LR
     Embed --> Adapter
     Adapter --> Call
     Call --> Core
+
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Core core;
+    class Adapter,Call seam;
+    class Term,Tool,Embed neutral;
 ```
 
 ## Notes

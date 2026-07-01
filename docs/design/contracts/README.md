@@ -51,6 +51,11 @@ flowchart LR
     Host --- Core
     Forge --- Core
     Source --- Core
+
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    class Core core;
+    class CLI,PlanIn,RecordsOut,Agent,Host,Forge,Source seam;
 ```
 
 ## Notes
