@@ -84,3 +84,14 @@ distorted source quotes. One disposition recorded:
   `INV-*` members deliberately kept on the `runtime-design-m5a.md` line to preserve the three-namespace
   separation. Coordinator verified all four glosses now equal their story frontmatter product-ID sets
   exactly (programmatic set-compare, order-independent).
+- **D-008** — `w4-s1` build-time review S-001 (architecture-enforceability, **blocking**): the
+  Records design delegated redaction/export posture to upstream classification without saying what
+  happens when the posture is missing, unknown, or ambiguous.
+  **Disposition: fix.** Records must fail closed: reject governed appends without valid
+  redaction/export posture, deny or constrain inspect/export until posture is valid, and omit or
+  redact secrets before record persistence rather than only before surfacing.
+- **D-009** — `w4-s1` build-time review S-002 (agreement-integrity, **blocking**): the Records design
+  did not state the Wave 4a D-004 records-store construction seam with `w4-s4`.
+  **Disposition: fix.** `records.md` must state that Records owns the store shape, consistency model,
+  and invariants, while Bootstrap owns constructing and wiring the store at launch, including the
+  first binding-record append, without redesigning Bootstrap.
