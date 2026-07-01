@@ -111,6 +111,107 @@ checkpoint.
 - Parallel-workspace concurrency across work items (ISO-4) and resume-after-interruption
   mechanics are named extension points for this area, not specified here.
 
+## Run transition table — guards and events
+
+The run-lifecycle prose above names the state set this section deepens: `previewed → started →
+stopped / resumed / completed`. The table below closes that run-level transition set at this
+altitude, without changing the seed prose or importing any new run event family beyond the v0
+observability contract's existing `previewed`, `started`, `stopped`, `resumed`, and `completed`
+families ([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md)).
+As with the work-item table below, any transition not listed here is illegal.
+
+| Transition            | Guard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Emitted event |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `previewed → started` | The owner chooses to start from the validated, bound preview path, and bootstrap's launch-time gates pass: storage preflight succeeds ([`RESUME-4`](../../product/guarantees.md#31-interruption-resume)); the policy, work-profile, and repo-floor bindings are fixed at launch and recorded before orchestration begins ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming), INV-003 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)); and the run identity / binding record append succeeds (INV-006 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)).                                                                                                                                                           | `started`     |
+| `started → stopped`   | The run cannot safely continue and parks at a resumable checkpoint: either an unattended `parked` work item leaves the run waiting on an owner decision ([`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation), FAIL-004 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)), or the liveness signals say the run is stuck, silent, or overdue and must escalate instead of waiting forever ([`LIVE-1`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run), [`LIVE-2`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run)).                                                                                                                                                                   | `stopped`     |
+| `stopped → resumed`   | Resume begins from the last safe checkpoint, not from zero ([`RESUME-2`](../../product/guarantees.md#31-interruption-resume)); irreversible actions already taken are recognized and not repeated ([`RESUME-3`](../../product/guarantees.md#31-interruption-resume), INV-006); **the launch bindings fixed at start remain immutable across resume** — the policy, work-profile, and repo-floor references do not silently change ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming), INV-003); and if any safety-relevant assumption changed while stopped, fresh owner re-approval and evidence are required before continuing ([`RESUME-5`](../../product/guarantees.md#31-interruption-resume), [`GUARD-2`](../../product/guarantees.md#13-anti-gaming)). | `resumed`     |
+| `started → completed` | Every work item has reached a terminal outcome and no run-level stop condition remains: no item is left unattended in `parked`, and no item is merely `done`-but-unlanded where runner-owned landing is still required ([`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence)); the resulting run state is therefore a terminal summary of already-recorded work-item outcomes rather than a second source of truth (INV-006).                                                                                                                                                                                                                                                                                                                              | `completed`   |
+| `resumed → stopped`   | After resuming, the run again reaches a clean stop because a new unattended `parked` work item or a liveness signal requires escalation; the stop is recorded at the new safe checkpoint rather than guessed through ([`RESUME-4`](../../product/guarantees.md#31-interruption-resume), [`LIVE-1`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run), [`LIVE-2`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run)).                                                                                                                                                                                                                                                                                                                      | `stopped`     |
+| `resumed → completed` | After resuming, every remaining work item reaches a terminal outcome, any prior `done` item still preserves the done-versus-landed distinction ([`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence)), and the run can close without violating no-double-effect on already-recorded irreversible actions ([`RESUME-3`](../../product/guarantees.md#31-interruption-resume), INV-006).                                                                                                                                                                                                                                                                                                                                                                      | `completed`   |
+
+Any transition **not** in this table is illegal. In particular, `stopped` does not jump directly
+to `completed`: a stopped run must either resume from its last safe checkpoint or remain stopped
+for an owner decision; it does not silently "age into" completion while work remains unresolved.
+
+### Run-lifecycle modeling notes on the seed
+
+- **`previewed` stays the recorded-but-non-committing edge state.** The lifecycle prose above
+  starts the run at `previewed`, but [`bootstrap.md`](bootstrap.md) makes clear that preview
+  allocates no run identity, workspace, or provider side effects. This table therefore treats
+  `previewed → started` as the edge where bootstrap's launch-time gates have all passed and the
+  run is first committed, rather than importing a new earlier state.
+- **`stopped` is run-level and is defined partly by work-item state.** The seed prose says
+  `stopped` pauses the whole run while unfinished work items resume from their last safe
+  checkpoint. This table makes explicit that an unattended `parked` work item is one of the
+  concrete drivers of `run.stopped`; the work-item table below names that seam from the item side,
+  and this run table closes it from the run side.
+- **`resumed` is a distinct state, not a synonym for `started`.** The seed lifecycle names
+  `resumed` separately, so this table preserves that distinction: a resumed run is one that
+  re-enters active orchestration from a previously recorded stop, carrying forward the last safe
+  checkpoint and the no-double-effect rule rather than replaying launch from scratch.
+
+### Run-level recovery, stop, and resume properties
+
+- **Durable progress is record-grounded.** A stop/resume cycle relies on the append-only run
+  record as the evidence of what already happened; state is reconstructed from the log's
+  projections, not from a parallel mutable checkpoint store (INV-006; [`RESUME-1`](../../product/guarantees.md#31-interruption-resume)).
+- **Launch binding is immutable across resume.** Every resume discussion in this area carries the
+  same rule: the policy, work-profile, and repo-floor bindings fixed at launch remain fixed across
+  resume ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming), INV-003). Resume may continue
+  a run, but it may not quietly swap in looser launch-time rules.
+- **Changed safety-relevant assumptions force re-approval.** If the run was stopped and something
+  that governs policy, verification, or integration safety changed in the meantime, resume pauses
+  for explicit owner re-approval and fresh evidence before continuing
+  ([`RESUME-5`](../../product/guarantees.md#31-interruption-resume), [`GUARD-2`](../../product/guarantees.md#13-anti-gaming)).
+- **Done remains distinct from landed across recovery.** A resumed run preserves a previously
+  recorded `done` work-item outcome without treating it as already landed; runner-owned landing is
+  still a separate action, and no resume path is allowed to collapse those milestones
+  ([`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence)).
+
+### Candidate invariants (for w2-s3 consolidation) — run lifecycle
+
+This section names run-lifecycle invariant candidates only; it assigns **no** new `INV-*`
+numbers. `w2-s3-invariant-catalog` continues the ledger from `INV-009`.
+
+- **Launch-binding immutability across resume.** A resumed run keeps the policy, work-profile,
+  and repo-floor bindings fixed at launch; resume never widens or silently swaps them. Authority:
+  bootstrap binding + runner resume gate. Reconciles to:
+  [`GUARD-1`](../../product/guarantees.md#13-anti-gaming), INV-003.
+- **Resume requires re-approval on changed safety assumptions.** If rule-governing or
+  safety-relevant assumptions changed while the run was stopped, the run cannot resume until fresh
+  owner re-approval and evidence are recorded. Authority: runner resume gate. Reconciles to:
+  [`RESUME-5`](../../product/guarantees.md#31-interruption-resume),
+  [`GUARD-2`](../../product/guarantees.md#13-anti-gaming).
+- **No double effect across resume.** Resume recognizes previously recorded irreversible actions
+  and does not perform them again. Authority: Records as the evidence source, consumed by the
+  runner. Reconciles to: [`RESUME-3`](../../product/guarantees.md#31-interruption-resume),
+  INV-006.
+- **Unattended park drives run stop.** An unattended `parked` work item is elevated into a
+  run-level `stopped` state at a safe checkpoint rather than being left as silent drift.
+  Authority: runner run-state machine. Reconciles to:
+  [`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation),
+  [`LIVE-2`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run),
+  [`RESUME-4`](../../product/guarantees.md#31-interruption-resume).
+
+### Run-lifecycle open questions
+
+- **Does `previewed → started` require a distinct resumed-attempt marker in records, or is the
+  existing `resumed` family sufficient?** This doc stays within the existing event families only
+  (`previewed`, `started`, `stopped`, `resumed`, `completed`) and therefore does not add a second
+  launch-vs-resume event vocabulary. If later contract work finds that insufficient at the seam
+  level, that is a contract-owner change, not a silent addition here.
+
+### Run-lifecycle risks and deferred decisions
+
+- **Risk — liveness-to-stop thresholds are not set at field detail here.** This table states that
+  liveness signals can drive `started/resumed → stopped`, but it does not freeze the exact timeout
+  or threshold vocabulary. That remains acceptable at this altitude because the run state machine
+  owns the transition, while the record contract owns only the event-family surface.
+- **Deferred — bootstrap internal re-entry mechanics.** This table names the `stopped → resumed`
+  guard set at run-lifecycle altitude only. The internal composition-root mechanics of re-entering
+  bootstrap for an already-allocated run are deferred to Wave 4a's
+  `w4-s4-bootstrap-composition-root`, not designed here.
+
 ## Work-item transition table — guards and events
 
 The diagram above draws the closed set of legal work-item transitions; the table below
