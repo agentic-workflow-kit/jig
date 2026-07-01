@@ -342,15 +342,24 @@ only runtime scheduling input; the Work source seam never bypasses the plan.
 **Core owns**
 
 - The rule that the validated execution plan is jig's only runtime scheduling input.
+- The `PlanValidator` boundary (`w4-s2`) that every source-supplied candidate still crosses before
+  any work reaches runtime execution.
 - The meaning of plan-bound eligibility and dependency order once work enters runtime execution.
 - The authority boundary between provenance/import behavior and runtime orchestration.
 - The decision to reject unknown or incompatible plan shapes at the plan boundary, not guess.
+- The plan-intake judgment about what becomes part of a validated plan, rather than treating source
+  material as already accepted work.
 
 **Provider implements**
 
-- A concrete origin, import, or sync adapter that can supply candidate work provenance.
-- The behavior needed to surface source context to planning or intake without becoming the runner.
-- Honest representation of what came from the source versus what jig validated and scheduled.
+- A shape-level source seam that can surface candidate work items and/or provenance to planning or
+  intake upstream of runtime execution.
+- The behavior needed to surface source context to planning or intake without becoming the runner
+  or a second scheduling input.
+- Honest representation of what came from the source versus what jig validated, accepted into the
+  plan, and later scheduled.
+- A provenance/origination surface that keeps imported or source-derived material explicitly in the
+  candidate stage until plan intake validates it.
 
 **Provider must not**
 
@@ -358,6 +367,17 @@ only runtime scheduling input; the Work source seam never bypasses the plan.
 - Become a competing runtime scheduler or redefine dependency/eligibility semantics.
 - Freeze contract fields locally to fit one source's needs.
 - Reinterpret imported work as already authorized, eligible, or complete.
+- Decide scheduling order, readiness, or runtime eligibility; those remain Orchestration concerns
+  once a plan is validated.
+- Invent a concrete import format, sync cadence, or source-specific contract freeze inside this
+  seam.
+
+**Candidate invariant (unnumbered, dedup deferred)**
+
+- **work-source-never-bypasses-plan** — anything the Work source seam supplies remains candidate
+  input until it crosses `PlanValidator`; no work item reaches the runner except through the
+  validated plan. This wording is very likely identical to Wave 3's own unnumbered candidate for
+  the same boundary; both citations should stand side by side and any dedup stays deferred to U9.
 
 ## Cross-port invariant candidates
 
