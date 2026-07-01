@@ -295,6 +295,8 @@ The domain model of this group — each entity's owns / reads / does-not-own, th
 | Evidence | What gates landing — automated checks + review + capability proof; never the worker's self-report alone.          | MERGE-1, MERGE-3 |
 | Notice   | A triaged attention item per parked/blocked/stale/overdue condition: what it is, how urgent, what you can do now. | SEE-5            |
 
+The domain model of this group — Run, Evidence, Notice, and the Run-records event-log entity they derive from, each with its owns / reads / does-not-own, the runtime seam, and the lifecycle terms it carries — is authored in [`../domain/runtime-and-observation.md`](../domain/runtime-and-observation.md).
+
 ## The spine in one paragraph
 
 The owner authors a track (plan + policy + work profile) and starts a run through the operator

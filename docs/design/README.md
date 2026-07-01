@@ -19,19 +19,19 @@ agreed at this altitude, ready to read; **stub** = skeleton only (purpose, respo
 interface, one diagram) — the detailed design is pending; **contract v0** = an agreed v0 seam
 shape, not a frozen schema; **log / archive** = decision records and reference material.
 
-| Area                | Files                                                                     | Status      | Pending                                                  |
-| ------------------- | ------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
-| Layer index         | `README.md`                                                               | overview    | —                                                        |
-| Design charter      | [`charter.md`](./charter.md)                                              | overview    | —                                                        |
-| Conventions         | [`conventions.md`](./conventions.md)                                      | overview    | —                                                        |
-| Core overview       | `core/README.md`                                                          | overview    | —                                                        |
-| Domain model        | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md)  | **stub**    | `review-technical-design` pass                           |
-| Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md` | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
-| Contracts overview  | `contracts/README.md`                                                     | overview    | —                                                        |
-| Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`        | contract v0 | field-level schema (intentionally not frozen)            |
-| Driving / providers | `contracts/{driving, providers}.md`                                       | **stub**    | deepen in place                                          |
-| Decisions           | `decisions/*`                                                             | log         | grows as decisions are made                              |
-| Notes               | `notes/*`                                                                 | archive     | —                                                        |
+| Area                | Files                                                                                                                                                | Status      | Pending                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| Layer index         | `README.md`                                                                                                                                          | overview    | —                                                        |
+| Design charter      | [`charter.md`](./charter.md)                                                                                                                         | overview    | —                                                        |
+| Conventions         | [`conventions.md`](./conventions.md)                                                                                                                 | overview    | —                                                        |
+| Core overview       | `core/README.md`                                                                                                                                     | overview    | —                                                        |
+| Domain model        | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md), [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) | **stub**    | `review-technical-design` pass                           |
+| Core areas          | `core/{bootstrap, plan-intake, orchestration, authorization, records}.md`                                                                            | **stub**    | deepen each in place, from `notes/runtime-design-m5a.md` |
+| Contracts overview  | `contracts/README.md`                                                                                                                                | overview    | —                                                        |
+| Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)            |
+| Driving / providers | `contracts/{driving, providers}.md`                                                                                                                  | **stub**    | deepen in place                                          |
+| Decisions           | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                              |
+| Notes               | `notes/*`                                                                                                                                            | archive     | —                                                        |
 
 A stub is deepened **in place**; new sub-files are added only if an area outgrows a single file
 (none are planned yet). Per-file `status:` frontmatter mirrors this table.
