@@ -111,7 +111,181 @@ checkpoint.
 - Parallel-workspace concurrency across work items (ISO-4) and resume-after-interruption
   mechanics are named extension points for this area, not specified here.
 
+## Work-item transition table — guards and events
+
+The diagram above draws the closed set of legal work-item transitions; the table below
+**re-projects that same diagram** and deepens it with, for each of its edges, the guard that
+governs the transition and the event it emits. It adds no state and no edge the diagram does not
+already draw — it is the diagram's edge set with two columns added (this is a re-projection of
+the seed, not a divergence from it; see [STOP-003](../notes/runtime-design-m5a.md#sequencing-contention-validation-and-stops) discipline). The
+diagram remains the authoritative picture; this table is its elaboration.
+
+Guards are cited to a source or, where a guard is a modeling choice this session makes rather
+than one a source states, labelled **(modeling decision)** so the closed table stays defensible.
+Events use the story-lifecycle event families named in the observability records contract
+([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md) —
+`eligible, started, parked, unparked, blocked, done, landed, rejected`); this table mints no new
+event-type string and no new field.
+
+| Transition           | Guard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Emitted event |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `eligible → started` | Dependency-aware eligibility resolves: every prerequisite has **landed**, so the item may begin ([`ISO-1`](../../product/guarantees.md#32-work-level-failure-isolation), INV-005 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)). See the eligibility entry-guard note below.                                                                                                                                                                                                                                                                                | `started`     |
+| `started → done`     | Independent evidence aligned to the policy in force is met — never the worker's self-report ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence); sufficiency is Policy's, [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)). Fence `grant` is the continue-condition that lets the item stay on this path; it is not itself an edge (see below).                                                                                                                                                                                                            | `done`        |
+| `started → parked`   | The Fence routes the item's request to the owner: an ambiguous, risky, or unproven action escalates through the Doorbell rather than being guessed ([`authorize → route`](authorization.md), [`DOOR-1`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)); the park is durable ([`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)).                                                                                                                                                                                             | `parked`      |
+| `started → blocked`  | The Fence **denies** the item's request, fail-closed — the request is outside declared, approved scope ([`authorize → deny`](authorization.md), [`FENCE-1`](../../product/guarantees.md#11-the-fence--runtime-authorization); FAIL-002 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)); **or** the item cannot proceed for a recorded reason (FAIL-003 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)) — treating an unmet evidence gate as one such non-proceeding reason is a **(modeling decision)**, see the open question below. | `blocked`     |
+| `parked → started`   | The owner resolves the escalation in favour of proceeding; the narrow grant is scoped to the need in front of the run ([`DOOR-3`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)).                                                                                                                                                                                                                                                                                                                                                                           | `unparked`    |
+| `parked → rejected`  | The owner resolves the escalation by rejecting the item ([`authorize`/owner-reject](authorization.md); terminal by owner decision).                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `rejected`    |
+| `done → landed`      | The **runner-exclusive** push/PR/merge action lands the done item ([`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence)); `done` and `landed` stay separate milestones ([`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence), INV-004 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)) — a done item is not landed until this action fires.                                                                                                                                                                                                 | `landed`      |
+
+Any transition **not** in this table is illegal, extending the diagram's own closure discipline:
+an illegal transition is a test-time fact to catch in verification, not a runtime branch to
+handle defensively.
+
+### Modeling notes on the seed
+
+- **Eligibility as an entry guard on `eligible`, not a new node.** The diagram starts the item at
+  `eligible` with no incoming edge; the dependency-aware resolution that decides an item is
+  eligible in the first place is modelled here as the **entry guard on `eligible`**, not as a new
+  `waiting → eligible` transition. [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)
+  §8/§15 render a `story.waiting` state, but that is that note's own dry-run-scoped rendering; it
+  is not part of this diagram's seed and is deliberately **not** imported here (adding it would be
+  a divergence from the seed). This keeps the closed set exactly the seven edges the diagram
+  draws.
+- **Fence `grant` is a continue-condition, not an edge.** The Fence's `authorize → grant | deny |
+route` decision ([`authorization.md`](authorization.md)) gates `started`'s exits: `deny` drives
+  `started → blocked` (fail-closed), `route` drives `started → parked`. `grant` does **not** get
+  its own row — it is the condition under which the item stays on the `started → done` path
+  (which fires on evidence-met, not on the grant itself). The Fence classifier's internals (the
+  fixed CFG-10 category boundary, escalation routing) stay [`authorization.md`](authorization.md)'s
+  own; this table cites `authorize`'s outcome, it does not redesign it.
+- **`parked` is transient, and its non-happy resolution feeds the run.** `parked` resolves to
+  either `started` (resume, `unparked`) or `rejected` on an owner decision. An **unattended**
+  `parked` item — one whose owner decision does not arrive — is the driver that the run lifecycle
+  turns into a run-level `stopped`; this is the seam owned by `w2-s2-run-lifecycle-and-recovery`,
+  named here only, not sequenced (the run states remain the run-lifecycle prose above).
+
+### Cross-item and run-facing properties
+
+These reconcile the work-item lifecycle to product commitments that are **not** single-edge
+guards, so they are recorded as properties of a state rather than forced into a transition row:
+
+- **Blocked halts dependents.** A `blocked` item halts itself and its downstream dependents while
+  independent work keeps moving ([`ISO-3`](../../product/guarantees.md#32-work-level-failure-isolation),
+  [`ISO-1`](../../product/guarantees.md#32-work-level-failure-isolation), INV-005) — a property of
+  the `blocked` outcome and the eligibility resolver, not a transition of the blocked item itself.
+- **Blocks are visible.** A `blocked` item surfaces where the owner already works — as a real pull
+  request with the failure reasons, when a safe branch and push permission exist, and recorded for
+  the owner regardless ([`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence),
+  [`ISO-3`](../../product/guarantees.md#32-work-level-failure-isolation)). This is the observability
+  of `blocked`, not a new transition.
+- **No mid-run widening.** No transition may widen the item's permission mid-run; the guard set
+  each transition consults is exactly what the Fence grants under the policy fixed at launch
+  ([`FENCE-2`](../../product/guarantees.md#11-the-fence--runtime-authorization)).
+- **Narrow, durable escalation.** The `started → parked` (route) edge and the `parked` state are
+  durable — they survive interruption ([`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)) —
+  and any grant that resolves `parked → started` is scoped to the need in front of the run
+  ([`DOOR-3`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)).
+- **Capability proof feeds the grant.** Fresh, positive capability proof is an input the Fence
+  consumes before an action is auto-grantable; missing, stale, or failed proof means less autonomy
+  and more owner checkpoints (more `route → parked`), not a weakened guarantee
+  ([`EARN-1`](../../product/guarantees.md#12-earned-trust--capability-attestation),
+  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation)). This table
+  cites the Fence guard those proofs feed; it does not re-derive the attestation mechanism
+  ([`authorization.md`](authorization.md) owns it).
+- **The worker holds no credentials.** The thing that writes code is never the thing that ships
+  it; the runner performs every privileged action, including the `done → landed` landing
+  ([`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization),
+  [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence)) — the existing "Owns" prose
+  above, restated here as it governs the `done → landed` guard.
+
+### Two authority mechanisms across this table
+
+The closed table exercises the two authority mechanisms this area holds, and must not collapse
+them (INV-008 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)): (a) the
+**Fence** adjudicates each worker request into `grant | deny | route`, which the table consumes
+as the guard on `started`'s exits; and (b) at **landing**, the **runner-exclusive** push/PR/merge
+action gates `done → landed`. These are distinct authorities — Fence adjudication governs whether
+an action is allowed; runner-owned landing governs whether the merge fires — and no single row
+conflates them.
+
+### Candidate invariants (for w2-s3 consolidation)
+
+This section **names** the invariant candidates the closed table surfaces; it assigns **no**
+`INV-*` numbers — numbering is `w2-s3-invariant-catalog`'s consolidation checkpoint (which
+continues the ledger from `INV-009`), not this session's. Each candidate states what it
+constrains, the authority that holds it, and the product IDs it reconciles to, so `w2-s3` can
+number it deterministically.
+
+- **Closed guarded transition set.** Every legal work-item transition is in the table above with
+  a named guard; any transition not drawn is illegal. Authority: the runner's work-item state
+  machine. Reconciles to: [`ISO-1`](../../product/guarantees.md#32-work-level-failure-isolation),
+  INV-005.
+- **Runner-exclusive landing.** Only the runner performs the `done → landed` push/PR/merge action;
+  the worker never does. Authority: the runner. Reconciles to:
+  [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence),
+  [`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence), INV-004.
+- **Done is not landed.** `done` (evidence met) and `landed` (merged) are separate milestones; an
+  item may hold at `done` without being `landed`. Authority: the runner's state machine.
+  Reconciles to: [`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence), INV-004.
+- **Fail-closed deny edge.** A Fence `deny` drives `started → blocked` by construction — an
+  undeclared or unapproved request fails closed, never silently proceeds. Authority: the Fence.
+  Reconciles to: [`FENCE-1`](../../product/guarantees.md#11-the-fence--runtime-authorization),
+  [`FENCE-2`](../../product/guarantees.md#11-the-fence--runtime-authorization),
+  [`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization).
+- **Durable narrow escalation.** The `route → parked` escalation and the `parked` state survive
+  interruption, and any resolving grant is narrow. Authority: the Doorbell (escalation) and
+  Records (durability). Reconciles to:
+  [`DOOR-1`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation),
+  [`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation),
+  [`DOOR-3`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation).
+- **Capability-gated autonomy.** An auto-grantable transition requires fresh, positive capability
+  proof; missing or stale proof reduces autonomy rather than weakening a guarantee. Authority: the
+  Fence. Reconciles to:
+  [`EARN-1`](../../product/guarantees.md#12-earned-trust--capability-attestation),
+  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation).
+- **Dependent halt.** A `blocked` item halts its downstream dependents while independent items
+  keep moving. Authority: the orchestration eligibility resolver. Reconciles to:
+  [`ISO-3`](../../product/guarantees.md#32-work-level-failure-isolation),
+  [`ISO-1`](../../product/guarantees.md#32-work-level-failure-isolation), INV-005.
+- **Visible block.** A `blocked` item is surfaced (a real PR where possible, recorded regardless),
+  never silently dropped. Authority: the runner and Records. Reconciles to:
+  [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence).
+- **Two distinct authorities.** Fence adjudication (grant/deny/route) and runner-owned landing are
+  distinct and are not collapsed by any transition. Authority: the Fence (adjudication) and the
+  runner (landing). Reconciles to: INV-008.
+
+## Open questions
+
+- **Is an unmet evidence gate a `started → blocked` cause, or a distinct outcome?** This session
+  models an unmet evidence gate as a non-proceeding reason that drives `started → blocked` (under
+  FAIL-003's "cannot proceed → recorded with reason"), rather than minting a new state or edge.
+  This is a modeling decision, not a source-settled rule: the product guarantees state
+  evidence-met as the `done` gate ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence),
+  [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)) but do not name the failing-gate
+  disposition at this altitude. Flagged for `w2-s3` / a later wave to confirm or refine; it does
+  not change the closed edge set either way.
+
+## Risks and deferred decisions
+
+- **Risk — the evidence-gate-failure modeling decision may be re-settled.** This session models an
+  unmet evidence gate as a `started → blocked` cause (the open question above). If a later wave
+  settles it differently — e.g. as a distinct non-terminal outcome rather than a `blocked` cause —
+  this transition table would have to be touched again. The risk is scoped: the closed edge set is
+  unaffected either way, so the churn would land on the `started → blocked` guard cell and its
+  note, not on the diagram.
+- **Deferred — `w2-s3` numbers the candidate invariants.** The candidate invariants above carry no
+  `INV-*` numbers by design; numbering is `w2-s3-invariant-catalog`'s consolidation checkpoint
+  (continuing the ledger from `INV-009`). Until then, treating them as named-but-unnumbered
+  candidates is a deliberate choice, not an oversight.
+- **Deferred — run-lifecycle and recovery sequencing.** How an unattended `parked` item is
+  sequenced into a run-level `stopped`, and the run state machine itself, are named here as a seam
+  only and owned by `w2-s2-run-lifecycle-and-recovery`; this doc does not pre-empt that sequencing.
+- **Deferred — concurrency and resume mechanics.** Parallel-workspace isolation (ISO-4) and
+  resume-after-interruption remain the named extension points the Notes above record, not specified
+  by this table.
+
 ## Reconciles to
 
-ISO-1, ISO-3, MERGE-2, MERGE-4, FENCE-3, and the product-visible states in
+MERGE-1, MERGE-2, MERGE-4, MERGE-5, FENCE-1, FENCE-2, FENCE-3, DOOR-1, DOOR-2, DOOR-3, EARN-1,
+EARN-2, ISO-1, ISO-3, INV-004, INV-005, INV-008, and the product-visible states in
 [`concepts.md`](../../product/concepts.md#story-and-run-outcomes).
