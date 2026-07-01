@@ -100,3 +100,9 @@ distorted source quotes. One disposition recorded:
   requires the downstream consumer to be citable as `w4-s6-execution-host`.
   **Disposition: fix.** `plan-intake.md` must name `w4-s6-execution-host` directly as the
   frame-time consumer of the evidence/attestation model.
+- **D-011** — `w4-s4` build-time review S-001 (architecture-enforceability, **blocking**): the
+  Bootstrap design added technical-design frontmatter and a Planner Handoff Summary, but the summary
+  lacked the required source-closed handoff shape.
+  **Disposition: fix.** `bootstrap.md` must reshape the handoff summary to include identity,
+  `SRC-*` rows, unique stable IDs for planner-facing facts, and explicit `ENF-*`, `DEL-*`, and
+  `FILE-*` rows or source-backed `None` entries, while keeping invariant facts candidate-only.
