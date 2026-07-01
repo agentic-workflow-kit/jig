@@ -51,6 +51,7 @@ Current read-only contract and design sources:
 - [`../../../../../../design/contracts/observability-records-contract-v0.md`](../../../../../../design/contracts/observability-records-contract-v0.md)
 - [`../../../../../../design/core/records.md`](../../../../../../design/core/records.md)
 - [`../../../../../../design/core/bootstrap.md`](../../../../../../design/core/bootstrap.md)
+- [`../../../../../../design/core/orchestration.md`](../../../../../../design/core/orchestration.md)
 - [`../../../../../../design/notes/runtime-design-m5a.md`](../../../../../../design/notes/runtime-design-m5a.md)
 
 Product sources:
