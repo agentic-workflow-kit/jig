@@ -36,13 +36,15 @@ resume evidence is not fully explicit in one place.
 
 **Source basis.**
 
-- Wave 2 says unattended `parked` or liveness can drive `run.stopped` at a resumable checkpoint.
+- `docs/design/core/orchestration.md` owns the current lifecycle design for unattended `parked` or
+  liveness-driven `run.stopped` behavior at a resumable checkpoint.
 - The records contract requires structured stop reasons, liveness signals, notices, and resume
   support.
 - records.md keeps notices as projections from the same append-only evidence base.
 
 **Why this is a red-team issue.** The integrated behavior appears intended, but the current source
-set leaves the causal reconstruction burden split across Wave 2 and Wave 4a sources.
+set leaves the causal reconstruction burden split across orchestration and Wave 4a records/bootstrap
+sources.
 
 **Route.** Wave 2 + Wave 4a owners.
 

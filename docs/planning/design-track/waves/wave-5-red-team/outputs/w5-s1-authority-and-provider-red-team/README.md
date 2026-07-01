@@ -55,6 +55,8 @@ Read-only product/design sources:
   checks across authority, provider, and SEC-2 seams.
 - [`routed-findings.md`](./routed-findings.md) — source-backed findings, open
   questions, and candidate invariant gaps routed to existing owners or U9.
+- [`review-evidence.md`](./review-evidence.md) — settled review verdict,
+  finding dispositions, and decision-log linkage.
 
 ## What stays out
 
@@ -64,8 +66,9 @@ Read-only product/design sources:
   implementation task.
 - No new numbered `INV-*` row.
 
-## Review evidence pointer
+## Review evidence
 
-Expected review evidence for this package is a later design-review artifact or
-decision-log disposition recorded against Wave 5. This package itself only
-declares the pointer surface; it does not perform review.
+Review evidence for this package is tracked in
+[`review-evidence.md`](./review-evidence.md). The settled dispositions are
+recorded in Wave 5 [`decisions.md`](../../decisions.md), especially D-008
+through D-010 and D-012.

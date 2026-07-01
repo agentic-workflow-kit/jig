@@ -137,8 +137,8 @@ especially where stop/notice/resume evidence intersects with redaction posture a
 - Deferred decision: whether current source-backed gaps become design changes belongs to the routed
   owner, not to this package.
 
-## Expected review evidence
+## Review evidence
 
 Review evidence for this package is tracked in [`review-evidence.md`](./review-evidence.md). That
-file is a pointer surface only: expected review artifact path, verdict slot, and wave-level
-disposition linkage.
+file records the settled verdict, finding dispositions, and Wave 5 decision-log linkage for the
+package.

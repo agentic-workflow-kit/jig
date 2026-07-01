@@ -1,47 +1,41 @@
 ---
-title: "w5-s2 review evidence pointer"
-status: draft
+title: "w5-s2 review evidence"
+status: settled
 story: w5-s2-recovery-records-integration-red-team
 ---
 
-# w5-s2 review evidence pointer
+# w5-s2 review evidence
 
-## Purpose
+## Review artifact
 
-This file is a pointer surface for the later review of the `w5-s2` recovery/records/bootstrap
-integration red-team package. It does not perform or summarize review now.
+- Package: [`README.md`](./README.md), [`contradiction-matrix.md`](./contradiction-matrix.md), and
+  [`findings-and-open-questions.md`](./findings-and-open-questions.md)
+- Story brief:
+  [`../../stories/w5-s2-recovery-records-integration-red-team.md`](../../stories/w5-s2-recovery-records-integration-red-team.md)
+- Decision-log dispositions: [`../../decisions.md`](../../decisions.md) D-011 and D-012
 
-## Expected review inputs
+## Verdict
 
-- [`README.md`](./README.md)
-- [`contradiction-matrix.md`](./contradiction-matrix.md)
-- [`findings-and-open-questions.md`](./findings-and-open-questions.md)
-- [`../../decisions.md`](../../decisions.md)
-- [`../../stories/w5-s2-recovery-records-integration-red-team.md`](../../stories/w5-s2-recovery-records-integration-red-team.md)
+settled: 0 open blocking, 0 open recommended
 
-## Expected review artifact pointer
+## Finding dispositions
 
-Expected later artifact location:
+| Finding                                                                       | Severity | Disposition | Evidence                                                                                                                              |
+| ----------------------------------------------------------------------------- | -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| S-001: current lifecycle design owner omitted from the source set             | blocking | fixed       | D-011 adds `docs/design/core/orchestration.md` to the package source set and aligns lifecycle-source references to the current owner. |
+| S-002: review evidence remained a pending pointer instead of a settled record | blocking | fixed       | D-012 replaces pending review slots with this settled evidence record and links package evidence to the Wave 5 decision log.          |
 
-- `docs/planning/design-track/waves/wave-5-red-team/outputs/w5-s2-recovery-records-integration-red-team/review-evidence.md`
+## Review checks
 
-If review is recorded elsewhere later, this file should point to that exact artifact path and keep
-the wave-local linkage here.
-
-## Expected verdict slots
-
-- Review status: pending
-- Blocking findings: pending
-- Non-blocking findings: pending
-- Disposition linkage into [`../../decisions.md`](../../decisions.md): pending
-
-## Review checks expected
-
-- The package remained planning-track-only under `wave-5-red-team/**`.
-- No `docs/design/**` file was edited.
+- Package remains planning-track-only under `wave-5-red-team/**`.
+- No `docs/design/**` file is edited by this package.
 - No lifecycle redesign, bootstrap redesign, records schema/event-string/log-model work, or
-  implementation tasking was introduced locally.
-- Findings remained routed to Wave 2, Wave 4a, product, or U9 rather than being resolved inside the
+  implementation tasking is introduced locally.
+- Findings remain routed to Wave 2, Wave 4a, product, or U9 rather than being resolved inside the
   package.
-- Existing `INV-*` and candidate invariants were cited read-only, with no new numbered invariant
+- Existing `INV-*` and candidate invariants are cited read-only, with no new numbered invariant
   assigned.
+
+## Settled status
+
+Settled. The package has zero open blocking review findings after dispositions D-011 and D-012.

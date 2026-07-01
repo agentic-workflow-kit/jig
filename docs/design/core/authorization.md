@@ -109,8 +109,6 @@ performs the privileged action`")
   class l2 legendCore;
   class l3 legendOwner;
   class lt1,lt2,lt3 legendText;
-
-    style ESC fill:#FBFAF7,stroke:#5F5E5A,color:#444441
 ```
 
 The worker itself never holds credentials; any privileged action a grant authorizes is carried
