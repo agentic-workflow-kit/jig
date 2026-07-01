@@ -23,7 +23,8 @@
     "format": "prettier --write \"**/*.{md,yml,yaml,json}\"",
     "format:check": "prettier --check \"**/*.{md,yml,yaml,json}\"",
     "lint": "pnpm format:check",
-    "check": "pnpm lint"
+    "delivery:check": "node scripts/check-delivery-foundation.mjs",
+    "check": "pnpm lint && pnpm delivery:check"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
