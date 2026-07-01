@@ -226,7 +226,7 @@ or stopped`")
     lt3["providers"]
     l1 ~~~ lt1 ~~~ l2 ~~~ lt2 ~~~ l3 ~~~ lt3
   end
-  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+  style legend fill:transparent,stroke:transparent,color:transparent
 
   drive --> row2
   row2 --> row3

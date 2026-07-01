@@ -79,7 +79,7 @@ halts itself + dependents`")
     direction LR
     l1(" ") ~~~ lt1["active"] ~~~ l2(" ") ~~~ lt2["terminal outcome"]
   end
-  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+  style legend fill:transparent,stroke:transparent,color:transparent
 
   landed ~~~ legend
 

@@ -80,7 +80,7 @@ performs the privileged action`")
     direction LR
     l1(" ") ~~~ lt1["worker (no credentials)"] ~~~ l2(" ") ~~~ lt2["jig-core (fence / runner)"] ~~~ l3(" ") ~~~ lt3["owner / escalation"]
   end
-  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+  style legend fill:transparent,stroke:transparent,color:transparent
 
   runner ~~~ legend
 
