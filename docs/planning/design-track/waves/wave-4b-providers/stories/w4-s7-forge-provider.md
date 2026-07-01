@@ -43,11 +43,12 @@ evidence/authorization.
 
 Per D-001 this session **deepens the Forge section of `providers.md` in place**, preserving and
 citing the existing Owns/Interface/Notes/Diagram as the seed (STOP-003: re-project and cite, never
-overwrite). The **boundary rule** is the spine (D-004): the Forge provider implements against Wave
-3's Forge port and consumes Wave 4a's core contracts read-only — it must **not** redefine evidence
-sufficiency (`w4-s2`'s Policy, MERGE-3), the done-vs-landed semantics (Wave 1's D-003, Wave 2's
-closed table), or the authorization/GUARD-2 rules (`w4-s3`). It executes the runner's landing action
-**after** those preconditions have cleared; it does not re-evaluate them.
+overwrite). The **boundary rule** from the governing plan, adopted for this wave by D-004, is the
+spine: the Forge provider implements against Wave 3's Forge port and consumes Wave 4a's core
+contracts read-only — it must **not** redefine evidence sufficiency (`w4-s2`'s Policy, MERGE-3), the
+done-vs-landed semantics (Wave 1's D-003, Wave 2's closed table), or the authorization/GUARD-2 rules
+(`w4-s3`). It executes the runner's landing action **after** those preconditions have cleared; it
+does not re-evaluate them. `AGENTS.md` remains repo-contract context for the same guardrail.
 
 ## Inputs to read
 

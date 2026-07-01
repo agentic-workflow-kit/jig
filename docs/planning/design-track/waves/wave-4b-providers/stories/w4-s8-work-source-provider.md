@@ -32,9 +32,11 @@ Per D-001 this session **deepens the Work source section of `providers.md` in pl
 citing the existing Owns/Interface/Notes/Diagram — including the **already-verbatim** never-bypasses-
 plan sentence — as the seed (STOP-003: re-project and cite, never overwrite; this session deepens the
 mechanism and candidate invariant behind that sentence, it does not invent the sentence). The
-**boundary rule** is the spine (D-004): the Work source provider implements against Wave 3's Work
-source port and consumes Wave 4a's core contracts read-only; anything it supplies still crosses
-`PlanValidator` (`w4-s2`, cited) — no work item reaches the runner except through the validated plan.
+**boundary rule** from the governing plan, adopted for this wave by D-004, is the spine: the Work
+source provider implements against Wave 3's Work source port and consumes Wave 4a's core contracts
+read-only; anything it supplies still crosses `PlanValidator` (`w4-s2`, cited) — no work item
+reaches the runner except through the validated plan. `AGENTS.md` remains repo-contract context for
+the same guardrail.
 
 ## Inputs to read
 

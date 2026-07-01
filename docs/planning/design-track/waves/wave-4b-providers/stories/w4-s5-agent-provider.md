@@ -49,11 +49,12 @@ future conformance-suite hook.
 Per D-001 this session **deepens the Agent section of `providers.md` in place**, preserving and
 citing the existing Owns/Interface/Notes/Diagram — including the stub-allowance Note — as the seed
 (STOP-003: re-project and cite, never overwrite; name any divergence explicitly). The **boundary
-rule** is the spine (D-004): the Agent provider implements against Wave 3's Agent port and consumes
-Wave 4a's core contracts (`w4-s2` evidence/attestation, `w4-s3` authority, `w4-s1` records)
-**read-only** — it must **not** redefine core policy, evidence sufficiency, authorization, or state
-semantics. It **supplies** a capability-attestation claim; `w4-s3` **judges** it (EARN-1/2) and
-`w4-s1` records it — never the reverse.
+rule** from the governing plan, adopted for this wave by D-004, is the spine: the Agent provider
+implements against Wave 3's Agent port and consumes Wave 4a's core contracts (`w4-s2`
+evidence/attestation, `w4-s3` authority, `w4-s1` records) **read-only** — it must **not** redefine
+core policy, evidence sufficiency, authorization, or state semantics. It **supplies** a
+capability-attestation claim; `w4-s3` **judges** it (EARN-1/2) and `w4-s1` records it — never the
+reverse. `AGENTS.md` remains repo-contract context for the same guardrail.
 
 ## Inputs to read
 
@@ -133,9 +134,9 @@ The five durable deliverable types this session must produce:
   boundary rule (D-004); this session must not author the sufficiency or freshness rule.
 - How is the **s6 ↔ s5 containment seam** stated: the Agent port's adapter **runs inside** the
   execution host (`w4-s6`); the host's isolation strength is what SEC-2's no-phone-home guarantee is
-  verified against. State this seam wording **identically** to `w4-s6`'s story (the one seam shared
-  between two provider parts); this story states only that containment exists, never how strong it is
-  or how it is verified (that is `w4-s6`'s SEC-2 territory).
+  verified against. State this seam **consistently** with `w4-s6`'s story (the one seam shared
+  between two provider parts); this story states only that containment exists, never how strong it
+  is or how it is verified (that is `w4-s6`'s SEC-2 territory).
 - **The canonical `DocStructurePlan` split question (stated here for the whole wave):** should the
   four provider designs remain in one shared `docs/design/contracts/providers.md` (four deepened
   sections), or split into `contracts/providers/agent.md`, `execution-host.md`, `forge.md`,
@@ -175,7 +176,7 @@ The five durable deliverable types this session must produce:
 deny \| route` (`w4-s3`, cited); this session does not redesign the classifier or the
   guard-outcome-to-transition mapping (Wave 2's, settled).
 - The **execution host's containment model** — that is `w4-s6`. This session states only that its
-  adapter runs inside the host (the s6 ↔ s5 seam, worded identically in both stories); it does not
+  adapter runs inside the host (the s6 ↔ s5 seam, stated consistently in both stories); it does not
   design how strongly it is contained or how confinement is proven (`w4-s6`'s SEC-2 territory).
 - The **evidence/attestation category taxonomy or freshness rule** — that is `w4-s2`/`w4-s3`. This
   session supplies a claim expressed against that taxonomy; it does not author the taxonomy or the
@@ -204,7 +205,7 @@ deny \| route` (`w4-s3`, cited); this session does not redesign the classifier o
 - The **boundary-rule statement** is present: implements against Wave 3's Agent port, consumes Wave
   4a's core contracts read-only, never redefines core policy/evidence/authorization/state; supplies a
   claim, `w4-s3` judges, `w4-s1` records.
-- The **s6 ↔ s5 containment seam** is worded **identically** to `w4-s6`'s story; the **canonical
+- The **s6 ↔ s5 containment seam** is stated **consistently** with `w4-s6`'s story; the **canonical
   `DocStructurePlan` split question** is stated as OPEN for the wave.
 - `INV-002` is **cited** (not re-minted); no new `INV-009`+ candidate is introduced by this part; the
   three ID namespaces are kept distinct.

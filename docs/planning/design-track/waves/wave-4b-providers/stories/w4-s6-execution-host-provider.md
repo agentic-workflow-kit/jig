@@ -37,9 +37,10 @@ The host **proves and reports**; core **judges and records**.
 Per D-001 this session **deepens the Execution host section of `providers.md` in place**, preserving
 and citing the existing Owns/Interface/Notes/Diagram (the seam is a named extension point, no adapter
 yet — `SURF-006`) as the seed (STOP-003: re-project and cite, never overwrite). The **boundary rule**
-is the spine (D-004): the Execution host provider implements against Wave 3's Execution host port and
-consumes Wave 4a's core contracts read-only; it **supplies** a containment proof as an attestation
-claim; `w4-s3` **judges** it (EARN-1/2) and `w4-s1` records it.
+from the governing plan, adopted for this wave by D-004, is the spine: the Execution host provider
+implements against Wave 3's Execution host port and consumes Wave 4a's core contracts read-only; it
+**supplies** a containment proof as an attestation claim; `w4-s3` **judges** it (EARN-1/2) and
+`w4-s1` records it. `AGENTS.md` remains repo-contract context for the same guardrail.
 
 ## Inputs to read
 
@@ -122,7 +123,7 @@ The five durable deliverable types this session must produce:
   work cannot collide? (The scheduling/eligibility discipline around ISO-4 stays **Wave 2's**, cited
   unchanged — this part owns the host's workspace-isolation **mechanism**, not the scheduling
   decision. Confirmed safe assumption.)
-- **The SEC-2 three-way boundary** (D-003, in the frame's exact wording): **(1) `w4-s6` (this part)
+- **The SEC-2 three-way boundary** (D-003, carried forward from the frame and decision log): **(1) `w4-s6` (this part)
   owns the design posture and the proof requirement/seed** — outbound network access must be confined
   and the confinement _proven_ (not self-reported); it names the isolation-strength categories a host
   self-reports against and seeds what a proof must demonstrate, supplied as an attestation claim into
@@ -139,7 +140,7 @@ The five durable deliverable types this session must produce:
   `w4-s3`'s freshness/sufficiency judgment, `w4-s2`'s taxonomy, or `w4-s1`'s log model?
 - How is the **s6 ↔ s5 containment seam** stated: the Agent port's adapter (`w4-s5`) **runs inside**
   this execution host; the host's isolation strength is what SEC-2's no-phone-home guarantee is
-  verified against. State this seam wording **identically** to `w4-s5`'s story (the one seam shared
+  verified against. State this seam **consistently** with `w4-s5`'s story (the one seam shared
   between two provider parts).
 
 ## Invariants to preserve
@@ -171,7 +172,7 @@ The five durable deliverable types this session must produce:
 - **ISO-4's scheduling/eligibility discipline** — that stays **Wave 2's**. This part owns the host's
   isolated-workspace-per-run **mechanism**, not which work is eligible to run in parallel.
 - The **Agent port's own request/observe behavior** — that is `w4-s5`. This session states only that
-  the host contains the worker (the s6 ↔ s5 seam, worded identically in both stories).
+  the host contains the worker (the s6 ↔ s5 seam, stated consistently in both stories).
 - Anything **Wave 3** settled: the Execution host port **shape** and its owns/implements/must-not
   split. This session deepens the containment discipline **behind** the port, preserving and citing
   the port line as the seed.
@@ -199,9 +200,9 @@ The five durable deliverable types this session must produce:
   the containment mechanism, proof, and honest report; it does **not** re-own `w4-s3`'s judgment,
   `w4-s2`'s taxonomy, or `w4-s1`'s log model — all cited read-only.
 - The **SEC-2 three-way boundary** (this part / Wave 5 / U9's `review-and-red-team.md`) is stated in
-  the frame's exact wording, naming Wave 5 and the collector as forward references to not-yet-existing
-  artifacts.
-- The **s6 ↔ s5 containment seam** is worded **identically** to `w4-s5`'s story; the **boundary-rule
+  a form consistent with D-003 and the frame, naming Wave 5 and the collector as forward references
+  to not-yet-existing artifacts.
+- The **s6 ↔ s5 containment seam** is stated **consistently** with `w4-s5`'s story; the **boundary-rule
   statement** is present (implements against Wave 3's port; consumes Wave 4a read-only; supplies a
   proof, `w4-s3` judges, `w4-s1` records).
 - The two invariant candidates (containment-proven-not-asserted; isolation-strength-honestly-reported)
@@ -230,8 +231,8 @@ light method Wave 0 used for its scaffold-only stories.
    nothing.
 2. author-technical-design → the deepened Execution host section of `docs/design/contracts/providers.md`,
    preserving and citing the existing Owns/Interface/Notes/Diagram as the seed; Wave 4a's core
-   contracts cited read-only (the guardrail); the SEC-2 three-way boundary stated in the frame's exact
-   wording.
+   contracts cited read-only (the guardrail); the SEC-2 three-way boundary stated consistently with
+   the frame and D-003.
 3. review-technical-design → three lenses (architecture-enforceability: containment is proven not
    asserted; the failure-token catalog — containment unproven, isolation-strength overstated,
    workspace collision — is stated; the guardrail holds, the host does not re-own core judgment.
@@ -239,7 +240,7 @@ light method Wave 0 used for its scaffold-only stories.
    two `INV-009`+ candidates without redefining core policy/evidence/authorization/state — the
    boundary rule holds; agreement-integrity: nothing contradicts the part frame's `AgreedSystemModel`,
    Wave 3's Execution host port shape, Wave 4a's evidence/authority contracts, the SEC-2 three-way
-   boundary wording, or the s6 ↔ s5 containment seam wording). Dispositions recorded into this wave's
+   boundary semantics, or the s6 ↔ s5 containment seam semantics). Dispositions recorded into this wave's
    [`../decisions.md`](../decisions.md); settled = zero open blocking suggestions.
 
 Handoff: when settled, update status and note the resolved design_target in the track's future

@@ -12,10 +12,12 @@ depends_on_waves: [1, 2, 3, "4a"]
 Deepen jig's **four provider seams** — Agent, Execution host, Forge, Work source — from the
 port-skeleton altitude Wave 3's `w3-s1` left them at into authored, boundary-respecting provider
 design, implemented **against** Wave 3's ports and **consuming** Wave 4a's committed core contracts
-read-only. This is the wave where the boundary rule (`AGENTS.md`) is tested against real provider
-designs for the first time: a provider implements against its port and must **not** redefine core
-policy, evidence, authorization, or state semantics. Four parts, each its own design problem, each
-deepening its own section of the single shared `docs/design/contracts/providers.md`:
+read-only. This is the wave where the governing plan's provider-boundary rule, carried into Wave 4b
+by D-004, is tested against real provider designs for the first time: a provider implements against
+its port and must **not** redefine core policy, evidence, authorization, or state semantics.
+`AGENTS.md` remains repo-contract context for that guardrail, but not the sole authority for the full
+Wave 4b wording. Four parts, each its own design problem, each deepening its own section of the
+single shared `docs/design/contracts/providers.md`:
 
 - **`w4-s5` — Agent provider** (`docs/design/contracts/providers.md`, Agent section): the contained
   coding worker — reads a work item, writes code, runs checks, reports. The stub-vs-real-driver
@@ -266,8 +268,9 @@ model — all cited read-only.
   re-minted.
 - `w4-s6` is authored at `tactical-ddd` depth with its **guardrail** explicit (owns containment/
   proof/honest-reporting; does not re-own `w4-s3` judgment / `w4-s2` taxonomy / `w4-s1` log model);
-  its **SEC-2 three-way boundary** (this wave / Wave 5 / U9's `review-and-red-team.md`) is stated in
-  the frame's exact wording; the **s6 ↔ s5 containment seam** is worded identically in both stories.
+  its **SEC-2 three-way boundary** (this wave / Wave 5 / U9's `review-and-red-team.md`) is stated
+  consistently with D-003 and the s6 frame; the **s6 ↔ s5 containment seam** is stated consistently
+  in both stories.
 - `w4-s7`'s runner-exclusive push/PR/merge adapter, forge-protection respect, and mechanical
   block-surfacing (MERGE-5) are stated; it implements `done → landed` without redefining the
   milestone semantics (Wave 1/2, cited); evidence-sufficiency and GUARD-2 are cited preconditions,
