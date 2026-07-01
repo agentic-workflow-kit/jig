@@ -55,8 +55,10 @@ Require all of these before any worker dispatch or privileged action:
 - the policy reference, work-profile reference, and repo-floor reference the plan binds to;
 - owner approval to start or preview at the requested boundary;
 - current repo/worktree facts for the run location;
-- current driver/seam facts for Agent, Execution Host, Forge, and Work Source, or an explicit stop
-  if a required seam cannot be inspected;
+- for start, execution, or landing boundaries: current driver/seam facts for Agent, Execution Host,
+  Forge, and Work Source, or an explicit stop if a required seam cannot be inspected;
+- for preview-only boundaries: enough binding facts to record `run.previewed` without requiring a
+  run identity, workspace allocation, provider wiring, or privileged side effects;
 - current verification commands and evidence requirements from the plan and policy;
 - a record path, record store, or durable record packet format that can preserve
   `observability-records-contract-v0` properties for this local run.
@@ -98,8 +100,10 @@ started.
    requested run. If they are missing, incompatible, or would weaken launch-time policy, stop as
    `binding-input-missing`.
 8. Verify the requested boundary is supported: preview, local execution coordination, evidence
-   collection, runner-owned publication, or stop. If the user requests real Jig behavior that does
-   not exist in the current repo, stop as `jig-runtime-unavailable`.
+   collection, runner-owned publication, or stop. Preview is non-committing: it requires load,
+   validate, bind, and a recordable `run.previewed` event, but no run identity, workspace, provider,
+   or privileged side effect. If the user requests real Jig behavior that does not exist in the
+   current repo, stop as `jig-runtime-unavailable`.
 
 Preflight may produce a proposed execution sequence, a refusal, or a named stop. It must not repair
 the plan.
@@ -113,7 +117,10 @@ After preflight passes, bind current facts only:
 - selected stories and currently eligible stories from the plan graph;
 - current verification commands, review requirements, and capability-proof requirements;
 - current owner approval state and requested stop boundary;
-- Agent, Execution Host, Forge, and Work Source driver availability and attestation posture;
+- for start, execution, or landing boundaries: Agent, Execution Host, Forge, and Work Source driver
+  availability and attestation posture;
+- for preview-only boundaries: preview binding posture and the recordable `run.previewed` basis,
+  without forcing provider wiring;
 - record destination or record-packet location and its redaction/export posture;
 - runner-owned actions available on the current surface, such as push, PR creation, status/comment
   posting, and merge.
@@ -164,10 +171,13 @@ contract introduces one.
 ## Evidence and Records Gate
 
 Before treating a state transition or governed decision as accepted, prepare a recordable packet with
-these v0 properties:
+the v0 properties that apply to the requested boundary:
 
-- run identity, attempt identity, plan reference, track reference, policy/work-profile/repo-floor
-  references, and driver context;
+- for committed start/resume/execution paths: run identity, attempt identity, plan reference, track
+  reference, policy/work-profile/repo-floor references, and driver context;
+- for preview-only paths: plan reference, track reference, policy/work-profile/repo-floor
+  references, and the non-committing `run.previewed` basis, without inventing a run identity or
+  driver context;
 - event family and outcome using Jig's current event-family altitude;
 - actor or component responsible: worker, runner, owner, delegated reviewer, or driver;
 - basis: policy rule, evidence observation, approval, capability proof, prior event, or plan
