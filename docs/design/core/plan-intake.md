@@ -23,20 +23,45 @@ intent. It is the boundary [`bootstrap`](./bootstrap.md) calls before anything e
   ([`../contracts/execution-plan-contract-v0.md`](../contracts/execution-plan-contract-v0.md)).
 
 ```mermaid
-flowchart LR
-    Instance["Plan instance"]
-    Validate{"Validate against<br/>execution-plan contract"}
-    Valid["ValidatedPlan<br/>(accepted)"]
-    Invalid["Rejection(reason)<br/>unknown / incompatible format"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    Instance --> Validate
-    Validate -->|conforms| Valid
-    Validate -->|does not conform| Invalid
+  instance("`**Plan instance**
+submitted by a driver`")
+  validate("`**Validate**
+against the execution-plan contract`")
+  valid("`**ValidatedPlan**
+accepted — core's only input`")
+  invalid("`**Rejection (reason)**
+unknown / incompatible format`")
 
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Instance,Validate,Valid core;
-    class Invalid neutral;
+  instance --> validate
+  validate -->|conforms| valid
+  validate -->|does not conform| invalid
+
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  class instance commonBox;
+  class validate,valid coreBox;
+  class invalid commonBox;
 ```
 
 ## Notes

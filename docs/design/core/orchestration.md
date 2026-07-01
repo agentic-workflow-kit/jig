@@ -31,28 +31,69 @@ port.
 ## Diagram
 
 ```mermaid
-stateDiagram-v2
-    [*] --> eligible
-    eligible --> started
-    started --> parked
-    parked --> started
-    started --> done
-    parked --> rejected
-    started --> blocked
-    done --> landed
-    landed --> [*]
-    rejected --> [*]
-    blocked --> [*]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    note right of parked
-        transient: waiting on
-        an owner decision
-    end note
+  eligible("`**eligible**
+prerequisites landed`")
+  started("`**started**
+agent driving the item`")
+  parked("`**parked**
+transient — waiting on
+an owner decision`")
+  done("`**done**
+evidence met`")
+  landed("`**landed**
+merged by the runner`")
+  rejected("`**rejected**`")
+  blocked("`**blocked**
+halts itself + dependents`")
 
-    classDef active fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef terminal fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class eligible,started,parked active
-    class done,landed,rejected,blocked terminal
+  eligible --> started
+  started --> parked
+  parked -->|resume| started
+  parked -->|owner rejects| rejected
+  started --> done
+  started --> blocked
+  done --> landed
+
+  subgraph legend[" "]
+    direction LR
+    l1(" ") ~~~ lt1["active"] ~~~ l2(" ") ~~~ lt2["terminal outcome"]
+  end
+  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+
+  landed ~~~ legend
+
+  classDef activeBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef terminalBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  classDef legendActive fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendTerminal fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
+  classDef legendText fill:transparent,stroke:transparent,color:#666666;
+
+  class eligible,started,parked activeBox;
+  class done,landed,rejected,blocked terminalBox;
+  class l1 legendActive;
+  class l2 legendTerminal;
+  class lt1,lt2 legendText;
 ```
 
 The run itself has a separate, run-level lifecycle: previewed → started → stopped / resumed /

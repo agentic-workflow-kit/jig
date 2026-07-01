@@ -30,36 +30,63 @@ without committing to a run identity.
   the one place that imports provider implementations.
 
 ```mermaid
-flowchart TD
-    Drive["Owner drives"]
-    Load["Load + validate plan<br/>(via plan-intake)"]
-    Rej["Plan rejected — no run"]
-    Bind["Bind policy + repo floors<br/>(frozen at launch)"]
-    Mode{"preview or start?"}
-    PrevRec["Write preview record<br/>(run.previewed)"]
-    PrevStop["Stop — no run committed<br/>(no workspace, providers, or run id)"]
-    Resolve["Resolve track + work profile"]
-    Wire["Set up workspace,<br/>wire provider adapters"]
-    Preflight["Storage preflight"]
-    Alloc["Allocate run id +<br/>write binding record"]
-    Ready["Run ready -> core loop"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    Drive --> Load
-    Load -->|invalid| Rej
-    Load -->|valid| Bind
-    Bind --> Mode
-    Mode -->|preview| PrevRec
-    PrevRec --> PrevStop
-    Mode -->|start| Resolve
-    Resolve --> Wire
-    Wire --> Preflight
-    Preflight --> Alloc
-    Alloc --> Ready
+  drive("`**Owner drives**`")
+  load("`**Load + validate plan**
+via plan-intake`")
+  rej("`**Plan rejected**
+no run`")
+  bind("`**Bind policy + repo floors**
+frozen at launch`")
+  mode("`**preview or start?**`")
+  prevrec("`**Write preview record**
+run.previewed`")
+  prevstop("`**Stop — no run committed**
+no workspace, providers, or run id`")
+  resolve("`**Resolve track + work profile**`")
+  wire("`**Set up workspace,
+wire provider adapters**`")
+  preflight("`**Storage preflight**`")
+  alloc("`**Allocate run id +
+write binding record**`")
+  ready("`**Run ready → core loop**`")
 
-    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Load,Bind,Resolve,Wire,Preflight,Alloc config;
-    class Drive,Rej,Ready,Mode,PrevRec,PrevStop neutral;
+  drive --> load
+  load -->|invalid| rej
+  load -->|valid| bind
+  bind --> mode
+  mode -->|preview| prevrec
+  prevrec --> prevstop
+  mode -->|start| resolve
+  resolve --> wire
+  wire --> preflight
+  preflight --> alloc
+  alloc --> ready
+
+  classDef configBox fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  class load,bind,resolve,wire,preflight,alloc configBox;
+  class drive,rej,mode,prevrec,prevstop,ready commonBox;
 ```
 
 ## Notes

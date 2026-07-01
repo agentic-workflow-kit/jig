@@ -26,20 +26,54 @@ operation producing the write-once redacted artifact.
 ## Diagram
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 30,
+    "rankSpacing": 55,
+    "defaultRenderer": "elk"
+  }
+}}%%
 flowchart LR
-    Events["Events from runner<br/>and fence"] --> Log[("Append-only log")]
-    Log --> Project["Project"]
-    Project --> State["State"]
-    Project --> Summary["Summary"]
-    Project --> Metrics["Metrics"]
-    Log --> Inspect["Inspect / ask why"]
-    Log --> Notices["Notices"]
-    Log --> Export["Export<br/>(write-once, redacted)"]
 
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Events,Log,Project,State,Summary,Metrics core;
-    class Inspect,Notices,Export neutral;
+  events("`**Events**
+from runner + fence`")
+  log("`**Append-only log**
+single leased writer`")
+  project("`**Project**
+pure replay of the log`")
+  state("`**State**`")
+  summary("`**Summary**`")
+  metrics("`**Metrics**`")
+  inspect("`**Inspect / ask why**`")
+  notices("`**Notices**`")
+  export("`**Export**
+write-once, redacted`")
+
+  events --> log
+  log --> project
+  project --> state
+  project --> summary
+  project --> metrics
+  log --> inspect
+  log --> notices
+  log --> export
+
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  class events,log,project coreBox;
+  class state,summary,metrics,inspect,notices,export commonBox;
 ```
 
 ## Notes
