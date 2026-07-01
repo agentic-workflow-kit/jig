@@ -154,58 +154,102 @@ lands only on evidence. The four provider seams are drawn here as one abstracted
 detail lives in [`../contracts/providers.md`](../contracts/providers.md).
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
-flowchart TD
-    Drive["Owner drives: start a run<br/>(via the operator surface)"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "transparent",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 60,
+    "rankSpacing": 35,
+    "subGraphTitleMargin": {
+      "top": 0,
+      "bottom": 0
+    },
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
 
-    subgraph BOOT["BOOTSTRAP / INIT — compose and launch a run"]
-        direction TB
-        B1["Load + validate plan"]
-        B2["Bind policy<br/>(frozen at launch)"]
-        B3["Resolve track + work profile,<br/>set up workspace, wire providers"]
-        B4["Storage preflight,<br/>allocate run id + write binding record"]
-        B1 --> B2 --> B3 --> B4
-    end
+  drive("`**Drive run**
+start`")
 
-    subgraph LOOP["CORE LOOP — drive the launched run"]
-        direction TB
-        C1{"Next eligible work item?"}
-        C2["Drive the work item"]
-        C3{"Fence: authorize each request"}
-        C4["Record outcome,<br/>land only on evidence"]
-        C1 -->|yes| C2 --> C3
-        C3 -->|grant| C4
-        C3 -->|deny| C4
-        C3 -->|route| Door["Doorbell to owner"]
-        Door --> C4
-        C4 --> C1
-    end
+  subgraph row2[" "]
+    direction LR
+    planRej("`**Plan rejected**
+no run
+ `") ~~~ boot("`**Bootstrap / init**
+load, validate, bind,
+wire, identify, ready`") ~~~ records("`**Run records**
+append-only;
+every phase writes
+ `")
 
-    Rej["Plan rejected — no run"]
-    Done["Run completed / stopped"]
-    Providers[["Providers (seams), abstracted:<br/>agent · host · forge · work source"]]
-    Records[("Run records<br/>append-only, the evidence")]
+    boot -.->|invalid| planRej
+    boot -.->|writes| records
+  end
+  style row2 fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
 
-    Drive --> B1
-    B1 -.->|invalid| Rej
-    B4 -->|run ready| C1
-    C1 -->|no| Done
-    C2 <--> Providers
-    C4 <--> Providers
-    BOOT -.-> Records
-    LOOP -.-> Records
+  subgraph row3[" "]
+    direction LR
+    doorbell("`**Doorbell**
+owner decides
+ `") ~~~ core("`**Core loop**
+drive each work item,
+fence, record, land`") ~~~ prov("`**Providers (seams)**
+abstracted: agent,
+host, forge, source`")
 
-    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
-    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
-    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Drive,Door,Rej,Done,Records neutral;
-    class B1,B2,B3,B4 config;
-    class C1,C2,C3,C4 core;
-    class Providers seam;
+    core <-.->|route| doorbell
+    core <-.-> prov
+  end
+  style row3 fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
 
-    style BOOT fill:#F6F5FE,stroke:#534AB7,color:#3C3489
-    style LOOP fill:#F0FAF6,stroke:#0F6E56,color:#085041
+  runComp("`**Run completed**
+or stopped`")
+
+  subgraph legend[" "]
+    direction LR
+    l1(" ")
+    lt1["bootstrap phase"]
+    l2(" ")
+    lt2["core phase"]
+    l3(" ")
+    lt3["providers"]
+    l1 ~~~ lt1 ~~~ l2 ~~~ lt2 ~~~ l3 ~~~ lt3
+  end
+  style legend fill:#fbfaf7,stroke:#d6d2c8,stroke-width:1px,color:transparent,rx:18,ry:18
+
+  drive --> row2
+  row2 --> row3
+  row3 --> runComp
+  runComp ~~~ legend
+
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  classDef bootstrapBox fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef providersBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  classDef legendBootstrap fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:6,ry:6;
+  classDef legendCore fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendProviders fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:6,ry:6;
+  classDef legendText fill:transparent,stroke:transparent,color:#666666;
+
+  class drive,planRej,records,doorbell,runComp commonBox;
+  class boot bootstrapBox;
+  class core coreBox;
+  class prov providersBox;
+  class l1 legendBootstrap;
+  class l2 legendCore;
+  class l3 legendProviders;
+  class lt1,lt2,lt3 legendText;
 ```
 
 ## Responsibilities, by group
