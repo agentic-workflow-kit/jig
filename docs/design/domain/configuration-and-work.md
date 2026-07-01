@@ -366,9 +366,11 @@ without owning their runtime enforcement:
 
 This domain model is authored for a full-weight `review-technical-design` pass against three
 lenses (architecture-enforceability, domain-correctness, agreement-integrity). The review report
-and its suggestion dispositions are recorded in this wave's
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md); this section is
-the pointer to that evidence once the review runs. Settled = zero open blocking suggestions.
+and its suggestion dispositions are recorded in
+[`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
+[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
+decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled =
+zero open blocking suggestions.
 
 ## Related
 

@@ -483,9 +483,10 @@ do not acquire a store that would violate `INV-006`; domain-correctness: the fou
 ownership is consistent with `SEE-1`..`SEE-6` / `MERGE-*` and the plan-intake naming cites `CTX-001`
 correctly; agreement-integrity: the seam and Work-item facts agree with `w1-s1`'s settled output and
 the wave frame's `AgreedSystemModel`). The review report and its suggestion dispositions are recorded
-in this wave's
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md); this section is the
-pointer to that evidence once the review runs. Settled = zero open blocking suggestions.
+in [`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
+[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
+decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled = zero
+open blocking suggestions.
 
 ## Related
 
@@ -507,7 +508,3 @@ pointer to that evidence once the review runs. Settled = zero open blocking sugg
 - [`configuration-and-work.md`](./configuration-and-work.md) — the sibling Wave 1 area (`w1-s1`) that
   authors the Track, Execution plan, Work item (authored facts), Policy, Repo-level floors, and Work
   profile this area reads across the seam.
-
-```
-
-```
