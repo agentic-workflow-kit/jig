@@ -23,7 +23,67 @@ design-layer naming choice, not a silent divergence.
 
 ## The relations, at a glance
 
-![Jig system entities](../assets/structure.svg)
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
+flowchart TB
+    Owner(["Owner / operator"])
+
+    subgraph CFG["CONFIGURATION — you author, per track"]
+        direction TB
+        Track["Track"]
+        Plan["Execution plan<br/>work items + deps + done conditions"]
+        Policy["Policy<br/>+ repo-level floors"]
+        Profile["Work profile"]
+    end
+
+    subgraph CORE["JIG-CORE — trusted runner (fixed, not a seam)"]
+        direction TB
+        Entry["Operator surface<br/>one command · one call · one audit"]
+        Runner["Runner<br/>orchestrates + holds privileged authority"]
+        Fence["Fence<br/>authorizes every request, fail-closed"]
+        Doorbell["Doorbell<br/>escalates real decisions"]
+        Records["Run records<br/>append-only log + projections"]
+    end
+
+    subgraph SEAMS["SEAMS — swappable, governed (STACK-2)"]
+        direction TB
+        Agent["Agent = worker<br/>writes code, runs checks"]
+        Host["Execution host<br/>contains the worker"]
+        Forge["Forge<br/>push / PR / merge target"]
+        Source["Work source"]
+    end
+
+    Owner -->|authors| Track
+    Track --> Plan & Policy & Profile
+    Owner -->|start / preview| Entry
+    Entry --> Runner
+    Plan --> Runner
+    Policy -->|fixed at launch| Runner
+    Source -.->|supplies work items| Runner
+    Runner -->|drives each work item| Agent
+    Agent -->|runs inside| Host
+    Agent -->|requests action| Fence
+    Fence -->|grant / deny| Runner
+    Fence -->|route risky| Doorbell
+    Doorbell -->|approve / reject| Owner
+    Runner -->|push / PR / merge on evidence| Forge
+    Runner --> Records
+    Fence --> Records
+    Records -->|notices · ask-why| Owner
+
+    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Owner neutral;
+    class Track,Plan,Policy,Profile config;
+    class Entry,Runner,Fence,Doorbell,Records core;
+    class Agent,Host,Forge,Source seam;
+
+    style CFG fill:#F6F5FE,stroke:#534AB7,color:#3C3489
+    style CORE fill:#F0FAF6,stroke:#0F6E56,color:#085041
+    style SEAMS fill:#FDF5F1,stroke:#993C1D,color:#712B13
+```
 
 ## How a run flows
 
@@ -34,7 +94,60 @@ plan, bind the policy (frozen at launch), wire the providers, and allocate run i
 lands only on evidence. The four provider seams are drawn here as one abstracted boundary; their
 detail lives in [`../contracts/providers.md`](../contracts/providers.md).
 
-![Bootstrap to core flow](../assets/flow.svg)
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
+flowchart TD
+    Drive["Owner drives: preview or start<br/>(via the operator surface)"]
+
+    subgraph BOOT["BOOTSTRAP / INIT — compose and launch a run"]
+        direction TB
+        B1["Load + validate plan"]
+        B2["Bind policy<br/>(frozen at launch)"]
+        B3["Resolve track + work profile,<br/>set up workspace, wire providers"]
+        B4["Storage preflight,<br/>allocate run id + write binding record"]
+        B1 --> B2 --> B3 --> B4
+    end
+
+    subgraph LOOP["CORE LOOP — drive the launched run"]
+        direction TB
+        C1{"Next eligible work item?"}
+        C2["Drive the work item"]
+        C3{"Fence: authorize each request"}
+        C4["Record outcome,<br/>land only on evidence"]
+        C1 -->|yes| C2 --> C3
+        C3 -->|grant| C4
+        C3 -->|deny| C4
+        C3 -->|route| Door["Doorbell to owner"]
+        Door --> C4
+        C4 --> C1
+    end
+
+    Rej["Plan rejected — no run"]
+    Done["Run completed / stopped"]
+    Providers[["Providers (seams), abstracted:<br/>agent · host · forge · work source"]]
+    Records[("Run records<br/>append-only, the evidence")]
+
+    Drive --> B1
+    B1 -.->|invalid| Rej
+    B4 -->|run ready| C1
+    C1 -->|no| Done
+    C2 <--> Providers
+    C4 <--> Providers
+    BOOT -.-> Records
+    LOOP -.-> Records
+
+    classDef config fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    class Drive,Door,Rej,Done,Records neutral;
+    class B1,B2,B3,B4 config;
+    class C1,C2,C3,C4 core;
+    class Providers seam;
+
+    style BOOT fill:#F6F5FE,stroke:#534AB7,color:#3C3489
+    style LOOP fill:#F0FAF6,stroke:#0F6E56,color:#085041
+```
 
 ## Responsibilities, by group
 

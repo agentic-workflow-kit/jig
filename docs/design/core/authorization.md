@@ -29,21 +29,37 @@ the doorbell escalation channel to the owner, who approves, rejects, or override
 ## Diagram
 
 ```mermaid
-flowchart TD
-    Req["Worker request"] --> Cat{"Reversible, non-privileged,<br/>not rule-governing?"}
-    Cat -->|yes| Grant["Grant"]
-    Cat -->|credentials, push/merge, rule-governing, or irreversible| Route["Route to doorbell"]
-    Cat -->|outside declared scope| Deny["Deny — fail closed"]
-    Route --> Owner["Owner approves or rejects"]
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif','lineColor':'#888780','edgeLabelBackground':'#F1EFE8','primaryTextColor':'#2C2C2A','clusterBorder':'#B4B2A9'}}}%%
+flowchart TB
+    Req["Worker request"]
+    Cat{"Fence category?"}
+    Grant["Grant"]
+    Deny["Deny — fail closed<br/>(outside declared scope)"]
+    Runner["Runner performs the<br/>privileged action, if any"]
+
+    subgraph ESC["Escalation — routed to the owner"]
+        direction TB
+        Route["Route to doorbell<br/>credentials · push / merge ·<br/>rule-governing · irreversible"]
+        Owner["Owner approves or rejects"]
+        Route --> Owner
+    end
+
+    Req --> Cat
+    Cat -->|reversible, in scope| Grant
+    Cat -->|risky| Route
+    Cat -->|out of scope| Deny
     Owner -->|approve| Grant
     Owner -->|reject| Deny
+    Grant --> Runner
 
-    Grant --> Runner["Runner performs the<br/>privileged action, if any"]
-
+    classDef seam fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
     classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
     classDef neutral fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    class Req,Cat,Grant,Runner core;
-    class Route,Deny,Owner neutral;
+    class Req seam;
+    class Cat,Grant,Runner core;
+    class Deny,Route,Owner neutral;
+
+    style ESC fill:#FBFAF7,stroke:#5F5E5A,color:#444441
 ```
 
 The worker itself never holds credentials; any privileged action a grant authorizes is carried
