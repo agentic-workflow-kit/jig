@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Repository tooling for Jig, the agentic-workflow-kit delivery engine.",
+  "description": "Jig, the agentic-workflow-kit delivery engine: local dry-run CLI (jig run / jig inspect) over the execution-plan and observability-records contracts.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
