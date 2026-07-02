@@ -168,6 +168,30 @@ for an owner decision; it does not silently "age into" completion while work rem
   still a separate action, and no resume path is allowed to collapse those milestones
   ([`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence)).
 
+#### Phase 4 resume from the projected checkpoint (ADR 0020)
+
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) settles how the runner re-enters this
+run-lifecycle at Phase 4 local altitude, within the existing closed transition set:
+
+- **Resume reads a projection, not a parallel store.** The runner continues from the safe
+  checkpoint the projection computes by replaying `events.jsonl` (`../core/records.md` Phase 4
+  section); it interprets `after:<story-id>` as "continue after that terminal story" and
+  `after:<story-id>.parked` as "resolve that park first".
+- **Story-state resume is deterministic.** `done`/`blocked`/`rejected` stay terminal and are not
+  re-run; an unstarted item becomes eligible again if its prerequisites are satisfied; a `started`
+  item with no terminal event is re-driven as repeatable work.
+- **A `work-item-blocked` stop is resumable, and independent work is freed.** Honoring
+  [ADR 0017](../decisions/0017-records-seam-reconciliation.md) decision 2, resume from an
+  `after:<story-id>` stop keeps the blocked item and its downstream dependents terminal
+  ([`ISO-3`](../../product/guarantees.md#32-work-level-failure-isolation)) while making
+  **independent** unstarted work eligible again — the delivery-configured stop-after-first-failure
+  halts everything, and resume is where independent stories get their chance.
+- **No-double-effect is a records-to-runner handoff.** The runner recognizes already-terminal work
+  items, already-recorded `runner-action.skipped-on-dry-run` actions, and already-recorded owner
+  decisions from the replayed log and neither re-runs nor re-appends them
+  ([`RESUME-3`](../../product/guarantees.md#31-interruption-resume), INV-012); the ledger of what is
+  repeatable versus must-not-re-issue is in ADR 0020 §5.
+
 ### Candidate invariants (for w2-s3 consolidation) — run lifecycle
 
 This section names the run-lifecycle invariant candidates that `w2-s3-invariant-catalog`
@@ -379,9 +403,11 @@ constrains, the authority that holds it, and the product IDs it reconciles to.
 - **Deferred — run-lifecycle and recovery sequencing.** How an unattended `parked` item is
   sequenced into a run-level `stopped`, and the run state machine itself, are named here as a seam
   only and owned by `w2-s2-run-lifecycle-and-recovery`; this doc does not pre-empt that sequencing.
-- **Deferred — concurrency and resume mechanics.** Parallel-workspace isolation (ISO-4) and
-  resume-after-interruption remain the named extension points the Notes above record, not specified
-  by this table.
+- **Settled for Phase 4 — resume mechanics; deferred — concurrency.** Resume-after-interruption is
+  now settled at Phase 4 local altitude by [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)
+  (the projected-checkpoint resume subsection above), continuing to reuse this table's closed
+  transition set. Parallel-workspace isolation (ISO-4) remains the named extension point the Notes
+  above record, not specified by this table.
 
 ## Reconciles to
 

@@ -71,6 +71,10 @@ Plans").
   session-ready brief for the delivered remediation phase.
 - [Phase 3 implementation brief](./implementation-briefs/phase-3-governed-local-runs.md) —
   session-ready brief for the delivered governed-local-runs phase.
+- [Phase 4 implementation brief](./implementation-briefs/phase-4-reliable-local-runs.md) —
+  session-ready brief for the reliable-local-runs phase (replay inspect, resume,
+  no-double-effect, workspace continuity, redaction posture), settled by
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
 
 Briefs for the delivered phases remain in the archived track's
 [`implementation-briefs/`](../m5b-local-mvp/implementation-briefs/) as period-accurate

@@ -399,6 +399,29 @@ Bootstrap preserves the original launch binding across resume:
 If bootstrap cannot prove that continuity from durable evidence, it stops rather than "helpfully"
 rebinding the run to current local configuration.
 
+### Phase 4 local re-entry (ADR 0020)
+
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) concretizes this procedure for the
+Phase 4 local surface without changing its ownership:
+
+- **Surface.** `jig resume <run-dir> --scripted-output <output>`. `--scripted-output` is the live
+  agent-seam source that drives not-yet-terminal work; it is not binding. Any `--config`/`--policy`/
+  `--plan` passed on resume are **verification-only** against the recorded binding — a mismatch
+  fails closed (`resume-blocked-binding-mismatch`), never rebinds.
+- **Durable plan snapshot.** For "resume from records" to be honest, the validated plan must be
+  durable in the run directory, because resume re-derives eligibility, dependency order, and each
+  resumed story's declared `scope`. Bootstrap therefore **persists a validated-plan snapshot into
+  the run directory at launch** (alongside the binding record) and reads it back on resume, rather
+  than depending on an external plan file the operator kept unchanged.
+- **Workspace-continuity preflight.** Alongside storage preflight, resume recomputes the run-level
+  workspace fingerprint recorded in `binding.workspace` (repo root + git `HEAD` + dirty flag) and
+  compares it. A material difference is fail-closed and diagnosable
+  (`resume-blocked-workspace-mismatch`), never silently claimed continuous (RESUME-4, P4-AC-6).
+- **Identity is preserved, not reallocated.** Resume keeps the same run id and does **not** increment
+  `attempt` (which denotes a distinct run instance per
+  [ADR 0017](../decisions/0017-records-seam-reconciliation.md) decision 1); a resume-sequence marker,
+  if any, rides on the existing `run.resumed` event family.
+
 ## Invariant and State Matrix
 
 | Invariant or state rule                     | Bootstrap implication                                                                                        | Source                                                     |

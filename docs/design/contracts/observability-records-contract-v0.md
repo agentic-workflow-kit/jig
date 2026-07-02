@@ -171,7 +171,10 @@ effects. The record should make repeatable work distinct from irreversible actio
 re-run checks when appropriate without pushing, opening, merging, or approving twice.
 
 Records must also show when safety-relevant assumptions changed while the run was stopped and
-why re-approval or fresh evidence was required before continuing.
+why re-approval or fresh evidence was required before continuing. To support the workspace-
+continuity check that resume performs, the run's input binding may carry a run-level workspace
+fingerprint (e.g. repo root, `HEAD`, dirty flag); its meaning is named here, its exact encoding
+deferred to schema freeze ([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)).
 
 ### Redaction, Retention, and Export Posture
 
@@ -183,6 +186,13 @@ compatible with redaction and export posture:
 - export posture says whether a record is safe for owner archive or compliance handoff;
 - redaction decisions are themselves inspectable enough to explain what class of value was
   removed without exposing it.
+
+At Phase 4 local altitude this posture is satisfied by a **run-level default** (safe-for-owner /
+redacted-export); field-level per-record posture phases in with the concepts that introduce
+sensitive values, consistent with [ADR 0017](../decisions/0017-records-seam-reconciliation.md)
+decision 5's v0 phasing and settled in
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md). Unknown or ambiguous posture stays
+fail-closed. This clarifies the v0 reading; it does not freeze the schema.
 
 ### Learning-Loop Consumption
 
