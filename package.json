@@ -23,17 +23,21 @@
     "dev:setup": "bash scripts/dev-setup.sh",
     "worktree:new": "bash scripts/worktree-new.sh",
     "worktree:clean": "bash scripts/worktree-clean.sh",
-    "format": "prettier --write \"**/*.{md,yml,yaml,json}\"",
-    "format:check": "prettier --check \"**/*.{md,yml,yaml,json}\"",
-    "lint": "pnpm format:check",
+    "build": "tsc -b",
+    "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{md,yml,yaml}\"",
+    "lint": "biome check .",
+    "typecheck": "tsc -b",
     "delivery:check": "node scripts/check-delivery-foundation.mjs",
-    "check": "pnpm lint && pnpm delivery:check && pnpm test",
-    "test": "node --test test/*.test.js",
-    "coverage": "c8 node --test test/*.test.js"
+    "test": "vitest run --coverage --passWithNoTests",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm delivery:check && pnpm test"
   },
   "devDependencies": {
-    "c8": "^11.0.0",
-    "glob": "^13.0.6",
-    "prettier": "^3.6.2"
+    "@biomejs/biome": "^2.5.1",
+    "@types/node": "^26.0.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "prettier": "^3.9.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }
