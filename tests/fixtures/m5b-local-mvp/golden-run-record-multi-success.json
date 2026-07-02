@@ -7,7 +7,7 @@
     "mode": "local-dry-run",
     "binding": {
       "policyRef": "local-dry-run-policy",
-      "configRef": "local-dry-run"
+      "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>"
     }
   },
   "events": [

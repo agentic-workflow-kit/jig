@@ -5,6 +5,12 @@ import type { ConfigDoc, Plan, PolicyDoc, RecordSink, RunEvent, RunRecord, RunSt
 
 const ITEM_FAMILIES = ['story.done', 'story.blocked'];
 
+function describeConfigBinding(config: ConfigDoc): string {
+  const mode = config.runner?.mode ?? 'unknown-mode';
+  const recordDir = config.runner?.recordDir ?? 'runs';
+  return `mode=${mode};recordDir=${recordDir}`;
+}
+
 export class RecordManager implements RecordSink {
   private events: RunEvent[];
   private runDir: string;
@@ -56,7 +62,7 @@ export class RecordManager implements RecordSink {
         mode: config.runner?.mode,
         binding: {
           policyRef: policy.policy?.id ?? 'unknown-policy',
-          configRef: config.runner?.mode ?? 'unknown-config',
+          configRef: describeConfigBinding(config),
         },
       },
       events: this.events,

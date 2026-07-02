@@ -26,6 +26,10 @@ function normalizeRecord(record: RunRecord): RunRecord {
     run: {
       ...record.run,
       id: '<RUN_ID>',
+      binding: {
+        ...record.run.binding,
+        configRef: record.run.binding.configRef.replace(/recordDir=.*/, 'recordDir=<RECORD_DIR>'),
+      },
     },
     events: record.events.map((event) => ({
       ...event,

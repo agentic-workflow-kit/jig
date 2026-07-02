@@ -107,6 +107,6 @@ test('PR-AC-3: every event carries actor and run.json carries binding', async ()
   );
   assert.deepStrictEqual(record.run.binding, {
     policyRef: 'local-dry-run-policy',
-    configRef: 'local-dry-run',
+    configRef: `mode=local-dry-run;recordDir=${recordDir}`,
   });
 });
