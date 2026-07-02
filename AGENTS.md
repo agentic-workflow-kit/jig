@@ -35,7 +35,8 @@ runs a plan through a scripted-stub worker in **local dry-run only** and writes 
 (`run.json` + `events.jsonl` under `runs/`); `jig inspect <run-dir>` renders them. Know the
 recorded simplifications before building on the code: the policy gate is a single boolean, not
 the fence (ADR 0018); the record vocabulary carries historical aliases mapped in ADR 0017;
-plan preview and the authorization triad arrive with Phase 3 of the delivery track. The package
+plan preview and the authorization triad are not implemented yet — the live delivery track
+(`docs/delivery/`) owns when they arrive. The package
 is private tooling — it does not publish `@agentic-workflow-kit/jig` yet, and the package
 decomposition remains design-owned.
 

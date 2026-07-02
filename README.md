@@ -38,8 +38,10 @@ node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json
 node bin/jig.js inspect runs/<run-directory-from-the-output>
 ```
 
-`jig run` validates the plan against the execution-plan contract, applies the local dry-run
-policy gate, executes stories in dependency order through the scripted worker, and writes
+`jig run` validates the plan's minimal v0 shape at the plan-intake boundary (version, ids,
+story structure, dependencies — not yet the full execution-plan-contract surface), applies the
+local dry-run policy gate, executes stories in dependency order through the scripted worker,
+and writes
 `run.json` plus an append-only `events.jsonl`. `jig inspect` renders a run's outcome,
 per-item results, diagnostics, and denial reasons from those records.
 
