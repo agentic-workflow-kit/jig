@@ -11,7 +11,7 @@ product intent — _who Jig serves, what job it does, what it promises, and wher
 boundaries are_ — and is the contract the design and delivery layers reconcile to.
 
 Product owns **what and why**. Design owns **how** those promises are implemented and
-verified (see [`docs/design/`](../design/), forthcoming).
+verified (see [`docs/design/`](../design/)).
 
 ## Pages
 

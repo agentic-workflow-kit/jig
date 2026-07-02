@@ -95,6 +95,17 @@ parked, stopped, or was rejected. At v0 this means every governed event family n
 
 Exact timestamp formats, IDs, correlation keys, and event names remain design detail.
 
+#### v0 phasing of causality fields
+
+The list above is the v0 design altitude; implementation phases the fields in as their
+underlying concepts land
+([ADR 0017](../decisions/0017-records-seam-reconciliation.md)). Required from the first
+implementing phase: the actor on every event, and a run-level binding block naming the policy
+and configuration in force. Phased in with the phases that introduce their concepts: per-event
+basis, per-event redaction posture, work-profile/repo-floor/track references, and driver
+identities with attestation posture. "Every governed event family" is read against this split,
+not as all-fields-on-day-one.
+
 ### Story State and Outcomes
 
 Records must expose story state transitions and final outcomes in product terms:
@@ -199,8 +210,10 @@ schema constants:
 - authorization: worker requested, runner allowed, runner denied, owner approved, owner
   rejected, owner narrowed, handoff recorded;
 - story lifecycle: eligible, started, parked, unparked, blocked, done, landed, rejected;
-- evidence and gates: check observed, review observed, gate passed, gate failed, mergeability
-  observed;
+- evidence and gates: check observed — as `evidence.observed` when genuinely observed, as
+  `evidence.modeled` when the evidence is modeled rather than run, as in a dry-run
+  ([ADR 0017](../decisions/0017-records-seam-reconciliation.md)) — review observed, gate
+  passed, gate failed, mergeability observed;
 - runner action: pushed, opened PR, posted status, posted comment, merged, skipped repeated
   effect on resume;
 - liveness and notices: idle, stuck, overdue, notice created, notice acknowledged, notice

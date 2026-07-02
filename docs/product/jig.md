@@ -197,6 +197,5 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - [The five guarantees (detail)](./guarantees.md) — full ID-bearing specification.
 - [How you use Jig](./use-cases.md) — worked scenarios for each guarantee.
 - [Tracks](./concepts.md) — the track model that scopes policy, work profile, and execution.
-- Engineering design — the implementation reference for how these product commitments are
-  satisfied. _(Forthcoming; the design layer is the next step in this repo — see
-  [`docs/design/`](../design/).)_
+- [Engineering design](../design/) — the implementation reference for how these product
+  commitments are satisfied.
