@@ -12,7 +12,12 @@
   },
   "events": [
     { "family": "run.started", "actor": "runner", "timestamp": "<TIMESTAMP>" },
-    { "family": "story.started", "storyId": "STORY-1", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "story.started",
+      "storyId": "STORY-1",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
     {
       "family": "evidence.modeled",
       "storyId": "STORY-1",
@@ -20,7 +25,20 @@
       "actor": "runner",
       "timestamp": "<TIMESTAMP>"
     },
-    { "family": "story.done", "storyId": "STORY-1", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "story.done",
+      "storyId": "STORY-1",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
+    {
+      "family": "runner-action.skipped-on-dry-run",
+      "storyId": "STORY-1",
+      "action": "push|open-pr|merge",
+      "reason": "dry-run",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
     { "family": "run.completed", "actor": "runner", "timestamp": "<TIMESTAMP>" }
   ]
 }

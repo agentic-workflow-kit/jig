@@ -8,6 +8,11 @@ export interface Story {
   id: string;
   title: string;
   dependsOn?: unknown;
+  scope?: string[];
+  authority?: {
+    requests?: string[];
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -38,11 +43,41 @@ export interface PolicyDoc {
     id?: string;
     rules?: {
       allowLocalDryRun?: boolean;
+      ruleGoverningSurfaces?: string[];
       [key: string]: unknown;
     };
     [key: string]: unknown;
   };
   [key: string]: unknown;
+}
+
+export type AuthorizationOutcome = 'grant' | 'deny' | 'route';
+
+export type AuthorizationBasis =
+  | 'declared-request'
+  | 'in-scope'
+  | 'CFG-10:reversible'
+  | 'GUARD-2'
+  | 'rule-governing-surface'
+  | 'privileged-or-irreversible'
+  | 'FENCE-1'
+  | 'out-of-declared-scope'
+  | 'invalid-request-path'
+  | 'unknown-request-kind';
+
+export interface AuthorizationRequest {
+  id: string;
+  kind: string;
+  paths?: string[];
+  command?: string;
+  privileged?: boolean;
+  irreversible?: boolean;
+  [key: string]: unknown;
+}
+
+export interface AuthorizationDecision {
+  outcome: AuthorizationOutcome;
+  basis: AuthorizationBasis[];
 }
 
 export interface Diagnostics {
@@ -88,6 +123,7 @@ export interface RunRecord {
 export interface WorkerResult {
   storyId?: string;
   outcome?: string;
+  requests?: AuthorizationRequest[];
   evidence?: {
     result?: unknown;
     [key: string]: unknown;

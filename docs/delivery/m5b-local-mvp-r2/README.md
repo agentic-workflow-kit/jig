@@ -11,10 +11,10 @@ the post-Phase-2 repository review
 ([`../../reviews/2026-07-02-post-phase-2-repo-review.md`](../../reviews/2026-07-02-post-phase-2-repo-review.md)),
 silently deferred org-M5 exit criteria and let the implementation drift from the records
 contract without a recorded mapping. This revision starts from delivered reality: it names
-what shipped, maps every org-M5 exit criterion to the phase that closes it, and puts a
-remediation phase (**Phase R**) ahead of new feature work.
+what shipped, maps every org-M5 exit criterion to the phase that closes it, and records the
+remediation and governed-local-run phases that precede the remaining reliability/provider work.
 
-## What has been delivered (Phases 0–2, from the archived track)
+## What has been delivered
 
 - **Phase 0 — Delivery Foundation** ([PR #14](https://github.com/agentic-workflow-kit/jig/pull/14)):
   fixtures, conventions, `delivery:check` gate.
@@ -27,13 +27,16 @@ remediation phase (**Phase R**) ahead of new feature work.
 - **Toolchain** (remediation, [PR #19](https://github.com/agentic-workflow-kit/jig/pull/19)):
   TypeScript engine-archetype migration; `pnpm check` now enforces lint + typecheck + tests
   with 90% coverage thresholds.
+- **Phase R — Remediation**: records-contract convergence per ADR 0017, value-checking evidence
+  gate, fail-closed CLI flags, and normalized golden record assertions.
+- **Phase 3 — Governed Local Runs**: `jig preview`, per-request local authorization records,
+  local Doorbell approve/reject, runner-owned dry-run skip records, and the adjusted canonical
+  triad golden.
 
-**Recorded divergences carried by the delivered slice** — know these before building on it:
-the policy gate is a single boolean, not the fence
-([ADR 0018](../../design/decisions/0018-policy-gate-simplification.md)); the record vocabulary
-and identity carry historical aliases mapped in
-[ADR 0017](../../design/decisions/0017-records-seam-reconciliation.md); the evidence gate is
-presence-only; golden record fixtures are not yet asserted by any test. Phase R closes these.
+**Recorded local-MVP boundaries** — know these before building on it: preview is stdout-only per
+[ADR 0019](../../design/decisions/0019-phase-3-local-governance-scope.md), routed approvals are
+same-process local decisions, and real workers, resume, remote approvals, replay inspect, and
+Forge/GitHub landing remain future phases.
 
 ## Org-M5 exit-criteria map
 
@@ -42,24 +45,17 @@ roadmap never mapped. This table is the binding reconciliation; the org-side ame
 routed as its own `.github` PR per the derivation contract (`MILESTONES.md`, "Deriving Repo
 Plans").
 
-| Org-M5 exit criterion                                              | Status                     | Closed by                                      |
-| ------------------------------------------------------------------ | -------------------------- | ---------------------------------------------- |
-| Validates **and previews** a plan                                  | Validation delivered       | Preview: **Phase 3** (`P3-AC-1`)               |
-| Dry-run executes without privileged action                         | **Delivered** (Phases 1–2) | —                                              |
-| Fence emits `requested → authorized/denied → runner-owned` records | Not started                | **Phase 3** (`P3-AC-2..P3-AC-4`)               |
-| Records match the M1 shape                                         | Partial (drift recorded)   | **Phase R** (`PR-AC-2..PR-AC-6`, per ADR 0017) |
-| Named, inspectable states                                          | **Delivered** (Phase 2)    | —                                              |
-| `check` grows to lint + typecheck + test with 90%+ TDD coverage    | **Delivered** (PR #19)     | —                                              |
+| Org-M5 exit criterion                                              | Status                     | Closed by |
+| ------------------------------------------------------------------ | -------------------------- | --------- |
+| Validates **and previews** a plan                                  | **Delivered** (Phase 3)    | —         |
+| Dry-run executes without privileged action                         | **Delivered** (Phases 1–2) | —         |
+| Fence emits `requested → authorized/denied → runner-owned` records | **Delivered** (Phase 3)    | —         |
+| Records match the M1 shape                                         | **Delivered** (Phase R)    | —         |
+| Named, inspectable states                                          | **Delivered** (Phase 2)    | —         |
+| `check` grows to lint + typecheck + test with 90%+ TDD coverage    | **Delivered** (PR #19)     | —         |
 
 ## The remaining ladder
 
-- **Phase R — Remediation** (next): make the delivered slice honest — records-contract
-  convergence per ADR 0017, an evidence gate that checks value not just presence, golden
-  record tests that actually assert, fail-closed CLI defaults, and the contained safety fixes
-  from the review. No new operator features.
-- **Phase 3 — Governed Local Runs**: plan preview, the per-request fence triad replacing the
-  boolean gate (per ADR 0018), decision records, minimal local approval prompt, the canonical
-  five-story fixture from the M5a design note as the golden integration test.
 - **Phase 4 — Reliable Local Runs**: stop/resume from records, no-double-effect, causal
   notices, redaction/export posture, inspect-by-replay.
 - **Phase 5 — Integrated Provider Runs**: provider conformance gates and real seam
@@ -72,9 +68,9 @@ Plans").
 - [Feature inventory](./feature-inventory.md) — delivered-state markers plus priority by
   client value for what remains.
 - [Phase R implementation brief](./implementation-briefs/phase-r-remediation.md) —
-  session-ready brief for the remediation phase (start here to implement).
+  session-ready brief for the delivered remediation phase.
 - [Phase 3 implementation brief](./implementation-briefs/phase-3-governed-local-runs.md) —
-  session-ready brief for governed local runs.
+  session-ready brief for the delivered governed-local-runs phase.
 
 Briefs for the delivered phases remain in the archived track's
 [`implementation-briefs/`](../m5b-local-mvp/implementation-briefs/) as period-accurate

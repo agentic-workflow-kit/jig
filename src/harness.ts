@@ -1,12 +1,21 @@
+import { authorizeRequest } from './authorization.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, RecordSink, RunStatus, Worker } from './types.js';
+
+type OwnerDecision = 'approve' | 'reject';
+
+interface OwnerDecisionSource {
+  decide(request: unknown, story: unknown): Promise<OwnerDecision>;
+}
 
 export class LocalHarness {
   private readonly worker: Worker;
   private readonly recordManager: RecordSink;
+  private readonly ownerDecisionSource: OwnerDecisionSource | null;
 
-  constructor(worker: Worker, recordManager: RecordSink) {
+  constructor(worker: Worker, recordManager: RecordSink, ownerDecisionSource: OwnerDecisionSource | null = null) {
     this.worker = worker;
     this.recordManager = recordManager;
+    this.ownerDecisionSource = ownerDecisionSource;
   }
 
   async run(planInstance: PlanInstance, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
@@ -31,24 +40,27 @@ export class LocalHarness {
     const completedStoryIds = new Set<string>();
     const unstartedStoryIds: string[] = [];
     let checkpointStoryId: string | null = null;
+    let stopReason = 'work-item-blocked';
+    let hasUnattendedPark = false;
+    let unattendedParkCheckpoint: string | null = null;
 
     for (let i = 0; i < plan.stories.length; i++) {
       const story = plan.stories[i];
+      const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
+      const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
+
+      if (blockedBy) {
+        this.recordManager.recordEvent({
+          family: 'story.blocked',
+          storyId: story.id,
+          blockedBy,
+        });
+        blockedStoryIds.add(story.id); // Transitive blocking
+        continue;
+      }
 
       if (runStatus !== 'success') {
-        const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
-        const isBlocked = dependsOn?.some((depId) => blockedStoryIds.has(depId));
-        if (isBlocked) {
-          const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            blockedBy,
-          });
-          blockedStoryIds.add(story.id); // Transitive blocking
-        } else {
-          unstartedStoryIds.push(story.id);
-        }
+        unstartedStoryIds.push(story.id);
         continue;
       }
 
@@ -56,6 +68,110 @@ export class LocalHarness {
 
       try {
         const result = await this.worker.execute(story);
+        const requests = Array.isArray(result.requests) ? result.requests : [];
+
+        let requestHaltedStory = false;
+        for (const request of requests) {
+          this.recordManager.recordEvent({
+            family: 'authorization.requested',
+            storyId: story.id,
+            requestId: request.id,
+            requestKind: request.kind,
+          });
+
+          const decision = authorizeRequest(request, story, policy);
+          if (decision.outcome === 'grant') {
+            this.recordManager.recordEvent({
+              family: 'authorization.granted',
+              storyId: story.id,
+              requestId: request.id,
+              requestKind: request.kind,
+              basis: decision.basis,
+            });
+            continue;
+          }
+
+          if (decision.outcome === 'deny') {
+            runStatus = 'failure';
+            requestHaltedStory = true;
+            blockedStoryIds.add(story.id);
+            checkpointStoryId = story.id;
+            this.recordManager.recordEvent({
+              family: 'authorization.denied',
+              storyId: story.id,
+              requestId: request.id,
+              requestKind: request.kind,
+              basis: decision.basis,
+            });
+            this.recordManager.recordEvent({
+              family: 'story.blocked',
+              storyId: story.id,
+              reason: 'authorization-denied',
+              diagnostics: {
+                error: `Authorization denied for request "${request.id}"`,
+              },
+            });
+            break;
+          }
+
+          this.recordManager.recordEvent({
+            family: 'authorization.routed',
+            storyId: story.id,
+            requestId: request.id,
+            requestKind: request.kind,
+            basis: decision.basis,
+          });
+          this.recordManager.recordEvent({
+            family: 'story.parked',
+            storyId: story.id,
+            requestId: request.id,
+            reason: 'owner-decision-required',
+          });
+
+          if (!this.ownerDecisionSource) {
+            hasUnattendedPark = true;
+            requestHaltedStory = true;
+            blockedStoryIds.add(story.id);
+            stopReason = 'unattended-park';
+            unattendedParkCheckpoint = `${story.id}.parked`;
+            checkpointStoryId = unattendedParkCheckpoint;
+            break;
+          }
+
+          const ownerDecision = await this.ownerDecisionSource.decide(request, story);
+          if (ownerDecision === 'approve') {
+            this.recordManager.recordEvent({
+              family: 'authorization.granted',
+              storyId: story.id,
+              requestId: request.id,
+              requestKind: request.kind,
+              basis: ['owner-approval'],
+            });
+            continue;
+          }
+
+          runStatus = 'failure';
+          requestHaltedStory = true;
+          blockedStoryIds.add(story.id);
+          checkpointStoryId = story.id;
+          this.recordManager.recordEvent({
+            family: 'authorization.denied',
+            storyId: story.id,
+            requestId: request.id,
+            requestKind: request.kind,
+            basis: ['owner-rejection'],
+          });
+          this.recordManager.recordEvent({
+            family: 'story.blocked',
+            storyId: story.id,
+            reason: 'owner-rejection',
+          });
+          break;
+        }
+
+        if (requestHaltedStory) {
+          continue;
+        }
 
         // Validate evidence requirement
         if (!result.evidence || result.evidence.result === undefined) {
@@ -102,6 +218,12 @@ export class LocalHarness {
             storyId: story.id,
             changedFiles: result.changedFiles,
           });
+          this.recordManager.recordEvent({
+            family: 'runner-action.skipped-on-dry-run',
+            storyId: story.id,
+            action: 'push|open-pr|merge',
+            reason: 'dry-run',
+          });
           completedStoryIds.add(story.id);
         } else {
           runStatus = 'failure';
@@ -133,12 +255,18 @@ export class LocalHarness {
       }
     }
 
+    if (hasUnattendedPark) {
+      runStatus = 'failure';
+      stopReason = 'unattended-park';
+      checkpointStoryId = unattendedParkCheckpoint;
+    }
+
     if (runStatus === 'success') {
       this.recordManager.recordEvent({ family: 'run.completed' });
     } else {
       this.recordManager.recordEvent({
         family: 'run.stopped',
-        reason: 'work-item-blocked',
+        reason: stopReason,
         checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
         unstarted: unstartedStoryIds,
       });

@@ -43,7 +43,8 @@ async function runFixture(planName: string, scriptedOutputName: string): Promise
   cleanupDirs.push(recordDir);
 
   const config = loadFixture<ConfigDoc>('local-config.json');
-  const policy = loadFixture<PolicyDoc>('local-policy.json');
+  const policyName = planName === 'canonical-triad-plan.json' ? 'local-policy-assisted.json' : 'local-policy.json';
+  const policy = loadFixture<PolicyDoc>(policyName);
   const plan = loadFixture<PlanInstance>(planName);
   const scriptedOutput = loadFixture<Record<string, unknown>>(scriptedOutputName);
   const harness = new LocalHarness(new ScriptedWorker(scriptedOutput), new RecordManager());
@@ -83,6 +84,12 @@ const goldenScenarios = [
     plan: 'multi-item-plan-failure-blocks-dependent.json',
     scriptedOutput: 'scripted-worker-multi-failure-story-1.json',
     golden: 'golden-run-record-dependent-blocked.json',
+  },
+  {
+    name: 'P3-AC-5: canonical triad golden run record matches normalized output',
+    plan: 'canonical-triad-plan.json',
+    scriptedOutput: 'scripted-worker-canonical-triad.json',
+    golden: 'golden-run-record-canonical-triad.json',
   },
 ];
 

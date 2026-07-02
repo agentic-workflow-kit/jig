@@ -19,17 +19,23 @@ risky calls) and delegates the rest under guarantees you can inspect.
 
 ## Status
 
-Early, and now runnable: M5b Phases 0–2 delivered a TypeScript walking skeleton. The product
-layer, the engineering design layer (contracts, state tables, ADRs), and a delivery track are
-all live in this repo, and a minimal CLI executes plans in **local dry-run only** against a
-scripted-stub worker, writing durable run records. Plan preview, real policy adjudication (the
-fence), and real workers arrive in later phases — the delivery track README is the honest map
-of what exists versus what is planned. This repository is the canonical home for Jig.
+Early, and now runnable: M5b Phases 0–3 delivered a TypeScript walking skeleton with governed
+local dry-runs. The product layer, the engineering design layer (contracts, state tables,
+ADRs), and a delivery track are all live in this repo. The CLI can preview a plan without
+allocating records, then execute plans in **local dry-run only** against a scripted-stub worker
+with per-request authorization records. Real workers, resume, replay inspect, and Forge/GitHub
+landing arrive in later phases — the delivery track README is the honest map of what exists
+versus what is planned. This repository is the canonical home for Jig.
 
 ## Usage (current surface)
 
 ```bash
 pnpm build   # emits dist/, which the CLI shim runs
+
+# Preview a plan without allocating a run:
+node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
+  --config tests/fixtures/m5b-local-mvp/local-config.json \
+  --policy tests/fixtures/m5b-local-mvp/local-policy.json
 
 # Execute a plan (local dry-run; scripted worker):
 node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
@@ -43,10 +49,10 @@ node bin/jig.js inspect runs/<run-directory-from-the-output>
 
 `jig run` validates the plan's minimal v0 shape at the plan-intake boundary (version, ids,
 story structure, dependencies — not yet the full execution-plan-contract surface), applies the
-local dry-run policy gate, executes stories in dependency order through the scripted worker,
-and writes
-`run.json` plus an append-only `events.jsonl`. `jig inspect` renders a run's outcome,
-per-item results, diagnostics, and denial reasons from those records.
+local dry-run policy floor, adjudicates scripted-worker requests through the fixed local fence,
+executes stories in dependency order, and writes `run.json` plus an append-only `events.jsonl`.
+`jig inspect` renders a run's outcome, per-item results, diagnostics, and denial reasons from
+those records.
 
 ## Development
 

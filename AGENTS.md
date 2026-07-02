@@ -30,15 +30,15 @@ reconciles to; where they conflict, name it rather than silently resolving.
 
 ## Status
 
-M5b Phases 0–2 are delivered: a TypeScript walking skeleton with a real CLI — `jig run <plan>`
-runs a plan through a scripted-stub worker in **local dry-run only** and writes durable records
-(`run.json` + `events.jsonl` under `runs/`); `jig inspect <run-dir>` renders them. Know the
-recorded simplifications before building on the code: the policy gate is a single boolean, not
-the fence (ADR 0018); the record vocabulary carries historical aliases mapped in ADR 0017;
-plan preview and the authorization triad are not implemented yet — the live delivery track
-(`docs/delivery/`) owns when they arrive. The package
-is private tooling — it does not publish `@agentic-workflow-kit/jig` yet, and the package
-decomposition remains design-owned.
+M5b Phases 0–3 are delivered in the current track: a TypeScript walking skeleton with a real CLI —
+`jig preview <plan>` validates and binds without allocating a run; `jig run <plan>` runs a plan
+through a scripted-stub worker in **local dry-run only**, adjudicates declared worker requests
+through the fixed local fence, and writes durable records (`run.json` + `events.jsonl` under
+`runs/`); `jig inspect <run-dir>` renders them. Phase R closed the records vocabulary, identity,
+evidence gate, and golden-record drift mapped in ADR 0017. Phase 3 added preview, the local
+authorization triad, local Doorbell approve/reject, and the adjusted canonical triad golden.
+The package is private tooling — it does not publish `@agentic-workflow-kit/jig` yet, and the
+package decomposition remains design-owned.
 
 ## Commands
 
@@ -50,6 +50,9 @@ node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
+node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
+  --config tests/fixtures/m5b-local-mvp/local-config.json \
+  --policy tests/fixtures/m5b-local-mvp/local-policy.json
 node bin/jig.js inspect <runs/run-dir-from-output>
 ```
 

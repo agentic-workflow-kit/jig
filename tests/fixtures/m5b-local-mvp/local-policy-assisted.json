@@ -1,0 +1,9 @@
+{
+  "policy": {
+    "id": "policy:assisted-v0",
+    "rules": {
+      "allowLocalDryRun": true,
+      "ruleGoverningSurfaces": ["policies/**", ".github/**"]
+    }
+  }
+}

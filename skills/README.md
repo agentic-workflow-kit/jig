@@ -1,9 +1,10 @@
 # Local skills
 
 This directory holds Jig-local agent runbooks. They are composition guidance for working in this
-repository; they are not shipped runtime APIs. The repo's actual CLI surface is currently the
-minimal local dry-run pair `jig run` / `jig inspect` (see the repo README) — these runbooks
-cover the orchestration ground that surface does not.
+repository; they are not shipped runtime APIs. The repo's actual CLI surface is currently
+`jig preview`, `jig run`, and `jig inspect` for local dry-runs with governed per-request
+authorization (see the repo README) — these runbooks cover the orchestration ground that surface
+does not.
 
 ## Available skills
 

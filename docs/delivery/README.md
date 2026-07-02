@@ -13,7 +13,7 @@ stop conditions without inventing product or design facts.
 Current delivery planning:
 
 - [M5b local MVP roadmap, r2](./m5b-local-mvp-r2/) — the live track: delivered state,
-  org-M5 exit-criteria map, and the remaining phase ladder (Phase R first).
+  org-M5 exit-criteria map, and the remaining Phase 4/5 ladder.
 
 Historical:
 

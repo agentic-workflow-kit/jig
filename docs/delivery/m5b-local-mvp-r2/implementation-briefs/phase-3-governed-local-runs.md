@@ -20,12 +20,15 @@ approval prompt for routed requests.
 **Dependency: Phase R must land first.** This phase's `authorization.*` events extend the
 run-level `binding` block, `actor`, and stop-record shape Phase R introduces (ADR 0017); do not
 start this phase against pre-Phase-R records shape.
+Phase R is delivered on current `main`; verify the delivered-state checklist and baseline gate
+before editing Phase 3 runtime behavior.
 
 Read, in order: [`../phases.md`](../phases.md) (Phase 3 section, authoritative AC list),
 [`../README.md`](../README.md) (org-M5 map — this phase closes the fence and preview exit
 criteria), [ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md),
 [ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md),
 [ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md),
+[ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md),
 [`../../../design/core/authorization.md`](../../../design/core/authorization.md),
 [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md), and §15 of
 [`../../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md).
@@ -54,6 +57,9 @@ design per this phase's stop conditions.
   gate as scaffolding this phase replaces.
 - [ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md) — the canonical
   fixture must evidence a `denied` outcome, not just `granted`/`routed`.
+- [ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md) — Phase 3 closes
+  the local preview, request-category, Doorbell, owner-decision vocabulary, and adjusted
+  canonical-triad decisions.
 - [`../../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md)
   §15 — the canonical five-story dry-run trace this phase's golden integration test asserts.
 - [Phase R brief](./phase-r-remediation.md) — the records shape (`binding` block, `actor`,
@@ -81,16 +87,10 @@ the `previewed` posture. It must:
   Do not reuse `RecordManager.init` (which unconditionally calls `mkdirSync`) for preview's
   reporting path — preview needs a separate, non-allocating code path, even though it shares
   plan/config/policy loading with `run`.
-- Emit a `run.previewed` audit event. **Where this event is durably recorded is a design-owned
-  question `bootstrap.md` does not fully resolve for the no-run-directory case** — the doc says
-  preview "is always recorded" and emits its own audit event, but does not specify a storage
-  target once no run directory exists yet (the binding record, which normally anchors a run's
-  durable evidence, is explicitly a `start`-only artifact per bootstrap.md's Launch Sequence
-  step 7). Reasonable default: print the `previewed` report to stdout (mirroring `handleRun`'s
-  and `handleInspect`'s existing console-output pattern) and treat that as this phase's
-  recording surface, since no records store exists to write into pre-run. If a durable,
-  file-backed preview record is required, that needs a design decision on where it lives; flag
-  this rather than inventing a new preview-record file location.
+- Render a `run.previewed` audit posture to stdout. ADR 0019 closes the MVP design question:
+  preview does not have a file-backed record store in Phase 3, because it allocates no run
+  identity and creates no run directory. A durable file-backed preview record waits for a
+  non-run audit store.
 - A subsequent `jig run` is unaffected by whether a preview happened — trivially true if preview
   allocates nothing, but write the regression test anyway (see below) since it is the AC's
   explicit acceptance bar.
@@ -131,13 +131,11 @@ the current worker/harness/fixture shapes — `WorkerResult` (`types.ts`) has no
   and bound-policy-allowed → `grant`; (4) otherwise → `route` (uncertainty never defaults to
   `grant`). **The category boundary itself (what counts as "reversible," "rule-governing," or
   "out of declared scope") is the one piece this brief treats as still needing a concrete,
-  code-level definition** — `authorization.md` names the boundary conceptually (CFG-10) but does
-  not enumerate a machine-checkable category list. For this phase, encode a minimal, explicit
-  category map covering exactly the request shapes the §15 fixture and the AC tests need (edit
-  within declared scope → reversible/grantable; edit of a file matching a
-  policy-declared-rule-governing pattern → route; edit outside the plan's declared file scope →
-  deny). Do not build a general-purpose classifier or anything model-adjudicated (P3-AC-6 forbids
-  this explicitly) — a fixed, explicit lookup/pattern match is correct and sufficient.
+  code-level definition** for Phase 3 is the ADR 0019 MVP map: `edit-files` within declared story
+  scope and declared `run-checks` are grantable; rule-governing, privileged, irreversible,
+  credential, push, PR, merge, ambiguous, and unknown request kinds route; edits outside declared
+  scope deny. Do not build a general-purpose classifier or anything model-adjudicated (P3-AC-6
+  forbids this explicitly) — a fixed, explicit lookup/pattern match is correct and sufficient.
 - **Emit the triad.** For every declared request: `authorization.requested` →
   `authorization.granted` (with `basis` naming the policy rule and category), or
   `authorization.denied` (with `basis` naming why — fail-closed, out of scope), or
@@ -188,18 +186,10 @@ pending the decision).
   in this local-only phase means it is durable simply by virtue of being written to
   `events.jsonl` before the process waits for input, not by any special persistence mechanism.
 - **Minimal local approval prompt.** Since this phase is local-only (no remote approvals — an
-  explicit non-goal), the "minimal" bar is a synchronous CLI prompt: when a run hits a routed
-  request, `jig run` should stop and print the routed request's detail, then read an
-  approve/reject decision from stdin (or via a simple re-invocation flag — e.g. rerun with a
-  `--approve <storyId>` flag against the parked run directory). **Which of these two interaction
-  shapes (blocking-stdin-prompt vs. re-invocation-flag) is the intended UX is not settled by any
-  design doc read for this brief** — `authorization.md` names the Doorbell's durability and
-  narrowness requirements but not a CLI interaction shape, and `driving.md`'s operator-action
-  list (referenced in the review's "later hardening" section) is outside this phase's reading
-  set. Recommendation for this phase: implement the blocking-stdin-prompt form, since it needs
-  no new run-resumption mechanic (Phase 4 owns resume) and keeps the local single-process
-  invocation model Phases 1–2 already use — but flag this as a design-adjacent choice made
-  locally rather than handed down, and note it in the PR body.
+  explicit non-goal), ADR 0019 fixes the MVP UX as a synchronous CLI prompt: when a run hits a
+  routed request, `jig run` prints the routed request's detail and reads an approve/reject
+  decision from stdin in the same process. Re-invocation approval, remote approval, and
+  resume-based decision handling are Phase 4+.
 - **The owner's approve/reject decision is recorded and narrow.** On approve, emit an
   owner-approval event (the contract's event-family list names "owner approved" —
   use `authorization.granted` with `basis` citing the owner decision, or a distinct family if the
@@ -222,7 +212,7 @@ pending the decision).
 
 ### P3-AC-5 — The §15 canonical fixture as the golden integration test
 
-**Files:** new fixtures under `tests/fixtures/m5b-local-mvp/` for the five-story plan, new
+**Files:** new fixtures under `tests/fixtures/m5b-local-mvp/` for the adjusted four-story plan, new
 golden run-record fixture, new integration test (e.g.
 `tests/canonical-triad.int.test.ts`).
 
@@ -247,37 +237,15 @@ skipped-landing), STORY-C (`routed`/`parked`), and STORY-D (`denied`/`blocked`) 
 the runner-skip, and the terminal reason completely. Build the fixture and the golden test around
 that asserted surface.
 
-**Design gap — flag, do not build: STORY-B's `story.waiting` state.**
+**ADR 0019 scope decision — use the four-story canonical triad.**
 
-STORY-B depends on STORY-A, which reaches `done` but is explicitly **not landed** in a dry-run
-(landing is globally suppressed). Per §15's "Eligibility under dry-run" note (decision D-005,
-citing strict ISO-1): a dependent is eligible only once its prerequisite **lands**, not merely
-`done`s — so STORY-B must be held ineligible and recorded `story.waiting`, a family
-[ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md) decision 3 explicitly
-says "remains that note's dry-run-scoped rendering; it is still not imported" into the
-implementation's vocabulary. Building STORY-B's hold correctly requires an eligibility resolver
-that understands the done-vs-landed distinction (INV-004/INV-005) — machinery this phase's
-non-goals explicitly exclude ("Full provider capability conformance," no Forge/landing seam
-exists yet, and landing is out of scope for local-only Phase 3). **Do not build the eligibility
-resolver or import `story.waiting` to make STORY-B "work."** Two paths, and this brief
-recommends the first:
-
-1. **Build the five-story fixture without STORY-B and STORY-E as literally specified**, or
-   substitute a request shape for what STORY-B/E were demonstrating that this phase's existing
-   vocabulary already covers. Concretely: STORY-E (depends on **denied, blocked** STORY-D) maps
-   cleanly onto Phase R's existing transitive-blocking behavior — `story.blocked` with a
-   dependency reason, no new vocabulary needed — so keep STORY-E. STORY-B (depends on
-   **done-but-unlanded** STORY-A) is the one that needs `story.waiting`; if the fixture is built
-   without it, the test still proves the full asserted triad, the runner-skip, and the stopped-
-   unattended-park terminal — everything P3-AC-5 names — using a four-story plan (A, C, D, E)
-   instead of five.
-2. **If the five-story shape is required as literally specified**, this needs a design decision
-   first: whether `story.waiting` is imported into the v0 vocabulary now (contradicting ADR
-   0017's current "not imported" framing) or whether STORY-B's hold is modeled some other way
-   that does not require it. Route this back to design before building; do not decide it locally
-   — this is exactly what this phase's own stop conditions call for ("Stop if the triad's record
-   shape needs contract changes ADR 0017 and the v0 contract do not cover — route back to
-   design").
+STORY-B depends on STORY-A, which reaches `done` but is explicitly **not landed** in a dry-run.
+Modeling that literally needs the `story.waiting` vocabulary and done-vs-landed eligibility
+resolver that ADR 0017 and this phase keep out of the implementation. ADR 0019 therefore fixes the
+Phase 3 golden path as the adjusted four-story fixture: STORY-A (granted/done/skipped landing),
+STORY-C (routed/parked), STORY-D (denied/blocked), and STORY-E (blocked by STORY-D). Do not import
+`story.waiting`, do not build landing/Forge, and do not build done-vs-landed eligibility to make
+the literal five-story shape pass.
 
 **Tests to write:**
 
@@ -306,18 +274,18 @@ requires as evidence.
 
 ## Fixtures
 
-| Fixture                                                                                             | Purpose                                                                    |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `scripted-worker-with-requests.json` (or similar)                                                   | Per-request declarations for P3-AC-2/3 unit tests                          |
-| `local-policy-assisted.json` (extends `local-policy.json`)                                          | Assisted-posture policy with a declared rule-governing pattern for P3-AC-4 |
-| Canonical five-story (or four-story, per the STORY-B decision above) plan + scripted-worker fixture | P3-AC-5 golden integration test                                            |
-| `golden-run-record-canonical-triad.json`                                                            | P3-AC-5 golden assertion target                                            |
+| Fixture                                                            | Purpose                                                                    |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `scripted-worker-with-requests.json` (or similar)                  | Per-request declarations for P3-AC-2/3 unit tests                          |
+| `local-policy-assisted.json` (extends `local-policy.json`)         | Assisted-posture policy with a declared rule-governing pattern for P3-AC-4 |
+| Adjusted four-story canonical triad plan + scripted-worker fixture | P3-AC-5 golden integration test                                            |
+| `golden-run-record-canonical-triad.json`                           | P3-AC-5 golden assertion target                                            |
 
 ## Tests and evidence
 
 - Grant/deny/route fixture tests named per AC ID.
 - Preview no-side-effects test (P3-AC-1).
-- The §15 (or its adjusted-scope equivalent) golden integration test (P3-AC-5).
+- The adjusted four-story canonical triad golden integration test (P3-AC-5).
 - Approval approve/reject tests; rule-governing guard test (P3-AC-4).
 - `corepack pnpm check` green, coverage thresholds holding.
 
