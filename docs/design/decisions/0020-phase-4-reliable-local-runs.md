@@ -176,6 +176,13 @@ from (`../core/bootstrap.md` "Last safe checkpoint"):
 | `started` without a terminal event (interrupted mid-flight)            | Re-attempted as **repeatable** work: it had no durable terminal effect, so resume re-drives it from the agent seam. Any already-recorded irreversible action for it is recognized and not re-issued (§5). |
 | `runner-action.skipped-on-dry-run` already recorded for a `done` story | Recognized from the log and **not re-issued** (§5).                                                                                                                                                       |
 
+**Local dependency-satisfaction stand-in.** At Phase-4 local-dry-run altitude, `story.done`
+(evidence met) is the dependency-satisfaction stand-in for `landed`: a dependent story's
+prerequisites are "satisfied" when the prerequisites are `done`, because local dry-run has no
+Forge/GitHub landing (push/open-PR/merge stay out of scope, §5). True `landed` dependency
+satisfaction is restored when Forge/GitHub landing exists in Phase 5; the `done`-vs-`landed`
+distinction is still recorded now (MERGE-4, INV-004), so no dependency edge is lost in the swap.
+
 **Work-item-blocked resume (honors ADR 0017 decision 2 + ISO-3).** A `work-item-blocked` stop is a
 resumable checkpoint like any other. On resume from `after:<story-id>`: the blocked story and its
 downstream dependents stay at their terminal `blocked` outcome (not re-run), but **independent**
