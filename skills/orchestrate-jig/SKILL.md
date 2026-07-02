@@ -2,8 +2,9 @@
 name: orchestrate-jig
 description: >-
   Local composition runbook for coordinating a Jig execution from an approved execution plan,
-  policy, work profile, and repo floor. Use when asked to orchestrate Jig-shaped work before a
-  real Jig CLI/runtime exists. Refuses missing or incompatible plan inputs, binds only current
+  policy, work profile, and repo floor. Use when asked to orchestrate Jig-shaped work beyond
+  the current minimal CLI surface (local dry-run `jig run` / `jig inspect` — no preview, real
+  workers, or governed landing yet). Refuses missing or incompatible plan inputs, binds only current
   runtime facts, preserves the runner/worker authority boundary, requires recordable evidence
   before landing, and stops cleanly on unsupported paths.
 ---
@@ -204,8 +205,8 @@ Use these stop names unless a more specific plan-owned name exists:
 - `plan-dependency-invalid` — dependency graph cannot be executed as written.
 - `binding-input-missing` — policy, work profile, repo floor, or compatibility references are absent
   or incompatible.
-- `jig-runtime-unavailable` — the requested behavior requires a real Jig CLI/runtime that is not
-  present.
+- `jig-runtime-unavailable` — the requested behavior requires Jig runtime capability beyond the
+  current minimal dry-run CLI (`jig run` / `jig inspect`).
 - `driver-capability-unavailable` — a required Agent, Execution Host, Forge, or Work Source
   capability cannot be proven.
 - `authority-boundary-unsupported` — the current surface cannot preserve runner-owned privileged
