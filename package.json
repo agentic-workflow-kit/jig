@@ -29,7 +29,7 @@
     "lint": "biome check .",
     "typecheck": "tsc -b",
     "delivery:check": "node scripts/check-delivery-foundation.mjs",
-    "test": "vitest run --coverage --passWithNoTests",
+    "test": "tsc -b && vitest run --coverage --passWithNoTests",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm delivery:check && pnpm test"
   },
   "devDependencies": {
