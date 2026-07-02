@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createOwnerDecisionSource, run } from '../src/cli.js';
-import type { RunRecord } from '../src/types.js';
+import type { RunEvent, RunRecord } from '../src/types.js';
 
 // vitest's v8 coverage provider does not attribute coverage from execSync subprocesses
 // (unlike c8's NODE_V8_COVERAGE inheritance), and those subprocesses execute compiled
@@ -64,6 +64,102 @@ function loggedLines(): string {
 
 function erroredLines(): string {
   return (errorSpy.mock.calls as unknown[][]).map((call) => call.join(' ')).join('\n');
+}
+
+function phase4LaunchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
+  return {
+    family: 'run.started',
+    actor: 'runner',
+    timestamp: '2026-07-03T09:00:00.000Z',
+    runId: 'run-plan-phase4-cli-uuid',
+    planId: 'plan-phase4-cli',
+    mode: 'local-dry-run',
+    binding: {
+      policyRef: 'policy:local-dry-run',
+      configRef: 'mode=local-dry-run;recordDir=runs',
+      workspace: {
+        repoRoot: '/tmp/jig-cli',
+        head: '0123456789abcdef0123456789abcdef01234567',
+        changeSetHash: 'workspace-clean',
+      },
+    },
+    posture: {
+      redaction: 'safe-for-owner-record',
+      export: 'redacted',
+    },
+    planSnapshotRef: 'plan.snapshot.json',
+    ...overrides,
+  };
+}
+
+function stringifyJsonl(events: RunEvent[]): string {
+  return `${events.map((event) => JSON.stringify(event)).join('\n')}\n`;
+}
+
+function stoppedProjectionEvents(): RunEvent[] {
+  return [
+    phase4LaunchHeader(),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'evidence.modeled',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      result: 'passed',
+      changedFiles: ['src/cli.ts'],
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      storyId: 'STORY-1',
+      changedFiles: ['src/cli.ts'],
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:04.000Z',
+      storyId: 'STORY-2',
+    },
+    {
+      family: 'authorization.requested',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:05.000Z',
+      storyId: 'STORY-2',
+      requestId: 'REQ-2',
+      requestKind: 'edit-rule-governing-file',
+    },
+    {
+      family: 'authorization.routed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:06.000Z',
+      storyId: 'STORY-2',
+      requestId: 'REQ-2',
+      requestKind: 'edit-rule-governing-file',
+      basis: ['GUARD-2', 'rule-governing-surface'],
+    },
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:07.000Z',
+      storyId: 'STORY-2',
+      requestId: 'REQ-2',
+      reason: 'owner-decision-required',
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:08.000Z',
+      reason: 'unattended-park',
+      checkpoint: 'after:STORY-2.parked',
+      unstarted: ['STORY-3'],
+    },
+  ];
 }
 
 test('run(): no command prints usage and exits 1', async () => {
@@ -235,6 +331,13 @@ test('run(): "inspect" with no directory prints usage and exits 1', async () => 
   assert.match(erroredLines(), /Usage:/);
 });
 
+test('run(): "resume" without --scripted-output fails closed with usage guidance', async () => {
+  setArgv('resume', 'runs/run-existing');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /jig resume <run-directory> --scripted-output <output>/);
+});
+
 test('run(): "inspect" on a missing directory exits 1 with an error', async () => {
   setArgv('inspect', 'does-not-exist');
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
@@ -242,14 +345,14 @@ test('run(): "inspect" on a missing directory exits 1 with an error', async () =
   assert.match(erroredLines(), /Error: Run directory "does-not-exist" does not exist/);
 });
 
-test('run(): "inspect" on a directory without run.json exits 1 with an error', async () => {
+test('run(): "inspect" on a directory without events.jsonl or run.json exits 1 with an error', async () => {
   const runDir = join(workDir, 'no-run-json');
   mkdirSync(runDir, { recursive: true });
 
   setArgv('inspect', runDir);
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
   expect(exitSpy).toHaveBeenCalledWith(1);
-  assert.match(erroredLines(), /Error: run\.json not found in/);
+  assert.match(erroredLines(), /Error: Neither events\.jsonl nor run\.json found in/);
 });
 
 test('run(): "inspect" on a corrupt run.json exits 1 with a parse error', async () => {
@@ -261,6 +364,89 @@ test('run(): "inspect" on a corrupt run.json exits 1 with a parse error', async 
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
   expect(exitSpy).toHaveBeenCalledWith(1);
   assert.match(erroredLines(), /Error: Failed to parse run\.json/);
+});
+
+test('P4-AC-4: inspect replays events.jsonl when run.json is absent', async () => {
+  const runDir = join(workDir, 'events-only-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Run ID: run-plan-phase4-cli-uuid/);
+  assert.match(output, /Plan ID: plan-phase4-cli/);
+  assert.match(output, /Final Status: failure/);
+  assert.match(output, /- STORY-1: done/);
+  assert.match(output, /- STORY-2: parked \(owner-decision-required\)/);
+});
+
+test('P4-AC-4: inspect renders stop cause, projected notice, checkpoint, and changed files from projection', async () => {
+  const runDir = join(workDir, 'events-only-stopped-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Stop Cause: unattended-park/);
+  assert.match(output, /Safe Resume Checkpoint: after:STORY-2\.parked/);
+  assert.match(output, /Projected Notices:/);
+  assert.match(output, /unattended-park: run stopped at an unattended parked story/);
+  assert.match(output, /Changed files: src\/cli\.ts/);
+});
+
+test('P4-AC-4: inspect fails closed on a defective replay log even if run.json exists', async () => {
+  const runDir = join(workDir, 'defective-events-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+  writeFileSync(
+    join(runDir, 'run.json'),
+    JSON.stringify(
+      {
+        run: {
+          id: 'run-plan-phase4-cli-uuid',
+          attempt: 1,
+          status: 'failure',
+          planId: 'plan-phase4-cli',
+          mode: 'local-dry-run',
+          binding: {
+            policyRef: 'policy:local-dry-run',
+            configRef: 'mode=local-dry-run;recordDir=runs',
+            workspace: {
+              repoRoot: '/tmp/jig-cli',
+              head: '0123456789abcdef0123456789abcdef01234567',
+              changeSetHash: 'workspace-clean',
+            },
+          },
+        },
+        events: [],
+      } satisfies RunRecord,
+      null,
+      2,
+    ),
+  );
+
+  setArgv('inspect', runDir);
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Error: Failed to inspect authoritative events\.jsonl:/);
+  assert.match(erroredLines(), /Illegal replay transition/);
 });
 
 test('run(): happy-path run with --config/--policy/--scripted-output flags succeeds', async () => {

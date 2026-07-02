@@ -90,9 +90,56 @@ export interface Diagnostics {
 
 export type RunStatus = 'success' | 'failure';
 
+export interface GitWorkspaceFingerprint {
+  kind: 'git';
+  root?: string;
+  repoRoot?: string;
+  head: string;
+  changeSetHash: string;
+}
+
+export interface UnavailableWorkspaceFingerprint {
+  kind: 'unavailable';
+  reason: 'not-a-git-worktree' | 'git-unavailable' | 'git-command-failed';
+  detail: string;
+}
+
+export type WorkspaceFingerprint =
+  | GitWorkspaceFingerprint
+  | UnavailableWorkspaceFingerprint
+  | {
+      repoRoot: string;
+      head: string;
+      changeSetHash: string;
+    };
+
+export interface RunBinding {
+  policyRef: string;
+  configRef: string;
+  workspace: WorkspaceFingerprint;
+}
+
+export interface RunPosture {
+  record?: 'safe-for-owner-record';
+  redaction?: 'safe-for-owner-record';
+  export: 'redacted';
+}
+
+export interface PlanSnapshotRef {
+  ref?: string;
+  path?: string;
+}
+
 export interface RunEvent {
   family: string;
   actor?: string;
+  runId?: string;
+  planId?: string;
+  mode?: string;
+  binding?: RunBinding;
+  posture?: RunPosture;
+  planSnapshot?: PlanSnapshotRef;
+  planSnapshotRef?: string;
   storyId?: string;
   blockedBy?: string;
   reason?: string;
@@ -112,12 +159,26 @@ export interface RunRecord {
     status: RunStatus;
     planId: string;
     mode?: string;
-    binding: {
-      policyRef: string;
-      configRef: string;
-    };
+    binding: RunBinding;
+    posture?: RunPosture;
+    planSnapshot?: PlanSnapshotRef;
   };
   events: RunEvent[];
+}
+
+export interface ResumePlan {
+  runId: string;
+  checkpoint: string;
+  stopCause: string;
+  completedStoryIds: string[];
+  blockedStoryIds: string[];
+  parkedStoryId: string | null;
+  unstartedStoryIds: string[];
+  parkedRequest?: {
+    requestId?: string;
+    requestKind?: string;
+    [key: string]: unknown;
+  };
 }
 
 export interface WorkerResult {

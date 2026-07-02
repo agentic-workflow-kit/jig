@@ -1,9 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ConfigDoc, Plan, PolicyDoc, RecordSink, RunEvent, RunRecord, RunStatus } from './types.js';
+import type {
+  ConfigDoc,
+  Plan,
+  PlanSnapshotRef,
+  PolicyDoc,
+  RecordSink,
+  RunBinding,
+  RunEvent,
+  RunPosture,
+  RunRecord,
+  RunStatus,
+} from './types.js';
+import { captureWorkspaceFingerprint } from './workspace.js';
 
 const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
+const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
+const DEFAULT_RUN_POSTURE: RunPosture = {
+  record: 'safe-for-owner-record',
+  export: 'redacted',
+};
 
 function describeConfigBinding(config: ConfigDoc): string {
   const mode = config.runner?.mode ?? 'unknown-mode';
@@ -18,6 +35,10 @@ export class RecordManager implements RecordSink {
   private plan: Plan | null;
   private config: ConfigDoc | null;
   private policy: PolicyDoc | null;
+  private binding: RunBinding | null;
+  private posture: RunPosture;
+  private planSnapshot: PlanSnapshotRef | null;
+  private launchHeaderRecorded: boolean;
 
   constructor() {
     this.events = [];
@@ -26,9 +47,15 @@ export class RecordManager implements RecordSink {
     this.plan = null;
     this.config = null;
     this.policy = null;
+    this.binding = null;
+    this.posture = DEFAULT_RUN_POSTURE;
+    this.planSnapshot = null;
+    this.launchHeaderRecorded = false;
   }
 
   init(plan: Plan, config: ConfigDoc, policy: PolicyDoc): void {
+    this.events = [];
+    this.launchHeaderRecorded = false;
     this.plan = plan;
     this.config = config;
     this.policy = policy;
@@ -37,9 +64,53 @@ export class RecordManager implements RecordSink {
     mkdirSync(recordBaseDir, { recursive: true });
     this.runDir = join(recordBaseDir, this.runId);
     mkdirSync(this.runDir);
+    this.binding = {
+      policyRef: policy.policy?.id ?? 'unknown-policy',
+      configRef: describeConfigBinding(config),
+      workspace: captureWorkspaceFingerprint(process.cwd()),
+    };
+    const planSnapshotPath = join(this.runDir, PLAN_SNAPSHOT_FILE);
+    this.planSnapshot = {
+      ref: `record-artifact:${this.runId}/${PLAN_SNAPSHOT_FILE}`,
+      path: planSnapshotPath,
+    };
+    writeFileSync(planSnapshotPath, JSON.stringify(plan, null, 2));
   }
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
+    if (!this.launchHeaderRecorded) {
+      if (event.family === 'run.started') {
+        this.appendEvent(this.buildLaunchHeader(event));
+        this.launchHeaderRecorded = true;
+        return;
+      }
+
+      this.appendEvent(this.buildLaunchHeader());
+      this.launchHeaderRecorded = true;
+    } else if (event.family === 'run.started' && Object.keys(event).length === 1) {
+      return;
+    }
+
+    this.appendEvent(event);
+  }
+
+  private buildLaunchHeader(event: Partial<RunEvent> = {}): Pick<RunEvent, 'family'> & Partial<RunEvent> {
+    const plan = this.plan as Plan;
+    const config = this.config as ConfigDoc;
+
+    return {
+      ...event,
+      family: 'run.started',
+      runId: this.runId,
+      planId: plan.id,
+      mode: config.runner?.mode,
+      binding: this.binding as RunBinding,
+      posture: this.posture,
+      planSnapshot: this.planSnapshot as PlanSnapshotRef,
+    };
+  }
+
+  private appendEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
     const timestampedEvent: RunEvent = { ...event, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
@@ -51,7 +122,6 @@ export class RecordManager implements RecordSink {
     // guard, matching the compile-time-only strict-mode discipline for this port.
     const plan = this.plan as Plan;
     const config = this.config as ConfigDoc;
-    const policy = this.policy as PolicyDoc;
 
     const runRecord: RunRecord = {
       run: {
@@ -60,10 +130,9 @@ export class RecordManager implements RecordSink {
         status,
         planId: plan.id,
         mode: config.runner?.mode,
-        binding: {
-          policyRef: policy.policy?.id ?? 'unknown-policy',
-          configRef: describeConfigBinding(config),
-        },
+        binding: this.binding as RunBinding,
+        posture: this.posture,
+        planSnapshot: this.planSnapshot as PlanSnapshotRef,
       },
       events: this.events,
     };

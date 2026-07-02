@@ -7,11 +7,50 @@
     "mode": "local-dry-run",
     "binding": {
       "policyRef": "policy:assisted-v0",
-      "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>"
+      "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
+      "workspace": {
+        "kind": "git",
+        "root": "<WORKSPACE>",
+        "head": "<WORKSPACE_HEAD>",
+        "changeSetHash": "<WORKSPACE_HASH>"
+      }
+    },
+    "posture": {
+      "record": "safe-for-owner-record",
+      "export": "redacted"
+    },
+    "planSnapshot": {
+      "ref": "<PLAN_SNAPSHOT_REF>",
+      "path": "<PLAN_SNAPSHOT_PATH>"
     }
   },
   "events": [
-    { "family": "run.started", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "run.started",
+      "runId": "<RUN_ID>",
+      "planId": "canonical-triad",
+      "mode": "local-dry-run",
+      "binding": {
+        "policyRef": "policy:assisted-v0",
+        "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
+        "workspace": {
+          "kind": "git",
+          "root": "<WORKSPACE>",
+          "head": "<WORKSPACE_HEAD>",
+          "changeSetHash": "<WORKSPACE_HASH>"
+        }
+      },
+      "posture": {
+        "record": "safe-for-owner-record",
+        "export": "redacted"
+      },
+      "planSnapshot": {
+        "ref": "<PLAN_SNAPSHOT_REF>",
+        "path": "<PLAN_SNAPSHOT_PATH>"
+      },
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
     {
       "family": "story.started",
       "storyId": "STORY-A",

@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
-import type { PlanInstance, PolicyDoc, RunEvent } from '../src/types.js';
+import type { PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../src/types.js';
 
 test('LocalHarness sequential execution success', async () => {
   const worker = {
@@ -625,4 +625,156 @@ test('P3-AC-4: unattended parked stories block dependent stories', async () => {
   assert.ok(events.find((e) => e.family === 'story.done' && e.storyId === 's3'));
   assert.ok(events.find((e) => e.family === 'run.stopped' && e.reason === 'unattended-park'));
   assert.deepStrictEqual(events.find((e) => e.family === 'run.stopped')?.unstarted, []);
+});
+
+test('P4-AC-1: resume from work-item-blocked frees independent unstarted work', async () => {
+  const events: RunEvent[] = [];
+  const worker = {
+    execute: async (story: { id: string }) => {
+      assert.strictEqual(story.id, 's3');
+      return {
+        outcome: 'success',
+        evidence: { result: 'passed' },
+        changedFiles: ['src/resume.ts'],
+      };
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e: RunEvent) => events.push(e),
+    finalize: async () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 't1' },
+        { id: 's2', title: 't2', dependsOn: ['s1'] },
+        { id: 's3', title: 't3' },
+      ],
+    },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1',
+    stopCause: 'work-item-blocked',
+    completedStoryIds: [],
+    blockedStoryIds: ['s1', 's2'],
+    parkedStoryId: null,
+    unstartedStoryIds: ['s3'],
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+
+  const status = await harness.resume(plan, policy, resumePlan);
+
+  assert.strictEqual(status, 'success');
+  assert.ok(events.find((e) => e.family === 'run.resumed' && e.runId === 'run-p1-existing'));
+  assert.ok(!events.find((e) => e.family === 'story.started' && e.storyId === 's1'));
+  assert.ok(!events.find((e) => e.family === 'story.started' && e.storyId === 's2'));
+  assert.ok(events.find((e) => e.family === 'story.done' && e.storyId === 's3'));
+  assert.ok(events.find((e) => e.family === 'run.completed'));
+});
+
+test('P4-AC-2: resume does not duplicate terminal stories or dry-run actions', async () => {
+  const events: RunEvent[] = [];
+  const worker = {
+    execute: async (story: { id: string }) => {
+      assert.strictEqual(story.id, 's2');
+      return {
+        outcome: 'success',
+        evidence: { result: 'passed' },
+      };
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e: RunEvent) => events.push(e),
+    finalize: async () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'already done' },
+        { id: 's2', title: 'remaining' },
+      ],
+    },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1',
+    stopCause: 'work-item-blocked',
+    completedStoryIds: ['s1'],
+    blockedStoryIds: [],
+    parkedStoryId: null,
+    unstartedStoryIds: ['s2'],
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+
+  const status = await harness.resume(plan, policy, resumePlan);
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(events.filter((e) => e.family === 'story.done' && e.storyId === 's1').length, 0);
+  assert.strictEqual(
+    events.filter((e) => e.family === 'runner-action.skipped-on-dry-run' && e.storyId === 's1').length,
+    0,
+  );
+  assert.strictEqual(events.filter((e) => e.family === 'run.started').length, 0);
+  assert.ok(events.find((e) => e.family === 'story.done' && e.storyId === 's2'));
+});
+
+test('P4-AC-1: non-interactive parked resume re-stops but lets independent work progress', async () => {
+  const events: RunEvent[] = [];
+  const worker = {
+    execute: async (story: { id: string }) => {
+      assert.strictEqual(story.id, 's3');
+      return {
+        outcome: 'success',
+        evidence: { result: 'passed' },
+      };
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e: RunEvent) => events.push(e),
+    finalize: async () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'parked' },
+        { id: 's2', title: 'dependent', dependsOn: ['s1'] },
+        { id: 's3', title: 'independent' },
+      ],
+    },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1.parked',
+    stopCause: 'unattended-park',
+    completedStoryIds: [],
+    blockedStoryIds: ['s2'],
+    parkedStoryId: 's1',
+    unstartedStoryIds: ['s3'],
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+
+  const status = await harness.resume(plan, policy, resumePlan);
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(events.find((e) => e.family === 'run.resumed'));
+  assert.ok(events.find((e) => e.family === 'story.done' && e.storyId === 's3'));
+  assert.strictEqual(events.filter((e) => e.family === 'story.parked' && e.storyId === 's1').length, 0);
+  assert.ok(
+    events.find(
+      (e) => e.family === 'run.stopped' && e.reason === 'unattended-park' && e.checkpoint === 'after:s1.parked',
+    ),
+  );
 });
