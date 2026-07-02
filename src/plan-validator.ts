@@ -1,5 +1,9 @@
 import type { PlanInstance, Story } from './types.js';
 
+function hasUnsafePathId(id: string): boolean {
+  return id.includes('/') || id.includes('\\') || id.includes('..');
+}
+
 // biome-ignore lint/complexity/noStaticOnlyClass: public shape preserved 1:1 from the JS port; API form is a Phase R decision
 export class PlanValidator {
   static validate(planInstance: unknown): PlanInstance {
@@ -18,7 +22,7 @@ export class PlanValidator {
     }
 
     // Path safety validation for plan.id
-    if (/[/\\..]/.test(plan.id)) {
+    if (hasUnsafePathId(plan.id)) {
       throw new Error(`Invalid plan: unsafe "id" containing path traversal characters: "${plan.id}"`);
     }
 
@@ -34,7 +38,7 @@ export class PlanValidator {
       }
 
       // Path safety validation for story.id as it might be used in record names
-      if (typeof story.id !== 'string' || /[/\\..]/.test(story.id)) {
+      if (typeof story.id !== 'string' || hasUnsafePathId(story.id)) {
         throw new Error(`Invalid story: unsafe "id" containing path traversal characters: "${story.id}"`);
       }
 

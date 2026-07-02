@@ -46,7 +46,10 @@ decomposition remains design-owned.
 pnpm install --frozen-lockfile   # setup (or: pnpm dev:setup)
 pnpm check                       # the full gate: lint, format:check, typecheck, delivery:check, test
 pnpm build                       # tsc -b — emits dist/; required before running the CLI directly
-node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json
+node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
+  --config tests/fixtures/m5b-local-mvp/local-config.json \
+  --policy tests/fixtures/m5b-local-mvp/local-policy.json \
+  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 node bin/jig.js inspect <runs/run-dir-from-output>
 ```
 

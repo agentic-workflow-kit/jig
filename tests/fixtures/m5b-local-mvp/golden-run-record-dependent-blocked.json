@@ -1,0 +1,51 @@
+{
+  "run": {
+    "id": "<RUN_ID>",
+    "attempt": 1,
+    "status": "failure",
+    "planId": "multi-item-failure",
+    "mode": "local-dry-run",
+    "binding": {
+      "policyRef": "local-dry-run-policy",
+      "configRef": "local-dry-run"
+    }
+  },
+  "events": [
+    { "family": "run.started", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    { "family": "story.started", "storyId": "STORY-1", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "evidence.modeled",
+      "storyId": "STORY-1",
+      "result": "failed",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
+    {
+      "family": "story.blocked",
+      "storyId": "STORY-1",
+      "reason": "worker-reported-failure",
+      "diagnostics": {
+        "exitCode": 1,
+        "stdout": "Failing intentionally",
+        "error": "Failing intentionally"
+      },
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
+    {
+      "family": "story.blocked",
+      "storyId": "STORY-2",
+      "blockedBy": "STORY-1",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
+    {
+      "family": "run.stopped",
+      "reason": "work-item-blocked",
+      "checkpoint": "after:STORY-1",
+      "unstarted": ["STORY-3"],
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    }
+  ]
+}

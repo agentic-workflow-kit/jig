@@ -32,7 +32,10 @@ of what exists versus what is planned. This repository is the canonical home for
 pnpm build   # emits dist/, which the CLI shim runs
 
 # Execute a plan (local dry-run; scripted worker):
-node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json
+node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
+  --config tests/fixtures/m5b-local-mvp/local-config.json \
+  --policy tests/fixtures/m5b-local-mvp/local-policy.json \
+  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 
 # Inspect the durable records the run produced:
 node bin/jig.js inspect runs/<run-directory-from-the-output>

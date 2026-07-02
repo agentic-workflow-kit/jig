@@ -3,7 +3,7 @@
     "id": "<RUN_ID>",
     "attempt": 1,
     "status": "success",
-    "planId": "plan-minimal-local",
+    "planId": "multi-item-success",
     "mode": "local-dry-run",
     "binding": {
       "policyRef": "local-dry-run-policy",
@@ -21,6 +21,15 @@
       "timestamp": "<TIMESTAMP>"
     },
     { "family": "story.done", "storyId": "STORY-1", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    { "family": "story.started", "storyId": "STORY-2", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "evidence.modeled",
+      "storyId": "STORY-2",
+      "result": "passed",
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
+    { "family": "story.done", "storyId": "STORY-2", "actor": "runner", "timestamp": "<TIMESTAMP>" },
     { "family": "run.completed", "actor": "runner", "timestamp": "<TIMESTAMP>" }
   ]
 }
