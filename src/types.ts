@@ -62,6 +62,7 @@ export type AuthorizationBasis =
   | 'privileged-or-irreversible'
   | 'FENCE-1'
   | 'out-of-declared-scope'
+  | 'invalid-request-path'
   | 'unknown-request-kind';
 
 export interface AuthorizationRequest {

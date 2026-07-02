@@ -46,21 +46,21 @@ export class LocalHarness {
 
     for (let i = 0; i < plan.stories.length; i++) {
       const story = plan.stories[i];
+      const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
+      const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
+
+      if (blockedBy) {
+        this.recordManager.recordEvent({
+          family: 'story.blocked',
+          storyId: story.id,
+          blockedBy,
+        });
+        blockedStoryIds.add(story.id); // Transitive blocking
+        continue;
+      }
 
       if (runStatus !== 'success') {
-        const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
-        const isBlocked = dependsOn?.some((depId) => blockedStoryIds.has(depId));
-        if (isBlocked) {
-          const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            blockedBy,
-          });
-          blockedStoryIds.add(story.id); // Transitive blocking
-        } else {
-          unstartedStoryIds.push(story.id);
-        }
+        unstartedStoryIds.push(story.id);
         continue;
       }
 
@@ -131,6 +131,7 @@ export class LocalHarness {
           if (!this.ownerDecisionSource) {
             hasUnattendedPark = true;
             requestHaltedStory = true;
+            blockedStoryIds.add(story.id);
             stopReason = 'unattended-park';
             unattendedParkCheckpoint = `${story.id}.parked`;
             checkpointStoryId = unattendedParkCheckpoint;

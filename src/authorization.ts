@@ -34,6 +34,20 @@ function isRuleGoverningRequest(request: AuthorizationRequest, policy: PolicyDoc
   return request.paths.some((path) => matchesAnyPattern(path, surfaces));
 }
 
+function hasInvalidRequestPath(request: AuthorizationRequest): boolean {
+  if (!Array.isArray(request.paths)) {
+    return false;
+  }
+
+  return request.paths.some((path) => {
+    if (path.length === 0 || path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || path.includes('\0')) {
+      return true;
+    }
+
+    return path.split(/[\\/]+/).some((segment) => segment === '..');
+  });
+}
+
 function isInDeclaredScope(request: AuthorizationRequest, story: Story): boolean {
   if (!Array.isArray(request.paths) || request.paths.length === 0) {
     return false;
@@ -52,6 +66,13 @@ export function authorizeRequest(
   story: Story,
   policy: PolicyDoc,
 ): AuthorizationDecision {
+  if (hasInvalidRequestPath(request)) {
+    return {
+      outcome: 'deny',
+      basis: ['FENCE-1', 'invalid-request-path'],
+    };
+  }
+
   if (isRuleGoverningRequest(request, policy)) {
     return {
       outcome: 'route',

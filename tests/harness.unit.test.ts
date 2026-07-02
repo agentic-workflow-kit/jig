@@ -572,3 +572,57 @@ test('P3-AC-4: unattended routed request parks and stops the run', async () => {
     ),
   );
 });
+
+test('P3-AC-4: unattended parked stories block dependent stories', async () => {
+  const events: RunEvent[] = [];
+  const worker = {
+    execute: async (story: { id: string }) => {
+      if (story.id === 's2') {
+        assert.fail(`Worker should not execute ${story.id}`);
+      }
+
+      if (story.id === 's3') {
+        return {
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        };
+      }
+
+      return {
+        outcome: 'success',
+        requests: [{ id: 'REQ-rule', kind: 'edit-rule-governing-file', paths: ['policies/local.json'] }],
+        evidence: { result: 'passed' },
+      };
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e: RunEvent) => events.push(e),
+    finalize: async () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 't1', scope: ['policies/**'], authority: { requests: ['edit-rule-governing-file'] } },
+        { id: 's2', title: 't2', dependsOn: ['s1'], scope: ['src/**'], authority: { requests: ['edit-files'] } },
+        { id: 's3', title: 't3', scope: ['src/**'], authority: { requests: ['edit-files'] } },
+      ],
+    },
+  };
+  const policy: PolicyDoc = {
+    policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true, ruleGoverningSurfaces: ['policies/**'] } },
+  };
+
+  const status = await harness.run(plan, {}, policy);
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(events.find((e) => e.family === 'story.parked' && e.storyId === 's1'));
+  assert.ok(events.find((e) => e.family === 'story.blocked' && e.storyId === 's2' && e.blockedBy === 's1'));
+  assert.ok(!events.find((e) => e.family === 'story.started' && e.storyId === 's2'));
+  assert.ok(events.find((e) => e.family === 'story.done' && e.storyId === 's3'));
+  assert.ok(events.find((e) => e.family === 'run.stopped' && e.reason === 'unattended-park'));
+  assert.deepStrictEqual(events.find((e) => e.family === 'run.stopped')?.unstarted, []);
+});

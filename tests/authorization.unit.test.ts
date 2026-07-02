@@ -77,6 +77,31 @@ test('P3-AC-3: out-of-scope edit-files request is denied fail-closed', () => {
   assert.deepStrictEqual(decision.basis, ['FENCE-1', 'out-of-declared-scope']);
 });
 
+test('P3-AC-3: traversal and absolute edit-files paths are denied before glob matching', () => {
+  const traversal = authorizeRequest(
+    { id: 'REQ-traversal', kind: 'edit-files', paths: ['src/../policies/local.json'] },
+    scopedStory,
+    policy,
+  );
+  const absolute = authorizeRequest(
+    { id: 'REQ-absolute', kind: 'edit-files', paths: ['/Users/example/repo/src/cli.ts'] },
+    scopedStory,
+    policy,
+  );
+  const windowsAbsolute = authorizeRequest(
+    { id: 'REQ-windows-absolute', kind: 'edit-files', paths: ['C:\\repo\\src\\cli.ts'] },
+    scopedStory,
+    policy,
+  );
+
+  assert.strictEqual(traversal.outcome, 'deny');
+  assert.deepStrictEqual(traversal.basis, ['FENCE-1', 'invalid-request-path']);
+  assert.strictEqual(absolute.outcome, 'deny');
+  assert.deepStrictEqual(absolute.basis, ['FENCE-1', 'invalid-request-path']);
+  assert.strictEqual(windowsAbsolute.outcome, 'deny');
+  assert.deepStrictEqual(windowsAbsolute.basis, ['FENCE-1', 'invalid-request-path']);
+});
+
 test('P3-AC-4: rule-governing request routes to owner', () => {
   const request: AuthorizationRequest = {
     id: 'REQ-policy',
