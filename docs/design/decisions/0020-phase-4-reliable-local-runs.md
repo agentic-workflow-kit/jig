@@ -82,6 +82,26 @@ Phase R/3 golden fixtures, but that copy is explicitly **non-authoritative**: th
 `events.jsonl`. Slimming `run.json` to a lean summary is a later, separable change and is **not**
 required by Phase 4 (it would churn the existing goldens for no Phase-4 benefit).
 
+**Authoritative launch header — the log carries what replay needs.** For `events.jsonl` to be
+authoritative in fact and not only in name, every value `inspect` and `resume` must recover
+_without_ `run.json` has to live in the log. Phase 4 therefore records a durable **launch header**
+as the first record of `events.jsonl`: the existing `run.started` event, extended to carry the
+authoritative launch metadata — `run.id`, `planId`, the launch `binding`
+(`policyRef`/`configRef`, the workspace fingerprint of §6, and the run-level redaction/export
+posture of §7), and a reference to the validated-plan snapshot of §3. This is **additive**: today
+`binding` is written only into `run.json` (`src/records.ts` `finalize`), so Phase 4 promotes it
+into the log without reshaping any existing field, and `run.json` keeps the same fields as a
+finalized cache. It reuses the existing `run.started` family, so **no new event family is minted**
+(§8).
+
+This settles decision **(a)** of the three the seam owner posed on this section, and it is the only
+one consistent with the authority commitment this ADR already makes: a sidecar
+authoritative-metadata file **(b)** would contradict "`events.jsonl` is authoritative" by creating a
+second source of truth; splitting inspect-only replay from resume **(c)** would break the
+crashed-run-without-`run.json` recovery that both P4-AC-4 (inspect) and resume depend on. Two
+implementers must both find run id, plan id, binding, workspace fingerprint, redaction/export
+posture, and the plan-snapshot reference in the log — not choose divergent storage models.
+
 ### 2. Inspect behavior
 
 `jig inspect <run-dir>` **replays `events.jsonl` by default**. It uses `run.json` only as a
@@ -108,7 +128,8 @@ jig resume <run-dir> --scripted-output <output>
 
 **Binding is verification-only, never rebinding.** If `--config`/`--policy`/`--plan` are accepted
 on resume, they are checked against the original recorded binding and are **verification-only**. A
-mismatch fails closed (§8 `resume-blocked-binding-mismatch`); they never rebind, widen, or swap the
+mismatch fails closed (§8 `resume-blocked-binding-mismatch` preflight diagnostic); they never
+rebind, widen, or swap the
 launch binding (GUARD-1, INV-003, INV-010; `../core/bootstrap.md` "Original-binding preservation
 rule").
 
@@ -203,19 +224,27 @@ consumes those facts and re-drives only genuinely non-terminal work.
 ### 6. Workspace continuity
 
 Phase 4 records a minimal **run-level** workspace fingerprint in the launch **binding** and checks
-it on resume. Chosen evidence (one, justified): **repo root path + git `HEAD` commit + working-tree
-dirty flag**, captured at launch and stored in the binding block. It rides on the binding record —
-already the launch-immutable, durable anchor — so no new durable store is introduced, and it is
-recomputable with local git alone.
+it on resume. Chosen evidence (one, justified): **repo root path + git `HEAD` commit + a content
+hash over the working-tree change set** — the hash covers `git status --porcelain` plus the tracked
+and staged working-tree diff, and a clean tree hashes to a fixed sentinel. It is captured at launch
+and stored in the binding block, which rides in the authoritative launch header of §1 — already the
+launch-immutable, durable anchor — so no new durable store is introduced, and it stays
+**recomputable with local git alone**.
+
+A bare `dirty` boolean is deliberately **rejected as insufficient**: two materially different dirty
+trees at the same `HEAD` both read `dirty=true`, so an equality check on a flag would pass and claim
+continuity across a workspace that changed while the run was stopped — violating P4-AC-6 / RESUME-4.
+Hashing the change set distinguishes them; the fingerprint is one opaque token for golden
+normalization (below).
 
 - At launch, bootstrap captures the fingerprint into `binding.workspace` (meaning fixed here;
   exact field encoding deferred, per §Context).
 - On resume, bootstrap recomputes the current fingerprint and compares (`../core/bootstrap.md`
   storage-preflight sits alongside this as a workspace-continuity preflight).
-- A **material** difference (different repo root, different `HEAD`, or a clean→dirty divergence
-  beyond an equality check) is a fail-closed, diagnosable outcome: resume is **refused** with a
-  `resume-blocked-workspace-mismatch` notice (§8), never silently claimed continuous (P4-AC-6,
-  RESUME-4).
+- A **material** difference — different repo root, different `HEAD`, or a different change-set hash
+  (including two distinct dirty trees at one `HEAD`) — is a fail-closed, diagnosable outcome: resume
+  is **refused** with a `resume-blocked-workspace-mismatch` diagnostic (§8), never silently claimed
+  continuous (P4-AC-6, RESUME-4).
 
 This is run-level continuity only. Per-story parallel-workspace isolation (ISO-4) and any
 remote-host or provider workspace proof stay **deferred** — Phase 4 does not overbuild them.
@@ -230,6 +259,12 @@ stay safe to keep and export by default (SEC-1, SEE-6). Field-level per-event po
 **phased in with the concepts that introduce sensitive values** (ADR 0017 decision 5) — local
 dry-run has no real secrets yet, so a run-level default plus fail-closed handling satisfies P4-AC-5
 without a premature per-record schema freeze (STOP-003).
+
+Because the run-level posture is part of the **launch header recorded in `events.jsonl`** (§1), a
+crashed run with no finalized `run.json` still recovers its posture by replay. The fail-closed
+handling below therefore triggers only when posture is **genuinely** absent or ambiguous — never
+merely because `run.json` is missing; the events-only inspect path (P4-AC-4) is not denied for lack
+of a cache.
 
 `records.md` is updated in the same PR so its per-record posture language and this run-level default
 do not ship in conflict (see § Required doc updates).
@@ -258,17 +293,27 @@ event family. The minimum notices Phase 4 projects:
 | run stopped — unattended park               | `run.stopped` `reason: unattended-park` + `checkpoint`                                        |
 | run stopped — evidence-gate failure         | `story.blocked` `reason: evidence-gate-failed` + the `run.stopped` it drove                   |
 | run stopped — policy / authorization denial | `authorization.denied` (+ run-scope denial per ADR 0017 decision 3) + the terminal run record |
-| resume blocked — binding mismatch           | resume-time comparison of passed inputs vs recorded `binding` (§3)                            |
-| resume blocked — workspace mismatch         | resume-time comparison of the workspace fingerprint vs `binding.workspace` (§6)               |
-| resume blocked — missing approval evidence  | resume-time check that a required owner decision / fresh evidence is absent (§4, RESUME-5)    |
-| redaction / export posture ambiguous        | the posture check on a record or run (§7)                                                     |
+| redaction / export posture ambiguous        | the posture check on a record or run, whose posture rides in the launch header (§1, §7)       |
 
-The three `resume-blocked-*` notices are projected at resume-preflight time from the comparison
-result. A refused resume does **not** transition to `resumed`: the run remains at its recorded stop,
-and the refusal surfaces as a notice plus a non-zero CLI exit with a diagnostic (FAIL-004 in
-`../core/bootstrap.md`). It appends no lifecycle event that would move the safe checkpoint. (The
-unattended-park re-stop in §4 step 3 is the one case that does append a fresh `run.stopped`, because
-there the run _did_ re-enter and re-halt.)
+**Resume-preflight diagnostics are not projections.** The three `resume-blocked-*` conditions —
+binding mismatch (§3), workspace mismatch (§6), and missing approval evidence (§4/§9) — are
+deliberately **excluded** from the table above, because none is a projection over the stopped run's
+log. Each is computed **live at resume preflight** by comparing a resume-time input (passed
+`--config`/`--policy`/`--plan`, the freshly recomputed workspace fingerprint, the presence of fresh
+owner evidence) against the recorded launch header. A refused resume never enters the run: it does
+**not** transition to `resumed`, appends **no** record, and moves no checkpoint. It surfaces as a
+live diagnostic — a `resume-blocked-*` message plus a non-zero CLI exit (FAIL-004 in
+`../core/bootstrap.md`) — recomputed deterministically from the recorded facts plus current
+workspace state, and is **not** replayable from the stopped run by a later `inspect`.
+
+This scoping is checked against the product guarantees and is safe: **no RESUME- or SEE- guarantee
+requires a _refused resume attempt_ to be inspectable after the fact.** RESUME-4 and SEE-1/SEE-3
+govern the run's own named states and the evidence Jig decides _from_ — the recorded facts a refusal
+compares against, which stay inspectable — not a ledger of rejected resume commands. Recording
+refused attempts as durable audit facts is a **named, deferred** enhancement (later provider / audit
+work), not a Phase-4 obligation; an implementer must not invent a refusal event family to satisfy
+these diagnostics. The lone case that _does_ append a fresh `run.stopped` is the unattended-park
+re-stop in §4 step 3, where the run genuinely re-entered and re-halted.
 
 ### 9. Resume-integrity gate (safety-relevant change while stopped)
 
@@ -276,7 +321,8 @@ Distinct from a binding _mismatch_ (§3): if a safety-relevant assumption change
 stopped — a rule-governing surface, verification, or integration-safety input — resume requires
 fresh owner re-approval and fresh evidence before continuing (RESUME-5, GUARD-2, INV-011;
 `../core/orchestration.md` `stopped → resumed` guard). Absent that durable re-approval evidence,
-resume is refused with the `resume-blocked-missing-approval` notice (§8). At Phase-4 local altitude
+resume is refused with the `resume-blocked-missing-approval` preflight diagnostic (§8). At Phase-4
+local altitude
 the _detection surface_ for "what changed while stopped" is scoped to what the run already records
 plus the workspace fingerprint (§6); a richer change-detection surface stays deferred to later
 provider/policy work and is named, not built, here.
@@ -284,10 +330,18 @@ provider/policy work and is named, not built, here.
 ## Consequences
 
 - The observability-records contract is clarified (not frozen): a run-level default redaction/export
-  posture at local altitude, and `binding.workspace` as a named binding sub-field. `records.md`,
-  `orchestration.md`, and `bootstrap.md` are updated surgically to name replay-derived inspect,
-  projected-checkpoint resume with independent-work re-eligibility, the no-double-effect handoff,
-  resume re-entry with binding+workspace verification, and the run-level posture reconciliation.
+  posture at local altitude, `binding.workspace` as a named binding sub-field, and the launch
+  binding/identity made recoverable from the event log itself (§1). `records.md`, `orchestration.md`,
+  and `bootstrap.md` are updated surgically to name replay-derived inspect, the authoritative launch
+  header, projected-checkpoint resume with independent-work re-eligibility, the no-double-effect
+  handoff, resume re-entry with binding+workspace verification, and the run-level posture
+  reconciliation.
+- The change is **additive** to the records shape: Phase 4 promotes `binding` (today written only to
+  `run.json`) into a durable `run.started` launch header at the head of `events.jsonl` — carrying
+  run id, plan id, binding, the workspace fingerprint, the redaction/export posture, and the
+  plan-snapshot reference — and appends a `run.resumed` continuation to the same log on resume. No
+  existing field changes shape and no event family is renamed, removed, or newly minted; `run.json`
+  keeps its embedded `events[]` cache non-authoritatively for Phase R/3 golden compatibility.
 - Phase 4 implementation adds a projection path (replay `events.jsonl`), a `jig resume` surface, a
   launch-time validated-plan snapshot, a workspace fingerprint in the binding, and run-level
   redaction/export posture with fail-closed inspect/export. It touches `src/cli.ts`,

@@ -21,10 +21,14 @@ no-double-effect/redaction/workspace semantics — it implements them. Where a d
 design-owned rather than a local implementation choice, this brief says so and routes it back to
 design per the stop conditions; do not fill gaps by invention.
 
-**Dependency: Phases R and 3 are delivered on current `main`** (through PR #24). Phase 4 extends
-the Phase R/3 records shape — the run-level `binding` block, `actor` on every event, `run.stopped`
-`reason`/`checkpoint`/`unstarted`, the `authorization.*` triad, and `runner-action.skipped-on-dry-run`.
-Verify the baseline gate (`corepack pnpm check` green) before editing runtime behavior.
+**Dependency: Phases R and 3 are delivered on current `main`** — Phase R via
+[PR #22](https://github.com/agentic-workflow-kit/jig/pull/22) and Phase 3 via
+[PR #23](https://github.com/agentic-workflow-kit/jig/pull/23); the later
+[PR #24](https://github.com/agentic-workflow-kit/jig/pull/24) was only a post-Phase-3 wording
+cleanup, not a records change. Phase 4 extends the Phase R/3 records shape — the run-level `binding`
+block, `actor` on every event, `run.stopped` `reason`/`checkpoint`/`unstarted`, the
+`authorization.*` triad, and `runner-action.skipped-on-dry-run`. Verify the baseline gate
+(`corepack pnpm check` green) before editing runtime behavior.
 
 ## Source files to read
 
@@ -119,7 +123,8 @@ Structure for ownership clarity; a different split is fine if ownership and depe
   compute the resume plan (which stories are terminal / eligible / to re-drive), and re-enter the
   harness. **Depends on** `projection`, `workspace`, `records`, `harness`, `authorization`.
 - `src/workspace.ts` — capture and compare the run-level workspace fingerprint (repo root + git
-  `HEAD` + dirty flag). **Depended on by** bootstrap-at-launch and `resume`.
+  `HEAD` + a content hash over the working-tree change set). **Depended on by** bootstrap-at-launch
+  and `resume`.
 - `src/redaction.ts` — the run-level default posture and the fail-closed inspect/export guard.
   **Depended on by** `records`/`inspect`.
 - `tests/projection.unit.test.ts`, `tests/resume.unit.test.ts` — unit coverage for the two new
@@ -153,17 +158,26 @@ sourced from the projection.
 
 ### Slice 3 — Launch-time durability: plan snapshot + workspace fingerprint + posture (ADR 0020 §3, §6, §7)
 
-At `start`, in addition to the existing binding record:
+At `start`, extend the launch record so the log is self-sufficient for replay:
 
 - **Write a validated-plan snapshot** into the run directory (e.g. `plan.snapshot.json`) so resume
   is records-backed and does not need an external plan file.
-- **Capture the workspace fingerprint** (repo root + git `HEAD` + dirty flag) into
-  `binding.workspace`.
-- **Record the run-level redaction/export posture** on the run record (default `safe-for-owner-record`
-  / export `redacted`).
+- **Record an authoritative launch header** as the first record of `events.jsonl` — the
+  `run.started` event carrying `run.id`, `planId`, the launch `binding`, the workspace fingerprint,
+  the run-level redaction/export posture (default `safe-for-owner-record` / export `redacted`), and
+  a reference to the plan snapshot (ADR 0020 §1). Today `binding` is written only into `run.json`
+  (`src/records.ts` `finalize`); this promotes it into the log **additively**, reusing the
+  `run.started` family (no new family). This is what lets events-only inspect and resume recover
+  binding, fingerprint, and posture when `run.json` is absent.
+- **Capture the workspace fingerprint** — repo root + git `HEAD` + a content hash over the
+  working-tree change set (`git status --porcelain` + tracked/staged diff; clean tree → sentinel
+  hash) — into `binding.workspace`, so two materially different dirty trees at one `HEAD` do not
+  collide (ADR 0020 §6).
+- **Keep `run.json` as a finalized cache** carrying the same fields; it stays non-authoritative
+  (ADR 0020 §1).
 
-These are additive record fields; keep them out of the per-event stream (run-level only). Guard the
-Phase R/3 goldens — see the golden fixture plan for normalization.
+Guard the Phase R/3 goldens — see the golden fixture plan for normalization (the fingerprint
+normalizes to a single `<WORKSPACE>` token).
 
 ### Slice 4 — Resume command and re-entry (ADR 0020 §3, §4, §9) → P4-AC-1, P4-AC-2, P4-AC-3
 
@@ -192,18 +206,26 @@ Append events into the **same** `events.jsonl`; the run continues to `completed`
 
 ### Slice 5 — Redaction/export fail-closed surface (ADR 0020 §7) → P4-AC-5
 
-`redaction`: enforce the run-level default posture and fail closed on ambiguity — unknown posture →
-inspect/export denied or constrained with a `redaction-export-posture-ambiguous` diagnostic; export
-under unsafe/ambiguous posture → denied (never best-effort emitted); inspect never surfaces raw
-sensitive values, only the posture and the class of withheld value. (Local dry-run has no real
-secrets; this proves the fail-closed _posture_, not a scanner.)
+`redaction`: enforce the run-level default posture and fail closed on ambiguity. Posture is read
+from the launch header in `events.jsonl` (Slice 3 / ADR 0020 §1), so an events-only inspect of a
+crashed run has posture without `run.json`; fail-closed triggers only on **genuinely** unknown or
+ambiguous posture, never merely because the cache is absent. Unknown posture → inspect/export denied
+or constrained with a `redaction-export-posture-ambiguous` diagnostic; export under
+unsafe/ambiguous posture → denied (never best-effort emitted); inspect never surfaces raw sensitive
+values, only the posture and the class of withheld value. (Local dry-run has no real secrets; this
+proves the fail-closed _posture_, not a scanner.)
 
 ### Slice 6 — Causal notices as projections (ADR 0020 §8)
 
 Project the minimum notice set from recorded facts (no new event family): unattended-park stop,
-evidence-gate-failure stop, policy/authorization-denial stop, and the three `resume-blocked-*`
-notices plus `redaction-export-posture-ambiguous`. Surface them through `inspect` and as the reason
-a refused resume reports (non-zero exit + diagnostic; no lifecycle event that moves the checkpoint).
+evidence-gate-failure stop, policy/authorization-denial stop, and `redaction-export-posture-ambiguous`
+(posture read from the launch header). Surface these through `inspect`.
+
+The three `resume-blocked-*` conditions are **not** projections and are not `inspect` notices (ADR
+0020 §8): they are computed live at resume preflight from resume-time inputs vs the recorded launch
+header, and a refused resume appends no record and moves no checkpoint. Emit them only as the reason
+a refused `resume` reports (non-zero exit + stderr diagnostic). Do **not** invent a refusal event
+family to make them replayable — recording refused attempts is a named, deferred enhancement.
 
 ## Acceptance criteria (binding — from `phases.md`)
 
@@ -254,7 +276,10 @@ refused (workspace mismatch)`.
 
 - **New: an `events.jsonl`-only fixture with no `run.json`.** This is a **new fixture shape** (raw
   jsonl lines, not the combined `run.json` doc) asserted against the **projection output** — the
-  crashed-run path for P4-AC-4. It must not have a companion `run.json`.
+  crashed-run path for P4-AC-4. It must not have a companion `run.json`. Its first line is the
+  `run.started` launch header carrying binding, workspace fingerprint, and redaction/export posture,
+  so the test proves the projection recovers run id, binding, and posture from the log alone (ADR
+  0020 §1) — not from a cache.
 - **New: a resume causal-chain golden.** Start → `unattended-park` stop (reuse the canonical triad),
   then resume: assert the continued `events.jsonl` (a `run.resumed`, the resolved park, terminal
   progress, and either `run.completed` or a fresh `run.stopped`) and that no terminal event or

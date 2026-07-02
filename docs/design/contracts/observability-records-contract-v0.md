@@ -173,8 +173,14 @@ re-run checks when appropriate without pushing, opening, merging, or approving t
 Records must also show when safety-relevant assumptions changed while the run was stopped and
 why re-approval or fresh evidence was required before continuing. To support the workspace-
 continuity check that resume performs, the run's input binding may carry a run-level workspace
-fingerprint (e.g. repo root, `HEAD`, dirty flag); its meaning is named here, its exact encoding
-deferred to schema freeze ([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)).
+fingerprint (e.g. repo root, `HEAD`, and a content hash over the working-tree change set that
+distinguishes materially different dirty trees at one `HEAD`); its meaning is named here, its exact
+encoding deferred to schema freeze ([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)).
+
+The launch binding and run identity must be recoverable from the durable event log itself, not only
+from a finalized summary, so a crashed run whose finalized summary is absent stays inspectable and
+resumable ([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §1); the carrier event and
+its exact encoding are deferred to schema freeze.
 
 ### Redaction, Retention, and Export Posture
 

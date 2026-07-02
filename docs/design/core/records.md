@@ -233,6 +233,13 @@ this engine without freezing schema:
   `events.jsonl` (§1–2 of the ADR), so a crashed run with no finalized `run.json` is still
   inspectable. When a cached `run.json` conflicts with the log, the log wins and a staleness
   diagnostic is surfaced.
+- **The log carries its own launch header.** So replay is genuinely self-sufficient, the
+  authoritative launch metadata — `run.id`, `planId`, the launch `binding`, the workspace
+  fingerprint, the run-level redaction/export posture, and the plan-snapshot reference — rides in a
+  durable launch header (the `run.started` record at the head of `events.jsonl`), not only in the
+  cached `run.json`. Today `binding` is written only into `run.json`; Phase 4 promotes it into the
+  log additively, reusing the `run.started` family and minting no new family (ADR 0020 §1). A
+  crashed run recovers all of it by replay.
 - **Projection failure is fail-closed and diagnosable.** Malformed events, a missing required
   Phase R/3 field, or an illegal replayed transition are correctness failures: inspect surfaces a
   diagnosable stop and resume refuses, rather than guessing past corruption or repairing the log

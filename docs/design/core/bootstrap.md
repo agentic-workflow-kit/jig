@@ -413,9 +413,15 @@ Phase 4 local surface without changing its ownership:
   resumed story's declared `scope`. Bootstrap therefore **persists a validated-plan snapshot into
   the run directory at launch** (alongside the binding record) and reads it back on resume, rather
   than depending on an external plan file the operator kept unchanged.
+- **Authoritative launch header.** So resume and inspect can read the launch metadata without
+  `run.json`, bootstrap records the binding — `run.id`, `planId`, `binding` (including the workspace
+  fingerprint and run-level redaction/export posture), and the plan-snapshot reference — into a
+  durable launch header at the head of `events.jsonl` (the `run.started` record), not only into the
+  finalized `run.json`. This is additive and mints no new event family (ADR 0020 §1).
 - **Workspace-continuity preflight.** Alongside storage preflight, resume recomputes the run-level
-  workspace fingerprint recorded in `binding.workspace` (repo root + git `HEAD` + dirty flag) and
-  compares it. A material difference is fail-closed and diagnosable
+  workspace fingerprint recorded in `binding.workspace` (repo root + git `HEAD` + a content hash
+  over the working-tree change set, so two materially different dirty trees at one `HEAD` do not
+  collide) and compares it. A material difference is fail-closed and diagnosable
   (`resume-blocked-workspace-mismatch`), never silently claimed continuous (RESUME-4, P4-AC-6).
 - **Identity is preserved, not reallocated.** Resume keeps the same run id and does **not** increment
   `attempt` (which denotes a distinct run instance per
