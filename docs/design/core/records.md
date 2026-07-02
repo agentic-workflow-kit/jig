@@ -223,6 +223,35 @@ A governed append lacking valid redaction/export posture, or carrying unknown or
 is rejected rather than guessed through. Inspect and export are denied or constrained until valid
 posture exists on the accepted record path.
 
+### Phase 4 local altitude — replay-inspect and run-level posture (ADR 0020)
+
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) settles the Phase 4 local reading of
+this engine without freezing schema:
+
+- **Replay is the inspect basis.** `events.jsonl` is the authoritative history; `run.json` is a
+  finalized/cached summary only. `jig inspect` and resume derive their view by replaying
+  `events.jsonl` (§1–2 of the ADR), so a crashed run with no finalized `run.json` is still
+  inspectable. When a cached `run.json` conflicts with the log, the log wins and a staleness
+  diagnostic is surfaced.
+- **The log carries its own launch header.** So replay is genuinely self-sufficient, the
+  authoritative launch metadata — `run.id`, `planId`, the launch `binding`, the workspace
+  fingerprint, the run-level redaction/export posture, and the plan-snapshot reference — rides in a
+  durable launch header (the `run.started` record at the head of `events.jsonl`), not only in the
+  cached `run.json`. Today `binding` is written only into `run.json`; Phase 4 promotes it into the
+  log additively, reusing the `run.started` family and minting no new family (ADR 0020 §1). A
+  crashed run recovers all of it by replay.
+- **Projection failure is fail-closed and diagnosable.** Malformed events, a missing required
+  Phase R/3 field, or an illegal replayed transition are correctness failures: inspect surfaces a
+  diagnosable stop and resume refuses, rather than guessing past corruption or repairing the log
+  (RESUME-4; the "Failure posture" rules above).
+- **Run-level default posture at local altitude.** The per-record posture rule above is the v0
+  design altitude. At Phase 4 local altitude a **run-level default posture** applies
+  (`safe-for-owner-record` / export `redacted`); field-level per-record posture phases in with the
+  concepts that introduce sensitive values (the phasing posture of
+  [ADR 0017](../decisions/0017-records-seam-reconciliation.md) decision 5), because local dry-run
+  carries no real secrets yet. Unknown or ambiguous posture stays fail-closed: inspect/export is
+  denied or constrained and the ambiguity becomes an operator-visible diagnosable stop.
+
 ## Records/evidence surface
 
 Records remains the durable evidence substrate for both runtime decisions and later inspection:
