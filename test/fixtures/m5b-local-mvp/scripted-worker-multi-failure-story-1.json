@@ -1,0 +1,14 @@
+{
+  "stories": [
+    {
+      "storyId": "STORY-1",
+      "outcome": "failure",
+      "exitCode": 1,
+      "stdout": "Failing intentionally",
+      "error": "Failing intentionally",
+      "evidence": {
+        "result": "failed"
+      }
+    }
+  ]
+}

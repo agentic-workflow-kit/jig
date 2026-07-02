@@ -22,22 +22,69 @@ export class LocalHarness {
     }
 
     let runStatus = 'success';
+    const failedStoryIds = new Set();
+    const completedStoryIds = new Set();
 
-    for (const story of plan.stories) {
+    for (let i = 0; i < plan.stories.length; i++) {
+      const story = plan.stories[i];
+
+      if (runStatus !== 'success') {
+        const isBlocked = story.dependsOn && story.dependsOn.some(depId => failedStoryIds.has(depId));
+        if (isBlocked) {
+          const blockedBy = story.dependsOn.find(depId => failedStoryIds.has(depId));
+          this.recordManager.recordEvent({
+            family: 'story.blocked',
+            storyId: story.id,
+            blockedBy,
+            reason: `Dependency "${blockedBy}" failed`
+          });
+          failedStoryIds.add(story.id); // Transitive blocking
+        } else {
+          this.recordManager.recordEvent({
+            family: 'story.skipped',
+            storyId: story.id,
+            reason: 'run stopped after failure'
+          });
+        }
+        continue;
+      }
+
       this.recordManager.recordEvent({ family: 'story.started', storyId: story.id });
 
       try {
         const result = await this.worker.execute(story);
+
+        // Validate evidence requirement
+        if (!result.evidence || result.evidence.result === undefined) {
+           runStatus = 'failure';
+           failedStoryIds.add(story.id);
+           this.recordManager.recordEvent({
+             family: 'story.failed',
+             storyId: story.id,
+             diagnostics: {
+               error: 'Worker result missing required evidence or evidence result'
+             }
+           });
+           continue;
+        }
+
         this.recordManager.recordEvent({
           family: 'evidence.observed',
           storyId: story.id,
-          result: result.evidence.result
+          result: result.evidence.result,
+          changedFiles: result.changedFiles
         });
 
         if (result.outcome === 'success') {
-          this.recordManager.recordEvent({ family: 'story.done', storyId: story.id });
+          this.recordManager.recordEvent({
+            family: 'story.done',
+            storyId: story.id,
+            changedFiles: result.changedFiles
+          });
+          completedStoryIds.add(story.id);
         } else {
           runStatus = 'failure';
+          failedStoryIds.add(story.id);
           this.recordManager.recordEvent({
             family: 'story.failed',
             storyId: story.id,
@@ -48,16 +95,17 @@ export class LocalHarness {
               error: result.error
             }
           });
-          break;
         }
       } catch (err) {
         runStatus = 'failure';
+        failedStoryIds.add(story.id);
         this.recordManager.recordEvent({
           family: 'story.failed',
           storyId: story.id,
-          error: err.message
+          diagnostics: {
+             error: err.message
+          }
         });
-        break;
       }
     }
 

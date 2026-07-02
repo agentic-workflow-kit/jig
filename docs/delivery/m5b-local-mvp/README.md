@@ -36,10 +36,10 @@ provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
 - [Feature inventory](./feature-inventory.md) — P0-P3 priority by client value.
 - [Phase details](./phases.md) — value, requirements, acceptance, evidence, stops, references, and
   non-goals for each phase.
-- [Phase 0 implementation brief](./implementation-briefs/phase-0-delivery-foundation.md) — session-ready
-  brief for delivery foundation work.
-- [Phase 1 implementation brief](./implementation-briefs/phase-1-local-plan-runner.md) — session-ready
-  brief for the scripted-worker local plan runner.
+- [Phase 0 implementation brief](./implementation-briefs/phase-0-delivery-foundation.md) — session-ready brief for delivery foundation work.
+- [Phase 1 implementation brief](./implementation-briefs/phase-1-local-plan-runner.md) — session-ready brief for the scripted-worker local plan runner.
+- [Phase 2A implementation brief](./implementation-briefs/phase-2a-local-workflow-runner.md) — session-ready brief for multi-item local workflow execution.
+- [Phase 2B implementation brief](./implementation-briefs/phase-2b-local-workflow-inspect.md) — session-ready brief for inspectable local workflow results.
 
 ## Preserved Gates
 
