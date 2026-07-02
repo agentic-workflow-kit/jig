@@ -1,10 +1,13 @@
+import type { PlanInstance, Story } from './types.js';
+
+// biome-ignore lint/complexity/noStaticOnlyClass: public shape preserved 1:1 from the JS port; API form is a Phase R decision
 export class PlanValidator {
-  static validate(planInstance) {
-    if (!planInstance || !planInstance.plan) {
+  static validate(planInstance: unknown): PlanInstance {
+    if (!planInstance || !(planInstance as PlanInstance).plan) {
       throw new Error('Invalid plan: missing root "plan" object');
     }
 
-    const { plan } = planInstance;
+    const { plan } = planInstance as PlanInstance;
 
     if (plan.version !== 'execution-plan-shape-v0') {
       throw new Error(`Invalid plan: unknown version "${plan.version}"`);
@@ -24,8 +27,8 @@ export class PlanValidator {
     }
 
     // Basic structure validation for stories
-    const seenStoryIds = new Set();
-    for (const story of plan.stories) {
+    const seenStoryIds = new Set<string>();
+    for (const story of plan.stories as Story[]) {
       if (!story.id || !story.title) {
         throw new Error(`Invalid story: missing "id" or "title" in ${JSON.stringify(story)}`);
       }
@@ -48,7 +51,9 @@ export class PlanValidator {
             throw new Error(`Invalid story: self-dependency not allowed in "${story.id}"`);
           }
           if (!seenStoryIds.has(depId)) {
-            throw new Error(`Invalid story: dependency "${depId}" in "${story.id}" is unknown or appears later in the plan (late dependency)`);
+            throw new Error(
+              `Invalid story: dependency "${depId}" in "${story.id}" is unknown or appears later in the plan (late dependency)`,
+            );
           }
         }
       }
@@ -56,6 +61,6 @@ export class PlanValidator {
       seenStoryIds.add(story.id);
     }
 
-    return planInstance;
+    return planInstance as PlanInstance;
   }
 }

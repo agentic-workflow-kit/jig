@@ -5,7 +5,7 @@
     "title": "Minimal Local Plan",
     "track": {
       "id": "local-track",
-      "policyRef": "test/fixtures/m5b-local-mvp/local-policy.json",
+      "policyRef": "tests/fixtures/m5b-local-mvp/local-policy.json",
       "workProfileRef": "local-work-profile",
       "repoFloorRef": "local-floor"
     },

@@ -1,12 +1,13 @@
-import { PlanValidator } from './plan-validator.js';
-import { loadJson, loadConfig, loadPolicy } from './loaders.js';
-import { LocalHarness } from './harness.js';
-import { ScriptedWorker } from './worker.js';
-import { RecordManager } from './records.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { LocalHarness } from './harness.js';
+import { loadConfig, loadJson, loadPolicy } from './loaders.js';
+import { PlanValidator } from './plan-validator.js';
+import { RecordManager } from './records.js';
+import type { PlanInstance, RunRecord } from './types.js';
+import { ScriptedWorker } from './worker.js';
 
-export async function run() {
+export async function run(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -20,51 +21,54 @@ export async function run() {
   }
 }
 
-function printUsage() {
+function printUsage(): void {
   console.error('Usage:');
   console.error('  jig run <plan> [--config <config>] [--policy <policy>] [--scripted-output <output>]');
   console.error('  jig inspect <run-directory>');
 }
 
-async function handleRun(args) {
+async function handleRun(args: string[]): Promise<void> {
   if (!args[0]) {
     printUsage();
     process.exit(1);
   }
 
   const planPath = args[0];
-  const configPath = getArg(args, '--config') || 'test/fixtures/m5b-local-mvp/local-config.json';
-  const policyPath = getArg(args, '--policy') || 'test/fixtures/m5b-local-mvp/local-policy.json';
-  const scriptedOutputPath = getArg(args, '--scripted-output') || 'test/fixtures/m5b-local-mvp/scripted-worker-success.json';
+  const configPath = getArg(args, '--config') || 'tests/fixtures/m5b-local-mvp/local-config.json';
+  const policyPath = getArg(args, '--policy') || 'tests/fixtures/m5b-local-mvp/local-policy.json';
+  const scriptedOutputPath =
+    getArg(args, '--scripted-output') || 'tests/fixtures/m5b-local-mvp/scripted-worker-success.json';
 
   try {
     const planInstance = loadJson(planPath);
     try {
       PlanValidator.validate(planInstance);
     } catch (err) {
-      throw new Error(`Plan validation failed for "${planPath}": ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Plan validation failed for "${planPath}": ${message}`);
     }
 
     const config = loadConfig(configPath);
     const policy = loadPolicy(policyPath);
     const scriptedOutput = loadJson(scriptedOutputPath);
 
-    const worker = new ScriptedWorker(scriptedOutput);
+    const worker = new ScriptedWorker(scriptedOutput as Record<string, unknown>);
     const recordManager = new RecordManager();
     const harness = new LocalHarness(worker, recordManager);
 
-    const status = await harness.run(planInstance, config, policy);
+    const status = await harness.run(planInstance as PlanInstance, config, policy);
 
     if (status !== 'success') {
       process.exit(1);
     }
   } catch (err) {
-    console.error(`Error: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
     process.exit(1);
   }
 }
 
-async function handleInspect(args) {
+async function handleInspect(args: string[]): Promise<void> {
   const runDir = args[0];
   if (!runDir) {
     printUsage();
@@ -83,7 +87,7 @@ async function handleInspect(args) {
   }
 
   try {
-    const runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8'));
+    const runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
     const { run, events } = runRecord;
 
     console.log('\n--- Run Inspection ---');
@@ -96,11 +100,13 @@ async function handleInspect(args) {
     console.log(`Records Directory: ${runDir}`);
 
     // Item-level outcomes
-    const items = events.filter(e => ['story.done', 'story.failed', 'story.blocked', 'story.skipped'].includes(e.family));
+    const items = events.filter((e) =>
+      ['story.done', 'story.failed', 'story.blocked', 'story.skipped'].includes(e.family),
+    );
     if (items.length > 0) {
       console.log('\nItems:');
       for (const item of items) {
-        let outcome = item.family.replace('story.', '');
+        const outcome = item.family.replace('story.', '');
         let details = '';
         if (item.family === 'story.blocked') {
           details = ` (blocked by ${item.blockedBy})`;
@@ -121,20 +127,21 @@ async function handleInspect(args) {
         }
       }
     } else if (run.status === 'failure') {
-      const deniedEvent = events.find(e => e.family === 'run.denied');
+      const deniedEvent = events.find((e) => e.family === 'run.denied');
       if (deniedEvent) {
-         console.log(`Reason: ${deniedEvent.reason}`);
+        console.log(`Reason: ${deniedEvent.reason}`);
       }
     }
 
     console.log('----------------------\n');
   } catch (err) {
-    console.error(`Error: Failed to parse run.json: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: Failed to parse run.json: ${message}`);
     process.exit(1);
   }
 }
 
-function getArg(args, name) {
+function getArg(args: string[], name: string): string | null {
   const index = args.indexOf(name);
   if (index !== -1 && args[index + 1]) {
     return args[index + 1];
