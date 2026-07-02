@@ -1,9 +1,17 @@
 ---
 title: "M5b local MVP delivery roadmap"
-status: draft
+status: superseded
 ---
 
 # M5b local MVP delivery roadmap
+
+> **Superseded.** This roadmap is preserved as the historical record of the track that
+> delivered Phases 0-2 (PRs #14-#16). The live track is
+> [`../m5b-local-mvp-r2/`](../m5b-local-mvp-r2/README.md), which starts from delivered
+> reality, maps the org-M5 exit criteria, and sequences the remaining phases. Files in this
+> directory are period-accurate history: paths and claims reflect the repo before the
+> post-Phase-2 remediation (e.g. fixtures lived under `test/`, not `tests/`). Do not update
+> them.
 
 M5b delivery is organized around client-usable milestones: what an operator can do after each phase
 lands. The roadmap still preserves the proof surfaces from Wave 6, but it does not name phases by
