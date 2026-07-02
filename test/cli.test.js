@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
 test("CLI smoke test: valid minimal plan", () => {
@@ -213,20 +213,26 @@ test("CLI inspect test: shows changed files if present", () => {
     evidence: { result: "passed" },
   };
   const scriptedPath = "test/fixtures/m5b-local-mvp/scripted-with-files.json";
-  writeFileSync(scriptedPath, JSON.stringify(scriptedWithFiles));
+  writeFileSync(scriptedPath, JSON.stringify(scriptedWithFiles, null, 2));
 
-  const runOutput = execSync(
-    `node bin/jig.js run test/fixtures/m5b-local-mvp/minimal-plan.json --scripted-output ${scriptedPath}`,
-    { encoding: "utf8" },
-  );
-  const runDirMatch = runOutput.match(
-    /Records Directory: (runs\/run-plan-minimal-local-\d+)/,
-  );
-  if (runDirMatch) {
-    const runDir = runDirMatch[1];
-    const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, {
-      encoding: "utf8",
-    });
-    assert.match(inspectOutput, /Changed files: src\/cli.js, src\/records.js/);
+  try {
+    const runOutput = execSync(
+      `node bin/jig.js run test/fixtures/m5b-local-mvp/minimal-plan.json --scripted-output ${scriptedPath}`,
+      { encoding: "utf8" },
+    );
+    const runDirMatch = runOutput.match(
+      /Records Directory: (runs\/run-plan-minimal-local-\d+)/,
+    );
+    if (runDirMatch) {
+      const runDir = runDirMatch[1];
+      const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, {
+        encoding: "utf8",
+      });
+      assert.match(inspectOutput, /Changed files: src\/cli.js, src\/records.js/);
+    }
+  } finally {
+    if (existsSync(scriptedPath)) {
+      unlinkSync(scriptedPath);
+    }
   }
 });
