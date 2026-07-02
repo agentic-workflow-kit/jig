@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ConfigDoc, Plan, PolicyDoc, RecordSink, RunEvent, RunRecord, RunStatus } from './types.js';
 
-const ITEM_FAMILIES = ['story.done', 'story.blocked'];
+const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
 
 function describeConfigBinding(config: ConfigDoc): string {
   const mode = config.runner?.mode ?? 'unknown-mode';
@@ -90,6 +90,8 @@ export class RecordManager implements RecordSink {
         let details = '';
         if (item.family === 'story.blocked') {
           details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
+        } else if (item.family === 'story.skipped') {
+          details = ` (${item.reason})`;
         }
         console.log(`  - ${item.storyId}: ${outcome}${details}`);
       }

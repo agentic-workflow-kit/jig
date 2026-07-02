@@ -341,6 +341,41 @@ test('run(): inspect renders a sparse record: no mode, diagnostics without optio
   assert.doesNotMatch(inspectOutput, /stdout:/);
 });
 
+test('PR-AC-4: inspect preserves historical story.failed and story.skipped aliases', async () => {
+  const runDir = join(workDir, 'historical-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  const historicalRecord = {
+    run: { id: 'old-run', status: 'failure', planId: 'old-plan' },
+    events: [
+      {
+        family: 'story.failed',
+        storyId: 'STORY-1',
+        diagnostics: {
+          exitCode: 1,
+          error: 'old failure',
+        },
+      },
+      {
+        family: 'story.skipped',
+        storyId: 'STORY-2',
+        reason: 'run stopped after failure',
+      },
+    ],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(historicalRecord, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const inspectOutput = loggedLines();
+  assert.match(inspectOutput, /- STORY-1: failed/);
+  assert.match(inspectOutput, /Diagnostics:/);
+  assert.match(inspectOutput, /exitCode: 1/);
+  assert.match(inspectOutput, /error: old failure/);
+  assert.match(inspectOutput, /- STORY-2: skipped \(run stopped after failure\)/);
+});
+
 test('run(): invalid plan path surfaces the validation error and exits 1', async () => {
   setArgv(
     'run',

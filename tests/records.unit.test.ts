@@ -110,3 +110,20 @@ test('PR-AC-3: every event carries actor and run.json carries binding', async ()
     configRef: `mode=local-dry-run;recordDir=${recordDir}`,
   });
 });
+
+test('PR-AC-4: run summary preserves historical story.skipped aliases', async () => {
+  const recordDir = tempRecordDir();
+  const manager = new RecordManager();
+  const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  manager.init(plan(), config(recordDir), policy);
+  manager.recordEvent({
+    family: 'story.skipped',
+    storyId: 'STORY-2',
+    reason: 'run stopped after failure',
+  });
+  await manager.finalize('failure');
+
+  const output = (logSpy.mock.calls as unknown[][]).map((call) => call.join(' ')).join('\n');
+  assert.match(output, /- STORY-2: skipped \(run stopped after failure\)/);
+});

@@ -104,7 +104,9 @@ async function handleInspect(args: string[]): Promise<void> {
     console.log(`Records Directory: ${runDir}`);
 
     // Item-level outcomes
-    const items = events.filter((e) => ['story.done', 'story.blocked'].includes(e.family));
+    const items = events.filter((e) =>
+      ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(e.family),
+    );
     if (items.length > 0) {
       console.log('\nItems:');
       for (const item of items) {
@@ -112,10 +114,12 @@ async function handleInspect(args: string[]): Promise<void> {
         let details = '';
         if (item.family === 'story.blocked') {
           details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
+        } else if (item.family === 'story.skipped') {
+          details = ` (${item.reason})`;
         }
         console.log(`  - ${item.storyId}: ${outcome}${details}`);
 
-        if (item.family === 'story.blocked' && item.diagnostics) {
+        if ((item.family === 'story.blocked' || item.family === 'story.failed') && item.diagnostics) {
           console.log('    Diagnostics:');
           if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
           if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
