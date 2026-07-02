@@ -1,16 +1,17 @@
 # jig
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status: early / planned](https://img.shields.io/badge/status-early%20%2F%20planned-f5a623.svg)](#status)
+[![Status: early / walking skeleton](https://img.shields.io/badge/status-early%20%2F%20walking%20skeleton-f5a623.svg)](#status)
 
 > The deterministic execution engine of the agentic-workflow-kit suite: give it an approved
 > plan and a policy, and it turns that plan into reviewed, landed work — or a deliberate,
 > inspectable stop.
 
-`jig` is the tool you run (`jig`, the package `@agentic-workflow-kit/jig`). You hand it an
-**execution plan** and a **policy**; it delivers the work as far as the policy allows, pulls
-you in for the decisions only you should make, and lands changes **only on evidence** — never
-on the agent's say-so. When work shouldn't continue, it stops in a named, recoverable state.
+`jig` is the tool you run (`jig`, shipping eventually as `@agentic-workflow-kit/jig` — not yet
+published). You hand it an **execution plan** and a **policy**; it delivers the work as far as
+the policy allows, pulls you in for the decisions only you should make, and lands changes
+**only on evidence** — never on the agent's say-so. When work shouldn't continue, it stops in
+a named, recoverable state.
 
 It exists because long-running agentic delivery breaks at the seams — control, trust,
 recovery, and integration. Jig keeps the parts only a human should own (direction, policy,
@@ -18,23 +19,41 @@ risky calls) and delegates the rest under guarantees you can inspect.
 
 ## Status
 
-> 🚧 Early. The **product layer is drafted** (see [`docs/product/`](docs/product/)); the
-> engineering design and implementation are being built **fresh in this repo** next. This
-> repository is the canonical home for Jig going forward.
+Early, and now runnable: M5b Phases 0–2 delivered a TypeScript walking skeleton. The product
+layer, the engineering design layer (contracts, state tables, ADRs), and a delivery track are
+all live in this repo, and a minimal CLI executes plans in **local dry-run only** against a
+scripted-stub worker, writing durable run records. Plan preview, real policy adjudication (the
+fence), and real workers arrive in later phases — the delivery track README is the honest map
+of what exists versus what is planned. This repository is the canonical home for Jig.
+
+## Usage (current surface)
+
+```bash
+pnpm build   # emits dist/, which the CLI shim runs
+
+# Execute a plan (local dry-run; scripted worker):
+node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json
+
+# Inspect the durable records the run produced:
+node bin/jig.js inspect runs/<run-directory-from-the-output>
+```
+
+`jig run` validates the plan against the execution-plan contract, applies the local dry-run
+policy gate, executes stories in dependency order through the scripted worker, and writes
+`run.json` plus an append-only `events.jsonl`. `jig inspect` renders a run's outcome,
+per-item results, diagnostics, and denial reasons from those records.
 
 ## Development
-
-This repository currently has a tooling-only package. It validates the docs and repo metadata; it
-does not publish `@agentic-workflow-kit/jig` yet and intentionally has no package exports or CLI
-entry point.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` is the required local and CI gate. The CI workflow exposes a job named `check` for pull
-requests and pushes to `main`.
+`pnpm check` is the required local and CI gate: biome (code format + lint), prettier
+(Markdown/YAML), `tsc -b` (strict TypeScript; emits `dist/`), the delivery-foundation check,
+and vitest with coverage thresholds enforced at 90%. The CI workflow exposes a job named
+`check` for pull requests and pushes to `main`.
 
 ## What Jig promises
 
@@ -60,7 +79,10 @@ Five guarantees, in plain terms — the full contract is in
 | [docs/product/guarantees.md](docs/product/guarantees.md) | The five guarantees in full, ID-bearing detail.                                                |
 | [docs/product/use-cases.md](docs/product/use-cases.md)   | Worked scenarios that make each guarantee concrete.                                            |
 | [docs/product/concepts.md](docs/product/concepts.md)     | Product concepts — starting with **tracks**.                                                   |
-| [docs/design/](docs/design/)                             | Engineering design — _how_ the promises are met. _(Next step.)_                                |
+| [docs/design/](docs/design/)                             | Engineering design — the two v0 contracts, state tables, and the ADR log. Live.                |
+| [docs/delivery/](docs/delivery/)                         | The delivery track: phase ladder, acceptance criteria, implementation briefs.                  |
+| [docs/planning/](docs/planning/)                         | How the design authoring work was sequenced and traced.                                        |
+| [docs/reviews/](docs/reviews/)                           | Point-in-time repository reviews and their findings.                                           |
 | [skills/](skills/)                                       | Local agent runbooks. These are composition guidance, not runtime or CLI surfaces.             |
 
 ## Relationship to the suite
@@ -73,8 +95,8 @@ input; they're strong defaults, not prerequisites. Jig's one hard input boundary
 execution plan.
 
 ```text
-PRODUCT ---------> DESIGN ----------> DELIVERY --------> LEARNING
-define / PRD      technical-design   jig (run)          planned loop
+PRODUCT --------> DESIGN ----------> PLANNING --------> DELIVERY -------> LEARNING
+define / PRD     technical-design   design-to-plan     jig (run)         planned loop
 ```
 
 ## Contributing
