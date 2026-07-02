@@ -9,7 +9,7 @@ Remaining phases only — Phases 0–2 are delivered and documented in the archi
 ([`../m5b-local-mvp/phases.md`](../m5b-local-mvp/phases.md)). Every acceptance criterion has a
 stable ID and cites the product/design IDs it traces to. Tests cite the AC IDs they prove.
 
-## Phase R — Remediation
+## Phase R — Remediation (delivered)
 
 **Client value:** No new operator feature. The value is that everything already shipped
 becomes trustworthy: records match the contract mapping, the evidence gate actually gates,
@@ -113,11 +113,10 @@ because the records contract is v0 and unfrozen and the mapping is recorded.
 
 **Explicit non-goals:**
 
-- The fence triad, preview, approval prompts (Phase 3).
 - Resume, replay-based inspect (Phase 4).
-- Any new operator-facing feature.
+- Real providers or Forge/GitHub landing.
 
-## Phase 3 — Governed Local Runs
+## Phase 3 — Governed Local Runs (delivered)
 
 **Client value:** An operator can preview what a run would do before starting it, and control
 local agent work through policy that actually grants, denies, or routes requests instead of
@@ -139,8 +138,8 @@ scaffolding), add plan preview, and make authorization decisions durable records
 - Denied requests fail closed and block the item; routed requests park the item for a
   minimal local approval prompt; grants are narrow and tied to the immediate request.
 - Runner-owned actions recorded as `runner-action.skipped-on-dry-run` at landing (INV-008b).
-- The canonical five-story fixture from
-  [`runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md) §15 becomes the golden
+- The adjusted four-story canonical triad fixture from
+  [ADR 0019](../../design/decisions/0019-phase-3-local-governance-scope.md) becomes the golden
   integration test, evidencing the full triad
   ([ADR 0008](../../design/decisions/0008-s004-denied-in-canonical-fixture.md)).
 - Rule-governing change attempts route to the owner (GUARD-2).
@@ -164,9 +163,9 @@ scaffolding), add plan preview, and make authorization decisions durable records
   [`GUARD-2`](../../product/guarantees.md#13-anti-gaming),
   [`DOOR-1`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)–
   [`DOOR-3`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation).
-- **P3-AC-5** — The §15 canonical fixture runs end-to-end and its golden record evidences
-  the full triad (granted, routed, denied), the runner-owned skip, and the `stopped`
-  terminal with an unattended-park reason. Traces: INV-008, OBS-002, ADR 0008.
+- **P3-AC-5** — The adjusted canonical triad fixture runs end-to-end and its golden record
+  evidences the full triad (granted, routed, denied), the runner-owned skip, and the `stopped`
+  terminal with an unattended-park reason. Traces: INV-008, OBS-002, ADR 0008, ADR 0019.
 - **P3-AC-6** — No model adjudicates the authority boundary; the classifier is the fixed
   category boundary. Traces: ADR 0002, review of
   [`authorization.md`](../../design/core/authorization.md).

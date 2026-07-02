@@ -29,3 +29,4 @@ dispositions) and grows as new design decisions are made.
 | 0016 | Stub-first scaffold; preserve the M5a record rather than distribute      | applied |
 | 0017 | Records-seam reconciliation: v0 implementation vocabulary and identity   | applied |
 | 0018 | Phase-2 policy gate is a recorded simplification of the assisted posture | applied |
+| 0019 | Phase 3 local governance scope                                           | applied |

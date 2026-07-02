@@ -1,9 +1,9 @@
 import assert from 'node:assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { run } from '../src/cli.js';
+import { createOwnerDecisionSource, run } from '../src/cli.js';
 import type { RunRecord } from '../src/types.js';
 
 // vitest's v8 coverage provider does not attribute coverage from execSync subprocesses
@@ -78,6 +78,105 @@ test('run(): unknown command prints usage and exits 1', async () => {
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
   expect(exitSpy).toHaveBeenCalledWith(1);
   assert.match(erroredLines(), /Usage:/);
+});
+
+test('run(): "preview" with no plan path prints usage and exits 1', async () => {
+  setArgv('preview');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /jig preview <plan>/);
+});
+
+test('run(): "preview" without required bindings fails closed with usage', async () => {
+  setArgv('preview', fixture('minimal-plan.json'), '--config', fixture('local-config.json'));
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /--policy <policy>/);
+});
+
+test('run(): "preview" validation error includes path and reason', async () => {
+  setArgv(
+    'preview',
+    fixture('invalid-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+  );
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(
+    erroredLines(),
+    /Plan validation failed for ".*invalid-plan\.json": Invalid plan: unknown version "unknown-version"/,
+  );
+});
+
+test('P3-AC-1: preview reports bound plan, policy, and would-run story set without records', async () => {
+  setArgv(
+    'preview',
+    fixture('minimal-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+  );
+
+  await run();
+
+  expect(exitSpy).not.toHaveBeenCalled();
+  const output = loggedLines();
+  assert.match(output, /--- Run Preview ---/);
+  assert.match(output, /Posture: run.previewed/);
+  assert.match(output, /Plan ID: plan-minimal-local/);
+  assert.match(output, /Policy ID: local-dry-run-policy/);
+  assert.match(output, /Would-run stories:/);
+  assert.match(output, /- STORY-1: Minimal Story/);
+  assert.ok(!existsSync(join(workDir, 'runs')));
+});
+
+test('P3-AC-1: run after preview is unaffected by prior preview', async () => {
+  setArgv(
+    'preview',
+    fixture('minimal-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+  );
+  await run();
+  assert.ok(!existsSync(join(workDir, 'runs')));
+
+  logSpy.mockClear();
+  setArgv(
+    'run',
+    fixture('minimal-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+    '--scripted-output',
+    fixture('scripted-worker-success.json'),
+  );
+
+  await run();
+
+  const runs = readdirSync(join(workDir, 'runs'));
+  assert.strictEqual(runs.length, 1);
+  assert.match(loggedLines(), /Final Status: success/);
+});
+
+test('P3-AC-4: owner decision source is disabled when stdin is non-interactive', () => {
+  assert.strictEqual(createOwnerDecisionSource({ interactive: false }), null);
+});
+
+test('P3-AC-4: owner decision source approves and rejects through injected prompt', async () => {
+  const approveSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'approve' });
+  assert.ok(approveSource);
+  await expect(approveSource.decide({ id: 'REQ-1', kind: 'edit-files' }, { id: 'STORY-1' })).resolves.toBe('approve');
+
+  const rejectSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'no' });
+  assert.ok(rejectSource);
+  await expect(rejectSource.decide({}, {})).resolves.toBe('reject');
 });
 
 test('run(): "run" with no plan path prints usage and exits 1', async () => {
