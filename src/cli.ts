@@ -23,7 +23,7 @@ export async function run(): Promise<void> {
 
 function printUsage(): void {
   console.error('Usage:');
-  console.error('  jig run <plan> [--config <config>] [--policy <policy>] [--scripted-output <output>]');
+  console.error('  jig run <plan> --config <config> --policy <policy> --scripted-output <output>');
   console.error('  jig inspect <run-directory>');
 }
 
@@ -34,10 +34,14 @@ async function handleRun(args: string[]): Promise<void> {
   }
 
   const planPath = args[0];
-  const configPath = getArg(args, '--config') || 'tests/fixtures/m5b-local-mvp/local-config.json';
-  const policyPath = getArg(args, '--policy') || 'tests/fixtures/m5b-local-mvp/local-policy.json';
-  const scriptedOutputPath =
-    getArg(args, '--scripted-output') || 'tests/fixtures/m5b-local-mvp/scripted-worker-success.json';
+  const configPath = getArg(args, '--config');
+  const policyPath = getArg(args, '--policy');
+  const scriptedOutputPath = getArg(args, '--scripted-output');
+
+  if (!configPath || !policyPath || !scriptedOutputPath) {
+    printUsage();
+    process.exit(1);
+  }
 
   try {
     const planInstance = loadJson(planPath);
@@ -101,7 +105,7 @@ async function handleInspect(args: string[]): Promise<void> {
 
     // Item-level outcomes
     const items = events.filter((e) =>
-      ['story.done', 'story.failed', 'story.blocked', 'story.skipped'].includes(e.family),
+      ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(e.family),
     );
     if (items.length > 0) {
       console.log('\nItems:');
@@ -109,13 +113,13 @@ async function handleInspect(args: string[]): Promise<void> {
         const outcome = item.family.replace('story.', '');
         let details = '';
         if (item.family === 'story.blocked') {
-          details = ` (blocked by ${item.blockedBy})`;
+          details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
         } else if (item.family === 'story.skipped') {
           details = ` (${item.reason})`;
         }
         console.log(`  - ${item.storyId}: ${outcome}${details}`);
 
-        if (item.family === 'story.failed' && item.diagnostics) {
+        if ((item.family === 'story.blocked' || item.family === 'story.failed') && item.diagnostics) {
           console.log('    Diagnostics:');
           if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
           if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
@@ -127,7 +131,7 @@ async function handleInspect(args: string[]): Promise<void> {
         }
       }
     } else if (run.status === 'failure') {
-      const deniedEvent = events.find((e) => e.family === 'run.denied');
+      const deniedEvent = events.find((e) => e.family === 'authorization.denied');
       if (deniedEvent) {
         console.log(`Reason: ${deniedEvent.reason}`);
       }

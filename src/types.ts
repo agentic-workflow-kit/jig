@@ -50,18 +50,22 @@ export interface Diagnostics {
   stdout?: string;
   stderr?: string;
   error?: string;
+  evidenceResult?: unknown;
 }
 
 export type RunStatus = 'success' | 'failure';
 
 export interface RunEvent {
   family: string;
+  actor?: string;
   storyId?: string;
   blockedBy?: string;
   reason?: string;
   diagnostics?: Diagnostics;
   changedFiles?: string[];
   result?: unknown;
+  checkpoint?: string;
+  unstarted?: string[];
   timestamp?: string;
   [key: string]: unknown;
 }
@@ -69,9 +73,14 @@ export interface RunEvent {
 export interface RunRecord {
   run: {
     id: string;
+    attempt: number;
     status: RunStatus;
     planId: string;
     mode?: string;
+    binding: {
+      policyRef: string;
+      configRef: string;
+    };
   };
   events: RunEvent[];
 }

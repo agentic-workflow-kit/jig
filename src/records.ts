@@ -1,20 +1,28 @@
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ConfigDoc, Plan, PolicyDoc, RecordSink, RunEvent, RunRecord, RunStatus } from './types.js';
 
-const ITEM_FAMILIES = ['story.done', 'story.failed', 'story.blocked', 'story.skipped'];
+const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
+
+function describeConfigBinding(config: ConfigDoc): string {
+  const mode = config.runner?.mode ?? 'unknown-mode';
+  const recordDir = config.runner?.recordDir ?? 'runs';
+  return `mode=${mode};recordDir=${recordDir}`;
+}
 
 export class RecordManager implements RecordSink {
   private events: RunEvent[];
   private runDir: string;
+  private runId: string;
   private plan: Plan | null;
   private config: ConfigDoc | null;
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: the policy binding is held for the records seam; run-level binding records consume it from Phase R (ADR 0017)
   private policy: PolicyDoc | null;
 
   constructor() {
     this.events = [];
     this.runDir = '';
+    this.runId = '';
     this.plan = null;
     this.config = null;
     this.policy = null;
@@ -25,12 +33,14 @@ export class RecordManager implements RecordSink {
     this.config = config;
     this.policy = policy;
     const recordBaseDir = config.runner?.recordDir || 'runs';
-    this.runDir = join(recordBaseDir, `run-${plan.id}-${Date.now()}`);
-    mkdirSync(this.runDir, { recursive: true });
+    this.runId = `run-${plan.id}-${Date.now()}-${randomUUID()}`;
+    mkdirSync(recordBaseDir, { recursive: true });
+    this.runDir = join(recordBaseDir, this.runId);
+    mkdirSync(this.runDir);
   }
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
-    const timestampedEvent: RunEvent = { ...event, timestamp: new Date().toISOString() };
+    const timestampedEvent: RunEvent = { ...event, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
   }
@@ -41,13 +51,19 @@ export class RecordManager implements RecordSink {
     // guard, matching the compile-time-only strict-mode discipline for this port.
     const plan = this.plan as Plan;
     const config = this.config as ConfigDoc;
+    const policy = this.policy as PolicyDoc;
 
     const runRecord: RunRecord = {
       run: {
-        id: plan.id,
+        id: this.runId,
+        attempt: 1,
         status,
         planId: plan.id,
         mode: config.runner?.mode,
+        binding: {
+          policyRef: policy.policy?.id ?? 'unknown-policy',
+          configRef: describeConfigBinding(config),
+        },
       },
       events: this.events,
     };
@@ -73,14 +89,14 @@ export class RecordManager implements RecordSink {
         const outcome = item.family.replace('story.', '');
         let details = '';
         if (item.family === 'story.blocked') {
-          details = ` (blocked by ${item.blockedBy})`;
+          details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
         } else if (item.family === 'story.skipped') {
           details = ` (${item.reason})`;
         }
         console.log(`  - ${item.storyId}: ${outcome}${details}`);
       }
     } else if (status === 'failure') {
-      const deniedEvent = this.events.find((e) => e.family === 'run.denied');
+      const deniedEvent = this.events.find((e) => e.family === 'authorization.denied');
       if (deniedEvent) {
         console.log(`Reason: ${deniedEvent.reason}`);
       }

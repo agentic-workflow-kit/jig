@@ -198,8 +198,8 @@ resolution is tracked in the delivery track's ladder, to be relaxed or ratified 
 freeze):
 
 - **Conservative ID charset.** Plan and story IDs are restricted to a conservative,
-  path-safe character set (no path separators or dots), because IDs currently appear in
-  record-directory names on disk.
+  path-safe character set because IDs currently appear in record-directory names on disk:
+  single dots are allowed, but path separators and the literal `..` sequence are rejected.
 - **Topologically ordered story arrays.** The intake validator currently requires
   `dependsOn` to reference only stories that appear earlier in the array. The contract's
   dependency model remains a graph; this ordering restriction is a delivery-owned narrowing

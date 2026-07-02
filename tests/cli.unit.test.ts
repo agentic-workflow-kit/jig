@@ -87,6 +87,48 @@ test('run(): "run" with no plan path prints usage and exits 1', async () => {
   assert.match(erroredLines(), /Usage:/);
 });
 
+test('PR-AC-7: run without --config fails closed with usage guidance', async () => {
+  setArgv(
+    'run',
+    fixture('minimal-plan.json'),
+    '--policy',
+    fixture('local-policy.json'),
+    '--scripted-output',
+    fixture('scripted-worker-success.json'),
+  );
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /--config <config>/);
+});
+
+test('PR-AC-7: run without --policy fails closed with usage guidance', async () => {
+  setArgv(
+    'run',
+    fixture('minimal-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--scripted-output',
+    fixture('scripted-worker-success.json'),
+  );
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /--policy <policy>/);
+});
+
+test('PR-AC-7: run without --scripted-output fails closed with usage guidance', async () => {
+  setArgv(
+    'run',
+    fixture('minimal-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+  );
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /--scripted-output <output>/);
+});
+
 test('run(): "inspect" with no directory prints usage and exits 1', async () => {
   setArgv('inspect');
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
@@ -141,7 +183,7 @@ test('run(): happy-path run with --config/--policy/--scripted-output flags succe
   assert.match(output, /Final Status: success/);
   assert.match(output, /- STORY-1: done/);
 
-  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+)/);
+  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
   const runDir = join(workDir, runDirMatch[1]);
   assert.ok(existsSync(join(runDir, 'run.json')));
@@ -183,9 +225,9 @@ test('run(): denied run in-process exits 1, records the denial, and inspect show
   assert.match(output, /Final Status: failure/);
   assert.match(output, /Reason: Policy denial: allowLocalDryRun is not true/);
 
-  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+)/);
+  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
-  const runDir = runDirMatch[1];
+  const runDir = join(workDir, runDirMatch[1]);
 
   logSpy.mockClear();
   errorSpy.mockClear();
@@ -200,7 +242,7 @@ test('run(): denied run in-process exits 1, records the denial, and inspect show
   assert.match(inspectOutput, /Reason: Policy denial: allowLocalDryRun is not true/);
 });
 
-test('run(): failure run in-process exits 1 with diagnostics, and inspect shows them', async () => {
+test('PR-AC-4: failure run in-process exits 1 with diagnostics, and inspect shows blocked reason', async () => {
   setArgv(
     'run',
     fixture('minimal-plan.json'),
@@ -217,9 +259,9 @@ test('run(): failure run in-process exits 1 with diagnostics, and inspect shows 
 
   const output = loggedLines();
   assert.match(output, /Final Status: failure/);
-  assert.match(output, /- STORY-1: failed/);
+  assert.match(output, /- STORY-1: blocked \(worker-reported-failure\)/);
 
-  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+)/);
+  const runDirMatch = output.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
   const runDir = runDirMatch[1];
 
@@ -233,14 +275,14 @@ test('run(): failure run in-process exits 1 with diagnostics, and inspect shows 
   const inspectOutput = loggedLines();
   assert.match(inspectOutput, /--- Run Inspection ---/);
   assert.match(inspectOutput, /Final Status: failure/);
-  assert.match(inspectOutput, /- STORY-1: failed/);
+  assert.match(inspectOutput, /- STORY-1: blocked \(worker-reported-failure\)/);
   assert.match(inspectOutput, /Diagnostics:/);
   assert.match(inspectOutput, /exitCode: 1/);
   assert.match(inspectOutput, /error: Simulated worker failure/);
   assert.match(inspectOutput, /stdout: Running checks\.\.\./);
 });
 
-test('run(): failure blocks dependent and skips independent, in summary and inspect', async () => {
+test('PR-AC-4: failure blocks dependent and records independent item only in run.stopped unstarted', async () => {
   setArgv(
     'run',
     fixture('multi-item-plan-failure-blocks-dependent.json'),
@@ -257,11 +299,11 @@ test('run(): failure blocks dependent and skips independent, in summary and insp
 
   const output = loggedLines();
   assert.match(output, /Final Status: failure/);
-  assert.match(output, /- STORY-1: failed/);
+  assert.match(output, /- STORY-1: blocked \(worker-reported-failure\)/);
   assert.match(output, /- STORY-2: blocked \(blocked by STORY-1\)/);
-  assert.match(output, /- STORY-3: skipped \(run stopped after failure\)/);
+  assert.doesNotMatch(output, /STORY-3: skipped/);
 
-  const runDirMatch = output.match(/Records Directory: (runs\/run-multi-item-failure-\d+)/);
+  const runDirMatch = output.match(/Records Directory: (runs\/run-multi-item-failure-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
 
   logSpy.mockClear();
@@ -272,8 +314,9 @@ test('run(): failure blocks dependent and skips independent, in summary and insp
   await run();
   expect(exitSpy).not.toHaveBeenCalled();
   const inspectOutput = loggedLines();
+  assert.match(inspectOutput, /- STORY-1: blocked \(worker-reported-failure\)/);
   assert.match(inspectOutput, /- STORY-2: blocked \(blocked by STORY-1\)/);
-  assert.match(inspectOutput, /- STORY-3: skipped \(run stopped after failure\)/);
+  assert.doesNotMatch(inspectOutput, /STORY-3: skipped/);
 });
 
 test('run(): inspect renders a sparse record: no mode, diagnostics without optional fields', async () => {
@@ -281,7 +324,7 @@ test('run(): inspect renders a sparse record: no mode, diagnostics without optio
   mkdirSync(runDir, { recursive: true });
   const sparseRecord = {
     run: { id: 'plan-sparse', status: 'failure', planId: 'plan-sparse' },
-    events: [{ family: 'story.failed', storyId: 'STORY-1', diagnostics: {} }],
+    events: [{ family: 'story.blocked', storyId: 'STORY-1', reason: 'worker-reported-failure', diagnostics: {} }],
   };
   writeFileSync(join(runDir, 'run.json'), JSON.stringify(sparseRecord, null, 2));
 
@@ -290,7 +333,7 @@ test('run(): inspect renders a sparse record: no mode, diagnostics without optio
   expect(exitSpy).not.toHaveBeenCalled();
 
   const inspectOutput = loggedLines();
-  assert.match(inspectOutput, /- STORY-1: failed/);
+  assert.match(inspectOutput, /- STORY-1: blocked \(worker-reported-failure\)/);
   assert.match(inspectOutput, /Diagnostics:/);
   assert.doesNotMatch(inspectOutput, /Mode:/);
   assert.doesNotMatch(inspectOutput, /exitCode:/);
@@ -298,8 +341,52 @@ test('run(): inspect renders a sparse record: no mode, diagnostics without optio
   assert.doesNotMatch(inspectOutput, /stdout:/);
 });
 
+test('PR-AC-4: inspect preserves historical story.failed and story.skipped aliases', async () => {
+  const runDir = join(workDir, 'historical-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  const historicalRecord = {
+    run: { id: 'old-run', status: 'failure', planId: 'old-plan' },
+    events: [
+      {
+        family: 'story.failed',
+        storyId: 'STORY-1',
+        diagnostics: {
+          exitCode: 1,
+          error: 'old failure',
+        },
+      },
+      {
+        family: 'story.skipped',
+        storyId: 'STORY-2',
+        reason: 'run stopped after failure',
+      },
+    ],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(historicalRecord, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const inspectOutput = loggedLines();
+  assert.match(inspectOutput, /- STORY-1: failed/);
+  assert.match(inspectOutput, /Diagnostics:/);
+  assert.match(inspectOutput, /exitCode: 1/);
+  assert.match(inspectOutput, /error: old failure/);
+  assert.match(inspectOutput, /- STORY-2: skipped \(run stopped after failure\)/);
+});
+
 test('run(): invalid plan path surfaces the validation error and exits 1', async () => {
-  setArgv('run', fixture('invalid-plan.json'));
+  setArgv(
+    'run',
+    fixture('invalid-plan.json'),
+    '--config',
+    fixture('local-config.json'),
+    '--policy',
+    fixture('local-policy.json'),
+    '--scripted-output',
+    fixture('scripted-worker-success.json'),
+  );
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
   expect(exitSpy).toHaveBeenCalledWith(1);
   assert.match(

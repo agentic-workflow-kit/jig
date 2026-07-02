@@ -13,6 +13,17 @@ test('PlanValidator accepts valid minimal plan', () => {
   assert.deepStrictEqual(PlanValidator.validate(plan), plan);
 });
 
+test('PR-AC-8: PlanValidator accepts dotted plan and story IDs', () => {
+  const plan = {
+    plan: {
+      id: 'plan-v1.2',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'story-v1.2', title: 'T1' }],
+    },
+  };
+  assert.deepStrictEqual(PlanValidator.validate(plan), plan);
+});
+
 test('PlanValidator rejects missing root plan', () => {
   assert.throws(() => PlanValidator.validate({}), /missing root "plan" object/);
 });
@@ -60,12 +71,45 @@ test('PlanValidator rejects path traversal in plan id', () => {
   assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
 });
 
+test('PR-AC-8: PlanValidator rejects double-dot sequence in plan id', () => {
+  const plan = {
+    plan: {
+      id: 'plan..escaped',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1' }],
+    },
+  };
+  assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
+});
+
+test('PR-AC-8: PlanValidator rejects path separator in plan id', () => {
+  const plan = {
+    plan: {
+      id: 'plan/escaped',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1' }],
+    },
+  };
+  assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
+});
+
 test('PlanValidator rejects path traversal in story id', () => {
   const plan = {
     plan: {
       id: 'valid-id',
       version: 'execution-plan-shape-v0',
       stories: [{ id: 'S1/../../etc/passwd', title: 'T1' }],
+    },
+  };
+  assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);
+});
+
+test('PR-AC-8: PlanValidator rejects double-dot sequence in story id', () => {
+  const plan = {
+    plan: {
+      id: 'valid-id',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'story..escaped', title: 'T1' }],
     },
   };
   assert.throws(() => PlanValidator.validate(plan), /unsafe "id" containing path traversal characters/);

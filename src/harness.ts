@@ -19,7 +19,7 @@ export class LocalHarness {
     if (policy.policy?.rules?.allowLocalDryRun !== true) {
       const reason = 'Policy denial: allowLocalDryRun is not true';
       this.recordManager.recordEvent({
-        family: 'run.denied',
+        family: 'authorization.denied',
         reason,
       });
       await this.recordManager.finalize('failure');
@@ -27,30 +27,27 @@ export class LocalHarness {
     }
 
     let runStatus: RunStatus = 'success';
-    const failedStoryIds = new Set<string>();
+    const blockedStoryIds = new Set<string>();
     const completedStoryIds = new Set<string>();
+    const unstartedStoryIds: string[] = [];
+    let checkpointStoryId: string | null = null;
 
     for (let i = 0; i < plan.stories.length; i++) {
       const story = plan.stories[i];
 
       if (runStatus !== 'success') {
         const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
-        const isBlocked = dependsOn?.some((depId) => failedStoryIds.has(depId));
+        const isBlocked = dependsOn?.some((depId) => blockedStoryIds.has(depId));
         if (isBlocked) {
-          const blockedBy = dependsOn?.find((depId) => failedStoryIds.has(depId));
+          const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
           this.recordManager.recordEvent({
             family: 'story.blocked',
             storyId: story.id,
             blockedBy,
-            reason: `Dependency "${blockedBy}" failed`,
           });
-          failedStoryIds.add(story.id); // Transitive blocking
+          blockedStoryIds.add(story.id); // Transitive blocking
         } else {
-          this.recordManager.recordEvent({
-            family: 'story.skipped',
-            storyId: story.id,
-            reason: 'run stopped after failure',
-          });
+          unstartedStoryIds.push(story.id);
         }
         continue;
       }
@@ -63,25 +60,43 @@ export class LocalHarness {
         // Validate evidence requirement
         if (!result.evidence || result.evidence.result === undefined) {
           runStatus = 'failure';
-          failedStoryIds.add(story.id);
+          blockedStoryIds.add(story.id);
+          checkpointStoryId = story.id;
           this.recordManager.recordEvent({
-            family: 'story.failed',
+            family: 'story.blocked',
             storyId: story.id,
+            reason: 'evidence-gate-failed',
             diagnostics: {
               error: 'Worker result missing required evidence or evidence result',
+              evidenceResult: null,
             },
           });
           continue;
         }
 
         this.recordManager.recordEvent({
-          family: 'evidence.observed',
+          family: 'evidence.modeled',
           storyId: story.id,
           result: result.evidence.result,
           changedFiles: result.changedFiles,
         });
 
-        if (result.outcome === 'success') {
+        if (result.outcome !== 'success') {
+          runStatus = 'failure';
+          blockedStoryIds.add(story.id);
+          checkpointStoryId = story.id;
+          this.recordManager.recordEvent({
+            family: 'story.blocked',
+            storyId: story.id,
+            reason: 'worker-reported-failure',
+            diagnostics: {
+              exitCode: result.exitCode,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              error: result.error,
+            },
+          });
+        } else if (result.evidence.result === 'passed') {
           this.recordManager.recordEvent({
             family: 'story.done',
             storyId: story.id,
@@ -90,25 +105,27 @@ export class LocalHarness {
           completedStoryIds.add(story.id);
         } else {
           runStatus = 'failure';
-          failedStoryIds.add(story.id);
+          blockedStoryIds.add(story.id);
+          checkpointStoryId = story.id;
           this.recordManager.recordEvent({
-            family: 'story.failed',
+            family: 'story.blocked',
             storyId: story.id,
+            reason: 'evidence-gate-failed',
             diagnostics: {
-              exitCode: result.exitCode,
-              stdout: result.stdout,
-              stderr: result.stderr,
-              error: result.error,
+              error: 'Worker result evidence did not pass',
+              evidenceResult: result.evidence.result,
             },
           });
         }
       } catch (err) {
         runStatus = 'failure';
-        failedStoryIds.add(story.id);
+        blockedStoryIds.add(story.id);
+        checkpointStoryId = story.id;
         const message = err instanceof Error ? err.message : String(err);
         this.recordManager.recordEvent({
-          family: 'story.failed',
+          family: 'story.blocked',
           storyId: story.id,
+          reason: 'worker-execution-error',
           diagnostics: {
             error: message,
           },
@@ -119,7 +136,12 @@ export class LocalHarness {
     if (runStatus === 'success') {
       this.recordManager.recordEvent({ family: 'run.completed' });
     } else {
-      this.recordManager.recordEvent({ family: 'run.stopped' });
+      this.recordManager.recordEvent({
+        family: 'run.stopped',
+        reason: 'work-item-blocked',
+        checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
+        unstarted: unstartedStoryIds,
+      });
     }
 
     await this.recordManager.finalize(runStatus);
