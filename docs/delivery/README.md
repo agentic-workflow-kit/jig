@@ -12,7 +12,13 @@ stop conditions without inventing product or design facts.
 
 Current delivery planning:
 
-- [M5b local MVP roadmap](./m5b-local-mvp/) — client-usable milestones for the local Jig slice.
+- [M5b local MVP roadmap, r2](./m5b-local-mvp-r2/) — the live track: delivered state,
+  org-M5 exit-criteria map, and the remaining phase ladder (Phase R first).
+
+Historical:
+
+- [M5b local MVP roadmap (r1)](./m5b-local-mvp/) — superseded; the archived record of the
+  track that delivered Phases 0-2.
 
 ## Planning Rules
 
