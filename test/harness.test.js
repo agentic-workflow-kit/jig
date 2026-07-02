@@ -160,3 +160,47 @@ test("LocalHarness handles multi-item failure with blocking and skipping", async
   );
   assert.ok(events.find((e) => e.family === "run.stopped"));
 });
+
+test('LocalHarness fails if evidence is missing', async () => {
+  const events = [];
+  const worker = {
+    execute: async (story) => ({ outcome: 'success' }) // Missing evidence
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e) => events.push(e),
+    finalize: async () => {},
+    printSummary: () => {}
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan = { plan: { id: 'p1', stories: [{ id: 's1' }] } };
+  const policy = { policy: { rules: { allowLocalDryRun: true } } };
+  const status = await harness.run(plan, {}, policy);
+  assert.strictEqual(status, 'failure');
+
+  const failedEvent = events.find(e => e.family === 'story.failed');
+  assert.ok(failedEvent);
+  assert.match(failedEvent.diagnostics.error, /missing required evidence/);
+});
+
+test('LocalHarness fails if evidence result is missing', async () => {
+  const events = [];
+  const worker = {
+    execute: async (story) => ({ outcome: 'success', evidence: {} }) // Missing evidence.result
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: (e) => events.push(e),
+    finalize: async () => {},
+    printSummary: () => {}
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan = { plan: { id: 'p1', stories: [{ id: 's1' }] } };
+  const policy = { policy: { rules: { allowLocalDryRun: true } } };
+  const status = await harness.run(plan, {}, policy);
+  assert.strictEqual(status, 'failure');
+
+  const failedEvent = events.find(e => e.family === 'story.failed');
+  assert.ok(failedEvent);
+  assert.match(failedEvent.diagnostics.error, /missing required evidence/);
+});

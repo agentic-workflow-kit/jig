@@ -8,107 +8,111 @@ export class LocalHarness {
     const { plan } = planInstance;
     this.recordManager.init(plan, config, policy);
 
-    this.recordManager.recordEvent({ family: "run.started" });
+    this.recordManager.recordEvent({ family: 'run.started' });
 
     // Enforce local dry-run policy
-    if (
-      !policy.policy ||
-      !policy.policy.rules ||
-      policy.policy.rules.allowLocalDryRun !== true
-    ) {
-      const reason = "Policy denial: allowLocalDryRun is not true";
+    if (!policy.policy || !policy.policy.rules || policy.policy.rules.allowLocalDryRun !== true) {
+      const reason = 'Policy denial: allowLocalDryRun is not true';
       this.recordManager.recordEvent({
-        family: "run.denied",
-        reason,
+        family: 'run.denied',
+        reason
       });
-      await this.recordManager.finalize("failure");
-      return "failure";
+      await this.recordManager.finalize('failure');
+      return 'failure';
     }
 
-    let runStatus = "success";
+    let runStatus = 'success';
     const failedStoryIds = new Set();
     const completedStoryIds = new Set();
 
     for (let i = 0; i < plan.stories.length; i++) {
       const story = plan.stories[i];
 
-      if (runStatus !== "success") {
-        const isBlocked =
-          story.dependsOn &&
-          story.dependsOn.some((depId) => failedStoryIds.has(depId));
+      if (runStatus !== 'success') {
+        const isBlocked = story.dependsOn && story.dependsOn.some(depId => failedStoryIds.has(depId));
         if (isBlocked) {
-          const blockedBy = story.dependsOn.find((depId) =>
-            failedStoryIds.has(depId),
-          );
+          const blockedBy = story.dependsOn.find(depId => failedStoryIds.has(depId));
           this.recordManager.recordEvent({
-            family: "story.blocked",
+            family: 'story.blocked',
             storyId: story.id,
             blockedBy,
-            reason: `Dependency "${blockedBy}" failed`,
+            reason: `Dependency "${blockedBy}" failed`
           });
           failedStoryIds.add(story.id); // Transitive blocking
         } else {
           this.recordManager.recordEvent({
-            family: "story.skipped",
+            family: 'story.skipped',
             storyId: story.id,
-            reason: "run stopped after failure",
+            reason: 'run stopped after failure'
           });
         }
         continue;
       }
 
-      this.recordManager.recordEvent({
-        family: "story.started",
-        storyId: story.id,
-      });
+      this.recordManager.recordEvent({ family: 'story.started', storyId: story.id });
 
       try {
         const result = await this.worker.execute(story);
+
+        // Validate evidence requirement
+        if (!result.evidence || result.evidence.result === undefined) {
+           runStatus = 'failure';
+           failedStoryIds.add(story.id);
+           this.recordManager.recordEvent({
+             family: 'story.failed',
+             storyId: story.id,
+             diagnostics: {
+               error: 'Worker result missing required evidence or evidence result'
+             }
+           });
+           continue;
+        }
+
         this.recordManager.recordEvent({
-          family: "evidence.observed",
+          family: 'evidence.observed',
           storyId: story.id,
-          result: result.evidence?.result,
-          changedFiles: result.changedFiles, // Pass through changedFiles if present
+          result: result.evidence.result,
+          changedFiles: result.changedFiles
         });
 
-        if (result.outcome === "success") {
+        if (result.outcome === 'success') {
           this.recordManager.recordEvent({
-            family: "story.done",
+            family: 'story.done',
             storyId: story.id,
-            changedFiles: result.changedFiles,
+            changedFiles: result.changedFiles
           });
           completedStoryIds.add(story.id);
         } else {
-          runStatus = "failure";
+          runStatus = 'failure';
           failedStoryIds.add(story.id);
           this.recordManager.recordEvent({
-            family: "story.failed",
+            family: 'story.failed',
             storyId: story.id,
             diagnostics: {
               exitCode: result.exitCode,
               stdout: result.stdout,
               stderr: result.stderr,
-              error: result.error,
-            },
+              error: result.error
+            }
           });
         }
       } catch (err) {
-        runStatus = "failure";
+        runStatus = 'failure';
         failedStoryIds.add(story.id);
         this.recordManager.recordEvent({
-          family: "story.failed",
+          family: 'story.failed',
           storyId: story.id,
           diagnostics: {
-            error: err.message,
-          },
+             error: err.message
+          }
         });
       }
     }
 
-    if (runStatus === "success") {
-      this.recordManager.recordEvent({ family: "run.completed" });
+    if (runStatus === 'success') {
+      this.recordManager.recordEvent({ family: 'run.completed' });
     } else {
-      this.recordManager.recordEvent({ family: "run.stopped" });
+      this.recordManager.recordEvent({ family: 'run.stopped' });
     }
 
     await this.recordManager.finalize(runStatus);

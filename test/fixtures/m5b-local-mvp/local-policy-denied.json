@@ -1,0 +1,8 @@
+{
+  "policy": {
+    "id": "denied-policy",
+    "rules": {
+      "allowLocalDryRun": false
+    }
+  }
+}

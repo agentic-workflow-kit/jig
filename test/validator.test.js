@@ -141,3 +141,50 @@ test("PlanValidator rejects non-array dependsOn", () => {
     /"dependsOn" must be an array/,
   );
 });
+
+test('PlanValidator rejects duplicate story IDs', () => {
+  const plan = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 'S1', title: 'T1' },
+        { id: 'S1', title: 'T2' }
+      ]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /duplicate "id" "S1"/);
+});
+
+test('PlanValidator rejects dependsOn as null', () => {
+  const plan = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1', dependsOn: null }]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /"dependsOn" must be an array/);
+});
+
+test('PlanValidator rejects dependsOn as false', () => {
+  const plan = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1', dependsOn: false }]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /"dependsOn" must be an array/);
+});
+
+test('PlanValidator rejects dependsOn as empty string', () => {
+  const plan = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 'S1', title: 'T1', dependsOn: "" }]
+    }
+  };
+  assert.throws(() => PlanValidator.validate(plan), /"dependsOn" must be an array/);
+});

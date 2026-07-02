@@ -18,7 +18,7 @@ Read these before editing:
 - [`../README.md`](../README.md) — M5b roadmap and milestones.
 - [`../phases.md`](../phases.md) — Phase 2B requirements.
 - [`../../../design/core/records.md`](../../../design/core/records.md) — records-as-evidence.
-- [`implementation-briefs/phase-2a-local-workflow-runner.md`](implementation-briefs/phase-2a-local-workflow-runner.md) — Phase 2A baseline.
+- [Phase 2A brief](./phase-2a-local-workflow-runner.md) — Phase 2A baseline.
 
 ## This phase owns
 

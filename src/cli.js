@@ -1,18 +1,18 @@
-import { PlanValidator } from "./plan-validator.js";
-import { loadJson, loadConfig, loadPolicy } from "./loaders.js";
-import { LocalHarness } from "./harness.js";
-import { ScriptedWorker } from "./worker.js";
-import { RecordManager } from "./records.js";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { PlanValidator } from './plan-validator.js';
+import { loadJson, loadConfig, loadPolicy } from './loaders.js';
+import { LocalHarness } from './harness.js';
+import { ScriptedWorker } from './worker.js';
+import { RecordManager } from './records.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 export async function run() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (command === "run") {
+  if (command === 'run') {
     await handleRun(args.slice(1));
-  } else if (command === "inspect") {
+  } else if (command === 'inspect') {
     await handleInspect(args.slice(1));
   } else {
     printUsage();
@@ -21,11 +21,9 @@ export async function run() {
 }
 
 function printUsage() {
-  console.error("Usage:");
-  console.error(
-    "  jig run <plan> [--config <config>] [--policy <policy>] [--scripted-output <output>]",
-  );
-  console.error("  jig inspect <run-directory>");
+  console.error('Usage:');
+  console.error('  jig run <plan> [--config <config>] [--policy <policy>] [--scripted-output <output>]');
+  console.error('  jig inspect <run-directory>');
 }
 
 async function handleRun(args) {
@@ -35,22 +33,16 @@ async function handleRun(args) {
   }
 
   const planPath = args[0];
-  const configPath =
-    getArg(args, "--config") || "test/fixtures/m5b-local-mvp/local-config.json";
-  const policyPath =
-    getArg(args, "--policy") || "test/fixtures/m5b-local-mvp/local-policy.json";
-  const scriptedOutputPath =
-    getArg(args, "--scripted-output") ||
-    "test/fixtures/m5b-local-mvp/scripted-worker-success.json";
+  const configPath = getArg(args, '--config') || 'test/fixtures/m5b-local-mvp/local-config.json';
+  const policyPath = getArg(args, '--policy') || 'test/fixtures/m5b-local-mvp/local-policy.json';
+  const scriptedOutputPath = getArg(args, '--scripted-output') || 'test/fixtures/m5b-local-mvp/scripted-worker-success.json';
 
   try {
     const planInstance = loadJson(planPath);
     try {
       PlanValidator.validate(planInstance);
     } catch (err) {
-      throw new Error(
-        `Plan validation failed for "${planPath}": ${err.message}`,
-      );
+      throw new Error(`Plan validation failed for "${planPath}": ${err.message}`);
     }
 
     const config = loadConfig(configPath);
@@ -63,7 +55,7 @@ async function handleRun(args) {
 
     const status = await harness.run(planInstance, config, policy);
 
-    if (status !== "success") {
+    if (status !== 'success') {
       process.exit(1);
     }
   } catch (err) {
@@ -84,17 +76,17 @@ async function handleInspect(args) {
     process.exit(1);
   }
 
-  const runJsonPath = join(runDir, "run.json");
+  const runJsonPath = join(runDir, 'run.json');
   if (!existsSync(runJsonPath)) {
     console.error(`Error: run.json not found in "${runDir}"`);
     process.exit(1);
   }
 
   try {
-    const runRecord = JSON.parse(readFileSync(runJsonPath, "utf8"));
+    const runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8'));
     const { run, events } = runRecord;
 
-    console.log("\n--- Run Inspection ---");
+    console.log('\n--- Run Inspection ---');
     console.log(`Run ID: ${run.id}`);
     console.log(`Plan ID: ${run.planId}`);
     console.log(`Final Status: ${run.status}`);
@@ -104,46 +96,38 @@ async function handleInspect(args) {
     console.log(`Records Directory: ${runDir}`);
 
     // Item-level outcomes
-    const items = events.filter((e) =>
-      ["story.done", "story.failed", "story.blocked", "story.skipped"].includes(
-        e.family,
-      ),
-    );
+    const items = events.filter(e => ['story.done', 'story.failed', 'story.blocked', 'story.skipped'].includes(e.family));
     if (items.length > 0) {
-      console.log("\nItems:");
+      console.log('\nItems:');
       for (const item of items) {
-        let outcome = item.family.replace("story.", "");
-        let details = "";
-        if (item.family === "story.blocked") {
+        let outcome = item.family.replace('story.', '');
+        let details = '';
+        if (item.family === 'story.blocked') {
           details = ` (blocked by ${item.blockedBy})`;
-        } else if (item.family === "story.skipped") {
+        } else if (item.family === 'story.skipped') {
           details = ` (${item.reason})`;
         }
         console.log(`  - ${item.storyId}: ${outcome}${details}`);
 
-        if (item.family === "story.failed" && item.diagnostics) {
-          console.log("    Diagnostics:");
-          if (item.diagnostics.exitCode !== undefined)
-            console.log(`      exitCode: ${item.diagnostics.exitCode}`);
-          if (item.diagnostics.error)
-            console.log(`      error: ${item.diagnostics.error}`);
-          if (item.diagnostics.stdout)
-            console.log(
-              `      stdout: ${item.diagnostics.stdout.trim().split("\n")[0]}...`,
-            );
+        if (item.family === 'story.failed' && item.diagnostics) {
+          console.log('    Diagnostics:');
+          if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
+          if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
+          if (item.diagnostics.stdout) console.log(`      stdout: ${item.diagnostics.stdout.trim().split('\n')[0]}...`);
         }
 
-        if (
-          item.changedFiles &&
-          Array.isArray(item.changedFiles) &&
-          item.changedFiles.length > 0
-        ) {
-          console.log(`    Changed files: ${item.changedFiles.join(", ")}`);
+        if (item.changedFiles && Array.isArray(item.changedFiles) && item.changedFiles.length > 0) {
+          console.log(`    Changed files: ${item.changedFiles.join(', ')}`);
         }
+      }
+    } else if (run.status === 'failure') {
+      const deniedEvent = events.find(e => e.family === 'run.denied');
+      if (deniedEvent) {
+         console.log(`Reason: ${deniedEvent.reason}`);
       }
     }
 
-    console.log("----------------------\n");
+    console.log('----------------------\n');
   } catch (err) {
     console.error(`Error: Failed to parse run.json: ${err.message}`);
     process.exit(1);

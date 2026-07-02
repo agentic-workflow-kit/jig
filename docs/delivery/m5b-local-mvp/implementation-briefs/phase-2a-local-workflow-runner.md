@@ -19,7 +19,7 @@ Read these before editing:
 - [`../phases.md`](../phases.md) — Phase 2A requirements.
 - [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — run/work-item lifecycle.
 - [`../../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md) — execution-plan shape.
-- [`implementation-briefs/phase-1-local-plan-runner.md`](implementation-briefs/phase-1-local-plan-runner.md) — Phase 1 baseline.
+- [Phase 1 brief](./phase-1-local-plan-runner.md) — Phase 1 baseline.
 
 ## This phase owns
 
@@ -69,6 +69,11 @@ Read these before editing:
      - Record `story.blocked` if they directly or transitively depend on the failed story.
      - Record `story.skipped` otherwise (reason: "run stopped after failure").
    - Final run status is `run.stopped` if any story failed/blocked/skipped.
+
+   **Note:** Phase 2A intentionally stops after the first failed story for local-runner simplicity.
+   This is a Phase 2-local simplification, not the final ISO-1/ISO-3 behavior.
+   Product/design still require independent eligible work to keep moving once fuller DAG/eligibility resolution exists.
+   Later workflow phases must revisit this before treating `story.skipped` as product-contract behavior.
 
 3. **Extended `ScriptedWorker` multi-output support**
    - Support a new `stories` array in the scripted output fixture to provide outcomes for multiple stories.
