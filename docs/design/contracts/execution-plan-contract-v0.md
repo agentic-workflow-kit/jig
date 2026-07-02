@@ -188,6 +188,27 @@ A plan must carry constraints that materially affect safe scheduling and complet
 These constraints let Jig derive live behavior from plan plus policy, rather than asking the
 worker to improvise.
 
+## v0 Input Restrictions (delivery-owned)
+
+The M5b local runner narrows this contract at intake with two deliberate v0 restrictions.
+They are owned by the delivery layer — the contract's model is unchanged — and are recorded
+here so Planning is not surprised at the boundary (provenance: the
+[post-Phase-2 review](../../reviews/2026-07-02-post-phase-2-repo-review.md), finding S4;
+resolution is tracked in the delivery track's ladder, to be relaxed or ratified at schema
+freeze):
+
+- **Conservative ID charset.** Plan and story IDs are restricted to a conservative,
+  path-safe character set (no path separators or dots), because IDs currently appear in
+  record-directory names on disk.
+- **Topologically ordered story arrays.** The intake validator currently requires
+  `dependsOn` to reference only stories that appear earlier in the array. The contract's
+  dependency model remains a graph; this ordering restriction is a delivery-owned narrowing
+  to be relaxed or ratified at schema freeze.
+
+Additionally, `doneEvidence` is carried at intake but not yet evaluated by the engine:
+evidence evaluation under policy arrives with Phase 3 (governed local runs). Until then a
+plan's done conditions are preserved in records but do not gate outcomes.
+
 ## Illustrative v0 Example
 
 This example is illustrative only. It is not a normative schema, field contract, or complete
