@@ -23,5 +23,12 @@ design-layer naming choice, not a silent divergence. The reconciliation note liv
 All design docs use "work item"; "story"/"task" appear only in the reconciliation note and in
 product-doc cross-references.
 
+## Scope note (2026-07-02)
+
+Product altitude, the two seam contracts, and code surfaces keep product's term **story**;
+**work item** is the design layer's internal neutral term; operator-facing CLI prose may
+shorten it to **item**. All three name the same unit — docs cross-reference this ADR rather
+than re-deciding the term.
+
 - Date: 2026-07-01
 - Origin: design-layer restructure
