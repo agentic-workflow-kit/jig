@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync } from "node:fs";
 
 export function loadJson(filePath) {
   try {
-    const content = readFileSync(filePath, 'utf8');
+    const content = readFileSync(filePath, "utf8");
     return JSON.parse(content);
   } catch (err) {
     throw new Error(`Failed to load JSON from "${filePath}": ${err.message}`);

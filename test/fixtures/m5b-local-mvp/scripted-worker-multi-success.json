@@ -1,0 +1,18 @@
+{
+  "stories": [
+    {
+      "storyId": "STORY-1",
+      "outcome": "success",
+      "evidence": {
+        "result": "passed"
+      }
+    },
+    {
+      "storyId": "STORY-2",
+      "outcome": "success",
+      "evidence": {
+        "result": "passed"
+      }
+    }
+  ]
+}

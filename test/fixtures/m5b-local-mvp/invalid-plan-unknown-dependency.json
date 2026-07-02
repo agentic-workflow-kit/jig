@@ -1,0 +1,13 @@
+{
+  "plan": {
+    "id": "invalid-unknown-dep",
+    "version": "execution-plan-shape-v0",
+    "stories": [
+      {
+        "id": "STORY-1",
+        "title": "T1",
+        "dependsOn": ["UNKNOWN"]
+      }
+    ]
+  }
+}
