@@ -83,6 +83,18 @@ function modeledLandingEvent(request: {
   };
 }
 
+function findDuplicateStoryId(stories: Story[]): string | null {
+  const storyIds = new Set<string>();
+  for (const story of stories) {
+    if (storyIds.has(story.id)) {
+      return story.id;
+    }
+    storyIds.add(story.id);
+  }
+
+  return null;
+}
+
 export class LocalHarness {
   private readonly worker: Worker;
   private readonly recordManager: RecordSink;
@@ -135,10 +147,36 @@ export class LocalHarness {
       plan.stories.length > 1 &&
       plan.stories.every((story) => !Array.isArray(story.dependsOn))
     ) {
-      const results = await Promise.all(plan.stories.map((story) => this.executeStory(story, policy, true)));
-      const failed = results.find((result) => result.status === 'failure');
-      runStatus = failed ? 'failure' : 'success';
-      checkpointStoryId = failed?.checkpointStoryId ?? null;
+      const duplicateStoryId = findDuplicateStoryId(plan.stories);
+      if (duplicateStoryId) {
+        this.recordManager.recordEvent({
+          family: 'story.blocked',
+          storyId: duplicateStoryId,
+          reason: 'workspace-collision',
+          diagnostics: {
+            error: 'Duplicate story launch refused',
+            failureToken: 'workspace-collision',
+          },
+        });
+        runStatus = 'failure';
+        checkpointStoryId = duplicateStoryId;
+      } else {
+        const results = await Promise.all(plan.stories.map((story) => this.executeStory(story, policy, true)));
+        const failed = results.find(
+          (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
+        );
+        const unattendedPark = results.find(
+          (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
+            result.status === 'failure' && result.stopReason === 'unattended-park',
+        );
+        if (unattendedPark) {
+          hasUnattendedPark = true;
+          stopReason = 'unattended-park';
+          unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
+        }
+        runStatus = failed ? 'failure' : 'success';
+        checkpointStoryId = unattendedPark?.checkpointStoryId ?? failed?.checkpointStoryId ?? null;
+      }
     } else {
       for (const story of plan.stories) {
         const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
@@ -334,10 +372,6 @@ export class LocalHarness {
   }
 
   private async executeStory(story: Story, policy: PolicyDoc, recordStarted: boolean): Promise<StoryExecutionResult> {
-    if (recordStarted) {
-      this.recordManager.recordEvent({ family: 'story.started', storyId: story.id });
-    }
-
     try {
       const workspace = this.workspaceIsolation?.allocate(story);
       if (workspace && 'failureToken' in workspace) {
@@ -351,6 +385,10 @@ export class LocalHarness {
           },
         });
         return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
+      }
+
+      if (recordStarted) {
+        this.recordManager.recordEvent({ family: 'story.started', storyId: story.id });
       }
 
       const result = await this.worker.execute(workspace ? { ...story, workspace } : story);

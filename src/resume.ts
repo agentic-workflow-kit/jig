@@ -109,10 +109,7 @@ function loadLaunchAttestationSnapshot(runDir: string, events: RunEvent[]): Capa
     return undefined;
   }
 
-  const snapshotPath =
-    typeof launchEvent.attestationSnapshot.path === 'string'
-      ? launchEvent.attestationSnapshot.path
-      : join(runDir, ATTESTATION_SNAPSHOT_FILE);
+  const snapshotPath = join(runDir, ATTESTATION_SNAPSHOT_FILE);
   if (!existsSync(snapshotPath)) {
     throw new ResumeRefusal(
       'resume-blocked-binding-mismatch',

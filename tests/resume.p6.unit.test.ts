@@ -56,7 +56,7 @@ const policy: PolicyDoc = {
   },
 };
 
-function writeStoppedRun(): void {
+function writeStoppedRun(attestationSnapshotPath = join(runDir, 'attestation.snapshot.json')): void {
   const attestationPath = join(runDir, 'attestation.snapshot.json');
   writeFileSync(join(runDir, 'plan.snapshot.json'), JSON.stringify(plan, null, 2));
   writeFileSync(join(runDir, 'policy.snapshot.json'), JSON.stringify(policy, null, 2));
@@ -80,7 +80,7 @@ function writeStoppedRun(): void {
       },
       planSnapshot: { ref: 'plan.snapshot.json' },
       policySnapshot: { ref: 'policy.snapshot.json' },
-      attestationSnapshot: { ref: 'attestation.snapshot.json', path: attestationPath },
+      attestationSnapshot: { ref: 'attestation.snapshot.json', path: attestationSnapshotPath },
     },
     {
       family: 'story.started',
@@ -185,6 +185,27 @@ test('P6-AC-5: a drifted-host resume is adjudicated against the launch attestati
 
   await resumeRun({ runDir, scriptedOutputPath: writeScriptedOutput() });
 
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.routed' &&
+        event.requestId === 'REQ-edit' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('containment-unproven'),
+    ),
+  );
+});
+
+test('P6-AC-5: resume loads the launch attestation from the supplied runDir instead of the recorded path', async () => {
+  writeStoppedRun('/old/location/attestation.snapshot.json');
+
+  const status = await resumeRun({ runDir, scriptedOutputPath: writeScriptedOutput() });
+
+  assert.strictEqual(status, 'failure');
   const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
     .trim()
     .split('\n')
