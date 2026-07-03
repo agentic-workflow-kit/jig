@@ -10,8 +10,11 @@ import type {
   LandingVerificationRequest,
 } from '../../ports.js';
 
+export type CommandExecutor = (file: string, args: string[]) => Promise<{ stdout: string }>;
+const PR_VIEW_FIELDS = 'number,url,headRefName,headRefOid,baseRefName';
+
 /* v8 ignore start -- live git/gh command transport is intentionally outside hermetic tests. */
-const execFileAsync = promisify(execFile);
+const execFileAsync = promisify(execFile) as CommandExecutor;
 /* v8 ignore stop */
 const LANDING_ACTIONS = new Set<LandingAction>(['push', 'open-pr', 'merge']);
 
@@ -75,16 +78,17 @@ function outcomeForAction(request: LandingRequest, effect: GitHubForgeEffect): L
   };
 }
 
-/* v8 ignore start -- live git/gh command transport is intentionally outside hermetic tests. */
-async function readCurrentBranch(): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+/* v8 ignore start -- live git/gh command transport default is intentionally outside hermetic tests. */
+async function readCurrentBranch(execute: CommandExecutor): Promise<string> {
+  const { stdout } = await execute('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
   return stdout.trim();
 }
 
-async function readCurrentHead(ref = 'HEAD'): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', ref]);
+async function readCurrentHead(execute: CommandExecutor, ref = 'HEAD'): Promise<string> {
+  const { stdout } = await execute('git', ['rev-parse', ref]);
   return stdout.trim();
 }
+/* v8 ignore stop */
 
 function parseGhJson(stdout: string): Record<string, unknown> {
   try {
@@ -109,28 +113,32 @@ function readNumberField(record: Record<string, unknown>, field: string): number
   return typeof value === 'number' ? value : undefined;
 }
 
-export function createGitHubCommandTransport(): GitHubForgeTransport {
+async function viewPullRequest(
+  execute: CommandExecutor,
+  selector: string | undefined,
+  fields = PR_VIEW_FIELDS,
+): Promise<Record<string, unknown>> {
+  const args = selector ? ['pr', 'view', selector, '--json', fields] : ['pr', 'view', '--json', fields];
+  const { stdout } = await execute('gh', args);
+  return parseGhJson(stdout);
+}
+
+export function createGitHubCommandTransport(execute: CommandExecutor = execFileAsync): GitHubForgeTransport {
   return {
     push: async () => {
-      const branch = await readCurrentBranch();
-      const targetHead = await readCurrentHead('HEAD');
-      await execFileAsync('git', ['push', 'origin', `HEAD:${branch}`]);
+      const branch = await readCurrentBranch(execute);
+      const targetHead = await readCurrentHead(execute, 'HEAD');
+      await execute('git', ['push', 'origin', `HEAD:${branch}`]);
       return {
         targetRef: `refs/heads/${branch}`,
         targetHead,
       };
     },
     openPullRequest: async () => {
-      const branch = await readCurrentBranch();
-      const targetHead = await readCurrentHead('HEAD');
-      const { stdout } = await execFileAsync('gh', [
-        'pr',
-        'create',
-        '--fill',
-        '--json',
-        'number,url,headRefName,headRefOid',
-      ]);
-      const parsed = parseGhJson(stdout);
+      const branch = await readCurrentBranch(execute);
+      const targetHead = await readCurrentHead(execute, 'HEAD');
+      const { stdout } = await execute('gh', ['pr', 'create', '--fill']);
+      const parsed = await viewPullRequest(execute, stdout.trim() || branch);
       return {
         targetRef: `refs/heads/${readStringField(parsed, 'headRefName') ?? branch}`,
         targetHead: readStringField(parsed, 'headRefOid') ?? targetHead,
@@ -139,35 +147,34 @@ export function createGitHubCommandTransport(): GitHubForgeTransport {
       };
     },
     mergePullRequest: async () => {
-      const branch = await readCurrentBranch();
-      const targetHead = await readCurrentHead('HEAD');
-      const { stdout } = await execFileAsync('gh', ['pr', 'view', '--json', 'number,url,headRefName,headRefOid']);
-      const parsed = parseGhJson(stdout);
-      await execFileAsync('gh', ['pr', 'merge', '--squash', '--delete-branch=false']);
+      const parsed = await viewPullRequest(execute, undefined, 'number,url,baseRefName');
+      const baseRefName = readStringField(parsed, 'baseRefName');
+      if (!baseRefName) {
+        throw new ForgeLandingError('forge-transport-missing-base-ref', 'forge-transport-missing-base-ref');
+      }
+      await execute('gh', ['pr', 'merge', '--squash', '--delete-branch=false']);
+      const targetHead = await readCurrentHead(execute, `refs/heads/${baseRefName}`);
       return {
-        targetRef: `refs/heads/${readStringField(parsed, 'headRefName') ?? branch}`,
-        targetHead: readStringField(parsed, 'headRefOid') ?? targetHead,
+        targetRef: `refs/heads/${baseRefName}`,
+        targetHead,
         prNumber: readNumberField(parsed, 'number'),
         prUrl: readStringField(parsed, 'url'),
       };
     },
     readHead: async (request) => ({
       targetRef: request.targetRef,
-      targetHead: await readCurrentHead(request.targetRef),
+      targetHead: await readCurrentHead(execute, request.targetRef),
     }),
     openOrUpdatePullRequestForBlock: async (request) => {
-      const branch = request.safeBranch ?? (await readCurrentBranch());
-      const targetHead = await readCurrentHead('HEAD');
-      const { stdout } = await execFileAsync('gh', [
-        'pr',
-        'create',
-        '--fill',
-        '--head',
-        branch,
-        '--json',
-        'number,url,headRefName,headRefOid',
-      ]);
-      const parsed = parseGhJson(stdout);
+      const branch = request.safeBranch ?? (await readCurrentBranch(execute));
+      const targetHead = await readCurrentHead(execute, 'HEAD');
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = await viewPullRequest(execute, branch);
+      } catch {
+        const { stdout } = await execute('gh', ['pr', 'create', '--fill', '--head', branch]);
+        parsed = await viewPullRequest(execute, stdout.trim() || branch);
+      }
       return {
         targetRef: `refs/heads/${readStringField(parsed, 'headRefName') ?? branch}`,
         targetHead: readStringField(parsed, 'headRefOid') ?? targetHead,
@@ -176,9 +183,9 @@ export function createGitHubCommandTransport(): GitHubForgeTransport {
       };
     },
     postBlockStatus: async (request) => {
-      const branch = request.safeBranch ?? (await readCurrentBranch());
-      const targetHead = await readCurrentHead('HEAD');
-      await execFileAsync('gh', [
+      const branch = request.safeBranch ?? (await readCurrentBranch(execute));
+      const targetHead = await readCurrentHead(execute, 'HEAD');
+      await execute('gh', [
         'api',
         `repos/:owner/:repo/statuses/${targetHead}`,
         '-f',
@@ -194,9 +201,9 @@ export function createGitHubCommandTransport(): GitHubForgeTransport {
       };
     },
     postBlockComment: async (request) => {
-      const branch = request.safeBranch ?? (await readCurrentBranch());
-      const targetHead = await readCurrentHead('HEAD');
-      await execFileAsync('gh', ['pr', 'comment', branch, '--body', request.failureReasons.join('\n')]);
+      const branch = request.safeBranch ?? (await readCurrentBranch(execute));
+      const targetHead = await readCurrentHead(execute, 'HEAD');
+      await execute('gh', ['pr', 'comment', branch, '--body', request.failureReasons.join('\n')]);
       return {
         targetRef: `refs/heads/${branch}`,
         targetHead,
@@ -204,7 +211,6 @@ export function createGitHubCommandTransport(): GitHubForgeTransport {
     },
   };
 }
-/* v8 ignore stop */
 
 export function createGitHubForge(options: GitHubForgeOptions = {}): ForgePort {
   const transport = options.transport ?? createGitHubCommandTransport();

@@ -633,6 +633,8 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
           assertStoryState(story, ['unstarted'], parsedEvent, storyId);
         } else if (parsedEvent.event.reason === 'workspace-collision') {
           assertStoryState(story, ['unstarted', 'started', 'parked'], parsedEvent, storyId);
+        } else if (parsedEvent.event.reason === 'pr-surfacing-failed') {
+          assertStoryState(story, ['blocked'], parsedEvent, storyId);
         } else {
           assertStoryState(story, ['started', 'parked'], parsedEvent, storyId);
         }

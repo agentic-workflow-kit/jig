@@ -162,13 +162,26 @@ export class LocalHarness {
       return;
     }
 
-    const outcomes = await this.forge.surfaceBlock({
-      ...request,
-      safeBranch: this.blockSurface?.safeBranch,
-      canPush: this.blockSurface?.canPush,
-    });
-    for (const outcome of outcomes) {
-      this.recordManager.recordEvent(outcome);
+    try {
+      const outcomes = await this.forge.surfaceBlock({
+        ...request,
+        safeBranch: this.blockSurface?.safeBranch,
+        canPush: this.blockSurface?.canPush,
+      });
+      for (const outcome of outcomes) {
+        this.recordManager.recordEvent(outcome);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.recordManager.recordEvent({
+        family: 'story.blocked',
+        storyId: request.storyId,
+        reason: 'pr-surfacing-failed',
+        diagnostics: {
+          error: message,
+          originalReason: request.reason,
+        },
+      });
     }
   }
 

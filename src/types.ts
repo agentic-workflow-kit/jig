@@ -91,6 +91,7 @@ export interface Diagnostics {
   error?: string;
   evidenceResult?: unknown;
   failureToken?: string;
+  originalReason?: string;
 }
 
 export type RunStatus = 'success' | 'failure';
