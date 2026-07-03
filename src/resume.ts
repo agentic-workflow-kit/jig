@@ -5,6 +5,7 @@ import { composeReferenceRun } from './bootstrap.js';
 import { LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
+import type { CapabilityAttestation } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
 import type {
   ConfigDoc,
@@ -47,6 +48,7 @@ export interface ResumeRunOptions {
 
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
 const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
+const ATTESTATION_SNAPSHOT_FILE = 'attestation.snapshot.json';
 
 function describeConfigBinding(config: ConfigDoc): string {
   const mode = config.runner?.mode ?? 'unknown-mode';
@@ -99,6 +101,26 @@ function loadPolicySnapshot(runDir: string, projection: RunProjection): PolicyDo
     );
   }
   return policy;
+}
+
+function loadLaunchAttestationSnapshot(runDir: string, events: RunEvent[]): CapabilityAttestation | undefined {
+  const launchEvent = events.find((event) => event.family === 'run.started');
+  if (!launchEvent?.attestationSnapshot) {
+    return undefined;
+  }
+
+  const snapshotPath =
+    typeof launchEvent.attestationSnapshot.path === 'string'
+      ? launchEvent.attestationSnapshot.path
+      : join(runDir, ATTESTATION_SNAPSHOT_FILE);
+  if (!existsSync(snapshotPath)) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: missing attestation snapshot at "${snapshotPath}"`,
+    );
+  }
+
+  return JSON.parse(readFileSync(snapshotPath, 'utf8')) as CapabilityAttestation;
 }
 
 function loadPlanInstanceForVerification(planPath: string): PlanInstance {
@@ -158,11 +180,7 @@ function verifyOptionalBindings(
   }
 }
 
-function configForResumeComposition(options: ResumeRunOptions): ConfigDoc {
-  if (options.configPath) {
-    return loadConfig(options.configPath);
-  }
-
+function configForResumeComposition(): ConfigDoc {
   return {
     drivers: {},
   };
@@ -230,11 +248,13 @@ class ResumeRecordSink implements RecordSink {
   private readonly events: RunEvent[];
   private readonly runDir: string;
   private readonly projection: RunProjection;
+  private readonly launchEvent: RunEvent | undefined;
 
   constructor(runDir: string, projection: RunProjection, existingEvents: RunEvent[]) {
     this.runDir = runDir;
     this.projection = projection;
     this.events = [...existingEvents];
+    this.launchEvent = existingEvents.find((event) => event.family === 'run.started');
   }
 
   init(): void {}
@@ -263,6 +283,8 @@ class ResumeRecordSink implements RecordSink {
           ref: this.projection.policySnapshotRef,
           path: join(this.runDir, POLICY_SNAPSHOT_FILE),
         },
+        ...(this.launchEvent?.attestationSnapshot ? { attestationSnapshot: this.launchEvent.attestationSnapshot } : {}),
+        ...(this.launchEvent?.substrateManifest ? { substrateManifest: this.launchEvent.substrateManifest } : {}),
       },
       events: this.events,
     };
@@ -310,6 +332,7 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const projection = projectRunEvents({ eventsJsonl, runRecord: loadRunRecord(options.runDir) });
   const planSnapshot = loadPlanSnapshot(options.runDir);
   const policySnapshot = loadPolicySnapshot(options.runDir, projection);
+  const launchAttestation = loadLaunchAttestationSnapshot(options.runDir, existingEvents);
   verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
   verifyWorkspaceContinuity(projection);
 
@@ -317,7 +340,7 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },
-    config: configForResumeComposition(options),
+    config: configForResumeComposition(),
     scriptedOutput,
   });
   const [candidate] = await composed.workSource.candidates();
@@ -326,7 +349,7 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   }
   const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents);
   const harness = new LocalHarness(composed.agent, recordSink, options.ownerDecisionSource ?? null, {
-    capabilityAttestation: composed.capabilityAttestation,
+    capabilityAttestation: launchAttestation ?? composed.capabilityAttestation,
     forge: composed.forge,
   });
 

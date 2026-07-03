@@ -46,7 +46,7 @@ function attestation(overrides: Partial<CapabilityAttestation>): CapabilityAttes
 }
 
 test('P5-AC-2: fresh positive strong proof preserves the default grant basis', () => {
-  const decision = authorizeRequest(request, story, policy, attestation({}));
+  const decision = authorizeRequest(request, story, policy, attestation({ driverId: 'real-host' }));
 
   assert.strictEqual(decision.outcome, 'grant');
   assert.deepStrictEqual(decision.basis, ['declared-request', 'in-scope', 'CFG-10:reversible']);

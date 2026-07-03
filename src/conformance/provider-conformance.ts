@@ -1,5 +1,13 @@
 import { PlanValidator } from '../plan-validator.js';
-import type { AgentPort, ExecutionHostPort, ForgePort, IsolationStrength, WorkSourcePort } from '../ports.js';
+import type {
+  AgentPort,
+  CapabilityAttestation,
+  ExecutionHostPort,
+  ForgePort,
+  IsolationStrength,
+  WorkSourcePort,
+} from '../ports.js';
+import { type ApprovedSubstrateManifest, type SubstrateRequest, validateSubstrateRequest } from '../substrate.js';
 
 export interface ProviderManifest {
   id: string;
@@ -15,6 +23,12 @@ export interface ProviderConformanceSubject {
   workSource: WorkSourcePort;
   manifest: ProviderManifest;
   requestedCapabilities?: string[];
+  approvedSubstrateManifest?: ApprovedSubstrateManifest;
+  substrateRequests?: SubstrateRequest[];
+  resumeAttestation?: {
+    launch: CapabilityAttestation;
+    current: CapabilityAttestation;
+  };
 }
 
 export class ProviderConformanceError extends Error {
@@ -27,7 +41,25 @@ export class ProviderConformanceError extends Error {
   }
 }
 
-const PRIVILEGED_AGENT_METHODS = ['push', 'openPr', 'open-pr', 'merge', 'credential', 'credentials', 'token'];
+const PRIVILEGED_AGENT_METHODS = [
+  'push',
+  'openPr',
+  'open-pr',
+  'merge',
+  'land',
+  'landing',
+  'credential',
+  'credentials',
+  'token',
+  'fs',
+  'readFile',
+  'writeFile',
+  'command',
+  'exec',
+  'commandExec',
+  'shellCommand',
+  'thread',
+];
 
 function isolationRank(strength: IsolationStrength | undefined): number {
   if (strength === 'strong') return 3;
@@ -65,6 +97,24 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
     if (!subject.manifest.capabilities.includes(capability)) {
       findings.push('manifest-capability-overreach');
     }
+  }
+
+  if (subject.approvedSubstrateManifest) {
+    for (const request of subject.substrateRequests ?? []) {
+      try {
+        validateSubstrateRequest(subject.approvedSubstrateManifest, request);
+      } catch {
+        findings.push('substrate-escalation');
+      }
+    }
+  }
+
+  if (
+    subject.resumeAttestation &&
+    isolationRank(subject.resumeAttestation.current.provenIsolationStrength) >
+      isolationRank(subject.resumeAttestation.launch.provenIsolationStrength)
+  ) {
+    findings.push('resume-attestation-drift');
   }
 
   return findings;

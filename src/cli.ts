@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { composeReferenceRun } from './bootstrap.js';
-import { LocalHarness } from './harness.js';
+import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import { projectRunEvents } from './projection.js';
@@ -122,10 +122,18 @@ async function handleRun(args: string[]): Promise<void> {
     if (!candidate) {
       throw new Error('No validated work-source candidate available');
     }
-    const recordManager = new RecordManager();
+    const recordManager = new RecordManager({
+      launchAttestation: composed.substrateManifest ? composed.capabilityAttestation : undefined,
+      substrateManifest: composed.substrateManifest,
+      redaction: composed.redaction,
+    });
     const harness = new LocalHarness(composed.agent, recordManager, createOwnerDecisionSource(), {
       capabilityAttestation: composed.capabilityAttestation,
       forge: composed.forge,
+      workspaceIsolation:
+        composed.executionHost.describe().driverId === 'real-host'
+          ? createInMemoryStoryWorkspaceIsolation(join(process.cwd(), '.jig-workspaces'))
+          : undefined,
     });
 
     const status = await harness.run(candidate.planInstance, config, policy);
