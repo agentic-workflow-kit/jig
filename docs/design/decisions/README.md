@@ -34,3 +34,4 @@ dispositions) and grows as new design decisions are made.
 | 0021 | Phase 5 integrated provider runs: four ports, conformance harness, reference adapters                 | applied |
 | 0022 | Phase 6 real-driver integration: 6a/6b split, real agent driver, proven confinement, substrate auth   | applied |
 | 0023 | Phase 7 real Forge/GitHub landing: runner-owned real landing, action union, idempotency, PR surfacing | applied |
+| 0024 | Phase 8 real work-source integration: seed-vs-candidate intake chokepoint, richer provenance, INV-007 | applied |

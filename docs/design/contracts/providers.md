@@ -518,13 +518,59 @@ the `action` union + real-effect idempotency + landing-path redaction, independe
   named ("pushed, opened PR, posted status, posted comment, merged, skipped repeated effect on resume")
   — no new event family is minted.
 
+## Phase 8 realization (ADR 0024)
+
+[ADR 0024](../decisions/0024-phase-8-real-work-source.md) promotes the **Work source** seam from the
+reference adapter to **real importer(s)** behind the same, unchanged `WorkSourcePort.candidates()`, at
+design altitude and unfrozen — the phase in which candidate work first arrives from a **real external
+source** rather than being seeded from the operator-supplied plan. It splits Phase 8 into **8a** (real
+importer + the structural `PlanValidator` crossing, independently useful) and **8b** (richer,
+origin-bearing provenance). This is the last real-driver phase of the M7 track.
+
+- **Real importer behind `candidates()`, opt-in and sole-imported.** Real importer(s) produce
+  `CandidateWorkItem`s from a real source (e.g. an issue tracker), selected by name
+  (`config.drivers.workSource = 'github-issues'`) through the composition root, sole-imported; an unknown
+  work-source name fails closed. The port is **not** a scheduler and **not** an authorization channel.
+  The default/reference wiring keeps emitting its single seed-derived candidate, so the Phase-0..4
+  goldens stay byte-identical.
+- **The structural `PlanValidator` chokepoint realizes `work-source-never-bypasses-plan`.** The merged
+  composition root validates the operator-supplied **seed** plan, but the thing actually scheduled is
+  `candidate.planInstance`; the reference adapter is seeded from that same object, so identity masks the
+  gap. A real importer breaks the identity, so Phase 8 enforces the crossing at a **single intake
+  chokepoint** that mints an **opaque runtime-verifiable validated wrapper** carrying an **unforgeable
+  runtime marker** (a module-private `Symbol` / private field) only it can produce; the runtime scheduling
+  API (`LocalHarness.run` / `LocalHarness.resume`, internal — not one of the four ports) is narrowed to
+  accept **only** that wrapper, never a raw plan. Two layers, both required: an unwrapped plan is a
+  **compile-time type error** for typed callers, and — because a type-level brand is **erased at runtime** —
+  `run`/`resume` also **verify the marker at runtime**, so an `any`-typed caller or a value crossing a
+  deserialization boundary that lacks the marker is **refused fail-closed and recorded** (the runtime check
+  makes the any-edge guarantee achievable). A failing candidate is rejected or held (P8-AC-1); a bypass —
+  adapter-side or a direct-harness marker-less call — fails closed and is recorded through the existing
+  `rejected`/`denied` families, minting no new event family (P8-AC-2). The runtime marker lives on the
+  in-memory wrapper and is never serialized, so the Phase-0..4 goldens stay byte-identical. The
+  `work-source-plan-intake-bypass` conformance anchor plus a direct-`run`/`resume`-bypass case exercising
+  the runtime refusal ride Phase 8.
+- **Origin-bearing `CandidateWorkItem.provenance` (Residual-B-style seam fix).** The merged
+  [`../../../src/ports.ts`](../../../src/ports.ts) types `provenance` as the single literal
+  `'jig-validated'`; Phase 8 widens it to a shape that **names the real origin** (source system +
+  identifier) **and still asserts jig-validated**, so provenance is not collapsed to one constant. This is
+  a jig-internal port-type widening — the same category as the ADR 0023 `LandingRequest.action` union —
+  that **freezes nothing**; field encoding is deferred. The **per-candidate** origin (source + candidate
+  identifier) is **legible in the run record** without a freeze: the observability-records contract is
+  "v0 Not Frozen" and already carries the **driver** identity as `run.drivers.workSource`
+  (`"work-source:local-plan"`) — but driver identity alone is **not** sufficient (two candidates through
+  one driver must be distinguishable), so the per-candidate origin rides an **additive** provenance field /
+  event basis alongside it; no frozen field is minted (P8-AC-3). The `PlanValidator` crossing is
+  non-negotiable and does not regress: the source stays a candidate producer, never a scheduling
+  authority.
+
 ## Notes
 
 - A seam is not a shipped driver. In Phase 5 each port is exercised by a **reference adapter** and the
   conformance suite; the **real** agent and execution-host drivers arrive in Phase 6
   ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)), the **real** forge driver arrives
   in Phase 7 ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md)), and the **real** work-source
-  driver remains a named extension point for Phase 8.
+  importer arrives in Phase 8 ([ADR 0024](../decisions/0024-phase-8-real-work-source.md)).
 - Until a driver proves a capability, expect reduced autonomy, not a weaker guarantee.
 - Realized in Phase 5 (ADR 0021): the reusable conformance suite, the provider-manifest shape at design
   altitude, the capability-proof model, and reference adapters for all four seams.
@@ -533,9 +579,11 @@ the `action` union + real-effect idempotency + landing-path redaction, independe
 
 - **Real** (production) adapters for the **Agent** and **Execution host** seams are realized in
   Phase 6 ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md), "Phase 6 realization"
-  above), and real **Forge**/GitHub push/PR/merge in Phase 7
-  ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md), "Phase 7 realization" above); real
-  **Work source** import (Phase 8) remains deferred here.
+  above), real **Forge**/GitHub push/PR/merge in Phase 7
+  ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md), "Phase 7 realization" above), and real
+  **Work source** import in Phase 8
+  ([ADR 0024](../decisions/0024-phase-8-real-work-source.md), "Phase 8 realization" above); all four
+  seams now have realized real drivers.
 - Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape,
   including the Phase-6 substrate manifest and persisted-attestation shape; freeze stays with the
   contract owner).

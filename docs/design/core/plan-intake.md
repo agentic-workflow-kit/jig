@@ -408,6 +408,28 @@ available invariant number is `INV-019`.
   understood instead of silently coping with it.
 - **No second scheduling input.** No upstream source, including a future work-source path, bypasses
   validated plan intake and hands runtime scheduling input directly to core.
+
+  **Phase 8 realization ([ADR 0024](../decisions/0024-phase-8-real-work-source.md)).** With a real
+  work-source importer this stops being an identity coincidence and becomes a structural chokepoint.
+  Today the composition root validates the operator-supplied **seed** plan, but the thing actually
+  scheduled is `candidate.planInstance` from `WorkSourcePort.candidates()`; the reference adapter is
+  seeded from that same object, so `candidate.planInstance === the validated seed` and identity masks the
+  gap. A real importer builds fresh candidate plans from an external source that never crossed `validate`,
+  so Phase 8 enforces the crossing at a **single intake chokepoint** that mints an **opaque
+  runtime-verifiable validated wrapper** carrying an **unforgeable runtime marker** (a module-private
+  `Symbol` / private field) only it can produce; the runtime scheduling API (`LocalHarness.run` /
+  `LocalHarness.resume`) is narrowed to accept **only** that wrapper, never a raw plan. Two enforcement
+  layers, both required: at **compile time** an unwrapped plan is a type error for typed callers; and
+  because a type-level brand is **erased at runtime**, `run`/`resume` also **check the marker at runtime**,
+  so an `any`-typed caller or a value crossing a deserialization boundary that lacks the marker is
+  **refused fail-closed and recorded** — the runtime check is what makes the any-edge guarantee
+  achievable. Both the run and resume paths obtain the wrapper from the same chokepoint. A candidate that
+  fails validation is **rejected or held** and never scheduled (P8-AC-1); a bypass — a direct-harness call
+  with a marker-less value included — fails closed and is recorded through the existing `rejected`/`denied`
+  families, minting no new event family (P8-AC-2). The runtime marker lives on the in-memory wrapper and is
+  never serialized, so the Phase-0..4 goldens stay byte-identical. The source is never a second scheduling
+  or authorization authority; INV-007 holds structurally.
+
 - **Evidence is observed, never self-certified.** A worker's self-report alone cannot satisfy the
   evidence posture policy requires for landing.
 - **Capability proof must be fresh for the current driver/run context.** Missing or stale proof
