@@ -63,13 +63,17 @@ export type AuthorizationBasis =
   | 'FENCE-1'
   | 'out-of-declared-scope'
   | 'invalid-request-path'
-  | 'unknown-request-kind';
+  | 'unknown-request-kind'
+  | 'containment-unproven'
+  | 'isolation-strength-overstated'
+  | 'workspace-collision';
 
 export interface AuthorizationRequest {
   id: string;
   kind: string;
   paths?: string[];
   command?: string;
+  capability?: string;
   privileged?: boolean;
   irreversible?: boolean;
   [key: string]: unknown;

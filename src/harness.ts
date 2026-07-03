@@ -1,4 +1,5 @@
 import { authorizeRequest } from './authorization.js';
+import type { CapabilityAttestation, ForgePort } from './ports.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, RecordSink, ResumePlan, RunStatus, Story, Worker } from './types.js';
 
 type OwnerDecision = 'approve' | 'reject';
@@ -11,15 +12,38 @@ type StoryExecutionResult =
   | { status: 'success' }
   | { status: 'failure'; stopReason: 'work-item-blocked' | 'unattended-park'; checkpointStoryId: string };
 
+interface HarnessPorts {
+  capabilityAttestation?: CapabilityAttestation;
+  forge?: ForgePort;
+}
+
+const defaultForge: ForgePort = {
+  land: (request) => ({
+    family: 'runner-action.skipped-on-dry-run',
+    storyId: request.storyId,
+    action: request.action,
+    reason: request.reason ?? 'dry-run',
+  }),
+};
+
 export class LocalHarness {
   private readonly worker: Worker;
   private readonly recordManager: RecordSink;
   private readonly ownerDecisionSource: OwnerDecisionSource | null;
+  private readonly capabilityAttestation: CapabilityAttestation | undefined;
+  private readonly forge: ForgePort;
 
-  constructor(worker: Worker, recordManager: RecordSink, ownerDecisionSource: OwnerDecisionSource | null = null) {
+  constructor(
+    worker: Worker,
+    recordManager: RecordSink,
+    ownerDecisionSource: OwnerDecisionSource | null = null,
+    ports: HarnessPorts = {},
+  ) {
     this.worker = worker;
     this.recordManager = recordManager;
     this.ownerDecisionSource = ownerDecisionSource;
+    this.capabilityAttestation = ports.capabilityAttestation;
+    this.forge = ports.forge ?? defaultForge;
   }
 
   async run(planInstance: PlanInstance, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
@@ -256,7 +280,7 @@ export class LocalHarness {
           requestKind: request.kind,
         });
 
-        const decision = authorizeRequest(request, story, policy);
+        const decision = authorizeRequest(request, story, policy, this.capabilityAttestation);
         if (decision.outcome === 'grant') {
           this.recordManager.recordEvent({
             family: 'authorization.granted',
@@ -373,12 +397,12 @@ export class LocalHarness {
           storyId: story.id,
           changedFiles: result.changedFiles,
         });
-        this.recordManager.recordEvent({
-          family: 'runner-action.skipped-on-dry-run',
+        const landing = await this.forge.land({
           storyId: story.id,
           action: 'push|open-pr|merge',
           reason: 'dry-run',
         });
+        this.recordManager.recordEvent(landing);
         return { status: 'success' };
       }
 
