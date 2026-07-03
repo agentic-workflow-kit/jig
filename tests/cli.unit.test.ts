@@ -85,11 +85,11 @@ function phase4LaunchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
       },
     },
     posture: {
-      redaction: 'safe-for-owner-record',
+      record: 'safe-for-owner-record',
       export: 'redacted',
     },
-    planSnapshotRef: 'plan.snapshot.json',
-    policySnapshotRef: 'policy.snapshot.json',
+    planSnapshot: { ref: 'plan.snapshot.json' },
+    policySnapshot: { ref: 'policy.snapshot.json' },
     ...overrides,
   };
 }

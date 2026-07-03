@@ -1,11 +1,21 @@
 import assert from 'node:assert';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
+import { LocalHarness } from '../src/harness.js';
 import type { RunProjection } from '../src/projection.js';
+import { RecordManager } from '../src/records.js';
 import { buildResumePlan, ResumeRefusal, resumeRun } from '../src/resume.js';
-import type { GitWorkspaceFingerprint, Plan, PolicyDoc, RunEvent, WorkspaceFingerprint } from '../src/types.js';
+import type {
+  ConfigDoc,
+  GitWorkspaceFingerprint,
+  Plan,
+  PolicyDoc,
+  RunEvent,
+  WorkspaceFingerprint,
+} from '../src/types.js';
+import { ScriptedWorker } from '../src/worker.js';
 import { captureWorkspaceFingerprint } from '../src/workspace.js';
 
 let runDir: string;
@@ -67,11 +77,11 @@ function stoppedEvents(workspace = captureWorkspaceFingerprint(process.cwd())): 
         workspace,
       },
       posture: {
-        redaction: 'safe-for-owner-record',
+        record: 'safe-for-owner-record',
         export: 'redacted',
       },
-      planSnapshotRef: 'plan.snapshot.json',
-      policySnapshotRef: 'policy.snapshot.json',
+      planSnapshot: { ref: 'plan.snapshot.json' },
+      policySnapshot: { ref: 'policy.snapshot.json' },
     },
     {
       family: 'story.started',
@@ -130,6 +140,13 @@ function writeJson(name: string, value: unknown): string {
   return path;
 }
 
+function readRunEvents(): RunEvent[] {
+  return readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+}
+
 test('P4-AC-1: resume appends run.resumed and continues in the same run directory', async () => {
   writeStoppedRun();
   const scriptedOutputPath = writeScriptedOutput();
@@ -151,6 +168,83 @@ test('P4-AC-1: resume appends run.resumed and continues in the same run director
   };
   assert.strictEqual(runRecord.run.id, 'run-plan-resume-existing');
   assert.strictEqual(runRecord.run.attempt, 1);
+});
+
+test('P4-AC-1: real RecordManager run output resumes through resumeRun without fixture aliases', async () => {
+  const recordBaseDir = join(runDir, 'records');
+  const config: ConfigDoc = {
+    runner: {
+      mode: 'local-dry-run',
+      recordDir: recordBaseDir,
+    },
+    drivers: {
+      agent: 'scripted-stub',
+      executionHost: 'local',
+    },
+  };
+  const planSnapshot: Plan = {
+    id: 'plan-real-resume',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 'STORY-1', title: 'fails first' },
+      { id: 'STORY-2', title: 'continues after resume' },
+    ],
+  };
+  const policy = launchPolicy();
+  const harness = new LocalHarness(
+    new ScriptedWorker({
+      stories: [
+        {
+          storyId: 'STORY-1',
+          outcome: 'failure',
+          evidence: { result: 'failed' },
+          error: 'first stop',
+        },
+      ],
+    }),
+    new RecordManager(),
+  );
+
+  assert.strictEqual(await harness.run({ plan: planSnapshot }, config, policy), 'failure');
+  const [runName] = readdirSync(recordBaseDir);
+  assert.ok(runName);
+  const realRunDir = join(recordBaseDir, runName);
+  const [launchLine] = readFileSync(join(realRunDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  const launch = JSON.parse(launchLine) as RunEvent;
+  assert.ok(launch.planSnapshot);
+  assert.ok(launch.policySnapshot);
+  assert.strictEqual(launch.planSnapshotRef, undefined);
+  assert.strictEqual(launch.policySnapshotRef, undefined);
+  assert.deepStrictEqual(launch.posture, {
+    record: 'safe-for-owner-record',
+    export: 'redacted',
+  });
+
+  const scriptedOutputPath = join(runDir, 'real-resume-output.json');
+  writeFileSync(
+    scriptedOutputPath,
+    JSON.stringify(
+      {
+        stories: [
+          {
+            storyId: 'STORY-2',
+            outcome: 'success',
+            evidence: { result: 'passed' },
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+
+  assert.strictEqual(await resumeRun({ runDir: realRunDir, scriptedOutputPath }), 'success');
+  const events = readFileSync(join(realRunDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(events.find((event) => event.family === 'run.resumed'));
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 'STORY-2'));
 });
 
 test('P4-AC-1: resume accepts matching verification bindings without rebinding the launch policy', async () => {
@@ -221,18 +315,24 @@ test('P4-AC-3: resume refuses missing or mismatched durable policy snapshots bef
   const scriptedOutputPath = writeScriptedOutput();
 
   rmSync(join(runDir, 'policy.snapshot.json'));
-  await assert.rejects(() => resumeRun({ runDir, scriptedOutputPath }), /Missing policy snapshot/);
+  await assert.rejects(
+    () => resumeRun({ runDir, scriptedOutputPath }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-binding-mismatch' &&
+      /missing policy snapshot/.test(error.message),
+  );
 
   writeStoppedRun(stoppedEvents(), plan(), { policy: { id: 'other-policy', rules: { allowLocalDryRun: true } } });
   await assert.rejects(
     () => resumeRun({ runDir, scriptedOutputPath }),
-    /Policy snapshot id "other-policy" does not match launch binding "local-dry-run-policy"/,
+    /policy snapshot id "other-policy" does not match launch binding "local-dry-run-policy"/,
   );
 
   writeStoppedRun(stoppedEvents(), plan(), { policy: { rules: { allowLocalDryRun: true } } });
   await assert.rejects(
     () => resumeRun({ runDir, scriptedOutputPath }),
-    /Policy snapshot id "unknown-policy" does not match launch binding "local-dry-run-policy"/,
+    /policy snapshot id "unknown-policy" does not match launch binding "local-dry-run-policy"/,
   );
 });
 
@@ -242,7 +342,13 @@ test('P4-AC-1: resume refuses missing events or plan snapshot before appending e
   writeStoppedRun();
   rmSync(join(runDir, 'plan.snapshot.json'));
 
-  await assert.rejects(() => resumeRun({ runDir, scriptedOutputPath: writeScriptedOutput() }), /Missing plan snapshot/);
+  await assert.rejects(
+    () => resumeRun({ runDir, scriptedOutputPath: writeScriptedOutput() }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-binding-mismatch' &&
+      /missing plan snapshot/.test(error.message),
+  );
 });
 
 test('P4-AC-3: resumed rule-governing work is routed under durable launch policy snapshot', async () => {
@@ -311,6 +417,83 @@ test('P4-AC-3: resumed rule-governing work is routed under durable launch policy
   assert.ok(events.find((event) => event.family === 'story.parked' && event.storyId === 'STORY-2'));
 });
 
+test('P4-AC-2: resumed allowed request is granted through the resume execution path', async () => {
+  const planSnapshot: Plan = {
+    id: 'plan-resume',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 'STORY-1', title: 'blocked first' },
+      {
+        id: 'STORY-2',
+        title: 'allowed edit after resume',
+        scope: ['src/**'],
+        authority: {
+          requests: ['edit-files'],
+        },
+      },
+    ],
+  };
+  writeStoppedRun(stoppedEvents(), planSnapshot);
+  const scriptedOutputPath = writeJson('scripted-output.json', {
+    stories: [
+      {
+        storyId: 'STORY-2',
+        outcome: 'success',
+        requests: [{ id: 'REQ-allowed', kind: 'edit-files', paths: ['src/resume.ts'] }],
+        evidence: { result: 'passed' },
+      },
+    ],
+  });
+
+  const status = await resumeRun({ runDir, scriptedOutputPath });
+
+  assert.strictEqual(status, 'success');
+  const events = readRunEvents();
+  assert.ok(events.find((event) => event.family === 'authorization.granted' && event.requestId === 'REQ-allowed'));
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 'STORY-2'));
+});
+
+test('P4-AC-2: resumed denied request blocks through the resume execution path', async () => {
+  const planSnapshot: Plan = {
+    id: 'plan-resume',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 'STORY-1', title: 'blocked first' },
+      {
+        id: 'STORY-2',
+        title: 'denied edit after resume',
+        scope: ['src/**'],
+        authority: {
+          requests: ['edit-files'],
+        },
+      },
+    ],
+  };
+  writeStoppedRun(stoppedEvents(), planSnapshot);
+  const scriptedOutputPath = writeJson('scripted-output.json', {
+    stories: [
+      {
+        storyId: 'STORY-2',
+        outcome: 'success',
+        requests: [{ id: 'REQ-denied', kind: 'edit-files', paths: ['docs/adr.md'] }],
+        evidence: { result: 'passed' },
+      },
+    ],
+  });
+
+  const status = await resumeRun({ runDir, scriptedOutputPath });
+
+  assert.strictEqual(status, 'failure');
+  const events = readRunEvents();
+  assert.ok(events.find((event) => event.family === 'authorization.denied' && event.requestId === 'REQ-denied'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'story.blocked' && event.storyId === 'STORY-2' && event.reason === 'authorization-denied',
+    ),
+  );
+});
+
 test('P4-AC-6: resume with a changed workspace fingerprint is refused without appending events', async () => {
   const workspace = captureWorkspaceFingerprint(process.cwd());
   assertGitWorkspace(workspace);
@@ -318,6 +501,25 @@ test('P4-AC-6: resume with a changed workspace fingerprint is refused without ap
     stoppedEvents({
       ...workspace,
       changeSetHash: `${workspace.changeSetHash}-different`,
+    }),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+
+  await assert.rejects(
+    () => resumeRun({ runDir, scriptedOutputPath }),
+    (error: unknown) => error instanceof ResumeRefusal && error.reason === 'resume-blocked-workspace-mismatch',
+  );
+
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P4-AC-6: resume refuses unavailable workspace fingerprints instead of claiming continuity', async () => {
+  writeStoppedRun(
+    stoppedEvents({
+      kind: 'unavailable',
+      reason: 'not-a-git-worktree',
+      detail: 'workspace fingerprint unavailable outside a git worktree',
     }),
   );
   const scriptedOutputPath = writeScriptedOutput();
@@ -375,7 +577,7 @@ test('P4-AC-1: ResumePlan is a narrow projection-to-harness handoff with parked 
       changeSetHash: 'clean',
     },
     posture: {
-      redaction: 'safe-for-owner-record',
+      record: 'safe-for-owner-record',
       export: 'redacted',
     },
     planSnapshotRef: 'plan.snapshot.json',
@@ -454,7 +656,7 @@ test('P4-AC-1: ResumePlan omits parked request when checkpoint is not backed by 
       changeSetHash: 'clean',
     },
     posture: {
-      redaction: 'safe-for-owner-record',
+      record: 'safe-for-owner-record',
       export: 'redacted',
     },
     planSnapshotRef: 'plan.snapshot.json',

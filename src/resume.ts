@@ -17,7 +17,6 @@ import type {
   RunPosture,
   RunRecord,
   RunStatus,
-  WorkspaceFingerprint,
 } from './types.js';
 import { ScriptedWorker } from './worker.js';
 import { captureWorkspaceFingerprint } from './workspace.js';
@@ -74,7 +73,10 @@ function loadRunRecord(runDir: string): RunRecord | null {
 function loadPlanSnapshot(runDir: string): Plan {
   const snapshotPath = join(runDir, PLAN_SNAPSHOT_FILE);
   if (!existsSync(snapshotPath)) {
-    throw new Error(`Missing plan snapshot at "${snapshotPath}"`);
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: missing plan snapshot at "${snapshotPath}"`,
+    );
   }
   const plan = JSON.parse(readFileSync(snapshotPath, 'utf8')) as Plan;
   PlanValidator.validate({ plan });
@@ -84,12 +86,16 @@ function loadPlanSnapshot(runDir: string): Plan {
 function loadPolicySnapshot(runDir: string, projection: RunProjection): PolicyDoc {
   const snapshotPath = join(runDir, POLICY_SNAPSHOT_FILE);
   if (!existsSync(snapshotPath)) {
-    throw new Error(`Missing policy snapshot at "${snapshotPath}"`);
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: missing policy snapshot at "${snapshotPath}"`,
+    );
   }
   const policy = JSON.parse(readFileSync(snapshotPath, 'utf8')) as PolicyDoc;
   if (policy.policy?.id !== projection.binding.policyRef) {
-    throw new Error(
-      `Policy snapshot id "${policy.policy?.id ?? 'unknown-policy'}" does not match launch binding "${projection.binding.policyRef}"`,
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: policy snapshot id "${policy.policy?.id ?? 'unknown-policy'}" does not match launch binding "${projection.binding.policyRef}"`,
     );
   }
   return policy;
@@ -101,29 +107,12 @@ function loadPlanInstanceForVerification(planPath: string): PlanInstance {
   return planInstance;
 }
 
-function normalizeWorkspaceFingerprint(fingerprint: WorkspaceFingerprint): Record<string, unknown> {
-  if ('kind' in fingerprint && fingerprint.kind === 'unavailable') {
-    return fingerprint as unknown as Record<string, unknown>;
-  }
-
-  const record = fingerprint as unknown as Record<string, unknown>;
-  const repoRoot = record.repoRoot ?? record.root;
-  return {
-    kind: record.kind,
-    root: record.root ?? repoRoot,
-    repoRoot,
-    head: record.head,
-    changeSetHash: record.changeSetHash,
-  };
-}
-
 function verifyWorkspaceContinuity(projection: RunProjection): void {
   const current = captureWorkspaceFingerprint(process.cwd());
   if (
-    !isDeepStrictEqual(
-      normalizeWorkspaceFingerprint(current),
-      normalizeWorkspaceFingerprint(projection.workspace as WorkspaceFingerprint),
-    )
+    ('kind' in current && current.kind === 'unavailable') ||
+    ('kind' in projection.workspace && projection.workspace.kind === 'unavailable') ||
+    !isDeepStrictEqual(current, projection.workspace)
   ) {
     throw new ResumeRefusal(
       'resume-blocked-workspace-mismatch',

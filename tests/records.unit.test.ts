@@ -206,13 +206,12 @@ test('P4-AC-6: workspace fingerprint hash changes across materially different di
 
   assert.ok('kind' in clean);
   assert.strictEqual(clean.kind, 'git');
-  assert.strictEqual(clean.root, clean.repoRoot);
   assert.strictEqual(clean.changeSetHash, 'git-tree-clean');
   assert.ok('kind' in trackedDirty);
   assert.ok('kind' in stagedDirty);
   assert.strictEqual(trackedDirty.kind, 'git');
   assert.strictEqual(stagedDirty.kind, 'git');
-  assert.strictEqual(trackedDirty.root, stagedDirty.root);
+  assert.strictEqual(trackedDirty.repoRoot, stagedDirty.repoRoot);
   assert.strictEqual(trackedDirty.head, stagedDirty.head);
   assert.notStrictEqual(trackedDirty.changeSetHash, stagedDirty.changeSetHash);
 });

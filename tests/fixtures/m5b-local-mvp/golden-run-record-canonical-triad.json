@@ -10,7 +10,6 @@
       "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
       "workspace": {
         "kind": "git",
-        "root": "<WORKSPACE>",
         "repoRoot": "<WORKSPACE>",
         "head": "<WORKSPACE_HEAD>",
         "changeSetHash": "<WORKSPACE_HASH>"
@@ -40,7 +39,6 @@
         "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
         "workspace": {
           "kind": "git",
-          "root": "<WORKSPACE>",
           "repoRoot": "<WORKSPACE>",
           "head": "<WORKSPACE_HEAD>",
           "changeSetHash": "<WORKSPACE_HASH>"

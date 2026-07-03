@@ -24,8 +24,8 @@ function launchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
       record: 'safe-for-owner-record',
       export: 'redacted',
     },
-    planSnapshotRef: 'plan.snapshot.json',
-    policySnapshotRef: 'policy.snapshot.json',
+    planSnapshot: { ref: 'plan.snapshot.json' },
+    policySnapshot: { ref: 'policy.snapshot.json' },
     ...overrides,
   };
 }
@@ -138,7 +138,7 @@ function staleRunRecord(): RunRecord {
         configRef: 'mode=local-dry-run;recordDir=other-runs',
         workspace: {
           kind: 'git',
-          root: '/tmp/jig',
+          repoRoot: '/tmp/jig',
           head: '0123456789abcdef0123456789abcdef01234567',
           changeSetHash: 'workspace-clean',
         },
@@ -172,7 +172,6 @@ test('P4-AC-4: happy replay projects authoritative launch metadata, story states
   });
   assert.deepStrictEqual(projection.posture, {
     record: 'safe-for-owner-record',
-    redaction: 'safe-for-owner-record',
     export: 'redacted',
   });
   assert.strictEqual(projection.planSnapshotRef, 'plan.snapshot.json');
@@ -242,7 +241,6 @@ test('P4-AC-4: matching run.json adds no stale diagnostic', () => {
         },
         posture: {
           record: 'safe-for-owner-record',
-          redaction: 'safe-for-owner-record',
           export: 'redacted',
         },
         planSnapshot: { ref: 'plan.snapshot.json' },
@@ -492,6 +490,75 @@ test('P4-AC-4: run resume and completion replay from a stopped checkpoint', () =
   assert.strictEqual(projection.stories['STORY-2']?.state, 'done');
 });
 
+test('P4-AC-1: replay permits repeatable in-progress work to restart after run.resumed', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:02.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'story.blocked',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:03.000Z',
+        storyId: 'STORY-1',
+        reason: 'worker-reported-failure',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:04.000Z',
+        reason: 'work-item-blocked',
+        checkpoint: 'after:STORY-1',
+        unstarted: ['STORY-2'],
+      },
+      {
+        family: 'run.resumed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:05.000Z',
+        runId: 'run-plan-phase4-20260702-uuid',
+        checkpoint: 'after:STORY-1',
+      },
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:06.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'evidence.modeled',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:07.000Z',
+        storyId: 'STORY-2',
+        result: 'passed',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:08.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:09.000Z',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.status, 'success');
+  assert.strictEqual(projection.stories['STORY-2']?.state, 'done');
+});
+
 test('P4-AC-4: unsafe stop checkpoints and run-level resume from active state fail closed', () => {
   assert.throws(
     () =>
@@ -534,8 +601,7 @@ test('P4-AC-5: conflicting or ambiguous launch posture fails closed before inspe
         eventsJsonl: stringifyJsonl([
           launchHeader({
             posture: {
-              record: 'safe-for-owner-record',
-              redaction: 'ambiguous',
+              record: 'ambiguous',
               export: 'redacted',
             } as unknown as RunEvent['posture'],
           }),
@@ -558,7 +624,7 @@ test('P4-AC-5: missing, unsupported, or ambiguous launch posture variants fail c
     { record: 'unsafe', export: 'redacted' },
     { record: 'safe-for-owner-record', export: 'ambiguous' },
     { record: 'safe-for-owner-record', export: 'plain' },
-  ] as RunEvent['posture'][]) {
+  ] as unknown as RunEvent['posture'][]) {
     assert.throws(
       () =>
         projectRunEvents({
@@ -577,7 +643,7 @@ test('P4-AC-5: missing, unsupported, or ambiguous launch posture variants fail c
   }
 });
 
-test('P4-AC-4: launch header accepts snapshot refs from artifact objects and legacy root workspace shape', () => {
+test('P4-AC-4: launch header accepts snapshot refs from artifact objects', () => {
   const projection = projectRunEvents({
     eventsJsonl: stringifyJsonl([
       launchHeader({
@@ -586,20 +652,18 @@ test('P4-AC-4: launch header accepts snapshot refs from artifact objects and leg
           configRef: 'mode=local-dry-run;recordDir=runs',
           workspace: {
             kind: 'git',
-            root: '/tmp/jig-root-only',
+            repoRoot: '/tmp/jig',
             head: '0123456789abcdef0123456789abcdef01234567',
             changeSetHash: 'workspace-clean',
           },
         },
-        planSnapshotRef: undefined,
-        policySnapshotRef: undefined,
         planSnapshot: { ref: 'record-artifact:run/plan.snapshot.json' },
         policySnapshot: { ref: 'record-artifact:run/policy.snapshot.json' },
       }),
     ]),
   });
 
-  assert.strictEqual(projection.workspace.repoRoot, '/tmp/jig-root-only');
+  assert.strictEqual(projection.workspace.repoRoot, '/tmp/jig');
   assert.strictEqual(projection.planSnapshotRef, 'record-artifact:run/plan.snapshot.json');
   assert.strictEqual(projection.policySnapshotRef, 'record-artifact:run/policy.snapshot.json');
 });
@@ -704,7 +768,7 @@ test('P4-AC-4: legacy or incomplete run.started launch headers are rejected when
     (error: unknown) => {
       assert.ok(error instanceof ProjectionError);
       assert.strictEqual(error.code, 'missing-launch-metadata');
-      assert.match(error.message, /planId|binding|posture|planSnapshotRef/);
+      assert.match(error.message, /planId|binding|posture|planSnapshot/);
       return true;
     },
   );

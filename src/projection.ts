@@ -6,10 +6,9 @@ export type ProjectionStatus = RunStatus | 'running';
 export type ProjectedStoryState = 'unstarted' | 'started' | 'parked' | 'done' | 'blocked' | 'rejected';
 
 export interface WorkspaceFingerprint {
-  repoRoot: string;
-  root?: string;
-  head: string;
-  changeSetHash: string;
+  repoRoot?: string;
+  head?: string;
+  changeSetHash?: string;
   kind?: string;
   [key: string]: unknown;
 }
@@ -21,8 +20,7 @@ export interface LaunchBinding {
 }
 
 export interface RunPosture {
-  record?: string;
-  redaction: string;
+  record: string;
   export: string;
   [key: string]: unknown;
 }
@@ -200,40 +198,27 @@ function requireObject(
 function readRunPosture(parsedEvent: ParsedEvent, postureRecord: Record<string, unknown>): RunPosture {
   const recordValue =
     typeof postureRecord.record === 'string' && postureRecord.record.trim() !== '' ? postureRecord.record : undefined;
-  const redactionValue =
-    typeof postureRecord.redaction === 'string' && postureRecord.redaction.trim() !== ''
-      ? postureRecord.redaction
-      : undefined;
 
-  if (recordValue !== undefined && redactionValue !== undefined && recordValue !== redactionValue) {
-    throw new ProjectionError(
-      'invalid-posture',
-      `Conflicting run.started posture values for record and redaction on line ${parsedEvent.line}`,
-      parsedEvent,
-    );
-  }
-
-  const effectiveRecordPosture = redactionValue ?? recordValue;
-  if (effectiveRecordPosture === undefined) {
+  if (recordValue === undefined) {
     throw new ProjectionError(
       'missing-launch-metadata',
-      'Missing Phase 4 launch metadata in run.started: posture.record|posture.redaction',
+      'Missing Phase 4 launch metadata in run.started: posture.record',
       parsedEvent,
     );
   }
 
-  if (effectiveRecordPosture === 'unknown' || effectiveRecordPosture === 'ambiguous') {
+  if (recordValue === 'unknown' || recordValue === 'ambiguous') {
     throw new ProjectionError(
       'invalid-posture',
-      `Ambiguous run.started redaction posture on line ${parsedEvent.line}`,
+      `Ambiguous run.started record posture on line ${parsedEvent.line}`,
       parsedEvent,
     );
   }
 
-  if (effectiveRecordPosture !== VALID_RECORD_POSTURE) {
+  if (recordValue !== VALID_RECORD_POSTURE) {
     throw new ProjectionError(
       'invalid-posture',
-      `Unsupported run.started redaction posture "${effectiveRecordPosture}" on line ${parsedEvent.line}`,
+      `Unsupported run.started record posture "${recordValue}" on line ${parsedEvent.line}`,
       parsedEvent,
     );
   }
@@ -257,8 +242,7 @@ function readRunPosture(parsedEvent: ParsedEvent, postureRecord: Record<string, 
 
   return {
     ...postureRecord,
-    record: effectiveRecordPosture,
-    redaction: effectiveRecordPosture,
+    record: recordValue,
     export: exportPosture,
   };
 }
@@ -297,21 +281,20 @@ function readLaunchHeader(
     ? parsedEvent.event.policySnapshot
     : undefined;
 
-  const repoRoot = requireString(
-    workspaceRecord.repoRoot ?? workspaceRecord.root,
-    'binding.workspace.repoRoot',
-    parsedEvent,
-  );
+  const workspace =
+    workspaceRecord.kind === 'unavailable'
+      ? (workspaceRecord as WorkspaceFingerprint)
+      : {
+          ...workspaceRecord,
+          repoRoot: requireString(workspaceRecord.repoRoot, 'binding.workspace.repoRoot', parsedEvent),
+          head: requireString(workspaceRecord.head, 'binding.workspace.head', parsedEvent),
+          changeSetHash: requireString(workspaceRecord.changeSetHash, 'binding.workspace.changeSetHash', parsedEvent),
+        };
 
   const binding: LaunchBinding = {
     policyRef: requireString(bindingRecord.policyRef, 'binding.policyRef', parsedEvent),
     configRef: requireString(bindingRecord.configRef, 'binding.configRef', parsedEvent),
-    workspace: {
-      ...workspaceRecord,
-      repoRoot,
-      head: requireString(workspaceRecord.head, 'binding.workspace.head', parsedEvent),
-      changeSetHash: requireString(workspaceRecord.changeSetHash, 'binding.workspace.changeSetHash', parsedEvent),
-    },
+    workspace,
   };
 
   const posture = readRunPosture(parsedEvent, postureRecord);
@@ -323,16 +306,8 @@ function readLaunchHeader(
     binding,
     workspace: binding.workspace,
     posture,
-    planSnapshotRef: requireString(
-      parsedEvent.event.planSnapshotRef ?? planSnapshotRecord?.ref,
-      'planSnapshotRef',
-      parsedEvent,
-    ),
-    policySnapshotRef: requireString(
-      parsedEvent.event.policySnapshotRef ?? policySnapshotRecord?.ref,
-      'policySnapshotRef',
-      parsedEvent,
-    ),
+    planSnapshotRef: requireString(planSnapshotRecord?.ref, 'planSnapshot.ref', parsedEvent),
+    policySnapshotRef: requireString(policySnapshotRecord?.ref, 'policySnapshot.ref', parsedEvent),
   };
 }
 
@@ -530,6 +505,15 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
       stopCause = undefined;
       safeCheckpoint = undefined;
       unstartedStoryIds = [];
+      for (const story of stories.values()) {
+        if (story.state === 'started') {
+          story.state = 'unstarted';
+          story.reason = undefined;
+          story.blockedBy = undefined;
+          story.diagnostics = undefined;
+          story.lastEventFamily = 'story.unstarted';
+        }
+      }
       continue;
     }
 

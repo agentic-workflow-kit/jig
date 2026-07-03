@@ -29,7 +29,6 @@ function normalizeWorkspace(workspace: Record<string, unknown> | undefined): Rec
   if (workspace.kind === 'git') {
     return {
       ...workspace,
-      root: '<WORKSPACE>',
       repoRoot: '<WORKSPACE>',
       head: '<WORKSPACE_HEAD>',
       changeSetHash: '<WORKSPACE_HASH>',

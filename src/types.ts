@@ -92,8 +92,7 @@ export type RunStatus = 'success' | 'failure';
 
 export interface GitWorkspaceFingerprint {
   kind: 'git';
-  root?: string;
-  repoRoot?: string;
+  repoRoot: string;
   head: string;
   changeSetHash: string;
 }
@@ -120,8 +119,7 @@ export interface RunBinding {
 }
 
 export interface RunPosture {
-  record?: 'safe-for-owner-record';
-  redaction?: 'safe-for-owner-record';
+  record: 'safe-for-owner-record';
   export: 'redacted';
 }
 
@@ -141,9 +139,7 @@ export interface RunEvent {
   binding?: RunBinding;
   posture?: RunPosture;
   planSnapshot?: PlanSnapshotRef;
-  planSnapshotRef?: string;
   policySnapshot?: PolicySnapshotRef;
-  policySnapshotRef?: string;
   storyId?: string;
   blockedBy?: string;
   reason?: string;

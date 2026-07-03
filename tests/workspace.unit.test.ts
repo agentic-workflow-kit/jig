@@ -119,7 +119,6 @@ test('P4-AC-6: workspace fingerprint hashes dirty git status and diffs determini
   ]);
   assert.ok('kind' in fingerprint);
   assert.strictEqual(fingerprint.kind, 'git');
-  assert.strictEqual(fingerprint.root, '/repo');
   assert.strictEqual(fingerprint.repoRoot, '/repo');
   assert.strictEqual(fingerprint.head, 'abc');
   assert.match(fingerprint.changeSetHash, /^[a-f0-9]{64}$/);

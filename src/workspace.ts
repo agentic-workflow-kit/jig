@@ -124,7 +124,6 @@ export function captureWorkspaceFingerprint(cwd: string): WorkspaceFingerprint {
 
   return {
     kind: 'git',
-    root: rootResult.stdout,
     repoRoot: rootResult.stdout,
     head: headResult.stdout,
     changeSetHash,
