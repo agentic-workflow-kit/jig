@@ -18,6 +18,7 @@ export interface ConfinementProof {
   freshness: CapabilityFreshness;
   positive: boolean;
   provenIsolationStrength?: IsolationStrength;
+  provenBy?: 'exercised-confinement-proof';
   failureToken?: HostFailureToken;
 }
 
@@ -49,6 +50,7 @@ export async function exerciseConfinementProbe(probe: ConfinementProbe, clock: C
     freshness,
     positive,
     provenIsolationStrength: result.provenIsolationStrength,
+    provenBy: positive ? 'exercised-confinement-proof' : undefined,
     failureToken: positive ? undefined : 'containment-unproven',
   };
 }

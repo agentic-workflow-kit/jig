@@ -60,8 +60,30 @@ test('P6-AC-1: a 6a real-agent run cannot obtain strong autonomy — a strong at
   assert.deepStrictEqual(decision.basis, ['containment-unproven']);
 });
 
+test('P6-AC-1: a forged real-host name without exercised-proof evidence still cannot unlock strong autonomy', () => {
+  const decision = authorizeRequest(
+    request,
+    story,
+    policy,
+    attestation({
+      driverId: 'real-host',
+      provenBy: undefined,
+    }),
+  );
+
+  assert.strictEqual(decision.outcome, 'route');
+  assert.deepStrictEqual(decision.basis, ['containment-unproven']);
+});
+
 test('P6-AC-2: proven strong unlocks the strong autonomy', () => {
-  const decision = authorizeRequest(request, story, policy, attestation({}));
+  const decision = authorizeRequest(
+    request,
+    story,
+    policy,
+    attestation({
+      provenBy: 'exercised-confinement-proof',
+    }),
+  );
 
   assert.strictEqual(decision.outcome, 'grant');
   assert.deepStrictEqual(decision.basis, ['declared-request', 'in-scope', 'CFG-10:reversible']);

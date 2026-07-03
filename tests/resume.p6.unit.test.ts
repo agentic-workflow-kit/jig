@@ -3,6 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
+import { authorizeRequest } from '../src/authorization.js';
+import { composeReferenceRun } from '../src/bootstrap.js';
 import type { CapabilityAttestation } from '../src/ports.js';
 import { resumeRun } from '../src/resume.js';
 import type { Plan, PolicyDoc, RunEvent } from '../src/types.js';
@@ -148,6 +150,38 @@ test('P6-AC-5: the launch attestation is persisted and recovered on resume', asy
 
 test('P6-AC-5: a drifted-host resume is adjudicated against the launch attestation, not the re-derived one', async () => {
   writeStoppedRun();
+  const driftedComposed = await composeReferenceRun({
+    planInstance: { plan },
+    config: { drivers: {} },
+    scriptedOutput: {
+      stories: [
+        {
+          storyId: 'STORY-2',
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      ],
+    },
+  });
+  assert.strictEqual(driftedComposed.capabilityAttestation.reportedIsolationStrength, 'strong');
+  assert.strictEqual(driftedComposed.capabilityAttestation.provenIsolationStrength, 'strong');
+  assert.strictEqual(driftedComposed.capabilityAttestation.provenBy, undefined);
+  const wouldGrantIfFreshPermissiveHostWereUsed = authorizeRequest(
+    {
+      id: 'REQ-edit',
+      kind: 'edit-files',
+      paths: ['src/resume.ts'],
+      capability: 'filesystem-edit',
+    },
+    plan.stories[1],
+    policy,
+    {
+      ...driftedComposed.capabilityAttestation,
+      driverId: 'real-host',
+      provenBy: 'exercised-confinement-proof',
+    },
+  );
+  assert.strictEqual(wouldGrantIfFreshPermissiveHostWereUsed.outcome, 'grant');
 
   await resumeRun({ runDir, scriptedOutputPath: writeScriptedOutput() });
 

@@ -38,6 +38,7 @@ export async function createRealExecutionHost(options: RealExecutionHostOptions)
     positive: proof.positive && !overstated,
     reportedIsolationStrength,
     provenIsolationStrength: proof.provenIsolationStrength,
+    provenBy: proof.positive && !overstated ? proof.provenBy : undefined,
     failureToken: overstated ? 'isolation-strength-overstated' : proof.failureToken,
   };
 

@@ -26,6 +26,7 @@ test('P6-AC-2: real host prove-then-describe keeps describe synchronous with a c
   assert.strictEqual(described.capabilityAttestations[0]?.freshness, 'fresh');
   assert.strictEqual(described.capabilityAttestations[0]?.positive, true);
   assert.strictEqual(described.capabilityAttestations[0]?.provenIsolationStrength, 'strong');
+  assert.strictEqual(described.capabilityAttestations[0]?.provenBy, 'exercised-confinement-proof');
 });
 
 test('P6-AC-2: real host records isolation-strength-overstated when report exceeds proof', async () => {

@@ -70,7 +70,7 @@ function isolationRank(strength: IsolationStrength | undefined): number {
 }
 
 function isExercisedStrongProof(attestation: CapabilityAttestation): boolean {
-  return attestation.driverId === 'real-host';
+  return attestation.provenBy === 'exercised-confinement-proof';
 }
 
 function effectiveProvenIsolation(attestation: CapabilityAttestation): IsolationStrength | undefined {

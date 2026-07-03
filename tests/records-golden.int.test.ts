@@ -186,6 +186,7 @@ test('P6-AC-1: default wiring reproduces the Phase-0..4 goldens byte-identically
     const actual = normalizeRecord(await runFixture(scenario.plan, scenario.scriptedOutput));
     const expected = normalizeRecord(loadFixture<RunRecord>(scenario.golden));
     assert.deepStrictEqual(actual, expected);
+    assert.strictEqual(JSON.stringify(actual).includes('provenBy'), false);
   }
 });
 
