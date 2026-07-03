@@ -7,6 +7,8 @@ import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import type { CapabilityAttestation, LandingAction } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
+import type { GitHubForgeTransport } from './providers/real/forge.js';
+import { type RedactionOptions, redactValue } from './redaction.js';
 import type {
   ConfigDoc,
   Plan,
@@ -44,6 +46,8 @@ export interface ResumeRunOptions {
   policyPath?: string | null;
   planPath?: string | null;
   ownerDecisionSource?: ConstructorParameters<typeof LocalHarness>[2];
+  forgeTransport?: GitHubForgeTransport;
+  redaction?: RedactionOptions;
 }
 
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
@@ -145,7 +149,8 @@ function verifyOptionalBindings(
   projection: RunProjection,
   planSnapshot: Plan,
   policySnapshot: PolicyDoc,
-): void {
+): ConfigDoc | undefined {
+  let verifiedConfig: ConfigDoc | undefined;
   if (options.configPath) {
     const config = loadConfig(options.configPath);
     if (describeConfigBinding(config) !== projection.binding.configRef) {
@@ -154,6 +159,7 @@ function verifyOptionalBindings(
         'resume-blocked-binding-mismatch: --config does not match the recorded launch binding',
       );
     }
+    verifiedConfig = config;
   }
 
   if (options.policyPath) {
@@ -175,11 +181,13 @@ function verifyOptionalBindings(
       );
     }
   }
+
+  return verifiedConfig;
 }
 
-function configForResumeComposition(): ConfigDoc {
+function configForResumeComposition(verifiedConfig?: ConfigDoc): ConfigDoc {
   return {
-    drivers: {},
+    drivers: verifiedConfig?.drivers ?? {},
   };
 }
 
@@ -280,18 +288,21 @@ class ResumeRecordSink implements RecordSink {
   private readonly runDir: string;
   private readonly projection: RunProjection;
   private readonly launchEvent: RunEvent | undefined;
+  private readonly redaction: RedactionOptions | undefined;
 
-  constructor(runDir: string, projection: RunProjection, existingEvents: RunEvent[]) {
+  constructor(runDir: string, projection: RunProjection, existingEvents: RunEvent[], redaction?: RedactionOptions) {
     this.runDir = runDir;
     this.projection = projection;
     this.events = [...existingEvents];
     this.launchEvent = existingEvents.find((event) => event.family === 'run.started');
+    this.redaction = redaction;
   }
 
   init(): void {}
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
-    const timestampedEvent: RunEvent = { ...event, actor: 'runner', timestamp: new Date().toISOString() };
+    const redactedEvent = redactValue(event, this.redaction) as Pick<RunEvent, 'family'> & Partial<RunEvent>;
+    const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
   }
@@ -364,21 +375,23 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const planSnapshot = loadPlanSnapshot(options.runDir);
   const policySnapshot = loadPolicySnapshot(options.runDir, projection);
   const launchAttestation = loadLaunchAttestationSnapshot(options.runDir, existingEvents);
-  verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
+  const verifiedConfig = verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
   verifyWorkspaceContinuity(projection);
 
   const resumePlan = buildResumePlan(projection, existingEvents);
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },
-    config: configForResumeComposition(),
+    config: configForResumeComposition(verifiedConfig),
     scriptedOutput,
+    forgeTransport: options.forgeTransport,
+    redaction: options.redaction,
   });
   const [candidate] = await composed.workSource.candidates();
   if (!candidate) {
     throw new Error('No validated work-source candidate available');
   }
-  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents);
+  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, composed.redaction);
   const harness = new LocalHarness(composed.agent, recordSink, options.ownerDecisionSource ?? null, {
     capabilityAttestation: launchAttestation ?? composed.capabilityAttestation,
     forge: composed.forge,
