@@ -267,27 +267,139 @@ Learning-loop analysis, GitHub/Forge recovery behavior.
 
 ## Phase 5 — Integrated Provider Runs
 
-Carried from the archived r1 Phase 5 unchanged in intent: provider conformance gates before
-provider autonomy; the four seams stay behind their contracts; provider claims stay
-provider-supplied but core-judged; SEC-2 posture requires proof; Forge actions stay
-runner-invoked; Work Source stays provenance/import.
+Re-scoped for r2 after Phase 4 and settled by
+[ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md). The archived r1 Phase 5
+bundled the four seams, real drivers, Forge/GitHub, work-source, and hardening into one phase; this
+section carries only what the P5 acceptance criteria require and splits the rest into named later
+phases (below). The r1 intent is preserved: provider conformance gates before provider autonomy; the
+four seams stay behind their contracts; provider claims stay provider-supplied but core-judged; SEC-2
+posture requires proof; Forge actions stay runner-invoked; Work Source stays provenance/import.
 
-**Acceptance criteria** (ID'd from the archived list):
+**Client value:** An operator can plug a driver into any of the four seams and trust that Jig's
+authority, evidence, and recovery boundaries hold — because every seam is exercised behind its port,
+a driver must pass a conformance suite before it is trusted, and a driver's isolation or capability
+claim never becomes autonomy without core-judged proof.
 
-- **P5-AC-1** — Provider contract tests prove providers cannot redefine policy, evidence,
-  authorization, or lifecycle semantics. Traces:
+**Goal:** Turn the four provider seams from design-only into **exercised jig-internal ports** with a
+composition root, a capability-attestation input to the Fence, and a reusable conformance suite —
+proven with **reference adapters**, not shipped drivers. Every P5 acceptance criterion is a contract
+test proving an invariant holds.
+
+**Scope (ADR 0021):** seams + conformance harness + reference adapters. **Not** a real agent driver,
+real execution host, real Forge/GitHub landing, real work-source integration, or a TUI — those are
+[Phase 6 and beyond](#phase-6-and-beyond--the-deferred-tail). The reference adapters run in local
+dry-run only; the default wiring reproduces the Phase 0–4 dry-run and its goldens exactly.
+
+**Requirements:**
+
+- The four ports as jig-internal interfaces (`AgentPort` formalizing `Worker`; `ExecutionHostPort`;
+  `ForgePort`; `WorkSourcePort`), with the runner and CLI depending on the interfaces, never a concrete
+  adapter (ADR 0021 decision 2).
+- A composition root that selects and wires adapters from `config.drivers`, defaulting to the
+  reference adapters, as the one importer of provider implementations; unknown driver names fail closed
+  (ADR 0021 decision 3).
+- A positive-only, core-judged capability-attestation input to the Fence; a reported isolation category
+  or capability claim is input to core's judgment, never a substitute for it (ADR 0021 decision 4).
+- An execution-host isolation-strength catalog (`none`/`weak`/`strong`) with host-supplied proof and
+  the failure tokens `containment-unproven`, `isolation-strength-overstated`, `workspace-collision`
+  (ADR 0021 decision 5).
+- Runner-invoked Forge landing (modeled, `skipped-on-dry-run`, idempotent) and a Work-source seam
+  whose candidates cross `PlanValidator` (ADR 0021 decisions 6–7).
+- A provider manifest at design altitude plus a reusable conformance suite that asserts the cross-port
+  invariants, including the Wave 5 adversarial probes, and fails closed on a broken adapter (ADR 0021
+  decision 8).
+
+**Acceptance criteria:**
+
+- **P5-AC-1** — Provider contract tests prove a driver cannot redefine policy, evidence,
+  authorization, or lifecycle semantics; the reference adapters pass the conformance suite and an
+  intentionally broken adapter fails it closed. Traces:
   [`STACK-2`](../../product/guarantees.md#4-stack-portability)–
-  [`STACK-5`](../../product/guarantees.md#4-stack-portability).
-- **P5-AC-2** — Execution-host tests distinguish self-report from confinement proof.
-  Traces: [`SEC-2`](../../product/guarantees.md#16-security--no-leaks-no-phone-home),
-  [`DRIVE-2`](../../product/guarantees.md#41-trusting-a-driver).
-- **P5-AC-3** — Agent-provider tests preserve no privileged-method exposure. Traces:
-  [`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization).
-- **P5-AC-4** — Forge tests prove push, PR, status, comment, and merge are runner-owned.
-  Traces: [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence).
-- **P5-AC-5** — Work-source tests route imported candidates through plan intake. Traces:
-  [`plan-intake.md`](../../design/core/plan-intake.md).
+  [`STACK-5`](../../product/guarantees.md#4-stack-portability),
+  [`DRIVE-1`](../../product/guarantees.md#41-trusting-a-driver), ADR 0021 decision 8.
+- **P5-AC-2** — Execution-host tests distinguish self-report from confinement proof: a host reporting
+  a `strong` category with an absent, stale, or overstated proof does **not** unlock the autonomy that
+  category would grant; only fresh, positive proof does, and the failure token is recorded. Traces:
+  [`SEC-2`](../../product/guarantees.md#16-security--no-leaks-no-phone-home),
+  [`DRIVE-3`](../../product/guarantees.md#41-trusting-a-driver),
+  [`EARN-1`](../../product/guarantees.md#12-earned-trust--capability-attestation)–
+  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation), ADR 0021
+  decisions 4–5.
+- **P5-AC-3** — Agent-provider tests preserve no privileged-method exposure: the `AgentPort` exposes no
+  push/PR/merge/credential path, and only the composition root imports adapters. Traces:
+  [`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization), INV-002, ADR 0021
+  decisions 2–3.
+- **P5-AC-4** — Forge tests prove push, PR, status, comment, and merge are runner-owned: `ForgePort` is
+  invoked only by the runner at `done → landed`, stays `skipped-on-dry-run`, and is idempotent across
+  resume/retry. Traces: [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence),
+  [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence), ADR 0021 decision 6.
+- **P5-AC-5** — Work-source tests route imported candidates through plan intake: a candidate is
+  admitted only via a validated plan and is rejected or held otherwise; source input never reaches
+  runtime scheduling without `PlanValidator`. Traces:
+  [`plan-intake.md`](../../design/core/plan-intake.md), INV-007, ADR 0021 decision 7.
 
-**Everything else** (requirements, evidence, stop conditions, references, non-goals) as the
-archived r1 Phase 5 section, which remains citable:
-[`../m5b-local-mvp/phases.md`](../m5b-local-mvp/phases.md).
+**Evidence/tests:**
+
+- Conformance-suite fixtures (reference adapters pass; a broken adapter fails closed), named per AC ID.
+- An execution-host proof/self-report distinguishing test and a host-overstated-isolation test
+  (P5-AC-2).
+- A no-privileged-method import/boundary test and a composition-root sole-importer test (P5-AC-3).
+- A forge-runner-only test and a forge idempotency-on-resume test (P5-AC-4).
+- A work-source-to-plan-intake test and a bypass-attempt stop test (P5-AC-5).
+- The Phase 0–4 goldens still pass under the default wiring (regression anchor); `corepack pnpm check`
+  green with 90% coverage thresholds.
+
+**Stop conditions:**
+
+- Stop if a provider redefines core policy, evidence, authorization, or lifecycle semantics.
+- Stop if any AC would require a **real** driver, real network/containment, or real Forge/GitHub
+  landing to pass — that is Phase 6+, not Phase 5.
+- Stop if a manifest, capability-proof, or records field must be **frozen** (JSON Schema / event
+  constants / TypeScript contract package) — freeze is contract-owner-owned.
+- Stop if SEC-2 posture would depend on host self-report instead of proof, or if a reported isolation
+  category would unlock autonomy without core-judged proof.
+- Stop if work-source/provenance input can reach runtime scheduling without `PlanValidator` — route to
+  design (`w4-s8`/`w4-s2`), do not decide locally.
+
+**Relevant references:**
+
+- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md)
+- [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
+- [`../../design/core/authorization.md`](../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md),
+  [`../../design/core/orchestration.md`](../../design/core/orchestration.md),
+  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
+- Wave 5 red-team:
+  [`w5-s1`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md);
+  Wave 6 triage:
+  [`prerequisite-triage.md`](../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md)
+- Phase 5 implementation brief:
+  [`./implementation-briefs/phase-5-integrated-provider-runs.md`](./implementation-briefs/phase-5-integrated-provider-runs.md)
+- Archived r1 Phase 5 section (period-accurate history):
+  [`../m5b-local-mvp/phases.md`](../m5b-local-mvp/phases.md)
+
+**Explicit non-goals:**
+
+- Any **real** driver — agent, execution host, forge, or work source.
+- Real network access, real containment/sandboxing, or real Forge/GitHub push/PR/merge.
+- Freezing the execution-plan, observability-records, manifest, or capability-proof schemas.
+- A TUI/dashboard, Learning-loop integration, or record/snapshot tamper-evidence.
+
+## Phase 6 and beyond — the deferred tail
+
+Split out of the r1 Phase 5 bucket by ADR 0021 so the ladder stays honest. These are placements, not
+briefed phases; re-triage each when Phase 5 is briefed and delivered.
+
+- **Phase 6 — Real driver integration.** A real agent driver (move beyond the scripted stub) and a
+  real execution host with genuine confinement proof, behind the Phase 5 ports and conformance suite.
+- **Forge/GitHub landing.** Real push, PR, status, comment, and merge through the runner-owned
+  `ForgePort` — the first phase where `done → landed` performs a real effect (real-effect idempotency
+  arrives here).
+- **Work-source integrations.** Real import/sync from issue trackers or other sources, still crossing
+  `PlanValidator`.
+- **Records-integrity phase.** Record/snapshot tamper-evidence and the active
+  `resume-blocked-missing-approval` re-approval path — deferred to after Phase 5 by
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md), because a real trust anchor
+  arrives with real providers.
+- **TUI / dashboard, Learning loop, policy analyzer.** Later operator-experience and analysis work
+  (see [`feature-inventory.md`](./feature-inventory.md)).

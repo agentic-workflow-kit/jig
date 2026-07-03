@@ -333,6 +333,13 @@ action gates `done → landed`. These are distinct authorities — Fence adjudic
 an action is allowed; runner-owned landing governs whether the merge fires — and no single row
 conflates them.
 
+**Phase 5 realization ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).** The
+runner-exclusive landing at `done → landed` is invoked through the `ForgePort` seam
+([`../contracts/providers.md`](../contracts/providers.md)): the runner — never the agent — calls
+`forge.land`. At local dry-run altitude landing stays modeled (`runner-action.skipped-on-dry-run`), now
+emitted through the seam so "landing is runner-owned" is a testable property; real push/PR/merge and
+adapter idempotency for real effects remain deferred to a later phase.
+
 ### Candidate invariants (for w2-s3 consolidation)
 
 This section **names** the invariant candidates the closed table surfaces. `w2-s3-invariant-catalog`

@@ -1,6 +1,6 @@
 ---
 title: "Provider contracts — the four seams"
-status: draft
+status: active — deepened for Phase 5 (ADR 0021)
 ---
 
 # Provider contracts — the four seams
@@ -400,23 +400,58 @@ to the invariant ledger in this pass. If future numbering is needed, the next av
 - **Core depends on ports, not adapters.** Provider implementations plug in behind core-owned seam
   contracts and do not redefine their vocabulary.
 
+## Phase 5 realization (ADR 0021)
+
+[ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md) realizes these seams as
+**jig-internal ports with reference adapters and a conformance suite** — the machinery, not shipped
+drivers. It settles the concretizations this file previously deferred, at design altitude; field-level
+schema freeze and real adapters stay deferred below. The port shapes here are the settled starting
+point, not a frozen contract.
+
+- **The four ports as jig-internal interfaces.** `AgentPort` formalizes the existing `Worker`
+  interface (`execute` — request/observe only, no privileged method); `ExecutionHostPort.describe()`
+  returns a reported isolation category plus a supplied containment-proof token; `ForgePort.land()` is
+  runner-invoked only; `WorkSourcePort.candidates()` surfaces provenance upstream of `PlanValidator`.
+  These are `src/` seams like `Worker`/`RecordSink`, not a versioned public contract.
+- **Composition root.** A single module selects and wires the adapters from `config.drivers`,
+  defaulting to the reference adapters, and is the sole importer of provider implementations
+  ([`../core/bootstrap.md`](../core/bootstrap.md) SURF-004); an unknown driver name fails closed.
+- **Capability attestation.** The Fence gains a positive-only, core-judged capability-proof input
+  ([`../core/authorization.md`](../core/authorization.md)). A reported isolation **category or claim is
+  input to** core's judgment, never a substitute for it: a `strong` self-report with absent, stale, or
+  overstated proof is judged unproven and unlocks nothing (F-1/F-2; SEC-2, DRIVE-3, EARN-1/2).
+- **Isolation-strength catalog.** `none` / `weak` / `strong`, reported honestly; the failure tokens
+  `containment-unproven`, `isolation-strength-overstated`, and `workspace-collision` are host-reported
+  conditions whose policy consequence core judges and records.
+- **Forge.** Landing stays modeled (`runner-action.skipped-on-dry-run`) but is now emitted **through**
+  the runner-invoked Forge seam; adapter idempotency across resume/retry is a seam contract test.
+- **Work source.** Reference candidates are admitted only through a validated plan; source input that
+  reaches runtime scheduling without `PlanValidator` is a stop condition, not a local decision.
+- **Manifest and conformance suite.** The manifest (runtimes, network, credentials — DRIVE-2) is
+  design-owned and used only as a non-normative fixture; the reusable conformance suite (DRIVE-1)
+  asserts the cross-port invariants above, including the Wave 5 adversarial probes, and an
+  intentionally broken adapter proves it fails closed.
+
 ## Notes
 
-- A seam is not a shipped driver. Only the scripted-worker stub at the Agent port is built first;
-  the real agent driver and the other three seams are named extension points.
+- A seam is not a shipped driver. In Phase 5 each port is exercised by a **reference adapter** and the
+  conformance suite; the **real** agent, execution-host, forge, and work-source drivers remain named
+  extension points for later phases.
 - Until a driver proves a capability, expect reduced autonomy, not a weaker guarantee.
-- Deferred: the conformance suite a new driver must pass, the manifest format a provider package
-  declares (runtimes, network, credentials), and adapter implementations for Execution host,
-  Forge, and Work source.
+- Realized in Phase 5 (ADR 0021): the reusable conformance suite, the provider-manifest shape at design
+  altitude, the capability-proof model, and reference adapters for all four seams.
 
 ## Deferred and out of scope
 
-- Concrete adapter implementations for Agent, Execution host, Forge, or Work source.
-- Provider manifests, conformance-suite design, or capability-proof schema detail.
-- TypeScript interfaces, JSON Schema, event constants, or frozen field-level contract shapes.
+- **Real** (production) adapter implementations for Agent, Execution host, Forge, or Work source —
+  real network, real containment, and real Forge/GitHub push/PR/merge (Phase 6+).
+- Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape;
+  freeze stays with the contract owner).
+- JSON Schema, event constants, or frozen field-level contract shapes for the execution-plan or
+  observability-records v0 contracts.
 - New lifecycle states, transition tables, or state-machine redesign.
-- The Fence classifier internals in [`../core/authorization.md`](../core/authorization.md).
-- Bootstrap's provider-selection and wiring internals in [`../core/bootstrap.md`](../core/bootstrap.md).
+- Record/snapshot tamper-evidence — the post-Phase-5 records-integrity phase
+  ([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)).
 - Any change to the execution-plan or observability-records v0 contracts.
 
 ## Reconciles to
