@@ -107,11 +107,14 @@ self-referential chain). That would put integrity bytes into the golden record s
 Phase-0..4 byte-identity — HALT condition #1. This design **explicitly rejects** that construction.
 
 Instead, integrity is **computed over** the durable evidence but **materialized on a separate integrity
-sidecar** beside the run directory: `runs/<id>/integrity.json` (name design-owned). The sidecar carries,
-per protected artifact, a **content digest** over the exact bytes of that artifact as written —
-`events.jsonl` (line-ordered, forming the hash-chain _as a projection over the log's bytes_, not a field
-inside it), `plan.snapshot.json`, `policy.snapshot.json`, `attestation.snapshot.json`, the launch header,
-and the new driver-selection snapshot (Decision 4) — and an **HMAC over those digests** keyed by an
+sidecar** beside the run directory: `runs/<id>/integrity.json` (name design-owned). The immutable launch
+evidence — the launch header (`run.started`, including the additive `binding.drivers` sub-field of
+Decision 4), `plan.snapshot.json`, `policy.snapshot.json`, and `attestation.snapshot.json` where present —
+is digested **once at launch** because those bytes do not change. The append-only event log is covered
+separately by a **hash-chain over the accepted log bytes**, maintained under the governed
+single-leased-writer append path: each governed append extends the chain and updates the sidecar
+**atomically with** the append, so the sidecar reflects the current accepted log rather than a stale
+launch-time snapshot. The sidecar carries those digests / chain head and an **HMAC over them** keyed by an
 environment-supplied key (Decision 1). `events.jsonl` and every snapshot are written **byte-for-byte
 unchanged**; the sidecar is a _new_ file, not an edit. Nothing integrity-related is appended to, nested
 in, or reshaped within any governed record. So the default record bytes are identical whether or not the
@@ -120,13 +123,15 @@ sidecar exists. **Green.**
 ### Q2 — Can inspect/resume _detect_ broken integrity _without_ writing integrity bytes into default records?
 
 **Yes — recompute-over-content + compare-to-sidecar.** At `inspect` and at `resume` preflight, the engine
-**recomputes** the digests from the on-disk bytes of `events.jsonl` and each snapshot, recomputes the
-HMAC over those digests with the environment key, and **compares to the sidecar**. A mismatch (a byte
-changed out-of-band; a digest or HMAC that no longer verifies) is a detected break. The detection reads
-the record bytes and the sidecar; it **writes nothing** into the record to detect. `inspect` **surfaces**
-the break as a diagnosable notice; `resume` **refuses** with a named reason (Decision 3). The mechanism
-is pure recompute-and-compare — a projection-side check, never a mutation of the evidence stream, exactly
-the posture `records.md` "Projection purity" already requires. **Green.**
+**recomputes** the immutable-artifact digests, the current event-log hash-chain, and the HMAC with the
+environment key, then **compares to the sidecar**. A mismatch (a byte changed out-of-band; an accepted
+append missing from the sidecar chain; a digest or HMAC that no longer verifies) is a detected break. The
+detection reads the record bytes and the sidecar; it **writes nothing** into the record to detect.
+`inspect` **surfaces** the break as a diagnosable notice; `resume` **refuses** with a named reason
+(Decision 3). The mechanism is pure recompute-and-compare on the projection side, while sidecar
+maintenance is owned by the governed append path — never by writing integrity bytes into the evidence
+stream — exactly the posture `records.md` "Projection purity" and "single leased writer" already require.
+**Green.**
 
 ### Q3 — Can the active re-approval use _existing/additive_ record families, without freezing v0 or minting a new family?
 
@@ -158,7 +163,7 @@ and compose without pressure. **Green.**
 ### Q5 — Does Phase 9 require changing execution-plan or observability-records **v0 contract shapes**? (incl. the driver-binding fold-in)
 
 **No.** Integrity lives on a **new sidecar file**, keyed by an environment secret, computed over existing
-bytes. It mints no records field, no event constant, no frozen digest/HMAC field on any governed record.
+bytes. It mints no event constant and no frozen digest/HMAC field on any governed record.
 `repo-plan-m7.md` open question 3 flags exactly the risk — "Does tamper-evidence over the record chain
 require a records-contract field for the digest/HMAC posture?" — and the answer here is **no**, because
 the digest/HMAC posture lives on the sidecar, which is not a governed record and not part of the v0
@@ -166,35 +171,35 @@ contract. The v0-freeze checkpoint stays separate and contract-owner-owned (that
 
 **The driver-binding fold-in (Decision 4) is the element most likely to trip this gate — run explicitly.**
 Binding the launch driver selection so resume can verify it touches the launch-binding surface the gate
-guards. Precedent is favorable but not automatic: ADR 0020 §6 added `binding.workspace` as an **additive,
-"clarified (not frozen)"** sub-field of the launch header. First confirmed against `src/resume.ts` +
-`src/bootstrap.ts`: **no config or driver snapshot exists today** — `describeConfigBinding` hashes only
-`mode` + `recordDir`, and no artifact parallel to `plan.snapshot.json` records the driver selection. Two
-sound homes, and this ADR **leads with the one that does not touch `run.started`**:
+guards. Precedent is favorable but must be run explicitly: ADR 0020 §6 added `binding.workspace` as an
+**additive, "clarified (not frozen)"** sub-field of the launch header. First confirmed against
+`src/resume.ts` + `src/bootstrap.ts`: **no config or driver snapshot exists today** —
+`describeConfigBinding` hashes only `mode` + `recordDir`, and no governed launch-header field records the
+driver selection. The chosen route is now that same additive launch-header pattern:
 
-1. **(Chosen) A driver-selection snapshot, snapshot-side.** Persist the resolved launch driver selection
-   (`agent`/`executionHost`/`forge`/`workSource` names) into the run directory at launch as a durable
-   snapshot artifact (e.g. `drivers.snapshot.json`), **exactly parallel to the plan and policy snapshots**
-   (ADR 0020 §3). It is **digest-covered by the sidecar** like the other snapshots, and verified
-   **verification-only** on resume against the recovered launch selection — a mismatch fails closed, never
-   rebinds (ADR 0020 §3 binding-verify style). This adds a **new file**, not a new record field: the
-   `run.started` shape is untouched, so Q5 stays unambiguously green.
-2. **(Fallback, noted not chosen) An additive `binding.drivers` sub-field** of the launch header, mirroring
-   the `binding.workspace` precedent — "clarified, not frozen," additive, minting no frozen field. This is
-   a valid additive move, but it edits the very record surface this gate protects, so it is the fallback:
-   if the chosen snapshot route proved insufficient, this rides the 0020 additive precedent rather than
-   forcing a freeze.
+- **(Chosen) Additive `binding.drivers` sub-field.** Persist the resolved launch driver selection
+  (`agent`/`executionHost`/`forge`/`workSource` names) as an additive `binding.drivers` sub-field of the
+  `run.started` launch header. This makes the selection **recoverable from `events.jsonl` itself**, the
+  governed evidence ADR 0020 §6 made authoritative for launch context, rather than from an unreferenced
+  side file. The sub-field is digest-covered by Decision 1's launch-header digest and verified
+  **verification-only** on resume against the recovered launch selection — a mismatch fails closed, never
+  rebinds (ADR 0020 §3 binding-verify style).
+- **Why this is not a v0 freeze.** `binding.drivers` mirrors the `binding.workspace` precedent: an
+  additive sub-field on the existing `run.started` launch header, "clarified (not frozen)," minting no new
+  event family, no frozen digest/HMAC field, no JSON Schema freeze, and no public contract package. It
+  widens recoverable launch context in governed evidence; it does not freeze the observability-records v0
+  shape.
 
 If the **only** sound binding required a **frozen** record field (a records-contract digest field, a
 frozen constant, or a contract package), it would **defer** to the v0-freeze checkpoint and **HALT** here
-rather than freeze in T9. It does not: the snapshot-side artifact binds the selection with a new file and
-no shape change. **Green.**
+rather than freeze in T9. It does not: the additive `binding.drivers` launch-header route rides the ADR
+0020 additive precedent and keeps Q5 green. **Green.**
 
 **Gate verdict: all five green. No HALT.** Integrity is sidecar-only (Q1), detected by recompute-and-
 compare without touching records (Q2), re-approval rides the existing Doorbell/owner-decision path with a
 live-diagnostic refusal (Q3), the Phase-8 provenance is covered by the header digest for free (Q4), and no
-v0 contract shape changes — the driver-binding fold-in lands as a digest-covered snapshot, not a frozen
-field (Q5).
+v0 contract freeze — the driver-binding fold-in lands as an additive `binding.drivers` launch-header
+sub-field, not a frozen field (Q5).
 
 ## Decision
 
@@ -202,16 +207,27 @@ Five settlements, binding on Phase 9. Each is a decision, not an open question.
 
 ### 1. Integrity primitive and sidecar surface — HMAC-now, keyed from the environment, materialized on the sidecar; the trust anchor is why
 
-The primitive is a **content digest per protected artifact** plus a **hash-chain over the append-only
-event log** (an ordered digest of `events.jsonl`'s lines, so any reordering, truncation, or line edit is
-detectable), **authenticated by an HMAC** over those digests, all **materialized on a separate integrity
-sidecar** — `runs/<id>/integrity.json` (name design-owned), a **non-golden** file beside the run
-directory, never inside `events.jsonl` or any snapshot. Integrity is computed over: the **launch header**
-(`run.started`, including the additive Phase-8 `workSourceCandidate` provenance and the Phase-6
-attestation/substrate references), the **plan snapshot**, the **policy snapshot**, the **attestation
-snapshot** where present, the **driver-selection snapshot** (Decision 4), and the **append-only event
-log**. It is verified at **inspect** (surface a break) and at **resume** (refuse with a named reason,
-Decision 3).
+The primitive is a **content digest per immutable protected artifact** plus a **hash-chain over the
+append-only event log** (an ordered digest of `events.jsonl`'s accepted lines, so any reordering,
+truncation, or line edit is detectable), **authenticated by an HMAC** over those digests / chain head, all
+**materialized on a separate integrity sidecar** — `runs/<id>/integrity.json` (name design-owned), a
+**non-golden** file beside the run directory, never inside `events.jsonl` or any snapshot. The immutable
+launch evidence is digested **once at launch**: the **launch header** (`run.started`, including the
+additive Phase-8 `workSourceCandidate` provenance, Phase-6 attestation/substrate references, and the
+additive `binding.drivers` sub-field of Decision 4), the **plan snapshot**, the **policy snapshot**, and
+the **attestation snapshot** where present. The **append-only event log** is covered by the hash-chain
+maintained incrementally under the governed append path. It is verified at **inspect** (surface a break)
+and at **resume** (refuse with a named reason, Decision 3).
+
+**Append-log maintenance (binding).** The event-log chain is **not** a launch-only snapshot of
+`events.jsonl`. Records already owns a single leased writer per run and rejects competing append
+continuations; Phase 9 rides that seam. Each governed append extends the chain and updates the integrity
+sidecar **atomically with** the accepted append, so a normal stopped run whose `story.*`,
+`authorization.*`, or `run.stopped` records were appended through the governed writer verifies as intact.
+A divergence between log and sidecar — an accepted-looking append whose chain update is absent, bytes
+changed outside the writer, truncation, reordering, or a sidecar edit that no longer HMAC-verifies — is the
+detected tamper. This names the seam and invariant; the sidecar encoding and storage transaction are
+implementation-owned.
 
 **The HMAC is in scope now, not deferred to a keyless placeholder — and this ADR confronts the keyless-
 sidecar threat model head-on.** A plain digest/hash-chain sitting in the same run directory as the records
@@ -264,6 +280,16 @@ exactly as ADR 0020 §9 scoped it. The tamper-evident snapshots of Decision 1 ar
 **trustworthy** (an unforgeable comparison basis), which is why the re-approval trigger and the integrity
 primitive are the same phase.
 
+**Workspace fingerprint reconciliation (binding).** A workspace-fingerprint difference is not classified
+by a blanket hard fail before this decision can run. Resume preflight first separates **broken integrity**
+(Decision 3 hard-refuse), then evaluates whether a workspace difference is a **verified, safety-relevant
+basis change** against otherwise continuous evidence. That leg uses the active
+`resume-blocked-missing-approval` classification and is cleared only by fresh owner sign-off. The existing
+`resume-blocked-workspace-mismatch` classification is reserved for genuine non-continuity or tamper — a
+different tree, broken continuity, or unexplainable mismatch that is **not** an owner-blessable basis
+change. This ordering makes P9-AC-2 reachable while keeping corrupted evidence and non-continuity
+fail-closed.
+
 - **Re-approval evidence path — the existing owner-decision / Doorbell affordance.** Fresh sign-off is a
   **narrow, durable owner decision** through the **existing** Doorbell path (`authorization.granted` basis
   `["owner-approval"]`), the same affordance Phase 3 delivered and `authorization.md` owns. No new
@@ -295,7 +321,7 @@ derivable while naming the integrity failure (the fail-closed-but-diagnosable po
 ADR 0020 already hold). SEC-1's redaction posture is unchanged: the sidecar stores digests and an HMAC,
 **never** the key and never any sensitive value.
 
-### 4. Fold in the deferred resume driver-binding residual (T6/T8) — a digest-covered driver-selection snapshot, verification-only on resume
+### 4. Fold in the deferred resume driver-binding residual (T6/T8) — additive launch-header binding, verification-only on resume
 
 Today the launch driver selection is **not bound**: `describeConfigBinding` hashes only `mode` +
 `recordDir`, and no driver snapshot exists (Delivered reality; Gate Q5). T8 bound only the work-source leg
@@ -303,22 +329,22 @@ by forcing `workSource='reference'` from the snapshot; a resume `--config` selec
 `agent=codex` / `forge=github` real driver is not verified against launch selection. Phase 9 closes this
 as follows:
 
-- **Persist a driver-selection snapshot at launch.** Bootstrap persists the **resolved launch driver
-  selection** (the four `agent`/`executionHost`/`forge`/`workSource` names) into the run directory at
-  launch as a durable snapshot artifact (e.g. `drivers.snapshot.json`), **parallel to the plan and policy
-  snapshots** (ADR 0020 §3). This is the artifact that did not exist before.
-- **Digest-covered by the sidecar.** The driver-selection snapshot is one of the artifacts Decision 1's
-  sidecar digests and the HMAC authenticates, so tampering with it is detected like any other snapshot.
+- **Persist an additive launch-header binding.** Bootstrap records the **resolved launch driver
+  selection** (the four `agent`/`executionHost`/`forge`/`workSource` names) as an additive
+  `binding.drivers` sub-field of the `run.started` launch header, mirroring ADR 0020 §6's
+  `binding.workspace` precedent. This is the governed launch evidence that did not exist before.
+- **Digest-covered by the sidecar.** Because `binding.drivers` lives inside the launch header, Decision
+  1's launch-header digest and HMAC authenticate it. Replay/export of `events.jsonl` alone can recover the
+  launch selection from governed evidence.
 - **Verification-only on resume, never rebind.** On resume, bootstrap verifies the launch driver selection
-  (from the snapshot) against the selection resume would use; a **mismatch fails closed** with a
-  binding-mismatch-class diagnostic, exactly parallel to ADR 0020 §3's binding-verify and the Phase-6
-  launch-attestation recovery. Resume **never** rebinds, swaps, or widens the driver selection — resumed
-  work runs under the **launch** drivers, never a fresher re-selection.
-- **Gate-checked (Q5).** This lands as a **new snapshot file**, not a `run.started` field change, so it
-  freezes nothing and keeps the launch-header record shape untouched. The additive `binding.drivers`
-  sub-field is the noted fallback (Gate Q5), not the chosen route. It settles the **design** here — not a
-  vague forward-reference — and if the only sound binding had required a frozen field, it would HALT to the
-  v0-freeze checkpoint rather than extend the binding schema in T9.
+  (from `run.started.binding.drivers`) against the selection resume would use; a **mismatch fails closed**
+  with a binding-mismatch-class diagnostic, exactly parallel to ADR 0020 §3's binding-verify and the
+  Phase-6 launch-attestation recovery. Resume **never** rebinds, swaps, or widens the driver selection —
+  resumed work runs under the **launch** drivers, never a fresher re-selection.
+- **Gate-checked (Q5).** This lands as an **additive launch-header sub-field**, not a frozen
+  observability-records v0 field. It mirrors the `binding.workspace` precedent, mints no new event family,
+  and settles the **design** here — not a vague forward-reference. If the only sound binding had required a
+  frozen field, it would HALT to the v0-freeze checkpoint rather than extend the binding schema in T9.
 
 ### 5. The 9a/9b split and its acceptance-criteria assignment
 
@@ -326,10 +352,10 @@ Mirroring the 6a/6b, 7a/7b, and 8a/8b pattern, **Phase 9 splits into two sub-pha
 ordering 9a → 9b**, because the two halves have genuinely different risk and 9a is the prerequisite that
 makes 9b's detection trustworthy:
 
-- **9a — records tamper-evidence.** The sidecar integrity primitive (Decision 1), the driver-selection
-  snapshot folded into it (Decision 4), and the diagnosable break-detection at inspect + resume refusal
-  (Decision 3, integrity leg). 9a is **independently useful**: an operator gains tamper-evidence over the
-  durable record chain even before an active re-approval trigger exists.
+- **9a — records tamper-evidence.** The sidecar integrity primitive (Decision 1), the launch-header
+  driver binding folded into it (Decision 4), and the diagnosable break-detection at inspect + resume
+  refusal (Decision 3, integrity leg). 9a is **independently useful**: an operator gains tamper-evidence
+  over the durable record chain even before an active re-approval trigger exists.
 - **9b — active re-approval.** Activating `resume-blocked-missing-approval` (Decision 2): the changed-basis
   detection, the tamper-vs-changed-basis split, and the fresh-owner-re-approval path. 9b rides second
   because its changed-basis comparison is only **trustworthy** once 9a's tamper-evidence guarantees the
@@ -377,9 +403,9 @@ re-approval) is the binding constraint, not a mandatory two-PR decomposition.
   re-approval through the existing owner-decision path (narrow, durable, never widened), and CFG-10 — no
   model adjudicates the boundary. (Done in this PR.)
 - **`bootstrap.md`** — a "Phase 9 realization (ADR 0025)" note at the resume re-entry procedure: launch-
-  header + snapshot integrity materialized on the sidecar at launch, verified on resume preflight; and the
-  driver-selection snapshot persisted at launch and verified verification-only on resume (never rebind).
-  (Done in this PR.)
+  header + snapshot integrity materialized on the sidecar at launch and maintained under the governed
+  append path, verified on resume preflight; and the additive `binding.drivers` launch-header sub-field
+  verified verification-only on resume (never rebind). (Done in this PR.)
 - No change to the execution-plan or observability-records v0 contracts, and no change to the fixtures-
   README convention snippets (`delivery:check` stays green).
 
@@ -393,8 +419,8 @@ re-approval) is the binding constraint, not a mandatory two-PR decomposition.
   bytes and an env-supplied key; the default (reference) wiring reproduces the Phase-0..8 dry-run and
   record goldens **byte-identically** because no integrity byte is ever serialized into a governed record.
   The sidecar is excluded from the record-goldens (or produced only under real-driver wiring), so a
-  directory-level golden cannot trip on it. The driver-selection snapshot is likewise a new file, not a
-  record-shape change.
+  directory-level golden cannot trip on it. The driver selection is an additive `binding.drivers`
+  launch-header sub-field, following the `binding.workspace` precedent rather than freezing v0.
 - The load-bearing safety boundaries are all preserved and one is raised: an out-of-band edit to a record
   or snapshot is **detectable** (unless the actor also holds the trust-anchor key — scoped honestly, not
   overclaimed); a broken chain **hard-refuses** resume; a legitimate changed basis **blocks** resume
@@ -403,14 +429,16 @@ re-approval) is the binding constraint, not a mandatory two-PR decomposition.
   stay safe to keep and export through a detected break (diagnosable, not corrupt-and-silent). The HMAC key
   is environment-only and never serialized.
 - Phase 9 implementation adds a `src/integrity.*` module (digest + hash-chain + env-keyed HMAC over the
-  header/snapshots/log, materialized on `runs/<id>/integrity.json`), a launch-time driver-selection snapshot
-  and its verification (extending `src/bootstrap.ts` and `describeConfigBinding` in `src/resume.ts`), the
-  active `resume-blocked-missing-approval` trigger with the tamper-vs-changed-basis split and a new
-  integrity refusal reason on `ResumeRefusalReason`, and inspect-side break-surfacing — see the Phase 9
+  header/snapshots/log, materialized on `runs/<id>/integrity.json` and maintained under the governed append
+  path), an additive launch-time `binding.drivers` sub-field and its verification (extending
+  `src/bootstrap.ts` and `describeConfigBinding` in `src/resume.ts`), the active
+  `resume-blocked-missing-approval` trigger with the tamper-vs-changed-basis split and a new integrity
+  refusal reason on `ResumeRefusalReason`, and inspect-side break-surfacing — see the Phase 9
   implementation brief
   ([`../../delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md`](../../delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md)).
-  The integrity bytes and the driver snapshot are never serialized into governed records, so the Phase-0..4
-  goldens stay byte-identical. It changes no provider port surface.
+  Integrity bytes are never serialized into governed records, and `binding.drivers` is additive launch
+  context rather than a frozen contract field, so the Phase-0..4 goldens stay byte-identical. It changes no
+  provider port surface.
 - No JSON Schema freeze, no TypeScript contract package, no public contract package. The v0 contract freeze
   (the digest/HMAC-field question `repo-plan-m7.md` open question 3 raises) stays a separate contract-owner-
   owned checkpoint (T14), not decided here. Hosted, multi-tenant, or remote operation and model-adjudicated

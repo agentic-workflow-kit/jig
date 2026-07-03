@@ -244,6 +244,13 @@ preflight the trigger now fires with a clean two-way split:
   ADR 0020 §9 says do not over-build) — resume is **blocked** on `resume-blocked-missing-approval` until a
   fresh owner decision and evidence are recorded.
 
+A workspace-fingerprint difference is split before the final refusal reason is chosen. If otherwise
+continuous, tamper-evident evidence proves the difference is a **safety-relevant basis change**, the
+re-approvable leg above applies: `resume-blocked-missing-approval`, cleared only by fresh owner sign-off.
+`resume-blocked-workspace-mismatch` is reserved for genuine non-continuity or tamper — a different tree,
+broken continuity, or an unexplainable mismatch that is **not** owner-blessable. Broken integrity remains a
+separate hard-refuse leg and cannot be converted into owner approval.
+
 The re-approval evidence is a **fresh owner decision through the existing Doorbell path** —
 `authorization.granted` basis `["owner-approval"]` — narrow and durable, the same affordance this file
 already owns. Re-approval **re-confirms** continuation under the recorded binding; it **never** rebinds,
