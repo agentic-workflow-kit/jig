@@ -24,6 +24,19 @@ export interface CandidateIntakeResult {
 
 export const WORK_SOURCE_INTAKE_BYPASS_REASON = 'work-source-plan-intake-bypass';
 
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (typeof value !== 'object' || value === null || seen.has(value)) {
+    return value;
+  }
+
+  seen.add(value);
+  for (const entry of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(entry, seen);
+  }
+
+  return Object.freeze(value);
+}
+
 export function referencePlanProvenance(planInstance: PlanInstance): CandidateProvenance {
   return {
     origin: {
@@ -98,14 +111,16 @@ export function unwrapValidatedCandidate(candidate: ValidatedCandidate): PlanIns
 }
 
 export function validateCandidate(candidate: CandidateWorkItem): ValidatedCandidate {
-  const planInstance = PlanValidator.validate(candidate.planInstance);
+  const validatedPlanInstance = PlanValidator.validate(candidate.planInstance);
   if (!isCandidateProvenance(candidate.provenance)) {
     throw new Error('Invalid candidate provenance: missing source system, candidate identifier, or jigValidated=true');
   }
+  const planInstance = deepFreeze(structuredClone(validatedPlanInstance)) as PlanInstance;
+  const provenance = deepFreeze(structuredClone(candidate.provenance)) as CandidateProvenance;
 
   return Object.freeze({
     planInstance,
-    provenance: candidate.provenance,
+    provenance,
     [validatedCandidateMarker]: true as const,
   });
 }
