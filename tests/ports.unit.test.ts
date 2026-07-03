@@ -1,6 +1,13 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
-import type { AgentPort, ExecutionHostPort, ForgePort, LandingRequest, WorkSourcePort } from '../src/ports.js';
+import type {
+  AgentPort,
+  CandidateProvenance,
+  ExecutionHostPort,
+  ForgePort,
+  LandingRequest,
+  WorkSourcePort,
+} from '../src/ports.js';
 import type { Story, WorkerResult } from '../src/types.js';
 
 test('P5-AC-3: AgentPort exposes only request/observe execution semantics', () => {
@@ -42,7 +49,13 @@ test('P5-AC-3: provider ports keep host, forge, and source responsibilities sepa
             stories: [{ id: 'STORY-1', title: 'Story 1' }],
           },
         },
-        provenance: 'jig-validated',
+        provenance: {
+          origin: {
+            sourceSystem: 'github-issues',
+            candidateId: '42',
+          },
+          jigValidated: true,
+        },
       },
     ],
   };
@@ -55,7 +68,27 @@ test('P5-AC-3: provider ports keep host, forge, and source responsibilities sepa
     (await forge.land({ storyId: 'STORY-1', action: 'push' })).family,
     'runner-action.skipped-on-dry-run',
   );
-  assert.strictEqual((await workSource.candidates())[0]?.provenance, 'jig-validated');
+  assert.deepStrictEqual((await workSource.candidates())[0]?.provenance, {
+    origin: {
+      sourceSystem: 'github-issues',
+      candidateId: '42',
+    },
+    jigValidated: true,
+  });
+});
+
+test("P8-AC-3: a real candidate's provenance names its per-candidate origin (source + candidate identifier) and still asserts jig-validated", () => {
+  const provenance: CandidateProvenance = {
+    origin: {
+      sourceSystem: 'github-issues',
+      candidateId: '99',
+    },
+    jigValidated: true,
+  };
+
+  assert.strictEqual(provenance.origin.sourceSystem, 'github-issues');
+  assert.strictEqual(provenance.origin.candidateId, '99');
+  assert.strictEqual(provenance.jigValidated, true);
 });
 
 test('P7-AC-2: LandingRequest.action accepts the push/open-pr/merge union', () => {

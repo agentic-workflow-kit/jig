@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { composeReferenceRun } from './bootstrap.js';
 import { LocalHarness } from './harness.js';
+import { intakeCandidates } from './intake.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import type { CapabilityAttestation, LandingAction } from './ports.js';
@@ -387,15 +388,20 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
     forgeTransport: options.forgeTransport,
     redaction: options.redaction,
   });
-  const [candidate] = await composed.workSource.candidates();
+  const intake = await intakeCandidates(composed.workSource);
+  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, composed.redaction);
+  for (const rejection of intake.rejected) {
+    recordSink.recordEvent(rejection.event);
+  }
+  const [candidate] = intake.admitted;
   if (!candidate) {
+    await recordSink.finalize('failure');
     throw new Error('No validated work-source candidate available');
   }
-  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, composed.redaction);
   const harness = new LocalHarness(composed.agent, recordSink, options.ownerDecisionSource ?? null, {
     capabilityAttestation: launchAttestation ?? composed.capabilityAttestation,
     forge: composed.forge,
   });
 
-  return await harness.resume(candidate.planInstance, policySnapshot, resumePlan);
+  return await harness.resume(candidate, policySnapshot, resumePlan);
 }

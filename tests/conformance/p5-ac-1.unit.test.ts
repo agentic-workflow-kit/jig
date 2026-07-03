@@ -141,7 +141,13 @@ test('P5-AC-1: broken work source bypassing plan intake fails closed', async () 
             stories: [{ id: 'STORY-1', title: 'Invalid candidate' }],
           },
         },
-        provenance: 'jig-validated',
+        provenance: {
+          origin: {
+            sourceSystem: 'local-plan',
+            candidateId: 'plan-invalid-work-source',
+          },
+          jigValidated: true,
+        },
       },
     ],
   };

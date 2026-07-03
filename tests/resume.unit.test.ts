@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import type { RunProjection } from '../src/projection.js';
 import { RecordManager } from '../src/records.js';
 import { buildResumePlan, ResumeRefusal, resumeRun } from '../src/resume.js';
@@ -205,7 +206,7 @@ test('P4-AC-1: real RecordManager run output resumes through resumeRun without f
     new RecordManager(),
   );
 
-  assert.strictEqual(await harness.run({ plan: planSnapshot }, config, policy), 'failure');
+  assert.strictEqual(await harness.run(validatePlanForScheduling({ plan: planSnapshot }), config, policy), 'failure');
   const [runName] = readdirSync(recordBaseDir);
   assert.ok(runName);
   const realRunDir = join(recordBaseDir, runName);

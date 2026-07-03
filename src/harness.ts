@@ -1,4 +1,11 @@
 import { authorizeRequest } from './authorization.js';
+import {
+  admissionProvenanceEvent,
+  bypassDeniedEvent,
+  isValidatedCandidate,
+  unwrapValidatedCandidate,
+  type ValidatedCandidate,
+} from './intake.js';
 import type {
   BlockSurfaceRequest,
   CapabilityAttestation,
@@ -10,7 +17,7 @@ import type {
 import { SubstrateAuthorizationError } from './substrate.js';
 import type {
   ConfigDoc,
-  PlanInstance,
+  Plan,
   PolicyDoc,
   RecordSink,
   ResumePlan,
@@ -109,6 +116,14 @@ function findDuplicateStoryId(stories: Story[]): string | null {
   }
 
   return null;
+}
+
+function bypassRecordPlan(): Plan {
+  return {
+    id: 'unvalidated-work-source-candidate',
+    version: 'execution-plan-shape-v0',
+    stories: [{ id: 'WORK-SOURCE-BYPASS', title: 'Unvalidated work-source candidate bypass attempt' }],
+  };
 }
 
 export class LocalHarness {
@@ -243,11 +258,30 @@ export class LocalHarness {
     return { status: 'matched' };
   }
 
-  async run(planInstance: PlanInstance, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
+  private async refuseUnvalidatedRun(config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
+    this.recordManager.init(bypassRecordPlan(), config, policy);
+    this.recordManager.recordEvent({ family: 'run.started' });
+    this.recordManager.recordEvent(bypassDeniedEvent());
+    await this.recordManager.finalize('failure');
+    return 'failure';
+  }
+
+  private async refuseUnvalidatedResume(): Promise<RunStatus> {
+    this.recordManager.recordEvent(bypassDeniedEvent());
+    await this.recordManager.finalize('failure');
+    return 'failure';
+  }
+
+  async run(candidate: ValidatedCandidate, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
+    if (!isValidatedCandidate(candidate)) {
+      return await this.refuseUnvalidatedRun(config, policy);
+    }
+
+    const planInstance = unwrapValidatedCandidate(candidate);
     const { plan } = planInstance;
     this.recordManager.init(plan, config, policy);
 
-    this.recordManager.recordEvent({ family: 'run.started' });
+    this.recordManager.recordEvent(admissionProvenanceEvent(candidate.provenance) ?? { family: 'run.started' });
 
     // Enforce local dry-run policy
     if (policy.policy?.rules?.allowLocalDryRun !== true) {
@@ -361,7 +395,12 @@ export class LocalHarness {
     return runStatus;
   }
 
-  async resume(planInstance: PlanInstance, policy: PolicyDoc, resumePlan: ResumePlan): Promise<RunStatus> {
+  async resume(candidate: ValidatedCandidate, policy: PolicyDoc, resumePlan: ResumePlan): Promise<RunStatus> {
+    if (!isValidatedCandidate(candidate)) {
+      return await this.refuseUnvalidatedResume();
+    }
+
+    const planInstance = unwrapValidatedCandidate(candidate);
     const { plan } = planInstance;
     this.recordManager.recordEvent({
       family: 'run.resumed',

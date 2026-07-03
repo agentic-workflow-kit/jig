@@ -1,3 +1,5 @@
+import { LocalHarness } from '../harness.js';
+import { isCandidateProvenance, WORK_SOURCE_INTAKE_BYPASS_REASON } from '../intake.js';
 import { PlanValidator } from '../plan-validator.js';
 import type {
   AgentPort,
@@ -9,7 +11,7 @@ import type {
 } from '../ports.js';
 import type { RedactionOptions } from '../redaction.js';
 import { type ApprovedSubstrateManifest, type SubstrateRequest, validateSubstrateRequest } from '../substrate.js';
-import type { RunEvent } from '../types.js';
+import type { ConfigDoc, PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../types.js';
 
 export interface ProviderManifest {
   id: string;
@@ -35,6 +37,9 @@ export interface ProviderConformanceSubject {
     unknownAction?: boolean;
     landingEvents?: RunEvent[];
     redaction?: RedactionOptions;
+  };
+  workSourceAdversarialChecks?: {
+    directRunResumeBypass?: boolean;
   };
 }
 
@@ -69,6 +74,35 @@ const PRIVILEGED_AGENT_METHODS = [
 ];
 const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
 
+const DIRECT_BYPASS_PLAN: PlanInstance = {
+  plan: {
+    id: 'conformance-direct-work-source-bypass',
+    version: 'execution-plan-shape-v0',
+    stories: [{ id: 'CONFORMANCE', title: 'Direct harness bypass attempt' }],
+  },
+};
+
+const DIRECT_BYPASS_POLICY: PolicyDoc = {
+  policy: {
+    id: 'conformance-policy',
+    rules: {
+      allowLocalDryRun: true,
+    },
+  },
+};
+
+const DIRECT_BYPASS_CONFIG: ConfigDoc = {};
+
+const DIRECT_BYPASS_RESUME_PLAN: ResumePlan = {
+  runId: 'run-conformance-existing',
+  checkpoint: 'after:CONFORMANCE',
+  stopCause: 'work-item-blocked',
+  completedStoryIds: [],
+  blockedStoryIds: [],
+  parkedStoryId: null,
+  unstartedStoryIds: [],
+};
+
 function isolationRank(strength: IsolationStrength | undefined): number {
   if (strength === 'strong') return 3;
   if (strength === 'weak') return 2;
@@ -94,10 +128,54 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
 
   const candidates = await subject.workSource.candidates();
   for (const candidate of candidates) {
+    if (!isCandidateProvenance(candidate.provenance)) {
+      findings.push('work-source-provenance-collapsed');
+    }
+
     try {
       PlanValidator.validate(candidate.planInstance);
     } catch {
       findings.push('work-source-plan-intake-bypass');
+    }
+  }
+
+  if (subject.workSourceAdversarialChecks?.directRunResumeBypass) {
+    const runEvents: RunEvent[] = [];
+    const runHarness = new LocalHarness(subject.agent, {
+      init: () => {},
+      recordEvent: (event) => runEvents.push(event as RunEvent),
+      finalize: async () => {},
+    });
+    const runStatus = await (
+      runHarness.run as unknown as (
+        candidate: unknown,
+        config: ConfigDoc,
+        policy: PolicyDoc,
+      ) => Promise<'success' | 'failure'>
+    )(DIRECT_BYPASS_PLAN, DIRECT_BYPASS_CONFIG, DIRECT_BYPASS_POLICY);
+    const runDenied = runEvents.find(
+      (event) => event.family === 'authorization.denied' && event.reason === WORK_SOURCE_INTAKE_BYPASS_REASON,
+    );
+
+    const resumeEvents: RunEvent[] = [];
+    const resumeHarness = new LocalHarness(subject.agent, {
+      init: () => {},
+      recordEvent: (event) => resumeEvents.push(event as RunEvent),
+      finalize: async () => {},
+    });
+    const resumeStatus = await (
+      resumeHarness.resume as unknown as (
+        candidate: unknown,
+        policy: PolicyDoc,
+        resumePlan: ResumePlan,
+      ) => Promise<'success' | 'failure'>
+    )(DIRECT_BYPASS_PLAN, DIRECT_BYPASS_POLICY, DIRECT_BYPASS_RESUME_PLAN);
+    const resumeDenied = resumeEvents.find(
+      (event) => event.family === 'authorization.denied' && event.reason === WORK_SOURCE_INTAKE_BYPASS_REASON,
+    );
+
+    if (runStatus !== 'failure' || resumeStatus !== 'failure' || !runDenied || !resumeDenied) {
+      findings.push('work-source-direct-harness-bypass-accepted');
     }
   }
 

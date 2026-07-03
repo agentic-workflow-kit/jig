@@ -51,7 +51,13 @@ test('P5-AC-3: composition root wires default run through the four internal port
     (await composed.forge.land({ storyId: 'STORY-1', action: 'push' })).family,
     'runner-action.skipped-on-dry-run',
   );
-  assert.strictEqual((await composed.workSource.candidates())[0]?.provenance, 'jig-validated');
+  assert.deepStrictEqual((await composed.workSource.candidates())[0]?.provenance, {
+    origin: {
+      sourceSystem: 'local-plan',
+      candidateId: 'plan-bootstrap',
+    },
+    jigValidated: true,
+  });
 });
 
 test('P5-AC-5: composition root validates pass-through work-source candidates through plan intake', async () => {
@@ -121,5 +127,57 @@ test('P7-AC-1: unknown forge driver selection fails closed', async () => {
       error instanceof ProviderSelectionError &&
       /Unsupported driver selection "forge=gitlab"/.test(error.message) &&
       /forge=reference\|github/.test(error.message),
+  );
+});
+
+test('P8-AC-1: github-issues work-source driver is opt-in and selected through the composition root', async () => {
+  const composed = await composeReferenceRun({
+    planInstance,
+    config: {
+      ...config,
+      drivers: {
+        agent: 'scripted-stub',
+        executionHost: 'local',
+        workSource: 'github-issues',
+      },
+    },
+    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+    workSourceTransport: {
+      fetchCandidates: async () => [
+        {
+          sourceSystem: 'github-issues',
+          identifier: '123',
+          planInstance,
+        },
+      ],
+    },
+  });
+
+  assert.deepStrictEqual((await composed.workSource.candidates())[0]?.provenance, {
+    origin: {
+      sourceSystem: 'github-issues',
+      candidateId: '123',
+    },
+    jigValidated: true,
+  });
+});
+
+test('P8-AC-1: unknown work-source driver selection fails closed', async () => {
+  await assert.rejects(
+    () =>
+      composeReferenceRun({
+        planInstance,
+        config: {
+          ...config,
+          drivers: {
+            workSource: 'jira',
+          },
+        },
+        scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+      }),
+    (error: unknown) =>
+      error instanceof ProviderSelectionError &&
+      /Unsupported driver selection "workSource=jira"/.test(error.message) &&
+      /workSource=reference\|github-issues/.test(error.message),
   );
 });

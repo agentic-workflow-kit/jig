@@ -1,3 +1,4 @@
+import { referencePlanProvenance } from '../../intake.js';
 import type { CandidateWorkItem, WorkSourcePort } from '../../ports.js';
 import type { PlanInstance } from '../../types.js';
 
@@ -12,7 +13,7 @@ export class ReferenceWorkSource implements WorkSourcePort {
     return [
       {
         planInstance: this.planInstance,
-        provenance: 'jig-validated',
+        provenance: referencePlanProvenance(this.planInstance),
       },
     ];
   }

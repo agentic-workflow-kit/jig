@@ -77,9 +77,17 @@ export interface ForgePort {
   surfaceBlock?(request: BlockSurfaceRequest): LandingOutcome[] | Promise<LandingOutcome[]>;
 }
 
+export interface CandidateProvenance {
+  origin: {
+    sourceSystem: string;
+    candidateId: string;
+  };
+  jigValidated: true;
+}
+
 export interface CandidateWorkItem {
   planInstance: PlanInstance;
-  provenance: 'jig-validated';
+  provenance: CandidateProvenance;
 }
 
 export interface WorkSourcePort {

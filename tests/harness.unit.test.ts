@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import type { PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../src/types.js';
 
 test('LocalHarness sequential execution success', async () => {
@@ -21,7 +22,7 @@ test('LocalHarness sequential execution success', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'success');
 });
 
@@ -43,7 +44,7 @@ test('LocalHarness sequential execution failure', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 });
 
@@ -64,7 +65,7 @@ test('LocalHarness sequential execution catch worker error', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 });
 
@@ -85,7 +86,7 @@ test('LocalHarness enforces allowLocalDryRun policy', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { id: 'pol1', rules: { allowLocalDryRun: false } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 });
 
@@ -115,7 +116,7 @@ test('LocalHarness handles multi-item success', async () => {
     },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'success');
 
   const doneEvents = events.filter((e) => e.family === 'story.done');
@@ -151,7 +152,7 @@ test('PR-AC-4: LocalHarness blocks failed and dependent stories and records unst
     },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   assert.ok(
@@ -180,7 +181,7 @@ test('PR-AC-1: missing evidence is blocked with evidence-gate-failed', async () 
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -205,7 +206,7 @@ test('PR-AC-1: missing evidence result is blocked with evidence-gate-failed', as
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -230,7 +231,7 @@ test('PR-AC-1: success outcome with null evidence result is blocked', async () =
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -256,7 +257,7 @@ test('PR-AC-1: success outcome with failed evidence result is blocked', async ()
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -284,7 +285,7 @@ test('PR-AC-4: worker execution error records story.blocked with reason', async 
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -309,7 +310,7 @@ test('PR-AC-4: non-Error worker throw records string diagnostics', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   const blockedEvent = events.find((e) => e.family === 'story.blocked');
@@ -335,7 +336,7 @@ test('PR-AC-4: policy denial records authorization.denied at run scope', async (
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: false } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
 
   assert.ok(events.find((e) => e.family === 'authorization.denied' && !e.storyId));
@@ -358,7 +359,7 @@ test('PR-AC-5: dry-run evidence is recorded as evidence.modeled', async () => {
     plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'success');
 
   assert.ok(events.find((e) => e.family === 'evidence.modeled' && e.result === 'passed'));
@@ -389,7 +390,7 @@ test('P3-AC-2: declared low-risk request is granted and recorded', async () => {
   };
   const policy: PolicyDoc = { policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.ok(
@@ -431,7 +432,7 @@ test('P3-AC-3: out-of-scope request is denied fail-closed and blocks the story',
   };
   const policy: PolicyDoc = { policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(
@@ -471,7 +472,7 @@ test('P3-AC-4: owner approval is recorded narrowly and story proceeds', async ()
     policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true, ruleGoverningSurfaces: ['policies/**'] } },
   };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.ok(events.find((e) => e.family === 'authorization.routed' && e.storyId === 's1'));
@@ -517,7 +518,7 @@ test('P3-AC-4: owner rejection is recorded and blocks the story', async () => {
     policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true, ruleGoverningSurfaces: ['policies/**'] } },
   };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(
@@ -561,7 +562,7 @@ test('P3-AC-4: unattended routed request parks and stops the run', async () => {
     policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true, ruleGoverningSurfaces: ['policies/**'] } },
   };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(events.find((e) => e.family === 'authorization.routed' && e.storyId === 's1'));
@@ -616,7 +617,7 @@ test('P3-AC-4: unattended parked stories block dependent stories', async () => {
     policy: { id: 'policy:assisted-v0', rules: { allowLocalDryRun: true, ruleGoverningSurfaces: ['policies/**'] } },
   };
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(events.find((e) => e.family === 'story.parked' && e.storyId === 's1'));
@@ -667,7 +668,7 @@ test('P4-AC-1: resume from work-item-blocked frees independent unstarted work', 
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'success');
   assert.ok(events.find((e) => e.family === 'run.resumed' && e.runId === 'run-p1-existing'));
@@ -705,7 +706,11 @@ test('P4-AC-1: resume denies immediately when durable launch policy disallows lo
     unstartedStoryIds: ['s1'],
   };
 
-  const status = await harness.resume(plan, { policy: { rules: { allowLocalDryRun: false } } }, resumePlan);
+  const status = await harness.resume(
+    validatePlanForScheduling(plan),
+    { policy: { rules: { allowLocalDryRun: false } } },
+    resumePlan,
+  );
 
   assert.strictEqual(status, 'failure');
   assert.ok(events.find((e) => e.family === 'authorization.denied' && e.reason?.includes('allowLocalDryRun')));
@@ -749,7 +754,7 @@ test('P4-AC-2: resume does not duplicate terminal stories or dry-run actions', a
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'success');
   assert.strictEqual(events.filter((e) => e.family === 'story.done' && e.storyId === 's1').length, 0);
@@ -800,7 +805,7 @@ test('P4-AC-1: non-interactive parked resume re-stops but lets independent work 
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'failure');
   assert.ok(events.find((e) => e.family === 'run.resumed'));
@@ -851,7 +856,7 @@ test('P4-AC-1: parked resume owner approval resumes the parked story without dup
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'success');
   assert.ok(
@@ -905,7 +910,7 @@ test('P4-AC-1: parked resume owner rejection blocks the parked story and preserv
   };
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'failure');
   assert.ok(events.find((e) => e.family === 'authorization.denied' && e.storyId === 's1'));
@@ -938,13 +943,13 @@ test('P3/P4: harness records grant, deny, routed approval, missing evidence, and
         : null,
     );
     await harness.run(
-      {
+      validatePlanForScheduling({
         plan: {
           id: `p-${story.id}`,
           version: 'execution-plan-shape-v0',
           stories: [story],
         },
-      },
+      }),
       {},
       policy,
     );
