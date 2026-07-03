@@ -439,6 +439,29 @@ Phase 4 local surface without changing its ownership:
   [ADR 0017](../decisions/0017-records-seam-reconciliation.md) decision 1); a resume-sequence marker,
   if any, rides on the existing `run.resumed` event family.
 
+### Phase 6 real-driver wiring (ADR 0022)
+
+[ADR 0022](../decisions/0022-phase-6-real-driver-integration.md) makes the composition root select and
+wire **real** agent/host drivers without changing its ownership or a port surface:
+
+- **Selection.** The composition root selects the real Codex-first agent and the real execution host by
+  name from `config.drivers`, exactly as it selects the reference adapters today; the default wiring
+  stays reference-only, so real drivers are opt-in and the Phase-0..4 goldens stay byte-identical. It
+  remains the **sole importer** of provider implementations, and an unknown driver name still fails
+  closed.
+- **Prove-then-describe (the sync-`describe()` resolution).** `ExecutionHostPort.describe()` **stays
+  synchronous**. The real host's confinement proof runs **async at compose time**, in an async host
+  factory (mirroring the existing agent factory) that the already-`async` composition root awaits;
+  `describe()` then returns the already-computed `HostAttestation`. No port surface flexes to async.
+- **Persist the launch attestation and substrate manifest.** Alongside the Phase-4 plan and policy
+  snapshots, bootstrap persists the launch `CapabilityAttestation` (Residual A) and the driver's
+  approved, hashed **substrate manifest** into the run directory at launch, launch-immutable.
+- **Recover the launch attestation on resume.** Resume reads the persisted launch attestation back the
+  same launch-immutable way it reads the plan/policy snapshots ("Original-binding preservation rule"),
+  and every resumed request is adjudicated against it — **never** a fresher, more permissive attestation
+  a drifted real host would now report (GUARD-1, FENCE-2). This replaces the Phase-5 reference behavior
+  of re-deriving a constant attestation, which was safe only because the reference host could not drift.
+
 ## Invariant and State Matrix
 
 | Invariant or state rule                     | Bootstrap implication                                                                                        | Source                                                     |

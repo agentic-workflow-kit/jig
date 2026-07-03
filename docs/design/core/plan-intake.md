@@ -325,6 +325,15 @@ checkpoints or routing, and it is the category model Wave 4b's
 `w4-s6-execution-host` frame-time consumer must later consume when it deepens capability
 attestation.
 
+**Phase 6 realization ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)).** With real
+drivers the `fresh`/`stale`/`missing` decision is made by a **real clock** against real driver/host
+timestamps, replacing the deterministic reference constant: proof past its policy-declared freshness
+window is `stale` and treated as non-fresh by the Fence. The **decision procedure** is real; only the
+test clock is controlled (an injected fixed clock plus a stale-window fixture), so goldens stay
+deterministic. The proof itself now carries a **proven** isolation strength from an exercised
+confinement check (`provenIsolationStrength`), which [`authorization.md`](./authorization.md) judges in
+place of the host's reported strength.
+
 ## Evidence observation and producer closure
 
 This design keeps one authority for what counts as evidence:

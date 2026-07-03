@@ -32,12 +32,18 @@ The **real as-merged port shapes** these phases build on — cite these, not the
   collapsed to one `land()`; `CandidateWorkItem.provenance` is hard-coded to the single literal
   `'jig-validated'`.
 
-Contracts stay v0 and unfrozen throughout; no phase here introduces TypeScript interfaces, JSON
-Schema, provider manifests, package exports, or package decomposition — those remain design- and
-contract-owner-owned. Two regression anchors ride every phase below as evidence, never as their own
-phase: the Phase-0..4 record goldens stay byte-identical under the default reference wiring (real
-drivers are opt-in), and the driver conformance suite still fails closed on a broken or
-non-conforming adapter.
+Contracts stay v0 and unfrozen throughout; **delivery planning** introduces no TypeScript interfaces,
+JSON Schema, provider manifests, package exports, or package decomposition — those remain design- and
+contract-owner-owned. One design-owned exception is now exercised for Phase 6: the **substrate
+manifest** (the immutable, hashed, approved argv/creds/egress tuple whose runtime validation closes
+the substrate-escalation stop) is authorized **at design altitude by
+[ADR 0022](../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (extending
+[ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 8), and stays a
+non-normative fixture with no schema freeze. Building it per ADR 0022 is therefore design-owned work,
+not a delivery-planning invention or a boundary violation; this track only **references** it. Two
+regression anchors ride every phase below as evidence, never as their own phase: the Phase-0..4 record
+goldens stay byte-identical under the default reference wiring (real drivers are opt-in), and the
+driver conformance suite still fails closed on a broken or non-conforming adapter.
 
 ## Phase 6 — Real driver integration
 

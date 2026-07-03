@@ -340,6 +340,16 @@ runner-exclusive landing at `done → landed` is invoked through the `ForgePort`
 emitted through the seam so "landing is runner-owned" is a testable property; real push/PR/merge and
 adapter idempotency for real effects remain deferred to a later phase.
 
+**Phase 6 realization ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)).** The ISO-4
+parallel-workspace concurrency the Notes name as an extension point is realized **per story** with real
+drivers: independent stories run at once, each in its own host-isolated workspace
+(worktree-per-story), so parallel work cannot corrupt another story's tree. A second launch of the
+**same** task is refused as a fail-closed, diagnosable outcome and records the `workspace-collision`
+failure token, extending the Phase-4 run-level workspace fingerprint
+([ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §6) to a per-story workspace identity.
+The `done → landed` real effect stays out of Phase 6 (Phase 7); Phase 6 realizes the isolation
+boundary, not real landing.
+
 ### Candidate invariants (for w2-s3 consolidation)
 
 This section **names** the invariant candidates the closed table surfaces. `w2-s3-invariant-catalog`

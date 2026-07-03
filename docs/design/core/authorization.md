@@ -179,6 +179,21 @@ judged unproven and unlocks nothing. Freshness is modeled deterministically at l
 a later real-driver concern. The gate stays positive-only and core-judged; providers supply proof, core
 decides sufficiency.
 
+**Phase 6 realization ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)).** With real
+drivers the gate hardens without changing shape. (1) The Fence judges autonomy on the host's
+**`provenIsolationStrength`** (populated from an exercised confinement check), never on
+`reportedIsolationStrength`: a `strong` report whose proof supports only `weak` records
+`isolation-strength-overstated` and unlocks nothing beyond `weak`; an absent/stale proof records
+`containment-unproven` and routes to the Doorbell. (2) Freshness is now decided by a **real clock**
+against real driver/host timestamps (the deterministic constant is gone); an attestation past its
+policy-declared window is `stale` and treated as non-fresh, dropping the request out of the
+auto-grantable set. (3) A separate **substrate manifest** (an immutable, hashed, approved tuple of
+runtimes/argv/credentials/egress) bounds what a real driver may **request** at runtime — an
+out-of-tuple request is refused as a diagnosable stop; this is distinct from capability attestation
+(which proves what the host confines) and is likewise immutable-for-the-run and core-judged. On resume,
+the gate adjudicates against the **launch** capability attestation, recovered launch-immutable, never a
+fresher re-derivation (see [`bootstrap.md`](./bootstrap.md) "Phase 6 realization").
+
 ## Doorbell escalation
 
 The Doorbell is the owner-facing side of routed authority decisions.
