@@ -226,6 +226,40 @@ So the authorization rule here is narrow and explicit: rule-governing touch is a
 auto-grantable category. This file does not define the rule-governing-surface set, does not
 invent a new lifecycle state, and does not decide the completion guard itself.
 
+### Phase 9 realization — the active re-approval trigger (ADR 0025)
+
+[ADR 0025](../decisions/0025-phase-9-records-integrity.md) activates the
+`resume-blocked-missing-approval` seam [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §9
+named with **no active trigger** (P4-AC-3 was met by enforced launch-policy immutability alone). At resume
+preflight the trigger now fires with a clean two-way split:
+
+- **Tamper (broken integrity) → hard refuse.** If the records-integrity sidecar (ADR 0025;
+  [`records.md`](./records.md) "Phase 9 realization") fails to verify, resume **hard-refuses** with a named
+  integrity reason and **no re-approval can override it** — a broken chain is corrupted evidence, not a
+  changed basis an owner may bless.
+- **Legitimate changed-basis → block pending fresh owner re-approval.** If integrity **verifies** but a
+  **safety-relevant change to the approved plan's basis** occurred while stopped — a rule-governing surface,
+  the launch policy basis, or an integration-safety input the durable evidence detects against the launch
+  binding (bounded to what the run records + the workspace fingerprint + the tamper-evident snapshots;
+  ADR 0020 §9 says do not over-build) — resume is **blocked** on `resume-blocked-missing-approval` until a
+  fresh owner decision and evidence are recorded.
+
+A workspace-fingerprint difference is split before the final refusal reason is chosen. If otherwise
+continuous, tamper-evident evidence proves the difference is a **safety-relevant basis change**, the
+re-approvable leg above applies: `resume-blocked-missing-approval`, cleared only by fresh owner sign-off.
+`resume-blocked-workspace-mismatch` is reserved for genuine non-continuity or tamper — a different tree,
+broken continuity, or an unexplainable mismatch that is **not** owner-blessable. Broken integrity remains a
+separate hard-refuse leg and cannot be converted into owner approval.
+
+The re-approval evidence is a **fresh owner decision through the existing Doorbell path** —
+`authorization.granted` basis `["owner-approval"]` — narrow and durable, the same affordance this file
+already owns. Re-approval **re-confirms** continuation under the recorded binding; it **never** rebinds,
+widens scope, or swaps the launch policy (GUARD-1). A non-interactive resume with no fresh decision
+available fails closed at preflight. **No model adjudicates this boundary (CFG-10):** the
+tamper-vs-changed-basis split and the re-approval decision are fixed-category checks and an owner decision,
+never an LLM runtime judgment — an implementer must not slip a model in to "decide whether the change
+matters."
+
 ## Adjacent boundaries
 
 - The Fence provides the guard vocabulary that [`orchestration.md`](./orchestration.md) consumes:

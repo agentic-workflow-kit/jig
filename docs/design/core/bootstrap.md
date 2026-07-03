@@ -462,6 +462,38 @@ wire **real** agent/host drivers without changing its ownership or a port surfac
   a drifted real host would now report (GUARD-1, FENCE-2). This replaces the Phase-5 reference behavior
   of re-deriving a constant attestation, which was safe only because the reference host could not drift.
 
+### Phase 9 records-integrity + driver-selection binding (ADR 0025)
+
+[ADR 0025](../decisions/0025-phase-9-records-integrity.md) makes the launch header and snapshots
+tamper-evident and binds the launch driver selection, without changing this procedure's ownership or a
+freezing a record shape:
+
+- **Integrity materialized at launch and maintained under the append path.** Alongside the Phase-4
+  plan/policy snapshots and the Phase-6 attestation snapshot, bootstrap materializes a records-integrity
+  **sidecar** (`runs/<id>/integrity.*`) at launch — immutable launch-header/snapshot digests +
+  environment-keyed HMAC ([`records.md`](./records.md) "Phase 9 realization"), a **non-golden file** beside
+  the run directory that leaves `events.jsonl` and every snapshot byte-for-byte unchanged. After launch,
+  the append-only event log is covered by a hash-chain maintained by the governed single-leased-writer
+  append path: each accepted append extends the chain and updates the sidecar **atomically with** the
+  append. On resume, the workspace/storage preflight is joined by an **integrity preflight**: bootstrap
+  recomputes and compares; a sidecar/log divergence or broken chain fails closed with a named integrity
+  reason (FAIL-004 class), never resumes on corrupted evidence. The HMAC key is environment-only and never
+  serialized; its absence where integrity is expected is a diagnosable stop, not a silent skip.
+- **Driver-selection binding — additive header field, verification-only.** Today the launch binding records
+  only `mode`/`recordDir` in `configRef` and persists **no driver snapshot**, so the launch driver
+  selection is unbound on resume (T8 bound only the work-source leg). Bootstrap now records the resolved
+  `agent`/`executionHost`/`forge`/`workSource` names as an additive `binding.drivers` sub-field of the
+  `run.started` launch header, following the `binding.workspace` precedent. On resume it is verified
+  **verification-only** against the selection resume would use — a mismatch fails closed (binding-mismatch
+  class), exactly like the plan/policy binding-verify. Re-wiring is allowed; **rebinding is not**
+  ("Original-binding preservation rule"): resumed work runs under the **launch** drivers, never a fresher
+  re-selection. This is additive launch context, not a v0 freeze.
+- **Changed-basis ordering.** Resume preflight must not let the Phase-4 workspace-continuity check
+  pre-empt the Phase-9 re-approval leg. Broken integrity remains a hard integrity refusal. A workspace
+  fingerprint difference that is verified as a safety-relevant basis change against otherwise continuous
+  evidence is classified as `resume-blocked-missing-approval`; `resume-blocked-workspace-mismatch` is
+  reserved for genuine non-continuity or tamper that owner approval cannot bless.
+
 ## Invariant and State Matrix
 
 | Invariant or state rule                     | Bootstrap implication                                                                                        | Source                                                     |
