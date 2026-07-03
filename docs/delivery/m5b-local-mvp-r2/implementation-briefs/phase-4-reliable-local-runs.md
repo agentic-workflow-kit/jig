@@ -99,8 +99,9 @@ Do not:
 ## Likely source files touched (do not edit as part of this design PR)
 
 - `src/cli.ts` — add the `resume` subcommand; route `inspect` through the projection.
-- `src/records.ts` — a loader that reads `events.jsonl` back; write the validated-plan snapshot and
-  `binding.workspace` at launch; run-level redaction/export posture on the run record.
+- `src/records.ts` — a loader that reads `events.jsonl` back; write the validated-plan snapshot, the
+  policy snapshot (resolved launch policy content), and `binding.workspace` at launch; run-level
+  redaction/export posture on the run record.
 - `src/harness.ts` — resume re-entry: continue from the projected checkpoint, free independent
   unstarted work, recognize already-terminal work and recorded actions/decisions.
 - `src/types.ts` — extend `binding` (workspace fingerprint), the run record (redaction/export
@@ -156,18 +157,23 @@ notice, and the safe resume point — and works when `run.json` is absent (the c
 No `--replay` flag. Preserve the existing rendering of item outcomes/diagnostics/changed files, now
 sourced from the projection.
 
-### Slice 3 — Launch-time durability: plan snapshot + workspace fingerprint + posture (ADR 0020 §3, §6, §7)
+### Slice 3 — Launch-time durability: plan + policy snapshots + workspace fingerprint + posture (ADR 0020 §3, §6, §7)
 
 At `start`, extend the launch record so the log is self-sufficient for replay:
 
 - **Write a validated-plan snapshot** into the run directory (e.g. `plan.snapshot.json`) so resume
   is records-backed and does not need an external plan file.
+- **Write a policy snapshot** — the resolved launch policy _content_ (rules + rule-governing
+  surfaces), e.g. `policy.snapshot.json` — into the run directory (ADR 0020 §3, "Resume needs the
+  durable launch policy"). The recorded `policyRef` is only an id; resume must adjudicate resumed
+  requests under the actual launch rules, so it rebuilds the policy from this snapshot — **never**
+  from a permissive `{ allowLocalDryRun: true }` stub reconstructed from the id.
 - **Record an authoritative launch header** as the first record of `events.jsonl` — the
   `run.started` event carrying `run.id`, `planId`, the launch `binding`, the workspace fingerprint,
   the run-level redaction/export posture (default `safe-for-owner-record` / export `redacted`), and
-  a reference to the plan snapshot (ADR 0020 §1). Today `binding` is written only into `run.json`
-  (`src/records.ts` `finalize`); this promotes it into the log **additively**, reusing the
-  `run.started` family (no new family). This is what lets events-only inspect and resume recover
+  references to the plan and policy snapshots (ADR 0020 §1). Today `binding` is written only into
+  `run.json` (`src/records.ts` `finalize`); this promotes it into the log **additively**, reusing
+  the `run.started` family (no new family). This is what lets events-only inspect and resume recover
   binding, fingerprint, and posture when `run.json` is absent.
 - **Capture the workspace fingerprint** — repo root + git `HEAD` + a content hash over the
   working-tree change set (`git status --porcelain` + tracked/staged diff; clean tree → sentinel
@@ -183,15 +189,21 @@ normalizes to a single `<WORKSPACE>` token).
 
 Add `jig resume <run-dir> --scripted-output <output>` (`src/cli.ts` + `src/resume.ts`):
 
-1. Load the plan snapshot + projection; fail closed if the projection is defective.
+1. Load the plan snapshot, **policy snapshot**, and projection; fail closed if the projection is
+   defective. Rebuild the launch policy from the policy snapshot and adjudicate every resumed
+   request against it — never a reference-only stub (ADR 0020 §3).
 2. **Verify binding** — any `--config`/`--policy`/`--plan` passed are verification-only against the
    recorded binding; a mismatch → `resume-blocked-binding-mismatch`, refuse (no rebinding; GUARD-1,
    INV-003/010).
 3. **Workspace-continuity preflight** — recompute the fingerprint and compare; material mismatch →
    `resume-blocked-workspace-mismatch`, refuse (P4-AC-6).
-4. **Resume-integrity gate** — if a safety-relevant assumption changed while stopped and the
-   required fresh owner re-approval/evidence is absent → `resume-blocked-missing-approval`, refuse
-   (RESUME-5, GUARD-2, INV-011; P4-AC-3).
+4. **Resume-integrity gate (seam only — no local trigger in Phase 4).** Wire the
+   `resume-blocked-missing-approval` reason as a type/seam, but **do not** implement a firing rule
+   for it. Per ADR 0020 §9 + "Record and snapshot integrity — deferred", at local altitude every
+   detectable change is already caught by binding (step 2) or workspace (step 3), and the
+   re-approval affordance needs the deferred change-detection + tamper-evidence. P4-AC-3 is met by
+   rebuilding the launch policy from its durable snapshot (step 1) so resume cannot silently loosen
+   the rules — not by an interactive re-approval prompt. Do not invent a stimulus here.
 5. **Continue from the projected checkpoint** — same run id, no fresh id, no `attempt` increment;
    append `run.resumed`. Apply the checkpoint semantics (ADR 0020 §4): terminal stories not re-run;
    independent unstarted work freed on a `work-item-blocked` stop; a `started`-without-terminal item
@@ -221,11 +233,13 @@ Project the minimum notice set from recorded facts (no new event family): unatte
 evidence-gate-failure stop, policy/authorization-denial stop, and `redaction-export-posture-ambiguous`
 (posture read from the launch header). Surface these through `inspect`.
 
-The three `resume-blocked-*` conditions are **not** projections and are not `inspect` notices (ADR
-0020 §8): they are computed live at resume preflight from resume-time inputs vs the recorded launch
+The `resume-blocked-*` conditions are **not** projections and are not `inspect` notices (ADR 0020
+§8): they are computed live at resume preflight from resume-time inputs vs the recorded launch
 header, and a refused resume appends no record and moves no checkpoint. Emit them only as the reason
 a refused `resume` reports (non-zero exit + stderr diagnostic). Do **not** invent a refusal event
-family to make them replayable — recording refused attempts is a named, deferred enhancement.
+family to make them replayable — recording refused attempts is a named, deferred enhancement. Only
+`resume-blocked-binding-mismatch` and `resume-blocked-workspace-mismatch` fire in Phase 4;
+`resume-blocked-missing-approval` is a wired seam with no local trigger (Slice 4 step 4).
 
 ## Acceptance criteria (binding — from `phases.md`)
 
@@ -234,7 +248,11 @@ family to make them replayable — recording refused attempts is a named, deferr
 - **P4-AC-2** — Previously recorded irreversible effects are not repeated on resume. Closed by
   Slice 4 step 6 (no-double-effect ledger). Traces: RESUME-3, INV-006/INV-012.
 - **P4-AC-3** — Safety-relevant changes while stopped require fresh approval/evidence before
-  resuming. Closed by Slice 4 step 4. Traces: RESUME-5, GUARD-2, INV-011.
+  resuming. Met at local altitude by rebuilding the launch policy from its durable snapshot (Slice 3
+  - Slice 4 step 1) so resume adjudicates under the un-loosened launch rules; the interactive
+    re-approval affordance and record tamper-evidence are deferred to a post-Phase-5 records-integrity
+    phase (ADR 0020 §9 + "Record and snapshot integrity — deferred"). Traces: RESUME-5, GUARD-2,
+    INV-011.
 - **P4-AC-4** — `inspect` explains stop cause, notice, and safe resume point by replaying
   `events.jsonl`, including when `run.json` is missing. Closed by Slices 1–2, 6. Traces: LIVE-2,
   SEE-4, INV-006.
@@ -261,7 +279,9 @@ preserved`;
   - `P4-AC-2: resume does not re-append a recorded runner-action.skipped-on-dry-run / terminal
 story / owner decision`;
   - `P4-AC-2: resume never appends a second first-binding record`;
-  - `P4-AC-3: resume with a changed safety-relevant assumption and no fresh approval is refused`;
+  - `P4-AC-3: resumed work is adjudicated under the launch policy rebuilt from policy.snapshot.json`
+    — e.g. a resumed request touching a `ruleGoverningSurfaces` path is **routed** (GUARD-2), not
+    granted by a permissive stub;
   - parked-resume: `consumes a pre-recorded owner decision without re-asking`; `non-interactive
 resume of an unresolved park re-stops fail-closed`.
 - **Binding/workspace** (`P4-AC-1`, `P4-AC-6`): `resume with mismatched --policy is refused
@@ -299,7 +319,7 @@ refused (workspace mismatch)`.
   `--plan` are optional verification-only inputs; a refused resume exits non-zero with a diagnostic
   naming the `resume-blocked-*` reason. No fresh run id; no `attempt` increment.
 - `jig run` / `jig preview` — unchanged in surface; `run` additionally writes the plan snapshot,
-  workspace fingerprint, and run-level posture (Slice 3).
+  the policy snapshot, the workspace fingerprint, and run-level posture (Slice 3).
 
 ## Stop conditions
 
@@ -311,7 +331,10 @@ Halt and route back to design (do not decide locally) if:
 - resume would need to rebind (swap policy/config/work-profile/repo-floor) to proceed;
 - redaction would erase stop evidence, or a continuity claim would be made over a changed workspace;
 - a real worker / real provider / Forge landing is needed for an AC to pass (that is Phase 5);
-- per-event redaction posture, ISO-4 isolation, or remote-host recovery is required (deferred).
+- per-event redaction posture, ISO-4 isolation, or remote-host recovery is required (deferred);
+- record/snapshot tamper-evidence (signing, digests, HMAC, hash-chained logs) or an active
+  `resume-blocked-missing-approval` re-approval path seems needed — that is the post-Phase-5
+  records-integrity phase, not Phase 4 (ADR 0020 "Record and snapshot integrity — deferred").
 
 ## PR evidence checklist
 
@@ -319,7 +342,8 @@ Halt and route back to design (do not decide locally) if:
 - `corepack pnpm check` green (lint, format:check, typecheck, delivery:check, vitest ≥ 90%).
 - Every new test names the AC ID it proves; the `events.jsonl`-only projection fixture and the
   resume causal-chain golden are read by a test.
-- A records-diff note in the PR body: the additive run-record fields (plan snapshot,
-  `binding.workspace`, run-level posture) and the new `run.resumed`/resume continuation, citing
-  ADR 0020 — downstream consumers read records, so the change must be legible.
+- A records-diff note in the PR body: the additive run-record fields (plan snapshot, policy
+  snapshot, `binding.workspace`, run-level posture) and the new `run.resumed`/resume continuation,
+  citing ADR 0020 — downstream consumers read records, so the change must be legible. Note the
+  explicit non-goal: snapshots are durable but **not** tamper-evident in Phase 4 (deferred).
 - The Phase R/3 goldens still pass, evidencing no regression to the delivered shape.

@@ -88,7 +88,7 @@ _without_ `run.json` has to live in the log. Phase 4 therefore records a durable
 as the first record of `events.jsonl`: the existing `run.started` event, extended to carry the
 authoritative launch metadata — `run.id`, `planId`, the launch `binding`
 (`policyRef`/`configRef`, the workspace fingerprint of §6, and the run-level redaction/export
-posture of §7), and a reference to the validated-plan snapshot of §3. This is **additive**: today
+posture of §7), and references to the durable plan and policy snapshots of §3. This is **additive**: today
 `binding` is written only into `run.json` (`src/records.ts` `finalize`), so Phase 4 promotes it
 into the log without reshaping any existing field, and `run.json` keeps the same fields as a
 finalized cache. It reuses the existing `run.started` family, so **no new event family is minted**
@@ -154,6 +154,20 @@ snapshot into the run directory at launch** (e.g. `plan.snapshot.json`), and res
 "Resume from records" is honest only if the plan is durable in the run directory; resume must not
 depend on an external plan file the operator happened to keep unchanged. If `--plan` is also passed
 on resume it is verified against the snapshot (verification-only, as above).
+
+**Resume needs the durable launch policy, not just its id.** The binding records the policy by
+_reference_ (`policyRef`) — an identifier, not the rules. That is insufficient for resume: resumed
+work raises fresh authorization requests, and adjudicating them (`../core/orchestration.md` fence)
+needs the actual policy content — the category rules and the rule-governing surfaces the launch
+policy defined. Rebuilding a permissive default from the id alone would let resumed work be judged
+by looser rules than the launch policy — silently loosening GUARD-1/GUARD-2 exactly where the run
+is most exposed. Therefore **bootstrap persists the resolved launch policy into the run directory at
+launch** (e.g. `policy.snapshot.json`), the same way it persists the plan snapshot, and resume
+rebuilds the launch policy from it. Every resumed request is adjudicated against that recorded
+launch policy — **never** a stub reconstructed from `policyRef`. If `--policy` is passed on resume
+it is verified against the snapshot (verification-only, as above), never used to rebind. The
+snapshot is durable evidence, not yet tamper-protected — see "Record and snapshot integrity —
+deferred" below.
 
 ### 4. Checkpoint semantics
 
@@ -303,7 +317,7 @@ event family. The minimum notices Phase 4 projects:
 | redaction / export posture ambiguous        | the posture check on a record or run, whose posture rides in the launch header (§1, §7)       |
 
 **Resume-preflight diagnostics are not projections.** The three `resume-blocked-*` conditions —
-binding mismatch (§3), workspace mismatch (§6), and missing approval evidence (§4/§9) — are
+binding mismatch (§3), workspace mismatch (§6), and missing approval evidence (§9) — are
 deliberately **excluded** from the table above, because none is a projection over the stopped run's
 log. Each is computed **live at resume preflight** by comparing a resume-time input (passed
 `--config`/`--policy`/`--plan`, the freshly recomputed workspace fingerprint, the presence of fresh
@@ -334,6 +348,40 @@ the _detection surface_ for "what changed while stopped" is scoped to what the r
 plus the workspace fingerprint (§6); a richer change-detection surface stays deferred to later
 provider/policy work and is named, not built, here.
 
+At Phase-4 local altitude this means `resume-blocked-missing-approval` has **no active re-approval
+trigger**. With the launch policy rebuilt from its durable snapshot (§3) and any workspace change
+caught by §6, P4-AC-3 is met by **enforced launch-policy immutability across resume** — the resume
+path cannot silently loosen the rules resumed work is judged by — rather than by an interactive
+re-approval prompt. The re-approval affordance (the Doorbell path that would let a genuinely changed
+run continue after fresh owner sign-off) needs both the deferred change-detection surface above and
+the record tamper-evidence deferred in the next section, so the two are deferred together. The gate
+is named and wired as a seam; it does not fire locally in Phase 4.
+
+## Record and snapshot integrity — deferred to a later phase
+
+Phase 4 makes the launch policy and plan durable and rebuilds them from the recorded snapshots on
+resume, so the resume path itself cannot substitute looser rules than were bound at launch. It does
+**not** yet protect the recorded evidence — the event log, the plan snapshot, and the policy
+snapshot — against deliberate out-of-band modification. At local altitude jig trusts the run
+directory as written.
+
+Concretely: a local actor who edits `runs/<id>/policy.snapshot.json`, the plan snapshot, or the
+`run.started` launch header in `events.jsonl` between stop and resume can change the rules resumed
+work is judged by, and Phase 4 will not detect it. The RESUME-5 / GUARD-2 resume-integrity guarantee
+holds at this altitude against the _engine_ loosening its own rules across a resume — **not** against
+tampering with the durable records themselves.
+
+Tamper-evidence for the records — a content digest per snapshot, an HMAC bound to a machine- or
+operator-held key, or a full signature / hash-chained log — is intentionally **out of scope until a
+dedicated records-integrity phase after Phase 5**. That is the first point at which a trust anchor
+(an OS keychain, a TPM, or a remote attestation surface arriving with real providers) exists to make
+signing meaningful; adding key machinery at pure local altitude would buy no protection a same-host
+actor does not already control. This limitation is stated here — not left implicit — so implementers
+do not mistake "resume rebuilds the recorded policy" for "the recorded policy is protected from
+modification." **TODO (records-integrity phase, post-Phase-5):** make the launch header, plan
+snapshot, and policy snapshot tamper-evident, and activate the `resume-blocked-missing-approval`
+re-approval path on a detected change.
+
 ## Consequences
 
 - The observability-records contract is clarified (not frozen): a run-level default redaction/export
@@ -345,18 +393,28 @@ provider/policy work and is named, not built, here.
   reconciliation.
 - The change is **additive** to the records shape: Phase 4 promotes `binding` (today written only to
   `run.json`) into a durable `run.started` launch header at the head of `events.jsonl` — carrying
-  run id, plan id, binding, the workspace fingerprint, the redaction/export posture, and the
-  plan-snapshot reference — and appends a `run.resumed` continuation to the same log on resume. No
-  existing field changes shape and no event family is renamed, removed, or newly minted; `run.json`
-  keeps its embedded `events[]` cache non-authoritatively for Phase R/3 golden compatibility.
-- Phase 4 implementation adds a projection path (replay `events.jsonl`), a `jig resume` surface, a
-  launch-time validated-plan snapshot, a workspace fingerprint in the binding, and run-level
-  redaction/export posture with fail-closed inspect/export. It touches `src/cli.ts`,
+  run id, plan id, binding, the workspace fingerprint, the redaction/export posture, and the plan
+  and policy snapshot references — and appends a `run.resumed` continuation to the same log on
+  resume. The **policy snapshot** (resolved launch policy content, persisted like the plan snapshot)
+  is what lets resume adjudicate resumed work under the launch policy instead of a permissive stub.
+  No existing field changes shape and no event family is renamed, removed, or newly minted;
+  `run.json` keeps its embedded `events[]` cache non-authoritatively for Phase R/3 golden
+  compatibility.
+- Phase 4 implementation adds a projection path (replay `events.jsonl`), a `jig resume` surface,
+  launch-time validated-plan **and policy** snapshots, a workspace fingerprint in the binding, and
+  run-level redaction/export posture with fail-closed inspect/export. It touches `src/cli.ts`,
   `src/records.ts`, `src/harness.ts`, `src/types.ts`, and adds focused new modules (candidate
   `projection`, `resume`, `workspace`, `redaction`) — see the Phase 4 implementation brief.
 - No JSON Schema freeze, no TypeScript contract package, no real providers, and no Forge/GitHub
-  landing. Real irreversible-effect idempotency, ISO-4 parallel isolation, remote-host recovery, and
-  field-level per-event redaction posture remain deferred.
+  landing. Real irreversible-effect idempotency, ISO-4 parallel isolation, remote-host recovery,
+  field-level per-event redaction posture, and **record/snapshot tamper-evidence (signing,
+  digests, HMAC, hash-chained logs)** remain deferred — the last to a dedicated records-integrity
+  phase after Phase 5 (see "Record and snapshot integrity — deferred").
 
 - Date: 2026-07-02
 - Origin: Phase 4 reliable-local-runs design closure (docs-only, pre-implementation)
+- Amended: 2026-07-03 — resume rebinds to a durable **policy** snapshot (resolved rules), not a
+  reference-only stub, so resumed work is adjudicated under the launch policy (GUARD-1/GUARD-2).
+  Record/snapshot tamper-evidence (signing, digests, HMAC, hash-chained logs) and the
+  `resume-blocked-missing-approval` re-approval path are deferred to a dedicated records-integrity
+  phase after Phase 5.
