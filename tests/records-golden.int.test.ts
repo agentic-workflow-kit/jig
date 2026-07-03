@@ -3,10 +3,10 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test } from 'vitest';
+import { composeReferenceRun } from '../src/bootstrap.js';
 import { LocalHarness } from '../src/harness.js';
 import { RecordManager } from '../src/records.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, RunRecord } from '../src/types.js';
-import { ScriptedWorker } from '../src/worker.js';
 
 const fixtureDir = join(process.cwd(), 'tests/fixtures/m5b-local-mvp');
 const cleanupDirs: string[] = [];
@@ -120,19 +120,26 @@ async function runFixture(planName: string, scriptedOutputName: string): Promise
   const policy = loadFixture<PolicyDoc>(policyName);
   const plan = loadFixture<PlanInstance>(planName);
   const scriptedOutput = loadFixture<Record<string, unknown>>(scriptedOutputName);
-  const harness = new LocalHarness(new ScriptedWorker(scriptedOutput), new RecordManager());
-
-  await harness.run(
-    plan,
-    {
-      ...config,
-      runner: {
-        ...config.runner,
-        recordDir,
-      },
+  const configWithRecordDir = {
+    ...config,
+    runner: {
+      ...config.runner,
+      recordDir,
     },
-    policy,
-  );
+  };
+  const composed = await composeReferenceRun({
+    planInstance: plan,
+    config: configWithRecordDir,
+    scriptedOutput,
+  });
+  const [candidate] = await composed.workSource.candidates();
+  assert.ok(candidate, 'expected a validated work-source candidate');
+  const harness = new LocalHarness(composed.agent, new RecordManager(), null, {
+    capabilityAttestation: composed.capabilityAttestation,
+    forge: composed.forge,
+  });
+
+  await harness.run(candidate.planInstance, configWithRecordDir, policy);
 
   const [runDir] = readdirSync(recordDir);
   assert.ok(runDir, 'expected a generated run directory');
