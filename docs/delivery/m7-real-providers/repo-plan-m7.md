@@ -66,7 +66,7 @@ ID-bearing acceptance criteria live in [`phases.md`](./phases.md); the track ove
     and the engine/tests under `src/` and `tests/`.
 
 - **Local exit criteria:**
-  - Phases 6-9 land with every phase AC evidenced by a test citing its AC ID (P6-AC-1..6, P7-AC-1..4,
+  - Phases 6-9 land with every phase AC evidenced by a test citing its AC ID (P6-AC-1..6, P7-AC-1..5,
     P8-AC-1..3, P9-AC-1..3).
   - Real drivers selected through the composition root perform real effects under policy against a
     real, proven capability attestation; the driver conformance suite still fails closed on a broken
