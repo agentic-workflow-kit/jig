@@ -4,7 +4,9 @@ import { createInterface } from 'node:readline/promises';
 import { LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
+import { projectRunEvents } from './projection.js';
 import { RecordManager } from './records.js';
+import { ResumeRefusal, resumeRun } from './resume.js';
 import type { PlanInstance, RunRecord } from './types.js';
 import { ScriptedWorker } from './worker.js';
 
@@ -18,6 +20,8 @@ export async function run(): Promise<void> {
     await handlePreview(args.slice(1));
   } else if (command === 'inspect') {
     await handleInspect(args.slice(1));
+  } else if (command === 'resume') {
+    await handleResume(args.slice(1));
   } else {
     printUsage();
     process.exit(1);
@@ -29,6 +33,9 @@ function printUsage(): void {
   console.error('  jig preview <plan> --config <config> --policy <policy>');
   console.error('  jig run <plan> --config <config> --policy <policy> --scripted-output <output>');
   console.error('  jig inspect <run-directory>');
+  console.error(
+    '  jig resume <run-directory> --scripted-output <output> [--config <config>] [--policy <policy>] [--plan <plan>]',
+  );
 }
 
 async function handlePreview(args: string[]): Promise<void> {
@@ -123,6 +130,43 @@ async function handleRun(args: string[]): Promise<void> {
   }
 }
 
+async function handleResume(args: string[]): Promise<void> {
+  const runDir = args[0];
+  if (!runDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  const scriptedOutputPath = getArg(args, '--scripted-output');
+  if (!scriptedOutputPath) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const status = await resumeRun({
+      runDir,
+      scriptedOutputPath,
+      configPath: getArg(args, '--config'),
+      policyPath: getArg(args, '--policy'),
+      planPath: getArg(args, '--plan'),
+      ownerDecisionSource: createOwnerDecisionSource(),
+    });
+
+    if (status !== 'success') {
+      process.exit(1);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof ResumeRefusal) {
+      console.error(message);
+    } else {
+      console.error(`Error: ${message}`);
+    }
+    process.exit(1);
+  }
+}
+
 async function handleInspect(args: string[]): Promise<void> {
   const runDir = args[0];
   if (!runDir) {
@@ -135,65 +179,180 @@ async function handleInspect(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  const eventsJsonlPath = join(runDir, 'events.jsonl');
   const runJsonPath = join(runDir, 'run.json');
+
+  if (existsSync(eventsJsonlPath)) {
+    const eventsJsonl = readFileSync(eventsJsonlPath, 'utf8');
+    let runRecord: RunRecord | null = null;
+    let cacheParseError: string | null = null;
+
+    if (existsSync(runJsonPath)) {
+      try {
+        runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        cacheParseError = `run.json cache unreadable and ignored: ${message}`;
+      }
+    }
+
+    try {
+      const projection = projectRunEvents({ eventsJsonl, runRecord });
+      renderProjectionInspection(runDir, projection, cacheParseError);
+      return;
+    } catch (err) {
+      if (runRecord && isLegacyProjectionFallback(err)) {
+        renderLegacyInspection(runDir, runRecord);
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Error: Failed to inspect authoritative events.jsonl: ${message}`);
+      process.exit(1);
+    }
+  }
+
   if (!existsSync(runJsonPath)) {
-    console.error(`Error: run.json not found in "${runDir}"`);
+    console.error(`Error: Neither events.jsonl nor run.json found in "${runDir}"`);
     process.exit(1);
   }
 
   try {
     const runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
-    const { run, events } = runRecord;
-
-    console.log('\n--- Run Inspection ---');
-    console.log(`Run ID: ${run.id}`);
-    console.log(`Plan ID: ${run.planId}`);
-    console.log(`Final Status: ${run.status}`);
-    if (run.mode) {
-      console.log(`Mode: ${run.mode}`);
-    }
-    console.log(`Records Directory: ${runDir}`);
-
-    // Item-level outcomes
-    const items = events.filter((e) =>
-      ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(e.family),
-    );
-    if (items.length > 0) {
-      console.log('\nItems:');
-      for (const item of items) {
-        const outcome = item.family.replace('story.', '');
-        let details = '';
-        if (item.family === 'story.blocked') {
-          details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
-        } else if (item.family === 'story.skipped') {
-          details = ` (${item.reason})`;
-        }
-        console.log(`  - ${item.storyId}: ${outcome}${details}`);
-
-        if ((item.family === 'story.blocked' || item.family === 'story.failed') && item.diagnostics) {
-          console.log('    Diagnostics:');
-          if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
-          if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
-          if (item.diagnostics.stdout) console.log(`      stdout: ${item.diagnostics.stdout.trim().split('\n')[0]}...`);
-        }
-
-        if (item.changedFiles && Array.isArray(item.changedFiles) && item.changedFiles.length > 0) {
-          console.log(`    Changed files: ${item.changedFiles.join(', ')}`);
-        }
-      }
-    } else if (run.status === 'failure') {
-      const deniedEvent = events.find((e) => e.family === 'authorization.denied');
-      if (deniedEvent) {
-        console.log(`Reason: ${deniedEvent.reason}`);
-      }
-    }
-
-    console.log('----------------------\n');
+    renderLegacyInspection(runDir, runRecord);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Error: Failed to parse run.json: ${message}`);
     process.exit(1);
   }
+}
+
+function renderProjectionInspection(
+  runDir: string,
+  projection: ReturnType<typeof projectRunEvents>,
+  cacheParseError: string | null,
+): void {
+  console.log('\n--- Run Inspection ---');
+  console.log(`Run ID: ${projection.runId}`);
+  console.log(`Plan ID: ${projection.planId}`);
+  console.log(`Final Status: ${projection.status}`);
+  if (projection.mode) {
+    console.log(`Mode: ${projection.mode}`);
+  }
+  console.log(`Records Directory: ${runDir}`);
+
+  if (projection.stopCause) {
+    console.log(`Stop Cause: ${projection.stopCause}`);
+  }
+  if (projection.summaryReason) {
+    console.log(`Reason: ${projection.summaryReason}`);
+  }
+  if (projection.safeCheckpoint) {
+    console.log(`Safe Resume Checkpoint: ${projection.safeCheckpoint}`);
+  }
+
+  const items = Object.values(projection.stories);
+  if (items.length > 0) {
+    console.log('\nItems:');
+    for (const item of items) {
+      let details = '';
+      if (item.state === 'blocked') {
+        details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : item.reason ? ` (${item.reason})` : '';
+      } else if (item.state === 'parked' && item.reason) {
+        details = ` (${item.reason})`;
+      }
+      console.log(`  - ${item.storyId}: ${item.state}${details}`);
+
+      if (item.diagnostics) {
+        console.log('    Diagnostics:');
+        if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
+        if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
+        if (item.diagnostics.stdout) console.log(`      stdout: ${item.diagnostics.stdout.trim().split('\n')[0]}...`);
+      }
+
+      if (item.changedFiles.length > 0) {
+        console.log(`    Changed files: ${item.changedFiles.join(', ')}`);
+      }
+    }
+  }
+
+  const diagnostics = [...projection.diagnostics];
+  if (cacheParseError) {
+    diagnostics.push({
+      code: 'run.json-cache-unreadable',
+      message: cacheParseError,
+    });
+  }
+  if (diagnostics.length > 0) {
+    console.log('\nDiagnostics:');
+    for (const diagnostic of diagnostics) {
+      console.log(`  - ${diagnostic.code}: ${diagnostic.message}`);
+    }
+  }
+
+  if (projection.notices.length > 0) {
+    console.log('\nProjected Notices:');
+    for (const notice of projection.notices) {
+      console.log(`  - ${notice.code}: ${notice.message}`);
+    }
+  }
+
+  if (projection.changedFiles.length > 0) {
+    console.log(`\nChanged files: ${projection.changedFiles.join(', ')}`);
+  }
+
+  console.log('----------------------\n');
+}
+
+function renderLegacyInspection(runDir: string, runRecord: RunRecord): void {
+  const { run, events } = runRecord;
+
+  console.log('\n--- Run Inspection ---');
+  console.log(`Run ID: ${run.id}`);
+  console.log(`Plan ID: ${run.planId}`);
+  console.log(`Final Status: ${run.status}`);
+  if (run.mode) {
+    console.log(`Mode: ${run.mode}`);
+  }
+  console.log(`Records Directory: ${runDir}`);
+
+  const items = events.filter((event) =>
+    ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(event.family),
+  );
+  if (items.length > 0) {
+    console.log('\nItems:');
+    for (const item of items) {
+      const outcome = item.family.replace('story.', '');
+      let details = '';
+      if (item.family === 'story.blocked') {
+        details = item.blockedBy ? ` (blocked by ${item.blockedBy})` : ` (${item.reason})`;
+      } else if (item.family === 'story.skipped') {
+        details = ` (${item.reason})`;
+      }
+      console.log(`  - ${item.storyId}: ${outcome}${details}`);
+
+      if ((item.family === 'story.blocked' || item.family === 'story.failed') && item.diagnostics) {
+        console.log('    Diagnostics:');
+        if (item.diagnostics.exitCode !== undefined) console.log(`      exitCode: ${item.diagnostics.exitCode}`);
+        if (item.diagnostics.error) console.log(`      error: ${item.diagnostics.error}`);
+        if (item.diagnostics.stdout) console.log(`      stdout: ${item.diagnostics.stdout.trim().split('\n')[0]}...`);
+      }
+
+      if (item.changedFiles && Array.isArray(item.changedFiles) && item.changedFiles.length > 0) {
+        console.log(`    Changed files: ${item.changedFiles.join(', ')}`);
+      }
+    }
+  } else if (run.status === 'failure') {
+    const deniedEvent = events.find((event) => event.family === 'authorization.denied');
+    if (deniedEvent) {
+      console.log(`Reason: ${deniedEvent.reason}`);
+    }
+  }
+
+  console.log('----------------------\n');
+}
+
+function isLegacyProjectionFallback(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'missing-launch-metadata';
 }
 
 function getArg(args: string[], name: string): string | null {

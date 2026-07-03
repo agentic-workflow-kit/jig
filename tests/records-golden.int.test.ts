@@ -21,6 +21,49 @@ function loadFixture<T>(name: string): T {
   return JSON.parse(readFileSync(join(fixtureDir, name), 'utf8')) as T;
 }
 
+function normalizeWorkspace(workspace: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!workspace) {
+    return workspace;
+  }
+
+  if (workspace.kind === 'git') {
+    return {
+      ...workspace,
+      repoRoot: '<WORKSPACE>',
+      head: '<WORKSPACE_HEAD>',
+      changeSetHash: '<WORKSPACE_HASH>',
+    };
+  }
+
+  return workspace;
+}
+
+function normalizePlanSnapshot(planSnapshot: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!planSnapshot) {
+    return planSnapshot;
+  }
+
+  return {
+    ...planSnapshot,
+    ref: '<PLAN_SNAPSHOT_REF>',
+    path: '<PLAN_SNAPSHOT_PATH>',
+  };
+}
+
+function normalizePolicySnapshot(
+  policySnapshot: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!policySnapshot) {
+    return policySnapshot;
+  }
+
+  return {
+    ...policySnapshot,
+    ref: '<POLICY_SNAPSHOT_REF>',
+    path: '<POLICY_SNAPSHOT_PATH>',
+  };
+}
+
 function normalizeRecord(record: RunRecord): RunRecord {
   return {
     run: {
@@ -29,13 +72,43 @@ function normalizeRecord(record: RunRecord): RunRecord {
       binding: {
         ...record.run.binding,
         configRef: record.run.binding.configRef.replace(/recordDir=.*/, 'recordDir=<RECORD_DIR>'),
+        workspace: normalizeWorkspace(
+          record.run.binding.workspace as unknown as Record<string, unknown> | undefined,
+        ) as unknown as RunRecord['run']['binding']['workspace'],
       },
+      planSnapshot: normalizePlanSnapshot(
+        record.run.planSnapshot as unknown as Record<string, unknown> | undefined,
+      ) as RunRecord['run']['planSnapshot'],
+      policySnapshot: normalizePolicySnapshot(
+        record.run.policySnapshot as unknown as Record<string, unknown> | undefined,
+      ) as RunRecord['run']['policySnapshot'],
     },
     events: record.events.map((event) => ({
       ...event,
+      ...(event.family === 'run.started'
+        ? (() => {
+            const binding = ((event.binding ?? {}) as Record<string, unknown>) || {};
+
+            return {
+              runId: '<RUN_ID>',
+              binding: {
+                ...binding,
+                configRef:
+                  typeof binding.configRef === 'string'
+                    ? binding.configRef.replace(/recordDir=.*/, 'recordDir=<RECORD_DIR>')
+                    : binding.configRef,
+                workspace: normalizeWorkspace(binding.workspace as Record<string, unknown> | undefined),
+              },
+              planSnapshot: normalizePlanSnapshot(event.planSnapshot as unknown as Record<string, unknown> | undefined),
+              policySnapshot: normalizePolicySnapshot(
+                event.policySnapshot as unknown as Record<string, unknown> | undefined,
+              ),
+            };
+          })()
+        : {}),
       timestamp: event.timestamp ? '<TIMESTAMP>' : event.timestamp,
     })),
-  };
+  } as RunRecord;
 }
 
 async function runFixture(planName: string, scriptedOutputName: string): Promise<RunRecord> {

@@ -7,11 +7,58 @@
     "mode": "local-dry-run",
     "binding": {
       "policyRef": "local-dry-run-policy",
-      "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>"
+      "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
+      "workspace": {
+        "kind": "git",
+        "repoRoot": "<WORKSPACE>",
+        "head": "<WORKSPACE_HEAD>",
+        "changeSetHash": "<WORKSPACE_HASH>"
+      }
+    },
+    "posture": {
+      "record": "safe-for-owner-record",
+      "export": "redacted"
+    },
+    "planSnapshot": {
+      "ref": "<PLAN_SNAPSHOT_REF>",
+      "path": "<PLAN_SNAPSHOT_PATH>"
+    },
+    "policySnapshot": {
+      "ref": "<POLICY_SNAPSHOT_REF>",
+      "path": "<POLICY_SNAPSHOT_PATH>"
     }
   },
   "events": [
-    { "family": "run.started", "actor": "runner", "timestamp": "<TIMESTAMP>" },
+    {
+      "family": "run.started",
+      "runId": "<RUN_ID>",
+      "planId": "multi-item-failure",
+      "mode": "local-dry-run",
+      "binding": {
+        "policyRef": "local-dry-run-policy",
+        "configRef": "mode=local-dry-run;recordDir=<RECORD_DIR>",
+        "workspace": {
+          "kind": "git",
+          "repoRoot": "<WORKSPACE>",
+          "head": "<WORKSPACE_HEAD>",
+          "changeSetHash": "<WORKSPACE_HASH>"
+        }
+      },
+      "posture": {
+        "record": "safe-for-owner-record",
+        "export": "redacted"
+      },
+      "planSnapshot": {
+        "ref": "<PLAN_SNAPSHOT_REF>",
+        "path": "<PLAN_SNAPSHOT_PATH>"
+      },
+      "policySnapshot": {
+        "ref": "<POLICY_SNAPSHOT_REF>",
+        "path": "<POLICY_SNAPSHOT_PATH>"
+      },
+      "actor": "runner",
+      "timestamp": "<TIMESTAMP>"
+    },
     { "family": "story.started", "storyId": "STORY-1", "actor": "runner", "timestamp": "<TIMESTAMP>" },
     {
       "family": "evidence.modeled",
