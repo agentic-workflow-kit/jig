@@ -30,6 +30,7 @@ function normalizeWorkspace(workspace: Record<string, unknown> | undefined): Rec
     return {
       ...workspace,
       root: '<WORKSPACE>',
+      repoRoot: '<WORKSPACE>',
       head: '<WORKSPACE_HEAD>',
       changeSetHash: '<WORKSPACE_HASH>',
     };
@@ -50,6 +51,20 @@ function normalizePlanSnapshot(planSnapshot: Record<string, unknown> | undefined
   };
 }
 
+function normalizePolicySnapshot(
+  policySnapshot: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!policySnapshot) {
+    return policySnapshot;
+  }
+
+  return {
+    ...policySnapshot,
+    ref: '<POLICY_SNAPSHOT_REF>',
+    path: '<POLICY_SNAPSHOT_PATH>',
+  };
+}
+
 function normalizeRecord(record: RunRecord): RunRecord {
   return {
     run: {
@@ -65,6 +80,9 @@ function normalizeRecord(record: RunRecord): RunRecord {
       planSnapshot: normalizePlanSnapshot(
         record.run.planSnapshot as unknown as Record<string, unknown> | undefined,
       ) as RunRecord['run']['planSnapshot'],
+      policySnapshot: normalizePolicySnapshot(
+        record.run.policySnapshot as unknown as Record<string, unknown> | undefined,
+      ) as RunRecord['run']['policySnapshot'],
     },
     events: record.events.map((event) => ({
       ...event,
@@ -83,6 +101,9 @@ function normalizeRecord(record: RunRecord): RunRecord {
                 workspace: normalizeWorkspace(binding.workspace as Record<string, unknown> | undefined),
               },
               planSnapshot: normalizePlanSnapshot(event.planSnapshot as unknown as Record<string, unknown> | undefined),
+              policySnapshot: normalizePolicySnapshot(
+                event.policySnapshot as unknown as Record<string, unknown> | undefined,
+              ),
             };
           })()
         : {}),

@@ -130,6 +130,8 @@ export interface PlanSnapshotRef {
   path?: string;
 }
 
+export type PolicySnapshotRef = PlanSnapshotRef;
+
 export interface RunEvent {
   family: string;
   actor?: string;
@@ -140,6 +142,8 @@ export interface RunEvent {
   posture?: RunPosture;
   planSnapshot?: PlanSnapshotRef;
   planSnapshotRef?: string;
+  policySnapshot?: PolicySnapshotRef;
+  policySnapshotRef?: string;
   storyId?: string;
   blockedBy?: string;
   reason?: string;
@@ -162,6 +166,7 @@ export interface RunRecord {
     binding: RunBinding;
     posture?: RunPosture;
     planSnapshot?: PlanSnapshotRef;
+    policySnapshot?: PolicySnapshotRef;
   };
   events: RunEvent[];
 }

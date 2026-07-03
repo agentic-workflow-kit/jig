@@ -6,6 +6,7 @@ import type {
   Plan,
   PlanSnapshotRef,
   PolicyDoc,
+  PolicySnapshotRef,
   RecordSink,
   RunBinding,
   RunEvent,
@@ -17,6 +18,7 @@ import { captureWorkspaceFingerprint } from './workspace.js';
 
 const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
+const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
 const DEFAULT_RUN_POSTURE: RunPosture = {
   record: 'safe-for-owner-record',
   export: 'redacted',
@@ -38,6 +40,7 @@ export class RecordManager implements RecordSink {
   private binding: RunBinding | null;
   private posture: RunPosture;
   private planSnapshot: PlanSnapshotRef | null;
+  private policySnapshot: PolicySnapshotRef | null;
   private launchHeaderRecorded: boolean;
 
   constructor() {
@@ -50,6 +53,7 @@ export class RecordManager implements RecordSink {
     this.binding = null;
     this.posture = DEFAULT_RUN_POSTURE;
     this.planSnapshot = null;
+    this.policySnapshot = null;
     this.launchHeaderRecorded = false;
   }
 
@@ -75,6 +79,12 @@ export class RecordManager implements RecordSink {
       path: planSnapshotPath,
     };
     writeFileSync(planSnapshotPath, JSON.stringify(plan, null, 2));
+    const policySnapshotPath = join(this.runDir, POLICY_SNAPSHOT_FILE);
+    this.policySnapshot = {
+      ref: `record-artifact:${this.runId}/${POLICY_SNAPSHOT_FILE}`,
+      path: policySnapshotPath,
+    };
+    writeFileSync(policySnapshotPath, JSON.stringify(policy, null, 2));
   }
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
@@ -107,6 +117,7 @@ export class RecordManager implements RecordSink {
       binding: this.binding as RunBinding,
       posture: this.posture,
       planSnapshot: this.planSnapshot as PlanSnapshotRef,
+      policySnapshot: this.policySnapshot as PolicySnapshotRef,
     };
   }
 
@@ -133,6 +144,7 @@ export class RecordManager implements RecordSink {
         binding: this.binding as RunBinding,
         posture: this.posture,
         planSnapshot: this.planSnapshot as PlanSnapshotRef,
+        policySnapshot: this.policySnapshot as PolicySnapshotRef,
       },
       events: this.events,
     };

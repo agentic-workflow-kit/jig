@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createOwnerDecisionSource, run } from '../src/cli.js';
-import type { RunEvent, RunRecord } from '../src/types.js';
+import type { Plan, PolicyDoc, RunEvent, RunRecord } from '../src/types.js';
+import { captureWorkspaceFingerprint } from '../src/workspace.js';
 
 // vitest's v8 coverage provider does not attribute coverage from execSync subprocesses
 // (unlike c8's NODE_V8_COVERAGE inheritance), and those subprocesses execute compiled
@@ -88,12 +89,96 @@ function phase4LaunchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
       export: 'redacted',
     },
     planSnapshotRef: 'plan.snapshot.json',
+    policySnapshotRef: 'policy.snapshot.json',
     ...overrides,
   };
 }
 
 function stringifyJsonl(events: RunEvent[]): string {
   return `${events.map((event) => JSON.stringify(event)).join('\n')}\n`;
+}
+
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, JSON.stringify(value, null, 2));
+}
+
+function resumePlan(): Plan {
+  return {
+    id: 'plan-phase4-cli',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 'STORY-1', title: 'blocked' },
+      { id: 'STORY-2', title: 'remaining' },
+    ],
+  };
+}
+
+function resumePolicy(overrides: PolicyDoc = {}): PolicyDoc {
+  return {
+    policy: {
+      id: 'policy:local-dry-run',
+      ...overrides.policy,
+      rules: {
+        allowLocalDryRun: true,
+        ...overrides.policy?.rules,
+      },
+    },
+  };
+}
+
+function writeStoppedResumeRun(policy = resumePolicy()): string {
+  const runDir = join(workDir, 'resume-run');
+  mkdirSync(runDir, { recursive: true });
+  writeJson(join(runDir, 'plan.snapshot.json'), resumePlan());
+  writeJson(join(runDir, 'policy.snapshot.json'), policy);
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader({
+        binding: {
+          policyRef: 'policy:local-dry-run',
+          configRef: 'mode=local-dry-run;recordDir=runs',
+          workspace: captureWorkspaceFingerprint(originalCwd),
+        },
+      }),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.blocked',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        reason: 'worker-reported-failure',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        reason: 'work-item-blocked',
+        checkpoint: 'after:STORY-1',
+        unstarted: ['STORY-2'],
+      },
+    ]),
+  );
+  return runDir;
+}
+
+function writeResumeOutput(outcome: 'success' | 'failure' = 'success'): string {
+  const outputPath = join(workDir, `resume-output-${outcome}.json`);
+  writeJson(outputPath, {
+    stories: [
+      {
+        storyId: 'STORY-2',
+        outcome,
+        evidence: { result: outcome === 'success' ? 'passed' : 'failed' },
+      },
+    ],
+  });
+  return outputPath;
 }
 
 function stoppedProjectionEvents(): RunEvent[] {
@@ -230,6 +315,20 @@ test('P3-AC-1: preview reports bound plan, policy, and would-run story set witho
   assert.ok(!existsSync(join(workDir, 'runs')));
 });
 
+test('P3-AC-1: preview omits mode when config runner is sparse', async () => {
+  const configPath = join(workDir, 'sparse-config.json');
+  const policyPath = join(workDir, 'sparse-policy.json');
+  writeJson(configPath, { runner: {}, drivers: {} });
+  writeJson(policyPath, { policy: { id: 'sparse-policy', rules: { allowLocalDryRun: true } } });
+  setArgv('preview', fixture('minimal-plan.json'), '--config', configPath, '--policy', policyPath);
+
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /Policy ID: sparse-policy/);
+  assert.doesNotMatch(output, /Mode:/);
+});
+
 test('P3-AC-1: run after preview is unaffected by prior preview', async () => {
   setArgv(
     'preview',
@@ -273,6 +372,8 @@ test('P3-AC-4: owner decision source approves and rejects through injected promp
   const rejectSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'no' });
   assert.ok(rejectSource);
   await expect(rejectSource.decide({}, {})).resolves.toBe('reject');
+
+  assert.ok(createOwnerDecisionSource({ interactive: true }));
 });
 
 test('run(): "run" with no plan path prints usage and exits 1', async () => {
@@ -338,6 +439,13 @@ test('run(): "resume" without --scripted-output fails closed with usage guidance
   assert.match(erroredLines(), /jig resume <run-directory> --scripted-output <output>/);
 });
 
+test('run(): "resume" with no run directory prints usage and exits 1', async () => {
+  setArgv('resume');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /jig resume <run-directory>/);
+});
+
 test('run(): "inspect" on a missing directory exits 1 with an error', async () => {
   setArgv('inspect', 'does-not-exist');
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
@@ -400,6 +508,114 @@ test('P4-AC-4: inspect renders stop cause, projected notice, checkpoint, and cha
   assert.match(output, /Changed files: src\/cli\.ts/);
 });
 
+test('P4-AC-4: inspect renders a clean completed projection without stop or notice sections', async () => {
+  const runDir = join(workDir, 'events-only-completed-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'evidence.modeled',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        result: 'passed',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:04.000Z',
+      },
+    ]),
+  );
+
+  setArgv('inspect', runDir);
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /Final Status: success/);
+  assert.doesNotMatch(output, /Stop Cause:/);
+  assert.doesNotMatch(output, /Projected Notices:/);
+  assert.doesNotMatch(output, /Changed files:/);
+});
+
+test('P4-AC-4: inspect renders projection summary reason and sparse blocked diagnostics', async () => {
+  const deniedRunDir = join(workDir, 'events-denied-run');
+  mkdirSync(deniedRunDir, { recursive: true });
+  writeFileSync(
+    join(deniedRunDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'authorization.denied',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        reason: 'policy denied before stories',
+      },
+    ]),
+  );
+  setArgv('inspect', deniedRunDir);
+  await run();
+  assert.match(loggedLines(), /Reason: policy denied before stories/);
+
+  logSpy.mockClear();
+  const blockedRunDir = join(workDir, 'events-blocked-diagnostics-run');
+  mkdirSync(blockedRunDir, { recursive: true });
+  writeFileSync(
+    join(blockedRunDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.blocked',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        diagnostics: {
+          exitCode: 2,
+          error: 'blocked without reason',
+          stdout: 'line one\nline two',
+        },
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        reason: 'work-item-blocked',
+        checkpoint: 'after:STORY-1',
+        unstarted: [],
+      },
+    ]),
+  );
+
+  setArgv('inspect', blockedRunDir);
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /- STORY-1: blocked$/m);
+  assert.match(output, /exitCode: 2/);
+  assert.match(output, /error: blocked without reason/);
+  assert.match(output, /stdout: line one\.\.\./);
+});
+
 test('P4-AC-4: inspect fails closed on a defective replay log even if run.json exists', async () => {
   const runDir = join(workDir, 'defective-events-run');
   mkdirSync(runDir, { recursive: true });
@@ -447,6 +663,96 @@ test('P4-AC-4: inspect fails closed on a defective replay log even if run.json e
   expect(exitSpy).toHaveBeenCalledWith(1);
   assert.match(erroredLines(), /Error: Failed to inspect authoritative events\.jsonl:/);
   assert.match(erroredLines(), /Illegal replay transition/);
+});
+
+test('P4-AC-4: inspect falls back to legacy run.json for old incomplete launch headers', async () => {
+  const runDir = join(workDir, 'legacy-fallback-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([{ family: 'run.started', actor: 'runner', runId: 'legacy' }]),
+  );
+  writeJson(join(runDir, 'run.json'), {
+    run: {
+      id: 'legacy-run',
+      attempt: 1,
+      status: 'success',
+      planId: 'legacy-plan',
+      mode: 'local-dry-run',
+      binding: {
+        policyRef: 'legacy-policy',
+        configRef: 'legacy-config',
+        workspace: {
+          repoRoot: '/tmp/legacy',
+          head: 'legacy-head',
+          changeSetHash: 'legacy-hash',
+        },
+      },
+    },
+    events: [{ family: 'story.done', storyId: 'STORY-1', changedFiles: ['legacy.txt'] }],
+  } satisfies RunRecord);
+
+  setArgv('inspect', runDir);
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /Run ID: legacy-run/);
+  assert.match(output, /- STORY-1: done/);
+  assert.match(output, /Changed files: legacy\.txt/);
+});
+
+test('P4-AC-4: inspect reports unreadable run.json cache as a projection diagnostic', async () => {
+  const runDir = join(workDir, 'events-with-corrupt-cache-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+  writeFileSync(join(runDir, 'run.json'), '{ not valid json');
+
+  setArgv('inspect', runDir);
+  await run();
+
+  assert.match(loggedLines(), /run\.json-cache-unreadable: run\.json cache unreadable and ignored/);
+});
+
+test('P4-AC-1: resume succeeds from the launch snapshots and writes a resumed record', async () => {
+  const runDir = writeStoppedResumeRun();
+  process.chdir(originalCwd);
+
+  setArgv('resume', runDir, '--scripted-output', writeResumeOutput());
+  await run();
+
+  expect(exitSpy).not.toHaveBeenCalled();
+  const output = loggedLines();
+  assert.match(output, /Final Status: success/);
+  const record = JSON.parse(readFileSync(join(runDir, 'run.json'), 'utf8')) as RunRecord;
+  assert.ok(record.events.find((event) => event.family === 'run.resumed'));
+  assert.strictEqual(record.run.policySnapshot?.ref, 'policy.snapshot.json');
+});
+
+test('P4-AC-1: resume returns failure status through CLI without rebinding', async () => {
+  const runDir = writeStoppedResumeRun();
+  process.chdir(originalCwd);
+
+  setArgv('resume', runDir, '--scripted-output', writeResumeOutput('failure'));
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(loggedLines(), /Final Status: failure/);
+});
+
+test('P4-AC-1: resume refusal is printed without generic error prefix', async () => {
+  const runDir = writeStoppedResumeRun();
+  process.chdir(originalCwd);
+  const configPath = join(workDir, 'other-config.json');
+  writeJson(configPath, {
+    runner: { mode: 'local-dry-run', recordDir: 'other-runs' },
+    drivers: { agent: 'scripted-stub', executionHost: 'local' },
+  });
+
+  setArgv('resume', runDir, '--scripted-output', writeResumeOutput(), '--config', configPath);
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+
+  assert.match(erroredLines(), /^resume-blocked-binding-mismatch:/);
+  assert.doesNotMatch(erroredLines(), /^Error:/);
 });
 
 test('run(): happy-path run with --config/--policy/--scripted-output flags succeeds', async () => {

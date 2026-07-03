@@ -47,6 +47,7 @@ export interface ResumeRunOptions {
 }
 
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
+const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
 
 function describeConfigBinding(config: ConfigDoc): string {
   const mode = config.runner?.mode ?? 'unknown-mode';
@@ -78,6 +79,20 @@ function loadPlanSnapshot(runDir: string): Plan {
   const plan = JSON.parse(readFileSync(snapshotPath, 'utf8')) as Plan;
   PlanValidator.validate({ plan });
   return plan;
+}
+
+function loadPolicySnapshot(runDir: string, projection: RunProjection): PolicyDoc {
+  const snapshotPath = join(runDir, POLICY_SNAPSHOT_FILE);
+  if (!existsSync(snapshotPath)) {
+    throw new Error(`Missing policy snapshot at "${snapshotPath}"`);
+  }
+  const policy = JSON.parse(readFileSync(snapshotPath, 'utf8')) as PolicyDoc;
+  if (policy.policy?.id !== projection.binding.policyRef) {
+    throw new Error(
+      `Policy snapshot id "${policy.policy?.id ?? 'unknown-policy'}" does not match launch binding "${projection.binding.policyRef}"`,
+    );
+  }
+  return policy;
 }
 
 function loadPlanInstanceForVerification(planPath: string): PlanInstance {
@@ -117,16 +132,12 @@ function verifyWorkspaceContinuity(projection: RunProjection): void {
   }
 }
 
-function verifyOptionalBindings(options: ResumeRunOptions, projection: RunProjection, planSnapshot: Plan): PolicyDoc {
-  let policy: PolicyDoc = {
-    policy: {
-      id: projection.binding.policyRef,
-      rules: {
-        allowLocalDryRun: true,
-      },
-    },
-  };
-
+function verifyOptionalBindings(
+  options: ResumeRunOptions,
+  projection: RunProjection,
+  planSnapshot: Plan,
+  policySnapshot: PolicyDoc,
+): void {
   if (options.configPath) {
     const config = loadConfig(options.configPath);
     if (describeConfigBinding(config) !== projection.binding.configRef) {
@@ -138,11 +149,11 @@ function verifyOptionalBindings(options: ResumeRunOptions, projection: RunProjec
   }
 
   if (options.policyPath) {
-    policy = loadPolicy(options.policyPath);
-    if (policy.policy?.id !== projection.binding.policyRef) {
+    const policy = loadPolicy(options.policyPath);
+    if (!isDeepStrictEqual(policy, policySnapshot)) {
       throw new ResumeRefusal(
         'resume-blocked-binding-mismatch',
-        'resume-blocked-binding-mismatch: --policy does not match the recorded launch binding',
+        'resume-blocked-binding-mismatch: --policy does not match the recorded launch policy snapshot',
       );
     }
   }
@@ -156,8 +167,6 @@ function verifyOptionalBindings(options: ResumeRunOptions, projection: RunProjec
       );
     }
   }
-
-  return policy;
 }
 
 function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
@@ -251,6 +260,10 @@ class ResumeRecordSink implements RecordSink {
           ref: this.projection.planSnapshotRef,
           path: join(this.runDir, PLAN_SNAPSHOT_FILE),
         },
+        policySnapshot: {
+          ref: this.projection.policySnapshotRef,
+          path: join(this.runDir, POLICY_SNAPSHOT_FILE),
+        },
       },
       events: this.events,
     };
@@ -297,7 +310,8 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const existingEvents = readJsonlEvents(eventsJsonl);
   const projection = projectRunEvents({ eventsJsonl, runRecord: loadRunRecord(options.runDir) });
   const planSnapshot = loadPlanSnapshot(options.runDir);
-  const policy = verifyOptionalBindings(options, projection, planSnapshot);
+  const policySnapshot = loadPolicySnapshot(options.runDir, projection);
+  verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
   verifyWorkspaceContinuity(projection);
 
   const resumePlan = buildResumePlan(projection, existingEvents);
@@ -306,5 +320,5 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents);
   const harness = new LocalHarness(worker, recordSink, options.ownerDecisionSource ?? null);
 
-  return await harness.resume({ plan: planSnapshot }, policy, resumePlan);
+  return await harness.resume({ plan: planSnapshot }, policySnapshot, resumePlan);
 }

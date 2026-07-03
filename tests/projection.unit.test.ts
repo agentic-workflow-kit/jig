@@ -25,6 +25,7 @@ function launchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
       export: 'redacted',
     },
     planSnapshotRef: 'plan.snapshot.json',
+    policySnapshotRef: 'policy.snapshot.json',
     ...overrides,
   };
 }
@@ -175,6 +176,7 @@ test('P4-AC-4: happy replay projects authoritative launch metadata, story states
     export: 'redacted',
   });
   assert.strictEqual(projection.planSnapshotRef, 'plan.snapshot.json');
+  assert.strictEqual(projection.policySnapshotRef, 'policy.snapshot.json');
   assert.strictEqual(projection.status, 'failure');
   assert.strictEqual(projection.lifecycleState, 'stopped');
   assert.strictEqual(projection.stopCause, 'unattended-park');
@@ -218,6 +220,82 @@ test('P4-AC-4: stale run.json conflicts are diagnosed while events.jsonl still w
   assert.ok(projection.diagnostics.find((diagnostic) => diagnostic.code === 'run.json-stale'));
 });
 
+test('P4-AC-4: matching run.json adds no stale diagnostic', () => {
+  const events = stoppedRunEvents();
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl(events),
+    runRecord: {
+      run: {
+        id: 'run-plan-phase4-20260702-uuid',
+        attempt: 1,
+        status: 'failure',
+        planId: 'plan-phase4',
+        mode: 'local-dry-run',
+        binding: {
+          policyRef: 'policy:local-dry-run',
+          configRef: 'mode=local-dry-run;recordDir=runs',
+          workspace: {
+            repoRoot: '/tmp/jig',
+            head: '0123456789abcdef0123456789abcdef01234567',
+            changeSetHash: 'workspace-clean',
+          },
+        },
+        posture: {
+          record: 'safe-for-owner-record',
+          redaction: 'safe-for-owner-record',
+          export: 'redacted',
+        },
+        planSnapshot: { ref: 'plan.snapshot.json' },
+        policySnapshot: { ref: 'policy.snapshot.json' },
+      },
+      events,
+    },
+  });
+
+  assert.deepStrictEqual(projection.diagnostics, []);
+});
+
+test('P4-AC-4: stale run.json reports all conflicting immutable launch facts', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl(stoppedRunEvents()),
+    runRecord: {
+      run: {
+        id: 'other-run',
+        attempt: 1,
+        status: 'success',
+        planId: 'other-plan',
+        mode: 'other-mode',
+        binding: {
+          policyRef: 'other-policy',
+          configRef: 'mode=other',
+          workspace: {
+            repoRoot: '/tmp/other',
+            head: 'other-head',
+            changeSetHash: 'other-hash',
+          },
+        },
+        planSnapshot: { ref: 'other-plan.snapshot.json' },
+        policySnapshot: { ref: 'other-policy.snapshot.json' },
+      },
+      events: [],
+    },
+  });
+
+  const stale = projection.diagnostics.find((diagnostic) => diagnostic.code === 'run.json-stale');
+  assert.deepStrictEqual(stale?.details, [
+    'run.id',
+    'run.planId',
+    'run.status',
+    'run.mode',
+    'run.planSnapshot.ref',
+    'run.policySnapshot.ref',
+    'run.binding.policyRef',
+    'run.binding.configRef',
+    'run.binding.workspace',
+    'events',
+  ]);
+});
+
 test('P4-AC-4: malformed events.jsonl line fails closed with line and offset context', () => {
   assert.throws(
     () =>
@@ -229,6 +307,46 @@ test('P4-AC-4: malformed events.jsonl line fails closed with line and offset con
       assert.strictEqual(error.code, 'malformed-jsonl-line');
       assert.strictEqual(error.line, 2);
       assert.strictEqual(error.offset, JSON.stringify(launchHeader()).length + 1);
+      return true;
+    },
+  );
+});
+
+test('P4-AC-4: empty and structurally invalid events.jsonl lines fail closed', () => {
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: `${JSON.stringify(launchHeader())}\n\n`,
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'malformed-jsonl-line');
+      assert.strictEqual(error.line, 2);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: `${JSON.stringify(launchHeader())}\n[]\n`,
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'malformed-jsonl-line');
+      assert.strictEqual(error.line, 2);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: '',
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'missing-launch-metadata');
       return true;
     },
   );
@@ -299,6 +417,116 @@ test('P4-AC-4: illegal replay transitions fail closed instead of inventing a mer
   );
 });
 
+test('P4-AC-4: replay rejects duplicate launches, unsupported families, and events after stop or completion', () => {
+  for (const events of [
+    [launchHeader(), launchHeader()],
+    [
+      launchHeader(),
+      { family: 'story.started', actor: 'runner', storyId: 'STORY-1' },
+      { family: 'unknown.event', actor: 'runner', storyId: 'STORY-1' },
+    ],
+    [...stoppedRunEvents(), { family: 'story.started', actor: 'runner', storyId: 'STORY-3' }],
+    [
+      launchHeader(),
+      { family: 'run.completed', actor: 'runner' },
+      { family: 'story.started', actor: 'runner', storyId: 'STORY-1' },
+    ],
+  ] as RunEvent[][]) {
+    assert.throws(
+      () =>
+        projectRunEvents({
+          eventsJsonl: stringifyJsonl(events),
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof ProjectionError);
+        assert.strictEqual(error.code, 'illegal-transition');
+        return true;
+      },
+    );
+  }
+});
+
+test('P4-AC-4: run resume and completion replay from a stopped checkpoint', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...stoppedRunEvents(),
+      {
+        family: 'run.resumed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:12.000Z',
+        runId: 'run-plan-phase4-20260702-uuid',
+        checkpoint: 'after:STORY-2.parked',
+        stopCause: 'unattended-park',
+      },
+      {
+        family: 'authorization.granted',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:13.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+      },
+      {
+        family: 'evidence.modeled',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:15.000Z',
+        storyId: 'STORY-2',
+        changedFiles: ['src/projection.ts', 'src/projection.ts', 42] as unknown as string[],
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:16.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:17.000Z',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.status, 'success');
+  assert.strictEqual(projection.lifecycleState, 'completed');
+  assert.deepStrictEqual(projection.changedFiles, ['src/projection.ts', 'tests/projection.unit.test.ts']);
+  assert.strictEqual(projection.stories['STORY-2']?.state, 'done');
+});
+
+test('P4-AC-4: unsafe stop checkpoints and run-level resume from active state fail closed', () => {
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          launchHeader(),
+          {
+            family: 'run.stopped',
+            actor: 'runner',
+            timestamp: '2026-07-02T10:00:01.000Z',
+            reason: 'work-item-blocked',
+            checkpoint: 'before:STORY-1',
+          },
+        ]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'illegal-transition');
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([launchHeader(), { family: 'run.resumed', actor: 'runner' }]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'illegal-transition');
+      return true;
+    },
+  );
+});
+
 test('P4-AC-5: conflicting or ambiguous launch posture fails closed before inspect can project', () => {
   assert.throws(
     () =>
@@ -318,6 +546,73 @@ test('P4-AC-5: conflicting or ambiguous launch posture fails closed before inspe
       assert.strictEqual(error.code, 'invalid-posture');
       assert.strictEqual(error.line, 1);
       assert.match(error.message, /ambiguous|conflict/i);
+      return true;
+    },
+  );
+});
+
+test('P4-AC-5: missing, unsupported, or ambiguous launch posture variants fail closed', () => {
+  for (const posture of [
+    { export: 'redacted' },
+    { record: 'unknown', export: 'redacted' },
+    { record: 'unsafe', export: 'redacted' },
+    { record: 'safe-for-owner-record', export: 'ambiguous' },
+    { record: 'safe-for-owner-record', export: 'plain' },
+  ] as RunEvent['posture'][]) {
+    assert.throws(
+      () =>
+        projectRunEvents({
+          eventsJsonl: stringifyJsonl([
+            launchHeader({
+              posture,
+            }),
+          ]),
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof ProjectionError);
+        assert.match(error.code, /missing-launch-metadata|invalid-posture/);
+        return true;
+      },
+    );
+  }
+});
+
+test('P4-AC-4: launch header accepts snapshot refs from artifact objects and legacy root workspace shape', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader({
+        binding: {
+          policyRef: 'policy:local-dry-run',
+          configRef: 'mode=local-dry-run;recordDir=runs',
+          workspace: {
+            kind: 'git',
+            root: '/tmp/jig-root-only',
+            head: '0123456789abcdef0123456789abcdef01234567',
+            changeSetHash: 'workspace-clean',
+          },
+        },
+        planSnapshotRef: undefined,
+        policySnapshotRef: undefined,
+        planSnapshot: { ref: 'record-artifact:run/plan.snapshot.json' },
+        policySnapshot: { ref: 'record-artifact:run/policy.snapshot.json' },
+      }),
+    ]),
+  });
+
+  assert.strictEqual(projection.workspace.repoRoot, '/tmp/jig-root-only');
+  assert.strictEqual(projection.planSnapshotRef, 'record-artifact:run/plan.snapshot.json');
+  assert.strictEqual(projection.policySnapshotRef, 'record-artifact:run/policy.snapshot.json');
+});
+
+test('P4-AC-4: story-scoped events without storyId fail closed', () => {
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([launchHeader(), { family: 'story.started', actor: 'runner' }]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'missing-story-id');
       return true;
     },
   );

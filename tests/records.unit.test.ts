@@ -136,7 +136,7 @@ test('PR-AC-3: every event carries actor and run.json carries binding', async ()
   assert.strictEqual(record.run.binding.workspace.kind, 'git');
 });
 
-test('P4-AC-4: init writes plan snapshot and first events.jsonl line is an enriched run.started header', async () => {
+test('P4-AC-4: init writes plan and policy snapshots and first events.jsonl line is an enriched run.started header', async () => {
   const recordDir = tempRecordDir();
   const manager = new RecordManager();
 
@@ -147,11 +147,13 @@ test('P4-AC-4: init writes plan snapshot and first events.jsonl line is an enric
 
   const runDir = readSingleRunDir(recordDir);
   const record = readSingleRun(recordDir);
-  const snapshot = JSON.parse(readFileSync(join(runDir, 'plan.snapshot.json'), 'utf8')) as Plan;
+  const planSnapshot = JSON.parse(readFileSync(join(runDir, 'plan.snapshot.json'), 'utf8')) as Plan;
+  const policySnapshot = JSON.parse(readFileSync(join(runDir, 'policy.snapshot.json'), 'utf8')) as PolicyDoc;
   const [firstLine] = readFileSync(join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
   const launchHeader = JSON.parse(firstLine) as Record<string, unknown>;
 
-  assert.deepStrictEqual(snapshot, plan());
+  assert.deepStrictEqual(planSnapshot, plan());
+  assert.deepStrictEqual(policySnapshot, policy);
   assert.deepStrictEqual(launchHeader, {
     family: 'run.started',
     runId: record.run.id,
@@ -160,6 +162,7 @@ test('P4-AC-4: init writes plan snapshot and first events.jsonl line is an enric
     binding: record.run.binding,
     posture: record.run.posture,
     planSnapshot: record.run.planSnapshot,
+    policySnapshot: record.run.policySnapshot,
     actor: 'runner',
     timestamp: launchHeader.timestamp,
   });
@@ -167,8 +170,32 @@ test('P4-AC-4: init writes plan snapshot and first events.jsonl line is an enric
   assert.strictEqual(record.events[0]?.family, 'run.started');
 });
 
+test('P4-AC-4: record manager defaults sparse optional binding fields without losing launch header shape', async () => {
+  const recordDir = tempRecordDir();
+  const previousCwd = process.cwd();
+  const manager = new RecordManager();
+
+  try {
+    process.chdir(recordDir);
+    manager.init(plan(), { runner: {}, drivers: {} }, { policy: {} });
+    manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' });
+    await manager.finalize('success');
+  } finally {
+    process.chdir(previousCwd);
+  }
+
+  const runDir = join(recordDir, 'runs');
+  const record = readSingleRun(runDir);
+  assert.strictEqual(record.run.mode, undefined);
+  assert.strictEqual(record.run.binding.policyRef, 'unknown-policy');
+  assert.strictEqual(record.run.binding.configRef, 'mode=unknown-mode;recordDir=runs');
+  assert.strictEqual(record.events[0]?.family, 'run.started');
+  assert.strictEqual(record.events[1]?.family, 'story.started');
+});
+
 test('P4-AC-6: workspace fingerprint hash changes across materially different dirty tracked and staged changes', () => {
   const repoDir = initGitRepo();
+  const clean = captureWorkspaceFingerprint(repoDir);
 
   writeFileSync(join(repoDir, 'tracked.txt'), 'dirty-one\n');
   const trackedDirty = captureWorkspaceFingerprint(repoDir);
@@ -177,6 +204,10 @@ test('P4-AC-6: workspace fingerprint hash changes across materially different di
   execFileSync('git', ['add', 'tracked.txt'], { cwd: repoDir });
   const stagedDirty = captureWorkspaceFingerprint(repoDir);
 
+  assert.ok('kind' in clean);
+  assert.strictEqual(clean.kind, 'git');
+  assert.strictEqual(clean.root, clean.repoRoot);
+  assert.strictEqual(clean.changeSetHash, 'git-tree-clean');
   assert.ok('kind' in trackedDirty);
   assert.ok('kind' in stagedDirty);
   assert.strictEqual(trackedDirty.kind, 'git');
@@ -197,6 +228,28 @@ test('P4-AC-6: non-git contexts fail closed and diagnosably instead of claiming 
     reason: 'not-a-git-worktree',
     detail: 'workspace fingerprint unavailable outside a git worktree',
   });
+});
+
+test('P4-AC-6: workspace fingerprint exposes git command failures without claiming continuity', () => {
+  const unbornRepoDir = mkdtempSync(join(tmpdir(), 'jig-unborn-git-'));
+  cleanupDirs.push(unbornRepoDir);
+  execFileSync('git', ['init', '-b', 'main'], { cwd: unbornRepoDir });
+
+  assert.deepStrictEqual(captureWorkspaceFingerprint(unbornRepoDir), {
+    kind: 'unavailable',
+    reason: 'git-command-failed',
+    detail:
+      "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'",
+  });
+
+  const missingDir = join(tmpdir(), `jig-missing-${Date.now()}`);
+  const missing = captureWorkspaceFingerprint(missingDir);
+  assert.ok('kind' in missing);
+  assert.strictEqual(missing.kind, 'unavailable');
+  if (missing.kind === 'unavailable') {
+    assert.strictEqual(missing.reason, 'git-unavailable');
+    assert.match(missing.detail, /git could not be executed|ENOENT/i);
+  }
 });
 
 test('PR-AC-4: run summary preserves historical story.skipped aliases', async () => {

@@ -11,6 +11,7 @@
       "workspace": {
         "kind": "git",
         "root": "<WORKSPACE>",
+        "repoRoot": "<WORKSPACE>",
         "head": "<WORKSPACE_HEAD>",
         "changeSetHash": "<WORKSPACE_HASH>"
       }
@@ -22,6 +23,10 @@
     "planSnapshot": {
       "ref": "<PLAN_SNAPSHOT_REF>",
       "path": "<PLAN_SNAPSHOT_PATH>"
+    },
+    "policySnapshot": {
+      "ref": "<POLICY_SNAPSHOT_REF>",
+      "path": "<POLICY_SNAPSHOT_PATH>"
     }
   },
   "events": [
@@ -36,6 +41,7 @@
         "workspace": {
           "kind": "git",
           "root": "<WORKSPACE>",
+          "repoRoot": "<WORKSPACE>",
           "head": "<WORKSPACE_HEAD>",
           "changeSetHash": "<WORKSPACE_HASH>"
         }
@@ -47,6 +53,10 @@
       "planSnapshot": {
         "ref": "<PLAN_SNAPSHOT_REF>",
         "path": "<PLAN_SNAPSHOT_PATH>"
+      },
+      "policySnapshot": {
+        "ref": "<POLICY_SNAPSHOT_REF>",
+        "path": "<POLICY_SNAPSHOT_PATH>"
       },
       "actor": "runner",
       "timestamp": "<TIMESTAMP>"

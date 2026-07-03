@@ -53,6 +53,7 @@ export interface RunProjection {
   workspace: WorkspaceFingerprint;
   posture: RunPosture;
   planSnapshotRef: string;
+  policySnapshotRef: string;
   status: ProjectionStatus;
   lifecycleState: ProjectionLifecycleState;
   stopCause?: string;
@@ -292,6 +293,9 @@ function readLaunchHeader(
   const workspaceRecord = requireObject(bindingRecord.workspace, 'binding.workspace', parsedEvent);
   const postureRecord = requireObject(parsedEvent.event.posture, 'posture', parsedEvent);
   const planSnapshotRecord = isRecord(parsedEvent.event.planSnapshot) ? parsedEvent.event.planSnapshot : undefined;
+  const policySnapshotRecord = isRecord(parsedEvent.event.policySnapshot)
+    ? parsedEvent.event.policySnapshot
+    : undefined;
 
   const repoRoot = requireString(
     workspaceRecord.repoRoot ?? workspaceRecord.root,
@@ -322,6 +326,11 @@ function readLaunchHeader(
     planSnapshotRef: requireString(
       parsedEvent.event.planSnapshotRef ?? planSnapshotRecord?.ref,
       'planSnapshotRef',
+      parsedEvent,
+    ),
+    policySnapshotRef: requireString(
+      parsedEvent.event.policySnapshotRef ?? policySnapshotRecord?.ref,
+      'policySnapshotRef',
       parsedEvent,
     ),
   };
@@ -413,6 +422,15 @@ function compareRunRecord(
   if (runRecord.run.planId !== projection.planId) staleDetails.push('run.planId');
   if (runRecord.run.status !== projection.status) staleDetails.push('run.status');
   if (runRecord.run.mode !== undefined && runRecord.run.mode !== projection.mode) staleDetails.push('run.mode');
+  if (runRecord.run.planSnapshot?.ref !== undefined && runRecord.run.planSnapshot.ref !== projection.planSnapshotRef) {
+    staleDetails.push('run.planSnapshot.ref');
+  }
+  if (
+    runRecord.run.policySnapshot?.ref !== undefined &&
+    runRecord.run.policySnapshot.ref !== projection.policySnapshotRef
+  ) {
+    staleDetails.push('run.policySnapshot.ref');
+  }
   if (
     runRecord.run.binding.policyRef !== undefined &&
     runRecord.run.binding.policyRef !== projection.binding.policyRef
