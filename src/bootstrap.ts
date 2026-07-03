@@ -80,7 +80,7 @@ function assertReferenceSelection(selection: Required<DriverSelection>): void {
   }
 }
 
-export function composeRunPorts(options: ComposeRunPortsOptions): ComposedRunPorts {
+function composeRunPorts(options: ComposeRunPortsOptions): ComposedRunPorts {
   PlanValidator.validate(options.planInstance);
   const selection = readDriverSelection(options.config);
   assertReferenceSelection(selection);

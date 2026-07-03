@@ -66,6 +66,15 @@ test('P5-AC-2: missing proof routes and records containment-unproven', () => {
   assert.deepStrictEqual(decision.basis, ['containment-unproven']);
 });
 
+test('P5-AC-2: omitted request capability under capability policy routes as unproven', () => {
+  const { capability, ...requestWithoutCapability } = request;
+  const decision = authorizeRequest(requestWithoutCapability, story, policy, attestation({}));
+
+  assert.strictEqual(decision.outcome, 'route');
+  assert.deepStrictEqual(decision.basis, ['containment-unproven']);
+  assert.strictEqual(capability, 'filesystem-edit');
+});
+
 test('P5-AC-2: strong self-report with weak proof routes and records isolation-strength-overstated', () => {
   const decision = authorizeRequest(
     request,
@@ -79,4 +88,18 @@ test('P5-AC-2: strong self-report with weak proof routes and records isolation-s
 
   assert.strictEqual(decision.outcome, 'route');
   assert.deepStrictEqual(decision.basis, ['isolation-strength-overstated']);
+});
+
+test('P5-AC-2: workspace-collision failure token passes through as a routed basis', () => {
+  const decision = authorizeRequest(request, story, policy, attestation({ failureToken: 'workspace-collision' }));
+
+  assert.strictEqual(decision.outcome, 'route');
+  assert.deepStrictEqual(decision.basis, ['workspace-collision']);
+});
+
+test('P5-AC-2: containment-unproven failure token passes through as a routed basis', () => {
+  const decision = authorizeRequest(request, story, policy, attestation({ failureToken: 'containment-unproven' }));
+
+  assert.strictEqual(decision.outcome, 'route');
+  assert.deepStrictEqual(decision.basis, ['containment-unproven']);
 });

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'vitest';
 import { composeReferenceRun, ProviderSelectionError } from '../src/bootstrap.js';
@@ -20,6 +20,18 @@ const config: ConfigDoc = {
     executionHost: 'local',
   },
 };
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir)
+    .flatMap((entry) => {
+      const path = join(dir, entry);
+      if (statSync(path).isDirectory()) {
+        return sourceFiles(path);
+      }
+      return path.endsWith('.ts') ? [path] : [];
+    })
+    .sort();
+}
 
 test('P5-AC-3: composition root wires default run through the four internal ports', async () => {
   const composed = await composeReferenceRun({
@@ -61,10 +73,12 @@ test('P5-AC-5: composition root validates pass-through work-source candidates th
 });
 
 test('P5-AC-3: only the composition root imports reference provider adapters', () => {
-  const files = ['src/cli.ts', 'src/resume.ts', 'src/harness.ts', 'src/authorization.ts'];
+  const files = sourceFiles(join(process.cwd(), 'src')).filter(
+    (file) => file !== join(process.cwd(), 'src/bootstrap.ts'),
+  );
 
   for (const file of files) {
-    const source = readFileSync(join(process.cwd(), file), 'utf8');
+    const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /providers\/reference/);
   }
 });

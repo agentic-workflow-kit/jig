@@ -70,13 +70,13 @@ function isolationRank(strength: IsolationStrength | undefined): number {
 }
 
 function requiredIsolationFor(request: AuthorizationRequest, policy: PolicyDoc): IsolationStrength | null {
-  if (typeof request.capability !== 'string') {
-    return null;
-  }
-
   const capabilityIsolation = policy.policy?.rules?.capabilityIsolation;
   if (!capabilityIsolation || typeof capabilityIsolation !== 'object' || Array.isArray(capabilityIsolation)) {
     return null;
+  }
+
+  if (typeof request.capability !== 'string') {
+    return Object.keys(capabilityIsolation).length > 0 ? 'strong' : null;
   }
 
   const value = (capabilityIsolation as Record<string, unknown>)[request.capability];

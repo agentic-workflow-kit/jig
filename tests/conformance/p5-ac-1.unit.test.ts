@@ -6,7 +6,7 @@ import {
   ProviderConformanceError,
   type ProviderManifest,
 } from '../../src/conformance/provider-conformance.js';
-import type { ExecutionHostPort } from '../../src/ports.js';
+import type { ExecutionHostPort, WorkSourcePort } from '../../src/ports.js';
 import type { ConfigDoc, PlanInstance } from '../../src/types.js';
 
 const planInstance: PlanInstance = {
@@ -122,5 +122,38 @@ test('P5-AC-1: adapter acting beyond its manifest is rejected', async () => {
       }),
     (error: unknown) =>
       error instanceof ProviderConformanceError && error.findings.includes('manifest-capability-overreach'),
+  );
+});
+
+test('P5-AC-1: broken work source bypassing plan intake fails closed', async () => {
+  const composed = await composeReferenceRun({
+    planInstance,
+    config,
+    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+  });
+  const brokenWorkSource: WorkSourcePort = {
+    candidates: () => [
+      {
+        planInstance: {
+          plan: {
+            id: 'plan-invalid-work-source',
+            version: 'unknown-version',
+            stories: [{ id: 'STORY-1', title: 'Invalid candidate' }],
+          },
+        },
+        provenance: 'jig-validated',
+      },
+    ],
+  };
+
+  await assert.rejects(
+    () =>
+      assertProviderConformance({
+        ...composed,
+        workSource: brokenWorkSource,
+        manifest: referenceManifest,
+      }),
+    (error: unknown) =>
+      error instanceof ProviderConformanceError && error.findings.includes('work-source-plan-intake-bypass'),
   );
 });

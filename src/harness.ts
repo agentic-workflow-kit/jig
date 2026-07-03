@@ -1,6 +1,16 @@
 import { authorizeRequest } from './authorization.js';
 import type { CapabilityAttestation, ForgePort } from './ports.js';
-import type { ConfigDoc, PlanInstance, PolicyDoc, RecordSink, ResumePlan, RunStatus, Story, Worker } from './types.js';
+import type {
+  ConfigDoc,
+  PlanInstance,
+  PolicyDoc,
+  RecordSink,
+  ResumePlan,
+  RunEvent,
+  RunStatus,
+  Story,
+  Worker,
+} from './types.js';
 
 type OwnerDecision = 'approve' | 'reject';
 
@@ -18,6 +28,8 @@ interface HarnessPorts {
 }
 
 const defaultForge: ForgePort = {
+  // Keep this tiny duplicate modeled landing adapter local to the harness so core never imports
+  // reference provider implementations just to preserve the default dry-run behavior.
   land: (request) => ({
     family: 'runner-action.skipped-on-dry-run',
     storyId: request.storyId,
@@ -25,6 +37,19 @@ const defaultForge: ForgePort = {
     reason: request.reason ?? 'dry-run',
   }),
 };
+
+function modeledLandingEvent(request: {
+  storyId: string;
+  action: 'push|open-pr|merge';
+  reason: 'dry-run';
+}): Pick<RunEvent, 'family'> & Partial<RunEvent> {
+  return {
+    family: 'runner-action.skipped-on-dry-run',
+    storyId: request.storyId,
+    action: request.action,
+    reason: request.reason,
+  };
+}
 
 export class LocalHarness {
   private readonly worker: Worker;
@@ -397,12 +422,13 @@ export class LocalHarness {
           storyId: story.id,
           changedFiles: result.changedFiles,
         });
-        const landing = await this.forge.land({
+        const landingRequest = {
           storyId: story.id,
           action: 'push|open-pr|merge',
           reason: 'dry-run',
-        });
-        this.recordManager.recordEvent(landing);
+        } as const;
+        await this.forge.land(landingRequest);
+        this.recordManager.recordEvent(modeledLandingEvent(landingRequest));
         return { status: 'success' };
       }
 

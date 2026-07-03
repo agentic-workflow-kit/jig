@@ -158,21 +158,12 @@ function verifyOptionalBindings(
   }
 }
 
-function parseRecordDir(configRef: string): string {
-  const match = configRef.match(/(?:^|;)recordDir=([^;]+)/);
-  return match?.[1] ?? 'runs';
-}
-
-function configForResumeComposition(options: ResumeRunOptions, projection: RunProjection): ConfigDoc {
+function configForResumeComposition(options: ResumeRunOptions): ConfigDoc {
   if (options.configPath) {
     return loadConfig(options.configPath);
   }
 
   return {
-    runner: {
-      mode: projection.mode ?? 'unknown-mode',
-      recordDir: parseRecordDir(projection.binding.configRef),
-    },
     drivers: {},
   };
 }
@@ -326,7 +317,7 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },
-    config: configForResumeComposition(options, projection),
+    config: configForResumeComposition(options),
     scriptedOutput,
   });
   const [candidate] = await composed.workSource.candidates();

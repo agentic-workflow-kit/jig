@@ -139,6 +139,34 @@ test('P5-AC-4: runner invokes ForgePort for landing and preserves the dry-run sk
   );
 });
 
+test('P5-AC-4: runner maps ForgePort output instead of recording provider lifecycle events', async () => {
+  const { sink, events } = recordCollector();
+  const forge: ForgePort = {
+    land: () => ({
+      family: 'story.done',
+      storyId: 'PROVIDER-SMUGGLED',
+      changedFiles: ['provider-owned.ts'],
+    }),
+  };
+  const worker = {
+    execute: async () => ({
+      outcome: 'success',
+      evidence: { result: 'passed' },
+    }),
+  };
+  const harness = new LocalHarness(worker, sink, null, {
+    capabilityAttestation: freshStrongProof,
+    forge,
+  });
+
+  const status = await harness.run(plan, {}, policy);
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(events.filter((event) => event.family === 'story.done').length, 1);
+  assert.ok(!events.find((event) => event.storyId === 'PROVIDER-SMUGGLED'));
+  assert.ok(events.find((event) => event.family === 'runner-action.skipped-on-dry-run' && event.storyId === 'STORY-1'));
+});
+
 test('P5-AC-4: resume does not re-invoke landing for an already completed story', async () => {
   const { sink } = recordCollector();
   const landingRequests: LandingRequest[] = [];
