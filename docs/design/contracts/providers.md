@@ -479,12 +479,52 @@ confinement). The Forge (Phase 7) and Work source (Phase 8) seams stay reference
   (6a); a redaction ambiguity becomes a diagnosable stop, extending
   [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §7.
 
+## Phase 7 realization (ADR 0023)
+
+[ADR 0023](../decisions/0023-phase-7-real-forge-landing.md) promotes the **Forge** seam from the
+modeled, `skipped-on-dry-run` reference adapter to a **real Forge/GitHub driver** behind the same,
+unchanged, runner-invoked `ForgePort.land()`, at design altitude and unfrozen — the first phase in which
+`done → landed` performs a **real effect**. It splits Phase 7 into **7a** (real runner-owned landing +
+the `action` union + real-effect idempotency + landing-path redaction, independently useful) and **7b**
+(PR-side block surfacing). The Work source (Phase 8) seam stays reference-only here.
+
+- **Real Forge/GitHub adapter behind the runner-invoked `land()`.** The real adapter performs a real
+  push, PR, or merge at `done → landed`, invoked **only** by the runner (never the agent — INV-002
+  stays structural). Selected by name (`forge: 'github'`) through the composition root, sole-imported;
+  an unknown forge name fails closed. The default/dry-run wiring keeps emitting
+  `runner-action.skipped-on-dry-run`, so the Phase-0..4 goldens stay byte-identical.
+- **`LandingRequest.action` union (Residual B).** The merged
+  [`../../../src/ports.ts`](../../../src/ports.ts) types `action` as the single literal
+  `'push|open-pr|merge'`; Phase 7 repairs it to the union `'push' | 'open-pr' | 'merge'` so the real
+  adapter can discriminate, and an unknown action **fails closed**. This is a jig-internal port-type fix
+  that freezes nothing.
+- **Real-effect idempotency.** A re-run or resume against an already-landed effect recognizes the prior
+  landing **from the replayed records** (extending the Phase-4 no-double-effect recognition,
+  [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §5) and the second attempt is a recorded
+  no-op. The **exact-head re-read** is the safety property: a changed head is not blindly no-op'd nor
+  duplicated — the run stops diagnosably. The richer outcome is additive on `LandingOutcome`
+  (`Pick<RunEvent, 'family'> & Partial<RunEvent>`) with encoding deferred.
+- **PR-side block surfacing (MERGE-5) is a distinct runner-invoked act, not a `land()` call.** A
+  `blocked` item never reaches `done → landed`, so block surfacing is a separate forge-side act (the
+  method decomposition ADR 0021 decision 6 permits to flex): when the runner has a safe branch and
+  permission, the real Forge opens/updates the PR, posts status, and posts the failure reasons as a
+  comment — without changing what `blocked` means; when it cannot safely do so, the block is recorded
+  through the **durable Records fallback** and never dropped.
+- **Landing-path secret redaction.** Forge/GitHub credentials/tokens on the real landing path are
+  scanned and redacted in the landing records by the **same** Phase-6 redaction machinery
+  ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md) Decision 8), extended to the
+  landing boundary; a landing-path redaction ambiguity becomes a diagnosable stop and records stay safe
+  to keep/export. Real landing maps onto the observability-records v0 runner-action families already
+  named ("pushed, opened PR, posted status, posted comment, merged, skipped repeated effect on resume")
+  — no new event family is minted.
+
 ## Notes
 
 - A seam is not a shipped driver. In Phase 5 each port is exercised by a **reference adapter** and the
   conformance suite; the **real** agent and execution-host drivers arrive in Phase 6
-  ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)), and the **real** forge and
-  work-source drivers remain named extension points for Phases 7–8.
+  ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)), the **real** forge driver arrives
+  in Phase 7 ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md)), and the **real** work-source
+  driver remains a named extension point for Phase 8.
 - Until a driver proves a capability, expect reduced autonomy, not a weaker guarantee.
 - Realized in Phase 5 (ADR 0021): the reusable conformance suite, the provider-manifest shape at design
   altitude, the capability-proof model, and reference adapters for all four seams.
@@ -493,8 +533,9 @@ confinement). The Forge (Phase 7) and Work source (Phase 8) seams stay reference
 
 - **Real** (production) adapters for the **Agent** and **Execution host** seams are realized in
   Phase 6 ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md), "Phase 6 realization"
-  above); real **Forge**/GitHub push/PR/merge (Phase 7) and real **Work source** import (Phase 8)
-  remain deferred here.
+  above), and real **Forge**/GitHub push/PR/merge in Phase 7
+  ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md), "Phase 7 realization" above); real
+  **Work source** import (Phase 8) remains deferred here.
 - Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape,
   including the Phase-6 substrate manifest and persisted-attestation shape; freeze stays with the
   contract owner).
