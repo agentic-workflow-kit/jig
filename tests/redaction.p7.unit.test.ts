@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, test } from 'vitest';
 import { composeReferenceRun } from '../src/bootstrap.js';
 import { LocalHarness } from '../src/harness.js';
+import { validateCandidate } from '../src/intake.js';
 import type { GitHubForgeTransport } from '../src/providers/real/forge.js';
 import { RecordManager } from '../src/records.js';
 import { RedactionAmbiguityError, redactValue } from '../src/redaction.js';
@@ -148,7 +149,7 @@ test('P7-AC-4: a forge-only real run (forge: github, agent/executionHost on refe
     capabilityAttestation: composed.capabilityAttestation,
     forge: composed.forge,
   });
-  const status = await harness.run(candidate.planInstance, config, policy);
+  const status = await harness.run(validateCandidate(candidate), config, policy);
 
   assert.strictEqual(status, 'success');
   const [runDir] = readdirSync(recordDir);

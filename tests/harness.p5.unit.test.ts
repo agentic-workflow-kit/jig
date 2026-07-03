@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import type { CapabilityAttestation, ForgePort, LandingRequest } from '../src/ports.js';
 import type { PlanInstance, PolicyDoc, RecordSink, ResumePlan, RunEvent } from '../src/types.js';
 
@@ -79,7 +80,7 @@ test('P5-AC-2: runner threads capability attestation into the Fence', async () =
     },
   });
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(
@@ -119,7 +120,7 @@ test('P5-AC-4: runner invokes ForgePort for landing and preserves the dry-run sk
     forge,
   });
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.deepStrictEqual(landingRequests, [
@@ -160,7 +161,7 @@ test('P5-AC-4: runner maps ForgePort output instead of recording provider lifecy
     forge,
   });
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.strictEqual(events.filter((event) => event.family === 'story.done').length, 1);
@@ -201,7 +202,7 @@ test('P5-AC-4: resume does not re-invoke landing for an already completed story'
     forge,
   });
 
-  const status = await harness.resume(plan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
 
   assert.strictEqual(status, 'success');
   assert.deepStrictEqual(landingRequests, []);

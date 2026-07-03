@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, test } from 'vitest';
 import { composeReferenceRun } from '../src/bootstrap.js';
 import { LocalHarness } from '../src/harness.js';
+import { validateCandidate } from '../src/intake.js';
 import { RecordManager } from '../src/records.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, RunRecord } from '../src/types.js';
 
@@ -139,7 +140,7 @@ async function runFixture(planName: string, scriptedOutputName: string): Promise
     forge: composed.forge,
   });
 
-  await harness.run(candidate.planInstance, configWithRecordDir, policy);
+  await harness.run(validateCandidate(candidate), configWithRecordDir, policy);
 
   const [runDir] = readdirSync(recordDir);
   assert.ok(runDir, 'expected a generated run directory');
@@ -187,6 +188,17 @@ test('P6-AC-1: default wiring reproduces the Phase-0..4 goldens byte-identically
     const expected = normalizeRecord(loadFixture<RunRecord>(scenario.golden));
     assert.deepStrictEqual(actual, expected);
     assert.strictEqual(JSON.stringify(actual).includes('provenBy'), false);
+  }
+});
+
+test('P8-AC-1: the Phase-0..4 goldens stay byte-identical after the validated-wrapper scheduling signature', async () => {
+  for (const scenario of goldenScenarios) {
+    const actual = normalizeRecord(await runFixture(scenario.plan, scenario.scriptedOutput));
+    const expected = normalizeRecord(loadFixture<RunRecord>(scenario.golden));
+    assert.deepStrictEqual(actual, expected);
+    const serialized = JSON.stringify(actual);
+    assert.strictEqual(serialized.includes('validatedCandidate'), false);
+    assert.strictEqual(serialized.includes('workSourceCandidate'), false);
   }
 });
 

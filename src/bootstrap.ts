@@ -5,6 +5,7 @@ import { type CodexAgentSession, createCodexAgent } from './providers/real/agent
 import type { ConfinementProbe } from './providers/real/confinement.js';
 import { createGitHubForge, type GitHubForgeTransport } from './providers/real/forge.js';
 import { createRealExecutionHost } from './providers/real/host.js';
+import { createGitHubIssuesWorkSource, type GitHubIssuesWorkSourceTransport } from './providers/real/work-source.js';
 import { createReferenceAgent } from './providers/reference/agent.js';
 import { ReferenceForge } from './providers/reference/forge.js';
 import { ReferenceExecutionHost } from './providers/reference/host.js';
@@ -30,6 +31,7 @@ export interface ComposeRunPortsOptions {
   substrateManifest?: SubstrateManifestInput;
   redaction?: RedactionOptions;
   forgeTransport?: GitHubForgeTransport;
+  workSourceTransport?: GitHubIssuesWorkSourceTransport;
 }
 
 export interface ComposedRunPorts {
@@ -83,13 +85,13 @@ function assertReferenceSelection(selection: Required<DriverSelection>): void {
     agent: new Set(['reference', 'scripted-stub', 'codex']),
     executionHost: new Set(['reference', 'local', 'real']),
     forge: new Set(['reference', 'github']),
-    workSource: new Set(['reference']),
+    workSource: new Set(['reference', 'github-issues']),
   };
 
   for (const [seam, driver] of Object.entries(selection) as Array<[keyof typeof supported, string]>) {
     if (!supported[seam].has(driver)) {
       throw new ProviderSelectionError(
-        `Unsupported driver selection "${seam}=${driver}". Supported drivers: agent=reference|scripted-stub|codex, executionHost=reference|local|real, forge=reference|github, workSource=reference.`,
+        `Unsupported driver selection "${seam}=${driver}". Supported drivers: agent=reference|scripted-stub|codex, executionHost=reference|local|real, forge=reference|github, workSource=reference|github-issues.`,
       );
     }
   }
@@ -160,12 +162,25 @@ function selectForge(selection: Required<DriverSelection>, options: ComposeRunPo
   return new ReferenceForge();
 }
 
+function selectWorkSource(selection: Required<DriverSelection>, options: ComposeRunPortsOptions): WorkSourcePort {
+  if (selection.workSource === 'github-issues') {
+    return createGitHubIssuesWorkSource({
+      transport: options.workSourceTransport,
+    });
+  }
+
+  return new ReferenceWorkSource(options.planInstance);
+}
+
 async function composeRunPorts(options: ComposeRunPortsOptions): Promise<ComposedRunPorts> {
   PlanValidator.validate(options.planInstance);
   const selection = readDriverSelection(options.config);
   assertReferenceSelection(selection);
   const usesRealCredentials =
-    selection.agent === 'codex' || selection.executionHost === 'real' || selection.forge === 'github';
+    selection.agent === 'codex' ||
+    selection.executionHost === 'real' ||
+    selection.forge === 'github' ||
+    selection.workSource === 'github-issues';
 
   const substrateManifest =
     selection.agent === 'codex' || selection.executionHost === 'real'
@@ -201,7 +216,7 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
     agent: selectAgent(selection, options, substrateManifest),
     executionHost,
     forge: selectForge(selection, options),
-    workSource: new ReferenceWorkSource(options.planInstance),
+    workSource: selectWorkSource(selection, options),
     capabilityAttestation,
     substrateManifest,
     redaction,

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import type { RunProjection } from '../src/projection.js';
 import { RecordManager } from '../src/records.js';
 import { buildResumePlan, ResumeRefusal, resumeRun } from '../src/resume.js';
@@ -205,7 +206,7 @@ test('P4-AC-1: real RecordManager run output resumes through resumeRun without f
     new RecordManager(),
   );
 
-  assert.strictEqual(await harness.run({ plan: planSnapshot }, config, policy), 'failure');
+  assert.strictEqual(await harness.run(validatePlanForScheduling({ plan: planSnapshot }), config, policy), 'failure');
   const [runName] = readdirSync(recordBaseDir);
   assert.ok(runName);
   const realRunDir = join(recordBaseDir, runName);
@@ -266,6 +267,31 @@ test('P4-AC-1: resume accepts matching verification bindings without rebinding t
   };
   assert.strictEqual(record.run.binding.policyRef, 'local-dry-run-policy');
   assert.strictEqual(record.run.policySnapshot?.ref, 'policy.snapshot.json');
+});
+
+test('P8-AC-1: resume with a real work-source config resumes the plan snapshot without live re-import', async () => {
+  const snapshot = plan();
+  writeStoppedRun(stoppedEvents(), snapshot, launchPolicy());
+  const scriptedOutputPath = writeScriptedOutput();
+  const configPath = writeJson('real-work-source-config.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: {
+      agent: 'scripted-stub',
+      executionHost: 'local',
+      workSource: 'github-issues',
+    },
+  });
+
+  const status = await resumeRun({ runDir, scriptedOutputPath, configPath });
+
+  assert.strictEqual(status, 'success');
+  const record = JSON.parse(readFileSync(join(runDir, 'run.json'), 'utf8')) as {
+    run: { planId: string };
+    events: RunEvent[];
+  };
+  assert.strictEqual(record.run.planId, snapshot.id);
+  assert.ok(record.events.find((event) => event.family === 'story.done' && event.storyId === 'STORY-2'));
+  assert.deepStrictEqual(JSON.parse(readFileSync(join(runDir, 'plan.snapshot.json'), 'utf8')) as Plan, snapshot);
 });
 
 test('P4-AC-1: resume with mismatched verification policy is refused without appending events', async () => {

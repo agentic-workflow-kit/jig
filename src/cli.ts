@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { composeReferenceRun } from './bootstrap.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
+import { intakeCandidates } from './intake.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import { projectRunEvents } from './projection.js';
@@ -118,15 +119,21 @@ async function handleRun(args: string[]): Promise<void> {
       config,
       scriptedOutput: scriptedOutput as Record<string, unknown>,
     });
-    const [candidate] = await composed.workSource.candidates();
-    if (!candidate) {
-      throw new Error('No validated work-source candidate available');
-    }
     const recordManager = new RecordManager({
       launchAttestation: composed.substrateManifest ? composed.capabilityAttestation : undefined,
       substrateManifest: composed.substrateManifest,
       redaction: composed.redaction,
     });
+    const intake = await intakeCandidates(composed.workSource);
+    const [candidate] = intake.admitted;
+    if (!candidate) {
+      recordManager.init(composed.planInstance.plan, config, policy);
+      for (const rejection of intake.rejected) {
+        recordManager.recordEvent(rejection.event);
+      }
+      await recordManager.finalize('failure');
+      throw new Error('No validated work-source candidate available');
+    }
     const harness = new LocalHarness(composed.agent, recordManager, createOwnerDecisionSource(), {
       capabilityAttestation: composed.capabilityAttestation,
       forge: composed.forge,
@@ -136,7 +143,7 @@ async function handleRun(args: string[]): Promise<void> {
           : undefined,
     });
 
-    const status = await harness.run(candidate.planInstance, config, policy);
+    const status = await harness.run(candidate, config, policy);
 
     if (status !== 'success') {
       process.exit(1);

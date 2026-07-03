@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import type { AgentPort, ForgePort, LandingAction, LandingRequest } from '../src/ports.js';
 import type { RunProjection } from '../src/projection.js';
 import {
@@ -149,7 +150,7 @@ test('P7-AC-1: the runner drives ForgePort.land() at done → landed and a real 
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.deepStrictEqual(calls, ['push:STORY-1']);
@@ -191,7 +192,7 @@ test('P7-AC-1: landing stays skipped-on-dry-run under dry-run wiring', async () 
     sink,
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.ok(
@@ -561,7 +562,7 @@ test('P7-AC-3: a land-then-relaunch is recognized from the records and is a reco
     },
   );
 
-  const status = await harness.resume(twoStoryPlan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(twoStoryPlan), policy, resumePlan);
 
   assert.strictEqual(status, 'success');
   assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7']);
@@ -609,7 +610,7 @@ test('P7-AC-3: a re-run against a changed head refuses to land rather than dupli
     },
   );
 
-  const status = await harness.resume(twoStoryPlan, policy, resumePlan);
+  const status = await harness.resume(validatePlanForScheduling(twoStoryPlan), policy, resumePlan);
 
   assert.strictEqual(status, 'failure');
   assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7']);
@@ -652,7 +653,7 @@ test('P7-AC-5: a blocked run with a safe branch and permission surfaces status a
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(calls.includes('block-pr:STORY-1'));
@@ -692,7 +693,7 @@ test('P7-AC-5: a blocked run with no safe branch falls back to the durable Recor
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.deepStrictEqual(calls, []);
@@ -744,7 +745,7 @@ test('P7-AC-5: a block surfacing failure records a diagnostic fallback and still
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.strictEqual(finalizedStatus, 'failure');

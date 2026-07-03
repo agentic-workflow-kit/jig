@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test } from 'vitest';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import { projectRunEvents } from '../src/projection.js';
 import { RecordManager } from '../src/records.js';
 import type { PlanInstance, PolicyDoc, RecordSink, RunEvent, Story } from '../src/types.js';
@@ -71,7 +72,7 @@ test('P6-AC-4: two independent stories run in parallel in isolated workspaces wi
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'success');
   assert.deepStrictEqual(seenWorkspaces.sort(), ['/tmp/jig-workspaces/STORY-1', '/tmp/jig-workspaces/STORY-2']);
@@ -85,10 +86,11 @@ test('P6-AC-4: a duplicate launch of the same task is refused with workspace-col
       version: 'execution-plan-shape-v0',
       stories: [
         { id: 'STORY-1', title: 'first' },
-        { id: 'STORY-1', title: 'duplicate' },
+        { id: 'STORY-2', title: 'second' },
       ],
     },
   };
+  let allocationCount = 0;
   const harness = new LocalHarness(
     {
       execute: async (story) => ({
@@ -100,11 +102,26 @@ test('P6-AC-4: a duplicate launch of the same task is refused with workspace-col
     sink,
     null,
     {
-      workspaceIsolation: createInMemoryStoryWorkspaceIsolation('/tmp/jig-workspaces'),
+      workspaceIsolation: {
+        allocate: (story) => {
+          allocationCount += 1;
+          if (allocationCount === 2) {
+            return {
+              failureToken: 'workspace-collision',
+              path: '/tmp/jig-workspaces/STORY-1',
+            };
+          }
+
+          return {
+            storyId: story.id,
+            path: `/tmp/jig-workspaces/${story.id}`,
+          };
+        },
+      },
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(
@@ -159,7 +176,7 @@ test('P6-AC-4: parallel unattended-park records run.stopped with unattended-park
     },
   );
 
-  const status = await harness.run(plan, {}, policy);
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
 
   assert.strictEqual(status, 'failure');
   assert.ok(
@@ -181,10 +198,11 @@ test('P6-AC-4: duplicate-launch workspace-collision events replay cleanly throug
       version: 'execution-plan-shape-v0',
       stories: [
         { id: 'STORY-1', title: 'first' },
-        { id: 'STORY-1', title: 'duplicate' },
+        { id: 'STORY-2', title: 'second' },
       ],
     },
   };
+  let allocationCount = 0;
   const harness = new LocalHarness(
     {
       execute: async (story) => ({
@@ -196,11 +214,30 @@ test('P6-AC-4: duplicate-launch workspace-collision events replay cleanly throug
     new RecordManager(),
     null,
     {
-      workspaceIsolation: createInMemoryStoryWorkspaceIsolation('/tmp/jig-workspaces'),
+      workspaceIsolation: {
+        allocate: (story) => {
+          allocationCount += 1;
+          if (allocationCount === 2) {
+            return {
+              failureToken: 'workspace-collision',
+              path: '/tmp/jig-workspaces/STORY-1',
+            };
+          }
+
+          return {
+            storyId: story.id,
+            path: `/tmp/jig-workspaces/${story.id}`,
+          };
+        },
+      },
     },
   );
 
-  const status = await harness.run(plan, { runner: { mode: 'local-dry-run', recordDir } }, policy);
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    { runner: { mode: 'local-dry-run', recordDir } },
+    policy,
+  );
 
   assert.strictEqual(status, 'failure');
   const [runName] = readdirSync(recordDir);
@@ -210,8 +247,8 @@ test('P6-AC-4: duplicate-launch workspace-collision events replay cleanly throug
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line) as RunEvent)
-    .filter((event) => event.family === 'story.started' && event.storyId === 'STORY-1');
+    .filter((event) => event.family === 'story.started' && event.storyId === 'STORY-2');
   assert.strictEqual(startedEvents.length, 0);
   const projection = projectRunEvents({ eventsJsonl });
-  assert.strictEqual(projection.stories['STORY-1']?.reason, 'workspace-collision');
+  assert.strictEqual(projection.stories['STORY-2']?.reason, 'workspace-collision');
 });
