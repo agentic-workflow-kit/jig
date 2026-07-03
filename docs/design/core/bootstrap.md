@@ -462,6 +462,32 @@ wire **real** agent/host drivers without changing its ownership or a port surfac
   a drifted real host would now report (GUARD-1, FENCE-2). This replaces the Phase-5 reference behavior
   of re-deriving a constant attestation, which was safe only because the reference host could not drift.
 
+### Phase 9 records-integrity + driver-selection binding (ADR 0025)
+
+[ADR 0025](../decisions/0025-phase-9-records-integrity.md) makes the launch header and snapshots
+tamper-evident and binds the launch driver selection, without changing this procedure's ownership or a
+record shape:
+
+- **Integrity materialized at launch, verified on resume.** Alongside the Phase-4 plan/policy snapshots
+  and the Phase-6 attestation snapshot, bootstrap materializes a records-integrity **sidecar**
+  (`runs/<id>/integrity.*`) at launch — a digest + hash-chain + environment-keyed HMAC computed over the
+  launch header and the snapshots ([`records.md`](./records.md) "Phase 9 realization"), a **non-golden
+  file** beside the run directory that leaves `events.jsonl` and every snapshot byte-for-byte unchanged. On
+  resume, the workspace/storage preflight is joined by an **integrity preflight**: bootstrap recomputes and
+  compares; a broken chain fails closed with a named integrity reason (FAIL-004 class), never resumes on
+  corrupted evidence. The HMAC key is environment-only and never serialized; its absence where integrity is
+  expected is a diagnosable stop, not a silent skip.
+- **Driver-selection binding — a new snapshot, verification-only.** Today the launch binding records only
+  `mode`/`recordDir` in `configRef` and persists **no driver snapshot**, so the launch driver selection is
+  unbound on resume (T8 bound only the work-source leg). Bootstrap now persists a **driver-selection
+  snapshot** (`drivers.snapshot.json`: the resolved `agent`/`executionHost`/`forge`/`workSource` names) at
+  launch, **parallel to the plan and policy snapshots**, digest-covered by the integrity sidecar. On resume
+  it is verified **verification-only** against the selection resume would use — a mismatch fails closed
+  (binding-mismatch class), exactly like the plan/policy binding-verify. Re-wiring is allowed; **rebinding
+  is not** ("Original-binding preservation rule"): resumed work runs under the **launch** drivers, never a
+  fresher re-selection. This is a **new snapshot file**, not a `run.started` field change, so it freezes
+  nothing.
+
 ## Invariant and State Matrix
 
 | Invariant or state rule                     | Bootstrap implication                                                                                        | Source                                                     |

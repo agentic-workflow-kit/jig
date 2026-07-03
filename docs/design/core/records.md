@@ -254,6 +254,37 @@ this engine without freezing schema:
   carries no real secrets yet. Unknown or ambiguous posture stays fail-closed: inspect/export is
   denied or constrained and the ambiguity becomes an operator-visible diagnosable stop.
 
+### Phase 9 realization — the integrity sidecar (ADR 0025)
+
+[ADR 0025](../decisions/0025-phase-9-records-integrity.md) makes the durable evidence tamper-evident
+**without** touching the record bytes, discharging the integrity deferral
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) left open:
+
+- **Integrity rides beside the record, not inside it.** A content digest per protected artifact and a
+  hash-chain over the append-only event log's bytes — authenticated by an **HMAC keyed from the
+  environment** — are **materialized on a separate integrity sidecar** (`runs/<id>/integrity.*`, a
+  **non-golden** file beside the run directory), computed over the launch header (`run.started`, including
+  the Phase-8 provenance and Phase-6 attestation/substrate references), the plan/policy/attestation
+  snapshots, the Phase-9 driver-selection snapshot, and the event log. `events.jsonl` and every snapshot
+  stay **byte-for-byte unchanged**; nothing integrity-related is appended to, nested in, or reshaped within
+  a governed record. So the byte-identical Phase-0..4 record goldens stay a regression anchor — the sidecar
+  is excluded from the record-goldens (or produced only under real-driver wiring). A naive per-line
+  hash-chain written **inside** the log is rejected precisely because it would break that byte-identity.
+- **Verify is recompute-and-compare — a projection, never a mutation.** `inspect` and resume preflight
+  **recompute** the digests from the on-disk bytes and the HMAC with the environment key, then compare to
+  the sidecar. A mismatch is a detected break: `inspect` **surfaces** it as a diagnosable notice naming the
+  broken artifact; resume **refuses** with a named reason (a live `resume-blocked-*` preflight diagnostic,
+  not a minted event family). This is pure recompute-and-compare on the projection side, consistent with
+  "Projection purity" above — it writes nothing into the evidence stream to detect a break.
+- **Key discipline and honest scope.** The HMAC key is **environment-only**, **never serialized** into any
+  record/snapshot/sidecar; its absence where integrity is expected is a **diagnosable stop, not a silent
+  skip** (the fail-closed posture above). The sidecar detects tampering **without the live key** and
+  off-host replay without it; it does **not** claim to stop an actor who **also holds the key**. Records
+  **stay safe to keep and export** through a detected break — the run is flagged, not made unreadable, and
+  the SEC-1 redaction posture is unchanged (the sidecar stores digests and an HMAC, never the key or any
+  sensitive value). No observability-records field is minted or frozen — the digest/HMAC posture is
+  design-owned on the sidecar, not part of the v0 contract.
+
 ## Records/evidence surface
 
 Records remains the durable evidence substrate for both runtime decisions and later inspection:

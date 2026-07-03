@@ -35,3 +35,4 @@ dispositions) and grows as new design decisions are made.
 | 0022 | Phase 6 real-driver integration: 6a/6b split, real agent driver, proven confinement, substrate auth   | applied |
 | 0023 | Phase 7 real Forge/GitHub landing: runner-owned real landing, action union, idempotency, PR surfacing | applied |
 | 0024 | Phase 8 real work-source integration: seed-vs-candidate intake chokepoint, richer provenance, INV-007 | applied |
+| 0025 | Phase 9 records-integrity: sidecar tamper-evidence, active re-approval, tamper-vs-changed-basis split | applied |
