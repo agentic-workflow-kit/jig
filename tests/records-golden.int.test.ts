@@ -181,6 +181,15 @@ for (const scenario of goldenScenarios) {
   });
 }
 
+test('P6-AC-1: default wiring reproduces the Phase-0..4 goldens byte-identically', async () => {
+  for (const scenario of goldenScenarios) {
+    const actual = normalizeRecord(await runFixture(scenario.plan, scenario.scriptedOutput));
+    const expected = normalizeRecord(loadFixture<RunRecord>(scenario.golden));
+    assert.deepStrictEqual(actual, expected);
+    assert.strictEqual(JSON.stringify(actual).includes('provenBy'), false);
+  }
+});
+
 test('PR-AC-6: no committed golden record fixture is unread by tests', () => {
   const expectedGoldens = goldenScenarios.map((scenario) => scenario.golden).sort();
   const actualGoldens = readdirSync(fixtureDir)

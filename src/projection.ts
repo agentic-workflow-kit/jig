@@ -631,6 +631,8 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
       case 'story.blocked':
         if (parsedEvent.event.blockedBy !== undefined) {
           assertStoryState(story, ['unstarted'], parsedEvent, storyId);
+        } else if (parsedEvent.event.reason === 'workspace-collision') {
+          assertStoryState(story, ['unstarted', 'started', 'parked'], parsedEvent, storyId);
         } else {
           assertStoryState(story, ['started', 'parked'], parsedEvent, storyId);
         }

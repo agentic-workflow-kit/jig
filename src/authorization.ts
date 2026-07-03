@@ -69,6 +69,18 @@ function isolationRank(strength: IsolationStrength | undefined): number {
   return 0;
 }
 
+function isExercisedStrongProof(attestation: CapabilityAttestation): boolean {
+  return attestation.provenBy === 'exercised-confinement-proof';
+}
+
+function effectiveProvenIsolation(attestation: CapabilityAttestation): IsolationStrength | undefined {
+  if (attestation.provenIsolationStrength !== 'strong') {
+    return attestation.provenIsolationStrength;
+  }
+
+  return isExercisedStrongProof(attestation) ? 'strong' : 'weak';
+}
+
 function requiredIsolationFor(request: AuthorizationRequest, policy: PolicyDoc): IsolationStrength | null {
   const capabilityIsolation = policy.policy?.rules?.capabilityIsolation;
   if (!capabilityIsolation || typeof capabilityIsolation !== 'object' || Array.isArray(capabilityIsolation)) {
@@ -118,7 +130,8 @@ function proofFailureBasis(
     return failureToken satisfies HostFailureToken;
   }
 
-  if (isolationRank(attestation.provenIsolationStrength) < isolationRank(requiredIsolation)) {
+  const provenIsolationStrength = effectiveProvenIsolation(attestation);
+  if (isolationRank(provenIsolationStrength) < isolationRank(requiredIsolation)) {
     return 'containment-unproven';
   }
 

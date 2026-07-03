@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { CapabilityAttestation } from './ports.js';
+import { type RedactionOptions, redactValue } from './redaction.js';
+import type { ApprovedSubstrateManifest } from './substrate.js';
 import type {
+  AttestationSnapshotRef,
   ConfigDoc,
   Plan,
   PlanSnapshotRef,
@@ -13,16 +17,25 @@ import type {
   RunPosture,
   RunRecord,
   RunStatus,
+  SubstrateManifestRef,
 } from './types.js';
 import { captureWorkspaceFingerprint } from './workspace.js';
 
 const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
 const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
+const ATTESTATION_SNAPSHOT_FILE = 'attestation.snapshot.json';
+const SUBSTRATE_MANIFEST_FILE = 'substrate.manifest.json';
 const DEFAULT_RUN_POSTURE: RunPosture = {
   record: 'safe-for-owner-record',
   export: 'redacted',
 };
+
+export interface RecordManagerOptions {
+  launchAttestation?: CapabilityAttestation;
+  substrateManifest?: ApprovedSubstrateManifest;
+  redaction?: RedactionOptions;
+}
 
 function describeConfigBinding(config: ConfigDoc): string {
   const mode = config.runner?.mode ?? 'unknown-mode';
@@ -41,9 +54,13 @@ export class RecordManager implements RecordSink {
   private posture: RunPosture;
   private planSnapshot: PlanSnapshotRef | null;
   private policySnapshot: PolicySnapshotRef | null;
+  private attestationSnapshot: AttestationSnapshotRef | null;
+  private substrateManifestRef: SubstrateManifestRef | null;
   private launchHeaderRecorded: boolean;
+  private readonly options: RecordManagerOptions;
 
-  constructor() {
+  constructor(options: RecordManagerOptions = {}) {
+    this.options = options;
     this.events = [];
     this.runDir = '';
     this.runId = '';
@@ -54,6 +71,8 @@ export class RecordManager implements RecordSink {
     this.posture = DEFAULT_RUN_POSTURE;
     this.planSnapshot = null;
     this.policySnapshot = null;
+    this.attestationSnapshot = null;
+    this.substrateManifestRef = null;
     this.launchHeaderRecorded = false;
   }
 
@@ -85,6 +104,22 @@ export class RecordManager implements RecordSink {
       path: policySnapshotPath,
     };
     writeFileSync(policySnapshotPath, JSON.stringify(policy, null, 2));
+    if (this.options.launchAttestation) {
+      const attestationSnapshotPath = join(this.runDir, ATTESTATION_SNAPSHOT_FILE);
+      this.attestationSnapshot = {
+        ref: `record-artifact:${this.runId}/${ATTESTATION_SNAPSHOT_FILE}`,
+        path: attestationSnapshotPath,
+      };
+      writeFileSync(attestationSnapshotPath, JSON.stringify(this.options.launchAttestation, null, 2));
+    }
+    if (this.options.substrateManifest) {
+      const substrateManifestPath = join(this.runDir, SUBSTRATE_MANIFEST_FILE);
+      this.substrateManifestRef = {
+        ref: `record-artifact:${this.runId}/${SUBSTRATE_MANIFEST_FILE}`,
+        path: substrateManifestPath,
+      };
+      writeFileSync(substrateManifestPath, JSON.stringify(this.options.substrateManifest, null, 2));
+    }
   }
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
@@ -118,11 +153,14 @@ export class RecordManager implements RecordSink {
       posture: this.posture,
       planSnapshot: this.planSnapshot as PlanSnapshotRef,
       policySnapshot: this.policySnapshot as PolicySnapshotRef,
+      ...(this.attestationSnapshot ? { attestationSnapshot: this.attestationSnapshot } : {}),
+      ...(this.substrateManifestRef ? { substrateManifest: this.substrateManifestRef } : {}),
     };
   }
 
   private appendEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
-    const timestampedEvent: RunEvent = { ...event, actor: 'runner', timestamp: new Date().toISOString() };
+    const redactedEvent = redactValue(event, this.options.redaction) as Pick<RunEvent, 'family'> & Partial<RunEvent>;
+    const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
   }
@@ -145,6 +183,8 @@ export class RecordManager implements RecordSink {
         posture: this.posture,
         planSnapshot: this.planSnapshot as PlanSnapshotRef,
         policySnapshot: this.policySnapshot as PolicySnapshotRef,
+        ...(this.attestationSnapshot ? { attestationSnapshot: this.attestationSnapshot } : {}),
+        ...(this.substrateManifestRef ? { substrateManifest: this.substrateManifestRef } : {}),
       },
       events: this.events,
     };

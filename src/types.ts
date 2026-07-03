@@ -90,6 +90,7 @@ export interface Diagnostics {
   stderr?: string;
   error?: string;
   evidenceResult?: unknown;
+  failureToken?: string;
 }
 
 export type RunStatus = 'success' | 'failure';
@@ -133,6 +134,8 @@ export interface PlanSnapshotRef {
 }
 
 export type PolicySnapshotRef = PlanSnapshotRef;
+export type AttestationSnapshotRef = PlanSnapshotRef;
+export type SubstrateManifestRef = PlanSnapshotRef;
 
 export interface RunEvent {
   family: string;
@@ -144,6 +147,8 @@ export interface RunEvent {
   posture?: RunPosture;
   planSnapshot?: PlanSnapshotRef;
   policySnapshot?: PolicySnapshotRef;
+  attestationSnapshot?: AttestationSnapshotRef;
+  substrateManifest?: SubstrateManifestRef;
   storyId?: string;
   blockedBy?: string;
   reason?: string;
@@ -167,6 +172,8 @@ export interface RunRecord {
     posture?: RunPosture;
     planSnapshot?: PlanSnapshotRef;
     policySnapshot?: PolicySnapshotRef;
+    attestationSnapshot?: AttestationSnapshotRef;
+    substrateManifest?: SubstrateManifestRef;
   };
   events: RunEvent[];
 }

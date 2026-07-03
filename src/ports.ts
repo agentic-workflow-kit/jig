@@ -16,6 +16,7 @@ export interface CapabilityAttestation {
   positive: boolean;
   reportedIsolationStrength?: IsolationStrength;
   provenIsolationStrength?: IsolationStrength;
+  provenBy?: 'exercised-confinement-proof';
   failureToken?: HostFailureToken;
 }
 

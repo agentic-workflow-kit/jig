@@ -39,6 +39,7 @@ const freshStrongProof: CapabilityAttestation = {
   positive: true,
   reportedIsolationStrength: 'strong',
   provenIsolationStrength: 'strong',
+  provenBy: 'exercised-confinement-proof',
 };
 
 function recordCollector(): { sink: RecordSink; events: RunEvent[] } {
