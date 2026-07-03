@@ -165,11 +165,16 @@ flex, but the method surface, invoker, and must-not are fixed by the ADR.
 Build the composition root (`src/bootstrap.ts` or `composeRun`):
 
 - Read `config.drivers`; default each seam to its reference adapter (reference agent = a thin
-  `AgentPort` wrapper over `ScriptedWorker`). An unknown driver name **fails closed** with usage
-  guidance (matching the fail-closed flag discipline in `cli.ts`), never a silent fallback.
+  `AgentPort` wrapper over `ScriptedWorker`; reference source = a **pass-through** `WorkSourcePort`
+  that surfaces the directly-supplied plan as already-validated provenance). An unknown driver name
+  **fails closed** with usage guidance (matching the fail-closed flag discipline in `cli.ts`), never a
+  silent fallback.
 - Return the wired ports to the runner. `cli.ts` `handleRun`/`handleResume` call the composition root
   instead of importing `ScriptedWorker` directly; after this slice the composition root is the **only**
   module that imports a provider adapter.
+- **Wire and invoke all four ports** — the pass-through source is selected and called even on the
+  default path (it still routes through `PlanValidator` exactly as today), so no seam is bypassed
+  under default wiring (ADR 0021 decision 3; the M5 "no unexercised stub" rule).
 - **Regression anchor:** default wiring reproduces today's records exactly — the Phase 0–4 goldens pass
   unchanged.
 
@@ -180,8 +185,14 @@ Thread a capability attestation into authorization:
 - Extend `authorizeRequest(request, story, policy, attestation)`. A request that is otherwise
   low-risk is auto-grantable **only** when the attestation is `fresh` + positive + driver/run-context
   specific; a `missing`/`stale`/failed proof drops it out of the auto-grantable set → `route` (or stays
-  `deny` by scope), per `authorization.md` decision rule 4. Add the basis label(s) for the proof-driven
-  outcome to the `AuthorizationBasis` union.
+  `deny` by scope), per `authorization.md` decision rule 4.
+- **The default granted record stays byte-identical.** When the default reference attestation is
+  `fresh`+positive the request grants exactly as today with the **same** recorded `basis` — do **not**
+  append a proof-driven basis label on the default path (that would change the Phase 0–4 grant goldens,
+  which must stay unchanged). Any new `AuthorizationBasis` label is emitted **only** on the
+  proof-failure/route outcomes in the Phase-5-specific scenarios (missing/stale/overstated proof), which
+  get their own new goldens — the gate is enforced on the default path, but it is proven by the request
+  still granting with the unchanged basis, not by a new record field.
 - **Category is not sufficiency:** a provider-supplied isolation category or capability claim is input,
   never a substitute. Do not let a `strong` self-report auto-grant without a fresh positive proof.
 - **Freshness is modeled** (`fresh`|`stale`|`missing`) against a policy-declared expectation — no

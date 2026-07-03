@@ -155,7 +155,11 @@ root instead of `new ScriptedWorker(...)` directly.
 
 - Default wiring reproduces **today's dry-run exactly**: reference agent = the scripted worker,
   reference host = a process-local host, reference forge = the modeled-skip forge, reference source =
-  none (the plan is supplied directly). The Phase 0–4 golden records are unchanged by the default
+  a **pass-through** adapter that surfaces the directly-supplied plan as already-validated provenance.
+  All four ports are **selected and invoked** even under the default wiring — the pass-through source
+  is called (it emits the supplied plan's items, which still cross `PlanValidator` exactly as today),
+  so no seam is bypassed and the M5 "no unexercised stub" rule holds on the default `jig run` path, not
+  only in the conformance tests. The Phase 0–4 golden records are nonetheless unchanged by the default
   wiring — this is the regression anchor.
 - `config.drivers` selects a non-default adapter by name; an unknown driver name **fails closed** with
   usage guidance (fail-closed posture, FENCE-1), never a silent fallback.
