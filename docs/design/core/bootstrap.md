@@ -408,16 +408,20 @@ Phase 4 local surface without changing its ownership:
   agent-seam source that drives not-yet-terminal work; it is not binding. Any `--config`/`--policy`/
   `--plan` passed on resume are **verification-only** against the recorded binding — a mismatch
   fails closed (`resume-blocked-binding-mismatch`), never rebinds.
-- **Durable plan snapshot.** For "resume from records" to be honest, the validated plan must be
-  durable in the run directory, because resume re-derives eligibility, dependency order, and each
-  resumed story's declared `scope`. Bootstrap therefore **persists a validated-plan snapshot into
-  the run directory at launch** (alongside the binding record) and reads it back on resume, rather
-  than depending on an external plan file the operator kept unchanged.
+- **Durable plan and policy snapshots.** For "resume from records" to be honest, the validated plan
+  _and the resolved launch policy_ must be durable in the run directory. Resume re-derives
+  eligibility, dependency order, and each resumed story's declared `scope` from the plan, and it
+  **adjudicates every resumed request against the launch policy** — so both must survive the stop.
+  Bootstrap therefore **persists a validated-plan snapshot and a policy snapshot (resolved rules)
+  into the run directory at launch** (alongside the binding record) and reads them back on resume,
+  rather than depending on external files the operator kept unchanged, or on rebuilding a permissive
+  stub from `policyRef` alone (ADR 0020 §3). The binding records policy by _reference_; the snapshot
+  is what makes the rules themselves durable.
 - **Authoritative launch header.** So resume and inspect can read the launch metadata without
   `run.json`, bootstrap records the binding — `run.id`, `planId`, `binding` (including the workspace
-  fingerprint and run-level redaction/export posture), and the plan-snapshot reference — into a
-  durable launch header at the head of `events.jsonl` (the `run.started` record), not only into the
-  finalized `run.json`. This is additive and mints no new event family (ADR 0020 §1).
+  fingerprint and run-level redaction/export posture), and the plan and policy snapshot references —
+  into a durable launch header at the head of `events.jsonl` (the `run.started` record), not only
+  into the finalized `run.json`. This is additive and mints no new event family (ADR 0020 §1).
 - **Workspace-continuity preflight.** Alongside storage preflight, resume recomputes the run-level
   workspace fingerprint recorded in `binding.workspace` (repo root + git `HEAD` + a content hash
   over the working-tree change set, so two materially different dirty trees at one `HEAD` do not
