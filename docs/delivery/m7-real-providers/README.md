@@ -110,9 +110,13 @@ does not invent product or design facts. Per the delivery Planning Rules
   freeze is design/contract-owner-owned and is a checkpoint (see [`phases.md`](./phases.md) "Beyond
   this track"), not a phase.
 - No TypeScript interfaces, JSON Schema, provider manifests, package layout, exports, or runtime code
-  are introduced from delivery planning. The **real as-merged port shapes** are cited from
+  are introduced **from delivery planning**. The **real as-merged port shapes** are cited from
   [`../../../src/ports.ts`](../../../src/ports.ts) and
-  [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts) as fixed inputs, not redesigned.
+  [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts) as fixed inputs, not redesigned. The one
+  provider manifest in scope — the Phase-6 **substrate manifest** — is introduced by the **design**
+  layer ([ADR 0022](../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7), a
+  non-normative fixture with no schema freeze; this track only references it, which keeps the
+  delivery-planning rule intact.
 - `docs/design/**` is referenced, never edited from here.
 - Wave 5 red-team findings ride as stop conditions (substrate trust is not code trust; attested
   isolation must be proven, not declared; real landing must be idempotent).

@@ -336,8 +336,12 @@ ownership gaps.
 
 - The records are the evidence (SEE-3): there is no separate narrative of what happened that can
   drift from the log itself.
-- Real secret-scanning is deferred; the redaction-posture field exists on each record now so it
-  can be populated later without a schema break.
+- Real secret-scanning **activates for real-driver records at Phase 6**
+  ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md), P6-AC-6): the moment real
+  credentials first enter play, secrets are scanned and redacted and a redaction ambiguity becomes a
+  diagnosable stop. The default/reference path is unchanged — it has no real secrets — and the
+  redaction-posture field already present on each record carries the posture either way, so activation
+  needs no schema break.
 - Retention richness — how long records live, archival tiers — is deferred.
 
 ## Reconciles to

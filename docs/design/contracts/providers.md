@@ -410,9 +410,13 @@ point, not a frozen contract.
 
 - **The four ports as jig-internal interfaces.** `AgentPort` formalizes the existing `Worker`
   interface (`execute` — request/observe only, no privileged method); `ExecutionHostPort.describe()`
-  returns a reported isolation category plus a supplied containment-proof token; `ForgePort.land()` is
-  runner-invoked only; `WorkSourcePort.candidates()` surfaces provenance upstream of `PlanValidator`.
-  These are `src/` seams like `Worker`/`RecordSink`, not a versioned public contract.
+  returns a `HostAttestation` (the merged [`../../../src/ports.ts`](../../../src/ports.ts) shape:
+  the host `isolationStrength` plus its `capabilityAttestations`, where proof and result are unified in
+  `CapabilityAttestation` — `freshness`, `positive`, `reportedIsolationStrength`,
+  `provenIsolationStrength`, `failureToken` — with **no** separate `containmentProof` field);
+  `ForgePort.land()` is runner-invoked only; `WorkSourcePort.candidates()` surfaces provenance upstream
+  of `PlanValidator`. These are `src/` seams like `Worker`/`RecordSink`, not a versioned public
+  contract.
 - **Composition root.** A single module selects and wires the adapters from `config.drivers`,
   defaulting to the reference adapters, and is the sole importer of provider implementations
   ([`../core/bootstrap.md`](../core/bootstrap.md) SURF-004); an unknown driver name fails closed.
@@ -432,21 +436,68 @@ point, not a frozen contract.
   asserts the cross-port invariants above, including the Wave 5 adversarial probes, and an
   intentionally broken adapter proves it fails closed.
 
+## Phase 6 realization (ADR 0022)
+
+[ADR 0022](../decisions/0022-phase-6-real-driver-integration.md) promotes the **Agent** and
+**Execution host** seams from reference adapters to **real drivers** behind these same, unchanged
+ports, at design altitude and unfrozen. It splits Phase 6 into **6a** (real Codex-first agent on a
+`weak`/reference host, independently useful) and **6b** (real host supplying proven `strong`
+confinement). The Forge (Phase 7) and Work source (Phase 8) seams stay reference-only here.
+
+- **Real agent driver behind `AgentPort`.** A Codex-first driver maps to the merged
+  `execute(story) → Promise<WorkerResult>` (request/observe only) and performs real edits, selected by
+  name through the composition root. INV-002 stays **structural**: no push/PR/merge/credential path
+  exists on the port (a forbidden-method sweep in the conformance suite asserts `fs/*`,
+  `command/exec*`, `thread/shellCommand`, and any landing surface belong to **other** ports). On a
+  denied or unavailable capability the driver parks/interrupts through the Fence — it never returns a
+  broader profile; advisory (Guardian-style) evidence is observed evidence, never an auto-bypass.
+- **Proven confinement, `provenIsolationStrength` not `reportedIsolationStrength`.** The real host
+  populates `CapabilityAttestation.provenIsolationStrength` from an **exercised** confinement check —
+  a termination/prove-empty step, a negative-probe egress check, a named containment mechanism
+  (`process-group`/`kernel-tree`/`job-object`), and a planned-vs-actually-ran command binding — not a
+  declared constant. Core judges autonomy on **proven**, never reported: `reported > proven` records
+  `isolation-strength-overstated`; an absent/stale proof records `containment-unproven`; each withholds
+  the autonomy the reported category would grant. `describe()` **stays synchronous** — the proof runs
+  async at compose time (prove-then-describe) and `describe()` returns the already-computed attestation.
+- **Per-story ISO-4 isolation.** Independent stories run in per-story isolated workspaces
+  (worktree-per-story) so parallel work cannot collide; a duplicate launch of the same task is refused
+  with `workspace-collision`, extending the Phase-4 run-level workspace fingerprint.
+- **Resume attestation persist/recover (Residual A).** The launch `CapabilityAttestation` is persisted
+  alongside the plan/policy snapshots and recovered on resume, launch-immutable; resumed requests are
+  adjudicated against the **launch** attestation, never a fresher, more permissive re-derivation.
+- **Substrate manifest.** Extending the Phase-5 manifest ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)
+  decision 8, declared + statically conformance-checked), a real provider's substrate scope (runtimes,
+  argv, credentials, egress) becomes an **immutable, hashed, approved tuple** enforced **at runtime**:
+  each substrate request is validated against it and an out-of-tuple request is refused as a diagnosable
+  stop — the boundary the M7 substrate-escalation kill
+  assumption requires (distinct from capability attestation: the manifest bounds what the driver may
+  _request_, the attestation proves what the host _confines_). Manifest format is design-owned and used
+  only as a non-normative fixture — no schema freeze.
+- **Real freshness clock & redaction activation.** `CapabilityFreshness` is decided by a real clock
+  against real timestamps (a stale attestation is non-fresh at the Fence), replacing the deterministic
+  constant. Real secret-scanning **activates** at the boundary real credentials first enter records
+  (6a); a redaction ambiguity becomes a diagnosable stop, extending
+  [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §7.
+
 ## Notes
 
 - A seam is not a shipped driver. In Phase 5 each port is exercised by a **reference adapter** and the
-  conformance suite; the **real** agent, execution-host, forge, and work-source drivers remain named
-  extension points for later phases.
+  conformance suite; the **real** agent and execution-host drivers arrive in Phase 6
+  ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)), and the **real** forge and
+  work-source drivers remain named extension points for Phases 7–8.
 - Until a driver proves a capability, expect reduced autonomy, not a weaker guarantee.
 - Realized in Phase 5 (ADR 0021): the reusable conformance suite, the provider-manifest shape at design
   altitude, the capability-proof model, and reference adapters for all four seams.
 
 ## Deferred and out of scope
 
-- **Real** (production) adapter implementations for Agent, Execution host, Forge, or Work source —
-  real network, real containment, and real Forge/GitHub push/PR/merge (Phase 6+).
-- Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape;
-  freeze stays with the contract owner).
+- **Real** (production) adapters for the **Agent** and **Execution host** seams are realized in
+  Phase 6 ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md), "Phase 6 realization"
+  above); real **Forge**/GitHub push/PR/merge (Phase 7) and real **Work source** import (Phase 8)
+  remain deferred here.
+- Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape,
+  including the Phase-6 substrate manifest and persisted-attestation shape; freeze stays with the
+  contract owner).
 - JSON Schema, event constants, or frozen field-level contract shapes for the execution-plan or
   observability-records v0 contracts.
 - New lifecycle states, transition tables, or state-machine redesign.
