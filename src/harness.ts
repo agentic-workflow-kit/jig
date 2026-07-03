@@ -1,5 +1,12 @@
 import { authorizeRequest } from './authorization.js';
-import type { CapabilityAttestation, ForgePort } from './ports.js';
+import type {
+  BlockSurfaceRequest,
+  CapabilityAttestation,
+  ForgePort,
+  LandingAction,
+  LandingOutcome,
+  LandingVerificationRequest,
+} from './ports.js';
 import { SubstrateAuthorizationError } from './substrate.js';
 import type {
   ConfigDoc,
@@ -26,6 +33,11 @@ type StoryExecutionResult =
 interface HarnessPorts {
   capabilityAttestation?: CapabilityAttestation;
   forge?: ForgePort;
+  landingAction?: LandingAction;
+  blockSurface?: {
+    safeBranch?: string;
+    canPush?: boolean;
+  };
   workspaceIsolation?: PerStoryWorkspaceIsolation;
 }
 
@@ -65,20 +77,24 @@ const defaultForge: ForgePort = {
   land: (request) => ({
     family: 'runner-action.skipped-on-dry-run',
     storyId: request.storyId,
-    action: request.action,
+    action: MODELED_DRY_RUN_LANDING_ACTION,
     reason: request.reason ?? 'dry-run',
   }),
 };
 
+const DEFAULT_LANDING_ACTION: LandingAction = 'push';
+const MODELED_DRY_RUN_LANDING_ACTION = 'push|open-pr|merge';
+const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
+
 function modeledLandingEvent(request: {
   storyId: string;
-  action: 'push|open-pr|merge';
+  action: LandingAction;
   reason: 'dry-run';
 }): Pick<RunEvent, 'family'> & Partial<RunEvent> {
   return {
     family: 'runner-action.skipped-on-dry-run',
     storyId: request.storyId,
-    action: request.action,
+    action: MODELED_DRY_RUN_LANDING_ACTION,
     reason: request.reason,
   };
 }
@@ -101,6 +117,8 @@ export class LocalHarness {
   private readonly ownerDecisionSource: OwnerDecisionSource | null;
   private readonly capabilityAttestation: CapabilityAttestation | undefined;
   private readonly forge: ForgePort;
+  private readonly landingAction: LandingAction;
+  private readonly blockSurface: HarnessPorts['blockSurface'];
   private readonly workspaceIsolation: PerStoryWorkspaceIsolation | undefined;
 
   constructor(
@@ -114,7 +132,115 @@ export class LocalHarness {
     this.ownerDecisionSource = ownerDecisionSource;
     this.capabilityAttestation = ports.capabilityAttestation;
     this.forge = ports.forge ?? defaultForge;
+    this.landingAction = ports.landingAction ?? DEFAULT_LANDING_ACTION;
+    this.blockSurface = ports.blockSurface;
     this.workspaceIsolation = ports.workspaceIsolation;
+  }
+
+  private async recordBlockedStory(
+    storyId: string,
+    reason: string,
+    event: Omit<Pick<RunEvent, 'family'> & Partial<RunEvent>, 'family' | 'storyId' | 'reason'> = {},
+  ): Promise<void> {
+    const diagnostics = event.diagnostics as { error?: unknown } | undefined;
+    this.recordManager.recordEvent({
+      ...event,
+      family: 'story.blocked',
+      storyId,
+      reason,
+    });
+    await this.surfaceBlockedStory({
+      storyId,
+      reason,
+      failureReasons: [reason, ...(diagnostics?.error ? [String(diagnostics.error)] : [])],
+      diagnostics: event.diagnostics as Record<string, unknown> | undefined,
+    });
+  }
+
+  private async surfaceBlockedStory(request: Omit<BlockSurfaceRequest, 'safeBranch' | 'canPush'>): Promise<void> {
+    if (!this.forge.surfaceBlock) {
+      return;
+    }
+
+    try {
+      const outcomes = await this.forge.surfaceBlock({
+        ...request,
+        safeBranch: this.blockSurface?.safeBranch,
+        canPush: this.blockSurface?.canPush,
+      });
+      for (const outcome of outcomes) {
+        this.recordManager.recordEvent(outcome);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.recordManager.recordEvent({
+        family: 'story.blocked',
+        storyId: request.storyId,
+        reason: 'pr-surfacing-failed',
+        diagnostics: {
+          error: message,
+          originalReason: request.reason,
+        },
+      });
+    }
+  }
+
+  private recordLandingOutcome(landingRequest: { storyId: string; action: LandingAction; reason: 'dry-run' }) {
+    return async (outcome: LandingOutcome): Promise<void> => {
+      if (REAL_LANDING_FAMILIES.has(outcome.family)) {
+        this.recordManager.recordEvent(outcome);
+        return;
+      }
+
+      this.recordManager.recordEvent(modeledLandingEvent(landingRequest));
+    };
+  }
+
+  private priorLandingFor(storyId: string, resumePlan: ResumePlan): LandingVerificationRequest | undefined {
+    return resumePlan.priorLandings?.find((landing) => landing.storyId === storyId);
+  }
+
+  private async recordRepeatedLandingNoop(
+    storyId: string,
+    resumePlan: ResumePlan,
+  ): Promise<{ status: 'matched' } | { status: 'mismatched'; checkpointStoryId: string }> {
+    const priorLanding = this.priorLandingFor(storyId, resumePlan);
+    if (!priorLanding) {
+      return { status: 'matched' };
+    }
+
+    if (!this.forge.verifyLanding) {
+      await this.recordBlockedStory(storyId, 'landing-verification-unavailable', {
+        diagnostics: {
+          error: 'Cannot verify prior real landing head with the selected Forge adapter',
+        },
+      });
+      return { status: 'mismatched', checkpointStoryId: storyId };
+    }
+
+    const verification = await this.forge.verifyLanding(priorLanding);
+    if (verification.status === 'mismatched') {
+      await this.recordBlockedStory(storyId, 'landing-head-mismatch', {
+        diagnostics: {
+          error: 'Recorded landing target head no longer matches the Forge head',
+          targetRef: verification.targetRef,
+          expectedHead: verification.expectedHead,
+          actualHead: verification.actualHead,
+        },
+      });
+      return { status: 'mismatched', checkpointStoryId: storyId };
+    }
+
+    this.recordManager.recordEvent({
+      family: 'runner-action.skipped-repeated-effect',
+      storyId,
+      action: priorLanding.action,
+      landingKind: priorLanding.landingKind,
+      targetRef: verification.targetRef,
+      targetHead: verification.targetHead,
+      reason: 'already-landed',
+    });
+    return { status: 'matched' };
   }
 
   async run(planInstance: PlanInstance, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
@@ -149,10 +275,7 @@ export class LocalHarness {
     ) {
       const duplicateStoryId = findDuplicateStoryId(plan.stories);
       if (duplicateStoryId) {
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: duplicateStoryId,
-          reason: 'workspace-collision',
+        await this.recordBlockedStory(duplicateStoryId, 'workspace-collision', {
           diagnostics: {
             error: 'Duplicate story launch refused',
             failureToken: 'workspace-collision',
@@ -283,6 +406,13 @@ export class LocalHarness {
       }
 
       if (alreadyClosedStoryIds.has(story.id)) {
+        if (completedStoryIds.has(story.id)) {
+          const repeatedLanding = await this.recordRepeatedLandingNoop(story.id, resumePlan);
+          if (repeatedLanding.status === 'mismatched') {
+            runStatus = 'failure';
+            checkpointStoryId = repeatedLanding.checkpointStoryId;
+          }
+        }
         continue;
       }
 
@@ -308,11 +438,7 @@ export class LocalHarness {
             requestKind: resumePlan.parkedRequest?.requestKind,
             basis: ['owner-rejection'],
           });
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            reason: 'owner-rejection',
-          });
+          await this.recordBlockedStory(story.id, 'owner-rejection');
           continue;
         }
 
@@ -375,10 +501,7 @@ export class LocalHarness {
     try {
       const workspace = this.workspaceIsolation?.allocate(story);
       if (workspace && 'failureToken' in workspace) {
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: story.id,
-          reason: 'workspace-collision',
+        await this.recordBlockedStory(story.id, 'workspace-collision', {
           diagnostics: {
             error: 'Duplicate story launch refused',
             failureToken: workspace.failureToken,
@@ -422,10 +545,7 @@ export class LocalHarness {
             requestKind: request.kind,
             basis: decision.basis,
           });
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            reason: 'authorization-denied',
+          await this.recordBlockedStory(story.id, 'authorization-denied', {
             diagnostics: {
               error: `Authorization denied for request "${request.id}"`,
             },
@@ -470,19 +590,12 @@ export class LocalHarness {
           requestKind: request.kind,
           basis: ['owner-rejection'],
         });
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: story.id,
-          reason: 'owner-rejection',
-        });
+        await this.recordBlockedStory(story.id, 'owner-rejection');
         return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
       }
 
       if (!result.evidence || result.evidence.result === undefined) {
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: story.id,
-          reason: 'evidence-gate-failed',
+        await this.recordBlockedStory(story.id, 'evidence-gate-failed', {
           diagnostics: {
             error: 'Worker result missing required evidence or evidence result',
             evidenceResult: null,
@@ -499,10 +612,7 @@ export class LocalHarness {
       });
 
       if (result.outcome !== 'success') {
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: story.id,
-          reason: 'worker-reported-failure',
+        await this.recordBlockedStory(story.id, 'worker-reported-failure', {
           diagnostics: {
             exitCode: result.exitCode,
             stdout: result.stdout,
@@ -521,18 +631,15 @@ export class LocalHarness {
         });
         const landingRequest = {
           storyId: story.id,
-          action: 'push|open-pr|merge',
+          action: this.landingAction,
           reason: 'dry-run',
         } as const;
-        await this.forge.land(landingRequest);
-        this.recordManager.recordEvent(modeledLandingEvent(landingRequest));
+        const outcome = await this.forge.land(landingRequest);
+        await this.recordLandingOutcome(landingRequest)(outcome);
         return { status: 'success' };
       }
 
-      this.recordManager.recordEvent({
-        family: 'story.blocked',
-        storyId: story.id,
-        reason: 'evidence-gate-failed',
+      await this.recordBlockedStory(story.id, 'evidence-gate-failed', {
         diagnostics: {
           error: 'Worker result evidence did not pass',
           evidenceResult: result.evidence.result,
@@ -541,10 +648,7 @@ export class LocalHarness {
       return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
     } catch (err) {
       if (err instanceof SubstrateAuthorizationError) {
-        this.recordManager.recordEvent({
-          family: 'story.blocked',
-          storyId: story.id,
-          reason: 'substrate-escalation',
+        await this.recordBlockedStory(story.id, 'substrate-escalation', {
           diagnostics: {
             error: err.message,
           },
@@ -553,10 +657,7 @@ export class LocalHarness {
       }
 
       const message = err instanceof Error ? err.message : String(err);
-      this.recordManager.recordEvent({
-        family: 'story.blocked',
-        storyId: story.id,
-        reason: 'worker-execution-error',
+      await this.recordBlockedStory(story.id, 'worker-execution-error', {
         diagnostics: {
           error: message,
         },

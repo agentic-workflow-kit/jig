@@ -48,7 +48,7 @@ test('P5-AC-3: composition root wires default run through the four internal port
   assert.strictEqual((await composed.agent.execute(planInstance.plan.stories[0])).storyId, 'STORY-1');
   assert.strictEqual((await composed.executionHost.describe()).driverId, 'reference-host');
   assert.strictEqual(
-    (await composed.forge.land({ storyId: 'STORY-1', action: 'push|open-pr|merge' })).family,
+    (await composed.forge.land({ storyId: 'STORY-1', action: 'push' })).family,
     'runner-action.skipped-on-dry-run',
   );
   assert.strictEqual((await composed.workSource.candidates())[0]?.provenance, 'jig-validated');
@@ -101,5 +101,25 @@ test('composition fail-closed: unknown driver selection gives usage guidance', a
       error instanceof ProviderSelectionError &&
       /Unsupported driver selection "agent=real-agent"/.test(error.message) &&
       /Supported drivers:/.test(error.message),
+  );
+});
+
+test('P7-AC-1: unknown forge driver selection fails closed', async () => {
+  await assert.rejects(
+    () =>
+      composeReferenceRun({
+        planInstance,
+        config: {
+          ...config,
+          drivers: {
+            forge: 'gitlab',
+          },
+        },
+        scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+      }),
+    (error: unknown) =>
+      error instanceof ProviderSelectionError &&
+      /Unsupported driver selection "forge=gitlab"/.test(error.message) &&
+      /forge=reference\|github/.test(error.message),
   );
 });

@@ -3,12 +3,13 @@ import { PlanValidator } from './plan-validator.js';
 import type { AgentPort, CapabilityAttestation, ExecutionHostPort, ForgePort, WorkSourcePort } from './ports.js';
 import { type CodexAgentSession, createCodexAgent } from './providers/real/agent.js';
 import type { ConfinementProbe } from './providers/real/confinement.js';
+import { createGitHubForge, type GitHubForgeTransport } from './providers/real/forge.js';
 import { createRealExecutionHost } from './providers/real/host.js';
 import { createReferenceAgent } from './providers/reference/agent.js';
 import { ReferenceForge } from './providers/reference/forge.js';
 import { ReferenceExecutionHost } from './providers/reference/host.js';
 import { ReferenceWorkSource } from './providers/reference/work-source.js';
-import type { RedactionOptions } from './redaction.js';
+import { collectLandingPathSecrets, type RedactionOptions } from './redaction.js';
 import { type ApprovedSubstrateManifest, approveSubstrateManifest, type SubstrateManifestInput } from './substrate.js';
 import type { ConfigDoc, PlanInstance } from './types.js';
 
@@ -28,6 +29,7 @@ export interface ComposeRunPortsOptions {
   clock?: Clock;
   substrateManifest?: SubstrateManifestInput;
   redaction?: RedactionOptions;
+  forgeTransport?: GitHubForgeTransport;
 }
 
 export interface ComposedRunPorts {
@@ -80,14 +82,14 @@ function assertReferenceSelection(selection: Required<DriverSelection>): void {
   const supported = {
     agent: new Set(['reference', 'scripted-stub', 'codex']),
     executionHost: new Set(['reference', 'local', 'real']),
-    forge: new Set(['reference']),
+    forge: new Set(['reference', 'github']),
     workSource: new Set(['reference']),
   };
 
   for (const [seam, driver] of Object.entries(selection) as Array<[keyof typeof supported, string]>) {
     if (!supported[seam].has(driver)) {
       throw new ProviderSelectionError(
-        `Unsupported driver selection "${seam}=${driver}". Supported drivers: agent=reference|scripted-stub|codex, executionHost=reference|local|real, forge=reference, workSource=reference.`,
+        `Unsupported driver selection "${seam}=${driver}". Supported drivers: agent=reference|scripted-stub|codex, executionHost=reference|local|real, forge=reference|github, workSource=reference.`,
       );
     }
   }
@@ -148,10 +150,22 @@ async function selectExecutionHost(
   return new ReferenceExecutionHost();
 }
 
+function selectForge(selection: Required<DriverSelection>, options: ComposeRunPortsOptions): ForgePort {
+  if (selection.forge === 'github') {
+    return createGitHubForge({
+      transport: options.forgeTransport,
+    });
+  }
+
+  return new ReferenceForge();
+}
+
 async function composeRunPorts(options: ComposeRunPortsOptions): Promise<ComposedRunPorts> {
   PlanValidator.validate(options.planInstance);
   const selection = readDriverSelection(options.config);
   assertReferenceSelection(selection);
+  const usesRealCredentials =
+    selection.agent === 'codex' || selection.executionHost === 'real' || selection.forge === 'github';
 
   const substrateManifest =
     selection.agent === 'codex' || selection.executionHost === 'real'
@@ -171,19 +185,26 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
       positive: false,
       reportedIsolationStrength: hostAttestation.isolationStrength,
     } satisfies CapabilityAttestation);
+  const redaction = usesRealCredentials
+    ? {
+        enabled: true,
+        ...options.redaction,
+        secrets: {
+          ...(selection.forge === 'github' ? collectLandingPathSecrets() : {}),
+          ...options.redaction?.secrets,
+        },
+      }
+    : undefined;
 
   return {
     planInstance: options.planInstance,
     agent: selectAgent(selection, options, substrateManifest),
     executionHost,
-    forge: new ReferenceForge(),
+    forge: selectForge(selection, options),
     workSource: new ReferenceWorkSource(options.planInstance),
     capabilityAttestation,
     substrateManifest,
-    redaction:
-      selection.agent === 'codex' || selection.executionHost === 'real'
-        ? { enabled: true, ...options.redaction }
-        : undefined,
+    redaction,
   };
 }
 

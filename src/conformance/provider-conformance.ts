@@ -7,7 +7,9 @@ import type {
   IsolationStrength,
   WorkSourcePort,
 } from '../ports.js';
+import type { RedactionOptions } from '../redaction.js';
 import { type ApprovedSubstrateManifest, type SubstrateRequest, validateSubstrateRequest } from '../substrate.js';
+import type { RunEvent } from '../types.js';
 
 export interface ProviderManifest {
   id: string;
@@ -28,6 +30,11 @@ export interface ProviderConformanceSubject {
   resumeAttestation?: {
     launch: CapabilityAttestation;
     current: CapabilityAttestation;
+  };
+  forgeAdversarialChecks?: {
+    unknownAction?: boolean;
+    landingEvents?: RunEvent[];
+    redaction?: RedactionOptions;
   };
 }
 
@@ -60,6 +67,7 @@ const PRIVILEGED_AGENT_METHODS = [
   'shellCommand',
   'thread',
 ];
+const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
 
 function isolationRank(strength: IsolationStrength | undefined): number {
   if (strength === 'strong') return 3;
@@ -115,6 +123,34 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
       isolationRank(subject.resumeAttestation.launch.provenIsolationStrength)
   ) {
     findings.push('resume-attestation-drift');
+  }
+
+  if (subject.forgeAdversarialChecks?.unknownAction) {
+    try {
+      await subject.forge.land({ storyId: 'CONFORMANCE', action: 'unknown-action' as never });
+      findings.push('forge-unknown-action-accepted');
+    } catch {
+      // Expected fail-closed behavior.
+    }
+  }
+
+  const landingEvents = subject.forgeAdversarialChecks?.landingEvents ?? [];
+  const realEffectEvents = landingEvents.filter((event) => REAL_LANDING_FAMILIES.has(event.family));
+  const skippedRepeatedEffects = landingEvents.filter(
+    (event) => event.family === 'runner-action.skipped-repeated-effect',
+  );
+  if (realEffectEvents.length > 1 && skippedRepeatedEffects.length === 0) {
+    findings.push('forge-resume-double-apply');
+  }
+
+  if (subject.forgeAdversarialChecks?.redaction) {
+    const serialized = JSON.stringify(landingEvents);
+    const leakedSecret = Object.values(subject.forgeAdversarialChecks.redaction.secrets ?? {}).find(
+      (secret): secret is string => typeof secret === 'string' && secret.length > 0 && serialized.includes(secret),
+    );
+    if (leakedSecret) {
+      findings.push('forge-unredacted-credential');
+    }
   }
 
   return findings;

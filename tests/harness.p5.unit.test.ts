@@ -125,7 +125,7 @@ test('P5-AC-4: runner invokes ForgePort for landing and preserves the dry-run sk
   assert.deepStrictEqual(landingRequests, [
     {
       storyId: 'STORY-1',
-      action: 'push|open-pr|merge',
+      action: 'push',
       reason: 'dry-run',
     },
   ]);

@@ -633,6 +633,8 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
           assertStoryState(story, ['unstarted'], parsedEvent, storyId);
         } else if (parsedEvent.event.reason === 'workspace-collision') {
           assertStoryState(story, ['unstarted', 'started', 'parked'], parsedEvent, storyId);
+        } else if (parsedEvent.event.reason === 'pr-surfacing-failed') {
+          assertStoryState(story, ['blocked'], parsedEvent, storyId);
         } else {
           assertStoryState(story, ['started', 'parked'], parsedEvent, storyId);
         }
@@ -650,6 +652,21 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
         break;
       case 'runner-action.skipped-on-dry-run':
         assertStoryState(story, ['done'], parsedEvent, storyId);
+        story.lastEventFamily = family;
+        break;
+      case 'runner-action.pushed':
+      case 'runner-action.merged':
+      case 'runner-action.skipped-repeated-effect':
+        assertStoryState(story, ['done'], parsedEvent, storyId);
+        story.lastEventFamily = family;
+        break;
+      case 'runner-action.opened-pr':
+        assertStoryState(story, ['done', 'blocked'], parsedEvent, storyId);
+        story.lastEventFamily = family;
+        break;
+      case 'runner-action.posted-status':
+      case 'runner-action.posted-comment':
+        assertStoryState(story, ['blocked'], parsedEvent, storyId);
         story.lastEventFamily = family;
         break;
       default:
