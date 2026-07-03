@@ -350,6 +350,24 @@ failure token, extending the Phase-4 run-level workspace fingerprint
 The `done → landed` real effect stays out of Phase 6 (Phase 7); Phase 6 realizes the isolation
 boundary, not real landing.
 
+**Phase 7 realization ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md)).** The
+runner-exclusive landing at `done → landed` now performs a **real effect** on the driven path: the
+runner — never the agent — invokes the real Forge/GitHub adapter through `forge.land()` to push, open a
+PR, or merge, discriminating the repaired `LandingRequest.action` union (`'push' | 'open-pr' | 'merge'`;
+an unknown action fails closed). A re-run or resume against an already-landed effect is recognized
+**from the replayed records** (extending the Phase-4 no-double-effect recognition,
+[ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §5) and is a recorded no-op, refusing to
+land on an exact-head mismatch rather than duplicating or blindly no-op-ing
+([`RESUME-3`](../../product/guarantees.md#31-interruption-resume)). The **Visible block** property above
+(MERGE-5) is realized as a **distinct runner-invoked Forge act, not a `land()` call** — a `blocked` item
+never reaches `done → landed`: when the runner has a safe branch and permission, the real Forge
+opens/updates the PR, posts status, and posts the failure reasons as a comment without changing what
+`blocked` means; when it cannot safely do so, the block is recorded through the durable Records fallback
+and never dropped. The default/dry-run path stays modeled (`runner-action.skipped-on-dry-run`) and
+byte-identical; real landing maps onto the observability-records v0 runner-action families already named
+(no new event family). This realizes the isolation-vs-landing boundary Phase 6 left open, keeping the
+two-authority split intact: Fence adjudication is unchanged, and landing stays runner-owned.
+
 ### Candidate invariants (for w2-s3 consolidation)
 
 This section **names** the invariant candidates the closed table surfaces. `w2-s3-invariant-catalog`
