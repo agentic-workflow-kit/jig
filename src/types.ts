@@ -184,6 +184,13 @@ export interface ResumePlan {
   stopCause: string;
   completedStoryIds: string[];
   blockedStoryIds: string[];
+  priorLandings?: Array<{
+    storyId: string;
+    action: 'push' | 'open-pr' | 'merge';
+    landingKind: 'push' | 'open-pr' | 'merge';
+    targetRef: string;
+    targetHead: string;
+  }>;
   parkedStoryId: string | null;
   unstartedStoryIds: string[];
   parkedRequest?: {

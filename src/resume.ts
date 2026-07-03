@@ -5,7 +5,7 @@ import { composeReferenceRun } from './bootstrap.js';
 import { LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
-import type { CapabilityAttestation } from './ports.js';
+import type { CapabilityAttestation, LandingAction } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
 import type {
   ConfigDoc,
@@ -212,6 +212,38 @@ function findParkedRequest(events: RunEvent[], parkedStoryId: string | null): Re
   };
 }
 
+const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
+
+function isLandingAction(value: unknown): value is LandingAction {
+  return value === 'push' || value === 'open-pr' || value === 'merge';
+}
+
+function priorLandingsFromEvents(events: RunEvent[]): NonNullable<ResumePlan['priorLandings']> {
+  return events
+    .filter((event) => REAL_LANDING_FAMILIES.has(event.family))
+    .flatMap((event) => {
+      if (
+        typeof event.storyId !== 'string' ||
+        !isLandingAction(event.action) ||
+        !isLandingAction(event.landingKind) ||
+        typeof event.targetRef !== 'string' ||
+        typeof event.targetHead !== 'string'
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          storyId: event.storyId,
+          action: event.action,
+          landingKind: event.landingKind,
+          targetRef: event.targetRef,
+          targetHead: event.targetHead,
+        },
+      ];
+    });
+}
+
 export function buildResumePlan(projection: RunProjection, events: RunEvent[]): ResumePlan {
   if (projection.lifecycleState !== 'stopped' || !projection.safeCheckpoint || !projection.stopCause) {
     throw new Error('Cannot resume a run that is not stopped at a safe checkpoint');
@@ -219,6 +251,7 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
 
   const completedStoryIds: string[] = [];
   const blockedStoryIds: string[] = [];
+  const priorLandings = priorLandingsFromEvents(events);
   for (const story of Object.values(projection.stories)) {
     if (story.state === 'done') {
       completedStoryIds.push(story.storyId);
@@ -235,6 +268,7 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
     stopCause: projection.stopCause,
     completedStoryIds,
     blockedStoryIds,
+    ...(priorLandings.length > 0 ? { priorLandings } : {}),
     parkedStoryId,
     unstartedStoryIds: projection.unstartedStoryIds,
     parkedRequest: findParkedRequest(events, parkedStoryId),

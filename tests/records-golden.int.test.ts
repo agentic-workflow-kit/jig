@@ -190,6 +190,24 @@ test('P6-AC-1: default wiring reproduces the Phase-0..4 goldens byte-identically
   }
 });
 
+test('P7-AC-2: the Phase-0..4 goldens keep "action": "push|open-pr|merge" after the union repair', async () => {
+  const landingGoldens = [
+    'golden-run-record-success.json',
+    'golden-run-record-canonical-triad.json',
+    'golden-run-record-multi-success.json',
+  ];
+
+  for (const golden of landingGoldens) {
+    const record = loadFixture<RunRecord>(golden);
+    const landingEvents = record.events.filter((event) => event.family === 'runner-action.skipped-on-dry-run');
+    assert.ok(landingEvents.length > 0, `expected modeled landing events in ${golden}`);
+    assert.ok(
+      landingEvents.every((event) => event.action === 'push|open-pr|merge'),
+      `expected ${golden} to keep the modeled dry-run action token`,
+    );
+  }
+});
+
 test('PR-AC-6: no committed golden record fixture is unread by tests', () => {
   const expectedGoldens = goldenScenarios.map((scenario) => scenario.golden).sort();
   const actualGoldens = readdirSync(fixtureDir)

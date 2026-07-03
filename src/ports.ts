@@ -31,16 +31,50 @@ export interface ExecutionHostPort {
   describe(): HostAttestation;
 }
 
+export type LandingAction = 'push' | 'open-pr' | 'merge';
+
 export interface LandingRequest {
   storyId: string;
-  action: 'push|open-pr|merge';
+  action: LandingAction;
   reason?: 'dry-run';
 }
 
 export type LandingOutcome = Pick<RunEvent, 'family'> & Partial<RunEvent>;
 
+export interface LandingVerificationRequest {
+  storyId: string;
+  action: LandingAction;
+  landingKind: LandingAction;
+  targetRef: string;
+  targetHead: string;
+}
+
+export type LandingVerificationOutcome =
+  | {
+      status: 'matched';
+      targetRef: string;
+      targetHead: string;
+    }
+  | {
+      status: 'mismatched';
+      targetRef: string;
+      expectedHead: string;
+      actualHead: string;
+    };
+
+export interface BlockSurfaceRequest {
+  storyId: string;
+  reason: string;
+  failureReasons: string[];
+  safeBranch?: string;
+  canPush?: boolean;
+  diagnostics?: Record<string, unknown>;
+}
+
 export interface ForgePort {
   land(request: LandingRequest): LandingOutcome | Promise<LandingOutcome>;
+  verifyLanding?(request: LandingVerificationRequest): LandingVerificationOutcome | Promise<LandingVerificationOutcome>;
+  surfaceBlock?(request: BlockSurfaceRequest): LandingOutcome[] | Promise<LandingOutcome[]>;
 }
 
 export interface CandidateWorkItem {

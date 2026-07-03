@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
-import type { AgentPort, ExecutionHostPort, ForgePort, WorkSourcePort } from '../src/ports.js';
+import type { AgentPort, ExecutionHostPort, ForgePort, LandingRequest, WorkSourcePort } from '../src/ports.js';
 import type { Story, WorkerResult } from '../src/types.js';
 
 test('P5-AC-3: AgentPort exposes only request/observe execution semantics', () => {
@@ -52,8 +52,21 @@ test('P5-AC-3: provider ports keep host, forge, and source responsibilities sepa
   assert.deepStrictEqual(Object.keys(workSource), ['candidates']);
   assert.strictEqual((await executionHost.describe()).runContext, 'run-ports');
   assert.strictEqual(
-    (await forge.land({ storyId: 'STORY-1', action: 'push|open-pr|merge' })).family,
+    (await forge.land({ storyId: 'STORY-1', action: 'push' })).family,
     'runner-action.skipped-on-dry-run',
   );
   assert.strictEqual((await workSource.candidates())[0]?.provenance, 'jig-validated');
+});
+
+test('P7-AC-2: LandingRequest.action accepts the push/open-pr/merge union', () => {
+  const requests: LandingRequest[] = [
+    { storyId: 'STORY-1', action: 'push' },
+    { storyId: 'STORY-1', action: 'open-pr' },
+    { storyId: 'STORY-1', action: 'merge' },
+  ];
+
+  assert.deepStrictEqual(
+    requests.map((request) => request.action),
+    ['push', 'open-pr', 'merge'],
+  );
 });
