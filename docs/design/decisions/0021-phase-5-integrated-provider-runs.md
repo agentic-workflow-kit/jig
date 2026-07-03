@@ -205,6 +205,11 @@ manifest/attestation — alongside the launch binding, and it is **immutable for
 like binding): a driver cannot re-attest mid-run to widen its own authority (FENCE-2). The runner
 threads the relevant attestation into `authorizeRequest`; on resume it is recovered the same
 launch-immutable way as the binding (ADR 0020 §3), never re-solicited from a live driver.
+At reference-adapter altitude, the launch attestation is not persisted: resume re-derives it from the
+constant reference host, which is behaviorally identical to recovery because the reference host cannot
+drift or self-widen. Persist-and-recover of the attestation, parallel to the launch binding, is
+deferred to the real-driver phase, where a drifting or self-widening resume attestation becomes a live
+FENCE-2 concern and can be exercised without adding dead machinery.
 
 ### 5. Execution-host containment proof and the isolation-strength catalog
 
