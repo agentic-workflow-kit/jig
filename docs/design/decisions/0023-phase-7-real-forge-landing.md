@@ -160,6 +160,22 @@ real adapter discriminates on it; an unknown action fails closed.**
 - **Unknown action fails closed.** A `LandingRequest` whose `action` is not one of the three union
   members is refused at the seam with a diagnosable stop (FENCE-1 fail-closed posture), never a silent
   fallback or a guessed action.
+- **The dry-run modeled-landing record stays byte-identical (compatibility mapping, binding).** The
+  Phase-0..4 goldens hard-record the modeled landing as `"action": "push|open-pr|merge"`
+  (`tests/fixtures/m5b-local-mvp/golden-run-record-success.json`, `-canonical-triad.json`,
+  `-multi-success.json`), because the modeled/dry-run landing (the harness `modeledLandingEvent()` and
+  `ReferenceForge.land()`) copies `LandingRequest.action` **verbatim** into the record. Making `action`
+  a union and letting the dry-run path emit a single union member (`"push"`) would change that byte and
+  break the byte-identity regression anchor. **Settled: the record `action` serialization on the
+  `skipped-on-dry-run` path is decoupled from the union member and continues to serialize exactly the
+  string `"push|open-pr|merge"`, regardless of the union.** Concretely: the dry-run/reference landing
+  path records the fixed literal `"push|open-pr|merge"` (the pre-union modeled value preserved as the
+  record's dry-run `action` token), while `LandingRequest.action` as a **typed field** becomes the
+  union that the real adapter discriminates on. The type repair does **not** flow into the modeled-record
+  bytes; the byte-identity anchor holds unchanged for every field, including `action`. Real landing
+  emits its real effect through the already-contracted runner-action families (Contract and records
+  posture), in its own new golden — never the modeled `push|open-pr|merge` token. This keeps the hard
+  anchor intact (no golden edit) and is the reason no Residual-B golden churn is authorized.
 - **The stop condition (binding).** The union itself freezes nothing. **If** discriminating the action
   in the real adapter turned out to require freezing an observability-records field to carry the action
   (e.g. a frozen `action` enum on the landed record), that freeze is contract-owner-owned and routes
@@ -238,6 +254,14 @@ Decision 8, `src/redaction.ts`) to the real landing path; it is **not** a new me
   credentials) are scanned and redacted in the **landing records** by the same
   `redaction`/secret-scanning machinery Phase 6 activated. The landing path never leaks a token
   (SEC-1/SEC-3; the Phase-7 stop condition "a Forge credential can appear unredacted in a record").
+- **Activation must include forge-only real runs.** Phase 6 activates redaction in the composition root
+  only for a real agent or real host (`selection.agent === 'codex' || selection.executionHost ===
+'real'`, `src/bootstrap.ts`). A valid Phase-7 config can select only `forge: 'github'` with the agent
+  and host left on reference — a **forge-only real run** in which real Forge credentials enter the
+  landing path while redaction would be **inactive**. The activation predicate therefore gains the
+  real-Forge term so a forge-only real run activates landing-path redaction; scanning the landing path is
+  necessary but not sufficient if activation never turns on. Encoding is deferred; the invariant is
+  fixed: **any real run that can put a Forge credential on the landing path activates redaction.**
 - **Ambiguity is a diagnosable stop.** A redaction **ambiguity on the landing path** — a value that
   cannot be confidently classified as safe — becomes an operator-visible **diagnosable stop**
   (`RedactionAmbiguityError` / `redaction-export-posture-ambiguous`, extending

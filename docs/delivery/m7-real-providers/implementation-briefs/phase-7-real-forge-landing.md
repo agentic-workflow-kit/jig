@@ -136,7 +136,10 @@ Do not:
   block PR-side (a distinct act) with a durable-Records fallback.
 - `src/bootstrap.ts` — add the real forge driver name (e.g. `forge: 'github'`) to the composition
   root's selection, mirroring the Phase-6 `agent: 'codex'` / `executionHost: 'real'` pattern; keep it
-  the sole importer; unknown forge name fails closed.
+  the sole importer; unknown forge name fails closed. **Also extend the redaction-activation condition**
+  (`composeRunPorts`, currently `selection.agent === 'codex' || selection.executionHost === 'real'` at
+  `src/bootstrap.ts:184-185`) to include the real-Forge term (`selection.forge === 'github'`) — see
+  Slice 4.
 - `src/harness.ts` — the runner's `done → landed` call site (lines 516–529): construct the union-typed
   `LandingRequest`, recognize an already-landed effect from the replayed records (recorded no-op), and
   invoke the distinct block-surfacing act on a `blocked` item when a safe branch + permission exist.
@@ -163,6 +166,22 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   reference forge mechanically.
 - The real adapter **discriminates** on the union; an `action` that is not one of the three members
   **fails closed** at the seam (a diagnosable stop, FENCE-1), never a silent fallback.
+- **Preserve the dry-run modeled-landing record bytes — binding, do not re-decide (ADR 0023
+  Decision 2).** The Phase-0..4 goldens
+  (`tests/fixtures/m5b-local-mvp/golden-run-record-success.json`, `-canonical-triad.json`,
+  `-multi-success.json`) hard-record `"action": "push|open-pr|merge"`, because
+  `modeledLandingEvent()` and `ReferenceForge.land()` copy `LandingRequest.action` **verbatim** into the
+  record. **The dry-run/reference modeled-landing record MUST continue to serialize the exact string
+  `"push|open-pr|merge"` for its `action` field — byte-for-byte — after the union repair.** Decouple the
+  record's dry-run `action` token from the union member: the `skipped-on-dry-run` path writes the fixed
+  literal `"push|open-pr|merge"` (the pre-union modeled value), while the union is the **typed** field
+  the real adapter discriminates on. Do **not** let the modeled/dry-run path emit a single union member
+  (`"push"`) into the record — that would change the golden byte and break the anchor. **Expected dry-run
+  record bytes:** `"action": "push|open-pr|merge"` (unchanged). Do **not** touch the Phase-0..4 goldens;
+  no Residual-B golden update is authorized.
+- **Test obligation:** a golden-regression test proving the three Phase-0..4 goldens above stay
+  byte-identical after the `action` union repair — the load-bearing evidence that the type change did not
+  leak into the modeled record.
 - **Stop condition:** if discriminating the action turned out to require freezing an observability-
   records field, that freeze is contract-owner-owned — route back to design. It does **not**: the
   runner-action families the record already carries distinguish the three effects.
@@ -200,10 +219,23 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
 - **Extend** the Phase-6 `src/redaction.ts` scan to the landing path: Forge/GitHub credentials and
   tokens surfaced on the real landing path are scanned and redacted in the **landing records**. This is
   not a new mechanism — it is the Phase-6 activation applied at the landing boundary.
+- **Extend the redaction-ACTIVATION condition to real-Forge selection — binding.** Phase 6 activates
+  redaction in `composeRunPorts` only when `selection.agent === 'codex' || selection.executionHost ===
+'real'` (`src/bootstrap.ts:184-185`), so `redaction` is left **`undefined`** for a valid Phase-7
+  config that sets only `config.drivers.forge = 'github'` (agent/executionHost left on reference). That
+  is a **forge-only real run** in which Forge/GitHub tokens can enter landing records **unredacted** —
+  violating P7-AC-4 ("the landing path never leaks a token"). The activation predicate MUST gain the
+  real-Forge term (`selection.forge === 'github'`) so a forge-only real run activates landing-path
+  redaction. Scanning the landing path (previous bullet) is necessary but not sufficient — if activation
+  never turns on, the scan never runs.
 - A landing-path redaction **ambiguity** becomes an operator-visible **diagnosable stop**
   (`RedactionAmbiguityError` / `redaction-export-posture-ambiguous`, extending ADR 0020 §7 / ADR 0022
   Decision 8) — never a silent leak. Records stay safe to keep/export by default. The landing path never
   leaks a token.
+- **Test obligation:** a forge-only real run (`forge: 'github'`, agent/executionHost on reference) has
+  redaction **enabled** (the composed ports carry `redaction.enabled === true`, not `undefined`) **and**
+  a landing-path secret in that run is redacted in the landing record. This is the P7-AC-4 evidence that
+  activation, not just scanning, covers the forge-only path.
 
 ### Sub-phase 7b — PR-side block surfacing
 
@@ -267,13 +299,17 @@ ForgePort.land() at done → landed and a real push/PR/merge effect occurs`; `P7
 exposes no landing path` (the structural no-landing test); `P7-AC-1: landing stays
 skipped-on-dry-run under dry-run wiring` (the dry-run regression).
 - **Action union** (`tests/providers.real-forge.*` / `tests/ports.*`): `P7-AC-2: the real adapter
-discriminates the action union push/open-pr/merge`; `P7-AC-2: an unknown action fails closed`.
+discriminates the action union push/open-pr/merge`; `P7-AC-2: an unknown action fails closed`; and the
+  **byte-identity guard** `P7-AC-2: the Phase-0..4 goldens keep "action": "push|open-pr|merge" after the
+union repair` (proving the union type did not leak into the modeled dry-run record — Slice 1).
 - **Idempotency** (`tests/providers.real-forge.*` / `tests/resume.*`): `P7-AC-3: a land-then-relaunch is
 recognized from the records and is a recorded no-op`; `P7-AC-3: a re-run against a changed head refuses
 to land rather than duplicating or blindly no-op-ing` (the exact-head safety property).
-- **Landing-path redaction** (`tests/redaction.*`): `P7-AC-4: a landing record carrying a real Forge
-credential is scanned and redacted`; `P7-AC-4: a landing-path redaction ambiguity becomes a diagnosable
-stop`.
+- **Landing-path redaction** (`tests/redaction.*` / `tests/bootstrap.*`): `P7-AC-4: a landing record
+carrying a real Forge credential is scanned and redacted`; `P7-AC-4: a landing-path redaction ambiguity
+becomes a diagnosable stop`; and the **forge-only activation** guard `P7-AC-4: a forge-only real run
+(forge: github, agent/executionHost on reference) has redaction enabled and a landing-path secret is
+redacted` (proving the activation predicate, not just the scan, covers the forge-only path — Slice 4).
 - **PR-side block surfacing** (`tests/providers.real-forge.*` / `tests/harness.*`): `P7-AC-5: a blocked
 run with a safe branch and permission surfaces status and a failure-reason PR comment`; `P7-AC-5: a
 blocked run with no safe branch falls back to the durable Records path rather than dropping the block`.
