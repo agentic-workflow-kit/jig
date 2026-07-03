@@ -187,8 +187,14 @@ function verifyOptionalBindings(
 }
 
 function configForResumeComposition(verifiedConfig?: ConfigDoc): ConfigDoc {
+  const rawDrivers = verifiedConfig?.drivers;
+  const drivers =
+    rawDrivers && typeof rawDrivers === 'object' && !Array.isArray(rawDrivers)
+      ? { ...rawDrivers, workSource: 'reference' }
+      : { workSource: 'reference' };
+
   return {
-    drivers: verifiedConfig?.drivers ?? {},
+    drivers,
   };
 }
 
