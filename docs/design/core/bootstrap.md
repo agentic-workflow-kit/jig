@@ -146,6 +146,13 @@ mechanics Wave 2 deferred here by name.
 - Wires the Fence/Doorbell with the bound policy at launch and on resume; the classifier rules stay
   in [`authorization.md`](./authorization.md).
 
+**Phase 5 realization ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).** The
+composition root selects each of the four adapters from `config.drivers`, defaulting to the reference
+adapters (reference agent = the scripted worker, so the default wiring reproduces the Phase 0–4 dry-run
+and its goldens exactly); an unknown driver name fails closed with usage guidance rather than falling
+back silently. The runner, Fence, and records never import an adapter — only this composition root
+does.
+
 ```mermaid
 %%{init: {
   "theme": "base",

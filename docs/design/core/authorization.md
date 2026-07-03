@@ -169,6 +169,16 @@ Insufficient proof does not silently widen authority. It removes the request fro
 auto-grantable set and sends it to the Doorbell or keeps it denied by scope, depending on the
 request class.
 
+**Phase 5 realization ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).** The Fence
+gains a capability-attestation input (`authorize(request, boundPolicy, attestation)`): an otherwise
+low-risk request is auto-grantable only when a fresh, positive, driver- and run-context-specific proof
+exists. A provider-supplied **isolation category or capability claim is input to** this judgment, never
+a substitute for it — a `strong`-isolation self-report with an absent, stale, or overstated proof is
+judged unproven and unlocks nothing. Freshness is modeled deterministically at local altitude
+(`fresh` | `stale` | `missing` against a policy-declared expectation); wall-clock validity windows are
+a later real-driver concern. The gate stays positive-only and core-judged; providers supply proof, core
+decides sufficiency.
+
 ## Doorbell escalation
 
 The Doorbell is the owner-facing side of routed authority decisions.

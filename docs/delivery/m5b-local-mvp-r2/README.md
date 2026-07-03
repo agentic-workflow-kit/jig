@@ -58,8 +58,13 @@ Plans").
 
 - **Phase 4 — Reliable Local Runs**: stop/resume from records, no-double-effect, causal
   notices, redaction/export posture, inspect-by-replay.
-- **Phase 5 — Integrated Provider Runs**: provider conformance gates and real seam
-  realizations.
+- **Phase 5 — Integrated Provider Runs**: the four provider seams as exercised jig-internal ports,
+  a composition root, a capability-attestation Fence input, and a reusable conformance suite —
+  proven with reference adapters (no real drivers), settled by
+  [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
+- **Phase 6 and beyond**: real drivers, real Forge/GitHub landing, real work-source, the
+  post-Phase-5 records-integrity phase, and the TUI — split out of the r1 Phase 5 bucket by ADR 0021
+  (see [`phases.md`](./phases.md) "Phase 6 and beyond").
 
 ## Roadmap files
 
@@ -75,6 +80,10 @@ Plans").
   session-ready brief for the reliable-local-runs phase (replay inspect, resume,
   no-double-effect, workspace continuity, redaction posture), settled by
   [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
+- [Phase 5 implementation brief](./implementation-briefs/phase-5-integrated-provider-runs.md) —
+  session-ready brief for the integrated-provider-runs phase (the four ports, composition root,
+  capability attestation, isolation catalog, runner-invoked forge, work-source, conformance suite),
+  settled by [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 
 Briefs for the delivered phases remain in the archived track's
 [`implementation-briefs/`](../m5b-local-mvp/implementation-briefs/) as period-accurate
