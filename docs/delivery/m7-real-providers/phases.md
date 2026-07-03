@@ -192,6 +192,11 @@ the `AgentPort` never gains a landing path.
   `'push' | 'open-pr' | 'merge'`.
 - Real-effect idempotency: a re-run against an already-landed effect recognizes the prior landing
   from the records and does not repeat it.
+- **PR-side block surfacing (MERGE-5):** when a run is blocked and the runner has a safe branch and
+  permission to push, the real Forge adapter surfaces the block on the PR — opening or updating the
+  PR-side surface, posting status, and surfacing the failure reasons as a comment — without changing
+  what `blocked` means; when it cannot safely do so, the block is still recorded through the durable
+  Records fallback and never dropped.
 - Secrets on the real landing path (Forge/GitHub credentials) are scanned and redacted in records;
   the landing path never leaks a token.
 
@@ -217,6 +222,11 @@ the `AgentPort` never gains a landing path.
   stop, and records stay safe to keep and export. Traces:
   [`SEC-1`](../../product/guarantees.md#16-security--no-leaks-no-phone-home)–
   [`SEC-3`](../../product/guarantees.md#16-security--no-leaks-no-phone-home).
+- **P7-AC-5** — Blocked work is surfaced PR-side through the real Forge: when the runner has a safe
+  branch and permission to push, the block opens or updates the PR, posts its status, and records the
+  failure reasons as a PR comment, without changing what `blocked` means; when the run cannot safely
+  do that, the block is still recorded through the durable Records fallback rather than dropped.
+  Traces: [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence), ADR 0021 decision 6.
 
 **Evidence/tests:**
 
@@ -225,6 +235,9 @@ the `AgentPort` never gains a landing path.
 - An `action`-union discrimination test and an unknown-action fail-closed test (P7-AC-2).
 - A land-then-relaunch idempotency test (P7-AC-3).
 - A landing-path secret-redaction test (P7-AC-4).
+- A blocked-run PR-surfacing test proving status and a failure-reason comment are posted when the
+  runner has a safe branch and permission, plus a no-safe-branch test proving the block falls back to
+  the durable Records path rather than being dropped (P7-AC-5).
 - The driver conformance suite still fails closed on a broken adapter; the Phase-0..4 goldens stay
   byte-identical under default wiring; `corepack pnpm check` green.
 
@@ -321,9 +334,13 @@ came from.
 approved plan's basis changes while a run is stopped, Jig actively blocks resume until the change is
 re-approved rather than resuming on stale authority.
 
-**Goal:** Add tamper-evidence over the durable record chain — the authoritative launch header plus
-the plan and policy snapshots — and make the `resume-blocked-missing-approval` re-approval path
-active, replacing the Phase-4 named-seam-with-no-active-trigger. Sequenced **after** Phase 6 because
+**Goal:** Add tamper-evidence over the durable record chain — computed over the authoritative launch
+header plus the plan and policy snapshots — and make the `resume-blocked-missing-approval` re-approval
+path active, replacing the Phase-4 named-seam-with-no-active-trigger. The tamper-evidence is
+**computed over** the header and snapshots but **materialized on a separate integrity sidecar / a
+non-golden surface**, so it does not alter the default golden record bytes — the byte-identical
+Phase-0..4 goldens stay a regression anchor through this phase, and integrity lives beside the record,
+not inside it. Sequenced **after** Phase 6 because
 the real trust anchor arrives with real providers: tamper-evidence over a chain only real drivers can
 meaningfully corrupt is worth more once those drivers exist
 ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md), integrity deferred
@@ -331,8 +348,12 @@ post-Phase-5).
 
 **Requirements:**
 
-- Tamper-evidence (a digest/HMAC/hash-chain) over the launch header and the plan and policy
-  snapshots, so an out-of-band edit to a record or snapshot is detectable at inspect/resume.
+- Tamper-evidence (a digest/HMAC/hash-chain) **computed over** the launch header and the plan and
+  policy snapshots but **stored on a separate integrity sidecar / non-golden surface**, so an
+  out-of-band edit to a record or snapshot is detectable at inspect/resume **without** writing
+  integrity bytes into the default golden record. This is a design constraint the Phase 9 design
+  session (ADR + T9) must honor: the byte-identical Phase-0..4 goldens are load-bearing for the whole
+  program, so integrity rides beside the record rather than mutating its default bytes.
 - The active `resume-blocked-missing-approval` path: a safety-relevant change to the approved plan's
   basis while a run is stopped requires fresh approval and evidence before resume proceeds — the
   Phase-4 named seam
@@ -342,9 +363,10 @@ post-Phase-5).
 
 **Acceptance criteria:**
 
-- **P9-AC-1** — The launch header and the plan/policy snapshots carry tamper-evidence; an out-of-band
-  edit to a record or snapshot is detected and surfaced at inspect, and resume refuses on a broken
-  chain with a named reason. Traces:
+- **P9-AC-1** — Tamper-evidence is computed over the launch header and the plan/policy snapshots and
+  materialized on a separate integrity sidecar / non-golden surface — **not** written into the default
+  golden record, which stays byte-identical; an out-of-band edit to a record or snapshot is detected
+  and surfaced at inspect, and resume refuses on a broken chain with a named reason. Traces:
   [`GUARD-1`](../../product/guarantees.md#13-anti-gaming),
   [`SEE-4`](../../product/guarantees.md#5-full-observability),
   [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
@@ -370,6 +392,9 @@ post-Phase-5).
 
 **Stop conditions:**
 
+- Stop if tamper-evidence lands integrity bytes in the default golden record surface rather than a
+  separate integrity sidecar / non-golden surface — that would break the byte-identical Phase-0..4
+  goldens regression anchor, which stays sacrosanct through this phase.
 - Stop if tamper-evidence requires freezing the observability-records schema — the digest/HMAC field
   posture is design-owned; route freeze back to design.
 - Stop if the re-approval path can be widened mid-run without owner approval, or if a model
