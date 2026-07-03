@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { composeReferenceRun } from './bootstrap.js';
 import { LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
@@ -8,7 +9,6 @@ import { projectRunEvents } from './projection.js';
 import { RecordManager } from './records.js';
 import { ResumeRefusal, resumeRun } from './resume.js';
 import type { PlanInstance, RunRecord } from './types.js';
-import { ScriptedWorker } from './worker.js';
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);
@@ -113,12 +113,22 @@ async function handleRun(args: string[]): Promise<void> {
     const config = loadConfig(configPath);
     const policy = loadPolicy(policyPath);
     const scriptedOutput = loadJson(scriptedOutputPath);
-
-    const worker = new ScriptedWorker(scriptedOutput as Record<string, unknown>);
+    const composed = await composeReferenceRun({
+      planInstance: planInstance as PlanInstance,
+      config,
+      scriptedOutput: scriptedOutput as Record<string, unknown>,
+    });
+    const [candidate] = await composed.workSource.candidates();
+    if (!candidate) {
+      throw new Error('No validated work-source candidate available');
+    }
     const recordManager = new RecordManager();
-    const harness = new LocalHarness(worker, recordManager, createOwnerDecisionSource());
+    const harness = new LocalHarness(composed.agent, recordManager, createOwnerDecisionSource(), {
+      capabilityAttestation: composed.capabilityAttestation,
+      forge: composed.forge,
+    });
 
-    const status = await harness.run(planInstance as PlanInstance, config, policy);
+    const status = await harness.run(candidate.planInstance, config, policy);
 
     if (status !== 'success') {
       process.exit(1);

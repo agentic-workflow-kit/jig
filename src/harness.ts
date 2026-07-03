@@ -1,5 +1,16 @@
 import { authorizeRequest } from './authorization.js';
-import type { ConfigDoc, PlanInstance, PolicyDoc, RecordSink, ResumePlan, RunStatus, Story, Worker } from './types.js';
+import type { CapabilityAttestation, ForgePort } from './ports.js';
+import type {
+  ConfigDoc,
+  PlanInstance,
+  PolicyDoc,
+  RecordSink,
+  ResumePlan,
+  RunEvent,
+  RunStatus,
+  Story,
+  Worker,
+} from './types.js';
 
 type OwnerDecision = 'approve' | 'reject';
 
@@ -11,15 +22,53 @@ type StoryExecutionResult =
   | { status: 'success' }
   | { status: 'failure'; stopReason: 'work-item-blocked' | 'unattended-park'; checkpointStoryId: string };
 
+interface HarnessPorts {
+  capabilityAttestation?: CapabilityAttestation;
+  forge?: ForgePort;
+}
+
+const defaultForge: ForgePort = {
+  // Keep this tiny duplicate modeled landing adapter local to the harness so core never imports
+  // reference provider implementations just to preserve the default dry-run behavior.
+  land: (request) => ({
+    family: 'runner-action.skipped-on-dry-run',
+    storyId: request.storyId,
+    action: request.action,
+    reason: request.reason ?? 'dry-run',
+  }),
+};
+
+function modeledLandingEvent(request: {
+  storyId: string;
+  action: 'push|open-pr|merge';
+  reason: 'dry-run';
+}): Pick<RunEvent, 'family'> & Partial<RunEvent> {
+  return {
+    family: 'runner-action.skipped-on-dry-run',
+    storyId: request.storyId,
+    action: request.action,
+    reason: request.reason,
+  };
+}
+
 export class LocalHarness {
   private readonly worker: Worker;
   private readonly recordManager: RecordSink;
   private readonly ownerDecisionSource: OwnerDecisionSource | null;
+  private readonly capabilityAttestation: CapabilityAttestation | undefined;
+  private readonly forge: ForgePort;
 
-  constructor(worker: Worker, recordManager: RecordSink, ownerDecisionSource: OwnerDecisionSource | null = null) {
+  constructor(
+    worker: Worker,
+    recordManager: RecordSink,
+    ownerDecisionSource: OwnerDecisionSource | null = null,
+    ports: HarnessPorts = {},
+  ) {
     this.worker = worker;
     this.recordManager = recordManager;
     this.ownerDecisionSource = ownerDecisionSource;
+    this.capabilityAttestation = ports.capabilityAttestation;
+    this.forge = ports.forge ?? defaultForge;
   }
 
   async run(planInstance: PlanInstance, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
@@ -256,7 +305,7 @@ export class LocalHarness {
           requestKind: request.kind,
         });
 
-        const decision = authorizeRequest(request, story, policy);
+        const decision = authorizeRequest(request, story, policy, this.capabilityAttestation);
         if (decision.outcome === 'grant') {
           this.recordManager.recordEvent({
             family: 'authorization.granted',
@@ -373,12 +422,13 @@ export class LocalHarness {
           storyId: story.id,
           changedFiles: result.changedFiles,
         });
-        this.recordManager.recordEvent({
-          family: 'runner-action.skipped-on-dry-run',
+        const landingRequest = {
           storyId: story.id,
           action: 'push|open-pr|merge',
           reason: 'dry-run',
-        });
+        } as const;
+        await this.forge.land(landingRequest);
+        this.recordManager.recordEvent(modeledLandingEvent(landingRequest));
         return { status: 'success' };
       }
 

@@ -1,4 +1,5 @@
-import type { AuthorizationDecision, AuthorizationRequest, PolicyDoc, Story } from './types.js';
+import type { CapabilityAttestation, HostFailureToken, IsolationStrength } from './ports.js';
+import type { AuthorizationBasis, AuthorizationDecision, AuthorizationRequest, PolicyDoc, Story } from './types.js';
 
 const PRIVILEGED_KINDS = new Set(['push', 'open-pr', 'merge', 'credential-access']);
 
@@ -61,10 +62,74 @@ function isInDeclaredScope(request: AuthorizationRequest, story: Story): boolean
   return request.paths.every((path) => matchesAnyPattern(path, scope));
 }
 
+function isolationRank(strength: IsolationStrength | undefined): number {
+  if (strength === 'strong') return 3;
+  if (strength === 'weak') return 2;
+  if (strength === 'none') return 1;
+  return 0;
+}
+
+function requiredIsolationFor(request: AuthorizationRequest, policy: PolicyDoc): IsolationStrength | null {
+  const capabilityIsolation = policy.policy?.rules?.capabilityIsolation;
+  if (!capabilityIsolation || typeof capabilityIsolation !== 'object' || Array.isArray(capabilityIsolation)) {
+    return null;
+  }
+
+  if (typeof request.capability !== 'string') {
+    return Object.keys(capabilityIsolation).length > 0 ? 'strong' : null;
+  }
+
+  const value = (capabilityIsolation as Record<string, unknown>)[request.capability];
+  return value === 'none' || value === 'weak' || value === 'strong' ? value : null;
+}
+
+function proofFailureBasis(
+  request: AuthorizationRequest,
+  policy: PolicyDoc,
+  attestation?: CapabilityAttestation,
+): AuthorizationBasis | null {
+  const requiredIsolation = requiredIsolationFor(request, policy);
+  if (!requiredIsolation) {
+    return null;
+  }
+
+  if (
+    !attestation ||
+    attestation.capability !== request.capability ||
+    attestation.freshness !== 'fresh' ||
+    attestation.positive !== true
+  ) {
+    return 'containment-unproven';
+  }
+
+  if (
+    isolationRank(attestation.reportedIsolationStrength) > 0 &&
+    isolationRank(attestation.reportedIsolationStrength) > isolationRank(attestation.provenIsolationStrength)
+  ) {
+    return 'isolation-strength-overstated';
+  }
+
+  const failureToken = attestation.failureToken;
+  if (
+    failureToken === 'containment-unproven' ||
+    failureToken === 'isolation-strength-overstated' ||
+    failureToken === 'workspace-collision'
+  ) {
+    return failureToken satisfies HostFailureToken;
+  }
+
+  if (isolationRank(attestation.provenIsolationStrength) < isolationRank(requiredIsolation)) {
+    return 'containment-unproven';
+  }
+
+  return null;
+}
+
 export function authorizeRequest(
   request: AuthorizationRequest,
   story: Story,
   policy: PolicyDoc,
+  attestation?: CapabilityAttestation,
 ): AuthorizationDecision {
   if (hasInvalidRequestPath(request)) {
     return {
@@ -95,6 +160,14 @@ export function authorizeRequest(
       };
     }
 
+    const capabilityProofFailure = proofFailureBasis(request, policy, attestation);
+    if (capabilityProofFailure) {
+      return {
+        outcome: 'route',
+        basis: [capabilityProofFailure],
+      };
+    }
+
     return {
       outcome: 'grant',
       basis: ['declared-request', 'in-scope', 'CFG-10:reversible'],
@@ -103,6 +176,14 @@ export function authorizeRequest(
 
   if (request.kind === 'run-checks') {
     if (isDeclaredRequest(request, story)) {
+      const capabilityProofFailure = proofFailureBasis(request, policy, attestation);
+      if (capabilityProofFailure) {
+        return {
+          outcome: 'route',
+          basis: [capabilityProofFailure],
+        };
+      }
+
       return {
         outcome: 'grant',
         basis: ['declared-request', 'CFG-10:reversible'],

@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { composeReferenceRun } from './bootstrap.js';
 import { LocalHarness } from './harness.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
@@ -18,7 +19,6 @@ import type {
   RunRecord,
   RunStatus,
 } from './types.js';
-import { ScriptedWorker } from './worker.js';
 import { captureWorkspaceFingerprint } from './workspace.js';
 
 export type ResumeRefusalReason =
@@ -156,6 +156,16 @@ function verifyOptionalBindings(
       );
     }
   }
+}
+
+function configForResumeComposition(options: ResumeRunOptions): ConfigDoc {
+  if (options.configPath) {
+    return loadConfig(options.configPath);
+  }
+
+  return {
+    drivers: {},
+  };
 }
 
 function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
@@ -305,9 +315,20 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
 
   const resumePlan = buildResumePlan(projection, existingEvents);
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
-  const worker = new ScriptedWorker(scriptedOutput);
+  const composed = await composeReferenceRun({
+    planInstance: { plan: planSnapshot },
+    config: configForResumeComposition(options),
+    scriptedOutput,
+  });
+  const [candidate] = await composed.workSource.candidates();
+  if (!candidate) {
+    throw new Error('No validated work-source candidate available');
+  }
   const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents);
-  const harness = new LocalHarness(worker, recordSink, options.ownerDecisionSource ?? null);
+  const harness = new LocalHarness(composed.agent, recordSink, options.ownerDecisionSource ?? null, {
+    capabilityAttestation: composed.capabilityAttestation,
+    forge: composed.forge,
+  });
 
-  return await harness.resume({ plan: planSnapshot }, policySnapshot, resumePlan);
+  return await harness.resume(candidate.planInstance, policySnapshot, resumePlan);
 }

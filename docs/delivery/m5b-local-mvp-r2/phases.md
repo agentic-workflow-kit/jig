@@ -392,6 +392,9 @@ briefed phases; re-triage each when Phase 5 is briefed and delivered.
 
 - **Phase 6 — Real driver integration.** A real agent driver (move beyond the scripted stub) and a
   real execution host with genuine confinement proof, behind the Phase 5 ports and conformance suite.
+- **Resume attestation persist/recover.** Persisting the launch-captured capability attestation and
+  recovering it on resume, parallel to the binding, begins when real drivers can drift or self-widen;
+  the Phase 5 reference host re-derives an equivalent constant attestation instead.
 - **Forge/GitHub landing.** Real push, PR, status, comment, and merge through the runner-owned
   `ForgePort` — the first phase where `done → landed` performs a real effect (real-effect idempotency
   arrives here).

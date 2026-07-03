@@ -55,6 +55,7 @@ Priority is a client-value planning signal, not a schema, package, or tracker.
 | Capability attestation (Fence input)                                          | Autonomy follows fresh, core-judged proof; a claim never unlocks by itself.  |       P2 | Phase 5 (ADR 0021)                 |
 | Execution-host proof model + isolation catalog (reference)                    | Self-report is distinguished from confinement proof; honest SEC-2 posture.   |       P2 | Phase 5 (ADR 0021)                 |
 | Runner-invoked Forge seam (modeled) + Work-source seam (reference)            | Landing stays runner-owned; source candidates cross plan intake.             |       P2 | Phase 5 (ADR 0021)                 |
+| Resume attestation persist/recover                                            | Resume detects real-driver attestation drift instead of re-deriving it.      |       P2 | Phase 6+                           |
 | Real agent + real execution host driver                                       | Move beyond the scripted stub with genuine containment.                      |       P2 | Phase 6                            |
 | Forge/GitHub landing (real push/PR/merge)                                     | PR and merge workflows through runner-owned authority.                       |    P2/P3 | Phase 6+                           |
 | Work-source integrations (real import/sync)                                   | Import candidates from issue trackers or other sources.                      |       P3 | Phase 6+                           |
