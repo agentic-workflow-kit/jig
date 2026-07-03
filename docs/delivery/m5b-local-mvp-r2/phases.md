@@ -387,22 +387,10 @@ dry-run only; the default wiring reproduces the Phase 0–4 dry-run and its gold
 
 ## Phase 6 and beyond — the deferred tail
 
-Split out of the r1 Phase 5 bucket by ADR 0021 so the ladder stays honest. These are placements, not
-briefed phases; re-triage each when Phase 5 is briefed and delivered.
-
-- **Phase 6 — Real driver integration.** A real agent driver (move beyond the scripted stub) and a
-  real execution host with genuine confinement proof, behind the Phase 5 ports and conformance suite.
-- **Resume attestation persist/recover.** Persisting the launch-captured capability attestation and
-  recovering it on resume, parallel to the binding, begins when real drivers can drift or self-widen;
-  the Phase 5 reference host re-derives an equivalent constant attestation instead.
-- **Forge/GitHub landing.** Real push, PR, status, comment, and merge through the runner-owned
-  `ForgePort` — the first phase where `done → landed` performs a real effect (real-effect idempotency
-  arrives here).
-- **Work-source integrations.** Real import/sync from issue trackers or other sources, still crossing
-  `PlanValidator`.
-- **Records-integrity phase.** Record/snapshot tamper-evidence and the active
-  `resume-blocked-missing-approval` re-approval path — deferred to after Phase 5 by
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md), because a real trust anchor
-  arrives with real providers.
-- **TUI / dashboard, Learning loop, policy analyzer.** Later operator-experience and analysis work
-  (see [`feature-inventory.md`](./feature-inventory.md)).
+Split out of the r1 Phase 5 bucket by ADR 0021, this tail is now a track of its own. Phases 6-9 (real
+agent/host drivers, real Forge/GitHub landing, real work-source intake, and records-integrity) derive
+from org milestone **M7 — Real Provider Integration** and are defined, with ID-bearing acceptance
+criteria, in the [M7 real-providers track](../m7-real-providers/README.md) and its
+[phase details](../m7-real-providers/phases.md). The TUI/dashboard, Learning loop (M6), policy
+analyzer, and v0 contract freeze live there as "beyond this track / checkpoints." They are not
+re-defined here, so the ladder stays single-sourced.

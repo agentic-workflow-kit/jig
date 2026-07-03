@@ -13,7 +13,11 @@ stop conditions without inventing product or design facts.
 Current delivery planning:
 
 - [M5b local MVP roadmap, r2](./m5b-local-mvp-r2/) — the live track: delivered state,
-  org-M5 exit-criteria map, and the remaining Phase 4/5 ladder.
+  org-M5 exit-criteria map, and the remaining Phase 4/5 ladder. Its provider tail (Phases 6-9) now
+  lives in the M7 track below.
+- [M7 real-providers track](./m7-real-providers/) — derives org milestone M7 (Real Provider
+  Integration) into Phases 6-9: real agent/host drivers, real Forge/GitHub landing, real
+  work-source intake, and records-integrity, behind the P5-pinned ports.
 
 Historical:
 

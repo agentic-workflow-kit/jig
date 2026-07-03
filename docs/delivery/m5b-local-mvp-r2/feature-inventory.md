@@ -55,12 +55,12 @@ Priority is a client-value planning signal, not a schema, package, or tracker.
 | Capability attestation (Fence input)                                          | Autonomy follows fresh, core-judged proof; a claim never unlocks by itself.  |       P2 | Phase 5 (ADR 0021)                 |
 | Execution-host proof model + isolation catalog (reference)                    | Self-report is distinguished from confinement proof; honest SEC-2 posture.   |       P2 | Phase 5 (ADR 0021)                 |
 | Runner-invoked Forge seam (modeled) + Work-source seam (reference)            | Landing stays runner-owned; source candidates cross plan intake.             |       P2 | Phase 5 (ADR 0021)                 |
-| Resume attestation persist/recover                                            | Resume detects real-driver attestation drift instead of re-deriving it.      |       P2 | Phase 6+                           |
-| Real agent + real execution host driver                                       | Move beyond the scripted stub with genuine containment.                      |       P2 | Phase 6                            |
-| Forge/GitHub landing (real push/PR/merge)                                     | PR and merge workflows through runner-owned authority.                       |    P2/P3 | Phase 6+                           |
-| Work-source integrations (real import/sync)                                   | Import candidates from issue trackers or other sources.                      |       P3 | Phase 6+                           |
-| Record/snapshot tamper-evidence                                               | Recorded rules cannot be silently altered between stop and resume.           |       P2 | Records-integrity (post-Phase 5)   |
-| TUI/dashboard                                                                 | Live visibility for repeated operator use.                                   |       P3 | Phase 6+                           |
+| Resume attestation persist/recover                                            | Resume detects real-driver attestation drift instead of re-deriving it.      |       P2 | M7 track — Phase 6 (P6-AC-5)       |
+| Real agent + real execution host driver                                       | Move beyond the scripted stub with genuine containment.                      |       P2 | M7 track — Phase 6                 |
+| Forge/GitHub landing (real push/PR/merge)                                     | PR and merge workflows through runner-owned authority.                       |    P2/P3 | M7 track — Phase 7                 |
+| Work-source integrations (real import/sync)                                   | Import candidates from issue trackers or other sources.                      |       P3 | M7 track — Phase 8                 |
+| Record/snapshot tamper-evidence                                               | Recorded rules cannot be silently altered between stop and resume.           |       P2 | M7 track — Phase 9                 |
+| TUI/dashboard                                                                 | Live visibility for repeated operator use.                                   |       P3 | M7 track — checkpoints             |
 | Learning loop                                                                 | Run records become hardening recommendations.                                |       P3 | After representative records exist |
 | Policy analyzer                                                               | Tune policy strictness and noise from run history.                           |       P3 | Later                              |
 
@@ -74,6 +74,9 @@ Priority is a client-value planning signal, not a schema, package, or tracker.
   records, resume, replay inspect, redaction, workspace continuity) have since delivered in Phases R,
   3, and 4 — see the [README delivered list](./README.md); they are kept here as the value trace.
 - **Re-triaged after Phase 4 (ADR 0021):** the r1 Phase 5 bucket is split. Phase 5 now covers the
-  provider **ports + conformance + reference adapters + capability attestation** (the seam machinery);
-  **real** drivers, real Forge/GitHub landing, real work-source, tamper-evidence, and the TUI move to
-  Phase 6+, as reflected in the placements above and in [`phases.md`](./phases.md).
+  provider **ports + conformance + reference adapters + capability attestation** (the seam machinery).
+  The **real** drivers, real Forge/GitHub landing, real work-source, tamper-evidence, and the TUI
+  moved out of this track entirely: they are now Phases 6-9 (and the checkpoints) of the
+  [M7 real-providers track](../m7-real-providers/README.md), with ID-bearing acceptance criteria in
+  its [`phases.md`](../m7-real-providers/phases.md). The "Placed in" column above points there so this
+  inventory does not re-state a second ladder.

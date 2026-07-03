@@ -64,7 +64,8 @@ Plans").
   [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 - **Phase 6 and beyond**: real drivers, real Forge/GitHub landing, real work-source, the
   post-Phase-5 records-integrity phase, and the TUI — split out of the r1 Phase 5 bucket by ADR 0021
-  (see [`phases.md`](./phases.md) "Phase 6 and beyond").
+  and now defined in the [M7 real-providers track](../m7-real-providers/README.md) (see
+  [`phases.md`](./phases.md) "Phase 6 and beyond").
 
 ## Roadmap files
 
