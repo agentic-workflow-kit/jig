@@ -232,6 +232,14 @@ event log.
 - **P4-AC-3** — Safety-relevant changes while stopped require fresh approval and evidence
   before resuming. Traces: [`RESUME-5`](../../product/guarantees.md#31-interruption-resume),
   [`GUARD-2`](../../product/guarantees.md#13-anti-gaming).
+  - _Phase 4 local realization
+    ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md)):_ satisfied by
+    preserving **launch-policy immutability across resume** — bootstrap persists the resolved launch
+    **policy snapshot** (alongside the plan snapshot) and resume adjudicates resumed work from that
+    snapshot, never a permissive stub, so the rules cannot silently loosen. `resume-blocked-missing-approval`
+    remains a **named seam with no active local trigger** (every locally detectable change is already
+    caught by the binding and workspace gates); the active re-approval affordance and record/snapshot
+    tamper-evidence are deferred to the post-Phase-5 records-integrity phase.
 - **P4-AC-4** — `inspect` explains why a run stopped, the notice produced, and the safe
   resume point, by replaying the event log — including for a run with no finalized
   `run.json`. Traces: [`LIVE-2`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run),
