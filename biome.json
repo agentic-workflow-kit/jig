@@ -12,6 +12,7 @@
       "**/*.cjs",
       "**/*.mjs",
       "**/*.json",
+      "!tools/n1a",
       "!**/node_modules",
       "!**/dist",
       "!**/coverage",

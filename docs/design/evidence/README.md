@@ -17,6 +17,23 @@ guarantee, invariant, or decision IDs the evidence supports.
 
 ## Records
 
-| Date       | Record                                                                            | Purpose                                                                                                                                    |
-| ---------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-07-04 | [EVRUN partial real-provider smoke evidence](./2026-07-04-evrun-partial-smoke.md) | Pending coordinator-filled evidence for one scripted `work-source -> forge -> records-integrity` smoke run against the disposable sandbox. |
+| Date       | Record                                                                                                                      | Purpose                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-04 | [N1A-P01/P02/P03 app-server surface, readiness, and parentage](./2026-07-04-n1a-p01-p02-p03-surface-readiness-parentage.md) | Codex app-server schema, stdio readiness, managed-daemon availability, and owned-process parentage evidence for N1b.                       |
+| 2026-07-04 | [N1A-P04/P05 turn lifecycle and tool events](./2026-07-04-n1a-p04-p05-turn-lifecycle-tool-events.md)                        | Basic harmless turn lifecycle and structured command execution event evidence for N1b.                                                     |
+| 2026-07-04 | [N1A-P06/P07 approval relay and denial](./2026-07-04-n1a-p06-p07-approval-denial.md)                                        | Structured approval request, accept, decline, and denial-state evidence for N1b.                                                           |
+| 2026-07-04 | [N1A-P08 interrupt delivery](./2026-07-04-n1a-p08-interrupt.md)                                                             | Active-turn interrupt request and terminal interrupted-state evidence for N1b.                                                             |
+| 2026-07-04 | [N1A-P09/P10 busy behavior and cleanup](./2026-07-04-n1a-p09-p10-busy-cleanup.md)                                           | Overlapping turn-start behavior, malformed request handling, and restart cleanup evidence for N1b.                                         |
+| 2026-07-04 | [N1A-P11/P12 resume and durability](./2026-07-04-n1a-p11-p12-resume-durability.md)                                          | Persistent thread resume and durable app-server session-state evidence for N1b.                                                            |
+| 2026-07-04 | [EVRUN partial real-provider smoke evidence](./2026-07-04-evrun-partial-smoke.md)                                           | Pending coordinator-filled evidence for one scripted `work-source -> forge -> records-integrity` smoke run against the disposable sandbox. |
+
+## N1a deferred probes
+
+- `N1A-P13` was not attempted. It was Tier 3 / lowest priority for this capture, and no natural
+  opportunity arose during the Tier 1 / Tier 2 app-server session capture to observe prompt-size or
+  bounded-context behavior. It remains an open probe for a future N1a follow-up if N1b needs that
+  input.
+- `N1A-P14` is explicitly out of scope for this capture. The capture ran on macOS only, and no
+  Windows / Git Bash host was available. Per the N1a plan, Windows support is therefore not proven;
+  any transport decision that wants to claim cross-platform cleanup must gate on running P14
+  separately.

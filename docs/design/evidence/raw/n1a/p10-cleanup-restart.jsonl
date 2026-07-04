@@ -1,0 +1,7 @@
+{"at":"2026-07-04T13:37:51.204Z","direction":"process","payload":{"pid":84026,"probe":"cleanup-restart"}}
+{"at":"2026-07-04T13:37:51.204Z","direction":"client","payload":{"id":1,"method":"initialize","params":{"clientInfo":{"name":"n1a-probe","version":"0.0.0"},"capabilities":{"experimentalApi":true}}}}
+{"at":"2026-07-04T13:37:51.270Z","direction":"server","payload":{"id":1,"result":{"userAgent":"n1a-probe/0.142.5 (Mac OS 26.5.1; arm64) dumb (n1a-probe; 0.0.0)","codexHome":"<redacted-home>/.codex","platformFamily":"unix","platformOs":"macos"}}}
+{"at":"2026-07-04T13:37:51.270Z","direction":"client","payload":{"method":"initialized"}}
+{"at":"2026-07-04T13:37:51.275Z","direction":"psRestart","payload":"  PID  PPID  PGID   SESS STAT COMMAND\n84026 83310 83310      0 S    codex app-server --listen stdio://\n"}
+{"at":"2026-07-04T13:37:51.275Z","direction":"server","payload":{"method":"remoteControl/status/changed","params":{"status":"disabled","serverName":"<redacted-local-hostname>","installationId":"<installation-1>","environmentId":null}}}
+{"at":"2026-07-04T13:37:51.282Z","direction":"processExit","payload":{"code":0,"signal":null}}
