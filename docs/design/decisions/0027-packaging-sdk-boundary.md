@@ -44,6 +44,29 @@ create.
 
 Five settlements bind the N3 packaging and SDK boundary.
 
+### Reconciliation with the driving contract
+
+[`driving.md`](../contracts/driving.md) and this ADR use "SDK" on different axes. The
+driving contract's "SDK adapter" is an architectural-layering boundary: CLI, MCP, and SDK
+adapters are thin edge realizations of the operator-control port, so the adapter layer holds no
+run logic and imports no provider contracts. This ADR's `jig-sdk` package is a distribution and
+dependency boundary: it settles what ships as an installable internal package and what that
+package may import.
+
+Those boundaries both apply. The `jig-sdk` package physically contains the jig-core run logic,
+orchestration, authorization, records/storage surface, provider ports, and bundled provider
+implementations selected behind the factory. It also contains a thin SDK-adapter module for
+embedding consumers that realizes the same operator-control port described in
+[`driving.md`](../contracts/driving.md). That thin embedding realization still holds no run logic
+itself and still calls into the core logic co-located in the same package; the driving edge/core
+rule is not violated because package placement is orthogonal to architectural layering.
+
+`jig-cli` remains a separate thin edge realization of the same operator-control port and depends
+on `jig-sdk`, consistent with the driving contract's rule that "CLI, MCP, and SDK remain thin
+realizations of the same port." This ADR does not amend, supersede, or reopen
+[`driving.md`](../contracts/driving.md): the edge/core layering rule stands unchanged. It only
+settles which package a first-party consumer installs to reach that edge/core system.
+
 ### 1. Target package matrix: three internal packages, not the prototype's eight
 
 Jig should decompose into three internal packages when package work begins:
