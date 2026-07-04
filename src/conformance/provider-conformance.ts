@@ -13,6 +13,34 @@ import type { RedactionOptions } from '../redaction.js';
 import { type ApprovedSubstrateManifest, type SubstrateRequest, validateSubstrateRequest } from '../substrate.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../types.js';
 
+export const CONFORMANCE_BASIS_TOKENS = [
+  'interface-shape',
+  'specified-response',
+  'observed-behavior',
+  'self-report-only',
+] as const;
+
+export type ConformanceBasisToken = (typeof CONFORMANCE_BASIS_TOKENS)[number];
+
+export type ConformanceFindingCode =
+  | `agent-privileged-method:${string}`
+  | 'host-isolation-overstated'
+  | 'host-isolation-self-report-only'
+  | 'work-source-provenance-collapsed'
+  | 'work-source-plan-intake-bypass'
+  | 'work-source-direct-harness-bypass-accepted'
+  | 'manifest-capability-overreach'
+  | 'substrate-escalation'
+  | 'resume-attestation-drift'
+  | 'forge-unknown-action-accepted'
+  | 'forge-resume-double-apply'
+  | 'forge-unredacted-credential';
+
+export interface ProviderConformanceVerdict {
+  finding: ConformanceFindingCode;
+  basis: ConformanceBasisToken;
+}
+
 export interface ProviderManifest {
   id: string;
   network: 'none' | 'declared';
@@ -45,11 +73,14 @@ export interface ProviderConformanceSubject {
 
 export class ProviderConformanceError extends Error {
   readonly findings: string[];
+  readonly verdicts: ProviderConformanceVerdict[];
 
-  constructor(findings: string[]) {
+  constructor(verdicts: ProviderConformanceVerdict[]) {
+    const findings = verdicts.map((verdict) => verdict.finding);
     super(`Provider conformance failed: ${findings.join(', ')}`);
     this.name = 'ProviderConformanceError';
     this.findings = findings;
+    this.verdicts = verdicts;
   }
 }
 
@@ -110,32 +141,49 @@ function isolationRank(strength: IsolationStrength | undefined): number {
   return 0;
 }
 
-export async function evaluateProviderConformance(subject: ProviderConformanceSubject): Promise<string[]> {
-  const findings: string[] = [];
+function conformanceVerdict(finding: ConformanceFindingCode, basis: ConformanceBasisToken): ProviderConformanceVerdict {
+  return { finding, basis };
+}
+
+/**
+ * Evaluates a provider against the reusable conformance suite and returns typed failure verdicts.
+ *
+ * Adequacy bar: this suite proves interface shape and specified responses under controlled doubles. A
+ * green result does not prove real-provider behavioral truth because a mock can lie. Verdicts whose
+ * support is only the subject's own claim must carry the `self-report-only` basis token.
+ */
+export async function evaluateProviderConformanceVerdicts(
+  subject: ProviderConformanceSubject,
+): Promise<ProviderConformanceVerdict[]> {
+  const verdicts: ProviderConformanceVerdict[] = [];
 
   for (const method of PRIVILEGED_AGENT_METHODS) {
     if (method in subject.agent) {
-      findings.push(`agent-privileged-method:${method}`);
+      verdicts.push(conformanceVerdict(`agent-privileged-method:${method}`, 'interface-shape'));
     }
   }
 
   const hostAttestation = await subject.executionHost.describe();
   for (const attestation of hostAttestation.capabilityAttestations) {
-    if (isolationRank(attestation.reportedIsolationStrength) > isolationRank(attestation.provenIsolationStrength)) {
-      findings.push('host-isolation-overstated');
+    if ((attestation.reportedIsolationStrength || attestation.positive) && !attestation.provenIsolationStrength) {
+      verdicts.push(conformanceVerdict('host-isolation-self-report-only', 'self-report-only'));
+    } else if (
+      isolationRank(attestation.reportedIsolationStrength) > isolationRank(attestation.provenIsolationStrength)
+    ) {
+      verdicts.push(conformanceVerdict('host-isolation-overstated', 'specified-response'));
     }
   }
 
   const candidates = await subject.workSource.candidates();
   for (const candidate of candidates) {
     if (!isCandidateProvenance(candidate.provenance)) {
-      findings.push('work-source-provenance-collapsed');
+      verdicts.push(conformanceVerdict('work-source-provenance-collapsed', 'specified-response'));
     }
 
     try {
       PlanValidator.validate(candidate.planInstance);
     } catch {
-      findings.push('work-source-plan-intake-bypass');
+      verdicts.push(conformanceVerdict('work-source-plan-intake-bypass', 'observed-behavior'));
     }
   }
 
@@ -175,13 +223,13 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
     );
 
     if (runStatus !== 'failure' || resumeStatus !== 'failure' || !runDenied || !resumeDenied) {
-      findings.push('work-source-direct-harness-bypass-accepted');
+      verdicts.push(conformanceVerdict('work-source-direct-harness-bypass-accepted', 'observed-behavior'));
     }
   }
 
   for (const capability of subject.requestedCapabilities ?? []) {
     if (!subject.manifest.capabilities.includes(capability)) {
-      findings.push('manifest-capability-overreach');
+      verdicts.push(conformanceVerdict('manifest-capability-overreach', 'specified-response'));
     }
   }
 
@@ -190,7 +238,7 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
       try {
         validateSubstrateRequest(subject.approvedSubstrateManifest, request);
       } catch {
-        findings.push('substrate-escalation');
+        verdicts.push(conformanceVerdict('substrate-escalation', 'observed-behavior'));
       }
     }
   }
@@ -200,13 +248,13 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
     isolationRank(subject.resumeAttestation.current.provenIsolationStrength) >
       isolationRank(subject.resumeAttestation.launch.provenIsolationStrength)
   ) {
-    findings.push('resume-attestation-drift');
+    verdicts.push(conformanceVerdict('resume-attestation-drift', 'specified-response'));
   }
 
   if (subject.forgeAdversarialChecks?.unknownAction) {
     try {
       await subject.forge.land({ storyId: 'CONFORMANCE', action: 'unknown-action' as never });
-      findings.push('forge-unknown-action-accepted');
+      verdicts.push(conformanceVerdict('forge-unknown-action-accepted', 'observed-behavior'));
     } catch {
       // Expected fail-closed behavior.
     }
@@ -218,7 +266,7 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
     (event) => event.family === 'runner-action.skipped-repeated-effect',
   );
   if (realEffectEvents.length > 1 && skippedRepeatedEffects.length === 0) {
-    findings.push('forge-resume-double-apply');
+    verdicts.push(conformanceVerdict('forge-resume-double-apply', 'specified-response'));
   }
 
   if (subject.forgeAdversarialChecks?.redaction) {
@@ -227,16 +275,33 @@ export async function evaluateProviderConformance(subject: ProviderConformanceSu
       (secret): secret is string => typeof secret === 'string' && secret.length > 0 && serialized.includes(secret),
     );
     if (leakedSecret) {
-      findings.push('forge-unredacted-credential');
+      verdicts.push(conformanceVerdict('forge-unredacted-credential', 'observed-behavior'));
     }
   }
 
-  return findings;
+  return verdicts;
 }
 
+/**
+ * Compatibility wrapper returning only finding codes.
+ *
+ * Use `evaluateProviderConformanceVerdicts` when a caller needs to distinguish independently observed
+ * behavior from `self-report-only` conformance evidence.
+ */
+export async function evaluateProviderConformance(subject: ProviderConformanceSubject): Promise<string[]> {
+  const verdicts = await evaluateProviderConformanceVerdicts(subject);
+  return verdicts.map((verdict) => verdict.finding);
+}
+
+/**
+ * Fails on any conformance verdict.
+ *
+ * Passing this assertion means the subject satisfied the suite's controlled interface and response checks;
+ * it does not prove a real provider behaved truthfully outside those checks.
+ */
 export async function assertProviderConformance(subject: ProviderConformanceSubject): Promise<void> {
-  const findings = await evaluateProviderConformance(subject);
-  if (findings.length > 0) {
-    throw new ProviderConformanceError(findings);
+  const verdicts = await evaluateProviderConformanceVerdicts(subject);
+  if (verdicts.length > 0) {
+    throw new ProviderConformanceError(verdicts);
   }
 }
