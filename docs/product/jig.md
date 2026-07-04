@@ -173,8 +173,9 @@ portability and owner trust, not a decision about package layout or public publi
 
 Provider extensibility is settled product scope. Owners and teams should be able to bring a
 compatible provider for a supported seam and plug it into Jig without forking Jig core. That
-provider earns use through declared authority and conformance proof; the exact packaging,
-discovery, registration, install UX, and public API stability mechanics remain design-owned.
+provider earns use through declared authority and conformance proof; the exact local connection
+and registration mechanics remain design-owned. Public distribution, discovery, install UX, and
+stability guarantees remain separate product questions below.
 
 The product promise behind `jig-testkit` is conformance, not packaging. Jig needs a reusable
 way to prove bundled and future providers before owners trust them: capability checks,
