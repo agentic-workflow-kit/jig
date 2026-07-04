@@ -5,8 +5,12 @@
 // allowlisted `node` binary, and the conformance tests never touch a real child_process/fetch
 // at all). This one assertion closes that gap for `integration`; both real lanes reference the
 // identical tests/hermetic/no-real-effects.setup.ts entry in vitest.config.ts.
+//
+// Deliberately imports only the side-effect-free ./violation.ts: importing the setup module
+// here would install the guard via import side effects and keep this test green even if the
+// lane's setupFiles wiring were dropped — the exact failure this test exists to catch.
 import { assert, test } from 'vitest';
-import { HermeticGuardViolation } from './no-real-effects.setup.js';
+import { HermeticGuardViolation } from './violation.js';
 
 test('integration lane: hermetic guard blocks a real fetch to a non-local host', async () => {
   let caught: unknown;

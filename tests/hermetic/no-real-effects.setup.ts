@@ -16,14 +16,12 @@
 // A leaked forbidden effect throws/rejects with `HermeticGuardViolation` so a seeded-violation
 // test can assert on the guard's specific error identity rather than an incidental failure
 // (a DNS error or ENOENT from a missing `gh` binary would otherwise look like "blocked").
+// The class lives in the side-effect-free ./violation.ts; tests import it from there, never
+// from this module, so a lane whose setupFiles wiring is dropped genuinely loses the guard
+// and its wiring-proof test fails instead of being reinstalled via import side effects.
+import { promisify } from 'node:util';
 import { vi } from 'vitest';
-
-export class HermeticGuardViolation extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'HermeticGuardViolation';
-  }
-}
+import { HermeticGuardViolation } from './violation.js';
 
 const ALLOWED_GIT_SUBCOMMANDS = new Set(['init', 'add', 'commit', 'config', 'rev-parse', 'status', 'diff']);
 const BLOCKED_COMMAND_FILES = new Set(['gh', 'codex']);
@@ -51,25 +49,75 @@ function violation(kind: string, detail: string): HermeticGuardViolation {
   return new HermeticGuardViolation(`hermetic-guard: blocked real ${kind}(${detail})`);
 }
 
+type PromisifiedCommandResult = Promise<{ stdout: string; stderr: string }>;
+
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
 
-  return {
-    ...actual,
-    execFile: ((file: string, ...rest: unknown[]) => {
+  // Node's real execFile/exec carry util.promisify.custom, so promisify(execFile) resolves to
+  // { stdout, stderr }. A plain wrapper function drops that symbol, and promisify would fall
+  // back to callback-style promisification that resolves the bare stdout string — breaking
+  // allowed calls at consumers like src/providers/real/forge.ts:17 (promisify(execFile)) before
+  // the guard could ever see a later blocked effect. The execFile/exec wrappers therefore
+  // re-attach a promisify.custom that applies the same block check and delegates allowed calls
+  // to the real promisified form; blocked calls reject with HermeticGuardViolation on the
+  // promise path too. Of the wrapped functions only execFile and exec carry the symbol in Node
+  // (spawn and the sync variants do not), so no other wrapper needs this.
+  const realExecFileAsync = promisify(actual.execFile) as unknown as (...args: unknown[]) => PromisifiedCommandResult;
+  const realExecAsync = promisify(actual.exec) as unknown as (...args: unknown[]) => PromisifiedCommandResult;
+
+  const wrappedExecFile = ((file: string, ...rest: unknown[]) => {
+    const args = Array.isArray(rest[0]) ? (rest[0] as unknown[]) : [];
+    if (isBlockedArgvCall(file, args)) {
+      const err = violation('execFile', `"${file}", ${JSON.stringify(args)}`);
+      const callback = rest.find((entry): entry is (error: Error) => void => typeof entry === 'function');
+      if (callback) {
+        callback(err);
+        return undefined as never;
+      }
+      throw err;
+    }
+    // @ts-expect-error passthrough to the real implementation for allowed calls
+    return actual.execFile(file, ...rest);
+  }) as typeof actual.execFile;
+  Object.defineProperty(wrappedExecFile, promisify.custom, {
+    configurable: true,
+    value: (file: string, ...rest: unknown[]): PromisifiedCommandResult => {
       const args = Array.isArray(rest[0]) ? (rest[0] as unknown[]) : [];
       if (isBlockedArgvCall(file, args)) {
-        const err = violation('execFile', `"${file}", ${JSON.stringify(args)}`);
-        const callback = rest.find((entry): entry is (error: Error) => void => typeof entry === 'function');
-        if (callback) {
-          callback(err);
-          return undefined as never;
-        }
-        throw err;
+        return Promise.reject(violation('execFile', `"${file}", ${JSON.stringify(args)}`));
       }
-      // @ts-expect-error passthrough to the real implementation for allowed calls
-      return actual.execFile(file, ...rest);
-    }) as typeof actual.execFile,
+      return realExecFileAsync(file, ...rest);
+    },
+  });
+
+  const wrappedExec = ((command: string, ...rest: unknown[]) => {
+    if (isBlockedCommandString(command)) {
+      const err = violation('exec', `"${command}"`);
+      const callback = rest.find((entry): entry is (error: Error) => void => typeof entry === 'function');
+      if (callback) {
+        callback(err);
+        return undefined as never;
+      }
+      throw err;
+    }
+    // @ts-expect-error passthrough to the real implementation for allowed calls
+    return actual.exec(command, ...rest);
+  }) as typeof actual.exec;
+  Object.defineProperty(wrappedExec, promisify.custom, {
+    configurable: true,
+    value: (command: string, ...rest: unknown[]): PromisifiedCommandResult => {
+      if (isBlockedCommandString(command)) {
+        return Promise.reject(violation('exec', `"${command}"`));
+      }
+      return realExecAsync(command, ...rest);
+    },
+  });
+
+  return {
+    ...actual,
+    execFile: wrappedExecFile,
+    exec: wrappedExec,
     execFileSync: ((file: string, ...rest: unknown[]) => {
       const args = Array.isArray(rest[0]) ? (rest[0] as unknown[]) : [];
       if (isBlockedArgvCall(file, args)) {
@@ -101,19 +149,6 @@ vi.mock('node:child_process', async (importOriginal) => {
       // @ts-expect-error passthrough to the real implementation for allowed calls
       return actual.execSync(command, ...rest);
     }) as typeof actual.execSync,
-    exec: ((command: string, ...rest: unknown[]) => {
-      if (isBlockedCommandString(command)) {
-        const err = violation('exec', `"${command}"`);
-        const callback = rest.find((entry): entry is (error: Error) => void => typeof entry === 'function');
-        if (callback) {
-          callback(err);
-          return undefined as never;
-        }
-        throw err;
-      }
-      // @ts-expect-error passthrough to the real implementation for allowed calls
-      return actual.exec(command, ...rest);
-    }) as typeof actual.exec,
   };
 });
 
