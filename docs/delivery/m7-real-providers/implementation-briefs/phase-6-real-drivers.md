@@ -1,9 +1,12 @@
 ---
 title: "Phase 6 implementation brief — Real driver integration"
-status: active
+status: completed history
 ---
 
 # Phase 6 implementation brief — Real driver integration
+
+> **Closeout note (2026-07-04):** retained as M7 delivery history after org M7 accepted
+> EVRUN-partial exit evidence. EVRUN-full remains post-M7 Codex-transport debt.
 
 ## Context and goal
 

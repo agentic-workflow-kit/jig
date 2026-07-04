@@ -1,6 +1,6 @@
 ---
 title: "M7 real-providers phase details"
-status: active
+status: completed via EVRUN-partial
 ---
 
 # M7 real-providers phase details
@@ -11,6 +11,10 @@ seams (agent driver, execution-host driver, forge driver, work-source driver, re
 attestation) to `exercised` with real effects, behind the ports pinned and merged in
 [Phase 5](../m5b-local-mvp-r2/phases.md#phase-5--integrated-provider-runs) (commit `f59a479`,
 [`../../../src/ports.ts`](../../../src/ports.ts)).
+
+**Status as of 2026-07-04:** this phase ladder is retained as durable M7 delivery history after the
+org milestone accepted EVRUN-partial exit evidence. EVRUN-full and Codex transport hardening remain
+post-M7 debt.
 
 The **real as-merged port shapes** these phases build on — cite these, not the ADR 0021 sketch:
 
@@ -192,10 +196,9 @@ the `AgentPort` never gains a landing path.
 - A real Forge/GitHub adapter behind `ForgePort.land(request)` performing push, PR, and merge as the
   `LandingRequest.action` selects, invoked only by the runner at `done → landed`.
 - **`LandingRequest.action` union (Residual B):** [`../../../src/ports.ts`](../../../src/ports.ts)
-  currently types `action` as the single string literal `'push|open-pr|merge'` — one literal
-  containing pipe characters, not a union. It is unexercised today because the reference adapter is
-  `skipped-on-dry-run`. Before a real Forge can discriminate actions, `action` must become the union
-  `'push' | 'open-pr' | 'merge'`.
+  now types `action` as the union `'push' | 'open-pr' | 'merge'` so the real Forge path can
+  discriminate actions. The historical modeled golden value may still record `"push|open-pr|merge"`
+  for byte-identity, but the typed port surface is the union.
 - Real-effect idempotency: a re-run against an already-landed effect recognizes the prior landing
   from the records and does not repeat it.
 - **PR-side block surfacing (MERGE-5):** when a run is blocked and the runner has a safe branch and

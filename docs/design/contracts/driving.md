@@ -7,7 +7,9 @@ status: draft
 
 The driving boundary is the operator surface realized as CLI / MCP / SDK adapters: one command
 becomes one control-plane call and one audit event. The edge holds no run logic and imports no
-provider contracts — it only calls into [`../core/`](../core/README.md).
+provider contracts — it only calls into [`../core/`](../core/README.md). "SDK adapter" here names an
+architectural edge realization; ADR 0027 separately settles the future internal `jig-sdk` package
+boundary.
 
 ## Owns
 
@@ -83,6 +85,23 @@ semantics. The edge translates operator intent into one control-plane call throu
 surface and records one audit event for that action; it does not reach around the port into core or
 into provider contracts directly.
 
+## SDK package reconciliation
+
+[ADR 0027](../decisions/0027-packaging-sdk-boundary.md) uses "SDK" on a distribution axis. The future
+`jig-sdk` package owns the programmatic core/records/plan-intake/authorization/factory/provider-port
+boundary that first-party consumers call. That does not move run logic into the driving edge:
+
+- the **SDK adapter** in this document remains a thin embedding realization of the operator-control
+  port;
+- the future **`jig-sdk` package** may physically contain core run logic and the factory, but its
+  adapter module still calls the core boundary rather than becoming a second control plane;
+- the future **`jig-cli` package** is the terminal adapter and should consume `jig-sdk`, not deep
+  import provider or core internals;
+- no public package, export map, semver stability, or publishing promise exists today.
+
+The live implementation is still one private package. This contract describes the design boundary and
+the target dependency direction, not shipped package files.
+
 ## Owns / implements / must-not
 
 ### Core owns
@@ -133,6 +152,8 @@ owner-facing control through the same operator boundary; it does not redesign or
 
 - The driving edge imports no provider contracts and holds no run logic.
 - CLI, MCP, and SDK remain thin realizations of the same port rather than separate control planes.
+- The future internal `jig-sdk` package is the supported programmatic route; consumers should not
+  rely on deep imports into core or provider modules.
 - A future change to provider, authorization, or lifecycle semantics routes back to the owning core
   or provider seam rather than being hidden in an adapter.
 
@@ -156,6 +177,8 @@ available invariant number is `INV-019`.
   control logic instead of staying thin realizations of the same port.
 - **Deferred — exact port signatures.** Method names, parameter representation, and adapter-specific
   shapes remain intentionally unfrozen here.
+- **Deferred — package mechanics.** Package files, project references, export maps, dependency rules,
+  and any public publish/stability promise are deferred to later package implementation work.
 - **Deferred — future non-operator triggers.** Webhook or scheduler-triggered entry paths remain a
   separate design question and do not change the current operator-driven boundary.
 
@@ -172,7 +195,10 @@ available invariant number is `INV-019`.
 
 - `docs/product/jig.md` — "Driving a run" (start, preview, watch, inspect, ask-why, decide, stop;
   "You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
-  software"); "Operator-initiated" (see "What Jig isn't (yet)").
+  software"); "Operator-initiated" (see "What Jig isn't (yet)"); "Product boundaries" for no public
+  package/export/stability promise today.
+- ADR 0027 — the `jig-sdk` package boundary is distribution/dependency structure, while this document's
+  SDK adapter remains a thin driving realization.
 - `SEE-1` — full run visibility, surfaced through inspect/ask-why on the operator boundary.
 - `SURF-001` — `OperatorControlPort` as the single operator entry surface behind CLI / MCP / SDK
   realizations.

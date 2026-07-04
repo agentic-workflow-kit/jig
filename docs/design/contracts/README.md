@@ -9,6 +9,17 @@ status: draft — stub
 drive jig), **data** (what flows in and out), and **providers** (what plugs in). The fixed logic
 behind all three lives in [`../core/`](../core/README.md); core is not a seam.
 
+Two later design decisions now refine how those seams are packaged and adapted without changing the
+boundary kinds above:
+
+- [ADR 0027](../decisions/0027-packaging-sdk-boundary.md) settles the future internal package
+  direction: `jig-sdk` owns the programmatic core/port/factory boundary, `jig-cli` is the terminal
+  adapter, and `jig-testkit` owns conformance. The current repo remains one private package with no
+  public export or stability promise.
+- [ADR 0028](../decisions/0028-codex-app-server-transport.md) settles the first Codex Agent adapter
+  transport as an owned stdio app-server process with an internal session-observable seam. The public
+  provider boundary remains `AgentPort`; app-server protocol objects do not become Jig contracts.
+
 ## Owns
 
 - **Driving** — the CLI / MCP / SDK adapters consumers use to drive jig. See
@@ -19,6 +30,8 @@ behind all three lives in [`../core/`](../core/README.md); core is not a seam.
   [`observability-records-contract-v0.md`](./observability-records-contract-v0.md).
 - **Providers** — the four swappable seams (agent, execution host, forge, work source). See
   [`providers.md`](./providers.md).
+- **Conformance boundary** — the provider adequacy suite is a future `jig-testkit` responsibility
+  that tests SDK-owned ports and provider-facing types without entering the production runtime graph.
 
 ## Interface
 
@@ -81,9 +94,14 @@ out`")
 
 - Jig owns the plan and records contracts as versioned seams: changing their shape is a breaking
   change for downstream consumers.
+- Package split, export maps, project references, provider publication, and public stability promises
+  are outside this index. This page routes to the applied ADRs; it does not make those implementation
+  changes.
 
 ## Reconciles to
 
 - `STACK-2` — the four provider seams.
 - `SEE-2` — records are a structured, machine-readable product surface.
 - `docs/product/jig.md` — "The execution plan — Jig's one input."
+- ADR 0027 — internal SDK/CLI/testkit package boundary.
+- ADR 0028 — Codex app-server adapter remains internal to the Agent provider implementation.
