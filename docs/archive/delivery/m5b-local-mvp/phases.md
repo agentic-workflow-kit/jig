@@ -45,9 +45,9 @@ implementation.
 
 **Relevant references:**
 
-- [`../../design/README.md`](../../design/README.md)
-- [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md)
-- [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md)
+- [`../../design/README.md`](../../../design/README.md)
+- [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md)
+- [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
 - [`../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md`](../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md)
 
 **Explicit non-goals:**
@@ -114,12 +114,12 @@ local plan file
 
 **Relevant references:**
 
-- [`../../product/jig.md`](../../product/jig.md)
-- [`../../product/guarantees.md`](../../product/guarantees.md)
-- [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
-- [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md)
-- [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
-- [`../../design/contracts/driving.md`](../../design/contracts/driving.md)
+- [`../../product/jig.md`](../../../product/jig.md)
+- [`../../product/guarantees.md`](../../../product/guarantees.md)
+- [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
+- [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md)
+- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
+- [`../../design/contracts/driving.md`](../../../design/contracts/driving.md)
 
 **Explicit non-goals:**
 
@@ -173,10 +173,10 @@ diagnostics, and local inspection.
 
 **Relevant references:**
 
-- [`../../product/concepts.md`](../../product/concepts.md)
-- [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
-- [`../../design/core/records.md`](../../design/core/records.md)
-- [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md)
+- [`../../product/concepts.md`](../../../product/concepts.md)
+- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
+- [`../../design/core/records.md`](../../../design/core/records.md)
+- [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
 
 **Explicit non-goals:**
 
@@ -226,9 +226,9 @@ denies, or routes requests instead of trusting the worker's narrative.
 
 **Relevant references:**
 
-- [`../../design/core/authorization.md`](../../design/core/authorization.md)
-- [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
-- [`../../design/core/records.md`](../../design/core/records.md)
+- [`../../design/core/authorization.md`](../../../design/core/authorization.md)
+- [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
+- [`../../design/core/records.md`](../../../design/core/records.md)
 - [`../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md)
 - [`../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md`](../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md)
 
@@ -285,10 +285,10 @@ diagnostics, redaction/export posture, and workspace continuity checks.
 
 **Relevant references:**
 
-- [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md)
-- [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
-- [`../../design/core/records.md`](../../design/core/records.md)
-- [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md)
+- [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md)
+- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
+- [`../../design/core/records.md`](../../../design/core/records.md)
+- [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
 - [`../../planning/design-track/waves/wave-5-red-team/outputs/w5-s2-recovery-records-integration-red-team/findings-and-open-questions.md`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s2-recovery-records-integration-red-team/findings-and-open-questions.md)
 
 **Explicit non-goals:**
@@ -343,9 +343,9 @@ recovery have proven themselves.
 
 **Relevant references:**
 
-- [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
-- [`../../design/core/authorization.md`](../../design/core/authorization.md)
-- [`../../design/core/records.md`](../../design/core/records.md)
+- [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
+- [`../../design/core/authorization.md`](../../../design/core/authorization.md)
+- [`../../design/core/records.md`](../../../design/core/records.md)
 - [`../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/)
 - [`../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md`](../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md)
 

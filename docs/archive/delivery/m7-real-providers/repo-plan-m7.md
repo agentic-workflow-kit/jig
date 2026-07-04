@@ -18,7 +18,7 @@ debt.
 - **This repo owns:**
   - Real driver implementations behind the four existing ports — `AgentPort`, `ExecutionHostPort`,
     `ForgePort`, `WorkSourcePort` — selected through the composition root
-    ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)), performing real effects (Phases 6-8).
+    ([`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)), performing real effects (Phases 6-8).
   - A _proven_ capability attestation from a real execution host (`provenIsolationStrength` from an
     exercised confinement check) and the confinement evidence it attests to; a real freshness clock;
     per-story parallel-workspace isolation (Phase 6).
@@ -34,14 +34,14 @@ debt.
 
 - **This repo consumes:**
   - The execution-plan and observability-records v0 contract **shapes** (owned by M1; cited, not
-    re-decided) — [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md),
-    [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md).
+    re-decided) — [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md),
+    [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md).
   - The P5-pinned ports, composition root, capability-attestation gate, and driver conformance suite,
-    merged at commit `f59a479` ([`../../../src/ports.ts`](../../../src/ports.ts),
-    [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts),
-    [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md)).
+    merged at commit `f59a479` ([`../../../src/ports.ts`](../../../../src/ports.ts),
+    [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts),
+    [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md)).
   - jig's product guarantees as fixed inputs (STACK / DRIVE / SEC / MERGE / ISO / RESUME / EARN /
-    GUARD in [`../../product/guarantees.md`](../../product/guarantees.md)) — no new PRD is stood up;
+    GUARD in [`../../product/guarantees.md`](../../../product/guarantees.md)) — no new PRD is stood up;
     M7 is not a new-layer milestone.
 
 - **This repo must not decide:**

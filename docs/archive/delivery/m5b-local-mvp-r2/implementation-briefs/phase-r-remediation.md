@@ -12,7 +12,7 @@ Phases 0–2 shipped a working local dry-run engine, but the post-Phase-2 review
 found the records seam drifted from the design's closed vocabulary with no recorded mapping
 (MF2), golden fixtures asserted by nothing (MF3), an evidence gate that trusts the worker's
 self-report over the evidence value (MF5), and several contained safety gaps (S1, S2, S5, S6).
-[ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md) records the
+[ADR 0017](../../../../design/decisions/0017-records-seam-reconciliation.md) records the
 reconciliation; this phase implements it. No new operator-facing feature — every change here
 makes an already-shipped behavior honest against the contract it claims to follow. Phase 3
 (governed local runs) builds directly on the records shape this phase fixes, so this must land
@@ -20,7 +20,7 @@ first.
 
 Read, in order: [`../phases.md`](../phases.md) (Phase R section, authoritative AC list),
 [`../README.md`](../README.md) (org-M5 map, preserved gates, terminology guard),
-[ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md), the review sections
+[ADR 0017](../../../../design/decisions/0017-records-seam-reconciliation.md), the review sections
 on MF2/MF3/MF5/S1/S2/S5/S6, and the current source: `src/harness.ts`, `src/records.ts`,
 `src/cli.ts`, `src/plan-validator.ts`, `src/types.ts`.
 
@@ -33,14 +33,14 @@ written.
 
 - [`../phases.md`](../phases.md) — Phase R requirements and PR-AC-1..11.
 - [`../README.md`](../README.md) — org-M5 exit-criteria map, preserved gates.
-- [ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md) — the five
+- [ADR 0017](../../../../design/decisions/0017-records-seam-reconciliation.md) — the five
   reconciliations this phase implements.
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md) —
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md) —
   the v0 record shape, event families, and the v0 phasing-of-causality-fields note.
-- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — the closed
+- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — the closed
   run and work-item transition tables; the `started → stopped` guard set (line ~126) and the
   work-item table's `blocked`/`parked` semantics.
-- [`../../../design/core/records.md`](../../../design/core/records.md) — records-store seam.
+- [`../../../design/core/records.md`](../../../../design/core/records.md) — records-store seam.
 - [`../../../reviews/2026-07-02-post-phase-2-repo-review.md`](../../../reviews/2026-07-02-post-phase-2-repo-review.md) —
   MF2, MF3, MF5, S1, S2, S5, S6 (evidence, historical line numbers only).
 
@@ -56,7 +56,7 @@ undefined`. Once evidence is present at all, line 84 branches purely on
 `result.outcome === 'success'` — a worker reporting `outcome: "success"` with
 `evidence.result: null` or `evidence.result: "failed"` still reaches `story.done` (line 84–90).
 The worker's self-report outranks the evidence value, which is exactly the anti-pattern
-[`MERGE-1`](../../../product/guarantees.md#15-merge-on-evidence) and the design's
+[`MERGE-1`](../../../../product/guarantees.md#15-merge-on-evidence) and the design's
 `started → done` guard forbid.
 
 **Target behavior — the exact predicate:** the gate passes if and only if
@@ -505,8 +505,8 @@ counted here.)
   method name is sufficient; this does not require Forge/landing code to exist (it does not,
   yet) — it is a regression guard against ever adding such a method to the worker surface
   without a design change, per
-  [`FENCE-3`](../../../product/guarantees.md#11-the-fence--runtime-authorization) and INV-002 in
-  [`runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md).
+  [`FENCE-3`](../../../../product/guarantees.md#11-the-fence--runtime-authorization) and INV-002 in
+  [`runtime-design-m5a.md`](../../../../design/notes/runtime-design-m5a.md).
 
 **Tests to write:**
 

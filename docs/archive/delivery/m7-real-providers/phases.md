@@ -10,7 +10,7 @@ traces to. Tests cite the AC IDs they prove. These phases promote the M5 `named 
 seams (agent driver, execution-host driver, forge driver, work-source driver, resume, capability
 attestation) to `exercised` with real effects, behind the ports pinned and merged in
 [Phase 5](../m5b-local-mvp-r2/phases.md#phase-5--integrated-provider-runs) (commit `f59a479`,
-[`../../../src/ports.ts`](../../../src/ports.ts)).
+[`../../../src/ports.ts`](../../../../src/ports.ts)).
 
 **Status as of 2026-07-04:** this phase ladder is retained as durable M7 delivery history after the
 org milestone accepted EVRUN-partial exit evidence. EVRUN-full and Codex transport hardening remain
@@ -28,7 +28,7 @@ The **real as-merged port shapes** these phases build on — cite these, not the
   (`fresh`/`stale`/`missing`), `positive`, `reportedIsolationStrength`,
   `provenIsolationStrength`, `failureToken`. `HostAttestation` carries the host `isolationStrength`
   (`none`/`weak`/`strong`) and its `capabilityAttestations`.
-- The composition root [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)
+- The composition root [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)
   `composeReferenceRun` is the sole importer of the reference adapters and fails closed on an
   unknown driver name.
 - Encoding deltas already merged from the ADR 0021 sketch: there is no separate `containmentProof`
@@ -41,8 +41,8 @@ JSON Schema, provider manifests, package exports, or package decomposition — t
 contract-owner-owned. One design-owned exception is now exercised for Phase 6: the **substrate
 manifest** (the immutable, hashed, approved argv/creds/egress tuple whose runtime validation closes
 the substrate-escalation stop) is authorized **at design altitude by
-[ADR 0022](../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (extending
-[ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 8), and stays a
+[ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (extending
+[ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 8), and stays a
 non-normative fixture with no schema freeze. Building it per ADR 0022 is therefore design-owned work,
 not a delivery-planning invention or a boundary violation; this track only **references** it. Two
 regression anchors ride every phase below as evidence, never as their own phase: the Phase-0..4 record
@@ -74,7 +74,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 **Requirements:**
 
 - A real agent driver (Codex-first) behind `AgentPort.execute(story)`, selected through
-  `composeReferenceRun`'s successor in [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts),
+  `composeReferenceRun`'s successor in [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts),
   performing real edits — replacing the scripted-worker stub for the driven path. The `AgentPort`
   still exposes no push/PR/merge/credential path (INV-002).
 - A real execution host behind `ExecutionHostPort.describe()` that returns a `HostAttestation` whose
@@ -88,7 +88,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
   workspaces without corrupting each other's tree, and the same task cannot be launched twice.
 - **Resume attestation persist/recover (Residual A):** the launch-captured `CapabilityAttestation` is
   persisted alongside the launch binding and recovered on resume, parallel to the Phase-4 binding
-  mechanism ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3). Today resume
+  mechanism ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3). Today resume
   reconstructs a _constant_ reference-host attestation — safe only because the reference host does not
   drift; a real driver that can drift or self-widen requires true persist-and-recover so resumed work
   is adjudicated against the capability attested at launch, never a fresher permissive re-derivation.
@@ -98,41 +98,41 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 - **P6-AC-1** — A real agent driver (Codex-first) selected through the composition root runs an
   approved plan and performs real edits recorded as observed evidence; the default (reference) wiring
   still reproduces the Phase-0..4 goldens byte-identically, so the real driver is opt-in. Traces:
-  [`DRIVE-1`](../../product/guarantees.md#41-trusting-a-driver),
-  [`STACK-2`](../../product/guarantees.md#4-stack-portability)–
-  [`STACK-3`](../../product/guarantees.md#4-stack-portability),
-  [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decisions 2–3.
+  [`DRIVE-1`](../../../product/guarantees.md#41-trusting-a-driver),
+  [`STACK-2`](../../../product/guarantees.md#4-stack-portability)–
+  [`STACK-3`](../../../product/guarantees.md#4-stack-portability),
+  [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decisions 2–3.
 - **P6-AC-2** — A real execution host attests `provenIsolationStrength` from an exercised confinement
   check; a host reporting `strong` with an absent, stale, or overstated proof records the failure
   token and does **not** unlock the autonomy `strong` would grant — only fresh, positive proof does.
-  Traces: [`SEC-2`](../../product/guarantees.md#16-security--no-leaks-no-phone-home),
-  [`DRIVE-3`](../../product/guarantees.md#41-trusting-a-driver),
-  [`EARN-1`](../../product/guarantees.md#12-earned-trust--capability-attestation)–
-  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation), ADR 0021
+  Traces: [`SEC-2`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home),
+  [`DRIVE-3`](../../../product/guarantees.md#41-trusting-a-driver),
+  [`EARN-1`](../../../product/guarantees.md#12-earned-trust--capability-attestation)–
+  [`EARN-2`](../../../product/guarantees.md#12-earned-trust--capability-attestation), ADR 0021
   decisions 4–5.
 - **P6-AC-3** — Freshness is decided by a real clock against real driver/host timestamps: an
   attestation older than its freshness window is recorded `stale` and treated as non-fresh by the
   Fence, without a stubbed constant. Traces:
-  [`EARN-1`](../../product/guarantees.md#12-earned-trust--capability-attestation)–
-  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation), ADR 0021
+  [`EARN-1`](../../../product/guarantees.md#12-earned-trust--capability-attestation)–
+  [`EARN-2`](../../../product/guarantees.md#12-earned-trust--capability-attestation), ADR 0021
   decision 4.
 - **P6-AC-4** — Two independent stories run in parallel in isolated workspaces without corrupting
   each other's tree, and a second launch of the same task is refused
   (`workspace-collision` recorded on collision). Traces:
-  [`ISO-4`](../../product/guarantees.md#32-work-level-failure-isolation), ADR 0021 decision 5.
+  [`ISO-4`](../../../product/guarantees.md#32-work-level-failure-isolation), ADR 0021 decision 5.
 - **P6-AC-5** — The launch `CapabilityAttestation` is persisted with the launch binding and recovered
   on resume; a run resumed after a real host would attest a _fresher, more permissive_ capability is
   still adjudicated against the launch-attested capability, never the re-derived one, and the launch
   attestation is immutable across resume. Traces:
-  [`RESUME-2`](../../product/guarantees.md#31-interruption-resume),
-  [`GUARD-1`](../../product/guarantees.md#13-anti-gaming),
-  [`EARN-2`](../../product/guarantees.md#12-earned-trust--capability-attestation),
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3.
+  [`RESUME-2`](../../../product/guarantees.md#31-interruption-resume),
+  [`GUARD-1`](../../../product/guarantees.md#13-anti-gaming),
+  [`EARN-2`](../../../product/guarantees.md#12-earned-trust--capability-attestation),
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3.
 - **P6-AC-6** — Secrets surfaced by a real agent or host (credentials, tokens, environment) are
   scanned and redacted in records the moment real credentials first enter play; a redaction ambiguity
   becomes an operator-visible diagnosable stop rather than a silent leak. Traces:
-  [`SEC-1`](../../product/guarantees.md#16-security--no-leaks-no-phone-home)–
-  [`SEC-3`](../../product/guarantees.md#16-security--no-leaks-no-phone-home).
+  [`SEC-1`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home)–
+  [`SEC-3`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home).
 
 **Evidence/tests:**
 
@@ -163,13 +163,13 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../src/ports.ts),
-  [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)
-- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md),
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3
-- [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
-- [`../../design/core/authorization.md`](../../design/core/authorization.md),
-  [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
+- [`../../../src/ports.ts`](../../../../src/ports.ts),
+  [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md),
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3
+- [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
+- [`../../design/core/authorization.md`](../../../design/core/authorization.md),
+  [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
 - Wave 5 red-team:
   [`w5-s1`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md)
 
@@ -195,7 +195,7 @@ the `AgentPort` never gains a landing path.
 
 - A real Forge/GitHub adapter behind `ForgePort.land(request)` performing push, PR, and merge as the
   `LandingRequest.action` selects, invoked only by the runner at `done → landed`.
-- **`LandingRequest.action` union (Residual B):** [`../../../src/ports.ts`](../../../src/ports.ts)
+- **`LandingRequest.action` union (Residual B):** [`../../../src/ports.ts`](../../../../src/ports.ts)
   now types `action` as the union `'push' | 'open-pr' | 'merge'` so the real Forge path can
   discriminate actions. The historical modeled golden value may still record `"push|open-pr|merge"`
   for byte-identity, but the typed port surface is the union.
@@ -214,28 +214,28 @@ the `AgentPort` never gains a landing path.
 - **P7-AC-1** — The runner drives `ForgePort.land()` at `done → landed` and a real push/PR/merge
   effect occurs on GitHub; the `AgentPort` still exposes no landing path, and landing stays
   `skipped-on-dry-run` under dry-run wiring. Traces:
-  [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence),
-  [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence),
-  [`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization), ADR 0021
+  [`MERGE-2`](../../../product/guarantees.md#15-merge-on-evidence),
+  [`MERGE-5`](../../../product/guarantees.md#15-merge-on-evidence),
+  [`FENCE-3`](../../../product/guarantees.md#11-the-fence--runtime-authorization), ADR 0021
   decision 6.
 - **P7-AC-2** — `LandingRequest.action` is the union `'push' | 'open-pr' | 'merge'` and the real
   adapter discriminates on it; an unknown action fails closed. Traces:
-  [`../../../src/ports.ts`](../../../src/ports.ts) (Residual B),
-  [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence).
+  [`../../../src/ports.ts`](../../../../src/ports.ts) (Residual B),
+  [`MERGE-2`](../../../product/guarantees.md#15-merge-on-evidence).
 - **P7-AC-3** — Re-running a landed effect (resume or retry) does not duplicate it: the prior landing
   is recognized from the records and the second attempt is a recorded no-op. Traces:
-  [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence),
-  [`RESUME-3`](../../product/guarantees.md#31-interruption-resume), ADR 0021 decision 6.
+  [`MERGE-5`](../../../product/guarantees.md#15-merge-on-evidence),
+  [`RESUME-3`](../../../product/guarantees.md#31-interruption-resume), ADR 0021 decision 6.
 - **P7-AC-4** — Secrets on the real landing path (Forge/GitHub credentials, tokens) are scanned and
   redacted in the landing records; a redaction ambiguity on the landing path becomes a diagnosable
   stop, and records stay safe to keep and export. Traces:
-  [`SEC-1`](../../product/guarantees.md#16-security--no-leaks-no-phone-home)–
-  [`SEC-3`](../../product/guarantees.md#16-security--no-leaks-no-phone-home).
+  [`SEC-1`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home)–
+  [`SEC-3`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home).
 - **P7-AC-5** — Blocked work is surfaced PR-side through the real Forge: when the runner has a safe
   branch and permission to push, the block opens or updates the PR, posts its status, and records the
   failure reasons as a PR comment, without changing what `blocked` means; when the run cannot safely
   do that, the block is still recorded through the durable Records fallback rather than dropped.
-  Traces: [`MERGE-5`](../../product/guarantees.md#15-merge-on-evidence), ADR 0021 decision 6.
+  Traces: [`MERGE-5`](../../../product/guarantees.md#15-merge-on-evidence), ADR 0021 decision 6.
 
 **Evidence/tests:**
 
@@ -260,10 +260,10 @@ the `AgentPort` never gains a landing path.
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../src/ports.ts) (`LandingRequest`, `ForgePort`)
-- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6
-- [`../../design/core/orchestration.md`](../../design/core/orchestration.md),
-  [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
+- [`../../../src/ports.ts`](../../../../src/ports.ts) (`LandingRequest`, `ForgePort`)
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6
+- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
+  [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
 
 **Explicit non-goals:**
 
@@ -297,17 +297,17 @@ came from.
 
 - **P8-AC-1** — A real importer produces candidates that reach runtime scheduling **only** after
   `PlanValidator`; a candidate that fails validation is rejected or held and never scheduled. Traces:
-  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md), INV-007, ADR 0021
+  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md), INV-007, ADR 0021
   decision 7.
 - **P8-AC-2** — An attempt to route a work-source candidate to scheduling bypassing `PlanValidator`
   fails closed and is recorded. Traces:
-  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md),
-  [`STACK-4`](../../product/guarantees.md#4-stack-portability)–
-  [`STACK-5`](../../product/guarantees.md#4-stack-portability), ADR 0021 decision 7.
+  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md),
+  [`STACK-4`](../../../product/guarantees.md#4-stack-portability)–
+  [`STACK-5`](../../../product/guarantees.md#4-stack-portability), ADR 0021 decision 7.
 - **P8-AC-3** — A candidate's provenance names its real origin (source and identifier) rather than
   the single `'jig-validated'` literal, and the origin is legible in the run record. Traces:
-  [`SEE-3`](../../product/guarantees.md#5-full-observability),
-  [`../../../src/ports.ts`](../../../src/ports.ts) (`CandidateWorkItem.provenance`).
+  [`SEE-3`](../../../product/guarantees.md#5-full-observability),
+  [`../../../src/ports.ts`](../../../../src/ports.ts) (`CandidateWorkItem.provenance`).
 
 **Evidence/tests:**
 
@@ -327,9 +327,9 @@ came from.
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../src/ports.ts) (`WorkSourcePort`, `CandidateWorkItem`)
-- [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
-- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7
+- [`../../../src/ports.ts`](../../../../src/ports.ts) (`WorkSourcePort`, `CandidateWorkItem`)
+- [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7
 
 **Explicit non-goals:**
 
@@ -352,7 +352,7 @@ Phase-0..4 goldens stay a regression anchor through this phase, and integrity li
 not inside it. Sequenced **after** Phase 6 because
 the real trust anchor arrives with real providers: tamper-evidence over a chain only real drivers can
 meaningfully corrupt is worth more once those drivers exist
-([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md), integrity deferred
+([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md), integrity deferred
 post-Phase-5).
 
 **Requirements:**
@@ -366,7 +366,7 @@ post-Phase-5).
 - The active `resume-blocked-missing-approval` path: a safety-relevant change to the approved plan's
   basis while a run is stopped requires fresh approval and evidence before resume proceeds — the
   Phase-4 named seam
-  ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md)) becomes an active trigger.
+  ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md)) becomes an active trigger.
 - Integrity checks are diagnosable stops, not silent failures: a broken chain or a missing
   re-approval surfaces at inspect and refuses resume with a named reason.
 
@@ -376,20 +376,20 @@ post-Phase-5).
   materialized on a separate integrity sidecar / non-golden surface — **not** written into the default
   golden record, which stays byte-identical; an out-of-band edit to a record or snapshot is detected
   and surfaced at inspect, and resume refuses on a broken chain with a named reason. Traces:
-  [`GUARD-1`](../../product/guarantees.md#13-anti-gaming),
-  [`SEE-4`](../../product/guarantees.md#5-full-observability),
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [`GUARD-1`](../../../product/guarantees.md#13-anti-gaming),
+  [`SEE-4`](../../../product/guarantees.md#5-full-observability),
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-2** — A safety-relevant change to the approved plan's basis while stopped triggers
   `resume-blocked-missing-approval`; resume refuses until fresh approval and evidence are recorded,
   and the re-approval decision is narrow and durable. Traces:
-  [`RESUME-5`](../../product/guarantees.md#31-interruption-resume),
-  [`GUARD-2`](../../product/guarantees.md#13-anti-gaming),
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [`RESUME-5`](../../../product/guarantees.md#31-interruption-resume),
+  [`GUARD-2`](../../../product/guarantees.md#13-anti-gaming),
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-3** — Integrity and re-approval failures are operator-visible diagnosable stops with named
   reasons, never silent; records stay safe to keep and export. Traces:
-  [`LIVE-2`](../../product/guarantees.md#33-liveness--noticing-a-stuck-run),
-  [`SEE-4`](../../product/guarantees.md#5-full-observability),
-  [`SEC-1`](../../product/guarantees.md#16-security--no-leaks-no-phone-home).
+  [`LIVE-2`](../../../product/guarantees.md#33-liveness--noticing-a-stuck-run),
+  [`SEE-4`](../../../product/guarantees.md#5-full-observability),
+  [`SEC-1`](../../../product/guarantees.md#16-security--no-leaks-no-phone-home).
 
 **Evidence/tests:**
 
@@ -412,11 +412,11 @@ post-Phase-5).
 
 **Relevant references:**
 
-- [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) (integrity deferred
+- [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) (integrity deferred
   post-Phase-5; the `resume-blocked-missing-approval` named seam)
-- [`../../design/core/records.md`](../../design/core/records.md),
-  [`../../design/core/authorization.md`](../../design/core/authorization.md),
-  [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md)
+- [`../../design/core/records.md`](../../../design/core/records.md),
+  [`../../design/core/authorization.md`](../../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md)
 
 **Explicit non-goals:**
 
@@ -435,7 +435,7 @@ before any design session.
   records these phases emit strengthen M6 seeding.
 - **TUI / dashboard — product decision first.** There is no ID-bearing product guarantee behind a
   first-party TUI, and
-  [`CFG-7`](../../product/guarantees.md#2-configuration-ownership) frames dashboards as a
+  [`CFG-7`](../../../product/guarantees.md#2-configuration-ownership) frames dashboards as a
   **third-party extension point** — arguably a signal against a first-party TUI. A TUI must open with
   a **product decision** (is a TUI jig-core at all, or does CFG-7 keep it out-of-repo?), not just a
   design session.

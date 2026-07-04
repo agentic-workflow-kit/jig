@@ -15,7 +15,7 @@ by replaying the event log (so a crashed run with no finalized `run.json` is sti
 resume from a durable checkpoint without repeating recorded effects or rebinding launch inputs,
 detect a materially changed workspace, and make redaction/export ambiguity a diagnosable stop.
 
-The design is closed in [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
+The design is closed in [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 This brief is implementation-ready **against that ADR**: it does not re-decide replay/resume/
 no-double-effect/redaction/workspace semantics — it implements them. Where a detail is genuinely
 design-owned rather than a local implementation choice, this brief says so and routes it back to
@@ -36,22 +36,22 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 4 section and P4-AC-1..6. These IDs
   are the binding delivery target.
-- [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) — the nine settlements
+- [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md) — the nine settlements
   this brief implements (replay projection, inspect, resume surface, checkpoint semantics,
   no-double-effect ledger, workspace continuity, redaction/export posture, causal notices,
   resume-integrity gate).
-- [`../../../design/core/records.md`](../../../design/core/records.md) — the replay/projection
+- [`../../../design/core/records.md`](../../../../design/core/records.md) — the replay/projection
   engine, projection purity/determinism, and the Phase 4 local altitude section (replay-inspect,
   run-level posture).
-- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — the run-lifecycle
+- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — the run-lifecycle
   and work-item closed transition tables, and the Phase 4 projected-checkpoint resume subsection
   (story-state resume, independent-work re-eligibility, no-double-effect handoff).
-- [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md) — resume re-entry,
+- [`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md) — resume re-entry,
   storage/workspace preflight, launch binding immutability, and the Phase 4 local re-entry
   subsection (the `jig resume` surface, plan snapshot, binding/workspace verification).
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md)
   — Recovery/Resume and Redaction/Export Posture properties (v0, unfrozen).
-- [ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md) decision 2 (a
+- [ADR 0017](../../../../design/decisions/0017-records-seam-reconciliation.md) decision 2 (a
   failure-halted `run.stopped` is a resumable checkpoint) and decision 5 (causality-field phasing).
 - [Phase R brief](./phase-r-remediation.md) and [Phase 3 brief](./phase-3-governed-local-runs.md) —
   the delivered records shape and golden-fixture conventions Phase 4 builds on.

@@ -130,4 +130,4 @@ The U9 integration pass maintains the track-wide artifacts that make this planni
 - [`waves/wave-0-charter/README.md`](./waves/wave-0-charter/README.md) — this unit's own wave
   charter.
 - [Jig — planning](../README.md) — the planning-layer charter this track sits under.
-- [Jig — design](../../design/README.md) — the design layer this track deepens.
+- [Jig — design](../../../design/README.md) — the design layer this track deepens.

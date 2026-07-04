@@ -34,7 +34,7 @@ remediation and governed-local-run phases that precede the remaining reliability
   triad golden.
 
 **Recorded local-MVP boundaries** — know these before building on it: preview is stdout-only per
-[ADR 0019](../../design/decisions/0019-phase-3-local-governance-scope.md), routed approvals are
+[ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md), routed approvals are
 same-process local decisions, and real workers, resume, remote approvals, replay inspect, and
 Forge/GitHub landing remain future phases.
 
@@ -61,7 +61,7 @@ Plans").
 - **Phase 5 — Integrated Provider Runs**: the four provider seams as exercised jig-internal ports,
   a composition root, a capability-attestation Fence input, and a reusable conformance suite —
   proven with reference adapters (no real drivers), settled by
-  [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
+  [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 - **Phase 6 and beyond**: real drivers, real Forge/GitHub landing, real work-source, the
   post-Phase-5 records-integrity phase, and the TUI — split out of the r1 Phase 5 bucket by ADR 0021
   and now defined in the [M7 real-providers track](../m7-real-providers/README.md) (see
@@ -80,11 +80,11 @@ Plans").
 - [Phase 4 implementation brief](./implementation-briefs/phase-4-reliable-local-runs.md) —
   session-ready brief for the reliable-local-runs phase (replay inspect, resume,
   no-double-effect, workspace continuity, redaction posture), settled by
-  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - [Phase 5 implementation brief](./implementation-briefs/phase-5-integrated-provider-runs.md) —
   session-ready brief for the integrated-provider-runs phase (the four ports, composition root,
   capability attestation, isolation catalog, runner-invoked forge, work-source, conformance suite),
-  settled by [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
+  settled by [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 
 Briefs for the delivered phases remain in the archived track's
 [`implementation-briefs/`](../m5b-local-mvp/implementation-briefs/) as period-accurate
@@ -93,11 +93,11 @@ history (their fixture paths predate the `tests/` rename).
 ## Preserved gates (carried from r1 — they held)
 
 - Execution-plan and observability-records contracts remain v0 and unfrozen:
-  [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md)
+  [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md)
   and
-  [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md).
+  [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md).
 - Work-source provenance must not bypass
-  [`PlanValidator`](../../design/core/plan-intake.md).
+  [`PlanValidator`](../../../design/core/plan-intake.md).
 - Local records remain the evidence surface; summaries and inspect views must derive from the
   run record, not a parallel narrative.
 - Provider claims, host isolation reports, and SEC-2 posture must remain provider-supplied but
@@ -115,7 +115,7 @@ history (their fixture paths predate the `tests/` rename).
 - **Local dry-run harness** means the local proof path around the scripted-worker stub; it
   must not be described as a real provider, sandbox, or SEC-2 containment proof.
 - **Story / work item / item** name the same unit; see the scope note in
-  [ADR 0012](../../design/decisions/0012-neutral-unit-term-work-item.md).
+  [ADR 0012](../../../design/decisions/0012-neutral-unit-term-work-item.md).
 
 ## Primary references
 
@@ -123,12 +123,12 @@ history (their fixture paths predate the `tests/` rename).
   [`../../reviews/2026-07-02-post-phase-2-repo-review.md`](../../reviews/2026-07-02-post-phase-2-repo-review.md)
   (findings MF1–MF6, S1–S10 — the provenance for Phase R).
 - Reconciliation ADRs:
-  [ADR 0017](../../design/decisions/0017-records-seam-reconciliation.md),
-  [ADR 0018](../../design/decisions/0018-policy-gate-simplification.md).
-- Product: [`../../product/jig.md`](../../product/jig.md),
-  [`../../product/guarantees.md`](../../product/guarantees.md),
-  [`../../product/concepts.md`](../../product/concepts.md).
-- Design: [`../../design/README.md`](../../design/README.md), the core docs it indexes, and
+  [ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md),
+  [ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md).
+- Product: [`../../product/jig.md`](../../../product/jig.md),
+  [`../../product/guarantees.md`](../../../product/guarantees.md),
+  [`../../product/concepts.md`](../../../product/concepts.md).
+- Design: [`../../design/README.md`](../../../design/README.md), the core docs it indexes, and
   the canonical dry-run trace in
-  [`../../design/notes/runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md) §15.
+  [`../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md) §15.
 - Archived predecessor: [`../m5b-local-mvp/`](../m5b-local-mvp/README.md).

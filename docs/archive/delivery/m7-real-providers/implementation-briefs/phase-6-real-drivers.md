@@ -12,14 +12,14 @@ status: completed history
 
 Phase 5 pinned and merged the four provider ports, the composition root, the capability-attestation
 Fence input, and the driver conformance suite as **exercised jig-internal seams** proven with
-**reference adapters** (commit `f59a479`, [`../../../../src/ports.ts`](../../../../src/ports.ts),
-[`../../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)). Phase 6 promotes the **agent** and
+**reference adapters** (commit `f59a479`, [`../../../../src/ports.ts`](../../../../../src/ports.ts),
+[`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts)). Phase 6 promotes the **agent** and
 **execution-host** seams from reference adapters to **real drivers** behind those same, unchanged
 ports: a real Codex-first agent performs real edits inside a real, confined host, and jig grants that
 agent only the autonomy the host's _proven_ confinement earns. Every acceptance criterion is a test
 citing its AC ID.
 
-The design is closed in [ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md).
+The design is closed in [ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md).
 This brief is implementation-ready **against that ADR**: it does not re-decide the 6a/6b split, the
 port mapping, the prove-then-describe resolution, the proven-confinement model, the substrate
 manifest, the resume-attestation persist/recover, or the redaction activation — it implements them.
@@ -43,24 +43,24 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 6 section and P6-AC-1..6. These IDs are
   the binding delivery target, with their guarantee traces.
-- [ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) — the eight settlements
+- [ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md) — the eight settlements
   this brief implements (the 6a/6b split + AC assignment, the real agent driver, prove-then-describe,
   proven confinement + failure tokens, per-story ISO-4, resume attestation persist/recover, the
   substrate manifest, real clock + redaction + regression anchors).
 - [`../repo-plan-m7.md`](../repo-plan-m7.md) — the open questions routed to design (open question 1,
   sync `describe()` vs async proof, **resolved** by ADR 0022 Decision 3; do not re-open).
-- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) and
-  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3 (binding persist/recover),
+- [ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md) and
+  [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3 (binding persist/recover),
   §6 (workspace fingerprint), §7 (redaction posture) — the carry-forwards Phase 6 extends.
-- [`../../../design/contracts/providers.md`](../../../design/contracts/providers.md) — the four seams'
+- [`../../../design/contracts/providers.md`](../../../../design/contracts/providers.md) — the four seams'
   owns/implements/must-not contract and the "Phase 6 realization (ADR 0022)" section.
-- [`../../../design/core/authorization.md`](../../../design/core/authorization.md),
-  [`bootstrap.md`](../../../design/core/bootstrap.md),
-  [`orchestration.md`](../../../design/core/orchestration.md),
-  [`plan-intake.md`](../../../design/core/plan-intake.md) — the Phase 6 realization notes for the Fence
+- [`../../../design/core/authorization.md`](../../../../design/core/authorization.md),
+  [`bootstrap.md`](../../../../design/core/bootstrap.md),
+  [`orchestration.md`](../../../../design/core/orchestration.md),
+  [`plan-intake.md`](../../../../design/core/plan-intake.md) — the Phase 6 realization notes for the Fence
   (proven-not-reported, real clock, substrate manifest), the composition root (prove-then-describe,
   persist/recover), per-story ISO-4, and the real freshness clock.
-- [`../../../design/notes/prior-art-workflow-kit.md`](../../../design/notes/prior-art-workflow-kit.md)
+- [`../../../design/notes/prior-art-workflow-kit.md`](../../../../design/notes/prior-art-workflow-kit.md)
   lessons 9–10 — the re-derived (never ported) recipe for the real local worker and proven-not-asserted
   host.
 - [Phase 5 brief](../../m5b-local-mvp-r2/implementation-briefs/phase-5-integrated-provider-runs.md) —
@@ -71,14 +71,14 @@ Read, in order:
 
 Confirmed against `src/` at authoring time — build on these, do not re-derive them:
 
-- **The four ports are merged** ([`../../../../src/ports.ts`](../../../../src/ports.ts)):
+- **The four ports are merged** ([`../../../../src/ports.ts`](../../../../../src/ports.ts)):
   `AgentPort.execute(story) → Promise<WorkerResult>`; `ExecutionHostPort.describe() → HostAttestation`
   (**synchronous**); `ForgePort.land()`; `WorkSourcePort.candidates()`. `CapabilityAttestation` unifies
   proof and result (`freshness`, `positive`, `reportedIsolationStrength`, `provenIsolationStrength`,
   `failureToken`); `HostAttestation` carries `isolationStrength` + `capabilityAttestations`;
   `HostFailureToken` is `containment-unproven | isolation-strength-overstated | workspace-collision`.
 - **The composition root** is `composeReferenceRun` in
-  [`../../../../src/bootstrap.ts`](../../../../src/bootstrap.ts) — already `async`, the sole importer of
+  [`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts) — already `async`, the sole importer of
   the reference adapters (`createReferenceAgent`, `ReferenceExecutionHost`, `ReferenceForge`,
   `ReferenceWorkSource`), fails closed on an unknown driver (`ProviderSelectionError`), reads
   `config.drivers`, calls `PlanValidator.validate`, then `executionHost.describe()`, and captures the
@@ -152,7 +152,7 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   an auto-bypass (ADR 0022 Decision 2).
 - **Close the 6a strong-attestation boundary (ADR 0022 Decision 1, binding).** 6a must not be able to
   obtain `strong` autonomy before 6b's exercised proof exists. **The default `ReferenceExecutionHost`
-  attests `strong`** ([`../../../../src/providers/reference/host.ts`](../../../../src/providers/reference/host.ts)
+  attests `strong`** ([`../../../../src/providers/reference/host.ts`](../../../../../src/providers/reference/host.ts)
   lines 16–17 default both `reportedIsolationStrength` and `provenIsolationStrength` to `strong`), so
   selecting only `agent: 'codex'` and leaving the host default would run the first real agent under an
   unexercised `strong` attestation. Implement **both** closures:
@@ -229,10 +229,10 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
 #### Slice 7 — Substrate manifest + load-time authorization (ADR 0022 Decision 7) → substrate-escalation stop
 
 - **Authority — build this, it is not a boundary violation.** The substrate manifest's authority is
-  **[ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (the
+  **[ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (the
   design layer), not `phases.md`. `phases.md` and the track README say _delivery planning_ introduces
   no provider manifests — that rule is intact here: the manifest is introduced by the **design** layer
-  (ADR 0022, extending [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md)
+  (ADR 0022, extending [ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md)
   decision 8), and both delivery docs now carry the explicit ADR-0022 carve-out. So build
   `src/substrate.ts` per ADR 0022; do **not** stop as if `phases.md` forbade it.
 - Add `src/substrate.ts`: a real provider declares its substrate scope (runtimes, argv, credentials,
