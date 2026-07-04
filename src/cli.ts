@@ -4,12 +4,13 @@ import { createInterface } from 'node:readline/promises';
 import { composeReferenceRun } from './bootstrap.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
+import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
-import { projectRunEvents } from './projection.js';
+import { type ProjectionIssue, projectRunEvents, type RunProjection } from './projection.js';
 import { RecordManager } from './records.js';
-import { ResumeRefusal, resumeRun } from './resume.js';
-import type { PlanInstance, RunRecord } from './types.js';
+import { checkWorkspaceContinuity, ResumeRefusal, resumeRun } from './resume.js';
+import type { PlanInstance, RunBinding, RunRecord } from './types.js';
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);
@@ -192,6 +193,52 @@ async function handleResume(args: string[]): Promise<void> {
   }
 }
 
+function readLaunchBindingForIntegrity(eventsJsonl: string): Pick<RunBinding, 'drivers'> | undefined {
+  const [launchLine] = eventsJsonl.split('\n');
+  if (!launchLine) {
+    return undefined;
+  }
+
+  try {
+    const launch = JSON.parse(launchLine) as { binding?: Pick<RunBinding, 'drivers'> };
+    return launch.binding;
+  } catch {
+    return undefined;
+  }
+}
+
+function verifyInspectIntegrity(runDir: string, eventsJsonl: string): IntegrityVerification {
+  return verifyIntegritySidecar(runDir, {
+    expected: launchBindingExpectsIntegrity(readLaunchBindingForIntegrity(eventsJsonl)),
+  });
+}
+
+function resumeInspectionDiagnostics(projection: RunProjection): ProjectionIssue[] {
+  if (projection.lifecycleState !== 'stopped') {
+    return [];
+  }
+
+  const continuity = checkWorkspaceContinuity(projection);
+  if (continuity.status === 'changed-basis') {
+    return [
+      {
+        code: 'resume-blocked-missing-approval',
+        message: `${continuity.message}; fresh owner approval is required before resume`,
+      },
+    ];
+  }
+  if (continuity.status === 'mismatch') {
+    return [
+      {
+        code: 'resume-blocked-workspace-mismatch',
+        message: continuity.message,
+      },
+    ];
+  }
+
+  return [];
+}
+
 async function handleInspect(args: string[]): Promise<void> {
   const runDir = args[0];
   if (!runDir) {
@@ -221,9 +268,17 @@ async function handleInspect(args: string[]): Promise<void> {
       }
     }
 
+    const integrity = verifyInspectIntegrity(runDir, eventsJsonl);
+
     try {
       const projection = projectRunEvents({ eventsJsonl, runRecord });
-      renderProjectionInspection(runDir, projection, cacheParseError);
+      renderProjectionInspection(
+        runDir,
+        projection,
+        cacheParseError,
+        integrity,
+        resumeInspectionDiagnostics(projection),
+      );
       return;
     } catch (err) {
       if (runRecord && isLegacyProjectionFallback(err)) {
@@ -231,6 +286,9 @@ async function handleInspect(args: string[]): Promise<void> {
         return;
       }
       const message = err instanceof Error ? err.message : String(err);
+      if (integrity.status === 'broken') {
+        console.error(`Integrity Notice: ${integrity.code}: ${integrity.message}`);
+      }
       console.error(`Error: Failed to inspect authoritative events.jsonl: ${message}`);
       process.exit(1);
     }
@@ -255,6 +313,8 @@ function renderProjectionInspection(
   runDir: string,
   projection: ReturnType<typeof projectRunEvents>,
   cacheParseError: string | null,
+  integrity: IntegrityVerification,
+  resumeDiagnostics: ProjectionIssue[] = [],
 ): void {
   console.log('\n--- Run Inspection ---');
   console.log(`Run ID: ${projection.runId}`);
@@ -300,7 +360,7 @@ function renderProjectionInspection(
     }
   }
 
-  const diagnostics = [...projection.diagnostics];
+  const diagnostics = [...projection.diagnostics, ...resumeDiagnostics];
   if (cacheParseError) {
     diagnostics.push({
       code: 'run.json-cache-unreadable',
@@ -312,6 +372,11 @@ function renderProjectionInspection(
     for (const diagnostic of diagnostics) {
       console.log(`  - ${diagnostic.code}: ${diagnostic.message}`);
     }
+  }
+
+  if (integrity.status === 'broken') {
+    console.log('\nIntegrity Notices:');
+    console.log(`  - ${integrity.code}: ${integrity.message}`);
   }
 
   if (projection.notices.length > 0) {

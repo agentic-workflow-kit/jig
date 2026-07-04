@@ -46,10 +46,10 @@ replay without the key; it does **not** claim to stop an actor who **also holds 
 
 **Scope (binding): records tamper-evidence + active re-approval, opt-in, unfrozen.** No hosted/multi-
 tenant/remote operation, no model-adjudicated approval (CFG-10). The v0 contracts stay unfrozen; **no
-records/execution-plan field is minted or frozen** — integrity lives on the sidecar, the driver-selection
-binding lands as a new snapshot file. The default (reference) wiring must reproduce the Phase-0..4 dry-run
-and its golden records **exactly** — that is the regression anchor, alongside the conformance suite still
-failing closed on a broken adapter.
+records/execution-plan field is minted or frozen** — integrity lives on the sidecar, and the driver-
+selection binding lands as additive `run.started.binding.drivers`. The default (reference) wiring must
+reproduce the Phase-0..4 dry-run and its golden records **exactly** — that is the regression anchor,
+alongside the conformance suite still failing closed on a broken adapter.
 
 **Dependency: Phases 5–8 are delivered on current `main`** (the four ports, composition root, capability-
 attestation gate, conformance suite, the real agent/host/forge/work-source drivers, `src/redaction.ts`,
@@ -65,7 +65,7 @@ Read, in order:
   binding delivery target, with their guarantee traces (GUARD-1/2, SEE-4, RESUME-5, LIVE-2, SEC-1).
 - [ADR 0025](../../../design/decisions/0025-phase-9-records-integrity.md) — the five settlements this brief
   implements (the sidecar HMAC primitive, the active `resume-blocked-missing-approval` with the tamper-vs-
-  changed-basis split, the diagnosable named stops, the driver-selection-snapshot fold-in, the 9a/9b
+  changed-basis split, the diagnosable named stops, the additive launch-header driver binding, the 9a/9b
   split) **and its Contract-Impact-Gate section** — the byte-identity and no-freeze constraints this brief
   must honor.
 - [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) — §1 (authoritative launch
@@ -110,13 +110,12 @@ Confirmed against `src/` at authoring time — build on these, do not re-derive 
   lines 58–62) hashes **only** `mode` + `recordDir`. `configForResumeComposition` (lines 189–199) forces
   `workSource: 'reference'` from the snapshot and passes any other `config.drivers` through only when a
   `--config` is supplied. `readDriverSelection` / `assertReferenceSelection` (`src/bootstrap.ts`) select
-  the four driver names, but **no driver snapshot is persisted at launch** — there is no artifact parallel
-  to `plan.snapshot.json` recording the launch driver selection. This is the residual Phase 9 folds in
-  (ADR 0025 Decision 4).
+  the four driver names, but **no launch-header binding records the driver selection**. This is the
+  residual Phase 9 folds into `run.started.binding.drivers` (ADR 0025 Decision 4).
 - **The snapshots are already persisted at launch and verified verification-only on resume.**
   `verifyOptionalBindings` (`src/resume.ts`) compares a passed `--config`/`--policy`/`--plan` against the
   recorded binding/snapshots and throws `resume-blocked-binding-mismatch` on mismatch, **never rebinding**
-  — the exact binding-verify pattern the driver-selection snapshot mirrors.
+  — the exact binding-verify pattern `binding.drivers` mirrors.
 - **The owner-decision / Doorbell path is delivered (Phase 3).** `authorization.granted` basis
   `["owner-approval"]` / `authorization.denied` basis `["owner-rejection"]`; the parked-resume rule
   (ADR 0020 §4) already consumes a durable owner decision on resume. Re-approval reuses this — no new
@@ -146,8 +145,8 @@ Do not:
 - **widen authority** on re-approval — re-approval re-confirms continuation under the recorded binding
   through the existing Doorbell path; it never rebinds, widens scope, or swaps the launch policy;
 - let a **model** adjudicate the tamper-vs-changed-basis split or the re-approval decision (CFG-10);
-- **rebind** the driver selection on resume — the driver-selection snapshot is **verification-only**; a
-  mismatch fails closed, never swaps to a fresher selection;
+- **rebind** the driver selection on resume — the additive `binding.drivers` launch binding is
+  **verification-only**; a mismatch fails closed, never swaps to a fresher selection;
 - overclaim the threat model — the HMAC does **not** stop an actor who also holds the key; keep the
   guarantee honestly scoped;
 - expand into hosted/multi-tenant/remote operation, model-adjudicated approval, or a richer changed-basis
@@ -158,15 +157,14 @@ Do not:
 
 - `src/integrity.ts` (new) — the sidecar integrity engine: given the run directory, compute a **content
   digest** per protected artifact (`events.jsonl` line-ordered as the hash-chain, `plan.snapshot.json`,
-  `policy.snapshot.json`, `attestation.snapshot.json` where present, the new `drivers.snapshot.json`, and
-  the launch header) and an **HMAC over those digests** keyed from the environment; materialize on
+  `policy.snapshot.json`, `attestation.snapshot.json` where present, and the launch header including
+  `binding.drivers`) and an **HMAC over those digests** keyed from the environment; materialize on
   `runs/<id>/integrity.json`; and a **verify** function that recomputes-and-compares (returns a
   break/verified result, never mutates a record). The key read is env-only; absence where integrity is
   expected is a diagnosable outcome, never a silent keyless fallback.
-- `src/bootstrap.ts` — persist the **driver-selection snapshot** (`drivers.snapshot.json`: the resolved
-  `agent`/`executionHost`/`forge`/`workSource` names) at launch, parallel to the plan/policy snapshots
-  (ADR 0025 Decision 4); trigger integrity materialization at launch after the snapshots + launch header
-  are durable.
+- `src/bootstrap.ts` / `src/records.ts` — persist the resolved `agent`/`executionHost`/`forge`/
+  `workSource` names as additive `run.started.binding.drivers` at launch (ADR 0025 Decision 4); trigger
+  integrity materialization after the snapshots + launch header are durable.
 - `src/resume.ts` — (a) add integrity **verify** at resume preflight before continuing (broken → hard
   refuse with the new named reason); (b) add the **driver-selection verification** (verification-only,
   mismatch fails closed, never rebind) — extend `describeConfigBinding` / `configForResumeComposition` so
@@ -210,7 +208,7 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   digest field, **stop and route to design** — do not author around it (it does not: sidecar + env key
   freeze nothing).
 
-#### Slice 2 — verify-at-inspect + refuse-at-resume; the driver-selection snapshot fold-in (ADR 0025 Decisions 3, 4) → P9-AC-1
+#### Slice 2 — verify-at-inspect + refuse-at-resume; the launch-header driver-binding fold-in (ADR 0025 Decisions 3, 4) → P9-AC-1
 
 - Add a **verify** entrypoint (`recompute-and-compare`): recompute the digests from the on-disk bytes,
   recompute the HMAC with the env key, compare to the sidecar. A mismatch (or a missing key where expected)
@@ -219,16 +217,16 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   render what is derivable) and into **resume preflight** (hard-refuse with a new named reason on
   `ResumeRefusalReason`, e.g. `resume-blocked-records-integrity`; exact string your call). A refused resume
   **appends nothing and moves no checkpoint** (ADR 0020 §8) — it is a live diagnostic + non-zero exit.
-- **Driver-selection snapshot fold-in (ADR 0025 Decision 4).** Persist `drivers.snapshot.json` at launch
-  (the four resolved driver names), parallel to the plan/policy snapshots; include it in Slice 1's digest
-  set; and on resume **verify** the launch driver selection against the selection resume would use —
+- **Launch-header driver-binding fold-in (ADR 0025 Decision 4).** Persist the four resolved driver names as
+  additive `run.started.binding.drivers`; include the launch header in Slice 1's digest set; and on resume
+  **verify** the launch driver selection against the selection resume would use —
   mismatch fails closed with a binding-mismatch-class diagnostic, **verification-only, never rebind**
   (extend `describeConfigBinding` / `configForResumeComposition` accordingly). This binds `agent`/
   `executionHost`/`forge` selection, which T8 left unbound (T8 bound only `workSource`).
 - **Test obligation:** (1) a **tamper-detection** test — edit a snapshot / a record byte / the sidecar, and
   prove `inspect` surfaces the break **and** `resume` refuses with the named reason (both legs); (2) a
   **driver-binding** test — a resume `--config` selecting a different `agent`/`forge` than launch fails
-  closed against the driver-selection snapshot (verification-only), while a matching selection passes; (3)
+  closed against `binding.drivers` (verification-only), while a matching selection passes; (3)
   a **records-stay-safe** test proving a detected break still lets inspect render what is derivable and
   export stays governed.
 
@@ -280,7 +278,7 @@ Extend `src/conformance/` + broken/adversarial fixtures so the suite still fails
   diagnosable stop, not a silent skip;
 - a **changed-basis-without-re-approval** case — a safety-relevant change with no fresh owner decision →
   resume refused;
-- a **driver-selection-mismatch** case — a resume selection diverging from the launch driver snapshot →
+- a **driver-selection-mismatch** case — a resume selection diverging from `run.started.binding.drivers` →
   fails closed.
 
 ## Acceptance criteria (binding — from `phases.md`)
@@ -315,9 +313,9 @@ beside the run dir and events.jsonl + snapshots stay byte-unchanged`; the **byte
   never serialized into record bytes — Slice 1); `P9-AC-1: the HMAC key is read from the environment and
 never appears in the sidecar or any record` (injected/faked key, hermetic — Slice 1).
 - **Tamper detection + driver binding** (`tests/integrity.*` / `tests/resume.*`): `P9-AC-1: an out-of-band
-edit to a record/snapshot is surfaced at inspect and refuses resume with a named reason`; `P9-AC-1: a
-resume driver selection diverging from the launch driver snapshot fails closed (verification-only, never
-rebind)`; `P9-AC-1: a tampered sidecar rewritten without the env key is detected` (Slice 2).
+edit to a record/snapshot is surfaced at inspect and refuses resume with a named reason`; `P9-AC-1:
+resume driver selection diverging from binding.drivers fails closed (verification-only, never rebind)`;
+  `P9-AC-1: a tampered sidecar rewritten without the env key is detected` (Slice 2).
 - **Active re-approval** (`tests/resume.*`): `P9-AC-2: a safety-relevant changed basis while stopped
 triggers resume-blocked-missing-approval and resume is blocked until a fresh owner decision is recorded`;
   the **tamper-vs-changed-basis** guard `P9-AC-2: a broken chain hard-refuses and cannot be cleared by
@@ -333,7 +331,7 @@ tampered-sidecar / missing-key / changed-basis-without-re-approval / driver-sele
 rejected`). Hermetic — no live key server / no network in CI; the env-supplied key seam is injected/faked
   in tests.
 - **Baseline guard:** the Phase-0..4 goldens still pass under the default wiring — proof the sidecar, the
-  driver-selection snapshot, and the active re-approval trigger did not regress the delivered records.
+  additive driver binding, and the active re-approval trigger did not regress the delivered records.
 
 ## Fixture plan
 
@@ -344,7 +342,7 @@ rejected`). Hermetic — no live key server / no network in CI; the env-supplied
   sidecar rewritten without the env key) for P9-AC-1's detection.
 - **A missing-key fixture** (integrity expected, no env key) for the diagnosable-stop, not-silent-skip
   case.
-- **A driver-selection-mismatch fixture** (a resume selection diverging from `drivers.snapshot.json`) for
+- **A driver-selection-mismatch fixture** (a resume selection diverging from `binding.drivers`) for
   the verification-only binding.
 - **A changed-basis fixture** (a safety-relevant change while stopped, no fresh owner decision) and a
   **re-approval fixture** (a durable owner decision recorded) for P9-AC-2.
@@ -388,11 +386,11 @@ Halt and route back to design (do not decide locally) if:
 - Integrity is materialized **only on the sidecar** — `events.jsonl` + snapshots are byte-unchanged,
   evidenced by the byte-identical-goldens guard; the HMAC key is environment-only and never serialized,
   evidenced by the key-from-env test.
-- The driver-selection snapshot binds `agent`/`executionHost`/`forge`/`workSource` and is verified
-  verification-only on resume (never rebind), evidenced by the driver-binding test.
+- The additive `binding.drivers` launch field binds `agent`/`executionHost`/`forge`/`workSource` and is
+  verified verification-only on resume (never rebind), evidenced by the driver-binding test.
 - A records-diff note in the PR body: the default wiring reproduces the Phase-0..4 records (byte-identical);
-  the sidecar and the driver snapshot are new **non-golden** files, cited to ADR 0025; **no records/
-  execution-plan field is minted or frozen**, and **no event family is minted** (re-approval reuses
+  the sidecar is a new **non-golden** file and `binding.drivers` is additive launch context, cited to ADR
+  0025; **no records/execution-plan field is minted or frozen**, and **no event family is minted** (re-approval reuses
   `authorization.granted`/`authorization.denied`; refusals are live `resume-blocked-*` diagnostics). Note
   the explicit non-goals: no schema freeze, no model-adjudicated approval, no widened authority, no hosted/
   multi-tenant/remote operation, and the honestly-scoped threat model (the HMAC does not stop an actor who

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
 import { validatePlanForScheduling } from '../src/intake.js';
+import { writeIntegritySidecar } from '../src/integrity.js';
 import type { RunProjection } from '../src/projection.js';
 import { RecordManager } from '../src/records.js';
 import { buildResumePlan, ResumeRefusal, resumeRun } from '../src/resume.js';
@@ -13,6 +14,7 @@ import type {
   GitWorkspaceFingerprint,
   Plan,
   PolicyDoc,
+  RunBinding,
   RunEvent,
   WorkspaceFingerprint,
 } from '../src/types.js';
@@ -26,6 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.JIG_RECORDS_INTEGRITY_KEY;
   rmSync(runDir, { recursive: true, force: true });
 });
 
@@ -62,6 +65,22 @@ function assertGitWorkspace(workspace: WorkspaceFingerprint): asserts workspace 
     assert.fail('workspace mismatch test requires a git workspace');
   }
 }
+
+type DriverBinding = NonNullable<RunBinding['drivers']>;
+
+const referenceDriverBinding: DriverBinding = {
+  agent: 'reference',
+  executionHost: 'reference',
+  forge: 'reference',
+  workSource: 'reference',
+};
+
+const realWorkSourceDriverBinding: DriverBinding = {
+  agent: 'scripted-stub',
+  executionHost: 'local',
+  forge: 'reference',
+  workSource: 'github-issues',
+};
 
 function stoppedEvents(workspace = captureWorkspaceFingerprint(process.cwd())): RunEvent[] {
   return [
@@ -108,10 +127,35 @@ function stoppedEvents(workspace = captureWorkspaceFingerprint(process.cwd())): 
   ];
 }
 
+function stoppedEventsWithDrivers(
+  workspace = captureWorkspaceFingerprint(process.cwd()),
+  drivers: DriverBinding = referenceDriverBinding,
+): RunEvent[] {
+  const events = stoppedEvents(workspace);
+  const [launch, ...rest] = events;
+  assert.ok(launch);
+  return [
+    {
+      ...launch,
+      binding: {
+        ...launch?.binding,
+        drivers,
+      },
+    } as RunEvent,
+    ...rest,
+  ];
+}
+
 function writeStoppedRun(events = stoppedEvents(), planSnapshot = plan(), policySnapshot = launchPolicy()): void {
   writeFileSync(join(runDir, 'plan.snapshot.json'), JSON.stringify(planSnapshot, null, 2));
   writeFileSync(join(runDir, 'policy.snapshot.json'), JSON.stringify(policySnapshot, null, 2));
   writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(events));
+}
+
+function writeStoppedIntegrityRun(events = stoppedEventsWithDrivers()): void {
+  process.env.JIG_RECORDS_INTEGRITY_KEY = 'phase-9-resume-key';
+  writeStoppedRun(events);
+  writeIntegritySidecar(runDir);
 }
 
 function writeScriptedOutput(): string {
@@ -526,7 +570,7 @@ test('P4-AC-6: resume with a changed workspace fingerprint is refused without ap
   writeStoppedRun(
     stoppedEvents({
       ...workspace,
-      changeSetHash: `${workspace.changeSetHash}-different`,
+      head: 'ffffffffffffffffffffffffffffffffffffffff',
     }),
   );
   const scriptedOutputPath = writeScriptedOutput();
@@ -556,6 +600,256 @@ test('P4-AC-6: resume refuses unavailable workspace fingerprints instead of clai
     (error: unknown) => error instanceof ResumeRefusal && error.reason === 'resume-blocked-workspace-mismatch',
   );
 
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P9-AC-1: resume refuses a tampered tamper-evident run before owner approval or append', async () => {
+  writeStoppedIntegrityRun();
+  const scriptedOutputPath = writeScriptedOutput();
+  writeFileSync(join(runDir, 'policy.snapshot.json'), JSON.stringify({ policy: { id: 'tampered-policy' } }, null, 2));
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        ownerDecisionSource: { decide: async () => 'approve' },
+      }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-records-integrity' &&
+      /policy\.snapshot\.json/.test(error.message),
+  );
+
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P9-AC-1: resume driver selection mismatch fails closed without rebinding', async () => {
+  writeStoppedIntegrityRun();
+  const scriptedOutputPath = writeScriptedOutput();
+  const configPath = writeJson('driver-mismatch-config.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: {
+      agent: 'scripted-stub',
+      executionHost: 'local',
+      forge: 'reference',
+      workSource: 'reference',
+    },
+  });
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+
+  await assert.rejects(
+    () => resumeRun({ runDir, scriptedOutputPath, configPath }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-binding-mismatch' &&
+      /driver selection/.test(error.message),
+  );
+
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P9-AC-1: resume recovers real work-source launch binding without --config', async () => {
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers(captureWorkspaceFingerprint(process.cwd()), realWorkSourceDriverBinding),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+  let fetched = false;
+
+  const status = await resumeRun({
+    runDir,
+    scriptedOutputPath,
+    workSourceTransport: {
+      fetchCandidates: async () => {
+        fetched = true;
+        return [
+          {
+            sourceSystem: 'github-issues',
+            identifier: 'resume-101',
+            planInstance: { plan: plan() },
+          },
+        ];
+      },
+    },
+  });
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(fetched, true);
+  assert.ok(readRunEvents().find((event) => event.family === 'run.resumed'));
+});
+
+test('P9-AC-1: matching real work-source config verifies and keeps the launch driver active', async () => {
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers(captureWorkspaceFingerprint(process.cwd()), realWorkSourceDriverBinding),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+  const configPath = writeJson('driver-match-config.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: realWorkSourceDriverBinding,
+  });
+  let fetched = false;
+
+  const status = await resumeRun({
+    runDir,
+    scriptedOutputPath,
+    configPath,
+    workSourceTransport: {
+      fetchCandidates: async () => {
+        fetched = true;
+        return [
+          {
+            sourceSystem: 'github-issues',
+            identifier: 'resume-102',
+            planInstance: { plan: plan() },
+          },
+        ];
+      },
+    },
+  });
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(fetched, true);
+});
+
+test('P9-AC-2: changed basis blocks without owner re-approval and appends nothing', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    }),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+
+  await assert.rejects(
+    () => resumeRun({ runDir, scriptedOutputPath }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-missing-approval' &&
+      /fresh owner approval/.test(error.message),
+  );
+
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P9-AC-2: changed basis refuses before real work-source intake', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers(
+      {
+        ...workspace,
+        changeSetHash: `${workspace.changeSetHash}-changed`,
+      },
+      realWorkSourceDriverBinding,
+    ),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+  let fetched = false;
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        workSourceTransport: {
+          fetchCandidates: async () => {
+            fetched = true;
+            throw new Error('provider should not be touched before approval');
+          },
+        },
+      }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-missing-approval' &&
+      /fresh owner approval/.test(error.message),
+  );
+
+  assert.strictEqual(fetched, false);
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
+test('P9-AC-2: changed basis resumes only after narrow owner re-approval evidence is recorded', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    }),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+
+  const status = await resumeRun({
+    runDir,
+    scriptedOutputPath,
+    ownerDecisionSource: { decide: async () => 'approve' },
+  });
+
+  assert.strictEqual(status, 'success');
+  const events = readRunEvents();
+  const approval = events.find(
+    (event) =>
+      event.family === 'authorization.granted' &&
+      event.requestId === 'resume-changed-basis' &&
+      Array.isArray(event.basis) &&
+      event.basis.includes('owner-approval'),
+  );
+  assert.ok(approval);
+  assert.strictEqual(approval.storyId, undefined);
+  assert.ok(events.find((event) => event.family === 'run.resumed'));
+});
+
+test('P9-AC-2: non-resumable changed-basis runs append no owner approval evidence', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun([
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    })[0] as RunEvent,
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+    },
+  ]);
+  const scriptedOutputPath = writeScriptedOutput();
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+  let ownerAsked = false;
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        ownerDecisionSource: {
+          decide: async () => {
+            ownerAsked = true;
+            return 'approve';
+          },
+        },
+      }),
+    /Cannot resume a run that is not stopped at a safe checkpoint/,
+  );
+
+  assert.strictEqual(ownerAsked, false);
   assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
 });
 

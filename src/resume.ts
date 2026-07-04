@@ -2,13 +2,26 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { composeReferenceRun } from './bootstrap.js';
+import {
+  assertSupportedDriverSelection,
+  type DriverSelection,
+  driverSelectionsEqual,
+  readDriverSelection,
+} from './driver-selection.js';
 import { LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
+import {
+  INTEGRITY_FILE,
+  launchBindingExpectsIntegrity,
+  verifyIntegritySidecar,
+  writeIntegritySidecar,
+} from './integrity.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import type { CapabilityAttestation, LandingAction } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
 import type { GitHubForgeTransport } from './providers/real/forge.js';
+import type { GitHubIssuesWorkSourceTransport } from './providers/real/work-source.js';
 import { type RedactionOptions, redactValue } from './redaction.js';
 import type {
   ConfigDoc,
@@ -28,7 +41,8 @@ import { captureWorkspaceFingerprint } from './workspace.js';
 export type ResumeRefusalReason =
   | 'resume-blocked-binding-mismatch'
   | 'resume-blocked-workspace-mismatch'
-  | 'resume-blocked-missing-approval';
+  | 'resume-blocked-missing-approval'
+  | 'resume-blocked-records-integrity';
 
 export class ResumeRefusal extends Error {
   readonly reason: ResumeRefusalReason;
@@ -48,6 +62,7 @@ export interface ResumeRunOptions {
   planPath?: string | null;
   ownerDecisionSource?: ConstructorParameters<typeof LocalHarness>[2];
   forgeTransport?: GitHubForgeTransport;
+  workSourceTransport?: GitHubIssuesWorkSourceTransport;
   redaction?: RedactionOptions;
 }
 
@@ -67,6 +82,20 @@ function readJsonlEvents(eventsJsonl: string): RunEvent[] {
     .split('\n')
     .filter((line) => line.trim() !== '')
     .map((line) => JSON.parse(line) as RunEvent);
+}
+
+function launchHeaderBinding(eventsJsonl: string): { drivers?: unknown } | undefined {
+  const [firstLine] = eventsJsonl.split('\n');
+  if (!firstLine) {
+    return undefined;
+  }
+
+  try {
+    const event = JSON.parse(firstLine) as { binding?: { drivers?: unknown } };
+    return event.binding;
+  } catch {
+    return undefined;
+  }
 }
 
 function loadRunRecord(runDir: string): RunRecord | null {
@@ -131,18 +160,54 @@ function loadPlanInstanceForVerification(planPath: string): PlanInstance {
   return planInstance;
 }
 
-function verifyWorkspaceContinuity(projection: RunProjection): void {
+function verifyIntegrityPreflight(runDir: string, eventsJsonl: string): void {
+  const expected =
+    existsSync(join(runDir, INTEGRITY_FILE)) || launchBindingExpectsIntegrity(launchHeaderBinding(eventsJsonl));
+  const verification = verifyIntegritySidecar(runDir, { expected });
+  if (verification.status === 'broken') {
+    throw new ResumeRefusal(
+      'resume-blocked-records-integrity',
+      `resume-blocked-records-integrity: ${verification.message}`,
+    );
+  }
+}
+
+export type WorkspaceContinuity =
+  | { status: 'continuous' }
+  | { status: 'changed-basis'; message: string }
+  | { status: 'mismatch'; message: string };
+
+export function checkWorkspaceContinuity(projection: RunProjection): WorkspaceContinuity {
   const current = captureWorkspaceFingerprint(process.cwd());
   if (
     ('kind' in current && current.kind === 'unavailable') ||
-    ('kind' in projection.workspace && projection.workspace.kind === 'unavailable') ||
-    !isDeepStrictEqual(current, projection.workspace)
+    ('kind' in projection.workspace && projection.workspace.kind === 'unavailable')
   ) {
-    throw new ResumeRefusal(
-      'resume-blocked-workspace-mismatch',
-      'resume-blocked-workspace-mismatch: current workspace fingerprint differs from the recorded launch binding',
-    );
+    return {
+      status: 'mismatch',
+      message: 'current or recorded workspace fingerprint is unavailable',
+    };
   }
+
+  if (isDeepStrictEqual(current, projection.workspace)) {
+    return { status: 'continuous' };
+  }
+
+  if (
+    current.repoRoot === projection.workspace.repoRoot &&
+    current.head === projection.workspace.head &&
+    current.changeSetHash !== projection.workspace.changeSetHash
+  ) {
+    return {
+      status: 'changed-basis',
+      message: 'current workspace changes differ from the recorded launch binding',
+    };
+  }
+
+  return {
+    status: 'mismatch',
+    message: 'current workspace fingerprint differs from the recorded launch binding',
+  };
 }
 
 function verifyOptionalBindings(
@@ -186,7 +251,44 @@ function verifyOptionalBindings(
   return verifiedConfig;
 }
 
-function configForResumeComposition(verifiedConfig?: ConfigDoc): ConfigDoc {
+function launchDriverSelection(projection: RunProjection): DriverSelection | undefined {
+  const drivers = projection.binding.drivers;
+  if (!drivers) {
+    return undefined;
+  }
+  const selection: DriverSelection = {
+    agent: drivers.agent,
+    executionHost: drivers.executionHost,
+    forge: drivers.forge,
+    workSource: drivers.workSource,
+  };
+  assertSupportedDriverSelection(selection);
+  return selection;
+}
+
+function verifyLaunchDriverSelection(projection: RunProjection, verifiedConfig: ConfigDoc | undefined): void {
+  const launchSelection = launchDriverSelection(projection);
+  if (!launchSelection || !verifiedConfig) {
+    return;
+  }
+
+  const resumeSelection = readDriverSelection(verifiedConfig);
+  assertSupportedDriverSelection(resumeSelection);
+  if (!driverSelectionsEqual(launchSelection, resumeSelection)) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: --config driver selection does not match the recorded launch binding',
+    );
+  }
+}
+
+function configForResumeComposition(verifiedConfig?: ConfigDoc, launchSelection?: DriverSelection): ConfigDoc {
+  if (launchSelection) {
+    return {
+      drivers: launchSelection,
+    };
+  }
+
   const rawDrivers = verifiedConfig?.drivers;
   const drivers =
     rawDrivers && typeof rawDrivers === 'object' && !Array.isArray(rawDrivers)
@@ -196,6 +298,63 @@ function configForResumeComposition(verifiedConfig?: ConfigDoc): ConfigDoc {
   return {
     drivers,
   };
+}
+
+async function requireChangedBasisReapproval(
+  continuity: WorkspaceContinuity,
+  options: ResumeRunOptions,
+  recordSink: RecordSink,
+  projection: RunProjection,
+): Promise<void> {
+  if (continuity.status === 'continuous') {
+    return;
+  }
+
+  if (continuity.status === 'mismatch') {
+    throw new ResumeRefusal(
+      'resume-blocked-workspace-mismatch',
+      `resume-blocked-workspace-mismatch: ${continuity.message}`,
+    );
+  }
+
+  if (!options.ownerDecisionSource) {
+    throw new ResumeRefusal(
+      'resume-blocked-missing-approval',
+      `resume-blocked-missing-approval: ${continuity.message}; fresh owner approval is required before resume`,
+    );
+  }
+
+  const request = {
+    id: 'resume-changed-basis',
+    kind: 'resume-changed-basis',
+    reason: continuity.message,
+  };
+  const story = {
+    id: projection.runId,
+    title: 'Resume changed basis re-approval',
+  };
+  const decision = await options.ownerDecisionSource.decide(request, story);
+  if (decision === 'reject') {
+    recordSink.recordEvent({
+      family: 'authorization.denied',
+      requestId: request.id,
+      requestKind: request.kind,
+      reason: 'resume-changed-basis-rejected',
+      basis: ['owner-rejection'],
+    });
+    throw new ResumeRefusal(
+      'resume-blocked-missing-approval',
+      `resume-blocked-missing-approval: ${continuity.message}; owner rejected resume`,
+    );
+  }
+
+  recordSink.recordEvent({
+    family: 'authorization.granted',
+    requestId: request.id,
+    requestKind: request.kind,
+    reason: 'resume-changed-basis-approved',
+    basis: ['owner-approval'],
+  });
 }
 
 function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
@@ -295,13 +454,20 @@ class ResumeRecordSink implements RecordSink {
   private readonly runDir: string;
   private readonly projection: RunProjection;
   private readonly launchEvent: RunEvent | undefined;
-  private readonly redaction: RedactionOptions | undefined;
+  private readonly integrityEnabled: boolean;
+  private redaction: RedactionOptions | undefined;
 
   constructor(runDir: string, projection: RunProjection, existingEvents: RunEvent[], redaction?: RedactionOptions) {
     this.runDir = runDir;
     this.projection = projection;
     this.events = [...existingEvents];
     this.launchEvent = existingEvents.find((event) => event.family === 'run.started');
+    this.integrityEnabled =
+      existsSync(join(runDir, INTEGRITY_FILE)) || launchBindingExpectsIntegrity(this.launchEvent?.binding);
+    this.redaction = redaction;
+  }
+
+  setRedaction(redaction: RedactionOptions | undefined): void {
     this.redaction = redaction;
   }
 
@@ -312,6 +478,9 @@ class ResumeRecordSink implements RecordSink {
     const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
+    if (this.integrityEnabled) {
+      writeIntegritySidecar(this.runDir);
+    }
   }
 
   async finalize(status: RunStatus): Promise<void> {
@@ -377,25 +546,31 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   }
 
   const eventsJsonl = readFileSync(eventsJsonlPath, 'utf8');
+  verifyIntegrityPreflight(options.runDir, eventsJsonl);
   const existingEvents = readJsonlEvents(eventsJsonl);
   const projection = projectRunEvents({ eventsJsonl, runRecord: loadRunRecord(options.runDir) });
   const planSnapshot = loadPlanSnapshot(options.runDir);
   const policySnapshot = loadPolicySnapshot(options.runDir, projection);
   const launchAttestation = loadLaunchAttestationSnapshot(options.runDir, existingEvents);
   const verifiedConfig = verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
-  verifyWorkspaceContinuity(projection);
+  verifyLaunchDriverSelection(projection, verifiedConfig);
+  const workspaceContinuity = checkWorkspaceContinuity(projection);
+  const launchSelection = launchDriverSelection(projection);
 
   const resumePlan = buildResumePlan(projection, existingEvents);
+  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, options.redaction);
+  await requireChangedBasisReapproval(workspaceContinuity, options, recordSink, projection);
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },
-    config: configForResumeComposition(verifiedConfig),
+    config: configForResumeComposition(verifiedConfig, launchSelection),
     scriptedOutput,
     forgeTransport: options.forgeTransport,
+    workSourceTransport: options.workSourceTransport,
     redaction: options.redaction,
   });
+  recordSink.setRedaction(composed.redaction);
   const intake = await intakeCandidates(composed.workSource);
-  const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, composed.redaction);
   for (const rejection of intake.rejected) {
     recordSink.recordEvent(rejection.event);
   }

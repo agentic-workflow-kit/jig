@@ -13,6 +13,7 @@ import type { ConfigDoc, PlanInstance, PolicyDoc, RecordSink, ResumePlan, RunEve
 const cleanupDirs: string[] = [];
 
 afterEach(() => {
+  delete process.env.JIG_RECORDS_INTEGRITY_KEY;
   for (const dir of cleanupDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -292,6 +293,7 @@ test('P8-AC-3: the per-candidate origin is legible in the run record', async () 
     { execute: async () => ({ outcome: 'success', evidence: { result: 'passed' } }) },
     new RecordManager(),
   );
+  process.env.JIG_RECORDS_INTEGRITY_KEY = 'p8-origin-integrity-key';
 
   assert.strictEqual(
     await harness.run(candidate, { ...config, runner: { mode: 'local-dry-run', recordDir } }, policy),

@@ -17,6 +17,12 @@ export interface LaunchBinding {
   policyRef: string;
   configRef: string;
   workspace: WorkspaceFingerprint;
+  drivers?: {
+    agent: string;
+    executionHost: string;
+    forge: string;
+    workSource: string;
+  };
 }
 
 export interface RunPosture {
@@ -247,6 +253,22 @@ function readRunPosture(parsedEvent: ParsedEvent, postureRecord: Record<string, 
   };
 }
 
+function readLaunchDrivers(
+  parsedEvent: ParsedEvent,
+  driversRecord: Record<string, unknown> | undefined,
+): LaunchBinding['drivers'] {
+  if (!driversRecord) {
+    return undefined;
+  }
+
+  return {
+    agent: requireString(driversRecord.agent, 'binding.drivers.agent', parsedEvent),
+    executionHost: requireString(driversRecord.executionHost, 'binding.drivers.executionHost', parsedEvent),
+    forge: requireString(driversRecord.forge, 'binding.drivers.forge', parsedEvent),
+    workSource: requireString(driversRecord.workSource, 'binding.drivers.workSource', parsedEvent),
+  };
+}
+
 function readLaunchHeader(
   parsedEvent: ParsedEvent,
 ): Omit<
@@ -295,6 +317,11 @@ function readLaunchHeader(
     policyRef: requireString(bindingRecord.policyRef, 'binding.policyRef', parsedEvent),
     configRef: requireString(bindingRecord.configRef, 'binding.configRef', parsedEvent),
     workspace,
+    ...(bindingRecord.drivers !== undefined
+      ? {
+          drivers: readLaunchDrivers(parsedEvent, requireObject(bindingRecord.drivers, 'binding.drivers', parsedEvent)),
+        }
+      : {}),
   };
 
   const posture = readRunPosture(parsedEvent, postureRecord);
@@ -420,6 +447,12 @@ function compareRunRecord(
     !isDeepStrictEqual(runBindingRecord.workspace, projection.workspace)
   ) {
     staleDetails.push('run.binding.workspace');
+  }
+  if (
+    runBindingRecord.drivers !== undefined &&
+    !isDeepStrictEqual(runBindingRecord.drivers, projection.binding.drivers)
+  ) {
+    staleDetails.push('run.binding.drivers');
   }
 
   const eventCache = Array.isArray(runRecord.events) ? runRecord.events : [];
@@ -569,16 +602,23 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
       continue;
     }
 
-    assertActiveRun(lifecycleState, parsedEvent);
-
-    if (family === 'authorization.denied' && parsedEvent.event.storyId === undefined) {
-      sawAuthorizationDenial = true;
+    if (
+      parsedEvent.event.storyId === undefined &&
+      (family === 'authorization.denied' || family === 'authorization.granted')
+    ) {
+      if (family === 'authorization.denied') {
+        sawAuthorizationDenial = true;
+      }
       if (typeof parsedEvent.event.reason === 'string' && parsedEvent.event.reason.trim() !== '') {
         summaryReason = parsedEvent.event.reason;
-        status = 'failure';
+        if (family === 'authorization.denied') {
+          status = 'failure';
+        }
       }
       continue;
     }
+
+    assertActiveRun(lifecycleState, parsedEvent);
 
     const storyId = requireStoryId(parsedEvent);
     const story = getOrCreateStory(stories, storyId);
