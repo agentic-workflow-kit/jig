@@ -59,8 +59,8 @@ sandbox cleanup after capture; the durable evidence is the content-hashed run re
 
 | Field                     | Value                                                                                     |
 | ------------------------- | ----------------------------------------------------------------------------------------- |
-| Run ID                    | `run-evrun-partial-smoke-1783161353667-4d226400-29a9-47e5-a128-bf387c372921`              |
-| Pull request URL          | `https://github.com/agentic-workflow-kit/jig-smoke-target/pull/3` (closed during cleanup) |
+| Run ID                    | `run-evrun-partial-smoke-1783162149298-1a89d012-7621-4cae-95e1-7be95b90ff55`              |
+| Pull request URL          | `https://github.com/agentic-workflow-kit/jig-smoke-target/pull/4` (closed during cleanup) |
 | Landing families observed | `runner-action.opened-pr`                                                                 |
 | Final status              | `success`                                                                                 |
 | Integrity verification    | `verified`                                                                                |
@@ -69,8 +69,8 @@ sandbox cleanup after capture; the durable evidence is the content-hashed run re
 
 | Artifact         | SHA-256                                                            |
 | ---------------- | ------------------------------------------------------------------ |
-| `run.json`       | `15f2c4a2cda5b074119df525cabea425e874ff5f93a3618e3db3568ba425079b` |
-| `integrity.json` | `ba08ea2bcbc149eb5e3f530c3c60be26c2248c6cf57e27076967a9032628adf3` |
+| `run.json`       | `91c0ea7250a5e8344e0a6995bbce9cc360f5cbfe4f560cf7e551a03357052d93` |
+| `integrity.json` | `cd009bf26d83dfb224390587de327e2d96a6b27606a782c54786ff769ddd89bd` |
 
 ## Redaction
 

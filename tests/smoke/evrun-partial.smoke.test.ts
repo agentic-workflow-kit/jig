@@ -231,8 +231,9 @@ function emitEvidenceFacts(
   writeFileSync(outPath, serialized);
 }
 
-describe.skipIf(!process.env.GITHUB_TOKEN)('EVRUN partial real-provider smoke', () => {
+describe.skipIf(!process.env.EVRUN_SMOKE)('EVRUN partial real-provider smoke', () => {
   test('work-source to real forge landing records and verifies integrity with a scripted agent leg', async () => {
+    assert.ok(process.env.GITHUB_TOKEN, 'set GITHUB_TOKEN for the sandbox GitHub smoke run');
     assert.strictEqual(
       process.env.JIG_GITHUB_ISSUES_REPOSITORY,
       SMOKE_REPOSITORY,

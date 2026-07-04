@@ -3,8 +3,9 @@ import { defineConfig } from 'vitest/config';
 // Single-package engine baseline. Coverage thresholds match the org's TDD bar (90%+).
 // Test files are split by suffix so the same runner drives each tier; `conformance` covers
 // tests/conformance/*.conformance.test.ts (provider-conformance regressions and adversarial
-// checks — a distinct tier from ordinary unit tests). `smoke` covers token-gated real-effect
-// probes and intentionally does not use the hermetic no-real-effects setup.
+// checks — a distinct tier from ordinary unit tests). `smoke` covers real-effect probes gated by
+// the explicit EVRUN_SMOKE opt-in, so a stray GITHUB_TOKEN never triggers real effects; it
+// intentionally does not use the hermetic no-real-effects setup.
 //
 // setupFiles wires the hermetic no-real-effects guard (tests/hermetic/no-real-effects.setup.ts)
 // into every non-smoke lane: it fails loudly on genuinely external effects (network fetch to a
