@@ -81,6 +81,67 @@ This widening is internal to the real Codex adapter boundary. The public provide
 seam. The runner, Fence, records, Forge, and work-source paths must not import app-server protocol
 objects or app-server lifecycle events directly.
 
+The boundary this widening must hold — what is public and final-result-only versus what stays
+internal to the real Codex adapter:
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 60,
+    "rankSpacing": 55
+  }
+}}%%
+flowchart LR
+  subgraph public["Public — final-result only"]
+    direction LR
+    runner("`**Runner / Fence /
+Records / Forge /
+Work source**`")
+    agentport("`**AgentPort**
+execute(story) ->
+WorkerResult`")
+  end
+
+  subgraph internal["Internal to the real Codex adapter"]
+    direction LR
+    adapter("`**CodexAgentSession**
+session-observable seam`")
+    appserver("`**Codex app-server**
+thread / turn / approval /
+interrupt / resume`")
+  end
+
+  runner -->|calls, awaits final result| agentport
+  agentport -->|implemented by| adapter
+  adapter <-->|JSON-RPC, live control + correlation| appserver
+  adapter -.->|must not cross: approval items, interrupt/resume state,
+app-server protocol or lifecycle objects| runner
+
+  classDef publicBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef internalBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  style public fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+  style internal fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+
+  class runner,agentport publicBox;
+  class adapter,appserver internalBox;
+```
+
+The adapter may observe and control the app-server turn (right), but everything it hands back
+across `AgentPort` (left) is translated into jig's existing worker/result, authorization, and
+record vocabulary per the translation rules in the next section — never a raw app-server object.
+
 ### 3. Translate observability back into jig's existing authority model
 
 The session-observable seam does not grant the agent new authority. The Codex adapter observes and

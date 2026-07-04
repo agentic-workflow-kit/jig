@@ -13,6 +13,62 @@ This document defines the high-level v0 shape of that seam. It is concrete enoug
 Planning, but it deliberately stops short of field-level schema, package layout, CLI/API
 design, or runtime implementation.
 
+## Lifecycle: plan -> run -> records
+
+The execution plan is the **input** boundary of one lifecycle that ends in the observability
+records **output** boundary ([`observability-records-contract-v0.md`](./observability-records-contract-v0.md)).
+This contract governs only the plan side; jig-core's run behavior and the records shape are cited,
+not redefined, here.
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart LR
+
+  owner("`**Owner / Planning**
+authors the plan`")
+
+  subgraph lifecycle["Plan -> run -> records"]
+    direction LR
+    plan("`**Execution plan**
+this contract — in`")
+    core("`**Jig-core**
+runs the plan under policy`")
+    records("`**Observability records**
+durable output`")
+    plan --> core --> records
+  end
+
+  owner --> plan
+
+  classDef inBox fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
+  classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef outBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+  classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+
+  class owner commonBox;
+  class plan inBox;
+  class core coreBox;
+  class records outBox;
+```
+
 ## v0 Not Frozen Schema
 
 This is a v0 contract shape, not a frozen JSON Schema. A plan must preserve the properties

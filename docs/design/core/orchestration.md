@@ -1,6 +1,6 @@
 ---
 title: "Orchestration — the runner"
-status: draft — stub
+status: draft
 ---
 
 # Orchestration — the runner
@@ -108,17 +108,80 @@ checkpoint.
   branch to handle defensively.
 - Landing — the merge step from done to landed — is exclusively runner-owned; no other
   component performs it.
-- Parallel-workspace concurrency across work items (ISO-4) and resume-after-interruption
-  mechanics are named extension points for this area, not specified here.
+- Parallel-workspace concurrency across work items (ISO-4) is a named extension point here,
+  realized per story in the "Phase 6 realization" note under the work-item transition table below.
+  Resume-after-interruption mechanics are a named extension point here and are owned by
+  [`bootstrap.md`](./bootstrap.md)'s resume re-entry procedure.
 
 ## Run transition table — guards and events
 
 The run-lifecycle prose above names the state set this section deepens: `previewed → started →
-stopped / resumed / completed`. The table below closes that run-level transition set at this
-altitude, without changing the seed prose or importing any new run event family beyond the v0
-observability contract's existing `previewed`, `started`, `stopped`, `resumed`, and `completed`
-families ([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md)).
-As with the work-item table below, any transition not listed here is illegal.
+stopped / resumed / completed`. The diagram and table below close that run-level transition set at
+this altitude, without importing any new run event family beyond the v0 observability contract's
+existing `previewed`, `started`, `stopped`, `resumed`, and `completed` families
+([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md)).
+As with the work-item table below, any transition not drawn or listed here is illegal.
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 40,
+    "rankSpacing": 45,
+    "defaultRenderer": "elk"
+  }
+}}%%
+flowchart TB
+
+  previewed("`**previewed**
+recorded, non-committing`")
+  started("`**started**
+run committed`")
+  stopped("`**stopped**
+paused at a safe checkpoint`")
+  resumed("`**resumed**
+re-entered from last checkpoint`")
+  completed("`**completed**
+every work item terminal`")
+
+  previewed --> started
+  started --> stopped
+  started --> completed
+  stopped --> resumed
+  resumed --> stopped
+  resumed --> completed
+
+  subgraph legend[" "]
+    direction LR
+    l1(" ") ~~~ lt1["active"] ~~~ l2(" ") ~~~ lt2["terminal outcome"]
+  end
+  style legend fill:transparent,stroke:transparent,color:transparent
+
+  completed ~~~ legend
+
+  classDef activeBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef terminalBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+  classDef legendActive fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendTerminal fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
+  classDef legendText fill:transparent,stroke:transparent,color:#666666;
+
+  class previewed,started,stopped,resumed activeBox;
+  class completed terminalBox;
+  class l1 legendActive;
+  class l2 legendTerminal;
+  class lt1,lt2 legendText;
+```
 
 | Transition            | Guard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Emitted event |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -133,20 +196,20 @@ Any transition **not** in this table is illegal. In particular, `stopped` does n
 to `completed`: a stopped run must either resume from its last safe checkpoint or remain stopped
 for an owner decision; it does not silently "age into" completion while work remains unresolved.
 
-### Run-lifecycle modeling notes on the seed
+### Run-lifecycle modeling notes
 
 - **`previewed` stays the recorded-but-non-committing edge state.** The lifecycle prose above
   starts the run at `previewed`, but [`bootstrap.md`](bootstrap.md) makes clear that preview
   allocates no run identity, workspace, or provider side effects. This table therefore treats
   `previewed → started` as the edge where bootstrap's launch-time gates have all passed and the
   run is first committed, rather than importing a new earlier state.
-- **`stopped` is run-level and is defined partly by work-item state.** The seed prose says
-  `stopped` pauses the whole run while unfinished work items resume from their last safe
-  checkpoint. This table makes explicit that an unattended `parked` work item is one of the
+- **`stopped` is run-level and is defined partly by work-item state.** The run lifecycle above
+  states that `stopped` pauses the whole run while unfinished work items resume from their last
+  safe checkpoint. This table makes explicit that an unattended `parked` work item is one of the
   concrete drivers of `run.stopped`; the work-item table below names that seam from the item side,
   and this run table closes it from the run side.
-- **`resumed` is a distinct state, not a synonym for `started`.** The seed lifecycle names
-  `resumed` separately, so this table preserves that distinction: a resumed run is one that
+- **`resumed` is a distinct state, not a synonym for `started`.** The lifecycle above names
+  `resumed` separately, and this table preserves that distinction: a resumed run is one that
   re-enters active orchestration from a previously recorded stop, carrying forward the last safe
   checkpoint and the no-double-effect rule rather than replaying launch from scratch.
 
@@ -192,10 +255,10 @@ run-lifecycle at Phase 4 local altitude, within the existing closed transition s
   ([`RESUME-3`](../../product/guarantees.md#31-interruption-resume), INV-012); the ledger of what is
   repeatable versus must-not-re-issue is in ADR 0020 §5.
 
-### Candidate invariants (for w2-s3 consolidation) — run lifecycle
+### Invariant candidates — run lifecycle
 
-This section names the run-lifecycle invariant candidates that `w2-s3-invariant-catalog`
-consolidated into the ledger as part of `INV-009..INV-018`.
+This section names the run-lifecycle invariant candidates, consolidated into the ledger as
+`INV-009..INV-018`.
 
 - **Launch-binding immutability across resume.** A resumed run keeps the policy, work-profile,
   and repo-floor bindings fixed at launch; resume never widens or silently swaps them. Authority:
@@ -233,21 +296,19 @@ consolidated into the ledger as part of `INV-009..INV-018`.
   owns the transition, while the record contract owns only the event-family surface.
 - **Deferred — bootstrap internal re-entry mechanics.** This table names the `stopped → resumed`
   guard set at run-lifecycle altitude only. The internal composition-root mechanics of re-entering
-  bootstrap for an already-allocated run are deferred to Wave 4a's
-  `w4-s4-bootstrap-composition-root`, not designed here.
+  bootstrap for an already-allocated run are owned by [`bootstrap.md`](./bootstrap.md), not
+  designed here.
 
 ## Work-item transition table — guards and events
 
-The diagram above draws the closed set of legal work-item transitions; the table below
-**re-projects that same diagram** and deepens it with, for each of its edges, the guard that
-governs the transition and the event it emits. It adds no state and no edge the diagram does not
-already draw — it is the diagram's edge set with two columns added (this is a re-projection of
-the seed, not a divergence from it; see [STOP-003](../notes/runtime-design-m5a.md#sequencing-contention-validation-and-stops) discipline). The
-diagram remains the authoritative picture; this table is its elaboration.
+The diagram above draws the closed set of legal work-item transitions; the table below adds, for
+each edge, the guard that governs the transition and the event it emits. It adds no state and no
+edge beyond what the diagram draws — the diagram is the authoritative picture and this table
+elaborates it.
 
-Guards are cited to a source or, where a guard is a modeling choice this session makes rather
-than one a source states, labelled **(modeling decision)** so the closed table stays defensible.
-Events use the story-lifecycle event families named in the observability records contract
+Guards are cited to a source where one exists; where a guard reflects a modeling choice rather
+than a directly stated source rule, it is labelled **(modeling decision)**. Events use the
+story-lifecycle event families named in the observability records contract
 ([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md) —
 `eligible, started, parked, unparked, blocked, done, landed, rejected`); this table mints no new
 event-type string and no new field.
@@ -266,16 +327,15 @@ Any transition **not** in this table is illegal, extending the diagram's own clo
 an illegal transition is a test-time fact to catch in verification, not a runtime branch to
 handle defensively.
 
-### Modeling notes on the seed
+### Modeling notes on the work-item transitions
 
 - **Eligibility as an entry guard on `eligible`, not a new node.** The diagram starts the item at
   `eligible` with no incoming edge; the dependency-aware resolution that decides an item is
   eligible in the first place is modelled here as the **entry guard on `eligible`**, not as a new
   `waiting → eligible` transition. [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)
-  §8/§15 render a `story.waiting` state, but that is that note's own dry-run-scoped rendering; it
-  is not part of this diagram's seed and is deliberately **not** imported here (adding it would be
-  a divergence from the seed). This keeps the closed set exactly the seven edges the diagram
-  draws.
+  §8/§15 render a `story.waiting` state, but that is that note's own dry-run-scoped rendering, not
+  part of this diagram, and is deliberately **not** imported here. This keeps the closed set
+  exactly the seven edges the diagram draws.
 - **Fence `grant` is a continue-condition, not an edge.** The Fence's `authorize → grant | deny |
 route` decision ([`authorization.md`](authorization.md)) gates `started`'s exits: `deny` drives
   `started → blocked` (fail-closed), `route` drives `started → parked`. `grant` does **not** get
@@ -286,8 +346,8 @@ route` decision ([`authorization.md`](authorization.md)) gates `started`'s exits
 - **`parked` is transient, and its non-happy resolution feeds the run.** `parked` resolves to
   either `started` (resume, `unparked`) or `rejected` on an owner decision. An **unattended**
   `parked` item — one whose owner decision does not arrive — is the driver that the run lifecycle
-  turns into a run-level `stopped`; this is the seam owned by `w2-s2-run-lifecycle-and-recovery`,
-  named here only, not sequenced (the run states remain the run-lifecycle prose above).
+  turns into a run-level `stopped`, which is defined in the run-lifecycle section above and not
+  resequenced here.
 
 ### Cross-item and run-facing properties
 
@@ -368,12 +428,11 @@ byte-identical; real landing maps onto the observability-records v0 runner-actio
 (no new event family). This realizes the isolation-vs-landing boundary Phase 6 left open, keeping the
 two-authority split intact: Fence adjudication is unchanged, and landing stays runner-owned.
 
-### Candidate invariants (for w2-s3 consolidation)
+### Invariant candidates
 
-This section **names** the invariant candidates the closed table surfaces. `w2-s3-invariant-catalog`
-has since consolidated the Wave 2 candidate set into `INV-009..INV-018`; the candidate text here
-stays as the source back-citation for that ledger continuation. Each candidate states what it
-constrains, the authority that holds it, and the product IDs it reconciles to.
+This section names the invariant candidates the closed table surfaces, consolidated into the
+ledger as `INV-009..INV-018`. Each candidate states what it constrains, the authority that holds
+it, and the product IDs it reconciles to.
 
 - **Closed guarded transition set.** Every legal work-item transition is in the table above with
   a named guard; any transition not drawn is illegal. Authority: the runner's work-item state
@@ -415,29 +474,30 @@ constrains, the authority that holds it, and the product IDs it reconciles to.
 
 ## Open questions
 
-- **Is an unmet evidence gate a `started → blocked` cause, or a distinct outcome?** This session
+- **Is an unmet evidence gate a `started → blocked` cause, or a distinct outcome?** This doc
   models an unmet evidence gate as a non-proceeding reason that drives `started → blocked` (under
   FAIL-003's "cannot proceed → recorded with reason"), rather than minting a new state or edge.
   This is a modeling decision, not a source-settled rule: the product guarantees state
   evidence-met as the `done` gate ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence),
   [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)) but do not name the failing-gate
-  disposition at this altitude. Flagged for `w2-s3` / a later wave to confirm or refine; it does
-  not change the closed edge set either way.
+  disposition at this altitude. This is left for a later pass to confirm or refine; it does not
+  change the closed edge set either way.
 
 ## Risks and deferred decisions
 
-- **Risk — the evidence-gate-failure modeling decision may be re-settled.** This session models an
-  unmet evidence gate as a `started → blocked` cause (the open question above). If a later wave
-  settles it differently — e.g. as a distinct non-terminal outcome rather than a `blocked` cause —
-  this transition table would have to be touched again. The risk is scoped: the closed edge set is
-  unaffected either way, so the churn would land on the `started → blocked` guard cell and its
-  note, not on the diagram.
-- **Resolved — `w2-s3` numbered the candidate invariants.** The candidate invariants above were
-  deliberately named before they were numbered; `w2-s3-invariant-catalog` has since consolidated
-  the Wave 2 candidate set into `INV-009..INV-018`.
-- **Deferred — run-lifecycle and recovery sequencing.** How an unattended `parked` item is
-  sequenced into a run-level `stopped`, and the run state machine itself, are named here as a seam
-  only and owned by `w2-s2-run-lifecycle-and-recovery`; this doc does not pre-empt that sequencing.
+- **Risk — the evidence-gate-failure modeling decision may be re-settled.** This doc models an
+  unmet evidence gate as a `started → blocked` cause (the open question above). If a later design
+  pass settles it differently — e.g. as a distinct non-terminal outcome rather than a `blocked`
+  cause — this transition table would have to be touched again. The risk is scoped: the closed
+  edge set is unaffected either way, so the churn would land on the `started → blocked` guard cell
+  and its note, not on the diagram.
+- **Resolved — the candidate invariants are numbered.** The candidate invariants above were
+  deliberately named before they were numbered; they are now consolidated into the ledger as
+  `INV-009..INV-018`.
+- **Settled — run-lifecycle and recovery sequencing.** How an unattended `parked` item is
+  sequenced into a run-level `stopped`, and the run state machine itself, are specified in the
+  run-lifecycle section and its transition table above; this table does not repeat that
+  sequencing, only cites it from the work-item side.
 - **Settled for Phase 4 — resume mechanics; deferred — concurrency.** Resume-after-interruption is
   now settled at Phase 4 local altitude by [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md)
   (the projected-checkpoint resume subsection above), continuing to reuse this table's closed

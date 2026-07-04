@@ -72,36 +72,6 @@ CLI / MCP / SDK`")
   class term,tool,embed commonBox;
 ```
 
-## Port boundary and anti-corruption stance
-
-The existing interface and Mermaid diagram above are the preserved seed for this boundary. Wave 3
-deepens them in place rather than replacing them: the operator-control port remains the single
-driving surface behind CLI, MCP, and SDK adapters, while core policy, authorization, orchestration,
-and provider seams remain cited sources rather than edge-owned behavior.
-
-The anti-corruption stance is different from the swappable provider seams. This edge is not where
-run logic lives and it is not a place to redefine provider capability, authorization, or lifecycle
-semantics. The edge translates operator intent into one control-plane call through the cited core
-surface and records one audit event for that action; it does not reach around the port into core or
-into provider contracts directly.
-
-## SDK package reconciliation
-
-[ADR 0027](../decisions/0027-packaging-sdk-boundary.md) uses "SDK" on a distribution axis. The future
-`jig-sdk` package owns the programmatic core/records/plan-intake/authorization/factory/provider-port
-boundary that first-party consumers call. That does not move run logic into the driving edge:
-
-- the **SDK adapter** in this document remains a thin embedding realization of the operator-control
-  port;
-- the future **`jig-sdk` package** may physically contain core run logic and the factory, but its
-  adapter module still calls the core boundary rather than becoming a second control plane;
-- the future **`jig-cli` package** is the terminal adapter and should consume `jig-sdk`, not deep
-  import provider or core internals;
-- no public package, export map, semver stability, or publishing promise exists today.
-
-The live implementation is still one private package. This contract describes the design boundary and
-the target dependency direction, not shipped package files.
-
 ## Owns / implements / must-not
 
 ### Core owns
@@ -127,11 +97,41 @@ the target dependency direction, not shipped package files.
 - Turn one operator action into multiple hidden control-plane operations with ambiguous audit
   posture.
 
+## Port boundary and anti-corruption stance
+
+The operator-control port is the single driving surface behind CLI, MCP, and SDK adapters. Core
+policy, authorization, orchestration, and provider seams remain cited sources rather than
+edge-owned behavior.
+
+The anti-corruption stance is different from the swappable provider seams. This edge is not where
+run logic lives and it is not a place to redefine provider capability, authorization, or lifecycle
+semantics. The edge translates operator intent into one control-plane call through the cited core
+surface and records one audit event for that action; it does not reach around the port into core or
+into provider contracts directly.
+
+## SDK package reconciliation
+
+[ADR 0027](../decisions/0027-packaging-sdk-boundary.md) uses "SDK" on a distribution axis. The future
+`jig-sdk` package owns the programmatic core/records/plan-intake/authorization/factory/provider-port
+boundary that first-party consumers call. That does not move run logic into the driving edge:
+
+- the **SDK adapter** in this document remains a thin embedding realization of the operator-control
+  port;
+- the future **`jig-sdk` package** may physically contain core run logic and the factory, but its
+  adapter module still calls the core boundary rather than becoming a second control plane;
+- the future **`jig-cli` package** is the terminal adapter and should consume `jig-sdk`, not deep
+  import provider or core internals.
+
+The product-posture disclaimer (no public package, export map, semver stability, or publishing
+promise today) is stated once, design-side, in [`README.md`](./README.md#notes); it is not
+restated here. The live implementation is still one private package. This contract describes the
+design boundary and the target dependency direction, not shipped package files.
+
 ## Driving actions at current altitude
 
-The preserved seed action set remains: start, preview, watch, inspect, ask-why, decide, and stop.
-This section stays at design altitude only. It names the deliberate actions the port carries without
-freezing exact method signatures or adapter-specific representation.
+The driving action set is: start, preview, watch, inspect, ask-why, decide, and stop. This section
+stays at design altitude only. It names the deliberate actions the port carries without freezing
+exact method signatures or adapter-specific representation.
 
 ## Invocation into cited core surfaces
 
@@ -177,8 +177,9 @@ available invariant number is `INV-019`.
   control logic instead of staying thin realizations of the same port.
 - **Deferred — exact port signatures.** Method names, parameter representation, and adapter-specific
   shapes remain intentionally unfrozen here.
-- **Deferred — package mechanics.** Package files, project references, export maps, dependency rules,
-  and any public publish/stability promise are deferred to later package implementation work.
+- **Deferred — package mechanics.** Package files, project references, and dependency rules are
+  deferred to later package implementation work; see the product-posture pointer in
+  [`README.md`](./README.md#notes) for the public-package/export/stability posture.
 - **Deferred — future non-operator triggers.** Webhook or scheduler-triggered entry paths remain a
   separate design question and do not change the current operator-driven boundary.
 
