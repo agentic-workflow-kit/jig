@@ -29,8 +29,10 @@ threat-model view rather than per-seam prose.
 The single organizing idea: **jig-core is the only trusted party at runtime.** Every provider seam
 (agent, execution host, forge, work source) is an untrusted, swappable boundary that jig-core
 governs, never a party jig-core takes on faith ([`contracts/providers.md`](./contracts/providers.md)
-"Contract stance"). Credentials and irreversible authority stay on the trusted side of that line;
-they are never handed across it (STACK-5).
+"Contract stance"). Landing credentials and irreversible authority stay on the trusted side of that
+line; they are never handed across it (STACK-5). A provider seam may still use a bounded,
+manifest-governed read or transport credential where its job requires one, but never landing or
+policy authority.
 
 ## The fence + fail-closed authorization spine
 
@@ -102,7 +104,7 @@ Jig will not let a run change its own rules and then declare itself done
 
 ## Credential ownership — the runner holds the keys
 
-Only the runner holds credentials and the sole authority to push, open PRs, or merge
+Only the runner holds landing credentials and the sole authority to push, open PRs, or merge
 ([`core/README.md`](./core/README.md) §B; FENCE-3, MERGE-2, SEC-3). Concretely:
 
 - The **Agent (worker) seam** is structurally, not just policy-wise, non-privileged: `INV-002`
@@ -110,9 +112,17 @@ Only the runner holds credentials and the sole authority to push, open PRs, or m
   push/PR/merge/credential path on the port at all — a forbidden-method sweep in the conformance
   suite checks this structurally rather than trusting the provider not to smuggle one in
   ([`contracts/providers.md`](./contracts/providers.md) "Agent port", "Phase 6 realization").
-- The **Execution host** and **Work source** seams likewise carry no credential or landing path;
-  credentials and irreversible authority stay with the Fence and runner, never with any provider
-  seam ("Cross-port invariant candidates" in [`contracts/providers.md`](./contracts/providers.md)).
+- The **Execution host** and **Work source** seams carry no landing path and no privileged or
+  irreversible authority: landing credentials and irreversible authority stay with the Fence and
+  runner, never with a provider seam ("Providers hold no privileged credentials" in
+  [`contracts/providers.md`](./contracts/providers.md) "Cross-port invariant candidates"). This does
+  not mean a seam holds no credential at all — a real work source may use a read/transport credential
+  where its job needs one (for example the GitHub Issues work source reads a `GITHUB_TOKEN` /
+  `GH_TOKEN` to fetch issues). Such a credential is governed as substrate — bounded by the immutable
+  substrate manifest (DRIVE-2) and kept out of records by redaction (SEC-1) — and never confers
+  landing, merge, or policy authority. Implementation work must still apply manifest governance and
+  redaction to those provider-side tokens; the invariant they satisfy is separation of landing
+  authority, not the absence of all credentials.
 - The **Forge** seam is runner-invoked only, at the settled `done → landed` boundary; the worker
   never invokes landing authority directly, and a Forge adapter cannot become a second policy or
   state authority for merge decisions ([`contracts/providers.md`](./contracts/providers.md) "Forge
