@@ -66,6 +66,8 @@ directly requires an explicit `pnpm build` beforehand.
   success. It runs biome (code format+lint), prettier (Markdown/YAML), `tsc -b`, the delivery
   foundation check, and vitest with coverage thresholds enforced at 90% (aim 95%). Work is
   test-driven.
+- **Gate integrity:** do not skip steps, adjust thresholds, or widen exclusion lists to make
+  `pnpm check` green — fix the cause, or raise it instead of routing around it.
 - **`main`-based:** branch from `main`, PR into it, green `check` required, review conversations
   resolved, squash-merge. Conventional commit subjects (`feat:`/`fix:`/`docs:`/…); no
   attribution footers. Worktrees for non-trivial work are external siblings of this checkout under
