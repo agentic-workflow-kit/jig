@@ -3,6 +3,7 @@ import { test } from 'vitest';
 import { composeReferenceRun } from '../../src/bootstrap.js';
 import {
   assertProviderConformance,
+  evaluateProviderConformanceVerdicts,
   ProviderConformanceError,
   type ProviderManifest,
 } from '../../src/conformance/provider-conformance.js';
@@ -89,6 +90,95 @@ test('P6-AC-2: an overstated-isolation adapter is rejected', async () => {
     (error: unknown) =>
       error instanceof ProviderConformanceError && error.findings.includes('host-isolation-overstated'),
   );
+});
+
+test('P6-AC-2: a self-report-only isolation claim is classified explicitly', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost: {
+      describe: () => ({
+        driverId: 'lying-host',
+        runContext: 'local',
+        isolationStrength: 'strong',
+        capabilityAttestations: [
+          {
+            driverId: 'lying-host',
+            capability: 'filesystem-edit',
+            runContext: 'local',
+            freshness: 'fresh',
+            positive: true,
+            reportedIsolationStrength: 'strong',
+          },
+        ],
+      }),
+    },
+    manifest,
+  });
+
+  assert.deepStrictEqual(verdicts, [
+    {
+      finding: 'host-isolation-self-report-only',
+      basis: 'self-report-only',
+    },
+  ]);
+});
+
+test('P6-AC-2: a positive-only isolation claim is classified as self-report-only', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost: {
+      describe: () => ({
+        driverId: 'positive-only-host',
+        runContext: 'local',
+        isolationStrength: 'strong',
+        capabilityAttestations: [
+          {
+            driverId: 'positive-only-host',
+            capability: 'filesystem-edit',
+            runContext: 'local',
+            freshness: 'fresh',
+            positive: true,
+          },
+        ],
+      }),
+    },
+    manifest,
+  });
+
+  assert.deepStrictEqual(verdicts, [
+    {
+      finding: 'host-isolation-self-report-only',
+      basis: 'self-report-only',
+    },
+  ]);
+});
+
+test('P6-AC-2: a top-level-only isolation claim is classified as self-report-only', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost: {
+      describe: () => ({
+        driverId: 'top-level-only-host',
+        runContext: 'local',
+        isolationStrength: 'strong',
+        capabilityAttestations: [],
+      }),
+    },
+    manifest,
+  });
+
+  assert.deepStrictEqual(verdicts, [
+    {
+      finding: 'host-isolation-self-report-only',
+      basis: 'self-report-only',
+    },
+  ]);
 });
 
 test('P6-AC-6: a substrate-escalation adapter is rejected', async () => {

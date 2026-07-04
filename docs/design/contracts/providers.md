@@ -435,6 +435,12 @@ point, not a frozen contract.
   design-owned and used only as a non-normative fixture; the reusable conformance suite (DRIVE-1)
   asserts the cross-port invariants above, including the Wave 5 adversarial probes, and an
   intentionally broken adapter proves it fails closed.
+- **Conformance adequacy bar.** Per
+  [ADR 0026](../decisions/0026-conformance-self-report-only.md), the suite proves interface-shape
+  conformance and specified responses under controlled doubles. It does **not** prove real-provider
+  behavioral truth: a mock can lie. Any conformance verdict whose basis is solely the subject's own
+  claim is classified with the typed `self-report-only` token and must not be read as independently
+  verified conformance.
 
 ## Phase 6 realization (ADR 0022)
 

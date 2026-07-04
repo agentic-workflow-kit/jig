@@ -36,3 +36,4 @@ dispositions) and grows as new design decisions are made.
 | 0023 | Phase 7 real Forge/GitHub landing: runner-owned real landing, action union, idempotency, PR surfacing | applied |
 | 0024 | Phase 8 real work-source integration: seed-vs-candidate intake chokepoint, richer provenance, INV-007 | applied |
 | 0025 | Phase 9 records-integrity: sidecar tamper-evidence, active re-approval, tamper-vs-changed-basis split | applied |
+| 0026 | Conformance self-report-only basis and controlled-double adequacy bar                                 | applied |
