@@ -38,3 +38,4 @@ dispositions) and grows as new design decisions are made.
 | 0025 | Phase 9 records-integrity: sidecar tamper-evidence, active re-approval, tamper-vs-changed-basis split | applied |
 | 0026 | Conformance self-report-only basis and controlled-double adequacy bar                                 | applied |
 | 0027 | Packaging and SDK boundary                                                                            | applied |
+| 0028 | Codex app-server transport and session-observable adapter seam                                        | applied |
