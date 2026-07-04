@@ -1,0 +1,37 @@
+Command transcript, redacted.
+
+1. `codex --version`
+
+Output:
+
+```text
+WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)
+codex-cli 0.142.5
+```
+
+2. `codex app-server daemon version` before daemon start
+
+Output:
+
+```text
+WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)
+Error: failed to connect to <redacted-home>/.codex/app-server-control/app-server-control.sock
+
+Caused by:
+    No such file or directory (os error 2)
+```
+
+3. `codex app-server daemon start && codex app-server daemon version && codex app-server daemon stop`
+
+Output:
+
+```text
+Error: managed standalone Codex install not found at <redacted-home>/.codex/packages/standalone/current/codex
+
+This command requires the standalone install managed by the Codex installer, because the daemon starts and updates app-server from that fixed path.
+
+Install it with:
+  curl -fsSL https://chatgpt.com/codex/install.sh | sh
+
+Then rerun the command you just tried.
+```

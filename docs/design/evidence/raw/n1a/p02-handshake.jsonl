@@ -1,0 +1,6 @@
+{"at":"2026-07-04T13:36:05.355Z","direction":"process","payload":{"pid":83316,"probe":"handshake"}}
+{"at":"2026-07-04T13:36:05.357Z","direction":"client","payload":{"id":1,"method":"initialize","params":{"clientInfo":{"name":"n1a-probe","version":"0.0.0"},"capabilities":{"experimentalApi":true}}}}
+{"at":"2026-07-04T13:36:05.420Z","direction":"server","payload":{"id":1,"result":{"userAgent":"n1a-probe/0.142.5 (Mac OS 26.5.1; arm64) dumb (n1a-probe; 0.0.0)","codexHome":"<redacted-home>/.codex","platformFamily":"unix","platformOs":"macos"}}}
+{"at":"2026-07-04T13:36:05.421Z","direction":"client","payload":{"method":"initialized"}}
+{"at":"2026-07-04T13:36:05.421Z","direction":"server","payload":{"method":"remoteControl/status/changed","params":{"status":"disabled","serverName":"<redacted-local-hostname>","installationId":"<installation-1>","environmentId":null}}}
+{"at":"2026-07-04T13:36:05.429Z","direction":"processExit","payload":{"code":0,"signal":null}}
