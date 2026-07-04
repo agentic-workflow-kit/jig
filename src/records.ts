@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  assertSupportedDriverSelection,
+  driverSelectionUsesRealDriver,
+  readDriverSelection,
+} from './driver-selection.js';
+import { assertIntegrityKeyAvailable, writeIntegritySidecar } from './integrity.js';
 import type { CapabilityAttestation } from './ports.js';
 import { type RedactionOptions, redactValue } from './redaction.js';
 import type { ApprovedSubstrateManifest } from './substrate.js';
@@ -57,6 +63,7 @@ export class RecordManager implements RecordSink {
   private attestationSnapshot: AttestationSnapshotRef | null;
   private substrateManifestRef: SubstrateManifestRef | null;
   private launchHeaderRecorded: boolean;
+  private integrityEnabled: boolean;
   private readonly options: RecordManagerOptions;
 
   constructor(options: RecordManagerOptions = {}) {
@@ -74,6 +81,7 @@ export class RecordManager implements RecordSink {
     this.attestationSnapshot = null;
     this.substrateManifestRef = null;
     this.launchHeaderRecorded = false;
+    this.integrityEnabled = false;
   }
 
   init(plan: Plan, config: ConfigDoc, policy: PolicyDoc): void {
@@ -82,6 +90,12 @@ export class RecordManager implements RecordSink {
     this.plan = plan;
     this.config = config;
     this.policy = policy;
+    const driverSelection = readDriverSelection(config);
+    assertSupportedDriverSelection(driverSelection);
+    this.integrityEnabled = driverSelectionUsesRealDriver(driverSelection);
+    if (this.integrityEnabled) {
+      assertIntegrityKeyAvailable();
+    }
     const recordBaseDir = config.runner?.recordDir || 'runs';
     this.runId = `run-${plan.id}-${Date.now()}-${randomUUID()}`;
     mkdirSync(recordBaseDir, { recursive: true });
@@ -91,6 +105,7 @@ export class RecordManager implements RecordSink {
       policyRef: policy.policy?.id ?? 'unknown-policy',
       configRef: describeConfigBinding(config),
       workspace: captureWorkspaceFingerprint(process.cwd()),
+      ...(this.integrityEnabled ? { drivers: driverSelection } : {}),
     };
     const planSnapshotPath = join(this.runDir, PLAN_SNAPSHOT_FILE);
     this.planSnapshot = {
@@ -163,6 +178,9 @@ export class RecordManager implements RecordSink {
     const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
+    if (this.integrityEnabled) {
+      writeIntegritySidecar(this.runDir);
+    }
   }
 
   async finalize(status: RunStatus): Promise<void> {

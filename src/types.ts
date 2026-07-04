@@ -122,6 +122,12 @@ export interface RunBinding {
   policyRef: string;
   configRef: string;
   workspace: WorkspaceFingerprint;
+  drivers?: {
+    agent: string;
+    executionHost: string;
+    forge: string;
+    workSource: string;
+  };
 }
 
 export interface RunPosture {

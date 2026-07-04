@@ -14,6 +14,7 @@ import type { ConfigDoc, PlanInstance, PolicyDoc, RunRecord } from '../src/types
 const cleanupDirs: string[] = [];
 
 afterEach(() => {
+  delete process.env.JIG_RECORDS_INTEGRITY_KEY;
   for (const dir of cleanupDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -149,6 +150,7 @@ test('P7-AC-4: a forge-only real run (forge: github, agent/executionHost on refe
     capabilityAttestation: composed.capabilityAttestation,
     forge: composed.forge,
   });
+  process.env.JIG_RECORDS_INTEGRITY_KEY = 'p7-redaction-integrity-key';
   const status = await harness.run(validateCandidate(candidate), config, policy);
 
   assert.strictEqual(status, 'success');

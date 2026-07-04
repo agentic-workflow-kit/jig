@@ -490,6 +490,53 @@ test('P4-AC-4: run resume and completion replay from a stopped checkpoint', () =
   assert.strictEqual(projection.stories['STORY-2']?.state, 'done');
 });
 
+test('P9-AC-2: projection accepts run-scope re-approval evidence before run.resumed', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...stoppedRunEvents(),
+      {
+        family: 'authorization.granted',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:12.000Z',
+        requestId: 'resume-changed-basis',
+        requestKind: 'resume-changed-basis',
+        reason: 'resume-changed-basis-approved',
+        basis: ['owner-approval'],
+      },
+      {
+        family: 'run.resumed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:13.000Z',
+        runId: 'run-plan-phase4-20260702-uuid',
+        checkpoint: 'after:STORY-2.parked',
+        stopCause: 'unattended-park',
+      },
+      {
+        family: 'authorization.granted',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:14.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:15.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:16.000Z',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.status, 'success');
+  assert.strictEqual(projection.lifecycleState, 'completed');
+  assert.strictEqual(projection.stories['STORY-2']?.state, 'done');
+});
+
 test('P4-AC-1: replay permits repeatable in-progress work to restart after run.resumed', () => {
   const projection = projectRunEvents({
     eventsJsonl: stringifyJsonl([

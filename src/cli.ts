@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline/promises';
 import { composeReferenceRun } from './bootstrap.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
+import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
 import { PlanValidator } from './plan-validator.js';
 import { projectRunEvents } from './projection.js';
@@ -223,7 +224,10 @@ async function handleInspect(args: string[]): Promise<void> {
 
     try {
       const projection = projectRunEvents({ eventsJsonl, runRecord });
-      renderProjectionInspection(runDir, projection, cacheParseError);
+      const integrity = verifyIntegritySidecar(runDir, {
+        expected: launchBindingExpectsIntegrity(projection.binding),
+      });
+      renderProjectionInspection(runDir, projection, cacheParseError, integrity);
       return;
     } catch (err) {
       if (runRecord && isLegacyProjectionFallback(err)) {
@@ -255,6 +259,7 @@ function renderProjectionInspection(
   runDir: string,
   projection: ReturnType<typeof projectRunEvents>,
   cacheParseError: string | null,
+  integrity: IntegrityVerification,
 ): void {
   console.log('\n--- Run Inspection ---');
   console.log(`Run ID: ${projection.runId}`);
@@ -312,6 +317,11 @@ function renderProjectionInspection(
     for (const diagnostic of diagnostics) {
       console.log(`  - ${diagnostic.code}: ${diagnostic.message}`);
     }
+  }
+
+  if (integrity.status === 'broken') {
+    console.log('\nIntegrity Notices:');
+    console.log(`  - ${integrity.code}: ${integrity.message}`);
   }
 
   if (projection.notices.length > 0) {

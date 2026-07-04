@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createOwnerDecisionSource, run } from '../src/cli.js';
+import { writeIntegritySidecar } from '../src/integrity.js';
 import type { Plan, PolicyDoc, RunEvent, RunRecord } from '../src/types.js';
 import { captureWorkspaceFingerprint } from '../src/workspace.js';
 
@@ -43,6 +44,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.JIG_RECORDS_INTEGRITY_KEY;
   process.chdir(originalCwd);
   rmSync(workDir, { recursive: true, force: true });
   process.argv = originalArgv;
@@ -165,6 +167,27 @@ function writeStoppedResumeRun(policy = resumePolicy()): string {
     ]),
   );
   return runDir;
+}
+
+function addReferenceDriverBindingAndIntegrity(runDir: string): void {
+  process.env.JIG_RECORDS_INTEGRITY_KEY = 'phase-9-cli-key';
+  const eventsPath = join(runDir, 'events.jsonl');
+  const lines = readFileSync(eventsPath, 'utf8').trimEnd().split('\n');
+  const launch = JSON.parse(lines[0] ?? '{}') as RunEvent;
+  lines[0] = JSON.stringify({
+    ...launch,
+    binding: {
+      ...launch.binding,
+      drivers: {
+        agent: 'reference',
+        executionHost: 'reference',
+        forge: 'reference',
+        workSource: 'reference',
+      },
+    },
+  });
+  writeFileSync(eventsPath, `${lines.join('\n')}\n`);
+  writeIntegritySidecar(runDir);
 }
 
 function writeResumeOutput(outcome: 'success' | 'failure' = 'success'): string {
@@ -711,6 +734,21 @@ test('P4-AC-4: inspect reports unreadable run.json cache as a projection diagnos
   await run();
 
   assert.match(loggedLines(), /run\.json-cache-unreadable: run\.json cache unreadable and ignored/);
+});
+
+test('P9-AC-3: inspect surfaces integrity breaks while still rendering derivable records', async () => {
+  const runDir = writeStoppedResumeRun();
+  addReferenceDriverBindingAndIntegrity(runDir);
+  writeJson(join(runDir, 'plan.snapshot.json'), { ...resumePlan(), id: 'tampered-plan' });
+
+  setArgv('inspect', runDir);
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /Run ID: run-plan-phase4-cli-uuid/);
+  assert.match(output, /Integrity Notices:/);
+  assert.match(output, /integrity-artifact-mismatch:/);
+  assert.match(output, /plan\.snapshot\.json/);
 });
 
 test('P4-AC-1: resume succeeds from the launch snapshots and writes a resumed record', async () => {

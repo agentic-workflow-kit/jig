@@ -1,4 +1,11 @@
 import type { Clock } from './clock.js';
+import {
+  assertSupportedDriverSelection,
+  type DriverSelection,
+  driverSelectionUsesRealDriver,
+  ProviderSelectionError,
+  readDriverSelection,
+} from './driver-selection.js';
 import { PlanValidator } from './plan-validator.js';
 import type { AgentPort, CapabilityAttestation, ExecutionHostPort, ForgePort, WorkSourcePort } from './ports.js';
 import { type CodexAgentSession, createCodexAgent } from './providers/real/agent.js';
@@ -14,12 +21,7 @@ import { collectLandingPathSecrets, type RedactionOptions } from './redaction.js
 import { type ApprovedSubstrateManifest, approveSubstrateManifest, type SubstrateManifestInput } from './substrate.js';
 import type { ConfigDoc, PlanInstance } from './types.js';
 
-export class ProviderSelectionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ProviderSelectionError';
-  }
-}
+export { ProviderSelectionError } from './driver-selection.js';
 
 export interface ComposeRunPortsOptions {
   config: ConfigDoc;
@@ -36,6 +38,7 @@ export interface ComposeRunPortsOptions {
 
 export interface ComposedRunPorts {
   planInstance: PlanInstance;
+  driverSelection: DriverSelection;
   agent: AgentPort;
   executionHost: ExecutionHostPort;
   forge: ForgePort;
@@ -43,58 +46,6 @@ export interface ComposedRunPorts {
   capabilityAttestation: CapabilityAttestation;
   substrateManifest?: ApprovedSubstrateManifest;
   redaction?: RedactionOptions;
-}
-
-type DriverSelection = {
-  agent?: string;
-  executionHost?: string;
-  forge?: string;
-  workSource?: string;
-};
-
-const REFERENCE_SELECTION: Required<DriverSelection> = {
-  agent: 'reference',
-  executionHost: 'reference',
-  forge: 'reference',
-  workSource: 'reference',
-};
-
-function readDriverSelection(config: ConfigDoc): Required<DriverSelection> {
-  const raw = config.drivers;
-  if (raw === undefined) {
-    return REFERENCE_SELECTION;
-  }
-
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new ProviderSelectionError(
-      'Unknown provider driver selection. Use reference drivers or omit config.drivers.',
-    );
-  }
-
-  const selection = raw as DriverSelection;
-  return {
-    agent: selection.agent ?? REFERENCE_SELECTION.agent,
-    executionHost: selection.executionHost ?? REFERENCE_SELECTION.executionHost,
-    forge: selection.forge ?? REFERENCE_SELECTION.forge,
-    workSource: selection.workSource ?? REFERENCE_SELECTION.workSource,
-  };
-}
-
-function assertReferenceSelection(selection: Required<DriverSelection>): void {
-  const supported = {
-    agent: new Set(['reference', 'scripted-stub', 'codex']),
-    executionHost: new Set(['reference', 'local', 'real']),
-    forge: new Set(['reference', 'github']),
-    workSource: new Set(['reference', 'github-issues']),
-  };
-
-  for (const [seam, driver] of Object.entries(selection) as Array<[keyof typeof supported, string]>) {
-    if (!supported[seam].has(driver)) {
-      throw new ProviderSelectionError(
-        `Unsupported driver selection "${seam}=${driver}". Supported drivers: agent=reference|scripted-stub|codex, executionHost=reference|local|real, forge=reference|github, workSource=reference|github-issues.`,
-      );
-    }
-  }
 }
 
 function defaultSubstrateManifest(): ApprovedSubstrateManifest {
@@ -108,7 +59,7 @@ function defaultSubstrateManifest(): ApprovedSubstrateManifest {
 }
 
 function selectAgent(
-  selection: Required<DriverSelection>,
+  selection: DriverSelection,
   options: ComposeRunPortsOptions,
   substrateManifest?: ApprovedSubstrateManifest,
 ): AgentPort {
@@ -127,7 +78,7 @@ function selectAgent(
 }
 
 async function selectExecutionHost(
-  selection: Required<DriverSelection>,
+  selection: DriverSelection,
   options: ComposeRunPortsOptions,
 ): Promise<ExecutionHostPort> {
   if (selection.executionHost === 'real') {
@@ -152,7 +103,7 @@ async function selectExecutionHost(
   return new ReferenceExecutionHost();
 }
 
-function selectForge(selection: Required<DriverSelection>, options: ComposeRunPortsOptions): ForgePort {
+function selectForge(selection: DriverSelection, options: ComposeRunPortsOptions): ForgePort {
   if (selection.forge === 'github') {
     return createGitHubForge({
       transport: options.forgeTransport,
@@ -162,7 +113,7 @@ function selectForge(selection: Required<DriverSelection>, options: ComposeRunPo
   return new ReferenceForge();
 }
 
-function selectWorkSource(selection: Required<DriverSelection>, options: ComposeRunPortsOptions): WorkSourcePort {
+function selectWorkSource(selection: DriverSelection, options: ComposeRunPortsOptions): WorkSourcePort {
   if (selection.workSource === 'github-issues') {
     return createGitHubIssuesWorkSource({
       transport: options.workSourceTransport,
@@ -175,12 +126,8 @@ function selectWorkSource(selection: Required<DriverSelection>, options: Compose
 async function composeRunPorts(options: ComposeRunPortsOptions): Promise<ComposedRunPorts> {
   PlanValidator.validate(options.planInstance);
   const selection = readDriverSelection(options.config);
-  assertReferenceSelection(selection);
-  const usesRealCredentials =
-    selection.agent === 'codex' ||
-    selection.executionHost === 'real' ||
-    selection.forge === 'github' ||
-    selection.workSource === 'github-issues';
+  assertSupportedDriverSelection(selection);
+  const usesRealCredentials = driverSelectionUsesRealDriver(selection);
 
   const substrateManifest =
     selection.agent === 'codex' || selection.executionHost === 'real'
@@ -213,6 +160,7 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
 
   return {
     planInstance: options.planInstance,
+    driverSelection: selection,
     agent: selectAgent(selection, options, substrateManifest),
     executionHost,
     forge: selectForge(selection, options),
