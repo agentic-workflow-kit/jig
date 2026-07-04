@@ -20,7 +20,7 @@ verified (see [`docs/design/`](../design/)).
 | [jig.md](./jig.md)               | **Canonical hub** — audience, job, problem, promise, workflow, the guarantee summary, boundaries, success signals, and open product questions. Start here. |
 | [guarantees.md](./guarantees.md) | **The five guarantees in detail** — the full, ID-bearing specification (FENCE, EARN, GUARD, DOOR, MERGE, SEC, CFG, RESUME, ISO, LIVE, STACK, DRIVE, SEE).  |
 | [use-cases.md](./use-cases.md)   | **Worked scenarios** — overnight delivery, the doorbell, safe resume, swapping your agent — each making one guarantee concrete.                            |
-| [concepts.md](./concepts.md)     | Cross-cutting product concepts users need, starting with **tracks** (parallel independent lines of work).                                                  |
+| [concepts.md](./concepts.md)     | Cross-cutting product concepts users need: **tracks**, stories, runner/worker authority, SDK boundaries, providers, and conformance.                       |
 
 ## Where Jig sits in the suite
 

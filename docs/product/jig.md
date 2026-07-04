@@ -5,10 +5,12 @@ status: draft — product overview
 
 # Jig — the execution engine
 
-Jig is the deterministic execution engine you run as `jig` (the package
-`@agentic-workflow-kit/jig`). You give it an approved **execution plan** and a **policy**; it
-turns that plan into reviewed, landed work as far as the policy allows, or into a deliberate,
-inspectable stop when the work should not continue.
+Jig is the deterministic execution engine you run as `jig`. At product altitude,
+`@agentic-workflow-kit/jig` names the Jig product/tool identity; the checked-in package today is
+the private repo shell `@agentic-workflow-kit/jig-repo`, with no public package, export, or
+stability promise. You give Jig an approved **execution plan** and a **policy**; it turns that
+plan into reviewed, landed work as far as the policy allows, or into a deliberate, inspectable
+stop when the work should not continue.
 
 This page is the product contract for Jig: who it serves, what job it does, what promises it
 makes, and where its boundaries are. It does not define low-level protocol mechanics,
@@ -17,8 +19,8 @@ design and delivery planning own how those promises are implemented and verified
 
 > **The product layer, at a glance.** This page is the hub. Two companion pages carry the
 > detail: **[the five guarantees](./guarantees.md)** (full, ID-bearing specification) and
-> **[how you use Jig](./use-cases.md)** (worked scenarios). [Tracks](./concepts.md) covers the
-> per-track concept the configuration story relies on.
+> **[how you use Jig](./use-cases.md)** (worked scenarios). [Product concepts](./concepts.md)
+> covers tracks, stories, runner/worker authority, SDK boundaries, providers, and conformance.
 
 ## Product Spine
 
@@ -68,6 +70,9 @@ strong defaults, not prerequisites. Jig's minimum input is a valid execution pla
 You stay in control through a small set of deliberate actions. Each one is a single, recorded
 move — not a free-form conversation with an agent.
 
+- **Set up** Jig through the `jig` tool: pick the track you are configuring, choose the provider
+  posture you want to start with, and get an understandable policy and work profile from templates
+  before you tune them.
 - **Start** a run from your plan and policy, or **preview** what would run before committing.
 - **Watch** it live — what's progressing, what's parked, what's blocked — and **inspect** any
   story for what happened and what evidence backs it.
@@ -118,7 +123,8 @@ see **[the five guarantees in detail](./guarantees.md)**.
    actions are not repeated, and one blocked story does not sink independent work.
    _([detail](./guarantees.md#3-resilience--never-lose-work-resume-safely))_
 4. **Runs against your stack** — agents, execution hosts, forges, and work sources sit behind
-   swappable seams, and weak drivers reduce autonomy rather than weakening guarantees.
+   swappable seams, custom compatible providers can plug in without forking Jig core, and weak
+   drivers reduce autonomy rather than weakening guarantees.
    _([detail](./guarantees.md#4-stack-portability))_
 5. **See everything** — every governed decision and outcome is visible through durable,
    structured records that owners and tools can inspect.
@@ -146,9 +152,10 @@ designs, and execution plans, but Jig does not require them. The learning loop i
 improvement, not part of Jig's per-run hot path.
 
 Design owns the implementation details behind these promises: event schema shape, protocol
-mechanics, provider contracts, exact policy classifiers, storage strategy, and delivery gates.
-Planning owns delivery-level acceptance criteria and phase sequencing. Product keeps the
-outcome-level commitments and the IDs in [the five guarantees](./guarantees.md).
+mechanics, provider contracts, exact policy classifiers, setup prompts, configuration file shape,
+storage strategy, and delivery gates. Planning owns delivery-level acceptance criteria and phase
+sequencing. Product keeps the outcome-level commitments and the IDs in
+[the five guarantees](./guarantees.md).
 
 Jig adopts an internal SDK boundary now for extensibility and single-responsibility. The
 first-party consumers of that programmatic surface are Jig's CLI today and a future MCP
@@ -157,6 +164,24 @@ private (`private: true`) with no publish commitment, and no stability promise i
 the posture may flip later through the org standard path of intentional publication and
 Changesets. This records the org M7 post-spine Packaging (N2) decision from
 `agentic-workflow-kit/.github/MILESTONES.md`.
+
+The SDK boundary is also the product line for provider replaceability. Bundled providers may
+ship with Jig, but they should behave like replaceable providers: they exercise SDK-facing
+ports and registration seams instead of private core shortcuts, prove their capabilities, and
+can be extracted later without changing Jig's guarantees. This is a product promise about
+portability and owner trust, not a decision about package layout or public publication.
+
+Provider extensibility is settled product scope. Owners and teams should be able to bring a
+compatible provider for a supported seam and plug it into Jig without forking Jig core. That
+provider earns use through declared authority and conformance proof; the exact local connection
+and registration mechanics remain design-owned. Public distribution, discovery, install UX, and
+stability guarantees remain separate product questions below.
+
+The product promise behind `jig-testkit` is conformance, not packaging. Jig needs a reusable
+way to prove bundled and future providers before owners trust them: capability checks,
+declared authority, and adversarial probes that support
+[DRIVE-1 and DRIVE-4](./guarantees.md#41-trusting-a-driver). Whether that surface remains
+internal-only or becomes a public package is still open.
 
 ### What Jig isn't (yet)
 
@@ -170,6 +195,10 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - **Operator-initiated.** A run starts because you start it; webhook and scheduler triggers come
   later.
 - **A tool you run, not a service you buy.** Jig is not a hosted, multi-tenant service in v1.
+- **The full agent-driven real run is still debt.** Current evidence proves a real work-source,
+  Forge, and records-integrity path with a scripted agent leg. That scoped proof is
+  EVRUN-partial; EVRUN-full — the full Codex-driven agent leg — remains unproven, as do remote
+  execution, no-phone-home behavior, and every transport edge.
 - **No silent legacy coping.** Jig refuses configuration it doesn't understand, with guidance,
   rather than guessing at an outdated format.
 
@@ -192,12 +221,14 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 
 ## Open Questions
 
-- How much of the setup and preset experience belongs in Jig itself versus surrounding
-  guidance?
+- Which setup integrations should Jig guide first: provider selection, MCP surface setup, local
+  skills, sibling suite tools, or policy/config templates beyond the first useful defaults?
 - How broad should first-class driver support be before stack portability feels credible?
-- Whether a third-party, out-of-repo, installable provider ecosystem is ever product remains
-  open. The 2026-07-04 org Packaging (N2) decision authorizes the internal SDK boundary but
-  says packaging design must not assume this question either way.
+- Owner-authored compatible providers are product scope. What remains open is the public provider
+  ecosystem around them: published distribution packages, discovery, registry or marketplace,
+  support policy, install UX, and public stability guarantees.
+- Whether `jig-testkit` becomes a public package, an internal-only conformance tool, or both
+  remains open; the settled product promise is repeatable provider proof before trust.
 - Which throughput-oriented follow-up checks should become shipped product surfaces, and which
   should remain extension examples?
 - Delivery-level acceptance criteria should be issued later in design or planning artifacts
@@ -207,6 +238,7 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 
 - [The five guarantees (detail)](./guarantees.md) — full ID-bearing specification.
 - [How you use Jig](./use-cases.md) — worked scenarios for each guarantee.
-- [Tracks](./concepts.md) — the track model that scopes policy, work profile, and execution.
+- [Product concepts](./concepts.md) — tracks, stories, runner/worker authority, SDK boundaries,
+  providers, and conformance.
 - [Engineering design](../design/) — the implementation reference for how these product
   commitments are satisfied.
