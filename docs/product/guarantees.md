@@ -11,6 +11,22 @@ and their IDs; design owns how they are implemented and verified. For the overvi
 spine, and where Jig fits in the suite, start at
 [Jig — the execution engine](./jig.md).
 
+> **About these IDs.** Each guarantee family (FENCE, EARN, GUARD, …) and each numbered
+> commitment is a stable product handle other layers cite. IDs are additive: a commitment may be
+> added or clarified, but an existing ID is not silently repurposed. Retiring or renaming one is
+> a deliberate product change, recorded here — so a design or delivery doc that cites an ID can
+> trust it still means what it meant, or find the note that it moved.
+
+## The guarantees at a glance
+
+| Guarantee                       | ID families                          | Detail                                             |
+| ------------------------------- | ------------------------------------ | -------------------------------------------------- |
+| 1. Control & trust              | FENCE, EARN, GUARD, DOOR, MERGE, SEC | [§1](#1-control--trust)                            |
+| 2. Configuration ownership      | CFG                                  | [§2](#2-configuration-ownership)                   |
+| 3. Resilience — never lose work | RESUME, ISO, LIVE                    | [§3](#3-resilience--never-lose-work-resume-safely) |
+| 4. Stack portability            | STACK, DRIVE                         | [§4](#4-stack-portability)                         |
+| 5. Full observability           | SEE                                  | [§5](#5-full-observability)                        |
+
 ## 1. Control & trust
 
 **Intended behavior.** The agent is a contained worker. It can request work, produce code, run

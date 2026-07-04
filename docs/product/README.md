@@ -1,5 +1,5 @@
 ---
-title: Jig — product
+title: "Jig — product"
 status: draft — product layer
 ---
 

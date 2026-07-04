@@ -87,6 +87,54 @@ safe:
 This split is the spine of guarantee 1 — the thing that writes code is never the thing that ships
 it (FENCE-3, MERGE-2, SEC-3).
 
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": { "htmlLabels": false, "curve": "linear", "nodeSpacing": 55, "rankSpacing": 55 }
+}}%%
+flowchart TB
+
+  worker("`**Worker** — contained coding agent
+reads a story, writes code, runs checks
+no credentials; cannot push, PR, or merge`")
+
+  subgraph core["Jig core — fixed, trusted"]
+    runner("`**Runner**
+holds credentials; performs push / PR / merge
+only under policy + evidence gates`")
+  end
+
+  subgraph seams["Four swappable seams (guarantee 4)"]
+    direction LR
+    agent("`**Agent**`")
+    host("`**Execution Host**`")
+    forge("`**Forge**`")
+    source("`**Work Source**`")
+  end
+
+  worker -->|"runs as the Agent, inside the Execution Host"| agent
+  runner -->|"governs, under gates"| agent
+  runner --> host
+  runner --> forge
+  runner --> source
+
+  classDef core fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef seam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:12,ry:12;
+  classDef contained fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
+
+  class runner core;
+  class agent,host,forge,source seam;
+  class worker contained;
+```
+
 ## SDK, providers, and conformance
 
 The **SDK boundary** is Jig's programmatic product surface for first-party consumers. The CLI uses
@@ -98,9 +146,9 @@ A **provider** — called a _driver_ in the guarantee detail when discussing a c
 implementation — is an implementation behind one of Jig's swappable seams: Agent, Execution Host,
 Forge, or Work Source. A provider can be bundled with Jig, owner-authored, or arrive later, but the
 product promise is the same: it behaves as replaceable at the boundary, declares what authority it
-needs, and proves what it can safely do before Jig grants autonomy. Bundled providers should
-therefore use the same SDK-facing ports and registration seams a future extracted or custom
-provider would use, instead of private core shortcuts.
+needs, and proves what it can safely do before Jig grants autonomy. A bundled provider therefore
+gets no privileged shortcut a future extracted or custom provider couldn't use: it earns autonomy
+through the same declared authority and conformance proof at the boundary.
 
 The **conformance surface** is the repeatable proof behind that trust. It gives Jig and provider
 authors a shared way to check capability, containment, declared authority, and adversarial cases.
@@ -129,3 +177,75 @@ A **story** ends in one terminal outcome, or sits in the one transient waiting s
 **stopped** is a **run**-level state, not a story outcome: the whole run was halted cleanly.
 Stories that had not yet reached a terminal outcome stay where they were and resume from their
 last safe checkpoint when the run restarts (see guarantee 3).
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": { "htmlLabels": false, "curve": "linear", "nodeSpacing": 50, "rankSpacing": 50 }
+}}%%
+flowchart TB
+
+  running(["story running"])
+  parked{{"**parked** _(transient)_
+waiting on an owner decision"}}
+  done("**done**
+evidence met, merge pending")
+  landed("**landed**
+merged on evidence")
+  blocked("**blocked**
+cannot proceed; reason recorded")
+  rejected("**rejected**
+owner declined at the doorbell")
+
+  running -->|"evidence meets policy"| done
+  running -->|"needs an owner call"| parked
+  running -->|"cannot proceed"| blocked
+  parked -->|"owner approves"| running
+  parked -->|"owner declines"| rejected
+  done -->|"mergeable now"| landed
+  done -.->|"held: branch protection, merge queue, or conflict"| done
+
+  stopped["**stopped** — a run-level state, not a story outcome
+the whole run halts cleanly; unfinished stories
+resume from their last safe checkpoint"]
+
+  classDef good fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:12,ry:12;
+  classDef wait fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:12,ry:12;
+  classDef halt fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:12,ry:12;
+  classDef run fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:12,ry:12;
+
+  class landed,done good;
+  class parked wait;
+  class blocked,rejected,running halt;
+  class stopped run;
+```
+
+## Glossary
+
+One-line definitions of the product terms used across these pages. Each links to its fuller
+treatment.
+
+| Term                  | Meaning                                                                                                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Track**             | One independent line of work — its own plan, policy, and work profile — running in parallel with other tracks in the same repo. See [Tracks](#tracks--parallel-independent-work). |
+| **Execution plan**    | Jig's one hard input: a set of stories with their dependencies and done conditions, one per track. See [the execution plan](./jig.md#the-execution-plan--jigs-one-input).         |
+| **Story**             | The unit of work Jig runs and lands: one reviewable change with its own done conditions. Design calls it a _work item_. See [Stories](#stories--the-unit-of-work).                |
+| **Policy**            | The per-track safety contract — gating posture, merge spectrum, required reviews, approvals, anti-gaming floor. Changing it is itself governed (guarantee 2, CFG-1).              |
+| **Work profile**      | The per-track realization — model, effort, prompt strategy, role realization. Freely tunable; it cannot lower the safety floor (CFG-2).                                           |
+| **Repo-level floors** | A repo-scoped policy artifact setting minimums every track inherits and can tighten but not weaken (CFG-3).                                                                       |
+| **Runner**            | Jig's fixed, trusted core: holds credentials and performs push, PR, and merge under policy and evidence gates. Not a seam.                                                        |
+| **Worker**            | The contained coding agent: reads a story, writes code, runs checks. Holds no credentials and cannot ship its own work.                                                           |
+| **Seam**              | One of four swappable integration boundaries — Agent, Execution Host, Forge, Work Source (guarantee 4, STACK-2).                                                                  |
+| **Provider / driver** | An implementation behind a seam. _Provider_ is the product term; the guarantee detail says _driver_ for a concrete trusted implementation.                                        |
+| **Doorbell**          | The escalation point where a run parks for an owner decision — approve, reject, override, or hand off (guarantee 1, DOOR-1).                                                      |
+| **Conformance**       | The repeatable proof — capability, containment, declared authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                         |
+| **SDK boundary**      | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                      |
+| **done vs landed**    | _done_ = evidence met, merge pending; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                               |
