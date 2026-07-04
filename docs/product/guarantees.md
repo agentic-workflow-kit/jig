@@ -105,7 +105,8 @@ how the work gets done. Jig derives live behavior from those choices and the pla
 - **CFG-4. The actual is computed, not hand-set.** You set intent and limits; Jig derives what
   can safely run from policy and the plan's current eligible work.
 - **CFG-5. Setup is guided by your intent.** Jig starts by asking how you want to work and maps
-  that to a sensible starting configuration before you tune details.
+  that to a sensible starting configuration before you tune details: provider posture, policy,
+  work profile, and template choices should be understandable owner decisions, not hidden defaults.
 - **CFG-6. Presets are strong defaults with reasoning.** They encode useful starting positions,
   explain why they exist, and remain choices you can override.
 - **CFG-7. Open seams, not a closed turnkey.** Jig exposes records and extension points so
@@ -202,6 +203,13 @@ the control, evidence, and recovery boundaries.
   Jig grants autonomy; unproven capability means more supervision.
 - **STACK-5. Seams are authority boundaries.** Credentials and irreversible authority stay
   where policy and evidence gates can govern them.
+- **STACK-6. First-party drivers do not get hidden shortcuts.** A bundled driver may ship with
+  Jig, but it must still behave like a replaceable driver at the product boundary: it proves
+  capabilities, declares authority, and does not rely on private core paths that would make the
+  guarantee false for another compatible driver.
+- **STACK-7. Custom compatible providers are in scope.** A team can bring its own compatible
+  provider for a supported seam without forking Jig core. Jig applies the same authority and
+  conformance bar before that provider earns autonomy.
 
 ### 4.1 Trusting a driver
 
@@ -214,10 +222,15 @@ the control, evidence, and recovery boundaries.
 - **DRIVE-3. Containment is reported honestly.** An execution host reports how strong its
   isolation actually is, and stronger-isolation powers unlock only when it is genuinely strong
   enough.
+- **DRIVE-4. Conformance is reusable.** The proof used to trust a driver is not a one-off
+  internal assertion. Jig maintains a repeatable conformance surface for bundled and future
+  drivers, including adversarial probes, so the same product bar can be applied before a driver
+  earns autonomy.
 
 **Honest edge.** A seam is not a shipped driver. Drivers can arrive incrementally. Until a
 driver proves a capability, the owner should expect reduced autonomy rather than a weaker
-guarantee.
+guarantee. Custom compatible providers are product scope; a public provider ecosystem around
+them remains a separate open product and distribution question.
 
 ## 5. Full observability
 

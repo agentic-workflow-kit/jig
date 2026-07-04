@@ -87,6 +87,27 @@ safe:
 This split is the spine of guarantee 1 — the thing that writes code is never the thing that ships
 it (FENCE-3, MERGE-2, SEC-3).
 
+## SDK, providers, and conformance
+
+The **SDK boundary** is Jig's programmatic product surface for first-party consumers. The CLI uses
+that boundary today; a future MCP surface is expected to use it too. Product does not promise a
+public package or stable external API today, but it does promise that first-party consumers should
+not reach through Jig internals to get their work done.
+
+A **provider** is an implementation behind one of Jig's swappable seams: Agent, Execution Host,
+Forge, or Work Source. A provider can be bundled with Jig, owner-authored, or arrive later, but the
+product promise is the same: it behaves as replaceable at the boundary, declares what authority it
+needs, and proves what it can safely do before Jig grants autonomy. Bundled providers should
+therefore use the same SDK-facing ports and registration seams a future extracted or custom
+provider would use, instead of private core shortcuts.
+
+The **conformance surface** is the repeatable proof behind that trust. It gives Jig and provider
+authors a shared way to check capability, containment, declared authority, and adversarial cases.
+The product need is reusable proof before trust; whether the supporting surface is internal-only,
+published as `jig-testkit`, or split later is still an open packaging/product question. The
+ability to bring a compatible custom provider is settled product scope; the open question is the
+public ecosystem around such providers.
+
 ## Story and run outcomes
 
 The full internal lifecycle is design's to define; the product-visible states an owner sees and

@@ -15,11 +15,12 @@ workflow, boundaries, and open questions — start at
 _Shows guarantee 1 — control & trust._
 
 You have an approved plan — twelve stories — and you want them delivered tonight without
-supervising each one. You set a cautious policy posture and point Jig at the plan. It works the
+supervising each one. You use the setup flow in `jig` to choose a cautious provider posture and
+start from a policy/work-profile template you understand, then point Jig at the plan. It works the
 stories that are ready, in parallel up to the limit you set, and lands each one **only on real
-evidence** — never on the agent's say-so. One story tries to change a file that governs your
-safety rules; Jig **pauses it and asks you**, rather than quietly merging. Another fails its
-checks; Jig **blocks it and records why**, without holding up the independent stories.
+evidence** — never on the agent's say-so. One story tries to change a file that governs your safety
+rules; Jig **pauses it and asks you**, rather than quietly merging. Another fails its checks; Jig
+**blocks it and records why**, without holding up the independent stories.
 
 By morning: nine landed with evidence you can replay, two waiting on a decision only you should
 make, one blocked with a reason. **You spent your judgment on the two decisions that mattered —
@@ -64,7 +65,9 @@ You want to move a track from one coding agent to another — a new model, a dif
 your own in-house agent. You change the agent in that track's work profile; the policy, the
 gates, and the evidence bar stay exactly as they were. Before the new agent earns any autonomy,
 Jig makes it **prove** the capabilities it claims; until it does, you get more checkpoints, not
-weaker guarantees. **You change who does the work without renegotiating what "safe" means.**
+weaker guarantees. The same proof bar applies to a bundled agent driver and a future extracted
+driver; first-party convenience does not create hidden trust. **You change who does the work
+without renegotiating what "safe" means.**
 
 ## Related
 
