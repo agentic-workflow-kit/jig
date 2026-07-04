@@ -106,11 +106,11 @@ found. No product conflicts are known. The current runtime remains one private p
 pre-split and pre-session-observable; target package and Codex-transport direction must be read as
 design direction, not shipped public API.
 
-## Planning track
+## Historical planning track
 
-The deep-design pass is organized under
-[the planning design track](../planning/design-track/README.md). That planning layer sequences the
-authoring work and records traceability; it does **not** mean the stubbed design files below are
+The deep-design pass was organized under the archived
+[planning design track](../archive/planning/design-track/README.md). That record is preserved for
+traceability; it is historical context and does **not** mean the stubbed design files below are
 already complete.
 
 ## Deferred

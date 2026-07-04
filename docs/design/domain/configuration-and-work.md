@@ -25,7 +25,7 @@ rules.
 
 This is a **domain model at strategic altitude** (`architecture_mode: system-entity-model`,
 `ddd_depth: strategic-only`, per this wave's frame at
-[`../../planning/design-track/waves/wave-1-domain/frame.md`](../../planning/design-track/waves/wave-1-domain/frame.md)).
+[`../../archive/planning/design-track/waves/wave-1-domain/frame.md`](../../archive/planning/design-track/waves/wave-1-domain/frame.md)).
 It names entities, their ownership, their relations, and the lifecycle _terms_ they carry. It
 authors **no state machine or transition table** — the work-item and run lifecycles as closed
 transitions are Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md). It
@@ -65,7 +65,7 @@ a contradiction of this model. That placement records **authoring authority** �
 values — not **domain ownership** of the type and its invariants. The two readings are
 consistent: the owner authors the instance; jig owns the shape and the invariants the instance
 must satisfy. This is the disposition recorded as `D-001` in this wave's
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md).
+[`decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md).
 
 ## The entities
 
@@ -368,7 +368,7 @@ This domain model is authored for a full-weight `review-technical-design` pass a
 lenses (architecture-enforceability, domain-correctness, agreement-integrity). The review report
 and its suggestion dispositions are recorded in
 [`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
+[`decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
 decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled =
 zero open blocking suggestions.
 

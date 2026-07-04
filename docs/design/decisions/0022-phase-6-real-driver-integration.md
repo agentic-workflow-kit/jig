@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 6 ([`docs/delivery/m7-real-providers/phases.md`](../../delivery/m7-real-providers/phases.md),
+Phase 6 ([`docs/archive/delivery/m7-real-providers/phases.md`](../../archive/delivery/m7-real-providers/phases.md),
 P6-AC-1..6) promotes the agent and execution-host seams from **reference adapters** to **real
 drivers** behind the unchanged `AgentPort` and `ExecutionHostPort`. It is the keystone of the M7
 real-providers track: a real agent (Codex-first) performs real edits inside a real, confined
@@ -421,7 +421,7 @@ rides the real-driver phase rather than Phase 5.
   real-host factory and real substrate-authorization module, threads the persisted launch attestation
   through resume, and adds a real freshness clock and real secret-scanning — see the Phase 6
   implementation brief
-  ([`../../delivery/m7-real-providers/implementation-briefs/phase-6-real-drivers.md`](../../delivery/m7-real-providers/implementation-briefs/phase-6-real-drivers.md)).
+  ([`../../archive/delivery/m7-real-providers/implementation-briefs/phase-6-real-drivers.md`](../../archive/delivery/m7-real-providers/implementation-briefs/phase-6-real-drivers.md)).
   It touches `src/bootstrap.ts`, `src/authorization.ts`, `src/resume.ts`, `src/harness.ts`, and the
   conformance suite; it does not change a port surface.
 - No JSON Schema freeze, no TypeScript contract package, no public contract package, and no real

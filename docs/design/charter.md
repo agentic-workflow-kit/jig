@@ -8,7 +8,7 @@ status: overview — design charter
 This is the single, authoritative statement of the deep-design pass's goal, boundary rule, stub
 rule, and deliverable rule, at design altitude. It descends from, and is consistent with, the
 planning-track's own framing of these same four rules in
-[`docs/planning/design-track/README.md`](../planning/design-track/README.md#goal); this charter
+[`docs/archive/planning/design-track/README.md`](../archive/planning/design-track/README.md#goal); this charter
 states them as they govern jig's design content and the [`docs/design/`](./README.md) record
 itself, not as they govern how the planning track organizes sessions. Later design waves cite
 this doc's rules directly rather than re-deriving or re-paraphrasing them from the planning
@@ -35,7 +35,7 @@ than resolving that silently inside a design session.
 **Core owns ports, invariants, state machines, the authority model, and event semantics;
 providers implement against ports and never redefine core policy, evidence, authorization, or
 state semantics.** This is jig's own design-layer restatement, at design altitude, of the
-planning-track's [boundary rule](../planning/design-track/README.md#boundary-rule) — the two
+planning-track's [boundary rule](../archive/planning/design-track/README.md#boundary-rule) — the two
 must not drift into different wordings. In the design record specifically: a provider-area
 design doc (agent, execution host, forge, work source — see
 [`contracts/providers.md`](./contracts/providers.md)) may describe how that provider implements
@@ -49,7 +49,7 @@ sentence rather than re-deriving the boundary each time they open a new design f
 
 **A stub is a later, explicit, conservative allowance — never a default, and never mistakable
 for a real, working capability in the design record.** This is jig's own design-layer
-restatement of the planning-track's [stub rule](../planning/design-track/README.md#stub-rule).
+restatement of the planning-track's [stub rule](../archive/planning/design-track/README.md#stub-rule).
 In the design record specifically: a stub area (see the status legend in
 [`docs/design/README.md`](./README.md#status--whats-ready-whats-wip)) must state visibly, in the
 file that carries it, what is deferred, why, and what proof gate must pass before it stops being
@@ -62,7 +62,7 @@ stub points to this one sentence rather than re-justifying the practice inline.
 **Every design session produces five durable things: the authored design doc(s) at its
 resolved target, logged open questions, the invariants it preserves and any it adds, its risks
 and deferred decisions, and its review evidence.** This is jig's own design-layer restatement of
-the planning-track's [deliverable rule](../planning/design-track/README.md#deliverable-rule).
+the planning-track's [deliverable rule](../archive/planning/design-track/README.md#deliverable-rule).
 Stories do not each re-explain this list; they cite this one sentence and fill in their own five
 items.
 
@@ -131,7 +131,7 @@ wave's `decisions.md`, per this charter's own deliverable rule.
 ## Related
 
 - [Jig — design](./README.md) — the design-layer index this charter sits alongside.
-- [Jig — design track (planning)](../planning/design-track/README.md) — the planning-track
+- [Jig — design track (planning)](../archive/planning/design-track/README.md) — the planning-track
   charter this doc restates at design altitude.
 - [Jig — the execution engine](../product/jig.md) and
   [the five guarantees](../product/guarantees.md) — the product commitments this charter

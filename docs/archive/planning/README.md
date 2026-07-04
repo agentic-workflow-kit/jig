@@ -1,16 +1,17 @@
 ---
 title: "Jig — repo-local planning"
-status: draft — planning layer
+status: historical archive
 ---
 
-# Jig — repo-local planning
+# Jig — repo-local planning archive
 
-This is Jig's repo-local **delivery and design planning** area. It is not the suite Planning layer
-(`design-to-plan`) and does not produce Jig execution plans for users.
+This directory preserves Jig's historical repo-local **delivery and design planning** records. It
+is not the suite Planning layer (`design-to-plan`) and does not produce Jig execution plans for
+users.
 
-This area organizes work into waves, sessions, and stories. Product owns _what and why_
-(`docs/product/`); design owns _how_ (`docs/design/`); planning organizes the work those two layers
-hand off, and never overrides either.
+These archived records organized work into waves, sessions, and stories. Product owns _what and
+why_ (`docs/product/`); design owns _how_ (`docs/design/`); this archive records how prior work was
+sequenced and should not override either active layer.
 
 A planning finding that contradicts a product or design commitment is routed back to the owning
 doc — named as feedback, not silently resolved here (this mirrors jig's own STOP-003: a v0
@@ -25,6 +26,6 @@ records the conflict; it does not adjudicate it.
 
 ## Related
 
-- [Jig — design](../design/README.md) — the design layer this track deepens.
-- [Jig — the execution engine](../product/jig.md) — the product commitments design and planning
+- [Jig — design](../../design/README.md) — the design layer this track deepened.
+- [Jig — the execution engine](../../product/jig.md) — the product commitments design and planning
   reconcile to.

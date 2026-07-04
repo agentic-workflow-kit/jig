@@ -90,8 +90,8 @@ construction never enters the record (`integrity.json` carries only the digest a
 
 - M7 exit evidence: supports the local M7 exit criteria that real effects are recorded in durable,
   inspectable records and that records-integrity is present for real-provider runs
-  ([M7 README](../../delivery/m7-real-providers/README.md#org-m7-exit-criteria--phase-map);
-  [repo plan local exit criteria](../../delivery/m7-real-providers/repo-plan-m7.md#repo-plan-for-m7)).
+  ([M7 README](../../archive/delivery/m7-real-providers/README.md#org-m7-exit-criteria--phase-map);
+  [repo plan local exit criteria](../../archive/delivery/m7-real-providers/repo-plan-m7.md#repo-plan-for-m7)).
 - Coordinator decision: EVRUN-partial closes M7 per `.github` PR #17 decision 1 / D1 Option A
   supplied by the coordinator for this task. This is partial evidence, not EVRUN-full.
 - P7-AC-1: the runner drives a real Forge landing and a real GitHub PR effect occurs.

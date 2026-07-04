@@ -81,7 +81,7 @@ taxonomy — it mirrors the scope note already written near the top of
 | Log                                                                     | Scope                                                                                                   | Numbering                                | What it records                                                                                   |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `docs/design/decisions/000N-*.md` (this ADR log)                        | Design-layer decisions about jig's own design content (entities, ports, state machines, conventions)    | Flat, sequential; see the live index     | One ADR per durable design decision, in the order made                                            |
-| `docs/planning/design-track/waves/<wave>/decisions.md`                  | Planning-track scaffold QA and frame `InputResolution` dispositions for that wave's stories             | Per-wave `D-001..`, restarting each wave | Frame-resolution choices and design-review suggestion dispositions for that wave's planning units |
+| `docs/archive/planning/design-track/waves/<wave>/decisions.md`          | Planning-track scaffold QA and frame `InputResolution` dispositions for that wave's stories             | Per-wave `D-001..`, restarting each wave | Frame-resolution choices and design-review suggestion dispositions for that wave's planning units |
 | `docs/design/notes/wave-0-execution-review.md` (and successors, if any) | Build-time `review-technical-design` dispositions for the design-layer **execution** of a wave's briefs | Per-log `D-001..`, restarting per log    | The coordinator's disposition of reviewer findings against the authored design docs themselves    |
 
 These three logs are **distinct by scope, not by competing authority**: the ADR log is the
@@ -164,8 +164,8 @@ nothing left to disambiguate once the enumeration confirms no cross-set string m
 ## 4. Per-wave decision-log format: one shared `D-###` shape, two disposition vocabularies
 
 A wave's `decisions.md` (see the concrete instances at
-[`waves/wave-0-charter/decisions.md`](../planning/design-track/waves/wave-0-charter/decisions.md)
-and [`waves/wave-1-domain/decisions.md`](../planning/design-track/waves/wave-1-domain/decisions.md),
+[`waves/wave-0-charter/decisions.md`](../archive/planning/design-track/waves/wave-0-charter/decisions.md)
+and [`waves/wave-1-domain/decisions.md`](../archive/planning/design-track/waves/wave-1-domain/decisions.md),
 both read-only planning artifacts cited here, not edited) and a build-time execution-review log
 (the concrete instance at
 [`notes/wave-0-execution-review.md`](./notes/wave-0-execution-review.md)) share one row shape:

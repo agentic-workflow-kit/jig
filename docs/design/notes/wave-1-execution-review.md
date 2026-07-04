@@ -17,7 +17,7 @@ log and each such log number independently, so this log's `D-###` restart at `D-
 distinct from — even where the numbers coincide with — the identifiers used in:
 
 - the planning-tree Wave 1 decision log at
-  [`../../planning/design-track/waves/wave-1-domain/decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md),
+  [`../../archive/planning/design-track/waves/wave-1-domain/decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md),
   whose `D-001..D-003` are the **frame** `InputResolution` dispositions the two stories were
   authored under (a different log, a different kind of decision). The two Wave 1 story briefs say
   design-review dispositions are "recorded into this wave's `decisions.md`"; under the execution

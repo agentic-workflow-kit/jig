@@ -17,7 +17,7 @@ independently, so this log's `D-###` restart at `D-001` and are distinct from â€
 numbers coincide with â€” the identifiers used in:
 
 - the planning-tree Wave 2 decision log at
-  [`../../planning/design-track/waves/wave-2-state-machines/decisions.md`](../../planning/design-track/waves/wave-2-state-machines/decisions.md),
+  [`../../archive/planning/design-track/waves/wave-2-state-machines/decisions.md`](../../archive/planning/design-track/waves/wave-2-state-machines/decisions.md),
   whose `D-001..D-003` are the **frame** `InputResolution` dispositions (deepen-in-place; mode/depth;
   bootstrap-scope) and whose `D-004..D-005` are that tree's own scaffold-QA of the briefs. Under the
   execution split the planning tree is a read-only input, so the coordinator's per-unit review

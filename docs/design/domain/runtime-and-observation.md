@@ -34,7 +34,7 @@ crossing from Configuration & Work into the runtime — named in
 
 This is a **domain model at strategic altitude** (`architecture_mode: system-entity-model`,
 `ddd_depth: strategic-only`, per this wave's frame at
-[`../../planning/design-track/waves/wave-1-domain/frame.md`](../../planning/design-track/waves/wave-1-domain/frame.md)).
+[`../../archive/planning/design-track/waves/wave-1-domain/frame.md`](../../archive/planning/design-track/waves/wave-1-domain/frame.md)).
 It names entities, their ownership, their relations, the seam it sits against, and the lifecycle
 _terms_ they carry. It authors **no state machine or transition table** — the run and work-item
 lifecycles as closed transitions are Wave 2's, owned by
@@ -101,7 +101,7 @@ is the observable unit an owner previews, starts, stops, resumes, and completes.
   lifecycle _terms_ (below) but not the transitions between them. It also does not own the
   **content** of the Policy or Work profile it binds (that is Configuration & Work's — jig owns
   their shape, the owner authors their values, per `w1-s1`'s
-  [`D-001`](../../planning/design-track/waves/wave-1-domain/decisions.md)), nor a run's live
+  [`D-001`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md)), nor a run's live
   _derived_ behavior, which is computed from Policy plus the plan's eligible work rather than stored
   on any Configuration entity ([`CFG-4`](../../product/guarantees.md#2-configuration-ownership)).
 
@@ -187,7 +187,7 @@ it parses the instance, validates it against the execution-plan contract, and **
 incompatible formats with a reason** rather than guessing at intent — guaranteeing that no run is
 ever created from an invalid or rejected plan
 ([`INV-007`](../notes/runtime-design-m5a.md)). This is a **runtime-side** concern, per this wave's
-disposition [`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md): the authored
+disposition [`D-002`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md): the authored
 plan is Configuration & Work's (its shape, its track binding — `w1-s1`'s Execution plan entity),
 but the **act** of parsing, validating, and rejecting it belongs here.
 
@@ -348,7 +348,7 @@ guardrails ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming)).
 ## Work item — the runtime-observed facts (the same entity as `w1-s1`, D-003)
 
 A Run observes **Work items** moving through the runtime. Per this wave's disposition
-[`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), **Work item is one entity
+[`D-003`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), **Work item is one entity
 spanning two lifecycle phases** — it is **not** split into two entities. `w1-s1` owns the
 authored-facts phase (identity, dependencies-as-declared, done-conditions-as-declared); this area
 names the **runtime-observed facts** of that _same_ entity: its runtime state and outcome
@@ -448,13 +448,13 @@ without owning their runtime enforcement:
 ## Risks and deferred decisions
 
 - **Deferred — Work item's runtime facet as a possible future entity.** By
-  [`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), Work item is one entity
+  [`D-003`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), Work item is one entity
   with two phases; this area observes its runtime facet as the same entity `w1-s1` authors. Wave 2
   may later elevate that facet to a distinct entity, but only with recorded rationale; until then,
   treating the two phases as one entity is a deliberate choice, not an oversight. (This is the
   runtime-side statement of the same deferred item `w1-s1` records from the authored side.)
 - **Deferred — plan-intake boundary placement.** By
-  [`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md), the parse/validate/reject
+  [`D-002`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), the parse/validate/reject
   act is runtime-side, continuing `CTX-001`; this area names and cites it, it does not re-home it. If
   a later wave finds the authored/validated seam needs re-placing, that is its decision to record and
   route (`STOP-003`), not this area's to pre-empt.
@@ -484,7 +484,7 @@ ownership is consistent with `SEE-1`..`SEE-6` / `MERGE-*` and the plan-intake na
 correctly; agreement-integrity: the seam and Work-item facts agree with `w1-s1`'s settled output and
 the wave frame's `AgreedSystemModel`). The review report and its suggestion dispositions are recorded
 in [`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
+[`decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
 decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled = zero
 open blocking suggestions.
 
