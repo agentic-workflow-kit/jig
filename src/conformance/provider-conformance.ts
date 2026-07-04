@@ -164,14 +164,24 @@ export async function evaluateProviderConformanceVerdicts(
   }
 
   const hostAttestation = await subject.executionHost.describe();
+  let hostHasProvenIsolationStrength = false;
+  let hostSelfReportOnlyEmitted = false;
   for (const attestation of hostAttestation.capabilityAttestations) {
+    if (attestation.provenIsolationStrength) {
+      hostHasProvenIsolationStrength = true;
+    }
+
     if ((attestation.reportedIsolationStrength || attestation.positive) && !attestation.provenIsolationStrength) {
       verdicts.push(conformanceVerdict('host-isolation-self-report-only', 'self-report-only'));
+      hostSelfReportOnlyEmitted = true;
     } else if (
       isolationRank(attestation.reportedIsolationStrength) > isolationRank(attestation.provenIsolationStrength)
     ) {
       verdicts.push(conformanceVerdict('host-isolation-overstated', 'specified-response'));
     }
+  }
+  if (hostAttestation.isolationStrength && !hostHasProvenIsolationStrength && !hostSelfReportOnlyEmitted) {
+    verdicts.push(conformanceVerdict('host-isolation-self-report-only', 'self-report-only'));
   }
 
   const candidates = await subject.workSource.candidates();

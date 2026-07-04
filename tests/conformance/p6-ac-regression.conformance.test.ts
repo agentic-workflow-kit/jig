@@ -157,6 +157,30 @@ test('P6-AC-2: a positive-only isolation claim is classified as self-report-only
   ]);
 });
 
+test('P6-AC-2: a top-level-only isolation claim is classified as self-report-only', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost: {
+      describe: () => ({
+        driverId: 'top-level-only-host',
+        runContext: 'local',
+        isolationStrength: 'strong',
+        capabilityAttestations: [],
+      }),
+    },
+    manifest,
+  });
+
+  assert.deepStrictEqual(verdicts, [
+    {
+      finding: 'host-isolation-self-report-only',
+      basis: 'self-report-only',
+    },
+  ]);
+});
+
 test('P6-AC-6: a substrate-escalation adapter is rejected', async () => {
   const composed = await composedSubject();
 
