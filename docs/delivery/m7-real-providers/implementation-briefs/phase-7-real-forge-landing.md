@@ -1,9 +1,14 @@
 ---
 title: "Phase 7 implementation brief — Real Forge/GitHub landing"
-status: active
+status: completed history
 ---
 
 # Phase 7 implementation brief — Real Forge/GitHub landing
+
+> **Closeout note (2026-07-04):** retained as M7 delivery history after org M7 accepted
+> EVRUN-partial exit evidence. `LandingRequest.action` is now a typed union in the live port; old
+> `"push|open-pr|merge"` references below may remain as historical modeled-record or golden
+> byte-identity context.
 
 ## Context and goal
 

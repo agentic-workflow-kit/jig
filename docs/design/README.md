@@ -32,7 +32,7 @@ archive** = decision records and reference material.
 | Core data ports     | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass                       |
 | Contracts overview  | `contracts/README.md`                                                                                                                                | overview    | —                                                                     |
 | Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                         |
-| Driving / providers | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | provider adapters and conformance details deferred                    |
+| Driving / providers | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / EVRUN-full evidence gates                    |
 | Decisions           | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                           |
 | Evidence records    | `evidence/*`                                                                                                                                         | log         | grows as external-tool probes are committed                           |
 | Notes               | `notes/*`                                                                                                                                            | archive     | —                                                                     |
@@ -60,17 +60,30 @@ entity model, the structure diagram, and the bootstrap→core flow. Then the per
 Every interface at jig's boundary — what others call or implement — in three kinds. See the
 **[boundary map](./contracts/README.md)**.
 
-- [`driving.md`](./contracts/driving.md) — how consumers drive jig: CLI, MCP, SDK.
+- [`driving.md`](./contracts/driving.md) — how consumers drive jig: CLI, MCP, SDK; reconciled with
+  the future internal `jig-sdk` package boundary from ADR 0027.
 - the two **data contracts** —
   [`execution-plan-contract-v0.md`](./contracts/execution-plan-contract-v0.md) (input) and
   [`observability-records-contract-v0.md`](./contracts/observability-records-contract-v0.md)
   (output).
-- [`providers.md`](./contracts/providers.md) — the four swappable provider seams.
+- [`providers.md`](./contracts/providers.md) — the four swappable provider seams, provider
+  extractability posture, conformance/testkit routing, and the Codex app-server adapter constraint
+  from ADR 0028.
 
 ## [`decisions/`](./decisions/) — the decision log
 
 One ADR per design decision; see the [decision index](./decisions/README.md). Seeded from the
 M5a slice.
+
+Current reconciliation notes:
+
+- [ADR 0027](./decisions/0027-packaging-sdk-boundary.md) settles the target internal package
+  direction: `jig-sdk`, `jig-cli`, and `jig-testkit`, with the root package remaining private. It
+  authorizes design direction only; it does not create packages, exports, project references, or a
+  publish/stability promise.
+- [ADR 0028](./decisions/0028-codex-app-server-transport.md) selects owned stdio app-server as the
+  first Codex transport target and keeps the session-observable Codex seam internal to the real
+  adapter. Public `AgentPort` stays final-result oriented.
 
 ## [`evidence/`](./evidence/) — committed evidence inputs
 
@@ -89,7 +102,9 @@ workflow-kit reuse log, and the dense M5a runtime-design record. See the
 
 Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
-found. No product conflicts are known.
+found. No product conflicts are known. The current runtime remains one private package and is still
+pre-split and pre-session-observable; target package and Codex-transport direction must be read as
+design direction, not shipped public API.
 
 ## Planning track
 
@@ -101,6 +116,9 @@ already complete.
 ## Deferred
 
 - field-level JSON Schema or TypeScript interfaces;
-- package or source-code layout;
-- provider driver protocols beyond the product-level seam obligations;
+- implementation of the ADR 0027 package split, including package files, export maps, project
+  references, source moves, dependency rules, and publishing posture;
+- provider package publication or a third-party provider ecosystem commitment;
+- EVRUN-full, prompt-size / bounded-context behavior, Windows / Git Bash support, and other evidence
+  gates that ADR 0028 leaves open;
 - the implementation code itself.

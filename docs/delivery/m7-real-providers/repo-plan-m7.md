@@ -6,11 +6,14 @@ decide as it turns M7's outcome into local phases and stories. The phase decompo
 ID-bearing acceptance criteria live in [`phases.md`](./phases.md); the track overview is
 [`README.md`](./README.md).
 
+**Closeout note (2026-07-04):** org M7 is now done through accepted EVRUN-partial evidence. This repo
+plan is retained as durable delivery history. EVRUN-full and Codex transport hardening remain post-M7
+debt.
+
 - **Org milestone:** M7 — Real Provider Integration (`.github/MILESTONES.md`, state
-  `ready-for-repo-planning`; primary owner `jig`). Promote M5's `named extension point` seams (agent
-  driver, execution-host driver, forge driver, work-source driver, resume, capability attestation) to
-  `exercised` with real effects, behind the contracts already owned by M1 and merged in jig Phase 5
-  (commit `f59a479`).
+  `done`; primary owner `jig`). Promote M5's `named extension point` seams (agent driver,
+  execution-host driver, forge driver, work-source driver, resume, capability attestation) to
+  `exercised` with real effects, behind the contracts already owned by M1 and merged in jig Phase 5.
 
 - **This repo owns:**
   - Real driver implementations behind the four existing ports — `AgentPort`, `ExecutionHostPort`,
@@ -97,9 +100,9 @@ ID-bearing acceptance criteria live in [`phases.md`](./phases.md); the track ove
      host may need to run proof work to attest confinement. Does the port surface flex to async
      (an encoding change to a P5-pinned seam), or is proof pre-computed before `describe()`? Routed to
      the contract owner / design; not decided in delivery planning.
-  2. Residual B's `LandingRequest.action` (single literal `'push|open-pr|merge'` → union) is a local
-     port-type fix, but if it or richer work-source provenance forces any observability-records field
-     change, that is a contract change routed to M1, not a local edit.
+  2. Residual B's `LandingRequest.action` union is now live in the local port type. If richer
+     work-source provenance or any later landing evidence forces an observability-records field change,
+     that is a contract change routed to M1, not a local edit.
   3. Does tamper-evidence over the record chain (Phase 9) require a records-contract field for the
      digest/HMAC posture? If so, it is design/contract-owner-owned, and its freeze is the v0-freeze
      checkpoint — confirm sequencing with the org roadmap.

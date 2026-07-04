@@ -1,9 +1,12 @@
 ---
 title: "Phase 9 implementation brief — Records-integrity + active re-approval"
-status: active
+status: completed history
 ---
 
 # Phase 9 implementation brief — Records-integrity + active re-approval
+
+> **Closeout note (2026-07-04):** retained as M7 delivery history after org M7 accepted
+> EVRUN-partial exit evidence. EVRUN-full remains post-M7 Codex-transport debt.
 
 ## Context and goal
 

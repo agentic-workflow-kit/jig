@@ -108,6 +108,48 @@ ports, but it does not get to redefine:
 This file therefore describes each seam as an owns / implements / must-not contract, while leaving
 adapter mechanics, schemas, and manifest detail for later work.
 
+## Provider extension and package posture
+
+The product layer now promises provider replaceability without promising a public provider package
+ecosystem. [ADR 0027](../decisions/0027-packaging-sdk-boundary.md) turns that into a target package
+boundary: the future `jig-sdk` owns the provider ports, provider-facing types, composition/factory
+surface, and bundled first-party/reference provider implementations selected behind that factory.
+Consumers and future compatible providers should use supported SDK options or hooks; they should not
+fork Jig core or deep-import bundled provider internals.
+
+That posture keeps the seams open for compatible custom providers while leaving publication scope
+open:
+
+- bundled providers act like replaceable providers behind the same core-owned ports;
+- compatible custom providers plug in through the factory/typed-options boundary and satisfy the
+  same owns / implements / must-not rules as bundled providers;
+- provider package extraction is not required for the current target and remains a later design
+  decision if maintenance or ecosystem pressure justifies it;
+- no public provider API, package, registry, manifest schema, semver stability promise, or out-of-repo
+  provider ecosystem is created by this contract.
+
+The future `jig-testkit` boundary owns provider conformance, controlled doubles, and verdict helpers.
+Per [ADR 0026](../decisions/0026-conformance-self-report-only.md), conformance is an adequacy bar for
+the port contract and controlled scenarios, not proof that a real provider told the truth. Production
+runtime packages must not depend on the testkit after the package split.
+
+## Codex app-server adapter posture
+
+[ADR 0028](../decisions/0028-codex-app-server-transport.md) selects an owned stdio Codex app-server
+process as the first real Codex transport target. That decision is internal to the Agent provider
+implementation. The public provider boundary remains `AgentPort`, whose current design is
+final-result oriented.
+
+The Codex adapter may widen its internal `CodexAgentSession` seam so it can preflight compatibility,
+observe session/turn state, route owner approval decisions, correlate denial, interrupt active work,
+and resume a persisted Codex thread. Those app-server lifecycle events and protocol objects must be
+translated back into Jig's existing worker result, authorization, and record paths. They must not leak
+into the runner, Fence, records, Forge, work-source contracts, or the public provider port.
+
+The evidence gates from ADR 0028 remain live: EVRUN-full, prompt-size / bounded-context behavior,
+Windows / Git Bash behavior, process-tree cleanup, overlap/busy semantics, and T14 contract freeze
+are not proven by the current design records.
+
 ## Port invocation points
 
 Wave 3 adds no new states or transitions. It names only the settled invocation points and source
@@ -499,11 +541,10 @@ the `action` union + real-effect idempotency + landing-path redaction, independe
   stays structural). Selected by name (`forge: 'github'`) through the composition root, sole-imported;
   an unknown forge name fails closed. The default/dry-run wiring keeps emitting
   `runner-action.skipped-on-dry-run`, so the Phase-0..4 goldens stay byte-identical.
-- **`LandingRequest.action` union (Residual B).** The merged
-  [`../../../src/ports.ts`](../../../src/ports.ts) types `action` as the single literal
-  `'push|open-pr|merge'`; Phase 7 repairs it to the union `'push' | 'open-pr' | 'merge'` so the real
-  adapter can discriminate, and an unknown action **fails closed**. This is a jig-internal port-type fix
-  that freezes nothing.
+- **`LandingRequest.action` union (Residual B).** The live
+  [`../../../src/ports.ts`](../../../src/ports.ts) shape now types `action` as the union
+  `'push' | 'open-pr' | 'merge'` so the real adapter can discriminate, and an unknown action **fails
+  closed**. This remains a jig-internal port-type fix that freezes nothing.
 - **Real-effect idempotency.** A re-run or resume against an already-landed effect recognizes the prior
   landing **from the replayed records** (extending the Phase-4 no-double-effect recognition,
   [ADR 0020](../decisions/0020-phase-4-reliable-local-runs.md) §5) and the second attempt is a recorded
@@ -583,16 +624,21 @@ origin-bearing provenance). This is the last real-driver phase of the M7 track.
 
 ## Deferred and out of scope
 
-- **Real** (production) adapters for the **Agent** and **Execution host** seams are realized in
+- **Real** (production) adapter direction for the **Agent** and **Execution host** seams is recorded in
   Phase 6 ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md), "Phase 6 realization"
-  above), real **Forge**/GitHub push/PR/merge in Phase 7
+  above), real **Forge**/GitHub push/PR/merge direction in Phase 7
   ([ADR 0023](../decisions/0023-phase-7-real-forge-landing.md), "Phase 7 realization" above), and real
-  **Work source** import in Phase 8
-  ([ADR 0024](../decisions/0024-phase-8-real-work-source.md), "Phase 8 realization" above); all four
-  seams now have realized real drivers.
+  **Work source** import direction in Phase 8
+  ([ADR 0024](../decisions/0024-phase-8-real-work-source.md), "Phase 8 realization" above). EVRUN-full
+  remains an evidence gate; design direction here must not be read as proof that the complete real
+  Codex-driven path has been exercised.
 - Freezing a manifest JSON Schema or a capability-proof field-level schema (design owns the shape,
   including the Phase-6 substrate manifest and persisted-attestation shape; freeze stays with the
   contract owner).
+- Extracting provider packages, publishing provider APIs, or committing to a third-party provider
+  ecosystem.
+- Publicly exposing app-server protocol types, app-server session files, or the internal
+  session-observable Codex seam.
 - JSON Schema, event constants, or frozen field-level contract shapes for the execution-plan or
   observability-records v0 contracts.
 - New lifecycle states, transition tables, or state-machine redesign.

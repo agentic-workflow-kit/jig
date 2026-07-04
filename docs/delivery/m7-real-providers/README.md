@@ -1,14 +1,18 @@
 ---
 title: "M7 real-providers delivery track"
-status: active
+status: completed via EVRUN-partial
 ---
 
 # M7 real-providers delivery track
 
-The delivery track for org milestone **M7 — Real Provider Integration**. It derives jig's
+The delivery track for org milestone **M7 — Real Provider Integration**. It derived jig's
 real-integration phases (Phases 6-9) from the org M7 milestone
 (`.github/MILESTONES.md`, "M7: Real Provider Integration"), per the org derivation contract
 ("Deriving Repo Plans"). The org milestone carries no story list; that decomposition lives here.
+
+**Status as of 2026-07-04:** org M7 is done through accepted EVRUN-partial evidence. This track is
+kept as durable delivery history and phase context. EVRUN-full remains post-M7 Codex-transport debt
+and is not closed by this track.
 
 This track picks up where the M5b local-MVP track ends. M5b proved the local dry-run path and, in its
 Phase 5, pinned the four provider ports, the composition root, the capability-attestation Fence
@@ -27,11 +31,11 @@ policy, against a real capability attestation rather than a reference adapter. R
 **opt-in**: the default (reference) wiring reproduces the proven Phase-0..4 local path and its
 goldens byte-identically.
 
-**Why now:** the M5 slice pinned and merged the four ports, the composition root, the
+**Why this track existed:** the M5 slice pinned and merged the four ports, the composition root, the
 capability-attestation gate, and the conformance suite (jig Phase 5, commit `f59a479`). With those
 contracts stable and merged, real drivers can slot behind them without churning the seams. Sequence
 is not serialization: org M5 remains `current`, but M7 consumes the already-merged P5 seams, so this
-repo planning proceeds now.
+repo planning proceeded from those seams.
 
 ## What jig owns vs. consumes
 
@@ -93,12 +97,11 @@ stops, and non-goals for each phase live in [`phases.md`](./phases.md). The
   mechanism ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3), so resumed
   work is adjudicated against the launch-attested capability. It is an explicit P6 acceptance
   criterion (P6-AC-5).
-- **Residual B — the `LandingRequest.action` bug (Phase 7).**
-  [`../../../src/ports.ts`](../../../src/ports.ts) types `action` as the single string literal
-  `'push|open-pr|merge'` (one literal containing pipes), not the union
-  `'push' | 'open-pr' | 'merge'`. It is unexercised today (the reference forge is
-  `skipped-on-dry-run`) but must become a real union before Phase 7's real Forge discriminates
-  actions. It is an explicit P7 acceptance criterion (P7-AC-2).
+- **Residual B — the `LandingRequest.action` union (Phase 7).**
+  [`../../../src/ports.ts`](../../../src/ports.ts) now types `action` as the union
+  `'push' | 'open-pr' | 'merge'`, so the real Forge path can discriminate actions. This was the
+  explicit P7 acceptance criterion (P7-AC-2); the track keeps it here as closeout context rather than
+  open debt.
 
 ## Source boundaries
 
@@ -129,6 +132,8 @@ does not invent product or design facts. Per the delivery Planning Rules
 - [Repo plan for M7](./repo-plan-m7.md) — the org derivation handoff (what jig owns, consumes, must
   not decide, and the open questions routed back to the org roadmap).
 - Org milestone: `.github/MILESTONES.md`, "M7: Real Provider Integration".
+- EVRUN-partial evidence:
+  [`../../design/evidence/2026-07-04-evrun-partial-smoke.md`](../../design/evidence/2026-07-04-evrun-partial-smoke.md).
 - Predecessor track: [`../m5b-local-mvp-r2/`](../m5b-local-mvp-r2/README.md) — the live local-MVP
   track whose provider tail this track replaces.
 - Merged P5 seams: [`../../../src/ports.ts`](../../../src/ports.ts),
