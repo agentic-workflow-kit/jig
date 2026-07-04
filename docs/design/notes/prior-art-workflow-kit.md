@@ -66,7 +66,7 @@ cited to the jig ADR or design doc that now owns the decision.
 ### STILL OPEN (routed)
 
 These are still input material, not design decisions. Their routing follows the org M7 entry's
-"Post-spine decisions (2026-07-04)" in `.github/MILESTONES.md`.
+"Post-spine decisions (2026-07-04)" in `agentic-workflow-kit/.github/MILESTONES.md`.
 
 | Prior-art input                                                                                                                                                                  | Route                                                                                              | Disposition                                                                                                                                                                                                                                               |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
