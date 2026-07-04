@@ -26,6 +26,9 @@ function labelFor(kind, value) {
 
 function redactString(key, value, context = '') {
   const lowerKey = key.toLowerCase();
+  if (/^<[^>]+>$/.test(value)) {
+    return value;
+  }
   if (home && value.includes(home)) {
     value = value.split(home).join('<redacted-home>');
   }
@@ -551,10 +554,10 @@ async function main() {
   results.busy = await probeBusy();
   results.cleanup = await probeCleanup();
   results.resume = await probeResume();
-  const summary = `${JSON.stringify(redact(results), null, 2)}\n`;
+  const summary = `${JSON.stringify(results, null, 2)}\n`;
   const summaryPath = join(outDir, 'probe-summary.json');
   writeFileSync(summaryPath, summary);
-  console.log(JSON.stringify({ summaryPath, sha256: hashFileContent(summary), results: redact(results) }, null, 2));
+  console.log(JSON.stringify({ summaryPath, sha256: hashFileContent(summary), results }, null, 2));
 }
 
 main().catch((error) => {

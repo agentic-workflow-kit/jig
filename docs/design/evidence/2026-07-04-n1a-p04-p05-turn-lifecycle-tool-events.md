@@ -40,7 +40,7 @@ the same capture supports P04 and the Tier 3 P05 check.
 | Artifact                                            | SHA-256                                                            |
 | --------------------------------------------------- | ------------------------------------------------------------------ |
 | `docs/design/evidence/raw/n1a/p04-basic-turn.jsonl` | `2ca03e0f3c11d33c36b4d8c451cc1b1c8bcc84456623c565d9aa306ca721741d` |
-| `docs/design/evidence/raw/n1a/probe-summary.json`   | `14da20a76b59a601c0aa3317b24d3989c80b76992a0aaa19e6797b350f27bead` |
+| `docs/design/evidence/raw/n1a/probe-summary.json`   | `20afafb1c0cb28ed92e92589a09d6279e7802a9e08f4d78e62c4b56e55664a59` |
 
 ## Result
 

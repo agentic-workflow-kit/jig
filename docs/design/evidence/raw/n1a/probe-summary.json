@@ -17,7 +17,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       }
@@ -41,7 +41,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
@@ -49,8 +49,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-7>",
-            "sessionId": "<session-7>",
+            "id": "<thread-1>",
+            "sessionId": "<session-1>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -101,8 +101,8 @@
         "method": "thread/started",
         "params": {
           "thread": {
-            "id": "<thread-7>",
-            "sessionId": "<session-7>",
+            "id": "<thread-1>",
+            "sessionId": "<session-1>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -130,7 +130,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -139,7 +139,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -148,7 +148,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -157,7 +157,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -166,7 +166,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -175,7 +175,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -184,7 +184,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -194,7 +194,7 @@
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-9>",
+            "id": "<turn-1>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -208,7 +208,7 @@
       {
         "method": "thread/settings/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "threadSettings": {
             "cwd": "<redacted-tmp-path>",
             "approvalPolicy": "never",
@@ -242,7 +242,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -252,9 +252,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "turn": {
-            "id": "<turn-9>",
+            "id": "<turn-1>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -268,7 +268,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -277,7 +277,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -286,7 +286,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -295,7 +295,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -304,7 +304,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -315,7 +315,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-25>",
+            "id": "<item-1>",
             "clientId": null,
             "content": [
               {
@@ -325,8 +325,8 @@
               }
             ]
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "startedAtMs": 1783172171484
         }
       },
@@ -335,7 +335,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-25>",
+            "id": "<item-1>",
             "clientId": null,
             "content": [
               {
@@ -345,8 +345,8 @@
               }
             ]
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "completedAtMs": 1783172171484
         }
       },
@@ -355,7 +355,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-26>",
+            "id": "<item-2>",
             "command": "/bin/zsh -lc pwd",
             "cwd": "<redacted-tmp-path>",
             "processId": "27523",
@@ -371,8 +371,8 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "startedAtMs": 1783172174066
         }
       },
@@ -381,7 +381,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-26>",
+            "id": "<item-2>",
             "command": "/bin/zsh -lc pwd",
             "cwd": "<redacted-tmp-path>",
             "processId": "27523",
@@ -397,8 +397,8 @@
             "exitCode": 0,
             "durationMs": 0
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "completedAtMs": 1783172174066
         }
       },
@@ -407,7 +407,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-27>",
+            "id": "<item-3>",
             "command": "/bin/zsh -lc 'ls -1'",
             "cwd": "<redacted-tmp-path>",
             "processId": "59847",
@@ -424,8 +424,8 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "startedAtMs": 1783172174075
         }
       },
@@ -434,7 +434,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-27>",
+            "id": "<item-3>",
             "command": "/bin/zsh -lc 'ls -1'",
             "cwd": "<redacted-tmp-path>",
             "processId": "59847",
@@ -451,16 +451,16 @@
             "exitCode": 0,
             "durationMs": 0
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "completedAtMs": 1783172174075
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "tokenUsage": {
             "total": {
               "totalTokens": 21555,
@@ -491,76 +491,76 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-28>",
+            "id": "<item-4>",
             "text": "",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "startedAtMs": 1783172174969
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "N"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "1"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "A"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "-B"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "ASIC"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "-D"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
-          "itemId": "<item-28>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-4>",
           "delta": "ONE"
         }
       },
@@ -569,21 +569,21 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-28>",
+            "id": "<item-4>",
             "text": "N1A-BASIC-DONE",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "completedAtMs": 1783172175163
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-7>",
-          "turnId": "<turn-9>",
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
           "tokenUsage": {
             "total": {
               "totalTokens": 43248,
@@ -612,7 +612,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "status": {
             "type": "idle"
           }
@@ -621,9 +621,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-7>",
+          "threadId": "<thread-1>",
           "turn": {
-            "id": "<turn-9>",
+            "id": "<turn-1>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "completed",
@@ -654,7 +654,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
@@ -662,8 +662,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-8>",
-            "sessionId": "<session-8>",
+            "id": "<thread-2>",
+            "sessionId": "<session-2>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -711,8 +711,8 @@
         "method": "thread/started",
         "params": {
           "thread": {
-            "id": "<thread-8>",
-            "sessionId": "<session-8>",
+            "id": "<thread-2>",
+            "sessionId": "<session-2>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -740,7 +740,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -749,7 +749,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -758,7 +758,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -767,7 +767,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -776,7 +776,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -785,7 +785,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -794,7 +794,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -804,7 +804,7 @@
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-10>",
+            "id": "<turn-2>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -818,7 +818,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -828,9 +828,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "turn": {
-            "id": "<turn-10>",
+            "id": "<turn-2>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -844,7 +844,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -853,7 +853,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -862,7 +862,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -871,7 +871,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -880,7 +880,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -891,7 +891,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-29>",
+            "id": "<item-5>",
             "clientId": null,
             "content": [
               {
@@ -901,8 +901,8 @@
               }
             ]
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "startedAtMs": 1783172181458
         }
       },
@@ -911,7 +911,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-29>",
+            "id": "<item-5>",
             "clientId": null,
             "content": [
               {
@@ -921,8 +921,8 @@
               }
             ]
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "completedAtMs": 1783172181458
         }
       },
@@ -931,12 +931,12 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-30>",
+            "id": "<item-6>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "startedAtMs": 1783172183613
         }
       },
@@ -945,19 +945,19 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-30>",
+            "id": "<item-6>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "completedAtMs": 1783172184677
         }
       },
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "status": {
             "type": "active",
             "activeFlags": [
@@ -971,7 +971,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-31>",
+            "id": "<item-7>",
             "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
             "cwd": "<redacted-tmp-path>",
             "processId": null,
@@ -987,8 +987,8 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "startedAtMs": 1783172185630
         }
       },
@@ -996,11 +996,11 @@
         "method": "item/commandExecution/requestApproval",
         "id": 0,
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-31>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-7>",
           "startedAtMs": 1783172185630,
-          "environmentId": "<environment-2>",
+          "environmentId": "<environment-1>",
           "reason": "Do you want to allow writing approval-result.txt in the current workspace exactly as requested?",
           "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
           "cwd": "<redacted-tmp-path>",
@@ -1033,14 +1033,14 @@
       {
         "method": "serverRequest/resolved",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "requestId": 0
         }
       },
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -1052,7 +1052,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-31>",
+            "id": "<item-7>",
             "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
             "cwd": "<redacted-tmp-path>",
             "processId": "26516",
@@ -1068,16 +1068,16 @@
             "exitCode": 0,
             "durationMs": 0
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "completedAtMs": 1783172185678
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "tokenUsage": {
             "total": {
               "totalTokens": 22106,
@@ -1108,58 +1108,58 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-32>",
+            "id": "<item-8>",
             "text": "",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "startedAtMs": 1783172186543
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-32>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-8>",
           "delta": "The"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-32>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-8>",
           "delta": " command"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-32>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-8>",
           "delta": " ran"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-32>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-8>",
           "delta": " successfully"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
-          "itemId": "<item-32>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
+          "itemId": "<item-8>",
           "delta": "."
         }
       },
@@ -1168,21 +1168,21 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-32>",
+            "id": "<item-8>",
             "text": "The command ran successfully.",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "completedAtMs": 1783172186737
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-8>",
-          "turnId": "<turn-10>",
+          "threadId": "<thread-2>",
+          "turnId": "<turn-2>",
           "tokenUsage": {
             "total": {
               "totalTokens": 44266,
@@ -1211,7 +1211,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "status": {
             "type": "idle"
           }
@@ -1220,9 +1220,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-8>",
+          "threadId": "<thread-2>",
           "turn": {
-            "id": "<turn-10>",
+            "id": "<turn-2>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "completed",
@@ -1253,7 +1253,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
@@ -1261,8 +1261,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-9>",
-            "sessionId": "<session-9>",
+            "id": "<thread-3>",
+            "sessionId": "<session-3>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -1310,8 +1310,8 @@
         "method": "thread/started",
         "params": {
           "thread": {
-            "id": "<thread-9>",
-            "sessionId": "<session-9>",
+            "id": "<thread-3>",
+            "sessionId": "<session-3>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -1339,7 +1339,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -1348,7 +1348,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -1357,7 +1357,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -1366,7 +1366,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -1375,7 +1375,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -1384,7 +1384,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -1394,7 +1394,7 @@
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-11>",
+            "id": "<turn-3>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -1408,7 +1408,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -1418,9 +1418,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "turn": {
-            "id": "<turn-11>",
+            "id": "<turn-3>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -1434,7 +1434,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -1443,7 +1443,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -1452,7 +1452,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -1461,7 +1461,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -1470,7 +1470,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -1479,7 +1479,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -1490,7 +1490,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-33>",
+            "id": "<item-9>",
             "clientId": null,
             "content": [
               {
@@ -1500,8 +1500,8 @@
               }
             ]
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "startedAtMs": 1783172193409
         }
       },
@@ -1510,7 +1510,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-33>",
+            "id": "<item-9>",
             "clientId": null,
             "content": [
               {
@@ -1520,8 +1520,8 @@
               }
             ]
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "completedAtMs": 1783172193409
         }
       },
@@ -1530,12 +1530,12 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-34>",
+            "id": "<item-10>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "startedAtMs": 1783172194633
         }
       },
@@ -1544,19 +1544,19 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-34>",
+            "id": "<item-10>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "completedAtMs": 1783172195784
         }
       },
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "status": {
             "type": "active",
             "activeFlags": [
@@ -1570,7 +1570,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-35>",
+            "id": "<item-11>",
             "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
             "cwd": "<redacted-tmp-path>",
             "processId": null,
@@ -1586,8 +1586,8 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "startedAtMs": 1783172196932
         }
       },
@@ -1595,11 +1595,11 @@
         "method": "item/commandExecution/requestApproval",
         "id": 0,
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-35>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-11>",
           "startedAtMs": 1783172196932,
-          "environmentId": "<environment-2>",
+          "environmentId": "<environment-1>",
           "reason": "Allow writing the approval probe result to approval-result.txt in the current workspace?",
           "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
           "cwd": "<redacted-tmp-path>",
@@ -1632,7 +1632,7 @@
       {
         "method": "serverRequest/resolved",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "requestId": 0
         }
       },
@@ -1641,7 +1641,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-35>",
+            "id": "<item-11>",
             "command": "/bin/zsh -lc 'printf n1a-approval-probe > approval-result.txt'",
             "cwd": "<redacted-tmp-path>",
             "processId": null,
@@ -1657,15 +1657,15 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "completedAtMs": 1783172196934
         }
       },
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -1675,8 +1675,8 @@
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "tokenUsage": {
             "total": {
               "totalTokens": 22122,
@@ -1707,184 +1707,184 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-36>",
+            "id": "<item-12>",
             "text": "",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "startedAtMs": 1783172216729
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "The"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " command"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " did"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " not"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " run"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "."
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " The"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " escalation"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " request"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " to"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " write"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " `"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "approval"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "-result"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": ".txt"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "`"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " was"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": " rejected"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
-          "itemId": "<item-36>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
+          "itemId": "<item-12>",
           "delta": "."
         }
       },
@@ -1893,21 +1893,21 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-36>",
+            "id": "<item-12>",
             "text": "The command did not run. The escalation request to write `approval-result.txt` was rejected.",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "completedAtMs": 1783172231026
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-9>",
-          "turnId": "<turn-11>",
+          "threadId": "<thread-3>",
+          "turnId": "<turn-3>",
           "tokenUsage": {
             "total": {
               "totalTokens": 44318,
@@ -1936,7 +1936,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "status": {
             "type": "idle"
           }
@@ -1945,9 +1945,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-9>",
+          "threadId": "<thread-3>",
           "turn": {
-            "id": "<turn-11>",
+            "id": "<turn-3>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "completed",
@@ -1978,7 +1978,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
@@ -1986,8 +1986,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-10>",
-            "sessionId": "<session-10>",
+            "id": "<thread-4>",
+            "sessionId": "<session-4>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -2038,8 +2038,8 @@
         "method": "thread/started",
         "params": {
           "thread": {
-            "id": "<thread-10>",
-            "sessionId": "<session-10>",
+            "id": "<thread-4>",
+            "sessionId": "<session-4>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -2067,7 +2067,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -2076,7 +2076,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -2085,7 +2085,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -2094,7 +2094,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -2103,7 +2103,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -2112,7 +2112,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -2121,7 +2121,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -2131,7 +2131,7 @@
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-12>",
+            "id": "<turn-4>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -2145,7 +2145,7 @@
       {
         "method": "thread/settings/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "threadSettings": {
             "cwd": "<redacted-tmp-path>",
             "approvalPolicy": "never",
@@ -2179,7 +2179,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -2189,9 +2189,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "turn": {
-            "id": "<turn-12>",
+            "id": "<turn-4>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -2205,7 +2205,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -2214,7 +2214,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -2223,7 +2223,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -2232,7 +2232,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -2245,7 +2245,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "status": {
             "type": "idle"
           }
@@ -2254,9 +2254,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "turn": {
-            "id": "<turn-12>",
+            "id": "<turn-4>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "interrupted",
@@ -2270,7 +2270,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-10>",
+          "threadId": "<thread-4>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -2296,7 +2296,7 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
@@ -2304,8 +2304,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-11>",
-            "sessionId": "<session-11>",
+            "id": "<thread-5>",
+            "sessionId": "<session-5>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -2356,8 +2356,8 @@
         "method": "thread/started",
         "params": {
           "thread": {
-            "id": "<thread-11>",
-            "sessionId": "<session-11>",
+            "id": "<thread-5>",
+            "sessionId": "<session-5>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "",
@@ -2385,7 +2385,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -2394,7 +2394,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -2403,7 +2403,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -2412,7 +2412,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -2421,7 +2421,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -2430,7 +2430,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -2439,7 +2439,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -2449,7 +2449,7 @@
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-13>",
+            "id": "<turn-5>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -2464,7 +2464,7 @@
         "id": 4,
         "result": {
           "turn": {
-            "id": "<turn-14>",
+            "id": "<turn-6>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -2478,7 +2478,7 @@
       {
         "method": "thread/settings/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "threadSettings": {
             "cwd": "<redacted-tmp-path>",
             "approvalPolicy": "never",
@@ -2512,7 +2512,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -2522,9 +2522,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "turn": {
-            "id": "<turn-13>",
+            "id": "<turn-5>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -2538,7 +2538,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -2547,7 +2547,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -2556,7 +2556,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -2565,7 +2565,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -2574,7 +2574,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -2585,7 +2585,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-37>",
+            "id": "<item-13>",
             "clientId": null,
             "content": [
               {
@@ -2595,8 +2595,8 @@
               }
             ]
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "startedAtMs": 1783172244265
         }
       },
@@ -2605,7 +2605,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-37>",
+            "id": "<item-13>",
             "clientId": null,
             "content": [
               {
@@ -2615,8 +2615,8 @@
               }
             ]
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "completedAtMs": 1783172244265
         }
       },
@@ -2625,7 +2625,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-38>",
+            "id": "<item-14>",
             "command": "/bin/zsh -lc 'sleep 10'",
             "cwd": "<redacted-tmp-path>",
             "processId": "65526",
@@ -2641,16 +2641,16 @@
             "exitCode": null,
             "durationMs": null
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "startedAtMs": 1783172254375
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "tokenUsage": {
             "total": {
               "totalTokens": 21583,
@@ -2681,7 +2681,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-39>",
+            "id": "<item-15>",
             "clientId": null,
             "content": [
               {
@@ -2691,8 +2691,8 @@
               }
             ]
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "startedAtMs": 1783172264269
         }
       },
@@ -2701,7 +2701,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-39>",
+            "id": "<item-15>",
             "clientId": null,
             "content": [
               {
@@ -2711,8 +2711,8 @@
               }
             ]
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "completedAtMs": 1783172264269
         }
       },
@@ -2721,7 +2721,7 @@
         "params": {
           "item": {
             "type": "commandExecution",
-            "id": "<item-38>",
+            "id": "<item-14>",
             "command": "/bin/zsh -lc 'sleep 10'",
             "cwd": "<redacted-tmp-path>",
             "processId": "65526",
@@ -2737,8 +2737,8 @@
             "exitCode": 0,
             "durationMs": 9990
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "completedAtMs": 1783172264366
         }
       },
@@ -2747,12 +2747,12 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-40>",
+            "id": "<item-16>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "startedAtMs": 1783172266646
         }
       },
@@ -2761,12 +2761,12 @@
         "params": {
           "item": {
             "type": "reasoning",
-            "id": "<item-40>",
+            "id": "<item-16>",
             "summary": [],
             "content": []
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "completedAtMs": 1783172267723
         }
       },
@@ -2775,85 +2775,85 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-41>",
+            "id": "<item-17>",
             "text": "",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "startedAtMs": 1783172267723
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "N"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "1"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "A"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "-B"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "US"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "Y"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "-"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
-          "itemId": "<item-41>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
+          "itemId": "<item-17>",
           "delta": "SECOND"
         }
       },
@@ -2862,21 +2862,21 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-41>",
+            "id": "<item-17>",
             "text": "N1A-BUSY-SECOND",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "completedAtMs": 1783172270810
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-11>",
-          "turnId": "<turn-13>",
+          "threadId": "<thread-5>",
+          "turnId": "<turn-5>",
           "tokenUsage": {
             "total": {
               "totalTokens": 43268,
@@ -2905,7 +2905,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "status": {
             "type": "idle"
           }
@@ -2914,9 +2914,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-11>",
+          "threadId": "<thread-5>",
           "turn": {
-            "id": "<turn-13>",
+            "id": "<turn-5>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "completed",
@@ -2948,7 +2948,7 @@
           "params": {
             "status": "disabled",
             "serverName": "<redacted-local-hostname>",
-            "installationId": "<installation-2>",
+            "installationId": "<installation-1>",
             "environmentId": null
           }
         },
@@ -2979,7 +2979,7 @@
           "params": {
             "status": "disabled",
             "serverName": "<redacted-local-hostname>",
-            "installationId": "<installation-2>",
+            "installationId": "<installation-1>",
             "environmentId": null
           }
         }
@@ -3004,14 +3004,14 @@
         "params": {
           "status": "disabled",
           "serverName": "<redacted-local-hostname>",
-          "installationId": "<installation-2>",
+          "installationId": "<installation-1>",
           "environmentId": null
         }
       },
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "computer-use",
           "status": "starting",
           "error": null
@@ -3020,7 +3020,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "node_repl",
           "status": "starting",
           "error": null
@@ -3029,7 +3029,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "openai-api-key-local-confirmation",
           "status": "starting",
           "error": null
@@ -3038,7 +3038,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "openaiDeveloperDocs",
           "status": "starting",
           "error": null
@@ -3047,7 +3047,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "codex_apps",
           "status": "starting",
           "error": null
@@ -3056,7 +3056,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "node_repl",
           "status": "ready",
           "error": null
@@ -3065,7 +3065,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "context7",
           "status": "starting",
           "error": null
@@ -3074,7 +3074,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "status": {
             "type": "idle"
           }
@@ -3084,8 +3084,8 @@
         "id": 2,
         "result": {
           "thread": {
-            "id": "<thread-12>",
-            "sessionId": "<session-12>",
+            "id": "<thread-6>",
+            "sessionId": "<session-6>",
             "forkedFromId": null,
             "parentThreadId": null,
             "preview": "Remember this marker for the next turn: N1A-RESUME-MARKER-20260704. Reply only ACK.",
@@ -3108,11 +3108,11 @@
             "name": null,
             "turns": [
               {
-                "id": "<turn-15>",
+                "id": "<turn-7>",
                 "items": [
                   {
                     "type": "userMessage",
-                    "id": "<item-42>",
+                    "id": "<item-21>",
                     "clientId": null,
                     "content": [
                       {
@@ -3124,7 +3124,7 @@
                   },
                   {
                     "type": "agentMessage",
-                    "id": "<item-43>",
+                    "id": "<item-22>",
                     "text": "ACK",
                     "phase": "final_answer",
                     "memoryCitation": null
@@ -3167,8 +3167,8 @@
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-15>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-7>",
           "tokenUsage": {
             "total": {
               "totalTokens": 22027,
@@ -3191,14 +3191,14 @@
       {
         "method": "thread/goal/cleared",
         "params": {
-          "threadId": "<thread-12>"
+          "threadId": "<thread-6>"
         }
       },
       {
         "id": 3,
         "result": {
           "turn": {
-            "id": "<turn-16>",
+            "id": "<turn-8>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -3212,7 +3212,7 @@
       {
         "method": "thread/settings/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "threadSettings": {
             "cwd": "<redacted-tmp-path>",
             "approvalPolicy": "never",
@@ -3246,7 +3246,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "status": {
             "type": "active",
             "activeFlags": []
@@ -3256,9 +3256,9 @@
       {
         "method": "turn/started",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "turn": {
-            "id": "<turn-16>",
+            "id": "<turn-8>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "inProgress",
@@ -3272,7 +3272,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "openai-api-key-local-confirmation",
           "status": "ready",
           "error": null
@@ -3281,7 +3281,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "computer-use",
           "status": "ready",
           "error": null
@@ -3290,7 +3290,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "codex_apps",
           "status": "ready",
           "error": null
@@ -3299,7 +3299,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "openaiDeveloperDocs",
           "status": "ready",
           "error": null
@@ -3308,7 +3308,7 @@
       {
         "method": "mcpServer/startupStatus/updated",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "name": "context7",
           "status": "ready",
           "error": null
@@ -3319,7 +3319,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-44>",
+            "id": "<item-23>",
             "clientId": null,
             "content": [
               {
@@ -3329,8 +3329,8 @@
               }
             ]
           },
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
           "startedAtMs": 1783172286549
         }
       },
@@ -3339,7 +3339,7 @@
         "params": {
           "item": {
             "type": "userMessage",
-            "id": "<item-44>",
+            "id": "<item-23>",
             "clientId": null,
             "content": [
               {
@@ -3349,8 +3349,8 @@
               }
             ]
           },
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
           "completedAtMs": 1783172286549
         }
       },
@@ -3359,130 +3359,130 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-45>",
+            "id": "<item-24>",
             "text": "",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
           "startedAtMs": 1783172287693
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "N"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "1"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "A"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "-"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "RES"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "UME"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "-M"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "ARK"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "ER"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "-"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "202"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "607"
         }
       },
       {
         "method": "item/agentMessage/delta",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
-          "itemId": "<item-45>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
+          "itemId": "<item-24>",
           "delta": "04"
         }
       },
@@ -3491,21 +3491,21 @@
         "params": {
           "item": {
             "type": "agentMessage",
-            "id": "<item-45>",
+            "id": "<item-24>",
             "text": "N1A-RESUME-MARKER-20260704",
             "phase": "final_answer",
             "memoryCitation": null
           },
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
           "completedAtMs": 1783172287983
         }
       },
       {
         "method": "thread/tokenUsage/updated",
         "params": {
-          "threadId": "<thread-12>",
-          "turnId": "<turn-16>",
+          "threadId": "<thread-6>",
+          "turnId": "<turn-8>",
           "tokenUsage": {
             "total": {
               "totalTokens": 44092,
@@ -3534,7 +3534,7 @@
       {
         "method": "thread/status/changed",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "status": {
             "type": "idle"
           }
@@ -3543,9 +3543,9 @@
       {
         "method": "turn/completed",
         "params": {
-          "threadId": "<thread-12>",
+          "threadId": "<thread-6>",
           "turn": {
-            "id": "<turn-16>",
+            "id": "<turn-8>",
             "items": [],
             "itemsView": "notLoaded",
             "status": "completed",
