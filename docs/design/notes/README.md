@@ -13,6 +13,8 @@ into the durable design as it deepens.
 
 - [`problem-frame.md`](./problem-frame.md) — the DDD intake frame the M5a design was framed
   from.
+- [`n1a-transport-evidence-plan.md`](./n1a-transport-evidence-plan.md) — plan-only checklist for
+  fresh Codex transport evidence capture before the N1b transport ADR.
 - [`prior-art-workflow-kit.md`](./prior-art-workflow-kit.md) — reference-only lessons carried
   (never ported) from the retiring `workflow-kit` prototype.
 - [`runtime-design-m5a.md`](./runtime-design-m5a.md) — the dense M5a runtime design record in
