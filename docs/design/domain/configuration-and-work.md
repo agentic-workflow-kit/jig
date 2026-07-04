@@ -62,7 +62,7 @@ a contradiction of this model. That placement records **authoring authority** â€
 values â€” not **domain ownership** of the type and its invariants. The two readings are
 consistent: the owner authors the instance; jig owns the shape and the invariants the instance
 must satisfy. This is recorded as disposition `D-001` in
-[the domain decision log](../../planning/design-track/waves/wave-1-domain/decisions.md).
+[the domain decision log](../../archive/planning/design-track/waves/wave-1-domain/decisions.md).
 
 ## The entities
 

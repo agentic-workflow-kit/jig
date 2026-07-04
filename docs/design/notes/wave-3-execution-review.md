@@ -17,7 +17,7 @@ independently, so this log's `D-###` restart at `D-001` and are distinct from th
 in:
 
 - the planning-tree Wave 3 decision log at
-  [`../../planning/design-track/waves/wave-3-ports/decisions.md`](../../planning/design-track/waves/wave-3-ports/decisions.md),
+  [`../../archive/planning/design-track/waves/wave-3-ports/decisions.md`](../../archive/planning/design-track/waves/wave-3-ports/decisions.md),
   whose `D-001..D-003` are the **frame** `InputResolution` dispositions (deepen in place; mode/depth;
   parallel story execution) and whose `D-004` is that tree's scaffold-QA disposition. Under the
   execution split the planning tree is a read-only input, so the coordinator's per-unit review

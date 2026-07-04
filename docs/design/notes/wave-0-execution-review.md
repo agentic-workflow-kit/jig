@@ -14,7 +14,7 @@ Scope note. These `D-###` entries are the **execution** track's own review dispo
 distinct from:
 
 - the planning-tree scaffold-QA log at
-  [`../../planning/design-track/waves/wave-0-charter/decisions.md`](../../planning/design-track/waves/wave-0-charter/decisions.md),
+  [`../../archive/planning/design-track/waves/wave-0-charter/decisions.md`](../../archive/planning/design-track/waves/wave-0-charter/decisions.md),
   which independently uses its own `D-001..003` over the planning documents themselves; and
 - the design-layer ADR log at [`../decisions/`](../decisions/), which this log is not mixed into
   and which Wave 0 does not add to (no ADR minted; next available remains `0017`).

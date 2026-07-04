@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 5 ([`docs/delivery/m5b-local-mvp-r2/phases.md`](../../delivery/m5b-local-mvp-r2/phases.md),
+Phase 5 ([`docs/archive/delivery/m5b-local-mvp-r2/phases.md`](../../archive/delivery/m5b-local-mvp-r2/phases.md),
 P5-AC-1..5) introduces the **provider seam realizations**: the four ports jig's stack-portability
 rests on (Agent, Execution host, Forge, Work source), the conformance machinery that proves a driver
 before it is trusted, and the capability-attestation input that gates autonomy on fresh proof rather
@@ -25,9 +25,9 @@ runner-exclusive `done → landed` boundary in [`../core/orchestration.md`](../c
 and the composition root that "is the one place that imports provider implementations" in
 [`../core/bootstrap.md`](../core/bootstrap.md). The adversarial surface is pre-mapped by the Wave 5
 red-team
-([`w5-s1`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md):
+([`w5-s1`](../../archive/planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md):
 F-1 SEC-2 blur, F-2 claim-versus-judgment, F-3 work-source second channel) and triaged by
-[Wave 6](../../planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md).
+[Wave 6](../../archive/planning/design-track/waves/wave-6-implementation-phasing/prerequisite-triage.md).
 `providers.md` deliberately defers the interface shapes, the conformance-suite design, the
 capability-proof schema, the isolation-strength catalog, and the provider manifest — this ADR is where
 those are settled, and `providers.md` is promoted from `draft` in the same design PR to carry them.
@@ -100,7 +100,7 @@ Phase 5 delivers the provider **machinery**, not shipped drivers. Concretely:
 - **Reference adapters** for all four seams and AC-bound contract tests proving P5-AC-1..5.
 
 **Out of scope — split to later phases (Decision "Deferred" section and
-[`phases.md`](../../delivery/m5b-local-mvp-r2/phases.md) Phase 6+):** a real agent driver, a real
+[`phases.md`](../../archive/delivery/m5b-local-mvp-r2/phases.md) Phase 6+):** a real agent driver, a real
 execution host with genuine confinement, real Forge/GitHub push/PR/merge, real work-source
 integrations, a TUI/dashboard, and record/snapshot tamper-evidence (the post-Phase-5 records-integrity
 phase, per ADR 0020).

@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 4 ([`docs/delivery/m5b-local-mvp-r2/phases.md`](../../delivery/m5b-local-mvp-r2/phases.md),
+Phase 4 ([`docs/archive/delivery/m5b-local-mvp-r2/phases.md`](../../archive/delivery/m5b-local-mvp-r2/phases.md),
 P4-AC-1..6) makes local runs reliable and recoverable: `inspect` that replays the event log,
 `resume` from a durable checkpoint, no-double-effect on already-recorded actions, a
 redaction/export posture, workspace continuity, and causal notices. The design layer already

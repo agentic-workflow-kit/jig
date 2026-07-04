@@ -249,7 +249,7 @@ worker to improvise.
 The M5b local runner narrows this contract at intake with two deliberate v0 restrictions.
 They are owned by the delivery layer — the contract's model is unchanged — and are recorded
 here so Planning is not surprised at the boundary (provenance: the
-[post-Phase-2 review](../../reviews/2026-07-02-post-phase-2-repo-review.md), finding S4;
+[post-Phase-2 review](../../archive/reviews/2026-07-02-post-phase-2-repo-review.md), finding S4;
 resolution is tracked in the delivery track's ladder, to be relaxed or ratified at schema
 freeze):
 

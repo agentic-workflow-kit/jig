@@ -97,7 +97,7 @@ is the observable unit an owner previews, starts, stops, resumes, and completes.
   lifecycle _terms_ (below) but not the transitions between them. It also does not own the
   **content** of the Policy or Work profile it binds (that is Configuration & Work's — jig owns
   their shape, the owner authors their values, per
-  [`D-001`](../../planning/design-track/waves/wave-1-domain/decisions.md)), nor a run's live
+  [`D-001`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md)), nor a run's live
   _derived_ behavior, which is computed from Policy plus the plan's eligible work rather than stored
   on any Configuration entity ([`CFG-4`](../../product/guarantees.md#2-configuration-ownership)).
 
@@ -182,7 +182,7 @@ it parses the instance, validates it against the execution-plan contract, and **
 incompatible formats with a reason** rather than guessing at intent — guaranteeing that no run is
 ever created from an invalid or rejected plan
 ([`INV-007`](../notes/runtime-design-m5a.md)). This is a **runtime-side** concern, per disposition
-[`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md): the authored plan is
+[`D-002`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md): the authored plan is
 Configuration & Work's (its shape, its track binding — that document's Execution plan entity),
 but the **act** of parsing, validating, and rejecting it belongs here.
 
@@ -343,7 +343,7 @@ mutable override that could weaken its own guardrails
 ## Work item — the runtime-observed facts (the same entity as Configuration & Work's, D-003)
 
 A Run observes **Work items** moving through the runtime. Per disposition
-[`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), **Work item is one entity
+[`D-003`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), **Work item is one entity
 spanning two lifecycle phases** — it is **not** split into two entities.
 [`configuration-and-work.md`](./configuration-and-work.md) owns the authored-facts phase (identity,
 dependencies-as-declared, done-conditions-as-declared); this area names the **runtime-observed
@@ -445,14 +445,14 @@ without owning their runtime enforcement:
 ## Risks and deferred decisions
 
 - **Deferred — Work item's runtime facet as a possible future entity.** By
-  [`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), Work item is one entity
+  [`D-003`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), Work item is one entity
   with two phases; this area observes its runtime facet as the same entity
   [`configuration-and-work.md`](./configuration-and-work.md) authors. A later design pass may
   elevate that facet to a distinct entity, but only with recorded rationale; until then, treating
   the two phases as one entity is a deliberate choice, not an oversight. (This is the runtime-side
   statement of the same deferred item recorded from the authored side.)
 - **Deferred — plan-intake boundary placement.** By
-  [`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md), the parse/validate/reject
+  [`D-002`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md), the parse/validate/reject
   act is runtime-side, continuing `CTX-001`; this area names and cites it, it does not re-home it. If
   a later design pass finds the authored/validated seam needs re-placing, that is its decision to
   record and route (`STOP-003`), not this area's to pre-empt.

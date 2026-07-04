@@ -8,7 +8,7 @@ status: applied
 ## Context
 
 The post-Phase-2 repository review
-([`docs/reviews/2026-07-02-post-phase-2-repo-review.md`](../../reviews/2026-07-02-post-phase-2-repo-review.md),
+([`docs/archive/reviews/2026-07-02-post-phase-2-repo-review.md`](../../archive/reviews/2026-07-02-post-phase-2-repo-review.md),
 finding MF2) found the M5b implementation's records diverging from this layer's closed
 vocabulary with no recorded mapping: `run.id` duplicates the plan id; events carry no `actor`,
 `basis`, or redaction posture; the implementation mints `run.denied`, `story.failed`,

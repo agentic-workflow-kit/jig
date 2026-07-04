@@ -13,7 +13,7 @@ with CFG-10's fixed category boundary, and INV-008 /
 (`requested → granted/denied/routed`) even in dry-run. The M5b Phase 1–2 implementation gates
 a run on a single policy boolean (`allowLocalDryRun`) instead: no per-request adjudication,
 no categories, no triad. The divergence was recorded nowhere
-([review](../../reviews/2026-07-02-post-phase-2-repo-review.md), finding S3).
+([review](../../archive/reviews/2026-07-02-post-phase-2-repo-review.md), finding S3).
 
 ## Decision
 

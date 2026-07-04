@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 8 ([`docs/delivery/m7-real-providers/phases.md`](../../delivery/m7-real-providers/phases.md),
+Phase 8 ([`docs/archive/delivery/m7-real-providers/phases.md`](../../archive/delivery/m7-real-providers/phases.md),
 P8-AC-1..3) promotes the **Work source** seam from the reference adapter to **real importer(s)** that
 produce `CandidateWorkItem`s from a real source (an issue tracker or other system), with **every
 candidate crossing `PlanValidator` before runtime scheduling** and **provenance richer than the single
@@ -387,7 +387,7 @@ two-PR decomposition.
   importer, unknown name fails closed), threads the origin into the run record additively, and adds the
   Phase-8 conformance additions (including the direct-`run`/`resume` bypass case exercising the runtime
   refusal) — see the Phase 8 implementation brief
-  ([`../../delivery/m7-real-providers/implementation-briefs/phase-8-real-work-source.md`](../../delivery/m7-real-providers/implementation-briefs/phase-8-real-work-source.md)).
+  ([`../../archive/delivery/m7-real-providers/implementation-briefs/phase-8-real-work-source.md`](../../archive/delivery/m7-real-providers/implementation-briefs/phase-8-real-work-source.md)).
   The runtime marker is never serialized, so the Phase-0..4 goldens stay byte-identical. It does not
   change the `WorkSourcePort.candidates()` method surface or any of the four provider ports.
 - No JSON Schema freeze, no TypeScript contract package, no public contract package, and no

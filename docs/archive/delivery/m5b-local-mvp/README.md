@@ -1,0 +1,91 @@
+---
+title: "M5b local MVP delivery roadmap"
+status: superseded
+---
+
+# M5b local MVP delivery roadmap
+
+> **Superseded.** This roadmap is preserved as the historical record of the track that
+> delivered Phases 0-2 (PRs #14-#16). The live track is
+> [`../m5b-local-mvp-r2/`](../m5b-local-mvp-r2/README.md), which starts from delivered
+> reality, maps the org-M5 exit criteria, and sequences the remaining phases. Files in this
+> directory are period-accurate history: paths and claims reflect the repo before the
+> post-Phase-2 remediation (e.g. fixtures lived under `test/`, not `tests/`). Do not update
+> them.
+
+M5b delivery is organized around client-usable milestones: what an operator can do after each phase
+lands. The roadmap still preserves the proof surfaces from Wave 6, but it does not name phases by
+internal components such as plan intake, records, authorization, bootstrap, or orchestration.
+
+The first usable product milestone is a local plan runner, not GitHub or Forge integration. It
+should let an operator run a local plan file from a terminal with simple local configuration,
+simple local policy, the scripted-worker stub named by design, structured local run logs, and a
+human-readable summary. It must produce durable enough local records to inspect what happened, while
+deferring real agent adapters, execution-host adapters, full observability projections, resume,
+provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
+
+## Milestones
+
+0. **Delivery Foundation** — repository, fixture, and verification foundation. This is not a
+   client product phase.
+1. **Local Plan Runner** — an operator can run one simple local plan through Jig and inspect the
+   result.
+2. **Local Workflow Runner** — an operator can run a small multi-step local workflow and inspect
+   item-level outcomes.
+3. **Governed Local Runs** — an operator can control local work through meaningful policy, denial,
+   and approval paths.
+4. **Reliable Local Runs** — an operator can recover from interruption and diagnose runs through
+   durable local records.
+5. **Integrated Provider Runs** — an operator can move beyond the scripted local stub into real
+   provider seams and stronger integrations.
+
+## Roadmap Files
+
+- [Feature inventory](./feature-inventory.md) — P0-P3 priority by client value.
+- [Phase details](./phases.md) — value, requirements, acceptance, evidence, stops, references, and
+  non-goals for each phase.
+- [Phase 0 implementation brief](./implementation-briefs/phase-0-delivery-foundation.md) — session-ready brief for delivery foundation work.
+- [Phase 1 implementation brief](./implementation-briefs/phase-1-local-plan-runner.md) — session-ready brief for the scripted-worker local plan runner.
+- [Phase 2A implementation brief](./implementation-briefs/phase-2a-local-workflow-runner.md) — session-ready brief for multi-item local workflow execution.
+- [Phase 2B implementation brief](./implementation-briefs/phase-2b-local-workflow-inspect.md) — session-ready brief for inspectable local workflow results.
+
+## Preserved Gates
+
+- Execution-plan and observability-records contracts remain v0 and unfrozen:
+  [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md)
+  and
+  [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md).
+- Work-source provenance must not bypass
+  [`PlanValidator`](../../../design/core/plan-intake.md).
+- Local records remain the evidence surface; summaries and inspect views must derive from the run
+  record, not a parallel narrative.
+- Provider claims, host isolation reports, and SEC-2 posture must remain provider-supplied but
+  core-judged.
+- GitHub/Forge is excluded from the first local MVP because it multiplies side effects and
+  authority risk before the local runner, policy, and records path are proven.
+
+## Terminology Guard
+
+- **Scripted-worker stub** means the M5b exercised worker path for the first local dry-run slice.
+- **Agent provider** means a later provider seam realization, not part of Phase 1.
+- **Execution host provider** means a later provider seam realization, not part of Phase 1.
+- **Local dry-run harness** means the Phase 1 local proof path around the scripted-worker stub; it
+  must not be described as a real Agent provider, real Execution host provider, sandbox, or SEC-2
+  containment proof.
+
+## Primary References
+
+- Product: [`../../product/jig.md`](../../../product/jig.md),
+  [`../../product/guarantees.md`](../../../product/guarantees.md), and
+  [`../../product/concepts.md`](../../../product/concepts.md).
+- Design: [`../../design/README.md`](../../../design/README.md),
+  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md),
+  [`../../design/core/records.md`](../../../design/core/records.md),
+  [`../../design/core/authorization.md`](../../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md),
+  [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
+  [`../../design/contracts/driving.md`](../../../design/contracts/driving.md), and
+  [`../../design/contracts/providers.md`](../../../design/contracts/providers.md).
+- Planning: [`../../planning/design-track/waves/wave-6-implementation-phasing/`](../../planning/design-track/waves/wave-6-implementation-phasing/)
+  and
+  [`../../planning/design-track/waves/wave-5-red-team/outputs/`](../../planning/design-track/waves/wave-5-red-team/outputs/).

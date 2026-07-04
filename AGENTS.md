@@ -13,32 +13,31 @@ downstream consumers.
 
 ## Ground truth — read what your task touches
 
-Altitude: `docs/product/` owns _what & why_; `docs/design/` owns _how_; `docs/delivery/` owns
-_what ships when_ and governs current implementation work. Product is the contract design
-reconciles to; where they conflict, name it rather than silently resolving.
+Altitude: `docs/product/` owns _what & why_; `docs/design/` owns _how_. Product is the contract
+design reconciles to; where they conflict, name it rather than silently resolving. Historical
+delivery, planning, and review records live under `docs/archive/`; treat them as provenance, not
+current implementation instructions.
 
-| Task                                                    | Read                                                        |
-| ------------------------------------------------------- | ----------------------------------------------------------- |
-| Intent, audience, the five guarantees, boundaries       | `docs/product/jig.md` (hub)                                 |
-| Guarantees in ID detail / scenarios / concepts          | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md` |
-| How a promise is met (contracts, state tables, seams)   | `docs/design/` (live; start at its README and the ADR log)  |
-| What ships in which phase; the brief for the next phase | `docs/delivery/` (the current track README and `phases.md`) |
-| How the design work itself was sequenced                | `docs/planning/design-track/`                               |
-| Point-in-time repo reviews and their findings           | `docs/reviews/`                                             |
-| The engine source and its tests                         | `src/`, `tests/` (fixtures at `tests/fixtures/`)            |
-| Local agent runbooks                                    | `skills/`                                                   |
+| Task                                                  | Read                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| Intent, audience, the five guarantees, boundaries     | `docs/product/jig.md` (hub)                                 |
+| Guarantees in ID detail / scenarios / concepts        | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md` |
+| How a promise is met (contracts, state tables, seams) | `docs/design/` (live; start at its README and the ADR log)  |
+| Historical delivery sequencing and phase ladders      | `docs/archive/delivery/`                                    |
+| Historical design-work sequencing                     | `docs/archive/planning/design-track/`                       |
+| Point-in-time repo reviews and their findings         | `docs/archive/reviews/`                                     |
+| The engine source and its tests                       | `src/`, `tests/` (fixtures at `tests/fixtures/`)            |
+| Local agent runbooks                                  | `skills/`                                                   |
 
 ## Status
 
-M5b Phases 0–3 are delivered in the current track: a TypeScript walking skeleton with a real CLI —
-`jig preview <plan>` validates and binds without allocating a run; `jig run <plan>` runs a plan
-through a scripted-stub worker in **local dry-run only**, adjudicates declared worker requests
-through the fixed local fence, and writes durable records (`run.json` + `events.jsonl` under
-`runs/`); `jig inspect <run-dir>` renders them. Phase R closed the records vocabulary, identity,
-evidence gate, and golden-record drift mapped in ADR 0017. Phase 3 added preview, the local
-authorization triad, local Doorbell approve/reject, and the adjusted canonical triad golden.
-The package is private tooling — it does not publish `@agentic-workflow-kit/jig` yet, and the
-package decomposition remains design-owned.
+Jig is early source-checkout tooling. The CLI exposes `jig preview`, `jig run`, `jig inspect`, and
+`jig resume`; fixture-backed local runs are the supported way to exercise the repo from a fresh
+checkout. The package is private tooling (`@agentic-workflow-kit/jig-repo`, `"private": true`) —
+it does not publish `@agentic-workflow-kit/jig` yet, and the package decomposition remains
+design-owned. Product/design now describe the target SDK/CLI/testkit and Codex app-server
+direction; read those as target state, not as current shipped public API. EVRUN-partial is recorded;
+EVRUN-full remains future work.
 
 ## Commands
 
@@ -54,6 +53,8 @@ node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json
 node bin/jig.js inspect <runs/run-dir-from-output>
+node bin/jig.js resume <runs/run-dir-from-output> \
+  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
 `pnpm test` builds first (`tsc -b`, incremental) and then runs vitest with enforced 90%

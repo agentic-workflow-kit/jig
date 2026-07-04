@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 7 ([`docs/delivery/m7-real-providers/phases.md`](../../delivery/m7-real-providers/phases.md),
+Phase 7 ([`docs/archive/delivery/m7-real-providers/phases.md`](../../archive/delivery/m7-real-providers/phases.md),
 P7-AC-1..5) promotes the **Forge** seam from the modeled, `skipped-on-dry-run` reference adapter to a
 **real Forge/GitHub adapter** that lands work under the runner's authority, with real-effect
 idempotency. It is the third phase of the M7 real-providers track: after Phase 6 made the agent and
@@ -351,7 +351,7 @@ Decision 8, `src/redaction.ts`) to the real landing path; it is **not** a new me
   `LandingRequest.action` to the union in `src/ports.ts`, threads real-landing idempotency recognition
   through the runner's records handoff, extends `src/redaction.ts` to the landing path, and adds the
   Phase-7 conformance additions — see the Phase 7 implementation brief
-  ([`../../delivery/m7-real-providers/implementation-briefs/phase-7-real-forge-landing.md`](../../delivery/m7-real-providers/implementation-briefs/phase-7-real-forge-landing.md)).
+  ([`../../archive/delivery/m7-real-providers/implementation-briefs/phase-7-real-forge-landing.md`](../../archive/delivery/m7-real-providers/implementation-briefs/phase-7-real-forge-landing.md)).
   It touches `src/bootstrap.ts`, `src/harness.ts`, `src/ports.ts`, `src/redaction.ts`, and the
   conformance suite; it does not change the `ForgePort.land()` method surface.
 - No JSON Schema freeze, no TypeScript contract package, no public contract package, and no real

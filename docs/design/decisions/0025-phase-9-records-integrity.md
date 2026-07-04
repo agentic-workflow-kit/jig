@@ -7,7 +7,7 @@ status: applied
 
 ## Context
 
-Phase 9 ([`docs/delivery/m7-real-providers/phases.md`](../../delivery/m7-real-providers/phases.md),
+Phase 9 ([`docs/archive/delivery/m7-real-providers/phases.md`](../../archive/delivery/m7-real-providers/phases.md),
 P9-AC-1..3) discharges the integrity deferral [ADR 0020](./0020-phase-4-reliable-local-runs.md) left
 open. It makes the durable run evidence — the authoritative launch header, the plan snapshot, and the
 policy snapshot — **tamper-evident**, and it activates the `resume-blocked-missing-approval` re-approval
@@ -435,7 +435,7 @@ re-approval) is the binding constraint, not a mandatory two-PR decomposition.
   `resume-blocked-missing-approval` trigger with the tamper-vs-changed-basis split and a new integrity
   refusal reason on `ResumeRefusalReason`, and inspect-side break-surfacing — see the Phase 9
   implementation brief
-  ([`../../delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md`](../../delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md)).
+  ([`../../archive/delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md`](../../archive/delivery/m7-real-providers/implementation-briefs/phase-9-records-integrity.md)).
   Integrity bytes are never serialized into governed records, and `binding.drivers` is additive launch
   context rather than a frozen contract field, so the Phase-0..4 goldens stay byte-identical. It changes no
   provider port surface.
