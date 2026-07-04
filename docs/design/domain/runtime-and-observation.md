@@ -22,23 +22,19 @@ where their ownership boundaries fall. It descends from the design-layer
 [`charter.md`](../charter.md) and follows the numbering and voice rules in
 [`conventions.md`](../conventions.md); it cites both rather than re-deriving their rules.
 
-The Runtime & Observation area is one of two Wave 1 domain areas. Its sibling,
-**Configuration & Work** (Track, Execution plan, Work item, Policy, Repo-level floors, Work
-profile), is authored in [`configuration-and-work.md`](./configuration-and-work.md) by `w1-s1`.
-The two areas meet at one seam — the validated plan plus the bound policy and work profile
-crossing from Configuration & Work into the runtime — named in
-[its own section below](#the-configuration--work--runtime--observation-seam), consistently with
-`w1-s1`'s side of it.
+Runtime & Observation's sibling area is **Configuration & Work** (Track, Execution plan, Work
+item, Policy, Repo-level floors, Work profile), authored in
+[`configuration-and-work.md`](./configuration-and-work.md). The two areas meet at one seam — the
+validated plan plus the bound policy and work profile crossing from Configuration & Work into the
+runtime — named in [its own section below](#the-configuration--work--runtime--observation-seam),
+consistently with that document's side of it.
 
 ## Scope and altitude
 
-This is a **domain model at strategic altitude** (`architecture_mode: system-entity-model`,
-`ddd_depth: strategic-only`, per this wave's frame at
-[`../../planning/design-track/waves/wave-1-domain/frame.md`](../../planning/design-track/waves/wave-1-domain/frame.md)).
-It names entities, their ownership, their relations, the seam it sits against, and the lifecycle
-_terms_ they carry. It authors **no state machine or transition table** — the run and work-item
-lifecycles as closed transitions are Wave 2's, owned by
-[`../core/orchestration.md`](../core/orchestration.md). It authors **no field-level schema,
+This is a **domain model at strategic altitude**: it names entities, their ownership, their
+relations, the seam it sits against, and the lifecycle _terms_ they carry. It authors **no state
+machine or transition table** — the run and work-item lifecycles as closed transitions are owned
+by [`../core/orchestration.md`](../core/orchestration.md). It authors **no field-level schema,
 TypeScript, or JSON Schema** — those are deferred per [`../README.md`](../README.md#status--whats-ready-whats-wip),
 and the observability-records contract stays a v0 shape, not a frozen schema
 ([`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md#v0-not-frozen-schema)).
@@ -47,7 +43,7 @@ and the observability-records contract stays a v0 shape, not a frozen schema
 
 Two of this area's four entities — **Evidence** and **Notice** — carry **no store of their own**.
 This is the load-bearing framing for the whole area, stated once here and cited from each affected
-entity below, so a future editor sees it rather than re-deriving it.
+entity below.
 
 - **Run records is the single source of current state.** State, summary, metrics, notices, and the
   evidence an owner inspects are all **pure projections** of one append-only log, never authored
@@ -97,10 +93,10 @@ is the observable unit an owner previews, starts, stops, resumes, and completes.
   launched with — produced and referenced by Configuration & Work, handed across the seam named
   below.
 - **Does not own:** the **work-item and run state machines** and eligibility/DAG resolution — those
-  are Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md); the Run carries the
+  are owned by [`../core/orchestration.md`](../core/orchestration.md); the Run carries the
   lifecycle _terms_ (below) but not the transitions between them. It also does not own the
   **content** of the Policy or Work profile it binds (that is Configuration & Work's — jig owns
-  their shape, the owner authors their values, per `w1-s1`'s
+  their shape, the owner authors their values, per
   [`D-001`](../../planning/design-track/waves/wave-1-domain/decisions.md)), nor a run's live
   _derived_ behavior, which is computed from Policy plus the plan's eligible work rather than stored
   on any Configuration entity ([`CFG-4`](../../product/guarantees.md#2-configuration-ownership)).
@@ -125,7 +121,7 @@ above.
   that could drift from it ([`SEE-3`](../../product/guarantees.md#5-full-observability),
   [`INV-006`](../notes/runtime-design-m5a.md)); and **whether declared evidence is _sufficient_** to
   gate a landing — that is a policy-bound gate decision the runner makes at runtime
-  ([`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)), evaluated by the Wave 2
+  ([`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)), evaluated by the orchestration
   behavioral contexts, not decided in this area.
 
 ### Notice
@@ -147,8 +143,8 @@ above.
   routes `log --> notices` alongside `log --> project` and `log --> inspect`).
 - **Does not own:** **persistence** (Records owns the log); and the **decision itself** — a notice
   surfaces that an owner decision is needed and offers the available action, but the doorbell
-  escalation behavior and the resulting state transition are Wave 2's, not this area's (the notice
-  is escalation's visible trace, not its mechanism).
+  escalation behavior and the resulting state transition are owned by orchestration, not this
+  area's (the notice is escalation's visible trace, not its mechanism).
 
 ### Run records
 
@@ -170,9 +166,8 @@ observability-records seam.
   ([`OBS-001`](../notes/runtime-design-m5a.md)), the governed event families
   ([`OBS-002`](../notes/runtime-design-m5a.md)), and the golden run-record shape those properties
   compose into ([`OBS-004`](../notes/runtime-design-m5a.md)).
-- **Reads:** the events emitted by Orchestration and Fence — the Wave 2 behavioral contexts, read
-  here only as **event sources**, not modeled in entity depth this wave (`records.md`'s diagram:
-  `events --> log`).
+- **Reads:** the events emitted by Orchestration and Fence — read here only as **event sources**,
+  not modeled in entity depth in this document (`records.md`'s diagram: `events --> log`).
 - **Does not own:** **interpreting what the events mean for future planning** — that is the Learning
   loop, an explicitly between-runs, out-of-hot-path consumer per
   [`jig.md`](../../product/jig.md#product-boundaries) and the contract's
@@ -180,39 +175,38 @@ observability-records seam.
   property; and the **storage engine choice** and retention richness, deferred per
   [`../core/records.md`](../core/records.md#notes).
 
-### Plan intake — the validation boundary (re-projecting CTX-001)
+### Plan intake — the validation boundary (continuing CTX-001)
 
 Plan intake is the boundary where a submitted, owner-authored plan instance **enters the runtime**:
 it parses the instance, validates it against the execution-plan contract, and **rejects unknown or
 incompatible formats with a reason** rather than guessing at intent — guaranteeing that no run is
 ever created from an invalid or rejected plan
-([`INV-007`](../notes/runtime-design-m5a.md)). This is a **runtime-side** concern, per this wave's
-disposition [`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md): the authored
-plan is Configuration & Work's (its shape, its track binding — `w1-s1`'s Execution plan entity),
+([`INV-007`](../notes/runtime-design-m5a.md)). This is a **runtime-side** concern, per disposition
+[`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md): the authored plan is
+Configuration & Work's (its shape, its track binding — that document's Execution plan entity),
 but the **act** of parsing, validating, and rejecting it belongs here.
 
-This area **re-projects and cites** the context first named as `CTX-001` (Plan Intake & Validation)
-in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md), expressed here in this
-area's own words and grounded in the [`../core/plan-intake.md`](../core/plan-intake.md) stub that
-carries its owns / reads / does-not-own in detail. **This re-projection does not overwrite,
-supersede, or re-home `CTX-001`** — it continues that context, routing and citing it rather than
-silently mutating it, per the track's `STOP-003` discipline (a v0 contract or prior context is
-routed and cited, never silently changed).
+This area continues and cites the context first named as `CTX-001` (Plan Intake & Validation) in
+[`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md), expressed here in this area's
+own words and grounded in the [`../core/plan-intake.md`](../core/plan-intake.md) stub that carries
+its owns / reads / does-not-own in detail. This continuation does not supersede or re-home
+`CTX-001`; it routes and cites that context rather than changing it, per the `STOP-003` discipline
+(a v0 contract or prior context is routed and cited, never silently changed).
 
 - **Owns:** the parse / validate / reject-unknown-format **act** on a submitted plan instance and
   the named reasons a rejection carries ([`INV-007`](../notes/runtime-design-m5a.md));
   the guarantee that no run is created from an invalid or rejected plan.
 - **Reads:** the plan instance; the execution-plan contract shape it validates against
   ([`../contracts/execution-plan-contract-v0.md`](../contracts/execution-plan-contract-v0.md)).
-- **Does not own:** **how the plan was produced** or its authored shape (Configuration & Work's, via
-  `w1-s1`'s Execution plan entity); **policy semantics**; and anything about the plan once it becomes
-  a `ValidatedPlan` consumed by Orchestration (Wave 2). Validation happens **once, at the boundary**;
+- **Does not own:** **how the plan was produced** or its authored shape (owned by Configuration &
+  Work's Execution plan entity); **policy semantics**; and anything about the plan once it becomes
+  a `ValidatedPlan` consumed by Orchestration. Validation happens **once, at the boundary**;
   nothing downstream re-validates plan shape.
 
-This subsection is the **runtime side of a two-sided boundary**: `w1-s1`'s Execution plan entity
-explicitly states it "does not own the parse / validate / reject-unknown-format act … that boundary
-is runtime-side, named by `w1-s2`." This is that named boundary; the two docs close the loop from
-both directions without either owning the other's half.
+This subsection is the **runtime side of a two-sided boundary**: Configuration & Work's Execution
+plan entity states that it "does not own the parse / validate / reject-unknown-format act …that
+boundary is runtime-side, named here." This is that named boundary; the two documents close the
+loop from both directions without either owning the other's half.
 
 ## Relations
 
@@ -243,7 +237,7 @@ flowchart TB
 
   config("`**Configuration & Work**
 authored plan + policy
-+ work profile (w1-s1)`")
++ work profile`")
 
   intake("`**Plan intake**
 parse / validate /
@@ -269,7 +263,7 @@ triaged attention item`")
   config -->|"validated plan instance"| intake
   intake -->|"ValidatedPlan (accepted)"| run
   intake -.->|"Rejection (reason) — no run"| config
-  evidence -.->|"gates (vocabulary; evaluated Wave 2)"| run
+  evidence -.->|"gates (vocabulary; evaluated at runtime)"| run
 
   subgraph legend[" "]
     direction LR
@@ -314,59 +308,61 @@ The relations in words:
   metrics views** ([`INV-006`](../notes/runtime-design-m5a.md); `records.md`'s `log --> project`,
   `log --> notices`). Evidence and Notice are how the one log is read, not additional stores.
 - **Evidence gates a Work item's done / landed transitions** — as _vocabulary_ named here; the gate
-  is actually evaluated by Orchestration/Fence at runtime (Wave 2), on the independent evidence in
-  the log, not the worker's self-report
+  is actually evaluated by Orchestration/Fence at runtime, on the independent evidence in the log,
+  not the worker's self-report
   ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence),
   [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)).
 
 ## The Configuration & Work → Runtime & Observation seam
 
-The two Wave 1 areas meet at exactly one seam: the **handoff of the validated plan plus the bound
-policy and work profile** from Configuration & Work into the runtime. Concretely, this seam has two
+The two areas meet at exactly one seam: the **handoff of the validated plan plus the bound policy
+and work profile** from Configuration & Work into the runtime. Concretely, this seam has two
 named, ordered parts:
 
 1. **The plan-intake validation boundary** — where an owner-authored plan instance becomes a
    `ValidatedPlan` (or a reason-bearing rejection). Reject-unknown-format is enforced here, once, at
    the boundary; nothing downstream re-validates plan shape
    ([`INV-007`](../notes/runtime-design-m5a.md)). This is the boundary named in
-   [Plan intake](#plan-intake--the-validation-boundary-re-projecting-ctx-001) above, re-projecting
+   [Plan intake](#plan-intake--the-validation-boundary-continuing-ctx-001) above, continuing
    `CTX-001`.
 2. **The launch-time binding** — where the `ValidatedPlan` plus the Policy, Work profile, and
    Repo-level floors that govern the track are **bound to a Run** and held immutable for its duration
    ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming),
    [`INV-003`](../notes/runtime-design-m5a.md)).
 
-This is stated consistently with `w1-s1`'s side of the seam. `w1-s1`'s Execution plan entity
-references the Policy and Work profile it binds by identity and version posture rather than by
-embedding their content, and explicitly does not own the parse / validate / reject-unknown-format
-act. This area picks up exactly there: the runtime **reads** those references across the seam,
-**validates** the plan at the intake boundary, and **binds** the result to a Run. Neither side owns
-the other's half; the seam is the single crossing point, and the reference-not-embed posture on the
-Configuration side is what keeps the run from carrying a mutable override that could weaken its own
-guardrails ([`GUARD-1`](../../product/guarantees.md#13-anti-gaming)).
+This is stated consistently with Configuration & Work's side of the seam. That document's
+Execution plan entity references the Policy and Work profile it binds by identity and version
+posture rather than by embedding their content, and explicitly does not own the parse / validate /
+reject-unknown-format act. This area picks up exactly there: the runtime **reads** those references
+across the seam, **validates** the plan at the intake boundary, and **binds** the result to a Run.
+Neither side owns the other's half; the seam is the single crossing point, and the
+reference-not-embed posture on the Configuration side is what keeps the run from carrying a
+mutable override that could weaken its own guardrails
+([`GUARD-1`](../../product/guarantees.md#13-anti-gaming)).
 
-## Work item — the runtime-observed facts (the same entity as `w1-s1`, D-003)
+## Work item — the runtime-observed facts (the same entity as Configuration & Work's, D-003)
 
-A Run observes **Work items** moving through the runtime. Per this wave's disposition
+A Run observes **Work items** moving through the runtime. Per disposition
 [`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), **Work item is one entity
-spanning two lifecycle phases** — it is **not** split into two entities. `w1-s1` owns the
-authored-facts phase (identity, dependencies-as-declared, done-conditions-as-declared); this area
-names the **runtime-observed facts** of that _same_ entity: its runtime state and outcome
-(`eligible`, `started`, `parked`, `done`, `landed`, `rejected`, `blocked`) and whether its declared
-evidence was actually met.
+spanning two lifecycle phases** — it is **not** split into two entities.
+[`configuration-and-work.md`](./configuration-and-work.md) owns the authored-facts phase (identity,
+dependencies-as-declared, done-conditions-as-declared); this area names the **runtime-observed
+facts** of that _same_ entity: its runtime state and outcome (`eligible`, `started`, `parked`,
+`done`, `landed`, `rejected`, `blocked`) and whether its declared evidence was actually met.
 
 This area **names** those runtime-observed facts as observation vocabulary; it does **not** own the
-state machine that drives the transitions (Wave 2, [`../core/orchestration.md`](../core/orchestration.md)),
-and it does **not** create a separate "work-item run" entity. `w1-s1` records the matching sentence
-from its side: "Wave 2 **may** later elevate the runtime facet to a distinct entity with recorded
-rationale, but Wave 1 does not split it." Both docs hold that line — one Work item, two phases,
-observed here and authored there.
+state machine that drives the transitions ([`../core/orchestration.md`](../core/orchestration.md)),
+and it does **not** create a separate "work-item run" entity.
+[`configuration-and-work.md`](./configuration-and-work.md) records the matching statement from its
+side: a later design pass **may** elevate the runtime facet to a distinct entity with recorded
+rationale, but this model does not split it. Both documents hold that line — one Work item, two
+phases, observed here and authored there.
 
 ## Lifecycle terms
 
-Per this wave's scope, this area records lifecycle _terms only_ — the vocabulary each entity carries
-— **not** transition tables. The closed transition tables for the Run and Work-item lifecycles are
-Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md).
+This area records lifecycle _terms only_ — the vocabulary each entity carries — **not** transition
+tables. The closed transition tables for the Run and Work-item lifecycles are owned by
+[`../core/orchestration.md`](../core/orchestration.md).
 
 - **Run terms** (unchanged from
   [`../core/README.md`](../core/README.md#the-two-lifecycles) and
@@ -374,90 +370,92 @@ Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md).
   `resumed`, `completed`. `stopped` is **run-level, not a work-item outcome**: a stop pauses the
   whole run, while work items that had not reached a terminal outcome stay where they were and
   resume from their last safe checkpoint. These are named here as the terms the Run entity carries;
-  the transitions among them are Wave 2's.
+  the transitions among them are owned by `orchestration.md`.
 - **Plan-instance terms** (at the intake boundary): a submitted plan instance is either **accepted**
   (becoming a `ValidatedPlan`) or **rejected with a named reason**
   ([`INV-007`](../notes/runtime-design-m5a.md)). This is a single **boundary decision**, not a
   multi-state lifecycle — the plan does not carry an ongoing runtime lifecycle of its own.
-- **Work-item terms** (observed here; the same vocabulary `w1-s1` names from the authored side):
-  `eligible`, `started`, `parked` _(transient)_, `done`, `landed`, `rejected`, `blocked`. `done` and
-  `landed` are **distinct milestones** — a work item can be done (evidence met) without being landed
-  (merged) ([`INV-004`](../notes/runtime-design-m5a.md),
+- **Work-item terms** (observed here; the same vocabulary Configuration & Work names from the
+  authored side): `eligible`, `started`, `parked` _(transient)_, `done`, `landed`, `rejected`,
+  `blocked`. `done` and `landed` are **distinct milestones** — a work item can be done (evidence
+  met) without being landed (merged) ([`INV-004`](../notes/runtime-design-m5a.md),
   [`MERGE-4`](../../product/guarantees.md#15-merge-on-evidence)). These are named as the observed
-  runtime phase's vocabulary; the transition table is Wave 2's.
+  runtime phase's vocabulary; the transition table is owned by `orchestration.md`.
 
 ## Reconciliation
 
 This area's `reconciles_to` set — the product commitments and continuing invariants it must not
 narrow, contradict, or silently drop — is addressed ID by ID below. Each is governed at design
 altitude by the [`charter.md`](../charter.md#product-reconciliation) boundary rule; this table
-records how this domain model specifically honors each. All eighteen IDs from this story's brief are
+records how this domain model specifically honors each. All eighteen IDs from this area's brief are
 enumerated.
 
-| ID          | Commitment (product / prior design owns the wording)                                                                                                                | How this model honors it                                                                                                                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SEE-1**   | [Full run visibility — reconstruct what happened and why.](../../product/guarantees.md#5-full-observability)                                                        | Run records owns the append-only log every decision writes to, and Run owns the launch-time binding; together they make a run reconstructible end to end.                                                         |
-| **SEE-2**   | [Structured and machine-readable by design.](../../product/guarantees.md#5-full-observability)                                                                      | Run records is modeled as governed event families and pure projections (`OBS-002`), a structured product surface, not free-form transcript.                                                                       |
-| **SEE-3**   | [The records are the evidence; no separate story that can drift.](../../product/guarantees.md#5-full-observability)                                                 | The dedicated "record-derived" section makes Records the sole source of state; Evidence and Notice are reads over that one log, denied any parallel store (`INV-006`).                                            |
-| **SEE-4**   | [Self-diagnosis, no extra tooling required.](../../product/guarantees.md#5-full-observability)                                                                      | Run records owns the same log an owner inspects to diagnose a bad plan or policy; Learning-loop interpretation is explicitly not required for visibility and is left out of the hot path.                         |
-| **SEE-5**   | [Attention is a triaged queue, not a log.](../../product/guarantees.md#5-full-observability)                                                                        | Notice is modeled as a projection carrying urgency and owner-action — a queue of decisions — not a second store and not a transcript.                                                                             |
-| **SEE-6**   | [Take the record with you — write-once, redacted export.](../../product/guarantees.md#5-full-observability)                                                         | Run records owns export as a write-once, redacted artifact a finished run produces.                                                                                                                               |
-| **INV-003** | [Policy fixed at launch (GUARD-1).](../notes/runtime-design-m5a.md)                                                                                                 | Carried as the Run's launch-time binding being fixed for the run's duration; this area observes and binds the immutable policy, and states that a run cannot weaken its own guardrails mid-flight.                |
-| **INV-004** | [Done is not landed (MERGE-4).](../notes/runtime-design-m5a.md)                                                                                                     | Named in the Work-item terms and the done/landed distinction; `done` (evidence met) is kept separate from `landed` (merged) as distinct milestones the records keep apart.                                        |
-| **INV-006** | [Records are the evidence; state/summary are pure projections, never authored directly.](../notes/runtime-design-m5a.md)                                            | The load-bearing invariant of the "record-derived" section: Evidence, Notice, state, summary, metrics are all pure projections of one append-only log; none carries its own store.                                |
-| **INV-007** | [Reject unknown plan formats — rejected, not guessed.](../notes/runtime-design-m5a.md)                                                                              | The Plan intake boundary owns the parse/validate/reject-unknown act with named reasons and the "no run on rejection" guarantee, re-projecting `CTX-001`.                                                          |
-| **MERGE-1** | [Landing requires independent evidence aligned to policy.](../../product/guarantees.md#15-merge-on-evidence)                                                        | Evidence is modeled as the vocabulary for the _independent_ gates (automated-check / review / capability-proof), explicitly never the worker's self-report alone.                                                 |
-| **MERGE-3** | [Done conditions are explicit and policy-bound.](../../product/guarantees.md#15-merge-on-evidence)                                                                  | Evidence's "does not own" leaves _whether declared evidence is sufficient_ to a policy-bound gate decision at runtime, not to this area; the categories are vocabulary, the sufficiency call is Policy's.         |
-| **MERGE-4** | [Done and merged are separate milestones.](../../product/guarantees.md#15-merge-on-evidence)                                                                        | Carried in the Work-item terms (with `INV-004`): `done` and `landed` are distinct, and Run records keeps them distinct even when a forge constraint holds a done item.                                            |
-| **OBS-001** | [Run identity + input binding.](../notes/runtime-design-m5a.md)                                                                                                     | Modeled as Run's owned identity/attempt identity and launch-time binding of plan/policy/work-profile/repo-floor references.                                                                                       |
-| **OBS-002** | [Event families the runtime emits.](../notes/runtime-design-m5a.md)                                                                                                 | Named as what Run records reads from Orchestration/Fence and projects from; Evidence's observed/modeled families and Notice's attention families are cited as record content, not restated as a schema.           |
-| **OBS-003** | [Each record carries a redaction-posture field.](../notes/runtime-design-m5a.md)                                                                                    | Run records owns the per-record redaction posture; real secret scanning stays deferred, the field exists so it can be populated later without a schema break.                                                     |
-| **OBS-004** | [A golden run-record shape is the canonical output artifact.](../notes/runtime-design-m5a.md)                                                                       | Run records owns the record properties (`OBS-001`..`OBS-003`) those compose into the golden run-record shape; this area names the shape's ownership without minting field names (contract stays v0).              |
-| **CTX-001** | [Plan Intake & Validation — parse/validate/reject-unknown; reads the plan contract; does not own how plans are produced or policy.](../notes/runtime-design-m5a.md) | Re-projected in this area's own words in the Plan intake section, linked back and explicitly **not** overwritten, superseded, or re-homed (`STOP-003`); this area continues that context, it does not replace it. |
+| ID          | Commitment (product / prior design owns the wording)                                                                                                                | How this model honors it                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SEE-1**   | [Full run visibility — reconstruct what happened and why.](../../product/guarantees.md#5-full-observability)                                                        | Run records owns the append-only log every decision writes to, and Run owns the launch-time binding; together they make a run reconstructible end to end.                                                 |
+| **SEE-2**   | [Structured and machine-readable by design.](../../product/guarantees.md#5-full-observability)                                                                      | Run records is modeled as governed event families and pure projections (`OBS-002`), a structured product surface, not free-form transcript.                                                               |
+| **SEE-3**   | [The records are the evidence; no separate story that can drift.](../../product/guarantees.md#5-full-observability)                                                 | The dedicated "record-derived" section makes Records the sole source of state; Evidence and Notice are reads over that one log, denied any parallel store (`INV-006`).                                    |
+| **SEE-4**   | [Self-diagnosis, no extra tooling required.](../../product/guarantees.md#5-full-observability)                                                                      | Run records owns the same log an owner inspects to diagnose a bad plan or policy; Learning-loop interpretation is explicitly not required for visibility and is left out of the hot path.                 |
+| **SEE-5**   | [Attention is a triaged queue, not a log.](../../product/guarantees.md#5-full-observability)                                                                        | Notice is modeled as a projection carrying urgency and owner-action — a queue of decisions — not a second store and not a transcript.                                                                     |
+| **SEE-6**   | [Take the record with you — write-once, redacted export.](../../product/guarantees.md#5-full-observability)                                                         | Run records owns export as a write-once, redacted artifact a finished run produces.                                                                                                                       |
+| **INV-003** | [Policy fixed at launch (GUARD-1).](../notes/runtime-design-m5a.md)                                                                                                 | Carried as the Run's launch-time binding being fixed for the run's duration; this area observes and binds the immutable policy, and states that a run cannot weaken its own guardrails mid-flight.        |
+| **INV-004** | [Done is not landed (MERGE-4).](../notes/runtime-design-m5a.md)                                                                                                     | Named in the Work-item terms and the done/landed distinction; `done` (evidence met) is kept separate from `landed` (merged) as distinct milestones the records keep apart.                                |
+| **INV-006** | [Records are the evidence; state/summary are pure projections, never authored directly.](../notes/runtime-design-m5a.md)                                            | The load-bearing invariant of the "record-derived" section: Evidence, Notice, state, summary, metrics are all pure projections of one append-only log; none carries its own store.                        |
+| **INV-007** | [Reject unknown plan formats — rejected, not guessed.](../notes/runtime-design-m5a.md)                                                                              | The Plan intake boundary owns the parse/validate/reject-unknown act with named reasons and the "no run on rejection" guarantee, continuing `CTX-001`.                                                     |
+| **MERGE-1** | [Landing requires independent evidence aligned to policy.](../../product/guarantees.md#15-merge-on-evidence)                                                        | Evidence is modeled as the vocabulary for the _independent_ gates (automated-check / review / capability-proof), explicitly never the worker's self-report alone.                                         |
+| **MERGE-3** | [Done conditions are explicit and policy-bound.](../../product/guarantees.md#15-merge-on-evidence)                                                                  | Evidence's "does not own" leaves _whether declared evidence is sufficient_ to a policy-bound gate decision at runtime, not to this area; the categories are vocabulary, the sufficiency call is Policy's. |
+| **MERGE-4** | [Done and merged are separate milestones.](../../product/guarantees.md#15-merge-on-evidence)                                                                        | Carried in the Work-item terms (with `INV-004`): `done` and `landed` are distinct, and Run records keeps them distinct even when a forge constraint holds a done item.                                    |
+| **OBS-001** | [Run identity + input binding.](../notes/runtime-design-m5a.md)                                                                                                     | Modeled as Run's owned identity/attempt identity and launch-time binding of plan/policy/work-profile/repo-floor references.                                                                               |
+| **OBS-002** | [Event families the runtime emits.](../notes/runtime-design-m5a.md)                                                                                                 | Named as what Run records reads from Orchestration/Fence and projects from; Evidence's observed/modeled families and Notice's attention families are cited as record content, not restated as a schema.   |
+| **OBS-003** | [Each record carries a redaction-posture field.](../notes/runtime-design-m5a.md)                                                                                    | Run records owns the per-record redaction posture; real secret scanning stays deferred, the field exists so it can be populated later without a schema break.                                             |
+| **OBS-004** | [A golden run-record shape is the canonical output artifact.](../notes/runtime-design-m5a.md)                                                                       | Run records owns the record properties (`OBS-001`..`OBS-003`) those compose into the golden run-record shape; this area names the shape's ownership without minting field names (contract stays v0).      |
+| **CTX-001** | [Plan Intake & Validation — parse/validate/reject-unknown; reads the plan contract; does not own how plans are produced or policy.](../notes/runtime-design-m5a.md) | Continued and cited in this area's own words in the Plan intake section (`STOP-003`); this area extends that context rather than replacing it.                                                            |
 
 No conflict with product or with the continuing design vocabulary was found; this model deepens the
 group-D spine and the Run-records entity without contradicting any of the eighteen IDs above.
 
 ## Open questions
 
-None from this session. (Stated explicitly per
+None. (Per
 [`conventions.md`](../conventions.md#5-open-questions-ledger-convention-no-new-id-kind-carry-forward-through-the-existing-decision-log-mechanism).)
 
 ## Invariants
 
-This session adds **no new `INV-*` entry**. It names entities, ownership, relations, and a seam —
+This document adds **no new `INV-*` entry**. It names entities, ownership, relations, and a seam —
 not new runtime rules — so no new invariant is warranted. The `INV-*` ledger continues verbatim from
 [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) (`INV-001` through `INV-018`) with
 no renumbering, per [`conventions.md`](../conventions.md#1-the-inv--invariant-ledger-continues-as-one-running-list);
-the next available number, should a later wave add one, is **`INV-019`**.
+the next available number, should a later addition need one, is **`INV-019`**.
 
 Four existing invariants bound entities this area names, and this model stays consistent with them
 without owning their runtime enforcement:
 
 - **`INV-003`** (policy fixed at launch) — carried as the Run's launch-time binding being fixed for
-  the run's duration; the runtime enforcement of that immutability is a Wave 2 behavior.
+  the run's duration; the runtime enforcement of that immutability is owned by `orchestration.md`.
 - **`INV-004`** (done is not landed) — carried in the Work-item terms and the done/landed
-  distinction; the transitions themselves are Wave 2's.
+  distinction; the transitions themselves are owned by `orchestration.md`.
 - **`INV-006`** (records are the evidence; projections never authored directly) — the load-bearing
   invariant that keeps Evidence and Notice record-derived; this area preserves it by denying either a
-  separate store, but the reducer/projection enforcement mechanics are Records' and Wave 2's.
+  separate store, but the reducer/projection enforcement mechanics are Records' and
+  `orchestration.md`'s.
 - **`INV-007`** (reject unknown plan formats) — the invariant the plan-intake boundary this area
-  names enforces; the boundary is named and cited here (re-projecting `CTX-001`), its internal
+  names enforces; the boundary is named and cited here (continuing `CTX-001`), its internal
   mechanics stay in [`../core/plan-intake.md`](../core/plan-intake.md).
 
 ## Risks and deferred decisions
 
 - **Deferred — Work item's runtime facet as a possible future entity.** By
   [`D-003`](../../planning/design-track/waves/wave-1-domain/decisions.md), Work item is one entity
-  with two phases; this area observes its runtime facet as the same entity `w1-s1` authors. Wave 2
-  may later elevate that facet to a distinct entity, but only with recorded rationale; until then,
-  treating the two phases as one entity is a deliberate choice, not an oversight. (This is the
-  runtime-side statement of the same deferred item `w1-s1` records from the authored side.)
+  with two phases; this area observes its runtime facet as the same entity
+  [`configuration-and-work.md`](./configuration-and-work.md) authors. A later design pass may
+  elevate that facet to a distinct entity, but only with recorded rationale; until then, treating
+  the two phases as one entity is a deliberate choice, not an oversight. (This is the runtime-side
+  statement of the same deferred item recorded from the authored side.)
 - **Deferred — plan-intake boundary placement.** By
   [`D-002`](../../planning/design-track/waves/wave-1-domain/decisions.md), the parse/validate/reject
   act is runtime-side, continuing `CTX-001`; this area names and cites it, it does not re-home it. If
-  a later wave finds the authored/validated seam needs re-placing, that is its decision to record and
-  route (`STOP-003`), not this area's to pre-empt.
+  a later design pass finds the authored/validated seam needs re-placing, that is its decision to
+  record and route (`STOP-003`), not this area's to pre-empt.
 - **Deferred — field-level schema.** The observability-records contract stays a v0 shape; this area
   models the records' _properties_ and _ownership_, not field names or event-type strings, per
   [`../README.md`](../README.md#status--whats-ready-whats-wip) and the contract's own
@@ -469,24 +467,10 @@ without owning their runtime enforcement:
   [`../core/records.md`](../core/records.md#notes); neither is decided here.
 - **Risk — "Run records" (entity) vs. "Records" (file) naming.** This area names the entity
   **Run records** (matching the group-D / group-B rows in
-  [`../core/README.md`](../core/README.md) and this story's brief), while the file that carries its
-  stub is titled **"Records — the event-log engine"** ([`../core/records.md`](../core/records.md)).
-  These are the same concept under two labels — the domain entity and the file that deepens it — not
-  two entities. Mitigation: this note states the equivalence once, explicitly, so a future editor
-  reads it here rather than re-deriving it or treating the two names as a divergence.
-
-## Review evidence
-
-This domain model is authored for a full-weight `review-technical-design` pass against three lenses
-(architecture-enforceability: no state machine leaked into a domain-model doc, and Evidence/Notice
-do not acquire a store that would violate `INV-006`; domain-correctness: the four entities'
-ownership is consistent with `SEE-1`..`SEE-6` / `MERGE-*` and the plan-intake naming cites `CTX-001`
-correctly; agreement-integrity: the seam and Work-item facts agree with `w1-s1`'s settled output and
-the wave frame's `AgreedSystemModel`). The review report and its suggestion dispositions are recorded
-in [`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
-[`decisions.md`](../../planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
-decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled = zero
-open blocking suggestions.
+  [`../core/README.md`](../core/README.md)), while the file that carries its stub is titled
+  **"Records — the event-log engine"** ([`../core/records.md`](../core/records.md)). These are the
+  same concept under two labels — the domain entity and the file that deepens it — not two
+  entities. Mitigation: this note states the equivalence once, explicitly.
 
 ## Related
 
@@ -494,7 +478,7 @@ open blocking suggestions.
   Notice) and the group-B Run-records entity this doc deepens.
 - [`../core/records.md`](../core/records.md) — the event-log stub whose entity this doc models as
   Run records; [`../core/orchestration.md`](../core/orchestration.md) — the Run/Work-item lifecycle
-  transition tables (Wave 2) whose _terms_ this doc names; [`../core/plan-intake.md`](../core/plan-intake.md)
+  transition tables whose _terms_ this doc names; [`../core/plan-intake.md`](../core/plan-intake.md)
   — the parse/validate/reject boundary this doc names and cites.
 - [`../charter.md`](../charter.md) and [`../conventions.md`](../conventions.md) — the design-layer
   goal/boundary/stub/deliverable rules and the numbering/voice conventions this doc follows.
@@ -504,7 +488,7 @@ open blocking suggestions.
 - [`../contracts/observability-records-contract-v0.md`](../contracts/observability-records-contract-v0.md)
   — the v0 record-properties shape this doc models as the Run-records entity (unfrozen).
 - [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) — the continuing `INV-*` ledger
-  and the `CTX-001` / `OBS-*` vocabulary this doc continues and re-projects.
-- [`configuration-and-work.md`](./configuration-and-work.md) — the sibling Wave 1 area (`w1-s1`) that
-  authors the Track, Execution plan, Work item (authored facts), Policy, Repo-level floors, and Work
-  profile this area reads across the seam.
+  and the `CTX-001` / `OBS-*` vocabulary this doc continues.
+- [`configuration-and-work.md`](./configuration-and-work.md) — the sibling area that authors the
+  Track, Execution plan, Work item (authored facts), Policy, Repo-level floors, and Work profile
+  this area reads across the seam.

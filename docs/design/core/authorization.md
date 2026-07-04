@@ -9,12 +9,10 @@ The fail-closed control of what the worker may do: authorize every request the w
 escalate the ones that are risky or unproven, and gate autonomy on fresh proof rather than
 assertion.
 
-This doc deepens the existing `Owns`, `Interface`, and `Diagram` seed in place. It preserves the
-seed boundary that later waves already cite: the Fence owns the classifier behind
-`authorize(request, boundPolicy)`, the Doorbell owns durable, narrow escalation, and capability
-attestation gates autonomy on proof. The work-item and run state machines remain
-[`orchestration.md`](./orchestration.md)'s territory; policy content and rule-governing-surface
-declaration remain outside this file.
+The Fence owns the classifier behind `authorize(request, boundPolicy)`, the Doorbell owns durable,
+narrow escalation, and capability attestation gates autonomy on proof. The work-item and run state
+machines remain [`orchestration.md`](./orchestration.md)'s territory; policy content and
+rule-governing-surface declaration remain outside this file.
 
 ## Owns
 
@@ -276,7 +274,7 @@ matters."
 - How fresh capability proof must be for each action class is still policy-shaped and remains a
   tuning question outside this file.
 - Whether owner override needs a narrower named subtype than the current approve / reject /
-  override vocabulary is left open; this doc preserves the seed interface language rather than
+  override vocabulary is left open; this doc keeps the existing interface language rather than
   introducing new decision labels.
 - The exact review surface through which a routed GUARD-2 decision is presented to the owner
   remains downstream of this core design and the records/driving surfaces.

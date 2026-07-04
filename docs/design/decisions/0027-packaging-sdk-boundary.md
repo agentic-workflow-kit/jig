@@ -77,6 +77,58 @@ Jig should decompose into three internal packages when package work begins:
 | `@agentic-workflow-kit/jig-cli`     | The terminal adapter: `bin/jig.js`, argument parsing, process I/O, exit codes, console rendering, and owner prompt plumbing. It realizes the driving contract by calling the SDK.                                                                                                                       | `jig-sdk`.                                             | Provider implementations by deep path, core internals by deep path, `jig-testkit`. |
 | `@agentic-workflow-kit/jig-testkit` | Provider conformance suite, controlled doubles, conformance verdict helpers, and test-facing fixtures/helpers that prove driver behavior against the SDK ports.                                                                                                                                         | `jig-sdk`.                                             | `jig-cli` and production runtime packages importing back into testkit.             |
 
+The same matrix, as a dependency graph — solid edges are required dependencies, dashed edges are
+the boundaries this ADR forbids:
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Arial, sans-serif",
+    "primaryTextColor": "#2b2b2b",
+    "lineColor": "#8a8882",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#fbfaf7",
+    "clusterBorder": "#b8b8b1",
+    "clusterTextColor": "#2b2b2b"
+  },
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear",
+    "nodeSpacing": 60,
+    "rankSpacing": 55
+  }
+}}%%
+flowchart LR
+  cli("`**jig-cli**
+terminal adapter`")
+  sdk("`**jig-sdk**
+run logic, ports,
+bundled providers`")
+  testkit("`**jig-testkit**
+conformance suite,
+controlled doubles`")
+
+  cli -->|depends on| sdk
+  testkit -->|depends on| sdk
+  sdk -.->|must not depend on| cli
+  sdk -.->|must not depend on| testkit
+  cli -.->|must not depend on| testkit
+  testkit -.->|must not depend on| cli
+
+  classDef sdkBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef cliBox fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
+  classDef testkitBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
+
+  class sdk sdkBox;
+  class cli cliBox;
+  class testkit testkitBox;
+```
+
+The load-bearing edge is `jig-sdk -.-> jig-testkit`: production runtime code must never depend on
+the conformance suite (Decision 3), which is why the suite moves to `jig-testkit` rather than
+staying a peer of `jig-sdk`'s own runtime code.
+
 The root package remains a private workspace/coordination shell, not a fourth runtime product
 surface. It may own repo scripts, formatting, aggregate checks, and package orchestration after the
 split.

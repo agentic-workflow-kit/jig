@@ -278,6 +278,9 @@ The domain model of this group — each entity's owns / reads / does-not-own, th
 | Capability attestation | Earned-trust gate: requires fresh, positive proof a driver can perform a capability safely; missing or stale proof means less autonomy, not a weaker guarantee.                                                                             | EARN-1, EARN-2, STACK-4, DRIVE-1, DRIVE-3 |
 | Run records            | Durable, ordered, structured records — the evidence itself; state/summary/metrics are pure projections of an append-only log; exportable write-once, redacted. The source of notices and "ask why."                                         | SEE-1..6                                  |
 
+Operator-surface detail (the CLI / SDK / embed contract) lives in
+[`../contracts/driving.md`](../contracts/driving.md).
+
 ### C. The four seams — swappable, governed at the authority boundary
 
 | Entity           | Responsibility (owns)                                                                                                                                    | Product IDs                      |
