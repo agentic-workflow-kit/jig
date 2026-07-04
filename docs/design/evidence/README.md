@@ -17,5 +17,6 @@ guarantee, invariant, or decision IDs the evidence supports.
 
 ## Records
 
-None yet. N1a is expected to add dated Codex transport evidence records here before the N1b
-transport ADR consumes them.
+| Date       | Record                                                                            | Purpose                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-04 | [EVRUN partial real-provider smoke evidence](./2026-07-04-evrun-partial-smoke.md) | Pending coordinator-filled evidence for one scripted `work-source -> forge -> records-integrity` smoke run against the disposable sandbox. |
