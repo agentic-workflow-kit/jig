@@ -150,6 +150,14 @@ mechanics, provider contracts, exact policy classifiers, storage strategy, and d
 Planning owns delivery-level acceptance criteria and phase sequencing. Product keeps the
 outcome-level commitments and the IDs in [the five guarantees](./guarantees.md).
 
+Jig adopts an internal SDK boundary now for extensibility and single-responsibility. The
+first-party consumers of that programmatic surface are Jig's CLI today and a future MCP
+surface; consumers use the SDK instead of reaching into Jig internals. The package stays
+private (`private: true`) with no publish commitment, and no stability promise is created now;
+the posture may flip later through the org standard path of intentional publication and
+Changesets. This records the org M7 post-spine Packaging (N2) decision from
+`agentic-workflow-kit/.github/MILESTONES.md`.
+
 ### What Jig isn't (yet)
 
 Jig is honest about its edges. These are deliberate non-goals or deferrals, not gaps:
@@ -187,6 +195,9 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - How much of the setup and preset experience belongs in Jig itself versus surrounding
   guidance?
 - How broad should first-class driver support be before stack portability feels credible?
+- Whether a third-party, out-of-repo, installable provider ecosystem is ever product remains
+  open. The 2026-07-04 org Packaging (N2) decision authorizes the internal SDK boundary but
+  says packaging design must not assume this question either way.
 - Which throughput-oriented follow-up checks should become shipped product surfaces, and which
   should remain extension examples?
 - Delivery-level acceptance criteria should be issued later in design or planning artifacts
