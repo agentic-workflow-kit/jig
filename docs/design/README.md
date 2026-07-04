@@ -34,6 +34,7 @@ archive** = decision records and reference material.
 | Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                         |
 | Driving / providers | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | provider adapters and conformance details deferred                    |
 | Decisions           | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                           |
+| Evidence records    | `evidence/*`                                                                                                                                         | log         | grows as external-tool probes are committed                           |
 | Notes               | `notes/*`                                                                                                                                            | archive     | —                                                                     |
 
 A stub is deepened **in place**; new sub-files are added only if an area outgrows a single file
@@ -70,6 +71,13 @@ Every interface at jig's boundary — what others call or implement — in three
 
 One ADR per design decision; see the [decision index](./decisions/README.md). Seeded from the
 M5a slice.
+
+## [`evidence/`](./evidence/) — committed evidence inputs
+
+Dated, citable records for external-tool probes that inform ADRs and contract decisions. Evidence
+records are inputs to decisions, not authority by themselves. See the
+[evidence index](./evidence/README.md) and the
+[evidence appendix convention](./conventions.md#6-evidence-appendix-convention-committed-records-are-inputs-to-decisions-not-authority).
 
 ## [`notes/`](./notes/) — intake and reference
 

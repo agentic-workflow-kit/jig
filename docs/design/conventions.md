@@ -10,7 +10,7 @@ depends on, so a wave's stories can cite this doc instead of re-deriving numberi
 rules from precedent. It descends from [`charter.md`](./charter.md) — in particular the
 charter's [deliverable rule](./charter.md#deliverable-rule), which requires every design session
 to log open questions, invariants, risks, and review evidence in a structured, durable, and
-inspectable way. The five conventions below are how that requirement is kept consistent across
+inspectable way. The six conventions below are how that requirement is kept consistent across
 waves, not a new rule layered on top of it.
 
 This doc sits alongside [`charter.md`](./charter.md) and [`README.md`](./README.md) without
@@ -66,13 +66,13 @@ continuation is compatible with that principle from the other direction: it adds
 place** without disturbing any preserved content. ADR 0016 does not itself speak to new content
 flowing _in_; this convention is what authorizes the append, not the ADR.
 
-## 2. The ADR/decision log continues in place, from `0017`, as one flat log
+## 2. The ADR/decision log continues in place as one flat log
 
 The design-layer ADR log at [`decisions/`](./decisions/) continues **in place**, as **one flat
-log**, numbered sequentially from `0001` through the current `0016`
-(see [`decisions/README.md`](./decisions/README.md)). The next available number is **`0017`**.
-This session mints nothing: no ADR is authored by this story, per the coordinator resolution in
-this story's brief (no structural change, no new log file).
+log**, numbered sequentially. The live index at
+[`decisions/README.md`](./decisions/README.md) is the authority for current entries and for the next
+available number at authoring time. This session mints nothing: no ADR is authored by this story,
+per the coordinator resolution in this story's brief (no structural change, no new log file).
 
 **How this log relates to the two other decision logs already in the tree** (this is not a new
 taxonomy — it mirrors the scope note already written near the top of
@@ -80,7 +80,7 @@ taxonomy — it mirrors the scope note already written near the top of
 
 | Log                                                                     | Scope                                                                                                   | Numbering                                | What it records                                                                                   |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `docs/design/decisions/000N-*.md` (this ADR log)                        | Design-layer decisions about jig's own design content (entities, ports, state machines, conventions)    | Flat, sequential, `0001..`, next `0017`  | One ADR per durable design decision, in the order made                                            |
+| `docs/design/decisions/000N-*.md` (this ADR log)                        | Design-layer decisions about jig's own design content (entities, ports, state machines, conventions)    | Flat, sequential; see the live index     | One ADR per durable design decision, in the order made                                            |
 | `docs/planning/design-track/waves/<wave>/decisions.md`                  | Planning-track scaffold QA and frame `InputResolution` dispositions for that wave's stories             | Per-wave `D-001..`, restarting each wave | Frame-resolution choices and design-review suggestion dispositions for that wave's planning units |
 | `docs/design/notes/wave-0-execution-review.md` (and successors, if any) | Build-time `review-technical-design` dispositions for the design-layer **execution** of a wave's briefs | Per-log `D-001..`, restarting per log    | The coordinator's disposition of reviewer findings against the authored design docs themselves    |
 
@@ -208,19 +208,55 @@ never silently lost because dropping it requires either a citation-bearing resol
 explicit restatement, both of which are inspectable in a `decisions.md` or a doc's own
 "Open questions" section.
 
+## 6. Evidence appendix convention: committed records are inputs to decisions, not authority
+
+Some design decisions depend on live behavior outside this repository: external CLIs, app-server
+protocols, hosted services, operating-system behavior, or other tools whose contracts may drift.
+When a design session relies on that behavior, it records the probe as a committed evidence record
+instead of leaving the proof in local terminal scrollback.
+
+**Canonical home and name.** Committed evidence records live in [`evidence/`](./evidence/) with
+filenames shaped as `YYYY-MM-DD-<slug>.md`. The ISO date is repeated in the record header. A later
+session may choose a narrower home only when an existing repo convention clearly owns that evidence
+more directly, and that exception should be named in the record itself.
+
+**Evidence records are citable artifacts.** A committed evidence record is intentionally different
+from `runs/`: `runs/` is git-ignored local runtime data, while `docs/design/evidence/` is durable,
+reviewable design input. Records may summarize captured transcripts or outputs, and may cite local
+raw captures by content hash, but the committed Markdown record is the thing future design work
+cites.
+
+**Version and drift pins.** Every record pins the exact external tool versions probed, including
+the CLI version where a CLI is in the path. Where the record summarizes captured transcripts,
+structured outputs, generated schemas, or command logs, it also records the relevant content hashes
+so later readers can detect whether a claim was made from the same material.
+
+**Required `Limitations` section.** Every record contains a `## Limitations` section stating what
+the evidence does prove, what it does not prove, and what assumptions or host constraints bound the
+probe. A record without this section is incomplete even if the probe itself succeeded.
+
+**Redaction check before commit.** Every record is checked before commit for tokens, credentials,
+private URLs, private repository names when not essential, and other sensitive material. The record
+states whether redaction was applied. If there is ambiguity about whether a value is sensitive, the
+author stops and asks the owner; the author does not make a judgment call and commit anyway.
+
+**Supported IDs.** Records cite the acceptance criteria, product guarantee IDs, invariant IDs, or
+ADR / decision IDs they support. Evidence is input to decisions: it can support, weaken, or block an
+ADR, but it is never authority by itself and never replaces the ADR or contract owner.
+
 ## Reconciliation
 
-These five conventions reconcile to `SEE-1`, `SEE-2`, `SEE-3` (see
+These six conventions reconcile to `SEE-1`, `SEE-2`, `SEE-3` (see
 [`../product/guarantees.md`](../product/guarantees.md#5-full-observability)). This is deliberately
 reflexive, not a category error: `SEE-1` (full visibility to reconstruct what happened and why),
 `SEE-2` (structured, machine-readable records), and `SEE-3` (the records used to decide are the
 records inspected afterward) are guarantees jig makes about _its own runtime_. Applied to jig's
 _design process_, the same shape of guarantee holds: the conventions in this doc keep the
-invariant ledger, the ADR log, the ID namespaces, the per-wave decision log, and the
-open-questions ledger structured, durable, and inspectable — so a later design session can
-reconstruct why a decision was made and what remains open, the same way a run's owner reconstructs
-what happened in a run. jig's observability guarantee is applied to jig's own design record, on
-purpose.
+invariant ledger, the ADR log, the ID namespaces, the per-wave decision log, the open-questions
+ledger, and the committed evidence records structured, durable, and inspectable. A later design
+session can reconstruct why a decision was made and what remains open, the same way a run's owner
+reconstructs what happened in a run. jig's observability guarantee is applied to jig's own design
+record, on purpose.
 
 ## Open questions
 
@@ -231,8 +267,9 @@ None from this session. (Per §5 above, this is stated explicitly rather than le
 `INV-001` through `INV-018` in [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md)
 continue verbatim, per §1 above. This conventions session added **no new invariant**: stating how
 the ledger continues, how the ADR log continues, how IDs are namespaced, how decision logs are
-shaped, and how open questions carry forward is governance of the design-layer's own bookkeeping,
-not a claim about jig's runtime behavior. The next available number is `INV-019`.
+shaped, how open questions carry forward, and how committed evidence records are formed is
+governance of the design-layer's own bookkeeping, not a claim about jig's runtime behavior. The
+next available number is `INV-019`.
 
 ## Risks and deferred decisions
 
@@ -251,6 +288,9 @@ not a claim about jig's runtime behavior. The next available number is `INV-019`
   future wave introduces a genuinely new ID kind (for example, a distinct provider-conformance ID
   space), extending the disjointness proof to include it is that wave's own decision to log, not
   pre-authorized here.
+- **Risk — stale external-tool evidence.** Committed evidence records can outlive the external tool
+  version they probed. Mitigation: §6 requires date, version, content-hash, and limitations pins,
+  and requires later ADRs to treat evidence as input rather than authority.
 
 ## Related
 
@@ -260,5 +300,7 @@ not a claim about jig's runtime behavior. The next available number is `INV-019`
 - [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md) — the source of the continuing
   `INV-*` ledger and the design-layer handoff-category vocabulary.
 - [`decisions/README.md`](./decisions/README.md) — the ADR log this doc's §2 continues.
+- [`evidence/README.md`](./evidence/README.md) — the committed evidence-record index governed by
+  this doc's §6.
 - [`docs/product/guarantees.md`](../product/guarantees.md) — the product ID families this doc's
   §3 keeps distinct from invariant and handoff-category IDs.
