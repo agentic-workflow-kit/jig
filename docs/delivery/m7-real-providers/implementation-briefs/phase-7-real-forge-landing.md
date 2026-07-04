@@ -86,14 +86,17 @@ Confirmed against `src/` at authoring time — build on these, do not re-derive 
 
 - **The Forge port is merged** ([`../../../../src/ports.ts`](../../../../src/ports.ts)):
   `ForgePort.land(request: LandingRequest): LandingOutcome | Promise<LandingOutcome>`. `LandingRequest`
-  is `{ storyId; action: 'push|open-pr|merge'; reason?: 'dry-run' }` — **`action` is a single string
-  literal with pipes, not a union** (Residual B). `LandingOutcome` is `Pick<RunEvent, 'family'> &
-Partial<RunEvent>` — a record-shaped outcome that carries additive fields **without** a port change.
+  is `{ storyId; action: 'push' | 'open-pr' | 'merge'; reason?: 'dry-run' }`; Residual B is closed in
+  the live port. `LandingOutcome` is `Pick<RunEvent, 'family'> & Partial<RunEvent>` — a record-shaped
+  outcome that carries additive fields **without** a port change. The historical
+  `"push|open-pr|merge"` token remains only as the modeled dry-run record action that preserves the
+  Phase-0..4 golden bytes.
 - **The runner is already the sole `land()` caller.** `LocalHarness`
-  ([`../../../../src/harness.ts`](../../../../src/harness.ts) lines 516–529) emits `story.done`,
-  constructs the `LandingRequest` (`action: 'push|open-pr|merge'`, `reason: 'dry-run'`, `as const`),
-  `await this.forge.land(...)`, and records `runner-action.skipped-on-dry-run`. The agent path never
-  touches `this.forge`.
+  ([`../../../../src/harness.ts`](../../../../src/harness.ts)) emits `story.done`, constructs the
+  `LandingRequest` from `this.landingAction` (default `push`) with `reason: 'dry-run'`, awaits
+  `this.forge.land(...)`, and records the landing outcome. Under the reference forge, that outcome is
+  still `runner-action.skipped-on-dry-run` with the historical `"push|open-pr|merge"` modeled-record
+  action. The agent path never touches `this.forge`.
 - **The composition root** is `composeReferenceRun` in
   [`../../../../src/bootstrap.ts`](../../../../src/bootstrap.ts) — already `async`, the sole importer of
   the reference adapters (including `ReferenceForge`), fails closed on an unknown driver
@@ -142,10 +145,9 @@ Do not:
 - `src/bootstrap.ts` — add the real forge driver name (e.g. `forge: 'github'`) to the composition
   root's selection, mirroring the Phase-6 `agent: 'codex'` / `executionHost: 'real'` pattern; keep it
   the sole importer; unknown forge name fails closed. **Also extend the redaction-activation condition**
-  (`composeRunPorts`, currently `selection.agent === 'codex' || selection.executionHost === 'real'` at
-  `src/bootstrap.ts:184-185`) to include the real-Forge term (`selection.forge === 'github'`) — see
-  Slice 4.
-- `src/harness.ts` — the runner's `done → landed` call site (lines 516–529): construct the union-typed
+  (`composeRunPorts`, currently `selection.agent === 'codex' || selection.executionHost === 'real'`) to
+  include the real-Forge term (`selection.forge === 'github'`) — see Slice 4.
+- `src/harness.ts` — the runner's `done → landed` call site: construct the union-typed
   `LandingRequest`, recognize an already-landed effect from the replayed records (recorded no-op), and
   invoke the distinct block-surfacing act on a `blocked` item when a safe branch + permission exist.
 - `src/redaction.ts` — extend real secret-scanning to the landing path; a landing-path redaction
@@ -226,13 +228,13 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   not a new mechanism — it is the Phase-6 activation applied at the landing boundary.
 - **Extend the redaction-ACTIVATION condition to real-Forge selection — binding.** Phase 6 activates
   redaction in `composeRunPorts` only when `selection.agent === 'codex' || selection.executionHost ===
-'real'` (`src/bootstrap.ts:184-185`), so `redaction` is left **`undefined`** for a valid Phase-7
-  config that sets only `config.drivers.forge = 'github'` (agent/executionHost left on reference). That
-  is a **forge-only real run** in which Forge/GitHub tokens can enter landing records **unredacted** —
-  violating P7-AC-4 ("the landing path never leaks a token"). The activation predicate MUST gain the
-  real-Forge term (`selection.forge === 'github'`) so a forge-only real run activates landing-path
-  redaction. Scanning the landing path (previous bullet) is necessary but not sufficient — if activation
-  never turns on, the scan never runs.
+'real'`, so `redaction` is left **`undefined`** for a valid Phase-7 config that sets only
+  `config.drivers.forge = 'github'` (agent/executionHost left on reference). That is a **forge-only real
+  run** in which Forge/GitHub tokens can enter landing records **unredacted** — violating P7-AC-4 ("the
+  landing path never leaks a token"). The activation predicate MUST gain the real-Forge term
+  (`selection.forge === 'github'`) so a forge-only real run activates landing-path redaction. Scanning
+  the landing path (previous bullet) is necessary but not sufficient — if activation never turns on, the
+  scan never runs.
 - A landing-path redaction **ambiguity** becomes an operator-visible **diagnosable stop**
   (`RedactionAmbiguityError` / `redaction-export-posture-ambiguous`, extending ADR 0020 §7 / ADR 0022
   Decision 8) — never a silent leak. Records stay safe to keep/export by default. The landing path never
