@@ -46,6 +46,20 @@ flowchart TD
     D -->|"Reject"| F["Rejected — terminal,<br/>on the record"]
 ```
 
+## Setting the posture for a track
+
+_Shows guarantee 2 — you own the configuration._
+
+A new track is riskier than your others — it touches auth and billing — and you want it to run
+more cautiously without hand-tuning fifty knobs. In setup, Jig asks how you want to work and maps
+your answer to a starting **policy** (the safety contract: gating posture, required reviews, the
+anti-gaming floor) and a **work profile** (how the work gets done: model, effort, prompt
+strategy). You dial the policy toward manual — every escalation comes to you — and leave the work
+profile free to tune for cost and speed later. The two never blur: raising the model's effort
+can't loosen a gate, and the repo-level floors you set once hold under every track no matter how a
+track's own policy is tuned. **You expressed intent once, in owner terms — and the safety
+contract stayed separate from the performance dial.**
+
 ## A safe resume after interruption
 
 _Shows guarantee 3 — never lose work; resume safely._
@@ -68,6 +82,20 @@ Jig makes it **prove** the capabilities it claims; until it does, you get more c
 weaker guarantees. The same proof bar applies to a bundled agent driver and a future extracted
 driver; first-party convenience does not create hidden trust. **You change who does the work
 without renegotiating what "safe" means.**
+
+## Reconstructing a run after the fact
+
+_Shows guarantee 5 — see everything._
+
+A story landed last night and someone asks why — what evidence justified the merge, who approved
+it, what the worker was and wasn't allowed to do. You don't reconstruct it from memory or a chat
+transcript. You open the run's records and read the decision itself: the request, the
+authorization, the gates it passed, the evidence that met policy, the approval and who made it.
+The records Jig **used** to decide are the same records you **inspect** — there is no second
+story that can drift from what actually happened. When you need to hand it on, the finished run
+exports as a write-once, redacted-by-default audit record you can archive or give to compliance.
+**The answer to "why did this happen" comes from the run's own trail — not from anyone's
+recollection.**
 
 ## Related
 

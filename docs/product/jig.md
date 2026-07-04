@@ -6,9 +6,8 @@ status: draft — product overview
 # Jig — the execution engine
 
 Jig is the deterministic execution engine you run as `jig`. At product altitude,
-`@agentic-workflow-kit/jig` names the Jig product/tool identity; the checked-in package today is
-the private repo shell `@agentic-workflow-kit/jig-repo`, with no public package, export, or
-stability promise. You give Jig an approved **execution plan** and a **policy**; it turns that
+`@agentic-workflow-kit/jig` names the Jig product identity; there is no public package, export,
+or stability promise today. You give Jig an approved **execution plan** and a **policy**; it turns that
 plan into reviewed, landed work as far as the policy allows, or into a deliberate, inspectable
 stop when the work should not continue.
 
@@ -24,14 +23,15 @@ design and delivery planning own how those promises are implemented and verified
 
 ## Product Spine
 
-| Question            | Product answer                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| User                | An owner/operator with product and design judgment who cannot safely supervise every agent action manually.                                |
-| Job                 | Turn an approved execution plan into reviewed, landed work while preserving human control.                                                 |
-| Current alternative | A chain of one-off agent sessions, manual PR and review follow-up, ad hoc notes, and fragile recovery.                                     |
-| Before              | The owner cannot tell whether the agent stayed inside policy, what evidence justified a merge, or how to resume safely after interruption. |
-| After               | The owner delegates execution under policy and receives evidence, escalation points, recovery, and a reconstructible outcome.              |
-| Non-fit             | Jig is not a product-definition tool, a design authoring tool, an LLM project manager, or a way to bypass review judgment.                 |
+| Question            | Product answer                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User                | An owner/operator with product and design judgment who cannot safely supervise every agent action manually.                                                                                                                      |
+| Also serves         | Integrators and tool builders who consume Jig's programmatic surface and its structured records — driving Jig from their own agent, embedding it, or building analyzers, dashboards, and story sources around it (CFG-7, SEE-2). |
+| Job                 | Turn an approved execution plan into reviewed, landed work while preserving human control.                                                                                                                                       |
+| Current alternative | A chain of one-off agent sessions, manual PR and review follow-up, ad hoc notes, and fragile recovery.                                                                                                                           |
+| Before              | The owner cannot tell whether the agent stayed inside policy, what evidence justified a merge, or how to resume safely after interruption.                                                                                       |
+| After               | The owner delegates execution under policy and receives evidence, escalation points, recovery, and a reconstructible outcome.                                                                                                    |
+| Non-fit             | Jig is not a product-definition tool, a design authoring tool, an LLM project manager, or a way to bypass review judgment.                                                                                                       |
 
 ## Workflow
 
@@ -100,7 +100,8 @@ At product altitude, an execution plan carries:
 - each story's **done conditions** — the evidence that must hold before that story may land. The
   owner sets these through policy (see [Merge-on-evidence](./guarantees.md#15-merge-on-evidence)).
 
-The plan is one artifact per track. Its exact schema is design's to define; what it must
+The plan is one artifact per track — one independent line of work (see
+[concepts](./concepts.md#tracks--parallel-independent-work)). Its exact schema is design's to define; what it must
 _carry_ is the product contract above.
 
 **Producing a plan.** You can author a plan directly — it is a structured artifact, not a
@@ -157,19 +158,19 @@ storage strategy, and delivery gates. Planning owns delivery-level acceptance cr
 sequencing. Product keeps the outcome-level commitments and the IDs in
 [the five guarantees](./guarantees.md).
 
-Jig adopts an internal SDK boundary now for extensibility and single-responsibility. The
-first-party consumers of that programmatic surface are Jig's CLI today and a future MCP
-surface; consumers use the SDK instead of reaching into Jig internals. The package stays
-private (`private: true`) with no publish commitment, and no stability promise is created now;
-the posture may flip later through the org standard path of intentional publication and
-Changesets. This records the org M7 post-spine Packaging (N2) decision from
-`agentic-workflow-kit/.github/MILESTONES.md`.
+Jig exposes a stable programmatic surface for its first-party consumers — its CLI today, a
+future MCP surface next — so those consumers do their work through that surface instead of
+reaching into Jig internals. The product promise is the boundary and its stability posture:
+no public package and no external stability commitment today, and any future change to that
+posture is a deliberate, owner-visible decision rather than a quiet drift. How the boundary is
+drawn, packaged, and released is design's.
 
-The SDK boundary is also the product line for provider replaceability. Bundled providers may
-ship with Jig, but they should behave like replaceable providers: they exercise SDK-facing
-ports and registration seams instead of private core shortcuts, prove their capabilities, and
-can be extracted later without changing Jig's guarantees. This is a product promise about
-portability and owner trust, not a decision about package layout or public publication.
+That same boundary is where provider replaceability lives. Bundled providers may ship with Jig,
+but they behave like replaceable providers at the boundary: they prove their capabilities,
+declare their authority, and can be swapped or extracted later without changing Jig's
+guarantees — a first-party provider gets no privileged shortcut a third-party one couldn't use.
+This is a product promise about portability and owner trust, not a decision about package layout
+or publication.
 
 Provider extensibility is settled product scope. Owners and teams should be able to bring a
 compatible provider for a supported seam and plug it into Jig without forking Jig core. That
