@@ -1,6 +1,6 @@
 ---
 title: "Contracts — the boundary map"
-status: draft — stub
+status: overview
 ---
 
 # Contracts — the boundary map
@@ -8,17 +8,6 @@ status: draft — stub
 `contracts/` holds every interface at jig's edge, in three kinds: **driving** (how consumers
 drive jig), **data** (what flows in and out), and **providers** (what plugs in). The fixed logic
 behind all three lives in [`../core/`](../core/README.md); core is not a seam.
-
-Two later design decisions now refine how those seams are packaged and adapted without changing the
-boundary kinds above:
-
-- [ADR 0027](../decisions/0027-packaging-sdk-boundary.md) settles the future internal package
-  direction: `jig-sdk` owns the programmatic core/port/factory boundary, `jig-cli` is the terminal
-  adapter, and `jig-testkit` owns conformance. The current repo remains one private package with no
-  public export or stability promise.
-- [ADR 0028](../decisions/0028-codex-app-server-transport.md) settles the first Codex Agent adapter
-  transport as an owned stdio app-server process with an internal session-observable seam. The public
-  provider boundary remains `AgentPort`; app-server protocol objects do not become Jig contracts.
 
 ## Owns
 
@@ -90,13 +79,28 @@ out`")
   class cli,planin,recordsout,agent,host,forge,source seamBox;
 ```
 
+## Packaging and transport reconciliation
+
+Two later design decisions refine how the seams above are packaged and adapted, without changing
+the boundary kinds:
+
+- [ADR 0027](../decisions/0027-packaging-sdk-boundary.md) settles the future internal package
+  direction: `jig-sdk` owns the programmatic core/port/factory boundary, `jig-cli` is the terminal
+  adapter, and `jig-testkit` owns conformance.
+- [ADR 0028](../decisions/0028-codex-app-server-transport.md) settles the first Codex Agent adapter
+  transport as an owned stdio app-server process with an internal session-observable seam. The public
+  provider boundary remains `AgentPort`; app-server protocol objects do not become Jig contracts.
+
 ## Notes
 
 - Jig owns the plan and records contracts as versioned seams: changing their shape is a breaking
   change for downstream consumers.
-- Package split, export maps, project references, provider publication, and public stability promises
-  are outside this index. This page routes to the applied ADRs; it does not make those implementation
-  changes.
+- **Product-posture disclaimer, stated once here.** The current repo remains one private package:
+  there is no public provider API, package, export map, project reference, registry, manifest
+  schema, or semver stability promise today. Package split, export maps, project references,
+  provider publication, and public stability promises are outside this index — this page routes to
+  the applied ADRs above without making those implementation changes. `providers.md` and
+  `driving.md` cross-reference this note rather than restating it.
 
 ## Reconciles to
 

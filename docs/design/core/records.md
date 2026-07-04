@@ -78,9 +78,8 @@ write-once, redacted`")
 
 ## Port boundary and anti-corruption stance
 
-The existing interface and Mermaid diagram above are the preserved seed for this boundary. Wave 3
-deepens them in place rather than replacing them: the port remains the append-only evidence surface,
-and the records contract it emits into remains cited, not frozen or rewritten here.
+The interface and Mermaid diagram above are the boundary: the port is the append-only evidence
+surface, and the records contract it emits into remains cited, not frozen or rewritten here.
 
 The anti-corruption stance is that records are the evidence and projections are derived views, never
 competing sources of truth. Core owns append semantics, replay semantics, export posture, and the
@@ -89,8 +88,7 @@ not redefine what happened by writing around the log.
 
 ## Engine consistency model
 
-The `RunStore` interface above is the preserved port-shaped seed. This section deepens the engine
-behind that port rather than changing its method shape.
+This section defines the engine behind the `RunStore` port above without changing its method shape.
 
 The log is the one durable authority for what happened in a run. Its consistency model is:
 
@@ -98,18 +96,18 @@ The log is the one durable authority for what happened in a run. Its consistency
   events are never mutated, deleted, or replaced.
 - **Single leased writer per run.** At any moment exactly one governed append authority is allowed to
   continue the log for a run. The runner-owned append path holds that authority while the run is
-  active; reacquiring or re-wiring that authority across resume is cited from
-  [`bootstrap.md`](./bootstrap.md) and owned there, not redesigned here.
+  active; reacquiring or re-wiring that authority across resume is owned by
+  [`bootstrap.md`](./bootstrap.md), not redesigned here.
 - **Write-conflict rejection.** An append attempt that does not come from the active leased writer,
   or would create a second competing continuation of the same run history, is rejected rather than
   merged, guessed through, or silently reordered.
 - **Monotonic run history.** The accepted log grows in one direction only. Later records may explain,
   supersede, or close earlier situations, but they do so by new append, not by editing prior facts.
 
-Wave 4a D-004's construction seam applies here in one direction only: Records owns the store shape,
-consistency model, and invariants; [`bootstrap.md`](./bootstrap.md) owns constructing and wiring the
-store at launch, including the first binding-record append. This file names that seam and depends on
-it; it does not redesign bootstrap.
+The construction seam applies here in one direction only: Records owns the store shape, consistency
+model, and invariants; [`bootstrap.md`](./bootstrap.md) owns constructing and wiring the store at
+launch, including the first binding-record append. This file names that seam and depends on it; it
+does not redesign bootstrap.
 
 This is a consistency model over the run record itself, not a storage-engine prescription. This file
 still does not choose a concrete persistence mechanism, indexing strategy, or encoding.
@@ -156,7 +154,7 @@ for the projections and exports core already relies on.
 - Recover from a conflicting append by inventing a merged history. A conflict is a stop/retry
   condition for the owning append path, not a cue to reconcile two writers inside Records.
 
-## Emission points in settled Wave 2 flow
+## Emission points in the run lifecycle
 
 This doc does not author any new state or transition. It names the already-settled emission points
 only: `RunStore` receives the events emitted from the cited run/work-item lifecycle flow in
@@ -182,9 +180,8 @@ This section does not mint field names, event-family strings, storage schema, or
 
 ## Projection purity and replay determinism
 
-Wave 1 settled that Evidence and Notice are record-derived, not separate stores. Wave 3 settled the
-anti-corruption stance that projections never author the log. This file deepens those seeds into an
-engine rule:
+Evidence and Notice are record-derived, not separate stores, and the anti-corruption stance is that
+projections never author the log. This file turns those design commitments into an engine rule:
 
 - **Pure projection.** State, summary, metrics, notices, and inspect/ask-why views are derived only
   from replay of the accepted log plus the fixed projection logic that interprets it.
@@ -216,8 +213,8 @@ inspects and the runner decides from, satisfying the "records are the evidence" 
   boundary.
 
 The engine records redaction/export posture per governed record, but it does not decide which values
-count as sensitive. That classification input is cited from the policy/evidence surface that Wave 4a
-assigns to `w4-s2`; Records preserves and enforces the posture once supplied.
+count as sensitive. That classification input is cited from the policy/evidence surface; Records
+preserves and enforces the posture once supplied.
 
 A governed append lacking valid redaction/export posture, or carrying unknown or ambiguous posture,
 is rejected rather than guessed through. Inspect and export are denied or constrained until valid
@@ -301,10 +298,10 @@ Records remains the durable evidence substrate for both runtime decisions and la
 - export produces a write-once redacted artifact from that same history;
 - downstream consumers read the records/evidence surface but do not redefine it.
 
-This surface is also a named downstream contract for Wave 4b's `w4-s6-execution-host` framing. The
-capability / attestation event families already named in the cited observability-records v0 contract
-must be framable against this engine's append-and-project model; this file therefore preserves the
-records/evidence surface as a core-owned seam without freezing new fields here.
+This surface is also a downstream contract for the execution-host seam. The capability / attestation
+event families already named in the cited observability-records v0 contract must be framable
+against this engine's append-and-project model; this file therefore preserves the records/evidence
+surface as a core-owned seam without freezing new fields here.
 
 ## Failure posture
 
@@ -361,13 +358,12 @@ available invariant number is `INV-019`.
 - **Deferred — export encoding and downstream analytics shape.** External representation details and
   between-runs consumption stay downstream of this port contract.
 - **Deferred — replay-drift handling surface.** This file names replay drift as a correctness failure,
-  but not yet whether later waves surface it as a stop token, notice, export denial, or another
-  diagnosable outcome.
+  but not yet whether later design work surfaces it as a stop token, notice, export denial, or
+  another diagnosable outcome.
 
 ## Open questions
 
-None from this session. The remaining unresolved items are explicit deferrals above, not hidden
-ownership gaps.
+None. The remaining unresolved items are explicit deferrals above, not hidden ownership gaps.
 
 ## Notes
 

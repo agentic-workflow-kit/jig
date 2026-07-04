@@ -9,12 +9,11 @@ Plan intake parses a machine-readable plan instance and validates it against the
 contract, rejecting unknown or incompatible formats with a reason rather than guessing at
 intent. It is the boundary [`bootstrap`](./bootstrap.md) calls before anything else can happen.
 
-This doc is the deepened in-place home for Wave 4a's plan / policy / evidence design. It preserves
-the existing Wave 3 `PlanValidator` surface and its diagram as the seed, then extends the same file
-with the owned domain content beneath that port: parse/validate/reject mechanics, the policy model,
-the evidence/attestation category model, and the GUARD-2 rule declaration. The execution-plan v0
-contract remains cited and unfrozen; `authorization.md` remains the enforcement sibling, and
-`orchestration.md` remains the Wave 2 pause-point sibling.
+This doc is the home for the plan / policy / evidence design beneath the `PlanValidator` port: the
+port surface and its diagram, plus the owned domain content underneath — parse/validate/reject
+mechanics, the policy model, the evidence/attestation category model, and the GUARD-2 rule
+declaration. The execution-plan v0 contract remains cited and unfrozen; `authorization.md` remains
+the enforcement sibling, and `orchestration.md` remains the pause-point sibling.
 
 ## Owns
 
@@ -73,8 +72,7 @@ unknown / incompatible format`")
 
 ## Port boundary and anti-corruption stance
 
-The existing interface and Mermaid diagram above are the preserved seed for this boundary. Wave 3
-deepens them in place rather than replacing them: the port remains the single plan-intake
+The interface and Mermaid diagram above are the boundary: the port remains the single plan-intake
 boundary `bootstrap` calls before a run can begin, and the execution-plan contract remains cited,
 not frozen or rewritten here.
 
@@ -84,9 +82,9 @@ raw plan instance gets to weaken or bypass the boundary. Core owns the intake co
 accept/reject semantics, and the meaning of "validated plan"; upstream producers supply an
 instance, not a replacement definition of plan validity.
 
-The preserved seed above remains authoritative for the boundary posture. The deeper sections below
-do not replace that seed; they make explicit the domain content the boundary admits and the rule
-vocabulary downstream runtime behavior later consumes.
+The boundary posture above is authoritative. The deeper sections below do not replace it; they make
+explicit the domain content the boundary admits and the rule vocabulary downstream runtime behavior
+later consumes.
 
 ## Owns / implements / must-not
 
@@ -128,15 +126,15 @@ This doc reconciles the plan-intake boundary to:
   namespaces separate from product IDs.
 
 No ownership is invented here beyond those sources. Policy content and evidence vocabulary are
-owned here because Wave 1 already settled that jig owns policy type/shape/invariants while the
-owner authors instances; authorization and pause mechanics remain in their sibling docs.
+owned here because jig owns policy type/shape/invariants while the owner authors instances;
+authorization and pause mechanics remain in their sibling docs.
 
-## Invocation point in settled Wave 2 flow
+## Invocation point in the run lifecycle
 
 This doc does not author any new state or transition. It names the already-settled invocation point
 only: `PlanValidator` is invoked at launch from the cited preview/start path before orchestration
 consumes a `ValidatedPlan`, consistent with [`orchestration.md`](./orchestration.md)'s existing
-run-lifecycle prose and the Wave 3 story brief's "validate-once-at-the-boundary" scope.
+run-lifecycle prose and the validate-once-at-the-boundary scope.
 
 The same boundary is also where a run first binds to policy-governed evidence expectations. Intake
 admits a plan only once; later runtime phases consume the admitted result and the policy/evidence
@@ -220,9 +218,9 @@ The most important contract properties for this deepened design are:
 
 ## Policy model
 
-Policy is the governance contract for a track. Wave 1 settled that jig owns policy's
-type/shape/invariants while the owner authors instance content; this doc deepens the shape that
-plan intake admits and runtime later consumes.
+Policy is the governance contract for a track. Jig owns policy's type/shape/invariants while the
+owner authors instance content; this doc defines the shape that plan intake admits and runtime
+later consumes.
 
 ### Policy owns
 
@@ -256,8 +254,8 @@ plan intake admits and runtime later consumes.
 
 - The exact classifier implementation that returns `grant | deny | route`; that remains in
   [`authorization.md`](./authorization.md).
-- Work-item or run pause-state mechanics; those remain in [`orchestration.md`](./orchestration.md)
-  and Wave 2's settled lifecycle territory.
+- Work-item or run pause-state mechanics; those remain in [`orchestration.md`](./orchestration.md)'s
+  settled lifecycle territory.
 - Field-level plan schema; that remains with the cited v0 contract.
 
 ## Evidence / attestation category model
@@ -321,9 +319,8 @@ Capability proof is load-bearing enough to need explicit staleness language at t
 - **missing** means no acceptable proof exists for the required capability in the current context.
 
 Stale or missing proof is not a soft warning. It changes the evidence posture by forcing more human
-checkpoints or routing, and it is the category model Wave 4b's
-`w4-s6-execution-host` frame-time consumer must later consume when it deepens capability
-attestation.
+checkpoints or routing, and it is the category model the execution-host seam must later consume
+when it deepens capability attestation.
 
 **Phase 6 realization ([ADR 0022](../decisions/0022-phase-6-real-driver-integration.md)).** With real
 drivers the `fresh`/`stale`/`missing` decision is made by a **real clock** against real driver/host
@@ -380,12 +377,11 @@ then declare itself done.
 ### What this file does not own
 
 - **Enforcement mechanism** — detecting the request/change and returning `grant | deny | route`
-  remains with [`authorization.md`](./authorization.md) and the sibling `w4-s3` story.
+  remains with [`authorization.md`](./authorization.md).
 - **Pause point in the lifecycle** — the run/work-item guard that checks for an unresolved
-  GUARD-2 pause remains with [`orchestration.md`](./orchestration.md) and Wave 2's settled
-  lifecycle surface.
-- **Residual sub-state design** — whether the pause uses a distinct sub-state or reuses Wave 2's
-  `parked` remains open and is not resolved here.
+  GUARD-2 pause remains with [`orchestration.md`](./orchestration.md)'s settled lifecycle surface.
+- **Residual sub-state design** — whether the pause uses a distinct sub-state or reuses the
+  existing `parked` state remains open and is not resolved here.
 
 ## Failure posture
 
@@ -440,9 +436,9 @@ available invariant number is `INV-019`.
 
 ## Open questions
 
-- Does the eventual authored runtime use a distinct named sub-state for an unresolved GUARD-2
-  pause, or does it reuse Wave 2's existing `parked` state? This file leaves the pause-state shape
-  open and only owns the rule declaration.
+- Does the runtime use a distinct named sub-state for an unresolved GUARD-2 pause, or does it
+  reuse the existing `parked` state? This file leaves the pause-state shape open and only owns the
+  rule declaration.
 - Does policy need an explicit taxonomy for different kinds of review evidence beyond the current
   category model, or is the category plus policy-instance requirements sufficient at this altitude?
   This file stays at category vocabulary, not reviewer-subtype schema.
@@ -467,8 +463,8 @@ available invariant number is `INV-019`.
   a plan instance is outside this port contract as long as they still enter through intake.
 - **Deferred — authorization mechanics.** The Fence classifier, Doorbell durability, and capability
   attestation enforcement stay in [`authorization.md`](./authorization.md), not here.
-- **Deferred — lifecycle pause mechanics.** The concrete Wave 2 guard wiring for unresolved
-  GUARD-2 pauses stays in [`orchestration.md`](./orchestration.md), not here.
+- **Deferred — lifecycle pause mechanics.** The concrete guard wiring for unresolved GUARD-2
+  pauses stays in [`orchestration.md`](./orchestration.md), not here.
 - **Deferred — invariant-ledger consolidation.** Candidate invariants remain unnumbered in this
   file and are not appended to the invariant ledger here.
 

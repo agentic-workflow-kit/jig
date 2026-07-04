@@ -1,125 +1,13 @@
 ---
 title: "Bootstrap — the launch / composition root"
 status: draft
-design_id: w4-s4-bootstrap-composition-root
-handoff_contract: technical-design-handoff-v0
-methodology: ddd
-methodology_version: v1
-architecture_mode: control-plane/runtime
-design_status: draft
-ddd_depth: ports-and-adapters
-round: 1
 ---
 
 # Bootstrap — the launch / composition root
 
 Bootstrap is the phase that turns authored configuration into a validated, bound, wired,
 identified, ready run; `preview` is its recorded-but-non-committing form, exercising the same path
-without committing to a run identity. This doc deepens the existing stub in place. It preserves the
-seed `Owns`, `Interface`, and launch flowchart, then authors the sequencing and resume-re-entry
-mechanics Wave 2 deferred here by name.
-
-## Planner Handoff Summary
-
-### Handoff Identity
-
-| Field               | Required data                               |
-| ------------------- | ------------------------------------------- |
-| Design ID           | `w4-s4-bootstrap-composition-root`          |
-| Handoff contract    | `technical-design-handoff-v0`               |
-| Design title        | `Bootstrap — the launch / composition root` |
-| Status              | `draft`                                     |
-| Methodology profile | `ddd` `v1`                                  |
-| Architecture mode   | `control-plane/runtime`                     |
-| DDD depth           | `ports-and-adapters`                        |
-| Review round        | `1`                                         |
-
-### Source and Product References
-
-| ID      | Type     | Reference                                                                                                                                                                                                   | Required for Planning                                                                                  | Notes                                |
-| ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------ |
-| SRC-001 | design   | [wave-4a-core/frames/w4-s4-bootstrap-composition-root.md](../../archive/planning/design-track/waves/wave-4a-core/frames/w4-s4-bootstrap-composition-root.md)                                                | approved `InputResolution`, `AgreedSystemModel`, bootstrap scope, seams, and resume-re-entry ownership | primary w4-s4 source                 |
-| SRC-002 | decision | [wave-4a-core/decisions.md](../../archive/planning/design-track/waves/wave-4a-core/decisions.md)                                                                                                            | accepted depth/mode, s1<->s4 and s3<->s4 seam wording, candidate-only invariant handling               | D-002, D-004, D-005, D-011           |
-| SRC-003 | design   | [wave-1-domain/frame.md](../../archive/planning/design-track/waves/wave-1-domain/frame.md)                                                                                                                  | launch binding of plan, policy, work-profile, and repo floors                                          | cited, not reopened                  |
-| SRC-004 | design   | [wave-2-state-machines/frame.md](../../archive/planning/design-track/waves/wave-2-state-machines/frame.md) and [decisions.md](../../archive/planning/design-track/waves/wave-2-state-machines/decisions.md) | run-lifecycle resume view, last-safe-checkpoint semantics, and Wave 2 D-003 deferral boundary          | bootstrap owns procedure, not states |
-| SRC-005 | design   | [wave-3-ports/frame.md](../../archive/planning/design-track/waves/wave-3-ports/frame.md)                                                                                                                    | composition-root/provider-wiring boundary and sole-importer role                                       | cited, not reopened                  |
-| SRC-006 | design   | [`records.md`](./records.md)                                                                                                                                                                                | records-store construction seam, binding-record durability dependence, append/replay authority         | committed sibling shape              |
-| SRC-007 | design   | [`plan-intake.md`](./plan-intake.md)                                                                                                                                                                        | plan admission delegation and policy/evidence shape bootstrap consumes                                 | committed sibling shape              |
-| SRC-008 | design   | [`authorization.md`](./authorization.md)                                                                                                                                                                    | Fence/Doorbell wiring seam and resume re-approval dependency                                           | committed sibling shape              |
-| SRC-009 | design   | [`orchestration.md`](./orchestration.md)                                                                                                                                                                    | post-bootstrap handoff target and unchanged lifecycle-state ownership                                  | cited only                           |
-| SRC-010 | source   | [../../product/guarantees.md](../../product/guarantees.md)                                                                                                                                                  | `RESUME-1..5`, `GUARD-1`, `CFG-9`, `ISO-4`, `SEE-1` product commitments                                | product source of truth              |
-
-### Required Planning Facts
-
-| ID            | Category                | Required content                                                                                                                                                                                                                                                                            | Source refs                                 |
-| ------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| CTX-001       | Context and boundary    | Bootstrap owns launch sequencing, `run.previewed`, provider wiring, storage preflight, launch binding, and the resume re-entry procedure; it composes sibling core parts and does not redesign their internals.                                                                             | SRC-001, SRC-002                            |
-| CTX-002       | Context and boundary    | Bootstrap reads the validated plan and bound policy inputs, constructs and wires the records store, wires the Fence/Doorbell with the bound policy, and hands off to orchestration once readiness is durable.                                                                               | SRC-001, SRC-006, SRC-007, SRC-008, SRC-009 |
-| CAND-BOOT-001 | Invariant and lifecycle | Candidate only: `binding-record-append-precedes-run-readiness`. Predicate operands: allocated run identity, bound launch references, successful binding-record append. Owning authority: bootstrap using the records store.                                                                 | SRC-006, SRC-010                            |
-| CAND-BOOT-002 | Invariant and lifecycle | Candidate only: `resume-re-entry-preserves-original-binding`. Predicate operands: existing run identity, prior binding record, same plan/policy/work-profile/repo-floor references on resume. Owning authority: bootstrap resume re-entry.                                                  | SRC-003, SRC-004, SRC-006, SRC-010          |
-| SURF-001      | API and surface         | `PlanValidator` is the intake surface bootstrap consumes for load/validate/admit-or-reject. Producer authority: [`plan-intake.md`](./plan-intake.md). Consumer: bootstrap only. Exposure proof: design review against the committed sibling surface.                                        | SRC-007                                     |
-| SURF-002      | API and surface         | The records store is the bootstrap-facing surface for constructing run records and appending the binding record. Producer authority: [`records.md`](./records.md). Consumer: bootstrap. Exposure proof: design review against the committed sibling surface.                                | SRC-006                                     |
-| SURF-003      | API and surface         | The Fence/Doorbell wiring surface is composed at launch and resume with the bound policy. Producer authority: [`authorization.md`](./authorization.md). Consumer: bootstrap/orchestration. Exposure proof: design review against the committed sibling surface.                             | SRC-008                                     |
-| SURF-004      | API and surface         | Concrete provider implementations are imported only at bootstrap composition time through the already-settled Wave 3 provider-port boundaries. Producer authority: provider-side adapters behind Wave 3 ports. Consumer: bootstrap. Exposure proof: boundary review against Wave 3 framing. | SRC-005                                     |
-| FAIL-001      | Failure                 | Invalid or incompatible plan submission stops before run allocation and produces no run. Recovery authority: plan owner must resubmit a valid plan.                                                                                                                                         | SRC-007, SRC-010                            |
-| FAIL-002      | Failure                 | Storage-preflight failure stops start or resume before orchestration handoff; bootstrap must fail closed with a diagnosable stop. Recovery authority: bootstrap/operator after storage issue resolution.                                                                                    | SRC-001, SRC-006, SRC-010                   |
-| FAIL-003      | Failure                 | Binding-record append failure stops before run readiness; bootstrap may not treat in-memory binding as sufficient evidence. Recovery authority: bootstrap/operator after records-store issue resolution.                                                                                    | SRC-006, SRC-010                            |
-| FAIL-004      | Failure                 | Resume-integrity failure stops instead of rebinding or replaying irreversible effects when bootstrap cannot prove continuity from durable evidence. Recovery authority: bootstrap plus owner/authority surfaces as needed.                                                                  | SRC-004, SRC-006, SRC-008, SRC-010          |
-| OBS-001       | Observability           | `run.previewed` is a producer-owned bootstrap audit event for the non-committing preview path. Emission authority: bootstrap.                                                                                                                                                               | SRC-001, SRC-010                            |
-| OBS-002       | Observability           | The binding record is the durable proof that run identity was bound to specific launch inputs before orchestration starts. Emission authority: records store append invoked by bootstrap.                                                                                                   | SRC-006, SRC-010                            |
-| OBS-003       | Observability           | Resume depends on existing durable checkpoint evidence and prior binding evidence rather than in-memory reconstruction. Producer authority: records store and prior lifecycle records.                                                                                                      | SRC-004, SRC-006                            |
-| ENF-001       | Enforcement             | Manual-only review gate: bootstrap must preserve the records-store construction seam and Fence/Doorbell wiring seam exactly as committed sibling shapes, not re-specify them locally. Proof substrate: documentation review.                                                                | SRC-002, SRC-006, SRC-008                   |
-| ENF-002       | Enforcement             | Manual-only review gate: bootstrap must not introduce new Wave 2 lifecycle states or redesign sibling ownership boundaries. Proof substrate: documentation review against prior-wave sources.                                                                                               | SRC-003, SRC-004, SRC-005                   |
-| DEL-001       | Delivery planning       | Candidate story area: fresh-start bootstrap path covering load/validate, launch binding, provider wiring, storage preflight, binding-record append, and orchestration handoff. Must preserve CTX-001, CTX-002, CAND-BOOT-001, SURF-001..004, FAIL-001..003, OBS-001..002.                   | SRC-001, SRC-002                            |
-| DEL-002       | Delivery planning       | Candidate story area: resume re-entry path covering binding preservation, re-wiring, re-preflight, and no-double-effect handoff at the last safe checkpoint. Must preserve CAND-BOOT-002, FAIL-004, OBS-003, and Wave 2 ownership boundaries.                                               | SRC-001, SRC-004, SRC-008                   |
-
-### Sequencing, Contention, Validation, and Stops
-
-| ID       | Category                  | Required content                                                                                                                                                                                                 | Source refs                                |
-| -------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| SEQ-001  | Sequencing and dependency | Fresh-start bootstrap work must preserve the order load/validate -> bind -> resolve -> wire -> preflight -> allocate -> append binding record -> handoff; readiness comes only after durable append.             | DEL-001, CAND-BOOT-001, SURF-001, SURF-002 |
-| SEQ-002  | Sequencing and dependency | Resume work depends on existing durable run evidence and comes after the fresh-start binding model exists; resume re-entry re-validates and re-wires before orchestration continues at the last safe checkpoint. | DEL-002, CAND-BOOT-002, OBS-003            |
-| FILE-001 | File contention           | Single durable design target for this story area: `docs/design/core/bootstrap.md`; sibling docs are cited input surfaces and should not be edited to implement bootstrap-owned behavior.                         | SRC-001, SRC-002                           |
-| VAL-001  | Validation                | `pnpm check` plus documentation review that `SURF-001..004` and `ENF-001..002` still match the committed sibling and prior-wave sources. Evidence class: markdown validation and review gate.                    | ENF-001, ENF-002                           |
-| STOP-001 | Stop condition            | Stop if implementation/design work would need to redesign records shape, policy content, authorization rules, Wave 2 lifecycle states, or provider implementations rather than bootstrap sequencing/composition. | CTX-001, CTX-002, SRC-002                  |
-
-## Pre-authoring Approval Record
-
-| Input             | Approval evidence                                                                                                                                                                                                                                                                      | Status   |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| InputResolution   | [wave-4a-core/frames/w4-s4-bootstrap-composition-root.md](../../archive/planning/design-track/waves/wave-4a-core/frames/w4-s4-bootstrap-composition-root.md) plus [wave-4a-core/decisions.md](../../archive/planning/design-track/waves/wave-4a-core/decisions.md) D-002, D-004, D-005 | approved |
-| AgreedSystemModel | same frame's `AgreedSystemModel`, with depth/mode resolution confirmed by D-002                                                                                                                                                                                                        | approved |
-| DocStructurePlan  | coordinator approval for deepening this file in place only                                                                                                                                                                                                                             | approved |
-
-## Source and Context Audit
-
-| Source                                                                                                                                                                                                      | Used for                                                                 | Notes                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------ |
-| [wave-4a-core/frames/w4-s4-bootstrap-composition-root.md](../../archive/planning/design-track/waves/wave-4a-core/frames/w4-s4-bootstrap-composition-root.md)                                                | bootstrap ownership, seams, resume territory, mode/depth                 | primary agreed system-model source                     |
-| [wave-4a-core/decisions.md](../../archive/planning/design-track/waves/wave-4a-core/decisions.md)                                                                                                            | accepted depth, cross-part seam wording, invariant-candidate handling    | D-002, D-004, D-005 are load-bearing                   |
-| [wave-1-domain/frame.md](../../archive/planning/design-track/waves/wave-1-domain/frame.md)                                                                                                                  | launch binding of plan/policy/work-profile/repo floors                   | cited, not reopened                                    |
-| [wave-2-state-machines/frame.md](../../archive/planning/design-track/waves/wave-2-state-machines/frame.md) and [decisions.md](../../archive/planning/design-track/waves/wave-2-state-machines/decisions.md) | run-lifecycle resume view and Wave 2 D-003 deferral                      | bootstrap owns procedure, not states                   |
-| [wave-3-ports/frame.md](../../archive/planning/design-track/waves/wave-3-ports/frame.md)                                                                                                                    | composition-root/provider-wiring boundary                                | bootstrap is sole importer of provider implementations |
-| [`records.md`](./records.md)                                                                                                                                                                                | records-store construction seam and binding-record durability dependence | cited sibling shape only                               |
-| [`plan-intake.md`](./plan-intake.md)                                                                                                                                                                        | plan admission and policy shape delegation                               | cited sibling shape only                               |
-| [`authorization.md`](./authorization.md)                                                                                                                                                                    | Fence/Doorbell wiring seam and resume re-approval dependency             | cited sibling shape only                               |
-| [`orchestration.md`](./orchestration.md)                                                                                                                                                                    | post-bootstrap handoff target                                            | cited only                                             |
-| [../../product/guarantees.md](../../product/guarantees.md)                                                                                                                                                  | RESUME-1..5, GUARD-1, CFG-9, ISO-4, SEE-1                                | product commitments this doc reconciles to             |
-
-## Assumptions and Blockers
-
-### Safe Assumptions
-
-- `bootstrap.md` remains the only durable design file for this story.
-- Bootstrap composes committed sibling shapes from [`records.md`](./records.md),
-  [`plan-intake.md`](./plan-intake.md), and [`authorization.md`](./authorization.md) without
-  restating their internals as bootstrap-owned rules.
-- Resume re-entry returns control to the last safe checkpoint already defined by Wave 2's
-  lifecycle view; this doc does not define a new state to represent that checkpoint.
-
-### Blocking Questions
-
-- None for authoring at this altitude.
+without committing to a run identity.
 
 ## Owns
 
@@ -145,13 +33,6 @@ mechanics Wave 2 deferred here by name.
   the one place that imports provider implementations.
 - Wires the Fence/Doorbell with the bound policy at launch and on resume; the classifier rules stay
   in [`authorization.md`](./authorization.md).
-
-**Phase 5 realization ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).** The
-composition root selects each of the four adapters from `config.drivers`, defaulting to the reference
-adapters (reference agent = the scripted worker, so the default wiring reproduces the Phase 0–4 dry-run
-and its goldens exactly); an unknown driver name fails closed with usage guidance rather than falling
-back silently. The runner, Fence, and records never import an adapter — only this composition root
-does.
 
 ```mermaid
 %%{init: {
@@ -215,22 +96,22 @@ write binding record**`")
 
 ## Context Map
 
-| Context                      | Owns                                                                                               | Reads                                                                                                                              | Does Not Own                                                                                           |
-| ---------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Bootstrap / composition root | launch sequencing, `run.previewed`, binding, provider wiring, preflight, resume re-entry procedure | validated plan, bound policy inputs, records-store construction contract, Fence/Doorbell wiring contract, Wave 2 resume checkpoint | records engine internals, policy content, authorization rules, Wave 2 states, provider implementations |
-| Storage preflight            | bootstrap-owned checks that storage can support start/resume safely and diagnosably                | storage capability exposed through the configured records store                                                                    | records consistency model, event shape, storage engine design                                          |
-| Resume re-entry              | re-entry sequencing and idempotency over an already allocated run                                  | existing binding record, latest safe checkpoint, bound policy, configured provider implementations                                 | whether resume is approved, lifecycle-state design, provider-internal recovery behavior                |
+| Context                      | Owns                                                                                               | Reads                                                                                                                                 | Does Not Own                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Bootstrap / composition root | launch sequencing, `run.previewed`, binding, provider wiring, preflight, resume re-entry procedure | validated plan, bound policy inputs, records-store construction contract, Fence/Doorbell wiring contract, last safe resume checkpoint | records engine internals, policy content, authorization rules, run/work-item lifecycle states, provider implementations |
+| Storage preflight            | bootstrap-owned checks that storage can support start/resume safely and diagnosably                | storage capability exposed through the configured records store                                                                       | records consistency model, event shape, storage engine design                                                           |
+| Resume re-entry              | re-entry sequencing and idempotency over an already allocated run                                  | existing binding record, latest safe checkpoint, bound policy, configured provider implementations                                    | whether resume is approved, lifecycle-state design, provider-internal recovery behavior                                 |
 
 ## Ubiquitous Language
 
-| Term                 | Meaning                                                                                                                            | Owner                                     |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Preview              | The recorded-but-non-committing bootstrap path that validates and binds but does not create a run.                                 | Bootstrap                                 |
-| Launch binding       | The policy, work-profile, plan, and repo-floor references fixed for a run's lifetime.                                              | Bootstrap, citing Wave 1                  |
-| Binding record       | The first durable run record that ties run identity to the launch binding.                                                         | Records store, appended by Bootstrap      |
-| Storage preflight    | Bootstrap's fail-closed check that the configured records substrate can safely support start or resume.                            | Bootstrap                                 |
-| Resume re-entry      | Re-entering bootstrap for an already allocated run to re-validate binding, re-wire providers, and re-check storage before handoff. | Bootstrap                                 |
-| Last safe checkpoint | The previously recorded run point from which orchestration may continue without re-performing irreversible actions.                | Wave 2 lifecycle view, cited by Bootstrap |
+| Term                 | Meaning                                                                                                                            | Owner                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Preview              | The recorded-but-non-committing bootstrap path that validates and binds but does not create a run.                                 | Bootstrap                                                    |
+| Launch binding       | The policy, work-profile, plan, and repo-floor references fixed for a run's lifetime.                                              | Bootstrap                                                    |
+| Binding record       | The first durable run record that ties run identity to the launch binding.                                                         | Records store, appended by Bootstrap                         |
+| Storage preflight    | Bootstrap's fail-closed check that the configured records substrate can safely support start or resume.                            | Bootstrap                                                    |
+| Resume re-entry      | Re-entering bootstrap for an already allocated run to re-validate binding, re-wire providers, and re-check storage before handoff. | Bootstrap                                                    |
+| Last safe checkpoint | The previously recorded run point from which orchestration may continue without re-performing irreversible actions.                | [`orchestration.md`](./orchestration.md), cited by Bootstrap |
 
 ## Commands and Use Cases
 
@@ -242,8 +123,7 @@ write binding record**`")
 
 ## Launch Sequence
 
-The preserved flowchart remains correct. The authored sequence below makes each step explicit and
-names where sibling surfaces are composed.
+The sequence below makes each step explicit and names where sibling surfaces are composed.
 
 1. **Load and validate the submitted plan.**
    Bootstrap delegates admission to [`plan-intake.md`](./plan-intake.md). Unknown, malformed, or
@@ -305,12 +185,18 @@ orchestration resumes work.
 
 ### Provider boundary
 
-Bootstrap is the sole importer of concrete provider implementations against Wave 3's provider-port
-shapes. That ownership is limited to selection and composition sequence:
+Bootstrap is the sole importer of concrete provider implementations against the settled
+provider-port shapes. That ownership is limited to selection and composition sequence:
 
 - select implementations compatible with the bound track/work-profile context;
 - pass them only through the settled provider-port boundaries;
 - keep implementation-specific recovery or attestation logic on the provider side of the port.
+
+The composition root selects each of the four adapters from `config.drivers`, defaulting to the
+reference adapters (reference agent = the scripted worker, so the default wiring reproduces the
+Phase 0–4 dry-run and its goldens exactly); an unknown driver name fails closed with usage guidance
+rather than falling back silently. The runner, Fence, and records never import an adapter — only
+this composition root does ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).
 
 ## Storage Preflight
 
@@ -342,7 +228,7 @@ doing so would undercut RESUME-4's diagnosable-stop contract.
 
 ## Launch Binding
 
-Bootstrap is the concrete owner of performing the launch binding Wave 1 named and GUARD-1 requires.
+Bootstrap is the concrete owner of performing the launch binding GUARD-1 requires.
 
 - The binding includes the admitted plan reference plus the policy, work-profile, and repo-floor
   references the run is allowed to operate under.
@@ -355,8 +241,9 @@ Bootstrap is the concrete owner of performing the launch binding Wave 1 named an
 
 ## Resume Re-entry Procedure
 
-Wave 2 owns the lifecycle rule that a stopped run resumes from a last safe checkpoint. This doc
-authors the internal bootstrap procedure that makes that lifecycle rule safe and inspectable.
+The run lifecycle ([`orchestration.md`](./orchestration.md)) establishes that a stopped run resumes
+from a last safe checkpoint. This section authors the internal bootstrap procedure that makes that
+rule safe and inspectable.
 
 ### Entry condition
 
@@ -465,7 +352,7 @@ wire **real** agent/host drivers without changing its ownership or a port surfac
 ### Phase 9 records-integrity + driver-selection binding (ADR 0025)
 
 [ADR 0025](../decisions/0025-phase-9-records-integrity.md) makes the launch header and snapshots
-tamper-evident and binds the launch driver selection, without changing this procedure's ownership or a
+tamper-evident and binds the launch driver selection, without changing this procedure's ownership or
 freezing a record shape:
 
 - **Integrity materialized at launch and maintained under the append path.** Alongside the Phase-4
@@ -481,7 +368,7 @@ freezing a record shape:
   serialized; its absence where integrity is expected is a diagnosable stop, not a silent skip.
 - **Driver-selection binding — additive header field, verification-only.** Today the launch binding records
   only `mode`/`recordDir` in `configRef` and persists **no driver snapshot**, so the launch driver
-  selection is unbound on resume (T8 bound only the work-source leg). Bootstrap now records the resolved
+  selection is unbound on resume. Bootstrap now records the resolved
   `agent`/`executionHost`/`forge`/`workSource` names as an additive `binding.drivers` sub-field of the
   `run.started` launch header, following the `binding.workspace` precedent. On resume it is verified
   **verification-only** against the selection resume would use — a mismatch fails closed (binding-mismatch
@@ -502,7 +389,7 @@ freezing a record shape:
 | RESUME-3 no-double-effect                   | resume reads prior durable effects and never replays irreversible actions just because composition restarted | [../../product/guarantees.md](../../product/guarantees.md) |
 | RESUME-4 fail closed and diagnosable        | storage-preflight failures stop start/resume with explicit cause                                             | [../../product/guarantees.md](../../product/guarantees.md) |
 | SEE-1 run identity and visibility binding   | start requires durable binding record before handoff                                                         | [../../product/guarantees.md](../../product/guarantees.md) |
-| Wave 2 states stay closed                   | bootstrap hands off into existing lifecycle states; it does not mint a new resume sub-state                  | Wave 2 frame and D-003                                     |
+| Run/work-item lifecycle states stay closed  | bootstrap hands off into existing lifecycle states; it does not mint a new resume sub-state                  | [`orchestration.md`](./orchestration.md)                   |
 
 ## Data, Query, and Consistency Posture
 
@@ -554,7 +441,7 @@ and review must preserve.
 ## Open Questions
 
 - How provider implementations prove they have re-established their own internal safe posture after
-  interruption remains provider-wave work, not bootstrap-owned design.
+  interruption remains work for the provider seams, not bootstrap-owned design.
 - The exact threshold or mechanism by which authorization evidence becomes "fresh enough" for
   resume remains owned by the policy and authority surfaces, not by bootstrap.
 
@@ -599,3 +486,57 @@ ledger.
 - `ISO-4`
 - `SEE-1`
 - `INV-003` (cited existing ledger entry only)
+
+## Appendix - authoring provenance
+
+This appendix preserves the traceability record this doc was authored from: the planning-track
+sources, the planning-contract fact ledger, and the sequencing/validation gates that governed the
+authoring pass. It carries no design content beyond what is already stated above; it exists so the
+provenance is not lost, not as a second reading path into the design.
+
+### Source and product references
+
+| ID      | Type     | Reference                                                                                                                                                                                                   | Used for                                                                                               | Notes                                |
+| ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| SRC-001 | design   | [wave-4a-core/frames/w4-s4-bootstrap-composition-root.md](../../archive/planning/design-track/waves/wave-4a-core/frames/w4-s4-bootstrap-composition-root.md)                                                | approved `InputResolution`, `AgreedSystemModel`, bootstrap scope, seams, and resume-re-entry ownership | primary source                       |
+| SRC-002 | decision | [wave-4a-core/decisions.md](../../archive/planning/design-track/waves/wave-4a-core/decisions.md)                                                                                                            | accepted depth/mode, seam wording, candidate-only invariant handling                                   | D-002, D-004, D-005                  |
+| SRC-003 | design   | [wave-1-domain/frame.md](../../archive/planning/design-track/waves/wave-1-domain/frame.md)                                                                                                                  | launch binding of plan, policy, work-profile, and repo floors                                          | cited, not reopened                  |
+| SRC-004 | design   | [wave-2-state-machines/frame.md](../../archive/planning/design-track/waves/wave-2-state-machines/frame.md) and [decisions.md](../../archive/planning/design-track/waves/wave-2-state-machines/decisions.md) | run-lifecycle resume view and last-safe-checkpoint semantics                                           | bootstrap owns procedure, not states |
+| SRC-005 | design   | [wave-3-ports/frame.md](../../archive/planning/design-track/waves/wave-3-ports/frame.md)                                                                                                                    | composition-root/provider-wiring boundary and sole-importer role                                       | cited, not reopened                  |
+| SRC-006 | design   | [`records.md`](./records.md)                                                                                                                                                                                | records-store construction seam, binding-record durability dependence, append/replay authority         | committed sibling shape              |
+| SRC-007 | design   | [`plan-intake.md`](./plan-intake.md)                                                                                                                                                                        | plan admission delegation and policy/evidence shape bootstrap consumes                                 | committed sibling shape              |
+| SRC-008 | design   | [`authorization.md`](./authorization.md)                                                                                                                                                                    | Fence/Doorbell wiring seam and resume re-approval dependency                                           | committed sibling shape              |
+| SRC-009 | design   | [`orchestration.md`](./orchestration.md)                                                                                                                                                                    | post-bootstrap handoff target and unchanged lifecycle-state ownership                                  | cited only                           |
+| SRC-010 | source   | [../../product/guarantees.md](../../product/guarantees.md)                                                                                                                                                  | `RESUME-1..5`, `GUARD-1`, `CFG-9`, `ISO-4`, `SEE-1` product commitments                                | product source of truth              |
+
+### Planning-contract fact ledger
+
+| ID            | Category                | Required content                                                                                                                                                                                                                                                                  | Source refs                                 |
+| ------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| CTX-001       | Context and boundary    | Bootstrap owns launch sequencing, `run.previewed`, provider wiring, storage preflight, launch binding, and the resume re-entry procedure; it composes sibling core parts and does not redesign their internals.                                                                   | SRC-001, SRC-002                            |
+| CTX-002       | Context and boundary    | Bootstrap reads the validated plan and bound policy inputs, constructs and wires the records store, wires the Fence/Doorbell with the bound policy, and hands off to orchestration once readiness is durable.                                                                     | SRC-001, SRC-006, SRC-007, SRC-008, SRC-009 |
+| CAND-BOOT-001 | Invariant and lifecycle | Candidate only: `binding-record-append-precedes-run-readiness`. Predicate operands: allocated run identity, bound launch references, successful binding-record append. Owning authority: bootstrap using the records store.                                                       | SRC-006, SRC-010                            |
+| CAND-BOOT-002 | Invariant and lifecycle | Candidate only: `resume-re-entry-preserves-original-binding`. Predicate operands: existing run identity, prior binding record, same plan/policy/work-profile/repo-floor references on resume. Owning authority: bootstrap resume re-entry.                                        | SRC-003, SRC-004, SRC-006, SRC-010          |
+| SURF-001      | API and surface         | `PlanValidator` is the intake surface bootstrap consumes for load/validate/admit-or-reject. Producer authority: [`plan-intake.md`](./plan-intake.md). Consumer: bootstrap only. Exposure proof: design review against the committed sibling surface.                              | SRC-007                                     |
+| SURF-002      | API and surface         | The records store is the bootstrap-facing surface for constructing run records and appending the binding record. Producer authority: [`records.md`](./records.md). Consumer: bootstrap. Exposure proof: design review against the committed sibling surface.                      | SRC-006                                     |
+| SURF-003      | API and surface         | The Fence/Doorbell wiring surface is composed at launch and resume with the bound policy. Producer authority: [`authorization.md`](./authorization.md). Consumer: bootstrap/orchestration. Exposure proof: design review against the committed sibling surface.                   | SRC-008                                     |
+| SURF-004      | API and surface         | Concrete provider implementations are imported only at bootstrap composition time through the already-settled provider-port boundaries. Producer authority: provider-side adapters behind those ports. Consumer: bootstrap. Exposure proof: boundary review against that framing. | SRC-005                                     |
+| FAIL-001      | Failure                 | Invalid or incompatible plan submission stops before run allocation and produces no run. Recovery authority: plan owner must resubmit a valid plan.                                                                                                                               | SRC-007, SRC-010                            |
+| FAIL-002      | Failure                 | Storage-preflight failure stops start or resume before orchestration handoff; bootstrap must fail closed with a diagnosable stop. Recovery authority: bootstrap/operator after storage issue resolution.                                                                          | SRC-001, SRC-006, SRC-010                   |
+| FAIL-003      | Failure                 | Binding-record append failure stops before run readiness; bootstrap may not treat in-memory binding as sufficient evidence. Recovery authority: bootstrap/operator after records-store issue resolution.                                                                          | SRC-006, SRC-010                            |
+| FAIL-004      | Failure                 | Resume-integrity failure stops instead of rebinding or replaying irreversible effects when bootstrap cannot prove continuity from durable evidence. Recovery authority: bootstrap plus owner/authority surfaces as needed.                                                        | SRC-004, SRC-006, SRC-008, SRC-010          |
+| OBS-001       | Observability           | `run.previewed` is a producer-owned bootstrap audit event for the non-committing preview path. Emission authority: bootstrap.                                                                                                                                                     | SRC-001, SRC-010                            |
+| OBS-002       | Observability           | The binding record is the durable proof that run identity was bound to specific launch inputs before orchestration starts. Emission authority: records store append invoked by bootstrap.                                                                                         | SRC-006, SRC-010                            |
+| OBS-003       | Observability           | Resume depends on existing durable checkpoint evidence and prior binding evidence rather than in-memory reconstruction. Producer authority: records store and prior lifecycle records.                                                                                            | SRC-004, SRC-006                            |
+| ENF-001       | Enforcement             | Manual-only review gate: bootstrap must preserve the records-store construction seam and Fence/Doorbell wiring seam exactly as committed sibling shapes, not re-specify them locally. Proof substrate: documentation review.                                                      | SRC-002, SRC-006, SRC-008                   |
+| ENF-002       | Enforcement             | Manual-only review gate: bootstrap must not introduce new run/work-item lifecycle states or redesign sibling ownership boundaries. Proof substrate: documentation review against prior sources.                                                                                   | SRC-003, SRC-004, SRC-005                   |
+| DEL-001       | Delivery planning       | Candidate story area: fresh-start bootstrap path covering load/validate, launch binding, provider wiring, storage preflight, binding-record append, and orchestration handoff. Must preserve CTX-001, CTX-002, CAND-BOOT-001, SURF-001..004, FAIL-001..003, OBS-001..002.         | SRC-001, SRC-002                            |
+| DEL-002       | Delivery planning       | Candidate story area: resume re-entry path covering binding preservation, re-wiring, re-preflight, and no-double-effect handoff at the last safe checkpoint. Must preserve CAND-BOOT-002, FAIL-004, OBS-003, and the run/work-item lifecycle's ownership boundaries.              | SRC-001, SRC-004, SRC-008                   |
+
+| ID       | Category                  | Required content                                                                                                                                                                                                        | Source refs                                |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| SEQ-001  | Sequencing and dependency | Fresh-start bootstrap work must preserve the order load/validate -> bind -> resolve -> wire -> preflight -> allocate -> append binding record -> handoff; readiness comes only after durable append.                    | DEL-001, CAND-BOOT-001, SURF-001, SURF-002 |
+| SEQ-002  | Sequencing and dependency | Resume work depends on existing durable run evidence and comes after the fresh-start binding model exists; resume re-entry re-validates and re-wires before orchestration continues at the last safe checkpoint.        | DEL-002, CAND-BOOT-002, OBS-003            |
+| FILE-001 | File contention           | Single durable design target for this story area: `docs/design/core/bootstrap.md`; sibling docs are cited input surfaces and should not be edited to implement bootstrap-owned behavior.                                | SRC-001, SRC-002                           |
+| VAL-001  | Validation                | `pnpm check` plus documentation review that `SURF-001..004` and `ENF-001..002` still match the committed sibling and prior sources. Evidence class: markdown validation and review gate.                                | ENF-001, ENF-002                           |
+| STOP-001 | Stop condition            | Stop if implementation/design work would need to redesign records shape, policy content, authorization rules, run/work-item lifecycle states, or provider implementations rather than bootstrap sequencing/composition. | CTX-001, CTX-002, SRC-002                  |

@@ -23,19 +23,16 @@ rules.
 
 ## Scope and altitude
 
-This is a **domain model at strategic altitude** (`architecture_mode: system-entity-model`,
-`ddd_depth: strategic-only`, per this wave's frame at
-[`../../archive/planning/design-track/waves/wave-1-domain/frame.md`](../../archive/planning/design-track/waves/wave-1-domain/frame.md)).
-It names entities, their ownership, their relations, and the lifecycle _terms_ they carry. It
-authors **no state machine or transition table** — the work-item and run lifecycles as closed
-transitions are Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md). It
-authors **no field-level schema, TypeScript, or JSON Schema** — those are deferred per
-[`../README.md`](../README.md#deferred), and the execution-plan contract stays a v0 shape, not a
-frozen schema.
+This is a **domain model at strategic altitude**: it names entities, their ownership, their
+relations, and the lifecycle _terms_ they carry. It authors **no state machine or transition
+table** — the work-item and run lifecycles as closed transitions are owned by
+[`../core/orchestration.md`](../core/orchestration.md). It authors **no field-level schema,
+TypeScript, or JSON Schema** — those are deferred per [`../README.md`](../README.md#deferred), and
+the execution-plan contract stays a v0 shape, not a frozen schema.
 
-The Configuration & Work area is one of two Wave 1 domain areas. Its sibling, **Runtime &
-Observation** (Run, Evidence, Notice, Run records), is authored by `w1-s2`; where the boundary
-between the two areas matters, this doc points at `w1-s2` rather than reaching across it.
+Configuration & Work's sibling area is **Runtime & Observation** (Run, Evidence, Notice, Run
+records), authored in [`runtime-and-observation.md`](./runtime-and-observation.md); where the
+boundary between the two areas matters, this doc points there rather than reaching across it.
 
 ## Ownership altitude — jig owns the shape, the owner authors the content
 
@@ -64,13 +61,13 @@ This distinction is why the group-A "Configuration — you author, per track" pl
 a contradiction of this model. That placement records **authoring authority** — who fills in the
 values — not **domain ownership** of the type and its invariants. The two readings are
 consistent: the owner authors the instance; jig owns the shape and the invariants the instance
-must satisfy. This is the disposition recorded as `D-001` in this wave's
-[`decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md).
+must satisfy. This is recorded as disposition `D-001` in
+[the domain decision log](../../archive/planning/design-track/waves/wave-1-domain/decisions.md).
 
 ## The entities
 
-Each entity below states its **owns / reads / does-not-own**, deepening the corresponding
-group-A row in [`../core/README.md`](../core/README.md#a-configuration--the-owners-inputs-per-track)
+Each entity below states its **owns / reads / does-not-own**, deepening the corresponding group-A
+row in [`../core/README.md`](../core/README.md#a-configuration--the-owners-inputs-per-track)
 without re-litigating the product concepts it grounds.
 
 ### Track
@@ -106,12 +103,13 @@ upstream planning tool commits to the plan — not the runtime act of consuming 
   [`CFG-2`](../../product/guarantees.md#2-configuration-ownership),
   [`CFG-3`](../../product/guarantees.md#2-configuration-ownership)).
 - **Does not own:** the **parse / validate / reject-unknown-format act** on a submitted plan
-  instance — that boundary is runtime-side, named by `w1-s2` (re-projecting `CTX-001` from
+  instance — that boundary is runtime-side, named in
+  [`runtime-and-observation.md`](./runtime-and-observation.md) (continuing `CTX-001` from
   [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)) and enforced by
-  [`../core/plan-intake.md`](../core/plan-intake.md); this is the disposition `D-002`. It also
+  [`../core/plan-intake.md`](../core/plan-intake.md); this is disposition `D-002`. It also
   does not own whether declared evidence is _sufficient_ (Policy decides,
   [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)), the runtime state of any Work
-  item (Runtime & Observation / Wave 2), or how the plan was produced (upstream planning, optional
+  item (owned by Runtime & Observation), or how the plan was produced (upstream planning, optional
   per [`jig.md`](../../product/jig.md)).
 
 ### Work item (its authored facts)
@@ -127,14 +125,14 @@ a **story** (the same unit; the naming choice is recorded in
 - **Reads:** the Execution plan it belongs to.
 - **Does not own:** its own runtime state or outcome — `eligible`, `started`, `parked`, `done`,
   `landed`, `rejected`, `blocked` — and the state machine that drives those transitions, which
-  belong to Runtime & Observation / Wave 2 as a later phase of this same entity (see
+  belong to Runtime & Observation as a later phase of this same entity (see
   [`../core/orchestration.md`](../core/orchestration.md)); nor whether its declared evidence was
   actually met at runtime.
 
-**Wave 2 may later elevate the runtime facet to a distinct entity with recorded rationale, but
-Wave 1 does not split it.** For this wave, there is one Work item; its authored facts live here
-and its runtime state lives in Runtime & Observation, as two phases of one domain concept, not
-two entities.
+A later design pass may elevate the runtime facet to a distinct entity, but only with recorded
+rationale; this model does not split it. There is one Work item: its authored facts live here and
+its runtime state lives in Runtime & Observation, as two phases of one domain concept, not two
+entities.
 
 ### Policy
 
@@ -282,9 +280,9 @@ The relations in words:
 
 ## Lifecycle terms
 
-Per this wave's scope, this area records lifecycle _terms only_ — the vocabulary each entity
-carries — **not** transition tables. The closed transition tables for the Work-item and Run
-lifecycles are Wave 2's, owned by [`../core/orchestration.md`](../core/orchestration.md).
+This area records lifecycle _terms only_ — the vocabulary each entity carries — **not** transition
+tables. The closed transition tables for the Work-item and Run lifecycles are owned by
+[`../core/orchestration.md`](../core/orchestration.md).
 
 - **Work item terms** (unchanged from
   [`concepts.md`](../../product/concepts.md#story-and-run-outcomes) and
@@ -302,7 +300,7 @@ lifecycles are Wave 2's, owned by [`../core/orchestration.md`](../core/orchestra
 - **Execution plan term:** a submitted plan instance is either **accepted** or **rejected with a
   named reason** — a single boundary decision, not a multi-state lifecycle. This area owns only
   the plan _as authored artifact_; the accept/reject act itself is the plan-intake boundary owned
-  by `w1-s2` (`D-002`).
+  by [`runtime-and-observation.md`](./runtime-and-observation.md) (`D-002`).
 
 ## Reconciliation
 
@@ -325,15 +323,15 @@ any of the six commitments above.
 
 ## Open questions
 
-None from this session. (Stated explicitly per [`conventions.md`](../conventions.md#5-open-questions-ledger-convention-no-new-id-kind-carry-forward-through-the-existing-decision-log-mechanism).)
+None. (Per [`conventions.md`](../conventions.md#5-open-questions-ledger-convention-no-new-id-kind-carry-forward-through-the-existing-decision-log-mechanism).)
 
 ## Invariants
 
-This session adds **no new `INV-*` entry**. It names entities, ownership, and relations — not new
+This document adds **no new `INV-*` entry**. It names entities, ownership, and relations — not new
 runtime rules — so no new invariant is warranted. The `INV-*` ledger continues verbatim from
 [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) (`INV-001` through `INV-018`)
 with no renumbering, per [`conventions.md`](../conventions.md#1-the-inv--invariant-ledger-continues-as-one-running-list);
-the next available number, should a later wave add one, is **`INV-019`**.
+the next available number, should a later addition need one, is **`INV-019`**.
 
 Two existing invariants bound entities this area names, and this model stays consistent with them
 without owning their runtime enforcement:
@@ -341,17 +339,19 @@ without owning their runtime enforcement:
 - **`INV-003`** (policy fixed at launch) — carried here as Policy's "fixed at launch" lifecycle
   term; the runtime binding and immutability enforcement remain Runtime & Observation's.
 - **`INV-007`** (reject unknown plan formats) — grounds the Execution plan's version/compatibility
-  marker as an authored fact; the reject act itself is the plan-intake boundary owned by `w1-s2`.
+  marker as an authored fact; the reject act itself is the plan-intake boundary owned by
+  [`runtime-and-observation.md`](./runtime-and-observation.md).
 
 ## Risks and deferred decisions
 
 - **Deferred — Work item's runtime facet.** By `D-003`, Work item is one entity with two phases;
-  its runtime state lives in Runtime & Observation. Wave 2 may later elevate that facet to a
-  distinct entity, but only with recorded rationale; until then, treating the two phases as one
+  its runtime state lives in Runtime & Observation. A later design pass may elevate that facet to
+  a distinct entity, but only with recorded rationale; until then, treating the two phases as one
   entity is a deliberate choice, not an oversight.
 - **Deferred — plan-intake boundary placement.** By `D-002`, the parse/validate/reject act is
-  runtime-side (continuing `CTX-001`), not owned here. If a later wave finds the authored/validated
-  seam needs re-homing, that is its decision to record, not this area's to pre-empt.
+  runtime-side (continuing `CTX-001`), not owned here. If a later design pass finds the
+  authored/validated seam needs re-homing, that is its decision to record, not this area's to
+  pre-empt.
 - **Deferred — field-level schema.** The execution-plan contract stays a v0 shape; this area
   models the plan's authored _properties_, not field names, per
   [`../README.md`](../README.md#deferred). Minting field names from the v0 contract is explicitly
@@ -359,18 +359,7 @@ without owning their runtime enforcement:
 - **Risk — ownership-altitude drift.** The `D-001` distinction (jig owns shape; owner authors
   content) is subtle and could be misread over time as either "jig authors the owner's policy" or
   "these entities aren't jig's domain at all." Mitigation: the distinction is stated once,
-  explicitly, in "Ownership altitude" above and cited from each affected entity, so a future
-  editor sees it rather than re-deriving it.
-
-## Review evidence
-
-This domain model is authored for a full-weight `review-technical-design` pass against three
-lenses (architecture-enforceability, domain-correctness, agreement-integrity). The review report
-and its suggestion dispositions are recorded in
-[`../notes/wave-1-execution-review.md`](../notes/wave-1-execution-review.md). The Wave 1 planning
-[`decisions.md`](../../archive/planning/design-track/waves/wave-1-domain/decisions.md) remains the frame
-decision record for `D-001`..`D-003`; it is not the execution-review disposition log. Settled =
-zero open blocking suggestions.
+  explicitly, in "Ownership altitude" above and cited from each affected entity.
 
 ## Related
 
@@ -385,5 +374,5 @@ zero open blocking suggestions.
   v0 shape whose authored properties this doc models as the Execution plan entity (unfrozen).
 - [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md) — the continuing `INV-*` /
   `CTX-*` vocabulary.
-- `w1-s2` (Runtime & Observation) — the sibling Wave 1 area that owns Run, Evidence, Notice, Run
-  records, and the plan-intake validation boundary this doc points at.
+- [`runtime-and-observation.md`](./runtime-and-observation.md) — the sibling area that owns Run,
+  Evidence, Notice, Run records, and the plan-intake validation boundary this doc points at.

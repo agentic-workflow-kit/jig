@@ -16,26 +16,30 @@ The design is organised by one cut: **fixed logic vs. edge interfaces.**
 
 The scaffold is complete; the per-area detail is the work in progress. Legend: **overview** =
 agreed at this altitude, ready to read; **stub** = skeleton only (purpose, responsibilities,
-interface, one diagram) — the detailed design is pending; **draft** = deepened design doc at its
-current wave altitude; **contract v0** = an agreed v0 seam shape, not a frozen schema; **log /
-archive** = decision records and reference material.
+interface, one diagram) — the detailed design is pending; **draft** = a deepened design doc still
+open to hardening; **contract v0** = an agreed v0 seam shape, not a frozen schema; **roadmap** = a
+chronological, ADR-linked realization ledger, not the current design itself; **log / archive** =
+decision records and reference material.
 
-| Area                | Files                                                                                                                                                | Status      | Pending                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
-| Layer index         | `README.md`                                                                                                                                          | overview    | —                                                                     |
-| Design charter      | [`charter.md`](./charter.md)                                                                                                                         | overview    | —                                                                     |
-| Conventions         | [`conventions.md`](./conventions.md)                                                                                                                 | overview    | —                                                                     |
-| Core overview       | `core/README.md`                                                                                                                                     | overview    | —                                                                     |
-| Domain model        | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md), [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) | **draft**   | later hardening / downstream waves                                    |
-| Core lifecycle      | [`core/bootstrap.md`](./core/bootstrap.md), [`core/orchestration.md`](./core/orchestration.md)                                                       | **draft**   | later hardening / Wave 5 findings / implementation planning           |
-| Core authorization  | [`core/authorization.md`](./core/authorization.md)                                                                                                   | **draft**   | later hardening / conformance-policy detail / implementation planning |
-| Core data ports     | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass                       |
-| Contracts overview  | `contracts/README.md`                                                                                                                                | overview    | —                                                                     |
-| Data contracts      | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                         |
-| Driving / providers | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / EVRUN-full evidence gates                    |
-| Decisions           | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                           |
-| Evidence records    | `evidence/*`                                                                                                                                         | log         | grows as external-tool probes are committed                           |
-| Notes               | `notes/*`                                                                                                                                            | archive     | —                                                                     |
+| Area                                                      | Files                                                                                                                                                | Status      | Pending                                                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Layer index                                               | `README.md`                                                                                                                                          | overview    | —                                                                                                                       |
+| Design charter                                            | [`charter.md`](./charter.md)                                                                                                                         | overview    | —                                                                                                                       |
+| Conventions                                               | [`conventions.md`](./conventions.md)                                                                                                                 | overview    | —                                                                                                                       |
+| Glossary                                                  | [`glossary.md`](./glossary.md)                                                                                                                       | overview    | grows as new ubiquitous-language terms are named                                                                        |
+| Core overview                                             | `core/README.md`                                                                                                                                     | overview    | —                                                                                                                       |
+| Domain model (configuration + runtime/observation groups) | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md), [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) | **draft**   | later hardening / downstream waves; jig-core and the provider seams are specified in `core/` and `contracts/`, not here |
+| Core lifecycle                                            | [`core/bootstrap.md`](./core/bootstrap.md), [`core/orchestration.md`](./core/orchestration.md)                                                       | **draft**   | later hardening / Wave 5 findings / implementation planning                                                             |
+| Core authorization                                        | [`core/authorization.md`](./core/authorization.md)                                                                                                   | **draft**   | later hardening / conformance-policy detail / implementation planning                                                   |
+| Core data ports                                           | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass                                                                         |
+| Contracts overview                                        | `contracts/README.md`                                                                                                                                | overview    | —                                                                                                                       |
+| Data contracts                                            | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                                                                           |
+| Driving / providers                                       | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / EVRUN-full evidence gates                                                                      |
+| Provider realization roadmap                              | [`contracts/provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md)                                                           | roadmap     | grows as later provider-realization phases land                                                                         |
+| Security model                                            | [`security-model.md`](./security-model.md)                                                                                                           | **draft**   | grows as new controls are designed                                                                                      |
+| Decisions                                                 | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                                                                             |
+| Evidence records                                          | `evidence/*`                                                                                                                                         | log         | grows as external-tool probes are committed                                                                             |
+| Notes                                                     | `notes/*`                                                                                                                                            | archive     | —                                                                                                                       |
 
 A stub is deepened **in place**; new sub-files are added only if an area outgrows a single file
 (none are planned yet). Per-file `status:` frontmatter mirrors this table.
@@ -55,6 +59,29 @@ entity model, the structure diagram, and the bootstrap→core flow. Then the per
   (the fail-closed spine).
 - [`records.md`](./core/records.md) — the append-only event log, pure projections, and export.
 
+## [`domain/`](./domain/) — the deepened domain model (two of four entity groups)
+
+[`core/README.md`](./core/README.md) is the highest-altitude entry point to the whole system: a
+one-line-per-entity overview across all four responsibility groups, the structure and run-flow
+diagrams, and the one-paragraph spine. `domain/` deepens two of those four groups into a full
+**owns / reads / does-not-own** model, with Track-level and runtime-level relation diagrams and
+the lifecycle _terms_ each entity carries:
+
+- [`domain/configuration-and-work.md`](./domain/configuration-and-work.md) deepens group A
+  (Configuration — the owner's inputs, per track): Track, Execution plan, Work item (its
+  authored facts), Policy, Repo-level floors, and Work profile.
+- [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) deepens group D
+  (what you observe) plus the group-B Run records entity: Run, Evidence, Notice, Run records, and
+  the plan-intake validation boundary where an authored plan enters the runtime.
+
+The **"Domain model" status-table label above names this deepening, not full domain coverage**:
+jig-core's runner / fence / doorbell / capability-attestation group (group B, apart from Run
+records) and the four provider seams (group C) are specified in
+[`core/authorization.md`](./core/authorization.md), [`core/orchestration.md`](./core/orchestration.md),
+and [`contracts/providers.md`](./contracts/providers.md) — not in `domain/`. Read `core/README.md`
+first for the whole system at a glance, then follow into `domain/` for the two areas it deepens.
+For the vocabulary these entities share, see the [glossary](./glossary.md).
+
 ## [`contracts/`](./contracts/) — jig's edge interfaces
 
 Every interface at jig's boundary — what others call or implement — in three kinds. See the
@@ -68,7 +95,8 @@ Every interface at jig's boundary — what others call or implement — in three
   (output).
 - [`providers.md`](./contracts/providers.md) — the four swappable provider seams, provider
   extractability posture, conformance/testkit routing, and the Codex app-server adapter constraint
-  from ADR 0028.
+  from ADR 0028; the chronological Phase 5-8 ADR-realization history for those seams is split out
+  into [`provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md).
 
 ## [`decisions/`](./decisions/) — the decision log
 
@@ -97,6 +125,15 @@ records are inputs to decisions, not authority by themselves. See the
 Archival material, not the main reading path: the DDD intake frame, the reference-only
 workflow-kit reuse log, and the dense M5a runtime-design record. See the
 [notes index](./notes/README.md).
+
+## [`security-model.md`](./security-model.md) — the cross-cutting security view
+
+A single cut across the fence and fail-closed authorization, capability attestation / earned
+trust, the anti-gaming floor, no-phone-home / isolation, credential ownership (runner-only),
+redaction, and the conformance "self-report is not proof" stance — otherwise scattered across
+[`core/authorization.md`](./core/authorization.md), ADR 0026, and per-entity notes. It
+consolidates existing security design only; it cites the existing `SEC-*`, `FENCE-*`, `GUARD-*`,
+`EARN-*`, and `ISO-*` product commitments and introduces no new control.
 
 ## Product reconciliation
 
