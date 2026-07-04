@@ -106,13 +106,18 @@ function eventLines(eventsJsonl: string): string[] {
   return lines;
 }
 
-function computeEventLogChain(lines: string[]): { lineCount: number; chainHead: string } {
-  let previous = Buffer.alloc(0);
+function advanceEventLogChain(lines: string[], start = Buffer.alloc(0)): Buffer {
+  let previous = start;
   for (const line of lines) {
     previous = createHash('sha256')
       .update(Buffer.concat([previous, Buffer.from(line, 'utf8')]))
       .digest();
   }
+  return previous;
+}
+
+function computeEventLogChain(lines: string[]): { lineCount: number; chainHead: string } {
+  const previous = advanceEventLogChain(lines);
   return {
     lineCount: lines.length,
     chainHead: previous.toString('hex'),
@@ -136,7 +141,12 @@ function collectArtifacts(runDir: string, eventsJsonl: string): Record<string, I
     },
   };
 
-  for (const filename of ['plan.snapshot.json', 'policy.snapshot.json', 'attestation.snapshot.json']) {
+  for (const filename of [
+    'plan.snapshot.json',
+    'policy.snapshot.json',
+    'attestation.snapshot.json',
+    'substrate.manifest.json',
+  ]) {
     const path = join(runDir, filename);
     if (existsSync(path)) {
       artifacts[filename] = artifactDigest(path);
@@ -179,8 +189,88 @@ function signPayload(payload: IntegrityPayload, env: NodeJS.ProcessEnv = process
   return createHmac('sha256', key).update(stableStringify(payload)).digest('hex');
 }
 
+function payloadFromSidecar(sidecar: IntegritySidecar): IntegrityPayload {
+  const { hmac: _hmac, ...payload } = sidecar;
+  return payload;
+}
+
+function verifyExistingSidecarHmac(sidecar: IntegritySidecar, env: NodeJS.ProcessEnv): void {
+  const expectedHmac = signPayload(payloadFromSidecar(sidecar), env);
+  if (!safeCompareHex(sidecar.hmac, expectedHmac)) {
+    throw new RecordsIntegrityError('integrity-hmac-mismatch', `${INTEGRITY_FILE} HMAC does not verify`);
+  }
+}
+
+function readExistingSidecarForWrite(runDir: string): IntegritySidecar | null {
+  const path = join(runDir, INTEGRITY_FILE);
+  if (!existsSync(path)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as IntegritySidecar;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new RecordsIntegrityError('integrity-sidecar-unreadable', `${INTEGRITY_FILE} is unreadable: ${message}`);
+  }
+}
+
+function appendOnlyEventLog(existing: IntegritySidecar, lines: string[]): IntegrityPayload['eventLog'] {
+  const previousLineCount = existing.eventLog?.lineCount;
+  const previousChainHead = existing.eventLog?.chainHead;
+  if (
+    !Number.isInteger(previousLineCount) ||
+    previousLineCount < 0 ||
+    previousLineCount > lines.length ||
+    typeof previousChainHead !== 'string'
+  ) {
+    throw new RecordsIntegrityError('integrity-sidecar-unreadable', `${INTEGRITY_FILE} event-log state is invalid`);
+  }
+
+  const prefix = computeEventLogChain(lines.slice(0, previousLineCount));
+  if (prefix.chainHead !== previousChainHead) {
+    throw new RecordsIntegrityError(
+      'integrity-event-log-prefix-mismatch',
+      'events.jsonl prefix no longer matches the previous integrity chain head',
+    );
+  }
+
+  const chainHead = advanceEventLogChain(
+    lines.slice(previousLineCount),
+    Buffer.from(previousChainHead, 'hex'),
+  ).toString('hex');
+  return {
+    path: 'events.jsonl',
+    lineCount: lines.length,
+    chainHead,
+  };
+}
+
+function buildAppendPayload(
+  runDir: string,
+  existing: IntegritySidecar,
+  env: NodeJS.ProcessEnv = process.env,
+): IntegrityPayload {
+  verifyExistingSidecarHmac(existing, env);
+  const eventsJsonl = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+  const lines = eventLines(eventsJsonl);
+
+  return {
+    version: 1,
+    algorithms: {
+      artifactDigest: 'sha256',
+      eventLogChain: 'sha256(prev || line)',
+      hmac: 'hmac-sha256',
+    },
+    keyId: readKeyId(env),
+    artifacts: existing.artifacts,
+    eventLog: appendOnlyEventLog(existing, lines),
+  };
+}
+
 export function writeIntegritySidecar(runDir: string, env: NodeJS.ProcessEnv = process.env): IntegritySidecar {
-  const payload = buildPayload(runDir, env);
+  const existing = readExistingSidecarForWrite(runDir);
+  const payload = existing ? buildAppendPayload(runDir, existing, env) : buildPayload(runDir, env);
   const sidecar: IntegritySidecar = {
     ...payload,
     hmac: signPayload(payload, env),

@@ -3,8 +3,9 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test } from 'vitest';
-import { INTEGRITY_FILE, verifyIntegritySidecar } from '../src/integrity.js';
+import { INTEGRITY_FILE, RecordsIntegrityError, verifyIntegritySidecar } from '../src/integrity.js';
 import { RecordManager } from '../src/records.js';
+import { approveSubstrateManifest } from '../src/substrate.js';
 import type { ConfigDoc, Plan, PolicyDoc, RunEvent, RunRecord } from '../src/types.js';
 
 const cleanupDirs: string[] = [];
@@ -73,6 +74,25 @@ async function runWithConfig(
   };
 }
 
+function initializedIntegrityManager(): { manager: RecordManager; runDir: string } {
+  process.env.JIG_RECORDS_INTEGRITY_KEY = integrityKey;
+  const recordDir = tempRecordDir();
+  const manager = new RecordManager();
+  manager.init(
+    plan(),
+    config(recordDir, {
+      agent: 'scripted-stub',
+      executionHost: 'local',
+      forge: 'github',
+    }),
+    policy(),
+  );
+  manager.recordEvent({ family: 'run.started' });
+  const [runName] = readdirSync(recordDir);
+  assert.ok(runName);
+  return { manager, runDir: join(recordDir, runName) };
+}
+
 test('P9-AC-1: real-driver wiring materializes a sidecar and additive binding.drivers without serializing the key', async () => {
   process.env.JIG_RECORDS_INTEGRITY_KEY = integrityKey;
   process.env.JIG_RECORDS_INTEGRITY_KEY_ID = 'test-key-id';
@@ -139,6 +159,83 @@ test('P9-AC-1: edited snapshots and sidecars are detected by recompute-and-compa
   writeFileSync(sidecarPath, readFileSync(sidecarPath, 'utf8').replace(/"hmac": "[^"]+"/, '"hmac": "00"'));
   const tamperedSidecar = verifyIntegritySidecar(runDir, { expected: true });
   assert.strictEqual(tamperedSidecar.status, 'broken');
+});
+
+test('P9-AC-1: append maintenance does not rebaseline tampered launch artifacts', () => {
+  const { manager, runDir } = initializedIntegrityManager();
+
+  writeFileSync(join(runDir, 'policy.snapshot.json'), JSON.stringify({ policy: { id: 'tampered' } }, null, 2));
+  manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' });
+  const verification = verifyIntegritySidecar(runDir, { expected: true });
+
+  assert.strictEqual(verification.status, 'broken');
+  assert.ok(verification.status === 'broken' && verification.artifacts.includes('policy.snapshot.json'));
+});
+
+test('P9-AC-1: append maintenance refuses a tampered sidecar hmac', () => {
+  const { manager, runDir } = initializedIntegrityManager();
+  const sidecarPath = join(runDir, INTEGRITY_FILE);
+  writeFileSync(sidecarPath, readFileSync(sidecarPath, 'utf8').replace(/"hmac": "[^"]+"/, '"hmac": "00"'));
+
+  assert.throws(
+    () => manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' }),
+    (error: unknown) => error instanceof RecordsIntegrityError && error.code === 'integrity-hmac-mismatch',
+  );
+});
+
+test('P9-AC-1: append maintenance refuses an unreadable sidecar', () => {
+  const { manager, runDir } = initializedIntegrityManager();
+  writeFileSync(join(runDir, INTEGRITY_FILE), '{ not json');
+
+  assert.throws(
+    () => manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' }),
+    (error: unknown) => error instanceof RecordsIntegrityError && error.code === 'integrity-sidecar-unreadable',
+  );
+});
+
+test('P9-AC-1: append maintenance refuses tampered prior event-log bytes', () => {
+  const { manager, runDir } = initializedIntegrityManager();
+  const eventsPath = join(runDir, 'events.jsonl');
+  writeFileSync(eventsPath, readFileSync(eventsPath, 'utf8').replace('"run.started"', '"run.started.tampered"'));
+
+  assert.throws(
+    () => manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' }),
+    (error: unknown) => error instanceof RecordsIntegrityError && error.code === 'integrity-event-log-prefix-mismatch',
+  );
+});
+
+test('P9-AC-1: substrate manifest is protected when present', async () => {
+  process.env.JIG_RECORDS_INTEGRITY_KEY = integrityKey;
+  const recordDir = tempRecordDir();
+  const manager = new RecordManager({
+    substrateManifest: approveSubstrateManifest({
+      id: 'codex-local-real-driver',
+      runtimes: ['node'],
+      argv: [['codex', 'exec']],
+      credentials: ['CODEX_API_KEY'],
+      egress: [],
+    }),
+  });
+  manager.init(
+    plan(),
+    config(recordDir, {
+      agent: 'scripted-stub',
+      executionHost: 'local',
+      forge: 'github',
+    }),
+    policy(),
+  );
+  manager.recordEvent({ family: 'run.started' });
+  await manager.finalize('success');
+  const [runName] = readdirSync(recordDir);
+  assert.ok(runName);
+  const runDir = join(recordDir, runName);
+
+  writeFileSync(join(runDir, 'substrate.manifest.json'), JSON.stringify({ id: 'tampered' }, null, 2));
+  const verification = verifyIntegritySidecar(runDir, { expected: true });
+
+  assert.strictEqual(verification.status, 'broken');
+  assert.ok(verification.status === 'broken' && verification.artifacts.includes('substrate.manifest.json'));
 });
 
 test('P9-AC-1: malformed sidecar hmac is a diagnosable integrity break', async () => {
