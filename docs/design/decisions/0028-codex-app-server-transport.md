@@ -59,9 +59,11 @@ only if the app-server path regresses or becomes unavailable. MCP is not selecte
 agent transport because the captured evidence is for the Codex app-server protocol, not an MCP driver
 contract.
 
-The implementation may still re-check app-server version and method availability at startup. If the
-required app-server methods are unavailable, the adapter must fail closed rather than silently falling
-back to terminal scraping.
+The implementation must run a compatibility preflight before dispatching any Codex turn. That
+preflight verifies the Codex version posture and the required app-server methods/notifications for
+thread start/resume, turn lifecycle, approval relay, interrupt, and command item observation. If the
+required app-server surface is unavailable or unrecognized, the adapter must fail closed before
+dispatch rather than discovering drift mid-run or silently falling back to terminal scraping.
 
 ### 2. R3 resolves to a session-observable internal Codex seam
 
@@ -100,6 +102,12 @@ Required translation rules:
   not a public jig contract and must not be treated as a stable cross-host persistence API.
 - Turn starts must be serialized by jig's adapter unless later evidence proves safe overlap semantics.
   The adapter must not rely on an app-server busy signal from N1a.
+- Prompt-size and bounded-context limits must be checked before dispatch when the implementation can
+  know them; otherwise oversize or unbounded prompts must fail with a structured pre-dispatch error
+  until N1A-P13 supplies stronger transport-specific behavior.
+- Windows/Git Bash support for the owned app-server path is unsupported by default until N1A-P14
+  proves process-tree termination. On Windows, the adapter must fail closed with an explicit
+  unsupported-platform result instead of enabling owned app-server execution from the macOS evidence.
 
 ### 4. This ADR authorizes design direction, not implementation or contract freeze
 
@@ -119,7 +127,8 @@ continuing.
 - The real Codex adapter can expose live approval, interrupt, and resume correlation internally without
   widening `AgentPort` or leaking app-server protocol concerns into the runner.
 - Transport implementation carries explicit caveats: macOS/Codex 0.142.5 evidence, no Windows
-  process-tree proof, no managed-daemon proof, no explicit busy semantics, and limited cleanup proof.
+  process-tree proof, no prompt-size proof, no managed-daemon proof, no explicit busy semantics, and
+  limited cleanup proof. Windows support is gated off until P14 lands.
 - T14 v0 contract freeze remains gated on the transport implementation/evidence path and the other
   recorded gates. This ADR is an input to that freeze, not the freeze itself.
 
