@@ -216,8 +216,8 @@ the control, evidence, and recovery boundaries.
 - **DRIVE-1. Prove a driver before you trust it.** A new agent, execution host, forge, or work
   source earns its place by passing a conformance suite — including adversarial probes — not by
   assertion.
-- **DRIVE-2. Nothing escalates silently.** A provider package declares what it may do — which
-  runtimes, what network, which credentials — and you approve that manifest. A change to it
+- **DRIVE-2. Nothing escalates silently.** A provider authority manifest declares what it may do —
+  which runtimes, what network, which credentials — and you approve that manifest. A change to it
   requires fresh approval.
 - **DRIVE-3. Containment is reported honestly.** An execution host reports how strong its
   isolation actually is, and stronger-isolation powers unlock only when it is genuinely strong
@@ -261,4 +261,5 @@ records.
 
 - [Jig — the execution engine](./jig.md) — product overview, spine, workflow, boundaries.
 - [How you use Jig](./use-cases.md) — worked scenarios that make each guarantee concrete.
-- [Tracks](./concepts.md) — the track model that scopes policy, work profile, and execution.
+- [Product concepts](./concepts.md) — tracks, stories, runner/worker authority, SDK boundaries,
+  providers, and conformance.

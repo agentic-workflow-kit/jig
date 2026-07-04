@@ -19,8 +19,8 @@ design and delivery planning own how those promises are implemented and verified
 
 > **The product layer, at a glance.** This page is the hub. Two companion pages carry the
 > detail: **[the five guarantees](./guarantees.md)** (full, ID-bearing specification) and
-> **[how you use Jig](./use-cases.md)** (worked scenarios). [Tracks](./concepts.md) covers the
-> per-track concept the configuration story relies on.
+> **[how you use Jig](./use-cases.md)** (worked scenarios). [Product concepts](./concepts.md)
+> covers tracks, stories, runner/worker authority, SDK boundaries, providers, and conformance.
 
 ## Product Spine
 
@@ -123,7 +123,8 @@ see **[the five guarantees in detail](./guarantees.md)**.
    actions are not repeated, and one blocked story does not sink independent work.
    _([detail](./guarantees.md#3-resilience--never-lose-work-resume-safely))_
 4. **Runs against your stack** — agents, execution hosts, forges, and work sources sit behind
-   swappable seams, and weak drivers reduce autonomy rather than weakening guarantees.
+   swappable seams, custom compatible providers can plug in without forking Jig core, and weak
+   drivers reduce autonomy rather than weakening guarantees.
    _([detail](./guarantees.md#4-stack-portability))_
 5. **See everything** — every governed decision and outcome is visible through durable,
    structured records that owners and tools can inspect.
@@ -177,8 +178,9 @@ discovery, registration, install UX, and public API stability mechanics remain d
 
 The product promise behind `jig-testkit` is conformance, not packaging. Jig needs a reusable
 way to prove bundled and future providers before owners trust them: capability checks,
-declared authority, and adversarial probes that support [DRIVE-1](./guarantees.md#41-trusting-a-driver).
-Whether that surface remains internal-only or becomes a public package is still open.
+declared authority, and adversarial probes that support
+[DRIVE-1 and DRIVE-4](./guarantees.md#41-trusting-a-driver). Whether that surface remains
+internal-only or becomes a public package is still open.
 
 ### What Jig isn't (yet)
 
@@ -192,9 +194,10 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - **Operator-initiated.** A run starts because you start it; webhook and scheduler triggers come
   later.
 - **A tool you run, not a service you buy.** Jig is not a hosted, multi-tenant service in v1.
-- **EVRUN-full is still debt.** M7 exit evidence includes EVRUN-partial — a real work-source,
-  Forge, and records-integrity path with a scripted agent leg. That does not prove the full
-  Codex-driven agent leg, remote execution, no-phone-home behavior, or every transport edge.
+- **The full agent-driven real run is still debt.** Current evidence proves a real work-source,
+  Forge, and records-integrity path with a scripted agent leg. That scoped proof is
+  EVRUN-partial; EVRUN-full — the full Codex-driven agent leg — remains unproven, as do remote
+  execution, no-phone-home behavior, and every transport edge.
 - **No silent legacy coping.** Jig refuses configuration it doesn't understand, with guidance,
   rather than guessing at an outdated format.
 
@@ -221,8 +224,8 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
   skills, sibling suite tools, or policy/config templates beyond the first useful defaults?
 - How broad should first-class driver support be before stack portability feels credible?
 - Owner-authored compatible providers are product scope. What remains open is the public provider
-  ecosystem around them: published provider packages, discovery, registry or marketplace, support
-  policy, install UX, and public stability guarantees.
+  ecosystem around them: published distribution packages, discovery, registry or marketplace,
+  support policy, install UX, and public stability guarantees.
 - Whether `jig-testkit` becomes a public package, an internal-only conformance tool, or both
   remains open; the settled product promise is repeatable provider proof before trust.
 - Which throughput-oriented follow-up checks should become shipped product surfaces, and which
@@ -234,6 +237,7 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 
 - [The five guarantees (detail)](./guarantees.md) — full ID-bearing specification.
 - [How you use Jig](./use-cases.md) — worked scenarios for each guarantee.
-- [Tracks](./concepts.md) — the track model that scopes policy, work profile, and execution.
+- [Product concepts](./concepts.md) — tracks, stories, runner/worker authority, SDK boundaries,
+  providers, and conformance.
 - [Engineering design](../design/) — the implementation reference for how these product
   commitments are satisfied.

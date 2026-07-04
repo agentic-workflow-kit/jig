@@ -94,7 +94,8 @@ that boundary today; a future MCP surface is expected to use it too. Product doe
 public package or stable external API today, but it does promise that first-party consumers should
 not reach through Jig internals to get their work done.
 
-A **provider** is an implementation behind one of Jig's swappable seams: Agent, Execution Host,
+A **provider** — called a _driver_ in the guarantee detail when discussing a concrete trusted
+implementation — is an implementation behind one of Jig's swappable seams: Agent, Execution Host,
 Forge, or Work Source. A provider can be bundled with Jig, owner-authored, or arrive later, but the
 product promise is the same: it behaves as replaceable at the boundary, declares what authority it
 needs, and proves what it can safely do before Jig grants autonomy. Bundled providers should
