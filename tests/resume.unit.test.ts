@@ -804,6 +804,55 @@ test('P9-AC-2: changed basis resumes only after narrow owner re-approval evidenc
   assert.ok(events.find((event) => event.family === 'run.resumed'));
 });
 
+test('P9-AC-2: non-resumable changed-basis runs append no owner approval evidence', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun([
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    })[0] as RunEvent,
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+    },
+  ]);
+  const scriptedOutputPath = writeScriptedOutput();
+  const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+  let ownerAsked = false;
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        ownerDecisionSource: {
+          decide: async () => {
+            ownerAsked = true;
+            return 'approve';
+          },
+        },
+      }),
+    /Cannot resume a run that is not stopped at a safe checkpoint/,
+  );
+
+  assert.strictEqual(ownerAsked, false);
+  assert.strictEqual(readFileSync(join(runDir, 'events.jsonl'), 'utf8'), before);
+});
+
 test('P4-AC-4: resume refuses a defective projection before appending events', async () => {
   mkdirSync(runDir, { recursive: true });
   writeFileSync(join(runDir, 'plan.snapshot.json'), JSON.stringify(plan(), null, 2));

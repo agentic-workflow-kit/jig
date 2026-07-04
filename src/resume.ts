@@ -172,12 +172,12 @@ function verifyIntegrityPreflight(runDir: string, eventsJsonl: string): void {
   }
 }
 
-type WorkspaceContinuity =
+export type WorkspaceContinuity =
   | { status: 'continuous' }
   | { status: 'changed-basis'; message: string }
   | { status: 'mismatch'; message: string };
 
-function checkWorkspaceContinuity(projection: RunProjection): WorkspaceContinuity {
+export function checkWorkspaceContinuity(projection: RunProjection): WorkspaceContinuity {
   const current = captureWorkspaceFingerprint(process.cwd());
   if (
     ('kind' in current && current.kind === 'unavailable') ||
@@ -557,9 +557,9 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const workspaceContinuity = checkWorkspaceContinuity(projection);
   const launchSelection = launchDriverSelection(projection);
 
+  const resumePlan = buildResumePlan(projection, existingEvents);
   const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, options.redaction);
   await requireChangedBasisReapproval(workspaceContinuity, options, recordSink, projection);
-  const resumePlan = buildResumePlan(projection, existingEvents);
   const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },

@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createOwnerDecisionSource, run } from '../src/cli.js';
 import { writeIntegritySidecar } from '../src/integrity.js';
-import type { Plan, PolicyDoc, RunEvent, RunRecord } from '../src/types.js';
+import type {
+  GitWorkspaceFingerprint,
+  Plan,
+  PolicyDoc,
+  RunEvent,
+  RunRecord,
+  WorkspaceFingerprint,
+} from '../src/types.js';
 import { captureWorkspaceFingerprint } from '../src/workspace.js';
 
 // vitest's v8 coverage provider does not attribute coverage from execSync subprocesses
@@ -102,6 +109,12 @@ function stringifyJsonl(events: RunEvent[]): string {
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, JSON.stringify(value, null, 2));
+}
+
+function assertGitWorkspace(workspace: WorkspaceFingerprint): asserts workspace is GitWorkspaceFingerprint {
+  if (!('kind' in workspace) || workspace.kind !== 'git') {
+    assert.fail('changed-basis inspection test requires a git workspace');
+  }
 }
 
 function resumePlan(): Plan {
@@ -749,6 +762,53 @@ test('P9-AC-3: inspect surfaces integrity breaks while still rendering derivable
   assert.match(output, /Integrity Notices:/);
   assert.match(output, /integrity-artifact-mismatch:/);
   assert.match(output, /plan\.snapshot\.json/);
+});
+
+test('P9-AC-3: inspect surfaces integrity breaks even when projection fails', async () => {
+  const runDir = writeStoppedResumeRun();
+  addReferenceDriverBindingAndIntegrity(runDir);
+  const eventsPath = join(runDir, 'events.jsonl');
+  const lines = readFileSync(eventsPath, 'utf8').trimEnd().split('\n');
+  lines[1] = '{ not valid json';
+  writeFileSync(eventsPath, `${lines.join('\n')}\n`);
+
+  setArgv('inspect', runDir);
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+
+  const output = erroredLines();
+  assert.match(output, /Integrity Notice: integrity-artifact-mismatch:/);
+  assert.match(output, /events\.jsonl/);
+  assert.match(output, /Failed to inspect authoritative events\.jsonl: Malformed events\.jsonl line 2/);
+});
+
+test('P9-AC-3: inspect surfaces changed-basis missing re-approval', async () => {
+  const runDir = writeStoppedResumeRun();
+  process.chdir(originalCwd);
+  const eventsPath = join(runDir, 'events.jsonl');
+  const lines = readFileSync(eventsPath, 'utf8').trimEnd().split('\n');
+  const launch = JSON.parse(lines[0] ?? '{}') as RunEvent;
+  const workspace = captureWorkspaceFingerprint(originalCwd);
+  assertGitWorkspace(workspace);
+  lines[0] = JSON.stringify({
+    ...launch,
+    binding: {
+      ...launch.binding,
+      workspace: {
+        ...workspace,
+        changeSetHash: `${workspace.changeSetHash}-changed`,
+      },
+    },
+  });
+  writeFileSync(eventsPath, `${lines.join('\n')}\n`);
+  addReferenceDriverBindingAndIntegrity(runDir);
+
+  setArgv('inspect', runDir);
+  await run();
+
+  const output = loggedLines();
+  assert.match(output, /Diagnostics:/);
+  assert.match(output, /resume-blocked-missing-approval:/);
+  assert.match(output, /fresh owner approval is required before resume/);
 });
 
 test('P4-AC-1: resume succeeds from the launch snapshots and writes a resumed record', async () => {
