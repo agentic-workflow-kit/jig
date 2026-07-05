@@ -18,6 +18,15 @@ function matchesAnyPattern(path: string, patterns: string[]): boolean {
   return patterns.some((pattern) => globToRegex(pattern).test(path));
 }
 
+export function pathTouchesRuleGoverningSurface(path: string, policy: PolicyDoc): boolean {
+  const surfaces = policy.policy?.rules?.ruleGoverningSurfaces;
+  if (!Array.isArray(surfaces)) {
+    return false;
+  }
+
+  return matchesAnyPattern(path, surfaces);
+}
+
 function isDeclaredRequest(request: AuthorizationRequest, story: Story): boolean {
   return Array.isArray(story.authority?.requests) && story.authority.requests.includes(request.kind);
 }
@@ -27,12 +36,11 @@ function isRuleGoverningRequest(request: AuthorizationRequest, policy: PolicyDoc
     return true;
   }
 
-  const surfaces = policy.policy?.rules?.ruleGoverningSurfaces;
-  if (!Array.isArray(surfaces) || !Array.isArray(request.paths)) {
+  if (!Array.isArray(request.paths)) {
     return false;
   }
 
-  return request.paths.some((path) => matchesAnyPattern(path, surfaces));
+  return request.paths.some((path) => pathTouchesRuleGoverningSurface(path, policy));
 }
 
 function hasInvalidRequestPath(request: AuthorizationRequest): boolean {
@@ -144,6 +152,8 @@ export function authorizeRequest(
   policy: PolicyDoc,
   attestation?: CapabilityAttestation,
 ): AuthorizationDecision {
+  const gatingPosture = policy.policy?.rules?.gatingPosture ?? 'assisted';
+
   if (hasInvalidRequestPath(request)) {
     return {
       outcome: 'deny',
@@ -181,6 +191,13 @@ export function authorizeRequest(
       };
     }
 
+    if (gatingPosture === 'manual') {
+      return {
+        outcome: 'route',
+        basis: ['CFG-10:manual-review-required'],
+      };
+    }
+
     return {
       outcome: 'grant',
       basis: ['declared-request', 'in-scope', 'CFG-10:reversible'],
@@ -194,6 +211,13 @@ export function authorizeRequest(
         return {
           outcome: 'route',
           basis: [capabilityProofFailure],
+        };
+      }
+
+      if (gatingPosture === 'manual') {
+        return {
+          outcome: 'route',
+          basis: ['CFG-10:manual-review-required'],
         };
       }
 

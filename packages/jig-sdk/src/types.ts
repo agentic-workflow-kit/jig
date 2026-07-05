@@ -29,26 +29,102 @@ export interface PlanInstance {
 }
 
 export interface ConfigDoc {
+  version?: string;
   runner?: {
     recordDir?: string;
     mode?: string;
     [key: string]: unknown;
   };
   drivers?: unknown;
+  track?: {
+    id?: string;
+    workProfilePath?: string;
+    repoPolicyFloorsPath?: string;
+    workProfile?: WorkProfileDoc;
+    repoPolicyFloors?: RepoPolicyFloorsDoc;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface PolicyRules {
+  allowLocalDryRun?: boolean;
+  ruleGoverningSurfaces?: string[];
+  capabilityIsolation?: Record<string, 'none' | 'weak' | 'strong'>;
+  gatingPosture?: 'manual' | 'assisted';
+  mergeSpectrum?: 'push' | 'open-pr' | 'merge';
+  concurrencyCeiling?: number;
+  retryBudget?: number;
+  requiredReviews?: string[];
+  escalationRules?: {
+    pauseOnOwnerDecision?: 'required';
+    [key: string]: unknown;
+  };
+  blockResolution?: 'quarantine-replan' | 'continue-independent-work';
+  [key: string]: unknown;
+}
+
+export interface PolicyBasisDimension {
+  dimension: string;
+  followUp: string;
+}
+
+export interface PolicyBasis {
+  trackPolicyRef?: string;
+  repoPolicyFloorsRef?: string;
+  trackRef?: string;
+  tightenedByRepoFloors?: string[];
+  enforcedDimensions?: string[];
+  inertDimensions?: PolicyBasisDimension[];
   [key: string]: unknown;
 }
 
 export interface PolicyDoc {
+  version?: string;
   policy?: {
     id?: string;
-    rules?: {
-      allowLocalDryRun?: boolean;
-      ruleGoverningSurfaces?: string[];
+    rules?: PolicyRules;
+    basis?: PolicyBasis;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface WorkProfileDoc {
+  version?: string;
+  workProfile: {
+    id: string;
+    model: string;
+    effort: 'low' | 'medium' | 'high';
+    promptStrategy?: 'dynamic-per-task' | 'templated' | 'role-prompt';
+    roleRealization?: 'single-agent' | 'planner-executor' | 'reviewer-assisted';
+    setup?: {
+      command?: string;
+      freshnessCheck?: string;
       [key: string]: unknown;
     };
     [key: string]: unknown;
   };
   [key: string]: unknown;
+}
+
+export interface RepoPolicyFloorsDoc {
+  version?: string;
+  repoPolicyFloors: {
+    id: string;
+    rules?: PolicyRules;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface BoundOwnerConfiguration {
+  trackRef?: string;
+  policy: PolicyDoc;
+  effectivePolicy: PolicyDoc;
+  workProfile?: WorkProfileDoc;
+  repoPolicyFloors?: RepoPolicyFloorsDoc;
+  persistExtendedBindings: boolean;
 }
 
 export type AuthorizationOutcome = 'grant' | 'deny' | 'route';
@@ -57,6 +133,7 @@ export type AuthorizationBasis =
   | 'declared-request'
   | 'in-scope'
   | 'CFG-10:reversible'
+  | 'CFG-10:manual-review-required'
   | 'GUARD-2'
   | 'rule-governing-surface'
   | 'privileged-or-irreversible'
@@ -122,6 +199,9 @@ export interface RunBinding {
   policyRef: string;
   configRef: string;
   workspace: WorkspaceFingerprint;
+  trackRef?: string;
+  workProfileRef?: string;
+  repoPolicyFloorsRef?: string;
   drivers?: {
     agent: string;
     executionHost: string;
@@ -141,6 +221,9 @@ export interface PlanSnapshotRef {
 }
 
 export type PolicySnapshotRef = PlanSnapshotRef;
+export type WorkProfileSnapshotRef = PlanSnapshotRef;
+export type RepoPolicyFloorsSnapshotRef = PlanSnapshotRef;
+export type EffectivePolicySnapshotRef = PlanSnapshotRef;
 export type AttestationSnapshotRef = PlanSnapshotRef;
 export type SubstrateManifestRef = PlanSnapshotRef;
 
@@ -154,6 +237,9 @@ export interface RunEvent {
   posture?: RunPosture;
   planSnapshot?: PlanSnapshotRef;
   policySnapshot?: PolicySnapshotRef;
+  workProfileSnapshot?: WorkProfileSnapshotRef;
+  repoPolicyFloorsSnapshot?: RepoPolicyFloorsSnapshotRef;
+  effectivePolicySnapshot?: EffectivePolicySnapshotRef;
   attestationSnapshot?: AttestationSnapshotRef;
   substrateManifest?: SubstrateManifestRef;
   storyId?: string;
@@ -179,6 +265,9 @@ export interface RunRecord {
     posture?: RunPosture;
     planSnapshot?: PlanSnapshotRef;
     policySnapshot?: PolicySnapshotRef;
+    workProfileSnapshot?: WorkProfileSnapshotRef;
+    repoPolicyFloorsSnapshot?: RepoPolicyFloorsSnapshotRef;
+    effectivePolicySnapshot?: EffectivePolicySnapshotRef;
     attestationSnapshot?: AttestationSnapshotRef;
     substrateManifest?: SubstrateManifestRef;
   };
@@ -243,7 +332,7 @@ export interface Worker {
  * type-check without implementing the full class.
  */
 export interface RecordSink {
-  init(plan: Plan, config: ConfigDoc, policy: PolicyDoc): void;
+  init(plan: Plan, config: ConfigDoc, policy: PolicyDoc, ownerConfiguration?: BoundOwnerConfiguration): void;
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void;
   finalize(status: RunStatus): Promise<void>;
 }

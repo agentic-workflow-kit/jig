@@ -33,6 +33,7 @@ const config: ConfigDoc = {
 };
 
 const policy: PolicyDoc = {
+  version: 'policy-v0',
   policy: {
     id: 'policy-sdk-session',
     rules: {
@@ -113,6 +114,31 @@ test('preview returns the SDK operator projection', async () => {
     mode: undefined,
     stories: [{ id: 'STORY-1', title: 'SDK story' }],
   });
+});
+
+test('P06-AC-1: preview validates bound owner configuration when track artifacts are present', async () => {
+  const session = createJigSession();
+  const preview = await session.operator.preview({
+    planInstance,
+    config: {
+      ...config,
+      track: {
+        id: 'TRACK-P06',
+        workProfile: {
+          version: 'work-profile-v0',
+          workProfile: {
+            id: 'work-profile-p06',
+            model: 'gpt-5',
+            effort: 'high',
+          },
+        },
+      },
+    },
+    policy,
+  });
+
+  assert.strictEqual(preview.posture, 'run.previewed');
+  assert.strictEqual(preview.policyId, 'policy-sdk-session');
 });
 
 test('start writes a successful run and inspect replays authoritative events', async () => {
@@ -417,6 +443,15 @@ test('inspect falls back to legacy mode when only run.json exists', async () => 
   const inspection = await session.operator.inspect({ runDir });
   assert.strictEqual(inspection.kind, 'legacy');
   assert.strictEqual(inspection.runRecord.run.status, 'success');
+});
+
+test('inspect refuses an empty authoritative events stream instead of guessing at integrity bindings', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'empty-events-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), '');
+
+  await assert.rejects(() => session.operator.inspect({ runDir }), /Failed to inspect authoritative events\.jsonl/);
 });
 
 test('inspect falls back to legacy mode when authoritative events are missing launch metadata', async () => {

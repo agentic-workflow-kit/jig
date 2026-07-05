@@ -18,17 +18,20 @@ and file layout remain unfrozen until a contract owner approves schema freeze.
 The current fixture set includes the original Phase 1 fixture names plus the later multi-item,
 failure, invalid-plan, and golden-record examples needed by the shipped TypeScript harness:
 
-| Name or family                | Category                       | Purpose                                                            |
-| ----------------------------- | ------------------------------ | ------------------------------------------------------------------ |
-| `minimal-plan.json`           | local execution-plan fixture   | Smallest valid local plan shape used by the local runner.          |
-| `local-config.json`           | local config fixture           | Local-only runner configuration input for the terminal workflow.   |
-| `local-policy.json`           | simple local policy fixture    | Minimal policy posture for allowed local dry-run work.             |
-| `scripted-worker-output.json` | scripted-worker output fixture | Historical name for the scripted-worker result fixture family.     |
-| `scripted-worker-*.json`      | scripted-worker output fixture | Success, failure, and multi-story scripted worker result examples. |
-| `multi-item-plan-*.json`      | execution-plan fixtures        | Multi-story success and dependency-blocking scenarios.             |
-| `invalid-plan.json`           | invalid execution-plan fixture | CLI validation failure fixture.                                    |
-| `golden-run-record-*.json`    | golden run-record fixtures     | Normalized records asserted by integration tests.                  |
-| `local-run-record.json`       | local run-record fixture       | Historical name for inspectable local run-record examples.         |
+| Name or family                          | Category                       | Purpose                                                                   |
+| --------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `minimal-plan.json`                     | local execution-plan fixture   | Smallest valid local plan shape used by the local runner.                 |
+| `local-config.json`                     | local config fixture           | Local-only runner configuration input for the terminal workflow.          |
+| `local-config-owner-configuration.json` | owner-config fixture           | Track-scoped config that resolves a work profile plus repo-policy floors. |
+| `local-policy.json`                     | simple local policy fixture    | Minimal policy posture for allowed local dry-run work.                    |
+| `local-work-profile.json`               | work-profile fixture           | Realization artifact example bound alongside policy at launch.            |
+| `local-repo-policy-floors.json`         | repo-floor fixture             | Repo-scoped floor example merged into the effective policy basis.         |
+| `scripted-worker-output.json`           | scripted-worker output fixture | Historical name for the scripted-worker result fixture family.            |
+| `scripted-worker-*.json`                | scripted-worker output fixture | Success, failure, and multi-story scripted worker result examples.        |
+| `multi-item-plan-*.json`                | execution-plan fixtures        | Multi-story success and dependency-blocking scenarios.                    |
+| `invalid-plan.json`                     | invalid execution-plan fixture | CLI validation failure fixture.                                           |
+| `golden-run-record-*.json`              | golden run-record fixtures     | Normalized records asserted by integration tests.                         |
+| `local-run-record.json`                 | local run-record fixture       | Historical name for inspectable local run-record examples.                |
 
 JSON remains the default fixture extension because the current repo gate formats JSON already. A
 future implementation PR may add supporting `.log`, `.jsonl`, or directory-shaped fixtures when

@@ -7,7 +7,9 @@ status: active index
 
 Jig owns its full artifact chain in this repo. Documentation is organized by **altitude**:
 product owns intent and promises; design owns the engineering target for satisfying them. Historical
-planning, delivery, and review records are preserved under `archive/` for provenance.
+planning, delivery, and review records are preserved under `archive/` for provenance. The current
+runtime binds owner configuration at launch from four artifacts where configured: plan, policy,
+work profile, and repo-policy floors.
 
 | Area                     | Owns                                                                                                                      | Status            |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------- |

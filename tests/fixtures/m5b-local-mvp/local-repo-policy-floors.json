@@ -1,0 +1,13 @@
+{
+  "version": "repo-policy-floors-v0",
+  "repoPolicyFloors": {
+    "id": "repo-policy-floors-fixture",
+    "rules": {
+      "gatingPosture": "manual",
+      "mergeSpectrum": "open-pr",
+      "concurrencyCeiling": 1,
+      "blockResolution": "quarantine-replan",
+      "ruleGoverningSurfaces": [".github/**", "policies/**"]
+    }
+  }
+}

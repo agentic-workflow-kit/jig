@@ -12,24 +12,31 @@ import { type RedactionOptions, redactValue } from './redaction.js';
 import type { ApprovedSubstrateManifest } from './substrate.js';
 import type {
   AttestationSnapshotRef,
+  BoundOwnerConfiguration,
   ConfigDoc,
+  EffectivePolicySnapshotRef,
   Plan,
   PlanSnapshotRef,
   PolicyDoc,
   PolicySnapshotRef,
   RecordSink,
+  RepoPolicyFloorsSnapshotRef,
   RunBinding,
   RunEvent,
   RunPosture,
   RunRecord,
   RunStatus,
   SubstrateManifestRef,
+  WorkProfileSnapshotRef,
 } from './types.js';
 import { captureWorkspaceFingerprint } from './workspace.js';
 
 const ITEM_FAMILIES = ['story.done', 'story.blocked', 'story.failed', 'story.skipped'];
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
 const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
+const WORK_PROFILE_SNAPSHOT_FILE = 'work-profile.snapshot.json';
+const REPO_POLICY_FLOORS_SNAPSHOT_FILE = 'repo-policy-floors.snapshot.json';
+const EFFECTIVE_POLICY_SNAPSHOT_FILE = 'effective-policy.snapshot.json';
 const ATTESTATION_SNAPSHOT_FILE = 'attestation.snapshot.json';
 const SUBSTRATE_MANIFEST_FILE = 'substrate.manifest.json';
 const DEFAULT_RUN_POSTURE: RunPosture = {
@@ -41,6 +48,7 @@ export interface RecordManagerOptions {
   launchAttestation?: CapabilityAttestation;
   substrateManifest?: ApprovedSubstrateManifest;
   redaction?: RedactionOptions;
+  ownerConfiguration?: BoundOwnerConfiguration;
 }
 
 function describeConfigBinding(config: ConfigDoc): string {
@@ -60,6 +68,9 @@ export class RecordManager implements RecordSink {
   private posture: RunPosture;
   private planSnapshot: PlanSnapshotRef | null;
   private policySnapshot: PolicySnapshotRef | null;
+  private workProfileSnapshot: WorkProfileSnapshotRef | null;
+  private repoPolicyFloorsSnapshot: RepoPolicyFloorsSnapshotRef | null;
+  private effectivePolicySnapshot: EffectivePolicySnapshotRef | null;
   private attestationSnapshot: AttestationSnapshotRef | null;
   private substrateManifestRef: SubstrateManifestRef | null;
   private launchHeaderRecorded: boolean;
@@ -78,13 +89,16 @@ export class RecordManager implements RecordSink {
     this.posture = DEFAULT_RUN_POSTURE;
     this.planSnapshot = null;
     this.policySnapshot = null;
+    this.workProfileSnapshot = null;
+    this.repoPolicyFloorsSnapshot = null;
+    this.effectivePolicySnapshot = null;
     this.attestationSnapshot = null;
     this.substrateManifestRef = null;
     this.launchHeaderRecorded = false;
     this.integrityEnabled = false;
   }
 
-  init(plan: Plan, config: ConfigDoc, policy: PolicyDoc): void {
+  init(plan: Plan, config: ConfigDoc, policy: PolicyDoc, ownerConfiguration?: BoundOwnerConfiguration): void {
     this.events = [];
     this.launchHeaderRecorded = false;
     this.plan = plan;
@@ -105,6 +119,13 @@ export class RecordManager implements RecordSink {
       policyRef: policy.policy?.id ?? 'unknown-policy',
       configRef: describeConfigBinding(config),
       workspace: captureWorkspaceFingerprint(process.cwd()),
+      ...(ownerConfiguration?.trackRef ? { trackRef: ownerConfiguration.trackRef } : {}),
+      ...(ownerConfiguration?.workProfile?.workProfile.id
+        ? { workProfileRef: ownerConfiguration.workProfile.workProfile.id }
+        : {}),
+      ...(ownerConfiguration?.repoPolicyFloors?.repoPolicyFloors.id
+        ? { repoPolicyFloorsRef: ownerConfiguration.repoPolicyFloors.repoPolicyFloors.id }
+        : {}),
       ...(this.integrityEnabled ? { drivers: driverSelection } : {}),
     };
     const planSnapshotPath = join(this.runDir, PLAN_SNAPSHOT_FILE);
@@ -119,6 +140,33 @@ export class RecordManager implements RecordSink {
       path: policySnapshotPath,
     };
     writeFileSync(policySnapshotPath, JSON.stringify(policy, null, 2));
+    this.workProfileSnapshot = null;
+    this.repoPolicyFloorsSnapshot = null;
+    this.effectivePolicySnapshot = null;
+    if (ownerConfiguration?.persistExtendedBindings) {
+      if (ownerConfiguration.workProfile) {
+        const workProfileSnapshotPath = join(this.runDir, WORK_PROFILE_SNAPSHOT_FILE);
+        this.workProfileSnapshot = {
+          ref: `record-artifact:${this.runId}/${WORK_PROFILE_SNAPSHOT_FILE}`,
+          path: workProfileSnapshotPath,
+        };
+        writeFileSync(workProfileSnapshotPath, JSON.stringify(ownerConfiguration.workProfile, null, 2));
+      }
+      if (ownerConfiguration.repoPolicyFloors) {
+        const repoPolicyFloorsSnapshotPath = join(this.runDir, REPO_POLICY_FLOORS_SNAPSHOT_FILE);
+        this.repoPolicyFloorsSnapshot = {
+          ref: `record-artifact:${this.runId}/${REPO_POLICY_FLOORS_SNAPSHOT_FILE}`,
+          path: repoPolicyFloorsSnapshotPath,
+        };
+        writeFileSync(repoPolicyFloorsSnapshotPath, JSON.stringify(ownerConfiguration.repoPolicyFloors, null, 2));
+      }
+      const effectivePolicySnapshotPath = join(this.runDir, EFFECTIVE_POLICY_SNAPSHOT_FILE);
+      this.effectivePolicySnapshot = {
+        ref: `record-artifact:${this.runId}/${EFFECTIVE_POLICY_SNAPSHOT_FILE}`,
+        path: effectivePolicySnapshotPath,
+      };
+      writeFileSync(effectivePolicySnapshotPath, JSON.stringify(ownerConfiguration.effectivePolicy, null, 2));
+    }
     if (this.options.launchAttestation) {
       const attestationSnapshotPath = join(this.runDir, ATTESTATION_SNAPSHOT_FILE);
       this.attestationSnapshot = {
@@ -168,6 +216,9 @@ export class RecordManager implements RecordSink {
       posture: this.posture,
       planSnapshot: this.planSnapshot as PlanSnapshotRef,
       policySnapshot: this.policySnapshot as PolicySnapshotRef,
+      ...(this.workProfileSnapshot ? { workProfileSnapshot: this.workProfileSnapshot } : {}),
+      ...(this.repoPolicyFloorsSnapshot ? { repoPolicyFloorsSnapshot: this.repoPolicyFloorsSnapshot } : {}),
+      ...(this.effectivePolicySnapshot ? { effectivePolicySnapshot: this.effectivePolicySnapshot } : {}),
       ...(this.attestationSnapshot ? { attestationSnapshot: this.attestationSnapshot } : {}),
       ...(this.substrateManifestRef ? { substrateManifest: this.substrateManifestRef } : {}),
     };
@@ -201,6 +252,9 @@ export class RecordManager implements RecordSink {
         posture: this.posture,
         planSnapshot: this.planSnapshot as PlanSnapshotRef,
         policySnapshot: this.policySnapshot as PolicySnapshotRef,
+        ...(this.workProfileSnapshot ? { workProfileSnapshot: this.workProfileSnapshot } : {}),
+        ...(this.repoPolicyFloorsSnapshot ? { repoPolicyFloorsSnapshot: this.repoPolicyFloorsSnapshot } : {}),
+        ...(this.effectivePolicySnapshot ? { effectivePolicySnapshot: this.effectivePolicySnapshot } : {}),
         ...(this.attestationSnapshot ? { attestationSnapshot: this.attestationSnapshot } : {}),
         ...(this.substrateManifestRef ? { substrateManifest: this.substrateManifestRef } : {}),
       },

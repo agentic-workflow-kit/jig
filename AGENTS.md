@@ -34,10 +34,12 @@ current implementation instructions.
 
 Jig is early source-checkout tooling. The CLI exposes `jig preview`, `jig run`, `jig inspect`, and
 `jig resume`; fixture-backed local runs are the supported way to exercise the repo from a fresh
-checkout. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
-`"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
-`@agentic-workflow-kit/jig-cli`, and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace
-publishes `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
+checkout. Runs now bind the launch policy together with any configured work profile and repo-policy
+floors, and resume reuses the recorded effective policy basis rather than trusting ambient local
+state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`, `"private": true`)
+coordinating the private packages `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`,
+and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
+`@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
 at compose time; strong no-phone-home evidence remains future work. EVRUN-partial is recorded;
 EVRUN-full remains future work.

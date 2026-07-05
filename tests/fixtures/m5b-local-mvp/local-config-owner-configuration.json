@@ -1,0 +1,18 @@
+{
+  "version": "config-v0",
+  "runner": {
+    "mode": "local-dry-run",
+    "recordDir": "runs"
+  },
+  "drivers": {
+    "agent": "scripted-stub",
+    "executionHost": "local",
+    "forge": "reference",
+    "workSource": "reference"
+  },
+  "track": {
+    "id": "TRACK-P06-FIXTURE",
+    "workProfilePath": "local-work-profile.json",
+    "repoPolicyFloorsPath": "local-repo-policy-floors.json"
+  }
+}

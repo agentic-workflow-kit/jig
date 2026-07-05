@@ -4,6 +4,7 @@ import { type ComposeRunPortsOptions, composeReferenceRun } from './bootstrap.js
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
 import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
+import { bindOwnerConfiguration } from './owner-configuration.js';
 import { PlanValidator } from './plan-validator.js';
 import { type ProjectionIssue, projectRunEvents, type RunProjection } from './projection.js';
 import { RecordManager } from './records.js';
@@ -15,7 +16,15 @@ import {
   resumeRunLoaded,
 } from './resume.js';
 import { approveSubstrateManifest, SubstrateAuthorizationError } from './substrate.js';
-import type { ConfigDoc, PlanInstance, PolicyDoc, RunBinding, RunRecord, RunStatus } from './types.js';
+import type {
+  BoundOwnerConfiguration,
+  ConfigDoc,
+  PlanInstance,
+  PolicyDoc,
+  RunBinding,
+  RunRecord,
+  RunStatus,
+} from './types.js';
 
 export interface PreviewRunInput {
   planInstance: PlanInstance;
@@ -154,12 +163,14 @@ async function recordComposeTimeSubstrateFailure(
   options: CreateJigSessionOptions,
   input: StartRunInput,
   error: SubstrateAuthorizationError,
+  ownerConfiguration?: BoundOwnerConfiguration,
 ): Promise<RunStatus> {
   const recordManager = new RecordManager({
     redaction: options.redaction,
     substrateManifest: options.substrateManifest ? approveSubstrateManifest(options.substrateManifest) : undefined,
+    ownerConfiguration,
   });
-  recordManager.init(input.planInstance.plan, input.config, input.policy);
+  recordManager.init(input.planInstance.plan, input.config, input.policy, ownerConfiguration);
 
   const [blockedStory, ...unstartedStories] = input.planInstance.plan.stories;
   if (!blockedStory) {
@@ -198,6 +209,9 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
     operator: {
       preview: async (input): Promise<PreviewRunResult> => {
         PlanValidator.validate(input.planInstance);
+        if (input.config.track || input.policy.policy) {
+          bindOwnerConfiguration(input.config, input.policy);
+        }
         return {
           posture: 'run.previewed',
           planId: input.planInstance.plan.id,
@@ -211,6 +225,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
       },
 
       start: async (input): Promise<RunStatus> => {
+        const ownerConfiguration = bindOwnerConfiguration(input.config, input.policy);
         let composed: Awaited<ReturnType<typeof composeReferenceRun>>;
         try {
           composed = await composeReferenceRun({
@@ -221,7 +236,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           });
         } catch (error) {
           if (error instanceof SubstrateAuthorizationError) {
-            return await recordComposeTimeSubstrateFailure(options, input, error);
+            return await recordComposeTimeSubstrateFailure(options, input, error, ownerConfiguration);
           }
           throw error;
         }
@@ -229,11 +244,12 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           launchAttestation: composed.substrateManifest ? composed.capabilityAttestation : undefined,
           substrateManifest: composed.substrateManifest,
           redaction: composed.redaction,
+          ownerConfiguration,
         });
         const intake = await intakeCandidates(composed.workSource);
         const [candidate] = intake.admitted;
         if (!candidate) {
-          recordManager.init(composed.planInstance.plan, input.config, input.policy);
+          recordManager.init(composed.planInstance.plan, input.config, input.policy, ownerConfiguration);
           for (const rejection of intake.rejected) {
             recordManager.recordEvent(rejection.event);
           }
@@ -242,6 +258,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
         }
         const harness = new LocalHarness(composed.agent, recordManager, options.ownerDecisionSource ?? null, {
           capabilityAttestation: composed.capabilityAttestation,
+          ownerConfiguration,
           forge: composed.forge,
           workspaceIsolation:
             composed.executionHost.describe().driverId === 'real-host'
