@@ -1,6 +1,6 @@
 ---
 title: "Phase 05 - Forge and work-source real-effect completion"
-status: planned
+status: "implemented (#64)"
 ---
 
 # Phase 05 - Forge and work-source real-effect completion
