@@ -39,8 +39,15 @@ describe.skipIf(!process.env.CODEX_APP_SERVER_SMOKE)('Codex app-server smoke', (
     };
 
     const result = await session.run(story);
+    const observedEvidence = result.observedEvidence as Record<string, unknown>;
 
     assert.strictEqual(result.status, 'completed');
-    assert.strictEqual((result.observedEvidence as Record<string, unknown>).driver, 'codex-app-server');
+    assert.strictEqual(observedEvidence.driver, 'codex-app-server');
+    assert.strictEqual(
+      result.workerResult.outcome,
+      'success',
+      `expected a successful worker outcome, got ${result.workerResult.outcome} (error: ${result.workerResult.error ?? 'none'})`,
+    );
+    assert.strictEqual('reason' in observedEvidence, false, 'a successful run must not carry a failure reason token');
   }, 120_000);
 });

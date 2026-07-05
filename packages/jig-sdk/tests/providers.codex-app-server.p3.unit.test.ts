@@ -7,8 +7,15 @@ import type { CodexSessionResult } from '../src/providers/real/agent.js';
 import { __internal, createProductionCodexAgentSession } from '../src/providers/real/codex-app-server.js';
 import type { ConfigDoc, PlanInstance, Story } from '../src/types.js';
 
+// Mirrors the real codex-cli 0.142.5 v2 app-server schema file: it carries the client-method
+// wire names but NOT the server-request/notification wire names (those live only in the v1 file).
 const schemaSurface = JSON.stringify({
   methods: ['initialize', 'thread/start', 'thread/resume', 'turn/start', 'turn/interrupt'],
+});
+
+// Mirrors the real codex-cli 0.142.5 v1 app-server schema file, which carries the
+// server-request and server-notification wire names the v2 file omits.
+const v1SchemaSurface = JSON.stringify({
   serverRequests: ['item/commandExecution/requestApproval'],
   notifications: [
     'thread/started',
@@ -19,6 +26,10 @@ const schemaSurface = JSON.stringify({
     'item/completed',
   ],
 });
+
+// The combined surface a correctly implemented appServerSchema() would return (v2 + v1
+// concatenated), used by fakeEnvironment() for tests that don't exercise file selection directly.
+const combinedSchemaSurface = [schemaSurface, v1SchemaSurface].join('\n');
 
 const planInstance: PlanInstance = {
   plan: {
@@ -201,7 +212,7 @@ function fakeEnvironment(
     environment: {
       platform: overrides.platform ?? 'darwin',
       codexVersion: async () => overrides.version ?? 'codex-cli 0.142.5',
-      appServerSchema: async () => schemaSurface,
+      appServerSchema: async () => combinedSchemaSurface,
       startTransport: () => transport,
     },
   };
@@ -572,7 +583,7 @@ test('P03-AC-4: transport setup errors surface as codex transport failures', asy
     environment: {
       platform: 'darwin',
       codexVersion: async () => 'codex-cli 0.142.5',
-      appServerSchema: async () => schemaSurface,
+      appServerSchema: async () => combinedSchemaSurface,
       startTransport: () => {
         throw new Error('spawn failed');
       },
@@ -630,7 +641,7 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
     mkdir: vi.fn(async (path: string) => {
       mkdirCalls.push(path);
     }),
-    readFile: vi.fn(async () => schemaSurface),
+    readFile: vi.fn(async (path: string) => (path.endsWith('.v2.schemas.json') ? schemaSurface : v1SchemaSurface)),
     rm: vi.fn(async (path: string) => {
       rmCalls.push(path);
     }),
@@ -643,7 +654,10 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
   const environment = new module.__internal.DefaultCodexAppServerEnvironment();
 
   assert.strictEqual(await environment.codexVersion(), 'codex-cli 0.142.5');
-  assert.strictEqual(await environment.appServerSchema(), schemaSurface);
+  assert.strictEqual(
+    await environment.appServerSchema(),
+    [schemaSurface, v1SchemaSurface].join(module.__internal.APP_SERVER_SCHEMA_SEPARATOR),
+  );
   assert.deepStrictEqual(mkdirCalls, [module.__internal.APP_SERVER_SCHEMA_LOCK_DIR]);
   assert.deepStrictEqual(rmCalls, [
     module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
@@ -651,6 +665,141 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
     module.__internal.APP_SERVER_SCHEMA_LOCK_DIR,
   ]);
   assert.deepStrictEqual(writeFileCalls, [`${module.__internal.APP_SERVER_SCHEMA_LOCK_DIR}/owner.json`]);
+});
+
+test('P03-AC-2: preflight passes when the server-request wire name is absent from the v2 file but present in the v1 file (real 0.142.5 layout)', async () => {
+  vi.resetModules();
+  const execFileMock = vi.fn();
+  Object.defineProperty(execFileMock, promisify.custom, {
+    configurable: true,
+    value: async (_file: string, args: string[]) => {
+      if (args[0] === '--version') {
+        return { stdout: 'codex-cli 0.142.5\n', stderr: '' };
+      }
+      return { stdout: '', stderr: '' };
+    },
+  });
+  vi.doMock('node:child_process', () => ({
+    execFile: execFileMock,
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    // Mirrors the real 0.142.5 layout: the approval wire name is present only in the v1 file,
+    // never in the v2 file.
+    readFile: vi.fn(async (path: string) => (path.endsWith('.v2.schemas.json') ? schemaSurface : v1SchemaSurface)),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+  const environment = new module.__internal.DefaultCodexAppServerEnvironment();
+  const session = module.createProductionCodexAgentSession({
+    environment: {
+      platform: 'darwin',
+      codexVersion: () => environment.codexVersion(),
+      appServerSchema: () => environment.appServerSchema(),
+      startTransport: () => {
+        throw new Error('preflight-only probe: transport should not be reached in this assertion');
+      },
+    },
+  });
+
+  const surface = await environment.appServerSchema();
+  assert.doesNotThrow(() =>
+    module.__internal.assertSchemaIncludes(surface, ['item/commandExecution/requestApproval'], 'server request'),
+  );
+
+  // Also drive it through the real preflight path end-to-end: it should get past the schema
+  // check and only fail later, at the (intentionally throwing) transport step.
+  const result = completedResult(await session.run(planInstance.plan.stories[0]));
+  assert.strictEqual(result.workerResult.outcome, 'failure');
+  assert.doesNotMatch(String(result.workerResult.error), /codex-app-server-surface-missing/);
+  assert.match(String(result.workerResult.error), /preflight-only probe/);
+});
+
+test('P03-AC-2: preflight fails closed with a structured surface-missing error when the approval wire name is absent from both schema files', async () => {
+  vi.resetModules();
+  const execFileMock = vi.fn();
+  Object.defineProperty(execFileMock, promisify.custom, {
+    configurable: true,
+    value: async (_file: string, args: string[]) => {
+      if (args[0] === '--version') {
+        return { stdout: 'codex-cli 0.142.5\n', stderr: '' };
+      }
+      return { stdout: '', stderr: '' };
+    },
+  });
+  vi.doMock('node:child_process', () => ({
+    execFile: execFileMock,
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    // Neither file carries the approval wire name in this scenario.
+    readFile: vi.fn(async () => schemaSurface),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+  const environment = new module.__internal.DefaultCodexAppServerEnvironment();
+  const session = module.createProductionCodexAgentSession({ environment });
+
+  const result = completedResult(await session.run(planInstance.plan.stories[0]));
+
+  assert.strictEqual(result.workerResult.outcome, 'failure');
+  assert.strictEqual(
+    (result.observedEvidence as Record<string, unknown> | undefined)?.reason,
+    'codex-app-server-surface-missing',
+  );
+  assert.match(String(result.workerResult.error), /required server request "item\/commandExecution\/requestApproval"/);
+});
+
+test('P03-AC-2: a missing app-server schema file fails closed with the structured surface-missing reason instead of a silent skip', async () => {
+  vi.resetModules();
+  const execFileMock = vi.fn();
+  Object.defineProperty(execFileMock, promisify.custom, {
+    configurable: true,
+    value: async (_file: string, args: string[]) => {
+      if (args[0] === '--version') {
+        return { stdout: 'codex-cli 0.142.5\n', stderr: '' };
+      }
+      return { stdout: '', stderr: '' };
+    },
+  });
+  vi.doMock('node:child_process', () => ({
+    execFile: execFileMock,
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    readFile: vi.fn(async (path: string) => {
+      if (path.endsWith('.v2.schemas.json')) {
+        return schemaSurface;
+      }
+      const error = new Error('missing') as Error & { code?: string };
+      error.code = 'ENOENT';
+      throw error;
+    }),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+  const environment = new module.__internal.DefaultCodexAppServerEnvironment();
+
+  await assert.rejects(
+    () => environment.appServerSchema(),
+    (error: unknown) => {
+      assert.ok(error instanceof module.__internal.CodexAppServerPreDispatchError);
+      const workerResult = (error as InstanceType<typeof module.__internal.CodexAppServerPreDispatchError>)
+        .workerResult;
+      const observed = workerResult.evidence?.observed as Record<string, unknown> | undefined;
+      assert.strictEqual(observed?.reason, 'codex-app-server-surface-missing');
+      return true;
+    },
+  );
 });
 
 test('P03-AC-2: default environment still removes the temp schema directory when schema generation fails', async () => {
@@ -722,7 +871,7 @@ test('P03-AC-2: schema generation is serialized around the shared deterministic 
   }));
   vi.doMock('node:fs/promises', () => ({
     mkdir: vi.fn(async () => undefined),
-    readFile: vi.fn(async () => schemaSurface),
+    readFile: vi.fn(async (path: string) => (path.endsWith('.v2.schemas.json') ? schemaSurface : v1SchemaSurface)),
     rm: vi.fn(async () => undefined),
     stat: vi.fn(),
     writeFile: vi.fn(async () => undefined),
@@ -739,8 +888,8 @@ test('P03-AC-2: schema generation is serialized around the shared deterministic 
   releaseFirst();
   const [firstSchema, secondSchema] = await Promise.all([first, second]);
 
-  assert.strictEqual(firstSchema, schemaSurface);
-  assert.strictEqual(secondSchema, schemaSurface);
+  assert.strictEqual(firstSchema, combinedSchemaSurface);
+  assert.strictEqual(secondSchema, combinedSchemaSurface);
   assert.strictEqual(schemaCalls, 2);
   assert.strictEqual(maxInFlight, 1);
 });
@@ -970,7 +1119,7 @@ test('P03-AC-4: preflight and transport initialization are cached after the firs
       },
       appServerSchema: async () => {
         calls.schema += 1;
-        return schemaSurface;
+        return combinedSchemaSurface;
       },
       startTransport: () => {
         calls.transport += 1;
@@ -1019,7 +1168,7 @@ test('P03-AC-4: close shuts down the transport and clears cached transport state
     environment: {
       platform: 'darwin',
       codexVersion: async () => 'codex-cli 0.142.5',
-      appServerSchema: async () => schemaSurface,
+      appServerSchema: async () => combinedSchemaSurface,
       startTransport: () => {
         const transport = new FakeTransport({});
         transports.push(transport);
