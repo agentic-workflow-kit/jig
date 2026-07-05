@@ -1,6 +1,6 @@
 ---
 title: "Phase 08 - Observation surfaces: watch, notices, ask-why"
-status: planned
+status: "implemented (#67)"
 ---
 
 # Phase 08 - Observation surfaces: watch, notices, ask-why

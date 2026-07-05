@@ -1,6 +1,6 @@
 ---
 title: "Phase 07 - Guided setup"
-status: "implemented (#66)"
+status: "merged (#66)"
 ---
 
 # Phase 07 - Guided setup

@@ -33,12 +33,13 @@ current implementation instructions.
 ## Status
 
 Jig is early source-checkout tooling. The CLI exposes `jig setup`, `jig preview`, `jig run`,
-`jig inspect`, and `jig resume`; fixture-backed local runs are the supported way to exercise the
-repo from a fresh checkout. Runs now bind the launch policy together with any configured work profile
-and repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
-ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`, `"private": true`)
-coordinating the private packages `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`,
-and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
+`jig inspect`, `jig resume`, `jig watch`, `jig ask-why`, `jig notice-ack`, and
+`jig notice-snooze`; fixture-backed local runs are the supported way to exercise the repo from a
+fresh checkout. Runs now bind the launch policy together with any configured work profile and
+repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
+ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
+`"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
+`@agentic-workflow-kit/jig-cli`, and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
 `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
 at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
@@ -64,6 +65,11 @@ node packages/jig-cli/bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-pl
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json
 node packages/jig-cli/bin/jig.js inspect <runs/run-dir-from-output>
+node packages/jig-cli/bin/jig.js watch <runs/run-dir-from-output>
+node packages/jig-cli/bin/jig.js ask-why <runs/run-dir-from-output> --story STORY-1
+node packages/jig-cli/bin/jig.js notice-ack <runs/run-dir-from-output> unattended-park
+node packages/jig-cli/bin/jig.js notice-snooze <runs/run-dir-from-output> unattended-park \
+  --until 2026-07-03T12:00:00.000Z
 node packages/jig-cli/bin/jig.js resume <runs/run-dir-from-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```

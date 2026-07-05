@@ -13,8 +13,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
+import { writeIntegritySidecar } from '../src/integrity.js';
 import { createJigSession, InspectRunError } from '../src/sdk.js';
-import type { ConfigDoc, PlanInstance, PolicyDoc } from '../src/types.js';
+import type { ConfigDoc, PlanInstance, PolicyDoc, RunEvent } from '../src/types.js';
 import { captureWorkspaceFingerprint } from '../src/workspace.js';
 
 const planInstance: PlanInstance = {
@@ -74,6 +75,88 @@ function firstRunDir(): string {
   const [runName] = readdirSync(join(workDir, 'runs'));
   assert.ok(runName, 'expected one run directory');
   return join(workDir, 'runs', runName);
+}
+
+function phase4LaunchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
+  return {
+    family: 'run.started',
+    actor: 'runner',
+    timestamp: '2026-07-03T09:00:00.000Z',
+    runId: 'run-sdk-watch',
+    planId: 'plan-sdk-session',
+    mode: 'local-dry-run',
+    binding: {
+      policyRef: 'policy-sdk-session',
+      configRef: 'mode=local-dry-run;recordDir=runs',
+      workspace: {
+        repoRoot: workDir,
+        head: '0123456789abcdef0123456789abcdef01234567',
+        changeSetHash: 'workspace-clean',
+      },
+    },
+    posture: { record: 'safe-for-owner-record', export: 'redacted' },
+    planSnapshot: { ref: 'plan.snapshot.json' },
+    policySnapshot: { ref: 'policy.snapshot.json' },
+    ...overrides,
+  };
+}
+
+function stringifyJsonl(events: RunEvent[]): string {
+  return `${events.map((event) => JSON.stringify(event)).join('\n')}\n`;
+}
+
+function writeObservationRun(name = 'observation-run'): string {
+  const runDir = join(workDir, name);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'evidence.modeled',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        result: 'passed',
+        changedFiles: ['src/sdk.ts'],
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        storyId: 'STORY-1',
+        changedFiles: ['src/sdk.ts'],
+      },
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:04.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'story.parked',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:05.000Z',
+        storyId: 'STORY-2',
+        reason: 'owner-decision-required',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:06.000Z',
+        reason: 'unattended-park',
+        checkpoint: 'after:STORY-2.parked',
+        unstarted: [],
+      },
+    ]),
+  );
+  return runDir;
 }
 
 function initGitWorkspace(cwd: string): void {
@@ -870,4 +953,118 @@ test('inspect throws InspectRunError when authoritative events are malformed', a
     () => session.operator.inspect({ runDir }),
     (error: unknown) => error instanceof InspectRunError,
   );
+});
+
+test('P08-AC-1/4: operator watch projects run state and notice queue', async () => {
+  const session = createJigSession();
+  const watch = await session.operator.watch({ runDir: writeObservationRun() });
+
+  assert.strictEqual(watch.signal, 'parked');
+  assert.deepStrictEqual(
+    watch.groups.done.map((story) => story.storyId),
+    ['STORY-1'],
+  );
+  assert.deepStrictEqual(
+    watch.groups.parked.map((story) => story.storyId),
+    ['STORY-2'],
+  );
+  assert.strictEqual(watch.notices[0]?.id, 'unattended-park');
+  assert.strictEqual(watch.notices[0]?.state, 'open');
+});
+
+test('P08-AC-1/4: operator watch ignores corrupt optional run.json cache', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('observation-run-with-corrupt-cache');
+  writeFileSync(join(runDir, 'run.json'), '{not-json');
+
+  const watch = await session.operator.watch({ runDir });
+
+  assert.strictEqual(watch.signal, 'parked');
+  assert.deepStrictEqual(
+    watch.groups.waiting.map((story) => story.storyId),
+    [],
+  );
+});
+
+test('P08-AC-3/4: operator askWhy cites the recorded story cause', async () => {
+  const session = createJigSession();
+  const result = await session.operator.askWhy({ runDir: writeObservationRun(), storyId: 'STORY-2' });
+
+  assert.strictEqual(result.subject, 'STORY-2');
+  assert.match(result.answer, /parked waiting for owner attention/);
+  assert.ok(result.citations.some((citation) => citation.family === 'story.parked' && citation.line === 6));
+});
+
+test('P08-AC-2/4: operator acknowledgeNotice appends owner notice state', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun();
+
+  const result = await session.operator.acknowledgeNotice({ runDir, noticeId: 'unattended-park' });
+
+  assert.strictEqual(result.notice.state, 'acknowledged');
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(events.some((event) => event.family === 'notice.acknowledged' && event.actor === 'owner'));
+});
+
+test('P08-AC-2/4: operator snoozeNotice validates timestamps and persists state', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun();
+
+  await assert.rejects(
+    () => session.operator.snoozeNotice({ runDir, noticeId: 'unattended-park', until: 'not-a-date' }),
+    /Invalid --until timestamp/,
+  );
+
+  const result = await session.operator.snoozeNotice({
+    runDir,
+    noticeId: 'unattended-park',
+    until: '2026-07-03T12:00:00.000Z',
+  });
+  assert.strictEqual(result.notice.state, 'snoozed');
+  assert.strictEqual(result.notice.snoozedUntil, '2026-07-03T12:00:00.000Z');
+});
+
+test('P08-AC-2/4: notice actions fail closed for unknown notices', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun();
+
+  await assert.rejects(
+    () => session.operator.acknowledgeNotice({ runDir, noticeId: 'missing-notice' }),
+    /Notice "missing-notice" is not open for this run/,
+  );
+});
+
+test('P08-AC-2/4: notice acknowledgement extends records integrity sidecar when present', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('integrity-observation-run');
+  writeIntegritySidecar(runDir);
+
+  const beforeLineCount = JSON.parse(readFileSync(join(runDir, 'integrity.json'), 'utf8')).eventLog.lineCount;
+  await session.operator.acknowledgeNotice({ runDir, noticeId: 'unattended-park' });
+  const afterLineCount = JSON.parse(readFileSync(join(runDir, 'integrity.json'), 'utf8')).eventLog.lineCount;
+
+  assert.strictEqual(afterLineCount, beforeLineCount + 1);
+});
+
+test('P08-AC-2/4: notice acknowledgement refuses broken records integrity', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('broken-integrity-observation-run');
+  writeIntegritySidecar(runDir);
+  writeFileSync(join(runDir, 'events.jsonl'), `${readFileSync(join(runDir, 'events.jsonl'), 'utf8')}not-json\n`);
+
+  await assert.rejects(
+    () => session.operator.acknowledgeNotice({ runDir, noticeId: 'unattended-park' }),
+    (error: unknown) => error instanceof InspectRunError && /Refusing to append notice action/.test(error.message),
+  );
+});
+
+test('P08-AC-4: watch fails closed for missing events logs', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'missing-events-observation-run');
+  mkdirSync(runDir, { recursive: true });
+
+  await assert.rejects(() => session.operator.watch({ runDir }), /Missing authoritative events\.jsonl/);
 });

@@ -1,12 +1,26 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ComposeRunPortsOptions, composeReferenceRun } from './bootstrap.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
-import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
+import {
+  type IntegrityVerification,
+  launchBindingExpectsIntegrity,
+  verifyIntegritySidecar,
+  writeIntegritySidecar,
+} from './integrity.js';
 import { bindOwnerConfiguration } from './owner-configuration.js';
 import { PlanValidator } from './plan-validator.js';
-import { type ProjectionIssue, projectRunEvents, type RunProjection } from './projection.js';
+import {
+  type AskWhyResult,
+  askWhyFromEvents,
+  type ProjectedNotice,
+  type ProjectionIssue,
+  projectRunEvents,
+  projectWatch,
+  type RunProjection,
+  type WatchProjection,
+} from './projection.js';
 import { RecordManager } from './records.js';
 import {
   checkWorkspaceContinuity,
@@ -55,6 +69,29 @@ export interface InspectRunInput {
   runDir: string;
 }
 
+export interface WatchRunInput {
+  runDir: string;
+}
+
+export interface AskWhyInput {
+  runDir: string;
+  storyId?: string;
+}
+
+export interface NoticeActionInput {
+  runDir: string;
+  noticeId: string;
+}
+
+export interface SnoozeNoticeInput extends NoticeActionInput {
+  until: string;
+}
+
+export interface NoticeActionResult {
+  runDir: string;
+  notice: ProjectedNotice;
+}
+
 export interface ProjectionInspectionResult {
   kind: 'projection';
   runDir: string;
@@ -84,6 +121,10 @@ export interface JigOperatorControlPort {
   preview(input: PreviewRunInput): Promise<PreviewRunResult>;
   start(input: StartRunInput): Promise<RunStatus>;
   inspect(input: InspectRunInput): Promise<InspectRunResult>;
+  watch(input: WatchRunInput): Promise<WatchProjection>;
+  askWhy(input: AskWhyInput): Promise<AskWhyResult>;
+  acknowledgeNotice(input: NoticeActionInput): Promise<NoticeActionResult>;
+  snoozeNotice(input: SnoozeNoticeInput): Promise<NoticeActionResult>;
 }
 
 export interface JigRecoverySurface {
@@ -128,6 +169,49 @@ function verifyInspectIntegrity(runDir: string, eventsJsonl: string): IntegrityV
   return verifyIntegritySidecar(runDir, {
     expected: launchBindingExpectsIntegrity(readLaunchBindingForIntegrity(eventsJsonl)),
   });
+}
+
+function readProjectionInputs(runDir: string): { eventsJsonl: string; runRecord: RunRecord | null } {
+  if (!existsSync(runDir)) {
+    throw new Error(`Run directory "${runDir}" does not exist`);
+  }
+
+  const eventsJsonlPath = join(runDir, 'events.jsonl');
+  if (!existsSync(eventsJsonlPath)) {
+    throw new Error(`Missing authoritative events.jsonl in "${runDir}"`);
+  }
+
+  const runJsonPath = join(runDir, 'run.json');
+  let runRecord: RunRecord | null = null;
+  if (existsSync(runJsonPath)) {
+    try {
+      runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
+    } catch {
+      runRecord = null;
+    }
+  }
+
+  return {
+    eventsJsonl: readFileSync(eventsJsonlPath, 'utf8'),
+    runRecord,
+  };
+}
+
+function assertNoticeWriteAllowed(runDir: string, eventsJsonl: string): void {
+  const integrity = verifyInspectIntegrity(runDir, eventsJsonl);
+  if (integrity.status === 'broken') {
+    throw new InspectRunError(`Refusing to append notice action: ${integrity.message}`, integrity);
+  }
+}
+
+function appendOwnerNoticeEvent(runDir: string, event: Record<string, unknown>): void {
+  appendFileSync(
+    join(runDir, 'events.jsonl'),
+    `${JSON.stringify({ ...event, actor: 'owner', timestamp: new Date().toISOString() })}\n`,
+  );
+  if (existsSync(join(runDir, 'integrity.json'))) {
+    writeIntegritySidecar(runDir);
+  }
 }
 
 function resumeInspectionDiagnostics(projection: RunProjection): ProjectionIssue[] {
@@ -335,6 +419,58 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           const message = err instanceof Error ? err.message : String(err);
           throw new Error(`Failed to parse run.json: ${message}`);
         }
+      },
+
+      watch: async (input): Promise<WatchProjection> => {
+        const { eventsJsonl, runRecord } = readProjectionInputs(input.runDir);
+        return projectWatch({ eventsJsonl, runRecord });
+      },
+
+      askWhy: async (input): Promise<AskWhyResult> => {
+        const { eventsJsonl, runRecord } = readProjectionInputs(input.runDir);
+        return askWhyFromEvents({ eventsJsonl, runRecord, storyId: input.storyId });
+      },
+
+      acknowledgeNotice: async (input): Promise<NoticeActionResult> => {
+        const before = readProjectionInputs(input.runDir);
+        assertNoticeWriteAllowed(input.runDir, before.eventsJsonl);
+        const existing = projectWatch(before).notices.find((notice) => notice.id === input.noticeId);
+        if (!existing) {
+          throw new Error(`Notice "${input.noticeId}" is not open for this run`);
+        }
+        appendOwnerNoticeEvent(input.runDir, {
+          family: 'notice.acknowledged',
+          noticeId: input.noticeId,
+        });
+        const after = readProjectionInputs(input.runDir);
+        const notice = projectWatch(after).notices.find((entry) => entry.id === input.noticeId);
+        if (!notice) {
+          throw new Error(`Notice "${input.noticeId}" disappeared after acknowledgement`);
+        }
+        return { runDir: input.runDir, notice };
+      },
+
+      snoozeNotice: async (input): Promise<NoticeActionResult> => {
+        const before = readProjectionInputs(input.runDir);
+        assertNoticeWriteAllowed(input.runDir, before.eventsJsonl);
+        const existing = projectWatch(before).notices.find((notice) => notice.id === input.noticeId);
+        if (!existing) {
+          throw new Error(`Notice "${input.noticeId}" is not open for this run`);
+        }
+        if (Number.isNaN(Date.parse(input.until))) {
+          throw new Error(`Invalid --until timestamp "${input.until}"`);
+        }
+        appendOwnerNoticeEvent(input.runDir, {
+          family: 'notice.snoozed',
+          noticeId: input.noticeId,
+          snoozedUntil: input.until,
+        });
+        const after = readProjectionInputs(input.runDir);
+        const notice = projectWatch(after).notices.find((entry) => entry.id === input.noticeId);
+        if (!notice) {
+          throw new Error(`Notice "${input.noticeId}" disappeared after snooze`);
+        }
+        return { runDir: input.runDir, notice };
       },
     },
 
