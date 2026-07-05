@@ -16,8 +16,9 @@ CLI (`jig preview`, `jig run`, `jig inspect`, `jig resume`) — into the target 
 three-package SDK/CLI/testkit shape of [ADR 0027](../../design/decisions/0027-packaging-sdk-boundary.md),
 the real Codex app-server agent transport of
 [ADR 0028](../../design/decisions/0028-codex-app-server-transport.md), proven execution-host
-containment, the full owner driving surface (setup, start, preview, watch, inspect, ask-why,
-decide, stop, notices, export), and the EVRUN-full evidence that the whole real path works.
+containment, the full owner-facing surface (guided setup, start, preview, watch, inspect,
+ask-why, decide, stop, notices, export), and the EVRUN-full evidence that the whole real path
+works.
 
 The track is fourteen phases, each scoped to one reviewable PR. The phase docs under
 [`phases/`](./phases/) carry the per-phase obligations; [`verification.md`](./verification.md)
@@ -226,6 +227,7 @@ release posture`")
   P04 --> P11
   P06 --> P07
   P11 --> P13
+  P12 --> P13
 
   P02 -.->|source layout| P03
   P02 -.->|source layout| P04
@@ -268,8 +270,8 @@ release posture`")
 | P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | planned | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned | P03, P04          | Sequential after both provider phases; benefits from P05.               |
-| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned | P02               | Parallel with P11, P13; soft dependency on P08/P09 for verb coverage.   |
-| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned | P11               | Blocked: also requires a contract-owner freeze decision.                |
+| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
+| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned | P11, P12          | Blocked: also requires a contract-owner freeze decision.                |
 | P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned | All other phases  | Last; closes the track.                                                 |
 
 ## What can run in parallel
@@ -282,7 +284,8 @@ release posture`")
   doorbell/notice record vocabulary and should coordinate (or be assigned to one implementer in
   sequence).
 - **After P06**: P07 joins the parallel pool.
-- **After P02 + verb phases**: P12 can proceed while P11 and P13 run.
+- **After P02 + verb phases**: P12 can proceed while P11 runs. P13 waits for P12 because the
+  MCP adapter is part of the first-party driving surface the freeze-readiness audit must cover.
 
 ## Sequential gates
 
@@ -291,9 +294,10 @@ release posture`")
 2. **P02 is exclusive** — no other phase should have PRs in flight while the source tree moves.
 3. **P03 + P04 → P11** — EVRUN-full needs a real agent leg and a real confinement leg; running
    it earlier reproduces EVRUN-partial, which exists.
-4. **P11 → P13** — the T14 v0 contract freeze is explicitly gated on the transport
-   implementation/evidence path (ADR 0028, Consequences). P13 additionally stops for the
-   contract owner's freeze decision; readiness work is in scope, the freeze itself is not.
+4. **P11 + P12 → P13** — the T14 v0 contract freeze is explicitly gated on the transport
+   implementation/evidence path (ADR 0028, Consequences), and P13 audits the first-party
+   driving surfaces including MCP. P13 additionally stops for the contract owner's freeze
+   decision; readiness work is in scope, the freeze itself is not.
 5. **Everything → P14** — the closing audit only means something when the surface has stopped
    moving.
 
@@ -325,6 +329,12 @@ conflicts rather than resolving them):
 - **Export encoding and replay-drift handling** are deferred in
   [`records.md`](../../design/core/records.md); P10 routes them to the records design owner
   before implementing.
+- **Owner-facing setup, notices, and export placement are not settled as driving verbs.** The
+  product wants guided setup, notice acknowledge/snooze, and export surfaces, but the active
+  [driving contract](../../design/contracts/driving.md) currently names only start, preview,
+  watch, inspect, ask-why, decide, and stop. P07, P08, P10, and P12 must route placement to the
+  driving/records owners before treating setup, acknowledge/snooze, or export as
+  operator-control port verbs.
 - **MCP adapter package placement** is not settled by ADR 0027 (its matrix has no MCP package;
   the ADR only says CLI and MCP both call the SDK factory). P12 routes placement to a design
   decision.

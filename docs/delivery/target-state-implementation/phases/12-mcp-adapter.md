@@ -18,10 +18,11 @@ The product boundary names the sequence: "its CLI today, a future MCP surface ne
 driving contract designs for three adapters (CLI/MCP/SDK) over one port from the start. ADR
 0027 expects MCP to be the SDK's second consumer. Nothing MCP-shaped exists in the repo. By
 this phase, the SDK package exists (P02) and — if P08/P09 have landed — the port carries the
-full action vocabulary; if they have not, the adapter ships the verbs that exist and grows with
-the port (that is the soft dependency, and shipping early with partial verbs is a deliberate
-choice for the implementer and reviewer to make against the product's "deliberate actions"
-framing).
+current driving-action vocabulary; if they have not, the adapter ships the verbs that exist and
+grows with the port (that is the soft dependency, and shipping early with partial verbs is a
+deliberate choice for the implementer and reviewer to make against the product's "deliberate
+actions" framing). Setup, notice acknowledge/snooze, and export are exposed only if the earlier
+placement decisions have settled them as port verbs by merge time.
 
 ## What To Do
 
@@ -29,10 +30,10 @@ framing).
   (with the design owner, likely a short ADR) whether the MCP adapter lives in `jig-cli`
   (renamed scope), a new `jig-mcp` package, or an SDK-internal module; the decision must keep
   the dependency matrix's spirit — adapters depend on `jig-sdk`, never the reverse.
-- Implement the MCP server as a thin adapter: each driving action (start, preview, watch,
-  inspect, ask-why, decide, stop, notices, export, setup — whatever the port carries by then)
-  maps to one MCP tool that makes one control-plane call and yields one audit event; invalid
-  input still produces the audit posture the driving contract requires.
+- Implement the MCP server as a thin adapter: each driving action settled on the port by merge
+  time (start, preview, watch, inspect, ask-why, decide, stop, plus any explicitly settled
+  additions) maps to one MCP tool that makes one control-plane call and yields one audit event;
+  invalid input still produces the audit posture the driving contract requires.
 - Presentation only at the edge: results are the SDK's typed results rendered for tool
   consumption; long-running actions (watch) map to MCP-appropriate patterns without moving
   lifecycle logic into the adapter.
@@ -76,9 +77,10 @@ framing).
 ## Dependencies
 
 - **Requires:** P02 (hard — consumes the SDK package).
-- **Soft:** P08, P09 (verb coverage; shipping with partial verbs is a recorded choice).
+- **Soft:** P08, P09 (verb coverage; shipping with partial verbs is a recorded choice), plus
+  P07/P10 if their placement decisions expand the port.
 - **Unlocks:** feeds P14.
-- **Parallel:** P11, P13, and any remaining owner-surface phases.
+- **Parallel:** P11 and any remaining owner-surface phases.
 
 ## Acceptance Criteria
 
@@ -105,7 +107,7 @@ framing).
 - Publishing the MCP surface or promising stability.
 - Webhook/scheduler triggers (still operator-initiated — the MCP client acts for the operator).
 - Setup-integration guidance for MCP (`jig.md` open question; P07 noted it).
-- New driving verbs that P08/P09 did not create.
+- New driving verbs that P07/P08/P09/P10 did not explicitly settle.
 
 ## Stop Or Escalate If
 

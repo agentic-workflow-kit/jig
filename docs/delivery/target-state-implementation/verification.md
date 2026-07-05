@@ -55,10 +55,12 @@ byte-level compatibility surface for the observability-records v0 contract.
   drivers land behind the same ports.
 - **Owned changes only.** A phase that must change what the reference wiring records (candidates:
   P08 and P09 if driving-action audit events or notice events are additive to the reference
-  path; P13 if the freeze ratifies encoding changes) must say so in its phase doc and PR
-  description, and the golden diff is reviewed as a records-contract change, not a test fixture
-  refresh. Additive event families follow the observability-records v0 rules; no event family is
-  minted where the roadmap says an existing family carries the outcome.
+  path) must say so in its phase doc and PR description, and the golden diff is reviewed as a
+  records-contract change, not a test fixture refresh. P13 may recommend a golden-affecting
+  migration, but the runtime, fixture, or golden update belongs to a follow-up implementation
+  phase authorized by the decision ADR. Additive event families follow the observability-records
+  v0 rules; no event family is minted where the roadmap says an existing family carries the
+  outcome.
 - **Fixture conventions.** `scripts/check-delivery-foundation.mjs` pins the fixture README
   conventions (no TypeScript interfaces, JSON Schemas, event constants, provider manifests, or
   package exports in fixtures). A phase that legitimately needs to evolve fixtures updates the

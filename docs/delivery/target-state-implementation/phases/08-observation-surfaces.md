@@ -37,8 +37,13 @@ and that ask-why answers from the run's own record.
 - Implement `ask-why`: given a story or run outcome, produce an attributable explanation
   assembled from recorded decisions, authorizations, evidence, and transitions (`SEE-1`),
   consumable without extra tooling (`SEE-4`).
-- Extend the operator-control port with these actions per the one-action/one-call/one-audit
-  invariant; keep all logic in projections/core, presentation at the edge.
+- Extend the operator-control port with `watch` and `ask-why` per the
+  one-action/one-call/one-audit invariant; keep all logic in projections/core, presentation at
+  the edge.
+- Route acknowledge/snooze placement before implementation. The product requires durable notice
+  attention state, but the active driving contract does not currently name acknowledge or snooze
+  as driving actions; decide with the driving/records owners whether they are port verbs,
+  notice-record operations, or presentation commands over a records operation.
 - Coordinate record-vocabulary additions with P09 (decide/stop) — both phases touch the
   doorbell/notice families; agree the additive event shapes once.
 
@@ -55,7 +60,8 @@ and that ask-why answers from the run's own record.
 ## Technical Requirements
 
 - Projections stay pure: watch/ask-why/notices derive from records; they never write anything
-  except the owner's own acknowledge/snooze/decision-adjacent events.
+  except the owner's own acknowledge/snooze/decision-adjacent events in the settled records
+  location.
 - Acknowledge/snooze are additive record events; the run's substantive history is untouched by
   attention state.
 - If the notices vocabulary needs events on the reference path, this phase explicitly owns the
@@ -93,7 +99,9 @@ and that ask-why answers from the run's own record.
    restarts and are visible in the record (`SEE-5`, `DOOR-2`-consistent durability).
 3. `ask-why <story>` for a blocked, a merged, and a parked story produces an explanation citing
    the recorded events that justify it — reviewable against the raw log (`SEE-1`, `SEE-3`).
-4. All three actions go through the operator-control port with one audit record each.
+4. `watch` and `ask-why` go through the operator-control port with one audit record each; notice
+   acknowledge/snooze follow the recorded placement decision and have one durable owner-event
+   trail.
 5. Golden posture explicit: either goldens are byte-identical, or the PR declares the owned
    additive events and the golden diff is reviewed as a records change.
 6. Hermetic lanes green; no new authority (a watch/ask-why caller can change nothing).

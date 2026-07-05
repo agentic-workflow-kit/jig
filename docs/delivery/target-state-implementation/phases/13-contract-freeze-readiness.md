@@ -5,9 +5,9 @@ status: planned
 
 # Phase 13 - Contract v0 freeze readiness
 
-**Blocked:** requires P11 (evidence path) and an explicit contract-owner freeze decision.
-Readiness work is in scope; the freeze itself is a decision this phase prepares, not one it
-makes.
+**Blocked:** requires P11 (evidence path), P12 (MCP adapter), and an explicit contract-owner
+freeze decision. Readiness work is in scope; the freeze itself is a decision this phase
+prepares, not one it makes.
 
 ## Overview
 
@@ -81,11 +81,11 @@ consumer, which is why the owner decides and this phase only prepares.
 
 ## Dependencies
 
-- **Requires:** P11 (hard); a contract-owner decision to conclude (blocking).
+- **Requires:** P11 and P12 (hard); a contract-owner decision to conclude (blocking).
 - **Soft:** P05, P08, P09, P10 landed (their events are audit subjects; starting earlier means
   auditing a moving target).
 - **Unlocks:** P14's closing claims about contract posture.
-- **Parallel:** P12.
+- **Parallel:** none with phases that change first-party driving surfaces.
 
 ## Acceptance Criteria
 

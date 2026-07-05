@@ -7,10 +7,10 @@ status: planned
 
 ## Overview
 
-Deliver the guided setup surface: a `jig setup` driving action that maps owner intent to a
-starting configuration — provider posture, policy template, work-profile template — with stated
-reasoning, always overridable, plus the staleness rule that setup only runs when the workspace
-is stale. Ship the first policy/work-profile templates as supported assets.
+Deliver the guided setup surface: `jig setup` maps owner intent to a starting configuration —
+provider posture, policy template, work-profile template — with stated reasoning, always
+overridable, plus the staleness rule that setup only runs when the workspace is stale. Ship the
+first policy/work-profile templates as supported assets.
 
 ## Background
 
@@ -24,10 +24,14 @@ and floors artifacts to instantiate.
 
 ## What To Do
 
-- Add a `setup` driving action as a thin adapter over the operator-control port: an
-  intent-to-configuration flow that selects a provider posture (reference/scripted posture
-  versus the real drivers that exist by then), emits a policy and work profile from templates
-  into the track's configuration location, and explains each preset choice in plain output.
+- Route setup placement first: the product requires `jig setup`, but the active driving
+  contract does not yet name `setup` as a driving action. Decide with the driving/configuration
+  owners whether setup is an operator-control port verb, a configuration operation, or a
+  CLI-only guided setup surface, then implement the settled placement.
+- Implement the settled intent-to-configuration flow: select a provider posture
+  (reference/scripted posture versus the real drivers that exist by then), emit a policy and
+  work profile from templates into the track's configuration location, and explain each preset
+  choice in plain output.
 - Author the first template set as supported assets in the SDK/CLI packages (not in
   `tests/fixtures/`): at minimum a conservative manual-gating template and an assisted-mode
   template, each carrying its reasoning inline (`CFG-6` — reasoning is part of the preset).
@@ -41,20 +45,22 @@ and floors artifacts to instantiate.
 
 - `CFG-5`, `CFG-6`, `CFG-9`, with a hook for `CFG-8`
   ([guarantee 2](../../../product/guarantees.md#2-configuration-ownership)).
-- The driving contract's action vocabulary — setup joins as a deliberate, recorded action
+- Product requires a setup surface, while the driving contract's current action vocabulary does
+  not include setup; this phase routes that design placement before implementation
   ([driving contract](../../../design/contracts/driving.md)).
 - Makes the P06 artifacts adoptable: without templates, only fixture-literate users can
   configure Jig.
 
 ## Technical Requirements
 
-- Setup is an edge action: it writes configuration artifacts and records what it did; it holds
-  no run logic and makes no policy decisions beyond instantiating a chosen template.
+- Setup is an edge/configuration surface: it writes configuration artifacts and records what it
+  did in the settled location; it holds no run logic and makes no policy decisions beyond
+  instantiating a chosen template.
 - Every emitted artifact passes the same boundary validation P06 built — templates cannot
   bypass validation.
 - Templates are versioned content; a template change is reviewable prose, not code.
-- One setup action, one audit-visible record of what was emitted and why (the one-action
-  invariant applies to invalid input too).
+- One setup invocation, one audit-visible record of what was emitted and why; if setup becomes a
+  driving action, the one-action invariant applies to invalid input too.
 - No interactive-TTY hard dependency: intent can arrive as flags/answers file so the action
   works headlessly (the interactive prompt is presentation).
 
@@ -76,9 +82,9 @@ and floors artifacts to instantiate.
 
 ## Acceptance Criteria
 
-1. `jig setup` on a fresh track produces a valid policy + work profile from a chosen template
-   and posture, with printed reasoning for each preset, and the run record/audit trail shows
-   one setup action.
+1. The design placement is recorded before implementation. `jig setup` on a fresh track
+   produces a valid policy + work profile from a chosen template and posture, with printed
+   reasoning for each preset, and the settled audit trail shows one setup invocation.
 2. Every emitted artifact validates under P06 rules (test: emit, then launch a fixture run with
    the emitted config).
 3. Setup against a current, valid configuration refuses with an explanation; against a stale or

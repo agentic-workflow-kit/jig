@@ -8,10 +8,10 @@ status: planned
 ## Overview
 
 Deliver `SEE-6`: a finished run exports as a write-once, redacted-by-default audit record — a
-single durable artifact an owner can archive or hand to compliance, produced through an
-`export` driving action. This phase also forces two deferred records-design decisions into the
-open (export encoding; replay-drift handling surface) by routing them to the records design
-owner before implementation.
+single durable artifact an owner can archive or hand to compliance. This phase also forces the
+export surface placement and two deferred records-design decisions into the open (export
+encoding; replay-drift handling surface) by routing them to the driving/records design owners
+before implementation.
 
 ## Background
 
@@ -24,13 +24,13 @@ guarantee-5 commitment with no implementation trace at all.
 
 ## What To Do
 
-- Route the two deferred decisions first: propose an export encoding and a replay-drift
-  handling surface to the records design owner (a short ADR or a records.md deepening), then
-  implement what is settled.
-- Implement `export` as a driving action on the operator-control port: given a finished run's
-  directory, verify integrity (sidecar where present), replay/project to confirm internal
-  consistency, apply export redaction posture per record (fail closed on unknown/ambiguous
-  posture), and emit one write-once artifact.
+- Route the deferred decisions first: propose export surface placement, export encoding, and a
+  replay-drift handling surface to the driving/records design owners (a short ADR or a
+  records.md deepening), then implement what is settled.
+- Implement the settled export surface: given a finished run's directory, verify integrity
+  (sidecar where present), replay/project to confirm internal consistency, apply export
+  redaction posture per record (fail closed on unknown/ambiguous posture), and emit one
+  write-once artifact.
 - Write-once means the export is immutable once produced: re-export produces a new artifact
   (identifiable, timestamped), never a mutation of a prior one.
 - Redacted-by-default: the default export applies the strictest recorded posture; anything
@@ -58,9 +58,9 @@ guarantee-5 commitment with no implementation trace at all.
   says so honestly.
 - Redaction is applied at export time from recorded posture, not re-derived by scanning; an
   ambiguity is a diagnosable stop (consistent with the append-time rule).
-- One export action, one audit event; goldens byte-identical (export reads records, it does not
-  add reference-path events — the export action's own audit event must not land in the
-  exported run's log after finalization; design the audit location with the records owner).
+- One export invocation, one audit event in the settled location; goldens byte-identical (export
+  reads records, it does not add reference-path events — any export audit event must not land in
+  the exported run's log after finalization; design the audit location with the records owner).
 - No upload, no external sink — export writes a local artifact (`CFG-7` consumers take it from
   there).
 
@@ -91,8 +91,8 @@ guarantee-5 commitment with no implementation trace at all.
 3. A tampered event log (integrity sidecar mismatch) refuses export through the settled drift
    surface; the refusal is recorded and explained.
 4. Re-export yields a new, distinguishable artifact; no path mutates an existing export.
-5. Exporting a live run refuses with guidance; the export action carries one audit event in the
-   settled location.
+5. Exporting a live run refuses with guidance; the export invocation carries one audit event in
+   the settled location.
 6. The encoding/drift decisions are recorded in the design layer (ADR or deepened records.md)
    before the implementing code merges; goldens byte-identical.
 
