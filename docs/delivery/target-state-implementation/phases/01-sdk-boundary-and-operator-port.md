@@ -1,6 +1,6 @@
 ---
 title: "Phase 01 - SDK boundary and operator-control surface"
-status: planned
+status: "merged (#55)"
 ---
 
 # Phase 01 - SDK boundary and operator-control surface

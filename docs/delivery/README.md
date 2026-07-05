@@ -19,9 +19,9 @@ start work from an archived track.
 
 ## Active tracks
 
-| Track                                                                   | Goal                                                                                                                                       | Status  |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| [target-state-implementation/](./target-state-implementation/README.md) | Transform the current single-package, fixture-backed implementation into the target state described by `docs/product/` and `docs/design/`. | planned |
+| Track                                                                   | Goal                                                                                                                                       | Status      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| [target-state-implementation/](./target-state-implementation/README.md) | Transform the current single-package, fixture-backed implementation into the target state described by `docs/product/` and `docs/design/`. | in progress |
 
 ## Rules for delivery docs
 

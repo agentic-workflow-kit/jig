@@ -1,6 +1,6 @@
 ---
 title: "Phase 02 - Package split: jig-sdk, jig-cli, jig-testkit"
-status: planned
+status: "merged (#56, #58)"
 ---
 
 # Phase 02 - Package split: jig-sdk, jig-cli, jig-testkit
