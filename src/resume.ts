@@ -54,13 +54,29 @@ export class ResumeRefusal extends Error {
   }
 }
 
+export interface ResumeOwnerDecisionSource {
+  decide(request: unknown, story: unknown): Promise<'approve' | 'reject'>;
+}
+
 export interface ResumeRunOptions {
   runDir: string;
   scriptedOutputPath: string;
   configPath?: string | null;
   policyPath?: string | null;
   planPath?: string | null;
-  ownerDecisionSource?: ConstructorParameters<typeof LocalHarness>[2];
+  ownerDecisionSource?: ResumeOwnerDecisionSource;
+  forgeTransport?: GitHubForgeTransport;
+  workSourceTransport?: GitHubIssuesWorkSourceTransport;
+  redaction?: RedactionOptions;
+}
+
+export interface ResumeLoadedRunOptions {
+  runDir: string;
+  scriptedOutput: Record<string, unknown>;
+  config?: ConfigDoc;
+  policy?: PolicyDoc;
+  planInstance?: PlanInstance;
+  ownerDecisionSource?: ResumeOwnerDecisionSource;
   forgeTransport?: GitHubForgeTransport;
   workSourceTransport?: GitHubIssuesWorkSourceTransport;
   redaction?: RedactionOptions;
@@ -211,14 +227,14 @@ export function checkWorkspaceContinuity(projection: RunProjection): WorkspaceCo
 }
 
 function verifyOptionalBindings(
-  options: ResumeRunOptions,
+  options: Pick<ResumeLoadedRunOptions, 'config' | 'policy' | 'planInstance'>,
   projection: RunProjection,
   planSnapshot: Plan,
   policySnapshot: PolicyDoc,
 ): ConfigDoc | undefined {
   let verifiedConfig: ConfigDoc | undefined;
-  if (options.configPath) {
-    const config = loadConfig(options.configPath);
+  if (options.config) {
+    const config = options.config;
     if (describeConfigBinding(config) !== projection.binding.configRef) {
       throw new ResumeRefusal(
         'resume-blocked-binding-mismatch',
@@ -228,8 +244,8 @@ function verifyOptionalBindings(
     verifiedConfig = config;
   }
 
-  if (options.policyPath) {
-    const policy = loadPolicy(options.policyPath);
+  if (options.policy) {
+    const policy = options.policy;
     if (!isDeepStrictEqual(policy, policySnapshot)) {
       throw new ResumeRefusal(
         'resume-blocked-binding-mismatch',
@@ -238,8 +254,9 @@ function verifyOptionalBindings(
     }
   }
 
-  if (options.planPath) {
-    const planInstance = loadPlanInstanceForVerification(options.planPath);
+  if (options.planInstance) {
+    const planInstance = options.planInstance;
+    PlanValidator.validate(planInstance);
     if (!isDeepStrictEqual(planInstance.plan, planSnapshot)) {
       throw new ResumeRefusal(
         'resume-blocked-binding-mismatch',
@@ -302,7 +319,7 @@ function configForResumeComposition(verifiedConfig?: ConfigDoc, launchSelection?
 
 async function requireChangedBasisReapproval(
   continuity: WorkspaceContinuity,
-  options: ResumeRunOptions,
+  options: Pick<ResumeLoadedRunOptions, 'ownerDecisionSource'>,
   recordSink: RecordSink,
   projection: RunProjection,
 ): Promise<void> {
@@ -539,7 +556,7 @@ class ResumeRecordSink implements RecordSink {
   }
 }
 
-export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
+export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<RunStatus> {
   const eventsJsonlPath = join(options.runDir, 'events.jsonl');
   if (!existsSync(eventsJsonlPath)) {
     throw new Error(`Missing authoritative events.jsonl in "${options.runDir}"`);
@@ -560,11 +577,10 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   const resumePlan = buildResumePlan(projection, existingEvents);
   const recordSink = new ResumeRecordSink(options.runDir, projection, existingEvents, options.redaction);
   await requireChangedBasisReapproval(workspaceContinuity, options, recordSink, projection);
-  const scriptedOutput = loadJson(options.scriptedOutputPath) as Record<string, unknown>;
   const composed = await composeReferenceRun({
     planInstance: { plan: planSnapshot },
     config: configForResumeComposition(verifiedConfig, launchSelection),
-    scriptedOutput,
+    scriptedOutput: options.scriptedOutput,
     forgeTransport: options.forgeTransport,
     workSourceTransport: options.workSourceTransport,
     redaction: options.redaction,
@@ -585,4 +601,18 @@ export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
   });
 
   return await harness.resume(candidate, policySnapshot, resumePlan);
+}
+
+export async function resumeRun(options: ResumeRunOptions): Promise<RunStatus> {
+  return await resumeRunLoaded({
+    runDir: options.runDir,
+    scriptedOutput: loadJson(options.scriptedOutputPath) as Record<string, unknown>,
+    ...(options.configPath ? { config: loadConfig(options.configPath) } : {}),
+    ...(options.policyPath ? { policy: loadPolicy(options.policyPath) } : {}),
+    ...(options.planPath ? { planInstance: loadPlanInstanceForVerification(options.planPath) } : {}),
+    ownerDecisionSource: options.ownerDecisionSource,
+    forgeTransport: options.forgeTransport,
+    workSourceTransport: options.workSourceTransport,
+    redaction: options.redaction,
+  });
 }
