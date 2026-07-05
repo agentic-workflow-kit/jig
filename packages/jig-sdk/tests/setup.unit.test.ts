@@ -84,23 +84,25 @@ test('P07-AC-3: setup refuses partial overwrite unless force is explicit', () =>
 test('P07-AC-4: setup command skips when freshness evidence is current', () => {
   const outputDir = tempSetupDir();
   const marker = join(outputDir, 'should-not-exist');
+  const freshnessMarker = join(outputDir, 'fresh');
 
   const result = createSetupArtifacts(outputDir, {
     trackId: 'TRACK-P07',
     template: 'assisted-local',
     providerPosture: 'reference-scripted',
-    freshnessCheck: 'test -f fresh',
+    freshnessCheck: `test -f ${freshnessMarker}`,
     setupCommand: `touch ${marker}`,
   });
 
   assert.strictEqual(result.setupCommand?.action, 'ran-stale');
   assert.ok(existsSync(marker));
 
+  writeFileSync(freshnessMarker, 'fresh\n');
   const forced = createSetupArtifacts(outputDir, {
     trackId: 'TRACK-P07',
     template: 'assisted-local',
     providerPosture: 'reference-scripted',
-    freshnessCheck: 'test -f setup-record.json',
+    freshnessCheck: `test -f ${freshnessMarker}`,
     setupCommand: `touch ${join(outputDir, 'should-not-run')}`,
     force: true,
   });

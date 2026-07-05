@@ -254,7 +254,7 @@ export function createSetupArtifacts(outputDir: string, answers: SetupAnswers): 
   }
 
   mkdirSync(targetDir, { recursive: true });
-  const setupCommand = runSetupCommandIfNeeded(answers, targetDir);
+  const setupCommand = runSetupCommandIfNeeded(answers, process.cwd());
   const template = loadSetupTemplate(answers.template);
   const reasoning = [
     ...template.reasoning,

@@ -500,21 +500,22 @@ test('P07-AC-5: setup command accepts an answers file and flags can override it'
 
 test('P07-AC-4: setup command reports freshness action', async () => {
   const setupDir = join(workDir, 'fresh-setup');
+  const marker = join(workDir, 'setup-ran');
   setArgv(
     'setup',
     setupDir,
     '--track',
     'TRACK-P07',
     '--setup-command',
-    'touch setup-ran',
+    `touch ${marker}`,
     '--freshness-check',
-    'test -f setup-record.json',
+    'test -f never-fresh',
   );
 
   await run();
 
   assert.match(loggedLines(), /Setup Command: ran-stale/);
-  assert.ok(existsSync(join(setupDir, 'setup-ran')));
+  assert.ok(existsSync(marker));
 });
 
 test('run(): "setup" validation errors are owner-readable', async () => {

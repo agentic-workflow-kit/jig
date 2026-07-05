@@ -229,6 +229,46 @@ test('P07-AC-4: start runs declared workspace setup only when freshness check is
   assert.strictEqual(readFileSync(marker, 'utf8'), before);
 });
 
+test('P07 review: start validates plan intake before workspace setup side effects', async () => {
+  const marker = join(workDir, 'invalid-plan-setup-marker');
+  const session = createJigSession();
+
+  await assert.rejects(
+    () =>
+      session.operator.start({
+        planInstance: {
+          plan: {
+            id: 'invalid-plan',
+            version: 'unknown-version',
+            stories: [{ id: 'STORY-1', title: 'Invalid story' }],
+          },
+        },
+        config: {
+          ...config,
+          track: {
+            id: 'TRACK-P07',
+            workProfile: {
+              version: 'work-profile-v0',
+              workProfile: {
+                id: 'work-profile-p07',
+                model: 'gpt-5',
+                effort: 'high',
+                setup: {
+                  command: `touch ${marker}`,
+                },
+              },
+            },
+          },
+        },
+        policy,
+        scriptedOutput: scriptedOutput(),
+      }),
+    /Invalid plan: unknown version/,
+  );
+
+  assert.ok(!existsSync(marker));
+});
+
 test('start fails closed when work-source intake admits no valid candidates', async () => {
   const session = createJigSession({
     workSourceTransport: {

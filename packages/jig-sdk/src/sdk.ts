@@ -226,6 +226,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
       },
 
       start: async (input): Promise<RunStatus> => {
+        PlanValidator.validate(input.planInstance);
         const ownerConfiguration = bindOwnerConfiguration(input.config, input.policy);
         runDeclaredWorkspaceSetup(ownerConfiguration);
         let composed: Awaited<ReturnType<typeof composeReferenceRun>>;
