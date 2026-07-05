@@ -610,6 +610,8 @@ test('P03-AC-4: non-Error transport setup failures are surfaced through the adap
 test('P03-AC-2: default environment reads version and schema and always cleans temporary schema output', async () => {
   vi.resetModules();
   const rmCalls: string[] = [];
+  const mkdirCalls: string[] = [];
+  const writeFileCalls: string[] = [];
   const execFileMock = vi.fn();
   Object.defineProperty(execFileMock, promisify.custom, {
     configurable: true,
@@ -625,9 +627,16 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
     spawn: vi.fn(),
   }));
   vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async (path: string) => {
+      mkdirCalls.push(path);
+    }),
     readFile: vi.fn(async () => schemaSurface),
     rm: vi.fn(async (path: string) => {
       rmCalls.push(path);
+    }),
+    stat: vi.fn(),
+    writeFile: vi.fn(async (path: string) => {
+      writeFileCalls.push(path);
     }),
   }));
   const module = await import('../src/providers/real/codex-app-server.js');
@@ -635,10 +644,13 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
 
   assert.strictEqual(await environment.codexVersion(), 'codex-cli 0.142.5');
   assert.strictEqual(await environment.appServerSchema(), schemaSurface);
+  assert.deepStrictEqual(mkdirCalls, [module.__internal.APP_SERVER_SCHEMA_LOCK_DIR]);
   assert.deepStrictEqual(rmCalls, [
     module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
     module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+    module.__internal.APP_SERVER_SCHEMA_LOCK_DIR,
   ]);
+  assert.deepStrictEqual(writeFileCalls, [`${module.__internal.APP_SERVER_SCHEMA_LOCK_DIR}/owner.json`]);
 });
 
 test('P03-AC-2: default environment still removes the temp schema directory when schema generation fails', async () => {
@@ -659,10 +671,13 @@ test('P03-AC-2: default environment still removes the temp schema directory when
     spawn: vi.fn(),
   }));
   vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
     readFile: vi.fn(),
     rm: vi.fn(async (path: string) => {
       rmCalls.push(path);
     }),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
   }));
   const module = await import('../src/providers/real/codex-app-server.js');
   const environment = new module.__internal.DefaultCodexAppServerEnvironment();
@@ -671,7 +686,231 @@ test('P03-AC-2: default environment still removes the temp schema directory when
   assert.deepStrictEqual(rmCalls, [
     module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
     module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+    module.__internal.APP_SERVER_SCHEMA_LOCK_DIR,
   ]);
+});
+
+test('P03-AC-2: schema generation is serialized around the shared deterministic output directory', async () => {
+  vi.resetModules();
+  let schemaCalls = 0;
+  let inFlight = 0;
+  let maxInFlight = 0;
+  let releaseFirst!: () => void;
+  const firstSchemaGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const execFileMock = vi.fn();
+  Object.defineProperty(execFileMock, promisify.custom, {
+    configurable: true,
+    value: async (_file: string, args: string[]) => {
+      if (args[0] === '--version') {
+        return { stdout: 'codex-cli 0.142.5\n', stderr: '' };
+      }
+      schemaCalls += 1;
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      if (schemaCalls === 1) {
+        await firstSchemaGate;
+      }
+      inFlight -= 1;
+      return { stdout: '', stderr: '' };
+    },
+  });
+  vi.doMock('node:child_process', () => ({
+    execFile: execFileMock,
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    readFile: vi.fn(async () => schemaSurface),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+  const environment = new module.__internal.DefaultCodexAppServerEnvironment();
+
+  const first = environment.appServerSchema();
+  const second = environment.appServerSchema();
+  await delay(0);
+
+  assert.strictEqual(schemaCalls, 1);
+  assert.strictEqual(maxInFlight, 1);
+  releaseFirst();
+  const [firstSchema, secondSchema] = await Promise.all([first, second]);
+
+  assert.strictEqual(firstSchema, schemaSurface);
+  assert.strictEqual(secondSchema, schemaSurface);
+  assert.strictEqual(schemaCalls, 2);
+  assert.strictEqual(maxInFlight, 1);
+});
+
+test('P03-AC-2: filesystem schema lock waits for another process lock to clear before acquiring', async () => {
+  vi.useFakeTimers();
+  vi.resetModules();
+  let mkdirAttempts = 0;
+  let lockHeld = true;
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => {
+      mkdirAttempts += 1;
+      if (lockHeld) {
+        const error = new Error('exists') as Error & { code?: string };
+        error.code = 'EEXIST';
+        throw error;
+      }
+    }),
+    readFile: vi.fn(),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(async () => ({ mtimeMs: Date.now() })),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+
+  const acquirePromise = module.__internal.acquireSchemaDirectoryLock();
+  await vi.advanceTimersByTimeAsync(module.__internal.APP_SERVER_SCHEMA_LOCK_RETRY_MS);
+  assert.strictEqual(mkdirAttempts, 2);
+
+  lockHeld = false;
+  await vi.advanceTimersByTimeAsync(module.__internal.APP_SERVER_SCHEMA_LOCK_RETRY_MS);
+  const release = await acquirePromise;
+  await release();
+
+  assert.ok(mkdirAttempts >= 3);
+});
+
+test('P03-AC-2: stale filesystem schema locks are removed before retrying acquisition', async () => {
+  vi.resetModules();
+  let mkdirAttempts = 0;
+  let staleThreshold = 0;
+  const rmCalls: string[] = [];
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => {
+      mkdirAttempts += 1;
+      if (mkdirAttempts === 1) {
+        const error = new Error('exists') as Error & { code?: string };
+        error.code = 'EEXIST';
+        throw error;
+      }
+    }),
+    readFile: vi.fn(),
+    rm: vi.fn(async (path: string) => {
+      rmCalls.push(path);
+    }),
+    stat: vi.fn(async () => ({ mtimeMs: Date.now() - staleThreshold - 1 })),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+  staleThreshold = module.__internal.APP_SERVER_SCHEMA_LOCK_STALE_MS;
+
+  const release = await module.__internal.acquireSchemaDirectoryLock();
+  await release();
+
+  assert.strictEqual(mkdirAttempts, 2);
+  assert.deepStrictEqual(rmCalls, [
+    module.__internal.APP_SERVER_SCHEMA_LOCK_DIR,
+    module.__internal.APP_SERVER_SCHEMA_LOCK_DIR,
+  ]);
+});
+
+test('P03-AC-2: missing filesystem schema locks are treated as non-stale during lock checks', async () => {
+  vi.resetModules();
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(),
+    readFile: vi.fn(),
+    rm: vi.fn(),
+    stat: vi.fn(async () => {
+      const error = new Error('missing') as Error & { code?: string };
+      error.code = 'ENOENT';
+      throw error;
+    }),
+    writeFile: vi.fn(),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+
+  assert.strictEqual(await module.__internal.isStaleSchemaLock(module.__internal.APP_SERVER_SCHEMA_LOCK_DIR), false);
+});
+
+test('P03-AC-2: unexpected filesystem schema lock acquisition errors fail closed', async () => {
+  vi.resetModules();
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => {
+      throw new Error('permission denied');
+    }),
+    readFile: vi.fn(),
+    rm: vi.fn(),
+    stat: vi.fn(),
+    writeFile: vi.fn(),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+
+  await assert.rejects(() => module.__internal.acquireSchemaDirectoryLock(), /permission denied/);
+});
+
+test('P03-AC-2: owner metadata write failure removes the acquired lock directory before failing closed', async () => {
+  vi.resetModules();
+  const rmCalls: string[] = [];
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    readFile: vi.fn(),
+    rm: vi.fn(async (path: string) => {
+      rmCalls.push(path);
+    }),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => {
+      throw new Error('write failed');
+    }),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+
+  await assert.rejects(() => module.__internal.acquireSchemaDirectoryLock(), /write failed/);
+  assert.deepStrictEqual(rmCalls, [module.__internal.APP_SERVER_SCHEMA_LOCK_DIR]);
+});
+
+test('P03-AC-2: schema generation lock recovers after a previous callback rejection', async () => {
+  vi.resetModules();
+  vi.doMock('node:child_process', () => ({
+    execFile: vi.fn(),
+    spawn: vi.fn(),
+  }));
+  vi.doMock('node:fs/promises', () => ({
+    mkdir: vi.fn(async () => undefined),
+    readFile: vi.fn(),
+    rm: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+  }));
+  const module = await import('../src/providers/real/codex-app-server.js');
+
+  await assert.rejects(
+    () =>
+      module.__internal.withSchemaGenerationLock(async () => {
+        throw new Error('first failure');
+      }),
+    /first failure/,
+  );
+  await assert.doesNotReject(async () => {
+    await module.__internal.withSchemaGenerationLock(async () => undefined);
+  });
 });
 
 test('P03-AC-4: overlapping turn starts fail closed while an active turn is in progress', async () => {

@@ -147,6 +147,20 @@ test('P03-AC-2: stdio transport closes the child process cleanly', async () => {
   assert.strictEqual(child.stdin.ended, true);
 });
 
+test('P03-AC-2: transport close clears fallback timers once the child exits', async () => {
+  const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+  const child = createFakeChild();
+  const module = await importTransportWithMocks(child);
+  const transport = new module.__internal.StdioCodexRpcTransport();
+
+  const closePromise = transport.close();
+  child.emit('exit', 0, null);
+  await closePromise;
+
+  assert.ok(clearTimeoutSpy.mock.calls.length >= 2);
+  clearTimeoutSpy.mockRestore();
+});
+
 test('P03-AC-2: close is a no-op for an already killed child', async () => {
   const child = createFakeChild();
   child.killed = true;
