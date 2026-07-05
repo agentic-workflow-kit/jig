@@ -662,10 +662,23 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
         story.lastEventFamily = family;
         break;
       case 'story.done':
-        assertStoryState(story, ['started'], parsedEvent, storyId);
+        assertStoryState(
+          story,
+          story.state === 'done' &&
+            (typeof parsedEvent.event.mergeability === 'string' ||
+              typeof parsedEvent.event.targetRef === 'string' ||
+              typeof parsedEvent.event.targetHead === 'string')
+            ? ['started', 'done']
+            : ['started'],
+          parsedEvent,
+          storyId,
+        );
         story.state = 'done';
         appendChangedFiles(story.changedFiles, parsedEvent.event.changedFiles);
         appendChangedFiles(changedFiles, parsedEvent.event.changedFiles);
+        if (parsedEvent.event.diagnostics) {
+          story.diagnostics = parsedEvent.event.diagnostics;
+        }
         story.lastEventFamily = family;
         break;
       case 'story.blocked':

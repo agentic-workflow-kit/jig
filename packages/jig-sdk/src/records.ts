@@ -44,6 +44,17 @@ const DEFAULT_RUN_POSTURE: RunPosture = {
   export: 'redacted',
 };
 
+function latestItemEvents(events: RunEvent[]): RunEvent[] {
+  const latest = new Map<string, RunEvent>();
+  for (const event of events) {
+    if (!ITEM_FAMILIES.includes(event.family) || typeof event.storyId !== 'string') {
+      continue;
+    }
+    latest.set(event.storyId, event);
+  }
+  return [...latest.values()];
+}
+
 export interface RecordManagerOptions {
   launchAttestation?: CapabilityAttestation;
   substrateManifest?: ApprovedSubstrateManifest;
@@ -275,7 +286,7 @@ export class RecordManager implements RecordSink {
     }
 
     // Item-level outcomes
-    const items = this.events.filter((e) => ITEM_FAMILIES.includes(e.family));
+    const items = latestItemEvents(this.events);
     if (items.length > 0) {
       console.log('\nItems:');
       for (const item of items) {

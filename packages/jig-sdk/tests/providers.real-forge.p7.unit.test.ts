@@ -263,6 +263,7 @@ test('P7-AC-1: command transport creates an open-pr without --json and reads PR 
 test('P7-AC-5: command transport creates a block PR without --json and reads PR fields with gh pr view', async () => {
   const { calls, execute } = commandExecutor((file, args) => {
     if (file === 'git' && args.join(' ') === 'rev-parse HEAD') return 'block-head-before-pr\n';
+    if (file === 'git' && args.join(' ') === 'push origin HEAD:phase-7') return '';
     if (file === 'gh' && args.join(' ') === 'pr view phase-7 --json number,url,headRefName,headRefOid,baseRefName') {
       throw new Error('no existing PR');
     }
@@ -295,6 +296,7 @@ test('P7-AC-5: command transport creates a block PR without --json and reads PR 
     calls.map((call) => [call.file, call.args]),
     [
       ['git', ['rev-parse', 'HEAD']],
+      ['git', ['push', 'origin', 'HEAD:phase-7']],
       ['gh', ['pr', 'view', 'phase-7', '--json', 'number,url,headRefName,headRefOid,baseRefName']],
       ['gh', ['pr', 'create', '--fill', '--head', 'phase-7']],
       [
@@ -309,15 +311,19 @@ test('P7-AC-5: command transport creates a block PR without --json and reads PR 
 
 test('P7-AC-3: command transport records merge landing against the post-merge base ref and head', async () => {
   const { calls, execute } = commandExecutor((file, args) => {
-    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,baseRefName') {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
       return JSON.stringify({
         number: 7,
         url: 'https://github.example/pull/7',
         baseRefName: 'main',
+        headRefName: 'phase-7',
+        headRefOid: 'head-before-merge',
       });
     }
     if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') return '';
-    if (file === 'git' && args.join(' ') === 'rev-parse refs/heads/main') return 'base-head-after-merge\n';
+    if (file === 'git' && args.join(' ') === 'ls-remote --heads origin refs/heads/main') {
+      return 'base-head-after-merge refs/heads/main\n';
+    }
     throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
   });
 
@@ -329,13 +335,110 @@ test('P7-AC-3: command transport records merge landing against the post-merge ba
   assert.deepStrictEqual(
     calls.map((call) => [call.file, call.args]),
     [
-      ['gh', ['pr', 'view', '--json', 'number,url,baseRefName']],
+      ['gh', ['pr', 'view', '--json', 'number,url,headRefName,headRefOid,baseRefName']],
       ['gh', ['pr', 'merge', '--squash', '--delete-branch=false']],
-      ['git', ['rev-parse', 'refs/heads/main']],
+      ['git', ['ls-remote', '--heads', 'origin', 'refs/heads/main']],
     ],
   );
   assert.strictEqual(outcome.targetRef, 'refs/heads/main');
   assert.strictEqual(outcome.targetHead, 'base-head-after-merge');
+});
+
+test('P05 MERGE-4: command transport classifies merge-queue holds as done-not-landed against the exact PR head', async () => {
+  const { calls, execute } = commandExecutor((file, args) => {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
+      return JSON.stringify({
+        number: 7,
+        url: 'https://github.example/pull/7',
+        baseRefName: 'main',
+        headRefName: 'phase-7',
+        headRefOid: 'pr-head-before-queue',
+      });
+    }
+    if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') {
+      return 'Pull request queued for merge in the merge queue.\n';
+    }
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  });
+
+  const outcome = await createGitHubCommandTransport(execute).mergePullRequest({
+    storyId: 'STORY-1',
+    action: 'merge',
+  });
+
+  assert.deepStrictEqual(
+    calls.map((call) => [call.file, call.args]),
+    [
+      ['gh', ['pr', 'view', '--json', 'number,url,headRefName,headRefOid,baseRefName']],
+      ['gh', ['pr', 'merge', '--squash', '--delete-branch=false']],
+    ],
+  );
+  assert.strictEqual(outcome.targetRef, 'refs/heads/phase-7');
+  assert.strictEqual(outcome.targetHead, 'pr-head-before-queue');
+  assert.strictEqual(outcome.mergeability, 'held-by-merge-queue');
+});
+
+test('P05 MERGE-4: command transport classifies branch-protection holds and falls back to the local head when PR head fields are absent', async () => {
+  const { calls, execute } = commandExecutor((file, args) => {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
+      return JSON.stringify({
+        number: 9,
+        url: 'https://github.example/pull/9',
+        baseRefName: 'main',
+      });
+    }
+    if (file === 'git' && args.join(' ') === 'rev-parse --abbrev-ref HEAD') return 'phase-9\n';
+    if (file === 'git' && args.join(' ') === 'rev-parse HEAD') return 'local-head-for-review-hold\n';
+    if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') {
+      throw new Error('protected branch update failed: required review required before merge');
+    }
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  });
+
+  const outcome = await createGitHubCommandTransport(execute).mergePullRequest({
+    storyId: 'STORY-1',
+    action: 'merge',
+  });
+
+  assert.deepStrictEqual(
+    calls.map((call) => [call.file, call.args]),
+    [
+      ['gh', ['pr', 'view', '--json', 'number,url,headRefName,headRefOid,baseRefName']],
+      ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
+      ['git', ['rev-parse', 'HEAD']],
+      ['gh', ['pr', 'merge', '--squash', '--delete-branch=false']],
+    ],
+  );
+  assert.strictEqual(outcome.targetRef, 'refs/heads/phase-9');
+  assert.strictEqual(outcome.targetHead, 'local-head-for-review-hold');
+  assert.strictEqual(outcome.mergeability, 'held-by-review');
+});
+
+test('P05 MERGE-4: command transport classifies merge conflicts as held done-not-landed instead of a hard merge failure', async () => {
+  const { execute } = commandExecutor((file, args) => {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
+      return JSON.stringify({
+        number: 10,
+        url: 'https://github.example/pull/10',
+        baseRefName: 'main',
+        headRefName: 'phase-10',
+        headRefOid: 'conflict-head',
+      });
+    }
+    if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') {
+      throw new Error('Pull request cannot be merged cleanly because of a merge conflict');
+    }
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  });
+
+  const outcome = await createGitHubCommandTransport(execute).mergePullRequest({
+    storyId: 'STORY-1',
+    action: 'merge',
+  });
+
+  assert.strictEqual(outcome.targetRef, 'refs/heads/phase-10');
+  assert.strictEqual(outcome.targetHead, 'conflict-head');
+  assert.strictEqual(outcome.mergeability, 'held-by-conflict');
 });
 
 test('P7-AC-1: command transport pushes HEAD to the current branch without live GitHub', async () => {
@@ -363,9 +466,11 @@ test('P7-AC-1: command transport pushes HEAD to the current branch without live 
   assert.strictEqual(outcome.targetHead, 'push-head');
 });
 
-test('P7-AC-3: command transport readHead re-reads the requested target ref without live GitHub', async () => {
+test('P7-AC-3: command transport readHead re-reads the requested target ref from the authoritative hosted remote', async () => {
   const { calls, execute } = commandExecutor((file, args) => {
-    if (file === 'git' && args.join(' ') === 'rev-parse refs/heads/main') return 'main-head\n';
+    if (file === 'git' && args.join(' ') === 'ls-remote --heads origin refs/heads/main') {
+      return 'main-head refs/heads/main\n';
+    }
     throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
   });
 
@@ -375,15 +480,48 @@ test('P7-AC-3: command transport readHead re-reads the requested target ref with
 
   assert.deepStrictEqual(
     calls.map((call) => [call.file, call.args]),
-    [['git', ['rev-parse', 'refs/heads/main']]],
+    [['git', ['ls-remote', '--heads', 'origin', 'refs/heads/main']]],
   );
   assert.strictEqual(outcome.targetRef, 'refs/heads/main');
   assert.strictEqual(outcome.targetHead, 'main-head');
 });
 
+test('P7-AC-3: command transport verifyLanding ignores a stale matching local ref and uses the hosted remote head', async () => {
+  const { calls, execute } = commandExecutor((file, args) => {
+    if (file === 'git' && args.join(' ') === 'ls-remote --heads origin refs/heads/main') {
+      return 'remote-new-head refs/heads/main\n';
+    }
+    if (file === 'git' && args.join(' ') === 'rev-parse refs/heads/main') {
+      return 'local-stale-head\n';
+    }
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  });
+
+  const forge = createGitHubForge({ transport: createGitHubCommandTransport(execute) });
+  assert.ok(forge.verifyLanding, 'expected GitHub forge to expose verifyLanding');
+  const verification = await forge.verifyLanding({
+    storyId: 'STORY-1',
+    action: 'merge',
+    landingKind: 'merge',
+    targetRef: 'refs/heads/main',
+    targetHead: 'local-stale-head',
+  });
+
+  assert.deepStrictEqual(
+    calls.map((call) => [call.file, call.args]),
+    [['git', ['ls-remote', '--heads', 'origin', 'refs/heads/main']]],
+  );
+  assert.deepStrictEqual(verification, {
+    status: 'mismatched',
+    targetRef: 'refs/heads/main',
+    expectedHead: 'local-stale-head',
+    actualHead: 'remote-new-head',
+  });
+});
+
 test('P7-AC-3: command transport refuses a merge landing when the PR base ref is unavailable', async () => {
   const { execute } = commandExecutor((file, args) => {
-    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,baseRefName') {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
       return JSON.stringify({ number: 7, url: 'https://github.example/pull/7' });
     }
     throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
@@ -402,6 +540,7 @@ test('P7-AC-5: command transport updates an existing block PR and posts status a
   const { calls, execute } = commandExecutor((file, args) => {
     if (file === 'git' && args.join(' ') === 'rev-parse --abbrev-ref HEAD') return 'phase-7\n';
     if (file === 'git' && args.join(' ') === 'rev-parse HEAD') return 'block-head\n';
+    if (file === 'git' && args.join(' ') === 'push origin HEAD:phase-7') return '';
     if (file === 'gh' && args.join(' ') === 'pr view phase-7 --json number,url,headRefName,headRefOid,baseRefName') {
       return JSON.stringify({
         number: 8,
@@ -439,6 +578,7 @@ test('P7-AC-5: command transport updates an existing block PR and posts status a
     [
       ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
       ['git', ['rev-parse', 'HEAD']],
+      ['git', ['push', 'origin', 'HEAD:phase-7']],
       ['gh', ['pr', 'view', 'phase-7', '--json', 'number,url,headRefName,headRefOid,baseRefName']],
       ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
       ['git', ['rev-parse', 'HEAD']],
@@ -521,6 +661,52 @@ test('P7-AC-2: an unknown action fails closed', async () => {
   await assert.rejects(async () => {
     await forge.land({ storyId: 'STORY-1', action: 'delete-branch' as never });
   }, /forge-unknown-action/);
+});
+
+test('P05 MERGE-4: a held merge records done-not-landed instead of forcing merge failure', async () => {
+  const { sink, events } = recordCollector();
+  const harness = new LocalHarness(
+    {
+      execute: async () => ({
+        outcome: 'success',
+        evidence: { result: 'passed' },
+      }),
+    },
+    sink,
+    null,
+    {
+      forge: createGitHubForge({
+        transport: {
+          ...fakeTransport([]),
+          mergePullRequest: async () => ({
+            targetRef: 'refs/heads/phase-7',
+            targetHead: 'merge-held-head',
+            prNumber: 7,
+            prUrl: 'https://github.example/pull/7',
+            mergeability: 'held-by-review',
+          }),
+        },
+      }),
+      landingAction: 'merge',
+    },
+  );
+
+  const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
+
+  assert.strictEqual(status, 'success');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'story.done' &&
+        event.storyId === 'STORY-1' &&
+        event.mergeability === 'held-by-review' &&
+        event.targetHead === 'merge-held-head',
+    ),
+  );
+  assert.strictEqual(
+    events.some((event) => event.family === 'runner-action.merged'),
+    false,
+  );
 });
 
 test('P7-AC-3: a land-then-relaunch is recognized from the records and is a recorded no-op', async () => {
@@ -627,6 +813,131 @@ test('P7-AC-3: a re-run against a changed head refuses to land rather than dupli
   );
   assert.strictEqual(
     events.some((event) => event.family === 'runner-action.pushed'),
+    false,
+  );
+});
+
+test('P05 MERGE-4: a held merge retries on resume when the recorded head still matches', async () => {
+  const calls: string[] = [];
+  const resumePlan: ResumePlan = {
+    runId: 'run-held-merge',
+    checkpoint: 'after:STORY-1',
+    stopCause: 'work-item-blocked',
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    pendingLandings: [
+      {
+        storyId: 'STORY-1',
+        action: 'merge',
+        landingKind: 'merge',
+        targetRef: 'refs/heads/phase-7',
+        targetHead: 'merge-held-head',
+        mergeability: 'held-by-review',
+      },
+    ],
+    parkedStoryId: null,
+    unstartedStoryIds: [],
+  };
+  const { sink, events } = recordCollector();
+  const harness = new LocalHarness(
+    {
+      execute: async () => {
+        assert.fail('held merge retry should not re-run worker execution');
+      },
+    },
+    sink,
+    null,
+    {
+      forge: createGitHubForge({ transport: fakeTransport(calls, 'merge-held-head') }),
+    },
+  );
+
+  const status = await harness.resume(validatePlanForScheduling(plan), policy, resumePlan);
+
+  assert.strictEqual(status, 'success');
+  assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7', 'merge:STORY-1']);
+  assert.ok(events.find((event) => event.family === 'runner-action.merged' && event.storyId === 'STORY-1'));
+});
+
+test('P05 MERGE-4: resume stops retrying later pending landings after the first mismatch', async () => {
+  const calls: string[] = [];
+  const resumePlan: ResumePlan = {
+    runId: 'run-held-merge-mismatch',
+    checkpoint: 'after:STORY-1',
+    stopCause: 'work-item-blocked',
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    pendingLandings: [
+      {
+        storyId: 'STORY-1',
+        action: 'merge',
+        landingKind: 'merge',
+        targetRef: 'refs/heads/phase-7',
+        targetHead: 'stale-head',
+        mergeability: 'held-by-review',
+      },
+      {
+        storyId: 'STORY-2',
+        action: 'merge',
+        landingKind: 'merge',
+        targetRef: 'refs/heads/phase-8',
+        targetHead: 'second-held-head',
+        mergeability: 'held-by-review',
+      },
+    ],
+    parkedStoryId: null,
+    unstartedStoryIds: [],
+  };
+  const { sink, events } = recordCollector();
+  const harness = new LocalHarness(
+    {
+      execute: async () => {
+        assert.fail('pending landing retries should not re-run worker execution');
+      },
+    },
+    sink,
+    null,
+    {
+      forge: createGitHubForge({
+        transport: {
+          ...fakeTransport(calls, 'fresh-head'),
+          readHead: async (request) => {
+            calls.push(`read-head:${request.targetRef}`);
+            if (request.targetRef === 'refs/heads/phase-7') {
+              return {
+                targetRef: request.targetRef,
+                targetHead: 'fresh-head',
+              };
+            }
+            return {
+              targetRef: request.targetRef,
+              targetHead: 'second-held-head',
+            };
+          },
+          mergePullRequest: async (request) => {
+            calls.push(`merge:${request.storyId}`);
+            return {
+              targetRef: 'refs/heads/main',
+              targetHead: 'merged-head',
+            };
+          },
+        },
+      }),
+    },
+  );
+
+  const status = await harness.resume(validatePlanForScheduling(twoStoryPlan), policy, resumePlan);
+
+  assert.strictEqual(status, 'failure');
+  assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7']);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'story.blocked' && event.storyId === 'STORY-1' && event.reason === 'landing-head-mismatch',
+    ),
+  );
+  assert.strictEqual(
+    events.some((event) => event.family === 'runner-action.merged' && event.storyId === 'STORY-2'),
     false,
   );
 });

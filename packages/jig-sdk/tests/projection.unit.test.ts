@@ -253,6 +253,32 @@ test('P4-AC-4: matching run.json adds no stale diagnostic', () => {
   assert.deepStrictEqual(projection.diagnostics, []);
 });
 
+test('P05 MERGE-4: replay accepts a held-merge story.done update without changing the story state', () => {
+  const events = [
+    ...stoppedRunEvents().slice(0, 7),
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:06.500Z',
+      storyId: 'STORY-1',
+      action: 'merge',
+      landingKind: 'merge',
+      outcome: 'done-not-landed',
+      mergeability: 'held-by-review',
+      targetRef: 'refs/heads/phase-7',
+      targetHead: 'held-head',
+    },
+    ...stoppedRunEvents().slice(7),
+  ];
+
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl(events),
+  });
+
+  assert.strictEqual(projection.stories['STORY-1']?.state, 'done');
+  assert.strictEqual(projection.stories['STORY-1']?.lastEventFamily, 'story.done');
+});
+
 test('P4-AC-4: stale run.json reports all conflicting immutable launch facts', () => {
   const projection = projectRunEvents({
     eventsJsonl: stringifyJsonl(stoppedRunEvents()),

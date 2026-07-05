@@ -8,6 +8,7 @@ import type {
   LandingRequest,
   LandingVerificationOutcome,
   LandingVerificationRequest,
+  Mergeability,
 } from '../../ports.js';
 
 export type CommandExecutor = (file: string, args: string[]) => Promise<{ stdout: string }>;
@@ -34,6 +35,7 @@ export interface GitHubForgeEffect {
   remoteUrl?: string;
   prNumber?: number;
   prUrl?: string;
+  mergeability?: Extract<Mergeability, 'held-by-review' | 'held-by-merge-queue' | 'held-by-conflict'>;
   diagnostics?: Record<string, unknown>;
 }
 
@@ -64,6 +66,22 @@ function familyForAction(action: LandingAction): string {
 }
 
 function outcomeForAction(request: LandingRequest, effect: GitHubForgeEffect): LandingOutcome {
+  if (request.action === 'merge' && effect.mergeability) {
+    return {
+      family: 'story.done',
+      storyId: request.storyId,
+      action: request.action,
+      landingKind: request.action,
+      outcome: 'done-not-landed',
+      mergeability: effect.mergeability,
+      targetRef: effect.targetRef,
+      targetHead: effect.targetHead,
+      ...(effect.prNumber !== undefined ? { prNumber: effect.prNumber } : {}),
+      ...(effect.prUrl ? { prUrl: effect.prUrl } : {}),
+      ...(effect.diagnostics ? { diagnostics: effect.diagnostics } : {}),
+    };
+  }
+
   return {
     family: familyForAction(request.action),
     storyId: request.storyId,
@@ -113,6 +131,58 @@ function readNumberField(record: Record<string, unknown>, field: string): number
   return typeof value === 'number' ? value : undefined;
 }
 
+function mergeabilityForMessage(
+  message: string,
+): Extract<Mergeability, 'held-by-review' | 'held-by-merge-queue' | 'held-by-conflict'> | null {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('merge queue') || normalized.includes('queued for merge')) {
+    return 'held-by-merge-queue';
+  }
+
+  if (
+    normalized.includes('cannot be merged cleanly') ||
+    normalized.includes('not mergeable') ||
+    normalized.includes('merge conflict') ||
+    normalized.includes('conflict')
+  ) {
+    return 'held-by-conflict';
+  }
+
+  if (
+    normalized.includes('protected branch') ||
+    normalized.includes('branch protection') ||
+    normalized.includes('required review') ||
+    normalized.includes('required approving review') ||
+    normalized.includes('required status') ||
+    normalized.includes('required checks') ||
+    normalized.includes('review required')
+  ) {
+    return 'held-by-review';
+  }
+
+  return null;
+}
+
+function parseLsRemoteHead(stdout: string, targetRef: string): string {
+  const [line] = stdout
+    .trim()
+    .split('\n')
+    .filter((entry) => entry.trim() !== '');
+  const [head, ref] = line?.split(/\s+/) ?? [];
+  if (!head || ref !== targetRef) {
+    throw new ForgeLandingError(
+      'forge-transport-missing-remote-head',
+      `forge-transport-missing-remote-head: no authoritative hosted head found for "${targetRef}"`,
+    );
+  }
+  return head;
+}
+
+async function readHostedHead(execute: CommandExecutor, targetRef: string): Promise<string> {
+  const { stdout } = await execute('git', ['ls-remote', '--heads', 'origin', targetRef]);
+  return parseLsRemoteHead(stdout, targetRef);
+}
+
 async function viewPullRequest(
   execute: CommandExecutor,
   selector: string | undefined,
@@ -147,13 +217,43 @@ export function createGitHubCommandTransport(execute: CommandExecutor = execFile
       };
     },
     mergePullRequest: async () => {
-      const parsed = await viewPullRequest(execute, undefined, 'number,url,baseRefName');
+      const parsed = await viewPullRequest(execute, undefined, PR_VIEW_FIELDS);
       const baseRefName = readStringField(parsed, 'baseRefName');
       if (!baseRefName) {
         throw new ForgeLandingError('forge-transport-missing-base-ref', 'forge-transport-missing-base-ref');
       }
-      await execute('gh', ['pr', 'merge', '--squash', '--delete-branch=false']);
-      const targetHead = await readCurrentHead(execute, `refs/heads/${baseRefName}`);
+      const headRefName = readStringField(parsed, 'headRefName') ?? (await readCurrentBranch(execute));
+      const headRefOid = readStringField(parsed, 'headRefOid') ?? (await readCurrentHead(execute, 'HEAD'));
+      try {
+        const { stdout } = await execute('gh', ['pr', 'merge', '--squash', '--delete-branch=false']);
+        const mergeability = mergeabilityForMessage(stdout);
+        if (mergeability) {
+          return {
+            targetRef: `refs/heads/${headRefName}`,
+            targetHead: headRefOid,
+            prNumber: readNumberField(parsed, 'number'),
+            prUrl: readStringField(parsed, 'url'),
+            mergeability,
+          };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const mergeability = mergeabilityForMessage(message);
+        if (mergeability) {
+          return {
+            targetRef: `refs/heads/${headRefName}`,
+            targetHead: headRefOid,
+            prNumber: readNumberField(parsed, 'number'),
+            prUrl: readStringField(parsed, 'url'),
+            mergeability,
+            diagnostics: {
+              error: message,
+            },
+          };
+        }
+        throw err;
+      }
+      const targetHead = await readHostedHead(execute, `refs/heads/${baseRefName}`);
       return {
         targetRef: `refs/heads/${baseRefName}`,
         targetHead,
@@ -161,13 +261,18 @@ export function createGitHubCommandTransport(execute: CommandExecutor = execFile
         prUrl: readStringField(parsed, 'url'),
       };
     },
-    readHead: async (request) => ({
-      targetRef: request.targetRef,
-      targetHead: await readCurrentHead(execute, request.targetRef),
-    }),
+    readHead: async (request) => {
+      return {
+        targetRef: request.targetRef,
+        targetHead: await readHostedHead(execute, request.targetRef),
+      };
+    },
     openOrUpdatePullRequestForBlock: async (request) => {
       const branch = request.safeBranch ?? (await readCurrentBranch(execute));
       const targetHead = await readCurrentHead(execute, 'HEAD');
+      if (request.canPush === true) {
+        await execute('git', ['push', 'origin', `HEAD:${branch}`]);
+      }
       let parsed: Record<string, unknown>;
       try {
         parsed = await viewPullRequest(execute, branch);

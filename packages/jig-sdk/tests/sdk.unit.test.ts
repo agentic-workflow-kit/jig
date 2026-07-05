@@ -85,6 +85,19 @@ function initGitWorkspace(cwd: string): void {
   execFileSync('git', ['commit', '-m', 'init'], { cwd, stdio: 'ignore' });
 }
 
+function initializeGitBranch(branch = 'phase-5'): void {
+  execFileSync('git', ['init', '--initial-branch=main'], { cwd: workDir });
+  execFileSync('git', ['config', 'user.name', 'Jig SDK Test'], { cwd: workDir });
+  execFileSync('git', ['config', 'user.email', 'jig-sdk-test@example.com'], { cwd: workDir });
+  writeFileSync(join(workDir, 'README.md'), '# jig-sdk-session\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: workDir });
+  execFileSync('git', ['commit', '-m', 'init'], { cwd: workDir });
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workDir }).toString().trim();
+  mkdirSync(join(workDir, '.git', 'refs', 'heads'), { recursive: true });
+  writeFileSync(join(workDir, '.git', 'refs', 'heads', branch), `${head}\n`);
+  writeFileSync(join(workDir, '.git', 'HEAD'), `ref: refs/heads/${branch}\n`);
+}
+
 test('preview returns the SDK operator projection', async () => {
   const session = createJigSession({
     realHostProbeFactory: () => ({
@@ -409,6 +422,79 @@ test('P04-AC-4: the real-host run path allocates isolated per-story workspaces',
     '/.jig-workspaces/STORY-1',
     '/.jig-workspaces/STORY-2',
   ]);
+});
+
+test('P05 MERGE-5: start surfaces blocked stories through the normal SDK runner path when github forge wiring is enabled', async () => {
+  initializeGitBranch('phase-5-block-surface');
+
+  const calls: string[] = [];
+  const session = createJigSession({
+    forgeTransport: {
+      push: async () => {
+        throw new Error('push should not run for a blocked story');
+      },
+      openPullRequest: async () => {
+        throw new Error('open-pr should not run for a blocked story');
+      },
+      mergePullRequest: async () => {
+        throw new Error('merge should not run for a blocked story');
+      },
+      readHead: async (request) => ({
+        targetRef: request.targetRef,
+        targetHead: 'unused-head',
+      }),
+      openOrUpdatePullRequestForBlock: async (request) => {
+        calls.push(`block-pr:${request.safeBranch}:${request.canPush}`);
+        return {
+          targetRef: `refs/heads/${request.safeBranch}`,
+          targetHead: 'blocked-pr-head',
+          prNumber: 15,
+          prUrl: 'https://github.example/pull/15',
+        };
+      },
+      postBlockStatus: async (request) => {
+        calls.push(`block-status:${request.safeBranch}:${request.canPush}`);
+        return {
+          targetRef: `refs/heads/${request.safeBranch}`,
+          targetHead: 'blocked-status-head',
+        };
+      },
+      postBlockComment: async (request) => {
+        calls.push(`block-comment:${request.safeBranch}:${request.canPush}:${request.failureReasons[0]}`);
+        return {
+          targetRef: `refs/heads/${request.safeBranch}`,
+          targetHead: 'blocked-comment-head',
+        };
+      },
+    },
+  });
+
+  const status = await session.operator.start({
+    planInstance,
+    config: {
+      ...config,
+      drivers: {
+        forge: 'github',
+      },
+    },
+    policy,
+    scriptedOutput: scriptedOutput('failure'),
+  });
+
+  assert.strictEqual(status, 'failure');
+  assert.deepStrictEqual(calls, [
+    'block-pr:phase-5-block-surface:true',
+    'block-status:phase-5-block-surface:true',
+    'block-comment:phase-5-block-surface:true:worker-reported-failure',
+  ]);
+
+  const events = readFileSync(join(firstRunDir(), 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { family: string; storyId?: string });
+  assert.ok(events.find((event) => event.family === 'runner-action.opened-pr' && event.storyId === 'STORY-1'));
+  assert.ok(events.find((event) => event.family === 'runner-action.posted-status' && event.storyId === 'STORY-1'));
+  assert.ok(events.find((event) => event.family === 'runner-action.posted-comment' && event.storyId === 'STORY-1'));
 });
 
 test('inspect ignores an unreadable run.json cache when events remain authoritative', async () => {

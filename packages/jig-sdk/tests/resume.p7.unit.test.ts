@@ -195,6 +195,70 @@ function stoppedBeforeResumeLanding(): RunEvent[] {
   ];
 }
 
+function stoppedAfterHeldMerge(targetHead = 'held-head'): RunEvent[] {
+  return [
+    {
+      family: 'run.started',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:00.000Z',
+      runId: 'run-p7-held-merge',
+      planId: plan.id,
+      mode: 'local-dry-run',
+      binding: {
+        policyRef: 'policy-p7-resume',
+        configRef: 'mode=local-dry-run;recordDir=runs',
+        workspace: captureWorkspaceFingerprint(process.cwd()),
+      },
+      posture: {
+        record: 'safe-for-owner-record',
+        export: 'redacted',
+      },
+      planSnapshot: { ref: 'plan.snapshot.json' },
+      policySnapshot: { ref: 'policy.snapshot.json' },
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'evidence.modeled',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:02.000Z',
+      storyId: 'STORY-1',
+      result: 'passed',
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:03.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:04.000Z',
+      storyId: 'STORY-1',
+      action: 'merge',
+      landingKind: 'merge',
+      outcome: 'done-not-landed',
+      mergeability: 'held-by-review',
+      targetRef: 'refs/heads/phase-7',
+      targetHead,
+      prUrl: 'https://github.example/pull/7',
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-04T09:00:05.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-1',
+      unstarted: ['STORY-2'],
+    },
+  ];
+}
+
 function fakeTransport(calls: string[], currentHead: string, diagnosticSecret?: string): GitHubForgeTransport {
   return {
     push: async (request) => {
@@ -269,6 +333,31 @@ test('P7-AC-3: resumeRun recomposes the real forge and records a repeated landin
   );
 });
 
+test('P05 MERGE-4: resumeRun retries a held merge when the recorded PR head still matches', async () => {
+  const calls: string[] = [];
+  writeRun(stoppedAfterHeldMerge('held-head'));
+
+  const status = await resumeRun({
+    runDir,
+    scriptedOutputPath: writeScriptedOutput({
+      stories: [
+        {
+          storyId: 'STORY-2',
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      ],
+    }),
+    configPath: writeConfig(),
+    forgeTransport: fakeTransport(calls, 'held-head'),
+  });
+
+  assert.strictEqual(status, 'success');
+  assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7', 'merge:STORY-1', 'push:STORY-2']);
+  const events = readEvents();
+  assert.ok(events.find((event) => event.family === 'runner-action.merged' && event.storyId === 'STORY-1'));
+});
+
 test('P7-AC-3: resumeRun refuses a changed landing head instead of duplicating or blindly no-op-ing', async () => {
   const calls: string[] = [];
   writeRun(stoppedAfterPriorLanding('old-head'));
@@ -300,6 +389,37 @@ test('P7-AC-3: resumeRun refuses a changed landing head instead of duplicating o
   );
   assert.strictEqual(
     events.some((event) => event.reason === 'landing-verification-unavailable'),
+    false,
+  );
+});
+
+test('P05 MERGE-4: resumeRun refuses a changed head before retrying a held merge landing', async () => {
+  const calls: string[] = [];
+  writeRun(stoppedAfterHeldMerge('old-held-head'));
+
+  const status = await resumeRun({
+    runDir,
+    scriptedOutputPath: writeScriptedOutput(),
+    configPath: writeConfig(),
+    forgeTransport: fakeTransport(calls, 'new-held-head'),
+  });
+
+  assert.strictEqual(status, 'failure');
+  assert.deepStrictEqual(calls, ['read-head:refs/heads/phase-7']);
+  const events = readEvents();
+  assert.ok(
+    events.find((event) => {
+      const diagnostics = event.diagnostics as { actualHead?: string } | undefined;
+      return (
+        event.family === 'story.blocked' &&
+        event.storyId === 'STORY-1' &&
+        event.reason === 'landing-head-mismatch' &&
+        diagnostics?.actualHead === 'new-held-head'
+      );
+    }),
+  );
+  assert.strictEqual(
+    events.some((event) => event.family === 'runner-action.merged'),
     false,
   );
 });

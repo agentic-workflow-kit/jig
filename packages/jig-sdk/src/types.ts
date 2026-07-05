@@ -280,6 +280,14 @@ export interface ResumePlan {
   stopCause: string;
   completedStoryIds: string[];
   blockedStoryIds: string[];
+  pendingLandings?: Array<{
+    storyId: string;
+    action: 'push' | 'open-pr' | 'merge';
+    landingKind: 'push' | 'open-pr' | 'merge';
+    targetRef: string;
+    targetHead: string;
+    mergeability: 'held-by-review' | 'held-by-merge-queue' | 'held-by-conflict';
+  }>;
   priorLandings?: Array<{
     storyId: string;
     action: 'push' | 'open-pr' | 'merge';

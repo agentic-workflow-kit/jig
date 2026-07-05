@@ -93,7 +93,6 @@ const defaultForge: ForgePort = {
 
 const DEFAULT_LANDING_ACTION: LandingAction = 'push';
 const MODELED_DRY_RUN_LANDING_ACTION = 'push|open-pr|merge';
-const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
 
 function modeledLandingEvent(request: {
   storyId: string;
@@ -312,13 +311,30 @@ export class LocalHarness {
 
   private recordLandingOutcome(landingRequest: { storyId: string; action: LandingAction; reason: 'dry-run' }) {
     return async (outcome: LandingOutcome): Promise<void> => {
-      if (REAL_LANDING_FAMILIES.has(outcome.family)) {
+      const isHeldDoneOutcome =
+        outcome.family === 'story.done' &&
+        typeof outcome.mergeability === 'string' &&
+        typeof outcome.targetRef === 'string' &&
+        typeof outcome.targetHead === 'string';
+      if (
+        outcome.family === 'runner-action.pushed' ||
+        outcome.family === 'runner-action.opened-pr' ||
+        outcome.family === 'runner-action.merged' ||
+        isHeldDoneOutcome
+      ) {
         this.recordManager.recordEvent(outcome);
         return;
       }
 
       this.recordManager.recordEvent(modeledLandingEvent(landingRequest));
     };
+  }
+
+  private priorPendingLandingFor(
+    storyId: string,
+    resumePlan: ResumePlan,
+  ): NonNullable<ResumePlan['pendingLandings']>[number] | undefined {
+    return resumePlan.pendingLandings?.find((landing) => landing.storyId === storyId);
   }
 
   private priorLandingFor(storyId: string, resumePlan: ResumePlan): LandingVerificationRequest | undefined {
@@ -366,6 +382,59 @@ export class LocalHarness {
       reason: 'already-landed',
     });
     return { status: 'matched' };
+  }
+
+  private async retryPendingLanding(
+    storyId: string,
+    resumePlan: ResumePlan,
+  ): Promise<{ status: 'retried' } | { status: 'mismatched'; checkpointStoryId: string }> {
+    const pendingLanding = this.priorPendingLandingFor(storyId, resumePlan);
+    if (!pendingLanding) {
+      return { status: 'retried' };
+    }
+
+    if (!this.forge.verifyLanding) {
+      await this.recordBlockedStory(storyId, 'landing-verification-unavailable', {
+        diagnostics: {
+          error: 'Cannot verify prior held landing head with the selected Forge adapter',
+        },
+      });
+      return { status: 'mismatched', checkpointStoryId: storyId };
+    }
+
+    const verification = await this.forge.verifyLanding(pendingLanding);
+    if (verification.status === 'mismatched') {
+      await this.recordBlockedStory(storyId, 'landing-head-mismatch', {
+        diagnostics: {
+          error: 'Recorded held landing target head no longer matches the Forge head',
+          targetRef: verification.targetRef,
+          expectedHead: verification.expectedHead,
+          actualHead: verification.actualHead,
+        },
+      });
+      return { status: 'mismatched', checkpointStoryId: storyId };
+    }
+
+    try {
+      const outcome = await this.forge.land({ storyId, action: pendingLanding.action });
+      await this.recordLandingOutcome({
+        storyId,
+        action: pendingLanding.action,
+        reason: 'dry-run',
+      })(outcome);
+      return { status: 'retried' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.recordBlockedStory(storyId, 'landing-retry-failed', {
+        diagnostics: {
+          error: message,
+          targetRef: pendingLanding.targetRef,
+          expectedHead: pendingLanding.targetHead,
+          mergeability: pendingLanding.mergeability,
+        },
+      });
+      return { status: 'mismatched', checkpointStoryId: storyId };
+    }
   }
 
   private async refuseUnvalidatedRun(config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
@@ -565,7 +634,12 @@ export class LocalHarness {
       let runStatus: RunStatus = 'success';
       const blockedStoryIds = new Set(resumePlan.blockedStoryIds);
       const completedStoryIds = new Set(resumePlan.completedStoryIds);
-      const alreadyClosedStoryIds = new Set([...resumePlan.completedStoryIds, ...resumePlan.blockedStoryIds]);
+      const pendingLandingStoryIds = new Set((resumePlan.pendingLandings ?? []).map((landing) => landing.storyId));
+      const alreadyClosedStoryIds = new Set([
+        ...resumePlan.completedStoryIds,
+        ...resumePlan.blockedStoryIds,
+        ...pendingLandingStoryIds,
+      ]);
       const unstartedStoryIds: string[] = [];
       let checkpointStoryId: string | null = null;
       let stopReason = 'work-item-blocked';
@@ -589,6 +663,19 @@ export class LocalHarness {
         }
 
         if (alreadyClosedStoryIds.has(story.id)) {
+          if (runStatus !== 'success') {
+            continue;
+          }
+
+          if (pendingLandingStoryIds.has(story.id)) {
+            const pendingLanding = await this.retryPendingLanding(story.id, resumePlan);
+            if (pendingLanding.status === 'mismatched') {
+              runStatus = 'failure';
+              checkpointStoryId = pendingLanding.checkpointStoryId;
+            }
+            continue;
+          }
+
           if (completedStoryIds.has(story.id)) {
             const repeatedLanding = await this.recordRepeatedLandingNoop(story.id, resumePlan);
             if (repeatedLanding.status === 'mismatched') {

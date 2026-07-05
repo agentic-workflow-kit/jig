@@ -380,6 +380,36 @@ test("P8-AC-3: provenance is not collapsed to the single 'jig-validated' literal
   });
 });
 
+test('P05/P8: malformed GitHub issue plan bodies refuse with actionable guidance', async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          number: 108,
+          body: 'not valid json',
+        },
+      ],
+    }) as unknown as Response) as typeof fetch;
+
+  try {
+    const workSource = createGitHubIssuesWorkSource({
+      env: {
+        JIG_GITHUB_ISSUES_REPOSITORY: 'agentic-workflow-kit/jig-smoke-target',
+      },
+    });
+
+    await assert.rejects(
+      () => Promise.resolve(workSource.candidates()),
+      /top-level "plan" field, optionally inside a ```json fenced block/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test('P8-AC-2: an attempt to route a candidate to scheduling bypassing PlanValidator fails closed', async () => {
   const { sink, events } = recordCollector();
   const harness = new LocalHarness(

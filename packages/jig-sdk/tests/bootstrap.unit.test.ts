@@ -1,5 +1,6 @@
 import assert from 'node:assert';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'vitest';
@@ -33,6 +34,15 @@ function sourceFiles(dir: string): string[] {
       return path.endsWith('.ts') ? [path] : [];
     })
     .sort();
+}
+
+function initializeMainBranchRepo(dir: string): void {
+  execFileSync('git', ['init', '--initial-branch=main'], { cwd: dir });
+  execFileSync('git', ['config', 'user.name', 'Bootstrap Test'], { cwd: dir });
+  execFileSync('git', ['config', 'user.email', 'bootstrap-test@example.com'], { cwd: dir });
+  writeFileSync(join(dir, 'README.md'), '# bootstrap test\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: dir });
+  execFileSync('git', ['commit', '-m', 'init'], { cwd: dir });
 }
 
 test('P5-AC-3: composition root wires default run through the four internal ports', async () => {
@@ -130,6 +140,65 @@ test('P7-AC-1: unknown forge driver selection fails closed', async () => {
       /Unsupported driver selection "forge=gitlab"/.test(error.message) &&
       /forge=reference\|github/.test(error.message),
   );
+});
+
+test('P05 MERGE-5: github forge composition outside a git worktree withholds safeBranch but preserves push-permission posture', async () => {
+  const originalCwd = process.cwd();
+  const tempDir = mkdtempSync(join(tmpdir(), 'jig-bootstrap-no-git-'));
+
+  try {
+    process.chdir(tempDir);
+    const composed = await composeReferenceRun({
+      planInstance,
+      config: {
+        ...config,
+        drivers: {
+          agent: 'scripted-stub',
+          executionHost: 'local',
+          forge: 'github',
+        },
+      },
+      scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+    });
+
+    assert.deepStrictEqual(composed.blockSurface, {
+      safeBranch: undefined,
+      canPush: true,
+    });
+  } finally {
+    process.chdir(originalCwd);
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('P05 MERGE-5: github forge composition refuses main as a safe block-surfacing branch', async () => {
+  const originalCwd = process.cwd();
+  const tempDir = mkdtempSync(join(tmpdir(), 'jig-bootstrap-main-'));
+
+  try {
+    initializeMainBranchRepo(tempDir);
+    process.chdir(tempDir);
+    const composed = await composeReferenceRun({
+      planInstance,
+      config: {
+        ...config,
+        drivers: {
+          agent: 'scripted-stub',
+          executionHost: 'local',
+          forge: 'github',
+        },
+      },
+      scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
+    });
+
+    assert.deepStrictEqual(composed.blockSurface, {
+      safeBranch: undefined,
+      canPush: true,
+    });
+  } finally {
+    process.chdir(originalCwd);
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('P8-AC-1: github-issues work-source driver is opt-in and selected through the composition root', async () => {
