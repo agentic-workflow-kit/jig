@@ -1,6 +1,15 @@
 import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
@@ -222,6 +231,92 @@ test('start supports the real-host path and still preserves the session boundary
   });
 
   assert.strictEqual(status, 'success');
+});
+
+test('P04-AC-3: compose-time real-host substrate rejection is recorded as a diagnosable stopped run', async () => {
+  const blockedPlan: PlanInstance = {
+    plan: {
+      id: 'plan-sdk-compose-substrate-stop',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 'STORY-1', title: 'Blocked before execution' },
+        { id: 'STORY-2', title: 'Never started' },
+      ],
+    },
+  };
+  const session = createJigSession({
+    substrateManifest: {
+      id: 'real-driver-substrate',
+      runtimes: ['node'],
+      argv: [],
+      credentials: [],
+      egress: [],
+    },
+    realHostProbeFactory: () => ({
+      substrateRequests: [{ kind: 'argv', value: ['node', 'unexpected-probe'] }],
+      run: async () => {
+        assert.fail('compose-time substrate rejection should prevent probe execution');
+      },
+    }),
+  });
+
+  const status = await session.operator.start({
+    planInstance: blockedPlan,
+    config: {
+      ...config,
+      drivers: {
+        executionHost: 'real',
+      },
+    },
+    policy,
+    scriptedOutput: scriptedOutput(),
+  });
+
+  assert.strictEqual(status, 'failure');
+
+  const runDir = firstRunDir();
+  assert.ok(existsSync(join(runDir, 'events.jsonl')));
+  assert.ok(existsSync(join(runDir, 'run.json')));
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(
+      (line) =>
+        JSON.parse(line) as {
+          family: string;
+          storyId?: string;
+          reason?: string;
+          checkpoint?: string;
+          unstarted?: string[];
+          diagnostics?: { error?: string };
+          substrateManifest?: { path?: string };
+        },
+    );
+  assert.strictEqual(events[0]?.family, 'run.started');
+  assert.ok(events[0]?.substrateManifest?.path);
+  assert.ok(existsSync(events[0]?.substrateManifest?.path ?? ''));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'story.blocked' &&
+        event.storyId === 'STORY-1' &&
+        event.reason === 'substrate-escalation' &&
+        /substrate-escalation/.test(event.diagnostics?.error ?? ''),
+    ),
+  );
+  const stopped = events.find((event) => event.family === 'run.stopped');
+  assert.ok(stopped);
+  assert.strictEqual(stopped.reason, 'work-item-blocked');
+  assert.strictEqual(stopped.checkpoint, 'after:STORY-1');
+  assert.deepStrictEqual(stopped.unstarted, ['STORY-2']);
+
+  const runRecord = JSON.parse(readFileSync(join(runDir, 'run.json'), 'utf8')) as { run: { status: string } };
+  assert.strictEqual(runRecord.run.status, 'failure');
+
+  const inspection = await session.operator.inspect({ runDir });
+  assert.strictEqual(inspection.kind, 'projection');
+  assert.strictEqual(inspection.projection.status, 'failure');
 });
 
 test('P04-AC-4: the real-host run path allocates isolated per-story workspaces', async () => {

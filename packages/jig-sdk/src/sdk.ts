@@ -14,6 +14,7 @@ import {
   ResumeRefusal,
   resumeRunLoaded,
 } from './resume.js';
+import { approveSubstrateManifest, SubstrateAuthorizationError } from './substrate.js';
 import type { ConfigDoc, PlanInstance, PolicyDoc, RunBinding, RunRecord, RunStatus } from './types.js';
 
 export interface PreviewRunInput {
@@ -149,6 +150,49 @@ function isLegacyProjectionFallback(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'missing-launch-metadata';
 }
 
+async function recordComposeTimeSubstrateFailure(
+  options: CreateJigSessionOptions,
+  input: StartRunInput,
+  error: SubstrateAuthorizationError,
+): Promise<RunStatus> {
+  const recordManager = new RecordManager({
+    redaction: options.redaction,
+    substrateManifest: options.substrateManifest ? approveSubstrateManifest(options.substrateManifest) : undefined,
+  });
+  recordManager.init(input.planInstance.plan, input.config, input.policy);
+
+  const [blockedStory, ...unstartedStories] = input.planInstance.plan.stories;
+  if (!blockedStory) {
+    recordManager.recordEvent({
+      family: 'authorization.denied',
+      reason: error.message,
+    });
+    await recordManager.finalize('failure');
+    return 'failure';
+  }
+
+  recordManager.recordEvent({
+    family: 'story.started',
+    storyId: blockedStory.id,
+  });
+  recordManager.recordEvent({
+    family: 'story.blocked',
+    storyId: blockedStory.id,
+    reason: 'substrate-escalation',
+    diagnostics: {
+      error: error.message,
+    },
+  });
+  recordManager.recordEvent({
+    family: 'run.stopped',
+    reason: 'work-item-blocked',
+    checkpoint: `after:${blockedStory.id}`,
+    unstarted: unstartedStories.map((story) => story.id),
+  });
+  await recordManager.finalize('failure');
+  return 'failure';
+}
+
 export function createJigSession(options: CreateJigSessionOptions = {}): JigSession {
   return {
     operator: {
@@ -167,12 +211,20 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
       },
 
       start: async (input): Promise<RunStatus> => {
-        const composed = await composeReferenceRun({
-          ...options,
-          planInstance: input.planInstance,
-          config: input.config,
-          scriptedOutput: input.scriptedOutput,
-        });
+        let composed: Awaited<ReturnType<typeof composeReferenceRun>>;
+        try {
+          composed = await composeReferenceRun({
+            ...options,
+            planInstance: input.planInstance,
+            config: input.config,
+            scriptedOutput: input.scriptedOutput,
+          });
+        } catch (error) {
+          if (error instanceof SubstrateAuthorizationError) {
+            return await recordComposeTimeSubstrateFailure(options, input, error);
+          }
+          throw error;
+        }
         const recordManager = new RecordManager({
           launchAttestation: composed.substrateManifest ? composed.capabilityAttestation : undefined,
           substrateManifest: composed.substrateManifest,
