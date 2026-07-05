@@ -875,6 +875,19 @@ test('P08-AC-1/2: watch groups story posture and reflects durable notice attenti
   assert.strictEqual(projection.notices[0]?.snoozedUntil, '2026-07-02T11:00:00.000Z');
 });
 
+test('P08-AC-1: watch shows never-started run.stopped.unstarted stories as waiting', () => {
+  const projection = projectWatch({
+    eventsJsonl: stringifyJsonl(stoppedRunEvents()),
+  });
+
+  assert.deepStrictEqual(
+    projection.groups.waiting.map((story) => story.storyId),
+    ['STORY-3'],
+  );
+  assert.strictEqual(projection.groups.waiting[0]?.state, 'unstarted');
+  assert.strictEqual(projection.groups.waiting[0]?.lastEventFamily, 'run.stopped');
+});
+
 test('P08-AC-2: acknowledged notices persist as owner records without changing story state', () => {
   const projection = projectRunEvents({
     eventsJsonl: stringifyJsonl([

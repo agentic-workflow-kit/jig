@@ -932,12 +932,26 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
 export function projectWatch(input: ProjectRunEventsInput): WatchProjection {
   const projection = projectRunEvents(input);
   const stories = Object.values(projection.stories);
+  const projectedStoryIds = new Set(stories.map((story) => story.storyId));
   const groups = {
     progressing: stories.filter((story) => story.state === 'started'),
     parked: stories.filter((story) => story.state === 'parked'),
     blocked: stories.filter((story) => story.state === 'blocked' || story.state === 'rejected'),
     done: stories.filter((story) => story.state === 'done'),
-    waiting: stories.filter((story) => story.state === 'unstarted'),
+    waiting: [
+      ...stories.filter((story) => story.state === 'unstarted'),
+      ...projection.unstartedStoryIds
+        .filter((storyId) => !projectedStoryIds.has(storyId))
+        .map(
+          (storyId): ProjectedStory => ({
+            storyId,
+            state: 'unstarted',
+            reason: projection.stopCause,
+            changedFiles: [],
+            lastEventFamily: 'run.stopped',
+          }),
+        ),
+    ],
   };
   const signal: WatchSignal =
     projection.lifecycleState === 'completed'

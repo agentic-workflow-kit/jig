@@ -184,7 +184,11 @@ function readProjectionInputs(runDir: string): { eventsJsonl: string; runRecord:
   const runJsonPath = join(runDir, 'run.json');
   let runRecord: RunRecord | null = null;
   if (existsSync(runJsonPath)) {
-    runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
+    try {
+      runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
+    } catch {
+      runRecord = null;
+    }
   }
 
   return {

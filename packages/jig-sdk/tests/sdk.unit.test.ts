@@ -972,6 +972,20 @@ test('P08-AC-1/4: operator watch projects run state and notice queue', async () 
   assert.strictEqual(watch.notices[0]?.state, 'open');
 });
 
+test('P08-AC-1/4: operator watch ignores corrupt optional run.json cache', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('observation-run-with-corrupt-cache');
+  writeFileSync(join(runDir, 'run.json'), '{not-json');
+
+  const watch = await session.operator.watch({ runDir });
+
+  assert.strictEqual(watch.signal, 'parked');
+  assert.deepStrictEqual(
+    watch.groups.waiting.map((story) => story.storyId),
+    [],
+  );
+});
+
 test('P08-AC-3/4: operator askWhy cites the recorded story cause', async () => {
   const session = createJigSession();
   const result = await session.operator.askWhy({ runDir: writeObservationRun(), storyId: 'STORY-2' });
