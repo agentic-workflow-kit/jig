@@ -1,6 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-sdk",
   "version": "0.0.0",
+  "description": "Private Jig runtime core: validated plan intake, owner-configuration binding, governed orchestration, and resumable run records.",
   "private": true,
   "type": "module",
   "exports": {

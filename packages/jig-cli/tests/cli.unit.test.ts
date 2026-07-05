@@ -266,6 +266,7 @@ function resumePlan(): Plan {
 
 function resumePolicy(overrides: PolicyDoc = {}): PolicyDoc {
   return {
+    version: overrides.version ?? 'policy-v0',
     policy: {
       id: 'policy:local-dry-run',
       ...overrides.policy,
@@ -491,7 +492,7 @@ test('P3-AC-1: preview omits mode when config runner is sparse', async () => {
   const configPath = join(workDir, 'sparse-config.json');
   const policyPath = join(workDir, 'sparse-policy.json');
   writeJson(configPath, { runner: {}, drivers: {} });
-  writeJson(policyPath, { policy: { id: 'sparse-policy', rules: { allowLocalDryRun: true } } });
+  writeJson(policyPath, { version: 'policy-v0', policy: { id: 'sparse-policy', rules: { allowLocalDryRun: true } } });
   setArgv('preview', fixture('minimal-plan.json'), '--config', configPath, '--policy', policyPath);
 
   await run();

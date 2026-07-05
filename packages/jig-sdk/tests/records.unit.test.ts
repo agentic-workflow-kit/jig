@@ -4,6 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { bindOwnerConfiguration } from '../src/owner-configuration.js';
 import { RecordManager } from '../src/records.js';
 import type { ConfigDoc, Plan, PolicyDoc, RunRecord } from '../src/types.js';
 import { captureWorkspaceFingerprint } from '../src/workspace.js';
@@ -45,6 +46,7 @@ function config(recordDir: string): ConfigDoc {
 }
 
 const policy: PolicyDoc = {
+  version: 'policy-v0',
   policy: {
     id: 'local-dry-run-policy',
     rules: {
@@ -266,4 +268,60 @@ test('PR-AC-4: run summary preserves historical story.skipped aliases', async ()
 
   const output = (logSpy.mock.calls as unknown[][]).map((call) => call.join(' ')).join('\n');
   assert.match(output, /- STORY-2: skipped \(run stopped after failure\)/);
+});
+
+test('P06-AC-1: record manager snapshots work profile, repo floors, and effective policy when owner configuration is bound', async () => {
+  const recordDir = tempRecordDir();
+  const cfg = {
+    ...config(recordDir),
+    track: {
+      id: 'TRACK-P06-RECORDS',
+      workProfile: {
+        version: 'work-profile-v0',
+        workProfile: {
+          id: 'work-profile-records',
+          model: 'gpt-5',
+          effort: 'high',
+        },
+      },
+      repoPolicyFloors: {
+        version: 'repo-policy-floors-v0',
+        repoPolicyFloors: {
+          id: 'repo-floor-records',
+          rules: {
+            gatingPosture: 'manual',
+          },
+        },
+      },
+    },
+  } satisfies ConfigDoc;
+  const trackPolicy: PolicyDoc = {
+    version: 'policy-v0',
+    policy: {
+      id: 'policy-p06-records',
+      rules: {
+        allowLocalDryRun: true,
+        gatingPosture: 'assisted',
+      },
+    },
+  };
+  const ownerConfiguration = bindOwnerConfiguration(cfg, trackPolicy);
+  const manager = new RecordManager();
+
+  manager.init(plan(), cfg, trackPolicy, ownerConfiguration);
+  manager.recordEvent({ family: 'run.started' });
+  await manager.finalize('success');
+
+  const runDir = readSingleRunDir(recordDir);
+  const record = readSingleRun(recordDir);
+  assert.strictEqual(record.run.binding.trackRef, 'TRACK-P06-RECORDS');
+  assert.strictEqual(record.run.binding.workProfileRef, 'work-profile-records');
+  assert.strictEqual(record.run.binding.repoPolicyFloorsRef, 'repo-floor-records');
+  assert.ok(record.run.workProfileSnapshot?.path);
+  assert.ok(record.run.repoPolicyFloorsSnapshot?.path);
+  assert.ok(record.run.effectivePolicySnapshot?.path);
+  assert.deepStrictEqual(
+    JSON.parse(readFileSync(join(runDir, 'effective-policy.snapshot.json'), 'utf8')).policy.basis.tightenedByRepoFloors,
+    ['gatingPosture'],
+  );
 });

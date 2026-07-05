@@ -17,6 +17,12 @@ import {
   writeIntegritySidecar,
 } from './integrity.js';
 import { loadConfig, loadJson, loadPolicy } from './loaders.js';
+import {
+  bindOwnerConfiguration,
+  validatePolicyDoc,
+  validateRepoPolicyFloorsDoc,
+  validateWorkProfileDoc,
+} from './owner-configuration.js';
 import { PlanValidator } from './plan-validator.js';
 import type { CapabilityAttestation, LandingAction } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
@@ -24,6 +30,7 @@ import type { GitHubForgeTransport } from './providers/real/forge.js';
 import type { GitHubIssuesWorkSourceTransport } from './providers/real/work-source.js';
 import { type RedactionOptions, redactValue } from './redaction.js';
 import type {
+  BoundOwnerConfiguration,
   ConfigDoc,
   Plan,
   PlanInstance,
@@ -95,6 +102,9 @@ export interface ResumeLoadedRunOptions extends ResumeLoadedRunPortsOptions {
 
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
 const POLICY_SNAPSHOT_FILE = 'policy.snapshot.json';
+const WORK_PROFILE_SNAPSHOT_FILE = 'work-profile.snapshot.json';
+const REPO_POLICY_FLOORS_SNAPSHOT_FILE = 'repo-policy-floors.snapshot.json';
+const EFFECTIVE_POLICY_SNAPSHOT_FILE = 'effective-policy.snapshot.json';
 const ATTESTATION_SNAPSHOT_FILE = 'attestation.snapshot.json';
 
 function describeConfigBinding(config: ConfigDoc): string {
@@ -154,7 +164,7 @@ function loadPolicySnapshot(runDir: string, projection: RunProjection): PolicyDo
       `resume-blocked-binding-mismatch: missing policy snapshot at "${snapshotPath}"`,
     );
   }
-  const policy = JSON.parse(readFileSync(snapshotPath, 'utf8')) as PolicyDoc;
+  const policy = validatePolicyDoc(JSON.parse(readFileSync(snapshotPath, 'utf8')) as PolicyDoc);
   if (policy.policy?.id !== projection.binding.policyRef) {
     throw new ResumeRefusal(
       'resume-blocked-binding-mismatch',
@@ -162,6 +172,138 @@ function loadPolicySnapshot(runDir: string, projection: RunProjection): PolicyDo
     );
   }
   return policy;
+}
+
+function loadRequiredSnapshot<T>(runDir: string, fileName: string, label: string): T {
+  const snapshotPath = join(runDir, fileName);
+  if (!existsSync(snapshotPath)) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: missing ${label} snapshot at "${snapshotPath}"`,
+    );
+  }
+
+  return JSON.parse(readFileSync(snapshotPath, 'utf8')) as T;
+}
+
+function readLaunchEvent(events: RunEvent[]): RunEvent | undefined {
+  return events.find((event) => event.family === 'run.started');
+}
+
+function hasRecordedOwnerConfigurationBindings(launchEvent: RunEvent | undefined): boolean {
+  return Boolean(
+    launchEvent?.binding?.trackRef || launchEvent?.binding?.workProfileRef || launchEvent?.binding?.repoPolicyFloorsRef,
+  );
+}
+
+function hasRecordedOwnerConfigurationSnapshots(launchEvent: RunEvent | undefined): boolean {
+  return Boolean(
+    launchEvent?.workProfileSnapshot || launchEvent?.repoPolicyFloorsSnapshot || launchEvent?.effectivePolicySnapshot,
+  );
+}
+
+function loadRecordedOwnerConfiguration(
+  runDir: string,
+  launchEvent: RunEvent | undefined,
+  policySnapshot: PolicyDoc,
+): BoundOwnerConfiguration {
+  const hasOwnerConfigurationBindings = hasRecordedOwnerConfigurationBindings(launchEvent);
+  const hasOwnerConfigurationSnapshots = hasRecordedOwnerConfigurationSnapshots(launchEvent);
+
+  if (!hasOwnerConfigurationBindings && !hasOwnerConfigurationSnapshots) {
+    return {
+      trackRef: undefined,
+      policy: policySnapshot,
+      effectivePolicy: policySnapshot,
+      workProfile: undefined,
+      repoPolicyFloors: undefined,
+      persistExtendedBindings: false,
+    };
+  }
+
+  if (typeof launchEvent?.binding?.workProfileRef === 'string' && !launchEvent.workProfileSnapshot) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: launch binding workProfileRef requires a work-profile snapshot binding; resume record is incomplete',
+    );
+  }
+
+  if (typeof launchEvent?.binding?.repoPolicyFloorsRef === 'string' && !launchEvent.repoPolicyFloorsSnapshot) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: launch binding repoPolicyFloorsRef requires a repo-policy-floors snapshot binding; resume record is incomplete',
+    );
+  }
+
+  if (typeof launchEvent?.binding?.trackRef === 'string' && !launchEvent.effectivePolicySnapshot) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: launch binding trackRef requires an effective-policy snapshot binding; resume record is incomplete',
+    );
+  }
+
+  if (!launchEvent?.effectivePolicySnapshot) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: launch record references owner-configuration snapshots but is missing an effective policy snapshot binding',
+    );
+  }
+
+  const workProfileSnapshot = launchEvent.workProfileSnapshot
+    ? validateWorkProfileDoc(loadRequiredSnapshot(runDir, WORK_PROFILE_SNAPSHOT_FILE, 'work-profile'))
+    : undefined;
+  const repoPolicyFloorsSnapshot = launchEvent.repoPolicyFloorsSnapshot
+    ? validateRepoPolicyFloorsDoc(loadRequiredSnapshot(runDir, REPO_POLICY_FLOORS_SNAPSHOT_FILE, 'repo-policy-floors'))
+    : undefined;
+  const effectivePolicySnapshot = loadRequiredSnapshot<PolicyDoc>(
+    runDir,
+    EFFECTIVE_POLICY_SNAPSHOT_FILE,
+    'effective-policy',
+  );
+
+  if (effectivePolicySnapshot.version !== 'effective-policy-v0') {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: effective-policy snapshot must declare version "effective-policy-v0"',
+    );
+  }
+
+  if (
+    typeof launchEvent?.binding?.workProfileRef === 'string' &&
+    workProfileSnapshot?.workProfile.id !== launchEvent.binding.workProfileRef
+  ) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: work-profile snapshot id "${workProfileSnapshot?.workProfile.id ?? 'unknown-work-profile'}" does not match launch binding "${launchEvent.binding.workProfileRef}"`,
+    );
+  }
+
+  const reconstructed = bindOwnerConfiguration(
+    {
+      track: {
+        ...(typeof launchEvent?.binding?.trackRef === 'string' ? { id: launchEvent.binding.trackRef } : {}),
+        ...(workProfileSnapshot ? { workProfile: workProfileSnapshot } : {}),
+        ...(repoPolicyFloorsSnapshot ? { repoPolicyFloors: repoPolicyFloorsSnapshot } : {}),
+      },
+    },
+    policySnapshot,
+  );
+
+  if (!isDeepStrictEqual(effectivePolicySnapshot, reconstructed.effectivePolicy)) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      'resume-blocked-binding-mismatch: effective-policy snapshot does not match the reconstructed floor-merged policy basis recorded at launch',
+    );
+  }
+
+  return {
+    trackRef: typeof launchEvent?.binding?.trackRef === 'string' ? launchEvent.binding.trackRef : undefined,
+    policy: policySnapshot,
+    effectivePolicy: effectivePolicySnapshot,
+    workProfile: workProfileSnapshot,
+    repoPolicyFloors: repoPolicyFloorsSnapshot,
+    persistExtendedBindings: true,
+  };
 }
 
 function loadLaunchAttestationSnapshot(runDir: string, events: RunEvent[]): CapabilityAttestation | undefined {
@@ -529,6 +671,13 @@ class ResumeRecordSink implements RecordSink {
           ref: this.projection.policySnapshotRef,
           path: join(this.runDir, POLICY_SNAPSHOT_FILE),
         },
+        ...(this.launchEvent?.workProfileSnapshot ? { workProfileSnapshot: this.launchEvent.workProfileSnapshot } : {}),
+        ...(this.launchEvent?.repoPolicyFloorsSnapshot
+          ? { repoPolicyFloorsSnapshot: this.launchEvent.repoPolicyFloorsSnapshot }
+          : {}),
+        ...(this.launchEvent?.effectivePolicySnapshot
+          ? { effectivePolicySnapshot: this.launchEvent.effectivePolicySnapshot }
+          : {}),
         ...(this.launchEvent?.attestationSnapshot ? { attestationSnapshot: this.launchEvent.attestationSnapshot } : {}),
         ...(this.launchEvent?.substrateManifest ? { substrateManifest: this.launchEvent.substrateManifest } : {}),
       },
@@ -576,9 +725,11 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
   const eventsJsonl = readFileSync(eventsJsonlPath, 'utf8');
   verifyIntegrityPreflight(options.runDir, eventsJsonl);
   const existingEvents = readJsonlEvents(eventsJsonl);
+  const launchEvent = readLaunchEvent(existingEvents);
   const projection = projectRunEvents({ eventsJsonl, runRecord: loadRunRecord(options.runDir) });
   const planSnapshot = loadPlanSnapshot(options.runDir);
   const policySnapshot = loadPolicySnapshot(options.runDir, projection);
+  const recordedOwnerConfiguration = loadRecordedOwnerConfiguration(options.runDir, launchEvent, policySnapshot);
   const launchAttestation = loadLaunchAttestationSnapshot(options.runDir, existingEvents);
   const verifiedConfig = verifyOptionalBindings(options, projection, planSnapshot, policySnapshot);
   verifyLaunchDriverSelection(projection, verifiedConfig);
@@ -614,6 +765,7 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
   }
   const harness = new LocalHarness(composed.agent, recordSink, options.ownerDecisionSource ?? null, {
     capabilityAttestation: launchAttestation ?? composed.capabilityAttestation,
+    ownerConfiguration: recordedOwnerConfiguration,
     forge: composed.forge,
   });
 

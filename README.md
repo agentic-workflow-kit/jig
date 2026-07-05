@@ -7,9 +7,10 @@
 > policy, records the evidence, and stops in inspectable states when autonomy is not allowed.
 
 Jig is the delivery/execution stage of the `agentic-workflow-kit` suite. You give it an
-execution plan, policy, and provider configuration; it drives the work as far as policy and
-evidence allow. Its hard input boundary is a valid execution plan. Its durable output is a
-run record you can inspect, resume from, and audit.
+execution plan, policy, and provider configuration; config can also bind a track work profile
+plus repo-policy floors when the run needs owner-configuration control. Jig drives the work as
+far as policy and evidence allow. Its hard input boundary is a valid execution plan. Its durable
+output is a run record you can inspect, resume from, and audit.
 
 ## Status
 
@@ -20,12 +21,13 @@ Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
 `@agentic-workflow-kit/jig` package, public SDK/provider stability contract, or provider
 ecosystem promise.
 
-The current CLI surface is `jig preview`, `jig run`, `jig inspect`, and `jig resume`. The
-fixture-backed commands below are the supported local way to exercise the repo from a fresh
-checkout. The package split is now implementation fact inside this private workspace; Codex
-app-server transport work remains future implementation, not a shipped public API, while the real
-execution-host path now exercises a local macOS process-group probe and reports an honest `weak`
-containment posture.
+The current CLI surface is `jig preview`, `jig run`, `jig inspect`, and `jig resume`. Launch binds
+the track policy plus any configured work profile and repo-policy floors, snapshots them into the
+run record, and reconstructs the effective floor-merged policy basis on resume. The fixture-backed
+commands below are the supported local way to exercise the repo from a fresh checkout. The package
+split is now implementation fact inside this private workspace; Codex app-server transport work
+remains future implementation, not a shipped public API, while the real execution-host path now
+exercises a local macOS process-group probe and reports an honest `weak` containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
 (`EVRUN-partial`). `EVRUN-full`, remote execution, public package publication, and a full
@@ -59,6 +61,15 @@ node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.j
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
+Or run with explicit owner-configuration artifacts resolved through config:
+
+```bash
+node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
+  --config tests/fixtures/m5b-local-mvp/local-config-owner-configuration.json \
+  --policy tests/fixtures/m5b-local-mvp/local-policy.json \
+  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
+```
+
 Inspect or resume from the records the run produced:
 
 ```bash
@@ -67,10 +78,11 @@ node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
-`jig run` validates the plan at the intake boundary, binds config and policy, adjudicates
-worker requests through the local authorization fence, executes eligible stories, and writes
-`run.json` plus append-only `events.jsonl`. `jig inspect` and `jig resume` read those records
-rather than trusting terminal scrollback.
+`jig run` validates the plan at the intake boundary, binds config and policy together with any
+configured work profile and repo-policy floors, adjudicates worker requests through the local
+authorization fence, executes eligible stories, and writes `run.json` plus append-only
+`events.jsonl`. `jig inspect` and `jig resume` read those records rather than trusting terminal
+scrollback.
 
 ## What Jig Promises
 

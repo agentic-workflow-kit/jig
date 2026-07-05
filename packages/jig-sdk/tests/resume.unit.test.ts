@@ -47,6 +47,7 @@ function plan(): Plan {
 
 function launchPolicy(overrides: PolicyDoc = {}): PolicyDoc {
   return {
+    version: overrides.version ?? 'policy-v0',
     policy: {
       id: 'local-dry-run-policy',
       ...overrides.policy,
@@ -469,7 +470,10 @@ test('P4-AC-1: resume with mismatched verification policy is refused without app
   writeStoppedRun();
   const scriptedOutputPath = writeScriptedOutput();
   const policyPath = join(runDir, 'other-policy.json');
-  writeFileSync(policyPath, JSON.stringify({ policy: { id: 'other-policy', rules: { allowLocalDryRun: true } } }));
+  writeFileSync(
+    policyPath,
+    JSON.stringify({ version: 'policy-v0', policy: { id: 'other-policy', rules: { allowLocalDryRun: true } } }),
+  );
   const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
 
   await assert.rejects(
@@ -520,17 +524,17 @@ test('P4-AC-3: resume refuses missing or mismatched durable policy snapshots bef
       /missing policy snapshot/.test(error.message),
   );
 
-  writeStoppedRun(stoppedEvents(), plan(), { policy: { id: 'other-policy', rules: { allowLocalDryRun: true } } });
+  writeStoppedRun(stoppedEvents(), plan(), {
+    version: 'policy-v0',
+    policy: { id: 'other-policy', rules: { allowLocalDryRun: true } },
+  });
   await assert.rejects(
     () => resumeRun({ runDir, scriptedOutputPath }),
     /policy snapshot id "other-policy" does not match launch binding "local-dry-run-policy"/,
   );
 
-  writeStoppedRun(stoppedEvents(), plan(), { policy: { rules: { allowLocalDryRun: true } } });
-  await assert.rejects(
-    () => resumeRun({ runDir, scriptedOutputPath }),
-    /policy snapshot id "unknown-policy" does not match launch binding "local-dry-run-policy"/,
-  );
+  writeStoppedRun(stoppedEvents(), plan(), { version: 'policy-v0', policy: { rules: { allowLocalDryRun: true } } });
+  await assert.rejects(() => resumeRun({ runDir, scriptedOutputPath }), /policy\.policy\.id/);
 });
 
 test('P4-AC-1: resume refuses missing events or plan snapshot before appending events', async () => {
@@ -733,7 +737,10 @@ test('P4-AC-6: resume refuses unavailable workspace fingerprints instead of clai
 test('P9-AC-1: resume refuses a tampered tamper-evident run before owner approval or append', async () => {
   writeStoppedIntegrityRun();
   const scriptedOutputPath = writeScriptedOutput();
-  writeFileSync(join(runDir, 'policy.snapshot.json'), JSON.stringify({ policy: { id: 'tampered-policy' } }, null, 2));
+  writeFileSync(
+    join(runDir, 'policy.snapshot.json'),
+    JSON.stringify({ version: 'policy-v0', policy: { id: 'tampered-policy' } }, null, 2),
+  );
   const before = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
 
   await assert.rejects(

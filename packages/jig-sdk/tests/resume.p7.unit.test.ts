@@ -28,6 +28,7 @@ const plan: Plan = {
 };
 
 const policy: PolicyDoc = {
+  version: 'policy-v0',
   policy: {
     id: 'policy-p7-resume',
     rules: {

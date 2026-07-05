@@ -1,4 +1,4 @@
-import { authorizeRequest } from './authorization.js';
+import { authorizeRequest, pathTouchesRuleGoverningSurface } from './authorization.js';
 import {
   admissionProvenanceEvent,
   bypassDeniedEvent,
@@ -16,6 +16,7 @@ import type {
 } from './ports.js';
 import { SubstrateAuthorizationError } from './substrate.js';
 import type {
+  BoundOwnerConfiguration,
   ConfigDoc,
   Plan,
   PolicyDoc,
@@ -39,6 +40,7 @@ type StoryExecutionResult =
 
 interface HarnessPorts {
   capabilityAttestation?: CapabilityAttestation;
+  ownerConfiguration?: BoundOwnerConfiguration;
   forge?: ForgePort;
   landingAction?: LandingAction;
   blockSurface?: {
@@ -131,6 +133,7 @@ export class LocalHarness {
   private readonly recordManager: RecordSink;
   private readonly ownerDecisionSource: OwnerDecisionSource | null;
   private readonly capabilityAttestation: CapabilityAttestation | undefined;
+  private readonly ownerConfiguration: BoundOwnerConfiguration | undefined;
   private readonly forge: ForgePort;
   private readonly landingAction: LandingAction;
   private readonly blockSurface: HarnessPorts['blockSurface'];
@@ -146,10 +149,117 @@ export class LocalHarness {
     this.recordManager = recordManager;
     this.ownerDecisionSource = ownerDecisionSource;
     this.capabilityAttestation = ports.capabilityAttestation;
+    this.ownerConfiguration = ports.ownerConfiguration;
     this.forge = ports.forge ?? defaultForge;
     this.landingAction = ports.landingAction ?? DEFAULT_LANDING_ACTION;
     this.blockSurface = ports.blockSurface;
     this.workspaceIsolation = ports.workspaceIsolation;
+  }
+
+  private policyInForce(policy: PolicyDoc): PolicyDoc {
+    return this.ownerConfiguration?.effectivePolicy ?? policy;
+  }
+
+  private concurrencyCeiling(policy: PolicyDoc): number {
+    const ceiling = this.policyInForce(policy).policy?.rules?.concurrencyCeiling;
+    return Number.isInteger(ceiling) && (ceiling as number) > 1 ? (ceiling as number) : 1;
+  }
+
+  private blockResolution(policy: PolicyDoc): 'quarantine-replan' | 'continue-independent-work' {
+    return this.policyInForce(policy).policy?.rules?.blockResolution ?? 'quarantine-replan';
+  }
+
+  private landingActionFor(policy: PolicyDoc): LandingAction {
+    const mergeSpectrum = this.policyInForce(policy).policy?.rules?.mergeSpectrum;
+    if (mergeSpectrum === 'open-pr' || mergeSpectrum === 'merge' || mergeSpectrum === 'push') {
+      return mergeSpectrum;
+    }
+    return this.landingAction;
+  }
+
+  private blockResolutionMetadata(policy: PolicyDoc):
+    | {
+        blockResolutionPosture: 'quarantine-replan' | 'continue-independent-work';
+        resolutionConsequence: 'quarantined-run' | 'continued-independent-work';
+      }
+    | Record<string, never> {
+    const explicitPosture = this.policyInForce(policy).policy?.rules?.blockResolution;
+    if (!explicitPosture) {
+      return {};
+    }
+
+    const posture = this.blockResolution(policy);
+    return {
+      blockResolutionPosture: posture,
+      resolutionConsequence: posture === 'continue-independent-work' ? 'continued-independent-work' : 'quarantined-run',
+    };
+  }
+
+  private storyTouchesRuleGoverningSurface(changedFiles: unknown, policy: PolicyDoc): boolean {
+    if (!Array.isArray(changedFiles)) {
+      return false;
+    }
+
+    return changedFiles.some((entry) => typeof entry === 'string' && pathTouchesRuleGoverningSurface(entry, policy));
+  }
+
+  private async requireGuard2Reapproval(
+    story: Story,
+    policy: PolicyDoc,
+    changedFiles: string[] | undefined,
+    evidenceResult: unknown,
+  ): Promise<'approved' | 'rejected' | 'parked'> {
+    if (!this.storyTouchesRuleGoverningSurface(changedFiles, policy)) {
+      return 'approved';
+    }
+
+    const request = {
+      id: `REQ-guard2-${story.id}`,
+      kind: 'guard-2-reapproval',
+      paths: changedFiles,
+      evidenceResult,
+    };
+
+    this.recordManager.recordEvent({
+      family: 'authorization.routed',
+      storyId: story.id,
+      requestId: request.id,
+      requestKind: request.kind,
+      basis: ['GUARD-2', 'rule-governing-surface'],
+    });
+    this.recordManager.recordEvent({
+      family: 'story.parked',
+      storyId: story.id,
+      requestId: request.id,
+      requestKind: request.kind,
+      reason: 'guard-2-reapproval-required',
+      changedFiles,
+    });
+
+    if (!this.ownerDecisionSource) {
+      return 'parked';
+    }
+
+    const ownerDecision = await this.ownerDecisionSource.decide(request, story);
+    if (ownerDecision === 'reject') {
+      this.recordManager.recordEvent({
+        family: 'authorization.denied',
+        storyId: story.id,
+        requestId: request.id,
+        requestKind: request.kind,
+        basis: ['owner-rejection'],
+      });
+      return 'rejected';
+    }
+
+    this.recordManager.recordEvent({
+      family: 'authorization.granted',
+      storyId: story.id,
+      requestId: request.id,
+      requestKind: request.kind,
+      basis: ['owner-approval'],
+    });
+    return 'approved';
   }
 
   private async recordBlockedStory(
@@ -259,7 +369,7 @@ export class LocalHarness {
   }
 
   private async refuseUnvalidatedRun(config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
-    this.recordManager.init(bypassRecordPlan(), config, policy);
+    this.recordManager.init(bypassRecordPlan(), config, policy, this.ownerConfiguration);
     this.recordManager.recordEvent({ family: 'run.started' });
     this.recordManager.recordEvent(bypassDeniedEvent());
     await this.recordManager.finalize('failure');
@@ -288,12 +398,13 @@ export class LocalHarness {
 
       const planInstance = unwrapValidatedCandidate(candidate);
       const { plan } = planInstance;
-      this.recordManager.init(plan, config, policy);
+      this.recordManager.init(plan, config, policy, this.ownerConfiguration);
+      const policyInForce = this.policyInForce(policy);
 
       this.recordManager.recordEvent(admissionProvenanceEvent(candidate.provenance) ?? { family: 'run.started' });
 
       // Enforce local dry-run policy
-      if (policy.policy?.rules?.allowLocalDryRun !== true) {
+      if (policyInForce.policy?.rules?.allowLocalDryRun !== true) {
         const reason = 'Policy denial: allowLocalDryRun is not true';
         this.recordManager.recordEvent({
           family: 'authorization.denied',
@@ -313,6 +424,7 @@ export class LocalHarness {
 
       if (
         this.workspaceIsolation &&
+        this.concurrencyCeiling(policy) > 1 &&
         plan.stories.length > 1 &&
         plan.stories.every((story) => !Array.isArray(story.dependsOn))
       ) {
@@ -327,21 +439,39 @@ export class LocalHarness {
           runStatus = 'failure';
           checkpointStoryId = duplicateStoryId;
         } else {
-          const results = await Promise.all(plan.stories.map((story) => this.executeStory(story, policy, true)));
-          const failed = results.find(
-            (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
-          );
-          const unattendedPark = results.find(
-            (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
-              result.status === 'failure' && result.stopReason === 'unattended-park',
-          );
-          if (unattendedPark) {
-            hasUnattendedPark = true;
-            stopReason = 'unattended-park';
-            unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
+          const shouldContinueIndependentWork = this.blockResolution(policy) === 'continue-independent-work';
+          const ceiling = this.concurrencyCeiling(policy);
+          for (let index = 0; index < plan.stories.length; index += ceiling) {
+            const batch = plan.stories.slice(index, index + ceiling);
+            const results = await Promise.all(batch.map((story) => this.executeStory(story, policy, true)));
+            const failed = results.find(
+              (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
+            );
+            const unattendedPark = results.find(
+              (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
+                result.status === 'failure' && result.stopReason === 'unattended-park',
+            );
+            if (unattendedPark) {
+              hasUnattendedPark = true;
+              stopReason = 'unattended-park';
+              unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
+              checkpointStoryId = unattendedPark.checkpointStoryId;
+              for (const remainingStory of plan.stories.slice(index + ceiling)) {
+                unstartedStoryIds.push(remainingStory.id);
+              }
+              break;
+            }
+            if (failed) {
+              runStatus = 'failure';
+              checkpointStoryId = checkpointStoryId ?? failed.checkpointStoryId;
+              if (!shouldContinueIndependentWork) {
+                for (const remainingStory of plan.stories.slice(index + ceiling)) {
+                  unstartedStoryIds.push(remainingStory.id);
+                }
+                break;
+              }
+            }
           }
-          runStatus = failed ? 'failure' : 'success';
-          checkpointStoryId = unattendedPark?.checkpointStoryId ?? failed?.checkpointStoryId ?? null;
         }
       } else {
         for (const story of plan.stories) {
@@ -358,7 +488,7 @@ export class LocalHarness {
             continue;
           }
 
-          if (runStatus !== 'success') {
+          if (runStatus !== 'success' && this.blockResolution(policy) !== 'continue-independent-work') {
             unstartedStoryIds.push(story.id);
             continue;
           }
@@ -420,8 +550,9 @@ export class LocalHarness {
         runId: resumePlan.runId,
         checkpoint: resumePlan.checkpoint,
       });
+      const policyInForce = this.policyInForce(policy);
 
-      if (policy.policy?.rules?.allowLocalDryRun !== true) {
+      if (policyInForce.policy?.rules?.allowLocalDryRun !== true) {
         const reason = 'Policy denial: allowLocalDryRun is not true';
         this.recordManager.recordEvent({
           family: 'authorization.denied',
@@ -503,7 +634,7 @@ export class LocalHarness {
           });
         }
 
-        if (runStatus !== 'success') {
+        if (runStatus !== 'success' && this.blockResolution(policy) !== 'continue-independent-work') {
           unstartedStoryIds.push(story.id);
           continue;
         }
@@ -553,6 +684,7 @@ export class LocalHarness {
   }
 
   private async executeStory(story: Story, policy: PolicyDoc, recordStarted: boolean): Promise<StoryExecutionResult> {
+    const policyInForce = this.policyInForce(policy);
     try {
       const workspace = this.workspaceIsolation?.allocate(story);
       if (workspace && 'failureToken' in workspace) {
@@ -580,7 +712,7 @@ export class LocalHarness {
           requestKind: request.kind,
         });
 
-        const decision = authorizeRequest(request, story, policy, this.capabilityAttestation);
+        const decision = authorizeRequest(request, story, policyInForce, this.capabilityAttestation);
         if (decision.outcome === 'grant') {
           this.recordManager.recordEvent({
             family: 'authorization.granted',
@@ -601,6 +733,7 @@ export class LocalHarness {
             basis: decision.basis,
           });
           await this.recordBlockedStory(story.id, 'authorization-denied', {
+            ...this.blockResolutionMetadata(policyInForce),
             diagnostics: {
               error: `Authorization denied for request "${request.id}"`,
             },
@@ -651,6 +784,7 @@ export class LocalHarness {
 
       if (!result.evidence || result.evidence.result === undefined) {
         await this.recordBlockedStory(story.id, 'evidence-gate-failed', {
+          ...this.blockResolutionMetadata(policyInForce),
           diagnostics: {
             error: 'Worker result missing required evidence or evidence result',
             evidenceResult: null,
@@ -669,6 +803,7 @@ export class LocalHarness {
 
       if (result.outcome !== 'success') {
         await this.recordBlockedStory(story.id, 'worker-reported-failure', {
+          ...this.blockResolutionMetadata(policyInForce),
           diagnostics: {
             exitCode: result.exitCode,
             stdout: result.stdout,
@@ -680,6 +815,22 @@ export class LocalHarness {
       }
 
       if (result.evidence.result === 'passed') {
+        const reapproval = await this.requireGuard2Reapproval(
+          story,
+          policyInForce,
+          Array.isArray(result.changedFiles) ? (result.changedFiles as string[]) : undefined,
+          result.evidence.result,
+        );
+        if (reapproval === 'parked') {
+          return { status: 'failure', stopReason: 'unattended-park', checkpointStoryId: `${story.id}.parked` };
+        }
+        if (reapproval === 'rejected') {
+          await this.recordBlockedStory(story.id, 'guard-2-reapproval-rejected', {
+            ...this.blockResolutionMetadata(policyInForce),
+          });
+          return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
+        }
+
         this.recordManager.recordEvent({
           family: 'story.done',
           storyId: story.id,
@@ -687,7 +838,7 @@ export class LocalHarness {
         });
         const landingRequest = {
           storyId: story.id,
-          action: this.landingAction,
+          action: this.landingActionFor(policyInForce),
           reason: 'dry-run',
         } as const;
         const outcome = await this.forge.land(landingRequest);
@@ -696,6 +847,7 @@ export class LocalHarness {
       }
 
       await this.recordBlockedStory(story.id, 'evidence-gate-failed', {
+        ...this.blockResolutionMetadata(policyInForce),
         diagnostics: {
           error: 'Worker result evidence did not pass',
           evidenceResult: result.evidence.result,
@@ -705,6 +857,7 @@ export class LocalHarness {
     } catch (err) {
       if (err instanceof SubstrateAuthorizationError) {
         await this.recordBlockedStory(story.id, 'substrate-escalation', {
+          ...this.blockResolutionMetadata(policyInForce),
           diagnostics: {
             error: err.message,
           },
@@ -714,6 +867,7 @@ export class LocalHarness {
 
       const message = err instanceof Error ? err.message : String(err);
       await this.recordBlockedStory(story.id, 'worker-execution-error', {
+        ...this.blockResolutionMetadata(policyInForce),
         diagnostics: {
           error: message,
         },

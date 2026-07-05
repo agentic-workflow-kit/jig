@@ -37,6 +37,27 @@ test('P3-AC-2: declared in-scope edit-files request is granted by fixed category
   assert.deepStrictEqual(decision.basis, ['declared-request', 'in-scope', 'CFG-10:reversible']);
 });
 
+test('P06-AC-4: manual posture routes even low-risk reversible requests to the owner', () => {
+  const request: AuthorizationRequest = {
+    id: 'REQ-manual',
+    kind: 'edit-files',
+    paths: ['src/cli.ts'],
+  };
+
+  const decision = authorizeRequest(request, scopedStory, {
+    policy: {
+      id: 'policy:manual-v0',
+      rules: {
+        allowLocalDryRun: true,
+        gatingPosture: 'manual',
+      },
+    },
+  });
+
+  assert.strictEqual(decision.outcome, 'route');
+  assert.deepStrictEqual(decision.basis, ['CFG-10:manual-review-required']);
+});
+
 test('P3-AC-2: declared run-checks request is granted', () => {
   const request: AuthorizationRequest = {
     id: 'REQ-check',
@@ -117,10 +138,13 @@ test('P3-AC-4: rule-governing request routes to owner', () => {
 
 test('P3-AC-4: privileged and unknown request kinds route instead of granting', () => {
   const push = authorizeRequest({ id: 'REQ-push', kind: 'push' }, scopedStory, policy);
+  const credential = authorizeRequest({ id: 'REQ-credential', kind: 'credential-access' }, scopedStory, policy);
   const unknown = authorizeRequest({ id: 'REQ-unknown', kind: 'summon-release-agent' }, scopedStory, policy);
 
   assert.strictEqual(push.outcome, 'route');
   assert.deepStrictEqual(push.basis, ['privileged-or-irreversible']);
+  assert.strictEqual(credential.outcome, 'route');
+  assert.deepStrictEqual(credential.basis, ['privileged-or-irreversible']);
   assert.strictEqual(unknown.outcome, 'route');
   assert.deepStrictEqual(unknown.basis, ['unknown-request-kind']);
 });
