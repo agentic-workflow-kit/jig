@@ -44,7 +44,7 @@ is recorded; EVRUN-full remains future work.
 
 ```bash
 pnpm install --frozen-lockfile   # setup (or: pnpm dev:setup)
-pnpm check                       # the full gate: lint, format:check, typecheck, boundaries:check, delivery:check, test
+pnpm check                       # the full gate: lint, format:check, typecheck, boundaries:check, links:check, delivery:check, test
 pnpm build                       # tsc -b — emits dist/; required before running the CLI directly
 node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
@@ -66,8 +66,8 @@ directly requires an explicit `pnpm build` beforehand.
 
 - **`pnpm check`** before claiming any change done; show its output as evidence, don't assert
   success. It runs biome (code format+lint), prettier (Markdown/YAML), `tsc -b`, package-boundary
-  enforcement, the delivery foundation check, and vitest with coverage thresholds enforced at 90%
-  (aim 95%). Work is test-driven.
+  enforcement, the Markdown doc-link check, the delivery foundation check, and vitest with
+  coverage thresholds enforced at 90% (aim 95%). Work is test-driven.
 - **Gate integrity:** do not skip steps, adjust thresholds, or widen exclusion lists to make
   `pnpm check` green — fix the cause, or raise it instead of routing around it.
 - **`main`-based:** branch from `main`, PR into it, green `check` required, review conversations

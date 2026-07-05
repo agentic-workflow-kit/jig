@@ -64,7 +64,7 @@ is routed and no org PR is required; a routed-back finding (an org seam proves w
 Established by Phases 0–5 and confirmed against `src/` at authoring time (the **real as-merged** port
 shapes, not the ADR 0021 sketch):
 
-- **The four ports are merged jig-internal interfaces** ([`../../../src/ports.ts`](../../../src/ports.ts)):
+- **The four ports are merged jig-internal interfaces** ([`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts)):
   - `AgentPort.execute(story: Story): Promise<WorkerResult>` — request/observe only, no push/PR/merge/credential method or field.
   - `ExecutionHostPort.describe(): HostAttestation` — **synchronous**; returns without awaiting.
   - `ForgePort.land(request): LandingOutcome | Promise<LandingOutcome>` (Phase 7's concern).
@@ -77,7 +77,7 @@ provenIsolationStrength?, failureToken? }`. `HostAttestation` carries the host `
   `HostFailureToken` is `'containment-unproven' | 'isolation-strength-overstated' |
 'workspace-collision'`.
 - **The composition root is `composeReferenceRun` in
-  [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)** — already `async`
+  [`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)** — already `async`
   (`Promise<ComposedRunPorts>`), the sole importer of the reference adapters
   (`createReferenceAgent`, `ReferenceExecutionHost`, `ReferenceForge`, `ReferenceWorkSource`), and it
   fails closed on an unknown driver name (`ProviderSelectionError`). It calls `PlanValidator.validate`,
@@ -114,7 +114,7 @@ splits into two sub-phases with a fixed internal ordering **6a → 6b**.
 - **The 6a strong-attestation boundary (binding).** 6a must **not** be able to obtain `strong`
   autonomy, because 6b's exercised confinement proof does not exist yet. This is a live hazard, not a
   hypothetical: the merged `ReferenceExecutionHost`
-  ([`../../../src/providers/reference/host.ts`](../../../src/providers/reference/host.ts)) **defaults**
+  ([`../../../packages/jig-sdk/src/providers/reference/host.ts`](../../../packages/jig-sdk/src/providers/reference/host.ts)) **defaults**
   both `reportedIsolationStrength` and `provenIsolationStrength` to `strong`, so a naive 6a wiring that
   selects only `agent: 'codex'` and leaves the host at its default would run the first real agent under
   a `strong`-but-unexercised attestation. 6a therefore requires **both** closures — they are
@@ -160,7 +160,7 @@ two implementers do not split them differently.
 ### 2. Real agent driver (Codex-first) behind `AgentPort`, selected through the composition root
 
 The real agent driver is a concrete `AgentPort` adapter, selected by name through the
-`composeReferenceRun` successor in [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts), performing
+`composeReferenceRun` successor in [`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts), performing
 real edits — replacing the scripted-worker stub on the driven path only.
 
 - **It maps to the merged port unchanged:** `execute(story: Story): Promise<WorkerResult>`,
@@ -194,7 +194,7 @@ the port surface unchanged.**
 
 - The confinement proof (Decision 4) runs **async at compose time, outside `describe()`**, in the
   host driver's factory. `composeReferenceRun` is already `async`
-  ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)) and is `describe()`'s only caller, so an
+  ([`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)) and is `describe()`'s only caller, so an
   async real-host factory — `createRealExecutionHost(): Promise<ExecutionHostPort>`, mirroring the
   existing `createReferenceAgent` factory — runs the exercised proof, computes the `HostAttestation`
   (populating `provenIsolationStrength` and any `failureToken`), and constructs a host whose

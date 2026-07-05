@@ -84,7 +84,7 @@ Read, in order:
 
 Confirmed against `src/` at authoring time — build on these, do not re-derive them:
 
-- **The Forge port is merged** ([`../../../../src/ports.ts`](../../../../../src/ports.ts)):
+- **The Forge port is merged** ([`../../../../../packages/jig-sdk/src/ports.ts`](../../../../../packages/jig-sdk/src/ports.ts)):
   `ForgePort.land(request: LandingRequest): LandingOutcome | Promise<LandingOutcome>`. `LandingRequest`
   is `{ storyId; action: 'push' | 'open-pr' | 'merge'; reason?: 'dry-run' }`; Residual B is closed in
   the live port. `LandingOutcome` is `Pick<RunEvent, 'family'> & Partial<RunEvent>` — a record-shaped
@@ -92,16 +92,16 @@ Confirmed against `src/` at authoring time — build on these, do not re-derive 
   `"push|open-pr|merge"` token remains only as the modeled dry-run record action that preserves the
   Phase-0..4 golden bytes.
 - **The runner is already the sole `land()` caller.** `LocalHarness`
-  ([`../../../../src/harness.ts`](../../../../../src/harness.ts)) emits `story.done`, constructs the
+  ([`../../../../../packages/jig-sdk/src/harness.ts`](../../../../../packages/jig-sdk/src/harness.ts)) emits `story.done`, constructs the
   `LandingRequest` from `this.landingAction` (default `push`) with `reason: 'dry-run'`, awaits
   `this.forge.land(...)`, and records the landing outcome. Under the reference forge, that outcome is
   still `runner-action.skipped-on-dry-run` with the historical `"push|open-pr|merge"` modeled-record
   action. The agent path never touches `this.forge`.
 - **The composition root** is `composeReferenceRun` in
-  [`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts) — already `async`, the sole importer of
+  [`../../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../../packages/jig-sdk/src/bootstrap.ts) — already `async`, the sole importer of
   the reference adapters (including `ReferenceForge`), fails closed on an unknown driver
   (`ProviderSelectionError`); it supports `forge=reference` only today.
-- **The reference forge models the skip** ([`../../../../src/providers/reference/forge.ts`](../../../../../src/providers/reference/forge.ts)):
+- **The reference forge models the skip** ([`../../../../../packages/jig-sdk/src/providers/reference/forge.ts`](../../../../../packages/jig-sdk/src/providers/reference/forge.ts)):
   `land()` returns `runner-action.skipped-on-dry-run`. This is the Phase-7 replacement on the **driven**
   path only.
 - **No-double-effect is record-grounded** (ADR 0020 §5): the runner already recognizes recorded
@@ -169,7 +169,7 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
 
 - In `src/ports.ts`, repair `LandingRequest.action` from the single literal `'push|open-pr|merge'` to
   the union `'push' | 'open-pr' | 'merge'`. Update the runner's call site
-  ([`../../../../src/harness.ts`](../../../../../src/harness.ts) line 524, constructed `as const`) and the
+  ([`../../../../../packages/jig-sdk/src/harness.ts`](../../../../../packages/jig-sdk/src/harness.ts) line 524, constructed `as const`) and the
   reference forge mechanically.
 - The real adapter **discriminates** on the union; an `action` that is not one of the three members
   **fails closed** at the seam (a diagnosable stop, FENCE-1), never a silent fallback.

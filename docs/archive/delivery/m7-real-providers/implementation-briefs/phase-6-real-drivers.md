@@ -12,8 +12,8 @@ status: completed history
 
 Phase 5 pinned and merged the four provider ports, the composition root, the capability-attestation
 Fence input, and the driver conformance suite as **exercised jig-internal seams** proven with
-**reference adapters** (commit `f59a479`, [`../../../../src/ports.ts`](../../../../../src/ports.ts),
-[`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts)). Phase 6 promotes the **agent** and
+**reference adapters** (commit `f59a479`, [`../../../../../packages/jig-sdk/src/ports.ts`](../../../../../packages/jig-sdk/src/ports.ts),
+[`../../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../../packages/jig-sdk/src/bootstrap.ts)). Phase 6 promotes the **agent** and
 **execution-host** seams from reference adapters to **real drivers** behind those same, unchanged
 ports: a real Codex-first agent performs real edits inside a real, confined host, and jig grants that
 agent only the autonomy the host's _proven_ confinement earns. Every acceptance criterion is a test
@@ -71,14 +71,14 @@ Read, in order:
 
 Confirmed against `src/` at authoring time — build on these, do not re-derive them:
 
-- **The four ports are merged** ([`../../../../src/ports.ts`](../../../../../src/ports.ts)):
+- **The four ports are merged** ([`../../../../../packages/jig-sdk/src/ports.ts`](../../../../../packages/jig-sdk/src/ports.ts)):
   `AgentPort.execute(story) → Promise<WorkerResult>`; `ExecutionHostPort.describe() → HostAttestation`
   (**synchronous**); `ForgePort.land()`; `WorkSourcePort.candidates()`. `CapabilityAttestation` unifies
   proof and result (`freshness`, `positive`, `reportedIsolationStrength`, `provenIsolationStrength`,
   `failureToken`); `HostAttestation` carries `isolationStrength` + `capabilityAttestations`;
   `HostFailureToken` is `containment-unproven | isolation-strength-overstated | workspace-collision`.
 - **The composition root** is `composeReferenceRun` in
-  [`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts) — already `async`, the sole importer of
+  [`../../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../../packages/jig-sdk/src/bootstrap.ts) — already `async`, the sole importer of
   the reference adapters (`createReferenceAgent`, `ReferenceExecutionHost`, `ReferenceForge`,
   `ReferenceWorkSource`), fails closed on an unknown driver (`ProviderSelectionError`), reads
   `config.drivers`, calls `PlanValidator.validate`, then `executionHost.describe()`, and captures the
@@ -152,7 +152,7 @@ Implement in order. After **every** slice, the Phase-0..4 goldens must still pas
   an auto-bypass (ADR 0022 Decision 2).
 - **Close the 6a strong-attestation boundary (ADR 0022 Decision 1, binding).** 6a must not be able to
   obtain `strong` autonomy before 6b's exercised proof exists. **The default `ReferenceExecutionHost`
-  attests `strong`** ([`../../../../src/providers/reference/host.ts`](../../../../../src/providers/reference/host.ts)
+  attests `strong`** ([`../../../../../packages/jig-sdk/src/providers/reference/host.ts`](../../../../../packages/jig-sdk/src/providers/reference/host.ts)
   lines 16–17 default both `reportedIsolationStrength` and `provenIsolationStrength` to `strong`), so
   selecting only `agent: 'codex'` and leaving the host default would run the first real agent under an
   unexercised `strong` attestation. Implement **both** closures:

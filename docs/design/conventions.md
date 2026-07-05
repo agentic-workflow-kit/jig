@@ -39,7 +39,7 @@ in current precedent rather than newly invented here:
 [`notes/runtime-design-m5a.md`](./notes/runtime-design-m5a.md) **is** the ledger's canonical
 home, present and future — existing and later invariants are written there, as new rows
 appended to that table. That file is archival in the sense of
-[`README.md`](./README.md#notes-intake-and-reference) ("archive") — meaning it is **not a
+[`README.md`](./README.md#notes--intake-and-reference) ("archive") — meaning it is **not a
 redistribution or restructuring target**: its content is not shredded out into per-area files,
 and the ledger is not re-homed into a new file merely to make it feel "live." It **is**, however,
 an **append-only continuation** target for the one ledger it hosts: adding a new `INV-*` row is a

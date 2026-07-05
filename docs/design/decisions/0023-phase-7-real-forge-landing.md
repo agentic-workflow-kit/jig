@@ -68,7 +68,7 @@ field) goes to `.github/MILESTONES.md`/`ROADMAP.md` and the contract owner, not 
 Established by Phases 0–6 and confirmed against `src/` at authoring time (the **real as-merged** port
 shapes, not the ADR 0021 sketch):
 
-- **The Forge seam is a merged jig-internal port** ([`../../../src/ports.ts`](../../../src/ports.ts)):
+- **The Forge seam is a merged jig-internal port** ([`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts)):
   `ForgePort.land(request: LandingRequest): LandingOutcome | Promise<LandingOutcome>`. `LandingRequest`
   is `{ storyId: string; action: 'push|open-pr|merge'; reason?: 'dry-run' }` — **`action` is a single
   string literal containing pipe characters, `'push|open-pr|merge'`, not a union** (Residual B). It is
@@ -76,20 +76,20 @@ shapes, not the ADR 0021 sketch):
   `LandingOutcome` is `Pick<RunEvent, 'family'> & Partial<RunEvent>` — a record-shaped outcome that can
   carry additive fields **without a port surface change**.
 - **The runner is already the sole `land()` caller.** In `LocalHarness`
-  ([`../../../src/harness.ts`](../../../src/harness.ts) lines 516–529), when a story's evidence passes
+  ([`../../../packages/jig-sdk/src/harness.ts`](../../../packages/jig-sdk/src/harness.ts) lines 516–529), when a story's evidence passes
   the runner emits `story.done`, constructs the `LandingRequest` (`{ storyId, action:
 'push|open-pr|merge', reason: 'dry-run' }`), calls `await this.forge.land(landingRequest)`, and
   records the modeled `runner-action.skipped-on-dry-run` event. The agent path never touches
   `this.forge`. This is the `done → landed` seam, modeled rather than performed — the exact structure
   Phase 7 makes real.
 - **The composition root is `composeReferenceRun` in
-  [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)** — already `async`, the sole importer of the
+  [`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)** — already `async`, the sole importer of the
   reference adapters (including `ReferenceForge`), and it fails closed on an unknown driver name
   (`ProviderSelectionError`). It supports `forge=reference` only today (bootstrap.ts driver-name sets);
   a real forge selection is a new named driver, mirroring the Phase-6 `agent=codex` / `executionHost=real`
   pattern.
 - **The reference forge models the skip.** `ReferenceForge.land()`
-  ([`../../../src/providers/reference/forge.ts`](../../../src/providers/reference/forge.ts)) returns a
+  ([`../../../packages/jig-sdk/src/providers/reference/forge.ts`](../../../packages/jig-sdk/src/providers/reference/forge.ts)) returns a
   `runner-action.skipped-on-dry-run` outcome; the dry-run path never performs a real effect. This is the
   Phase-7 replacement on the **driven** path only; the default/dry-run path is untouched.
 - **No-double-effect is already record-grounded.** The Phase-4 recognition
@@ -146,7 +146,7 @@ block surface. Both placements are stated here so two implementers do not split 
 
 **The open question routed from the repo plan** (`repo-plan-m7.md` open question 2; `phases.md` Phase-7
 requirement and stop condition): `LandingRequest.action` in the merged
-[`../../../src/ports.ts`](../../../src/ports.ts) is the single string literal `'push|open-pr|merge'` —
+[`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts) is the single string literal `'push|open-pr|merge'` —
 one literal containing pipe characters, not a union — so a real Forge cannot discriminate the three
 landing actions. **Resolved here: `action` becomes the union `'push' | 'open-pr' | 'merge'`, and the
 real adapter discriminates on it; an unknown action fails closed.**
@@ -155,7 +155,7 @@ real adapter discriminates on it; an unknown action fails closed.**
   seam (the same category as `Worker`/`RecordSink`), not a versioned public contract; repairing a
   mis-encoded literal into the union it was always meant to be adds no privileged method, changes no
   invoker, and collapses no port. The composition root, the runner's call site
-  ([`../../../src/harness.ts`](../../../src/harness.ts) line 524, which constructs the request
+  ([`../../../packages/jig-sdk/src/harness.ts`](../../../packages/jig-sdk/src/harness.ts) line 524, which constructs the request
   `as const`), and the reference forge all update mechanically to the union.
 - **Unknown action fails closed.** A `LandingRequest` whose `action` is not one of the three union
   members is refused at the seam with a diagnosable stop (FENCE-1 fail-closed posture), never a silent
@@ -273,7 +273,7 @@ Decision 8, `src/redaction.ts`) to the real landing path; it is **not** a new me
 
 - **A real forge driver, selected by name, sole-imported.** Phase 7 adds a real Forge/GitHub driver
   behind `ForgePort`, selected through the `composeReferenceRun` successor
-  ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)) by a config driver name (e.g.
+  ([`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)) by a config driver name (e.g.
   `forge: 'github'`), mirroring the Phase-6 `agent: 'codex'` / `executionHost: 'real'` selection
   pattern; bootstrap.ts today supports `forge=reference` only and must gain the real name. The
   composition root stays the **sole importer** of the driver; the runner, Fence, and records never

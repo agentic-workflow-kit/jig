@@ -12,7 +12,7 @@ dispositions the coordinator made over each per-unit `review-technical-design` p
 [`../charter.md`](../charter.md#deliverable-rule)).
 
 Scope note. These `D-###` entries are the **execution** track's own review dispositions. Per
-[`../conventions.md`](../conventions.md#2-adrs-continue-in-place-from-0017) each such log numbers
+[`../conventions.md`](../conventions.md#2-the-adrdecision-log-continues-in-place-as-one-flat-log) each such log numbers
 independently, so this log's `D-###` restart at `D-001` and are distinct from the identifiers used
 in:
 

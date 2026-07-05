@@ -99,17 +99,17 @@ Read, in order:
 
 Confirmed against `src/` at authoring time — build on these, do not re-derive them:
 
-- **The Work-source port is merged** ([`../../../../src/ports.ts`](../../../../../src/ports.ts)):
+- **The Work-source port is merged** ([`../../../../../packages/jig-sdk/src/ports.ts`](../../../../../packages/jig-sdk/src/ports.ts)):
   `WorkSourcePort.candidates(): CandidateWorkItem[] | Promise<CandidateWorkItem[]>`, and
   `CandidateWorkItem` is `{ planInstance: PlanInstance; provenance: 'jig-validated' }` — **`provenance`
   is a single string literal, not an origin-bearing shape**. It is the field Phase 8 enriches.
 - **`PlanValidator` is a merged static validator**
-  ([`../../../../src/plan-validator.ts`](../../../../../src/plan-validator.ts)):
+  ([`../../../../../packages/jig-sdk/src/plan-validator.ts`](../../../../../packages/jig-sdk/src/plan-validator.ts)):
   `PlanValidator.validate(planInstance): PlanInstance` — validates `execution-plan-shape-v0`; throws a
   reason-bearing `Error` on unknown version, missing/malformed/path-traversal id, empty/duplicate/
   late-dependency stories; otherwise returns the instance. This is the crossing (INV-007).
 - **The composition root validates the seed, not the candidate.** `composeReferenceRun` →
-  `composeRunPorts` ([`../../../../src/bootstrap.ts`](../../../../../src/bootstrap.ts)) calls
+  `composeRunPorts` ([`../../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../../packages/jig-sdk/src/bootstrap.ts)) calls
   `PlanValidator.validate(options.planInstance)` (line 164), then wires
   `workSource: new ReferenceWorkSource(options.planInstance)` (line 204). It supports
   `workSource=reference` only and fails closed on an unknown driver (`ProviderSelectionError`).
@@ -118,11 +118,11 @@ Confirmed against `src/` at authoring time — build on these, do not re-derive 
   `await harness.run(candidate.planInstance, config, policy)`; `resume.ts` (line 390) does the same. The
   reference `candidate.planInstance` is the validated seed **by identity** — a real importer breaks that.
 - **The reference work-source models the seed candidate**
-  ([`../../../../src/providers/reference/work-source.ts`](../../../../../src/providers/reference/work-source.ts)):
+  ([`../../../../../packages/jig-sdk/src/providers/reference/work-source.ts`](../../../../../packages/jig-sdk/src/providers/reference/work-source.ts)):
   `candidates()` returns `[{ planInstance: this.planInstance, provenance: 'jig-validated' }]`. This is the
   Phase-8 replacement on the **real** path only; the default/reference path is untouched.
 - **The conformance suite already anchors the crossing**
-  ([`../../../../src/conformance/provider-conformance.ts`](../../../../../src/conformance/provider-conformance.ts)
+  ([`../../../../../packages/jig-testkit/src/provider-conformance.ts`](../../../../../packages/jig-testkit/src/provider-conformance.ts)
   lines 95–102): it runs `candidates()`, validates each `candidate.planInstance`, and records
   `work-source-plan-intake-bypass` when a candidate does not cross validation. Phase 8 extends it.
 
@@ -281,7 +281,7 @@ still schedule a raw plan or fail **without** the required record. Three mandate
   the existing story-lifecycle `rejected` / authorization `denied` family with a reason basis — **no new
   event family**.
 - The conformance-suite anchor `work-source-plan-intake-bypass`
-  ([`../../../../src/conformance/provider-conformance.ts`](../../../../../src/conformance/provider-conformance.ts)
+  ([`../../../../../packages/jig-testkit/src/provider-conformance.ts`](../../../../../packages/jig-testkit/src/provider-conformance.ts)
   lines 95–102) rides Phase 8 for (a). Extend it (Slice 5) to also anchor the **direct-`run`/`resume`
   bypass** case (b), exercising the **runtime** refusal — a marker-less object handed to the scheduler is
   fail-closed and recorded, not merely a compile-time rejection.
@@ -343,7 +343,7 @@ closed on:
 - **P8-AC-3** — A candidate's provenance names its real origin (source and identifier) rather than the
   single `'jig-validated'` literal, and the origin is legible in the run record. **8b**, Slice 4.
   Traces: [`SEE-3`](../../../../product/guarantees.md#5-full-observability),
-  [`../../../../../src/ports.ts`](../../../../../src/ports.ts) (`CandidateWorkItem.provenance`).
+  [`../../../../../packages/jig-sdk/src/ports.ts`](../../../../../packages/jig-sdk/src/ports.ts) (`CandidateWorkItem.provenance`).
 
 ## Test / evidence plan
 

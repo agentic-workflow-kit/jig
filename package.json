@@ -26,9 +26,10 @@
     "lint": "biome check .",
     "typecheck": "tsc -b tsconfig.json && tsc --noEmit -p tsconfig.tools.json",
     "boundaries:check": "node scripts/check-package-boundaries.mjs",
+    "links:check": "node scripts/check-doc-links.mjs",
     "delivery:check": "node scripts/check-delivery-foundation.mjs",
     "test": "tsc -b tsconfig.json && vitest run --coverage --passWithNoTests",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm boundaries:check && pnpm delivery:check && pnpm test"
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm boundaries:check && pnpm links:check && pnpm delivery:check && pnpm test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",

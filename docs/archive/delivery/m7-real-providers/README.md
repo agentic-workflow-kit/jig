@@ -98,7 +98,7 @@ stops, and non-goals for each phase live in [`phases.md`](./phases.md). The
   work is adjudicated against the launch-attested capability. It is an explicit P6 acceptance
   criterion (P6-AC-5).
 - **Residual B — the `LandingRequest.action` union (Phase 7).**
-  [`../../../src/ports.ts`](../../../../src/ports.ts) now types `action` as the union
+  [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) now types `action` as the union
   `'push' | 'open-pr' | 'merge'`, so the real Forge path can discriminate actions. This was the
   explicit P7 acceptance criterion (P7-AC-2); the track keeps it here as closeout context rather than
   open debt.
@@ -114,8 +114,8 @@ does not invent product or design facts. Per the delivery Planning Rules
   this track"), not a phase.
 - No TypeScript interfaces, JSON Schema, provider manifests, package layout, exports, or runtime code
   are introduced **from delivery planning**. The **real as-merged port shapes** are cited from
-  [`../../../src/ports.ts`](../../../../src/ports.ts) and
-  [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts) as fixed inputs, not redesigned. The one
+  [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) and
+  [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts) as fixed inputs, not redesigned. The one
   provider manifest in scope — the Phase-6 **substrate manifest** — is introduced by the **design**
   layer ([ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7), a
   non-normative fixture with no schema freeze; this track only references it, which keeps the
@@ -136,8 +136,8 @@ does not invent product or design facts. Per the delivery Planning Rules
   [`../../design/evidence/2026-07-04-evrun-partial-smoke.md`](../../../design/evidence/2026-07-04-evrun-partial-smoke.md).
 - Predecessor track: [`../m5b-local-mvp-r2/`](../m5b-local-mvp-r2/README.md) — the live local-MVP
   track whose provider tail this track replaces.
-- Merged P5 seams: [`../../../src/ports.ts`](../../../../src/ports.ts),
-  [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts) (commit `f59a479`);
+- Merged P5 seams: [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts),
+  [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts) (commit `f59a479`);
   [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 - Product: [`../../product/jig.md`](../../../product/jig.md),
   [`../../product/guarantees.md`](../../../product/guarantees.md).

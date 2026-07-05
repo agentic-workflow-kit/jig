@@ -25,7 +25,7 @@ point, not a frozen contract.
 
 - **The four ports as jig-internal interfaces.** `AgentPort` formalizes the existing `Worker`
   interface (`execute` — request/observe only, no privileged method); `ExecutionHostPort.describe()`
-  returns a `HostAttestation` (the merged [`../../../src/ports.ts`](../../../src/ports.ts) shape:
+  returns a `HostAttestation` (the merged [`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts) shape:
   the host `isolationStrength` plus its `capabilityAttestations`, where proof and result are unified in
   `CapabilityAttestation` — `freshness`, `positive`, `reportedIsolationStrength`,
   `provenIsolationStrength`, `failureToken` — with **no** separate `containmentProof` field);
@@ -116,7 +116,7 @@ the `action` union + real-effect idempotency + landing-path redaction, independe
   an unknown forge name fails closed. The default/dry-run wiring keeps emitting
   `runner-action.skipped-on-dry-run`, so the Phase-0..4 goldens stay byte-identical.
 - **`LandingRequest.action` union (Residual B).** The live
-  [`../../../src/ports.ts`](../../../src/ports.ts) shape now types `action` as the union
+  [`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts) shape now types `action` as the union
   `'push' | 'open-pr' | 'merge'` so the real adapter can discriminate, and an unknown action **fails
   closed**. This remains a jig-internal port-type fix that freezes nothing.
 - **Real-effect idempotency.** A re-run or resume against an already-landed effect recognizes the prior
@@ -172,7 +172,7 @@ origin-bearing provenance). This is the last real-driver phase of the M7 track.
   `work-source-plan-intake-bypass` conformance anchor plus a direct-`run`/`resume`-bypass case exercising
   the runtime refusal ride Phase 8.
 - **Origin-bearing `CandidateWorkItem.provenance` (Residual-B-style seam fix).** The merged
-  [`../../../src/ports.ts`](../../../src/ports.ts) types `provenance` as the single literal
+  [`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts) types `provenance` as the single literal
   `'jig-validated'`; Phase 8 widens it to a shape that **names the real origin** (source system +
   identifier) **and still asserts jig-validated**, so provenance is not collapsed to one constant. This is
   a jig-internal port-type widening — the same category as the ADR 0023 `LandingRequest.action` union —
