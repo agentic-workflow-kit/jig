@@ -59,6 +59,16 @@ provider work must not cite a green conformance run as proof that a real provide
 process, withheld credentials, avoided egress, or performed a forge/source effect truthfully unless
 that truth was independently observed by the relevant real-provider proof or runtime evidence path.
 
+Corollary: an assertion a fail-closed refusal would also satisfy is not evidence of the claimed
+behavior. A smoke or evidence assertion must assert the independently observed success outcome of
+the claimed behavior. Asserting a result envelope, a driver identifier, or a completion status is not
+sufficient, because a fail-closed refusal produces the same envelope, identifier, and status as a
+real success. The motivating instance: a Codex app-server transport smoke test (target-state delivery
+track P03) asserted `status === 'completed'` and the driver name, and passed while the session had
+actually refused pre-dispatch — the assertion was satisfiable by the refusal it should have caught.
+This corollary is additive: it constrains how future smoke and evidence assertions are written and
+reviewed, and does not rename any token or change any contract shape.
+
 ## Consequences
 
 - Consumers of conformance results must inspect typed verdict basis when deciding whether a failure was
