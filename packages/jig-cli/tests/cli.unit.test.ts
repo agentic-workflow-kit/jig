@@ -1,19 +1,155 @@
 import assert from 'node:assert';
+import { spawnSync } from 'node:child_process';
+import { createHash, createHmac } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Plan, PolicyDoc, RunEvent, RunRecord } from '@agentic-workflow-kit/jig-sdk';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createOwnerDecisionSource, run } from '../src/cli.js';
-import { writeIntegritySidecar } from '../src/integrity.js';
-import type {
-  GitWorkspaceFingerprint,
-  Plan,
-  PolicyDoc,
-  RunEvent,
-  RunRecord,
-  WorkspaceFingerprint,
-} from '../src/types.js';
-import { captureWorkspaceFingerprint } from '../src/workspace.js';
+
+interface GitWorkspaceFingerprint {
+  kind: 'git';
+  repoRoot: string;
+  head: string;
+  changeSetHash: string;
+}
+
+interface UnavailableWorkspaceFingerprint {
+  kind: 'unavailable';
+  reason: 'git-command-failed' | 'not-a-git-worktree' | 'git-unavailable';
+  detail: string;
+}
+
+type WorkspaceFingerprint = GitWorkspaceFingerprint | UnavailableWorkspaceFingerprint;
+
+const CLEAN_WORKSPACE_CHANGESET_SENTINEL = 'git-tree-clean';
+const INTEGRITY_KEY_ENV = 'JIG_RECORDS_INTEGRITY_KEY';
+const INTEGRITY_KEY_ID_ENV = 'JIG_RECORDS_INTEGRITY_KEY_ID';
+
+function runGit(cwd: string, args: string[]) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (result.error) {
+    return { ok: false as const, stderr: result.error.message };
+  }
+  if (result.status !== 0) {
+    return { ok: false as const, stderr: (result.stderr ?? '').trim() };
+  }
+  return { ok: true as const, stdout: (result.stdout ?? '').trimEnd() };
+}
+
+function captureWorkspaceFingerprint(cwd: string): WorkspaceFingerprint {
+  const rootResult = runGit(cwd, ['rev-parse', '--show-toplevel']);
+  if (!rootResult.ok) {
+    return { kind: 'unavailable', reason: 'git-command-failed', detail: rootResult.stderr };
+  }
+
+  const headResult = runGit(cwd, ['rev-parse', 'HEAD']);
+  if (!headResult.ok) {
+    return { kind: 'unavailable', reason: 'git-command-failed', detail: headResult.stderr };
+  }
+
+  const statusResult = runGit(cwd, ['status', '--porcelain=v1', '--untracked-files=all']);
+  if (!statusResult.ok) {
+    return { kind: 'unavailable', reason: 'git-command-failed', detail: statusResult.stderr };
+  }
+
+  const worktreeDiffResult = runGit(cwd, ['diff', '--no-ext-diff', '--binary', '--']);
+  if (!worktreeDiffResult.ok) {
+    return { kind: 'unavailable', reason: 'git-command-failed', detail: worktreeDiffResult.stderr };
+  }
+
+  const stagedDiffResult = runGit(cwd, ['diff', '--cached', '--no-ext-diff', '--binary', '--']);
+  if (!stagedDiffResult.ok) {
+    return { kind: 'unavailable', reason: 'git-command-failed', detail: stagedDiffResult.stderr };
+  }
+
+  const status = statusResult.stdout;
+  const worktreeDiff = worktreeDiffResult.stdout;
+  const stagedDiff = stagedDiffResult.stdout;
+  const changeSetHash =
+    status === '' && worktreeDiff === '' && stagedDiff === ''
+      ? CLEAN_WORKSPACE_CHANGESET_SENTINEL
+      : createHash('sha256')
+          .update(`status\n${status}\n--worktree-diff--\n${worktreeDiff}\n--staged-diff--\n${stagedDiff}`)
+          .digest('hex');
+
+  return {
+    kind: 'git',
+    repoRoot: rootResult.stdout,
+    head: headResult.stdout,
+    changeSetHash,
+  };
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(',')}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(',')}}`;
+}
+
+function writeIntegritySidecar(runDir: string): void {
+  const key = process.env[INTEGRITY_KEY_ENV];
+  if (!key) {
+    throw new Error(`${INTEGRITY_KEY_ENV} is required`);
+  }
+  const keyId = process.env[INTEGRITY_KEY_ID_ENV] || `env:${INTEGRITY_KEY_ENV}`;
+  const eventsJsonl = readFileSync(join(runDir, 'events.jsonl'), 'utf8');
+  const lines = eventsJsonl.trimEnd().split('\n');
+  let previous = Buffer.alloc(0);
+  for (const line of lines) {
+    previous = createHash('sha256')
+      .update(Buffer.concat([previous, Buffer.from(line, 'utf8')]))
+      .digest();
+  }
+  const payload = {
+    version: 1,
+    algorithms: {
+      artifactDigest: 'sha256',
+      eventLogChain: 'sha256(prev || line)',
+      hmac: 'hmac-sha256',
+    },
+    keyId,
+    artifacts: {
+      'run.started': {
+        path: 'events.jsonl:1',
+        sha256: createHash('sha256')
+          .update(lines[0] ?? '')
+          .digest('hex'),
+      },
+      'plan.snapshot.json': {
+        path: join(runDir, 'plan.snapshot.json'),
+        sha256: createHash('sha256')
+          .update(readFileSync(join(runDir, 'plan.snapshot.json')))
+          .digest('hex'),
+      },
+      'policy.snapshot.json': {
+        path: join(runDir, 'policy.snapshot.json'),
+        sha256: createHash('sha256')
+          .update(readFileSync(join(runDir, 'policy.snapshot.json')))
+          .digest('hex'),
+      },
+    },
+    eventLog: {
+      path: 'events.jsonl',
+      lineCount: lines.length,
+      chainHead: previous.toString('hex'),
+    },
+  };
+  const sidecar = {
+    ...payload,
+    hmac: createHmac('sha256', Buffer.from(key, 'utf8')).update(stableStringify(payload)).digest('hex'),
+  };
+  writeFileSync(join(runDir, 'integrity.json'), JSON.stringify(sidecar, null, 2));
+}
 
 // vitest's v8 coverage provider does not attribute coverage from execSync subprocesses
 // (unlike c8's NODE_V8_COVERAGE inheritance), and those subprocesses execute compiled

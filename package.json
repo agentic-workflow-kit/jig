@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig, the agentic-workflow-kit delivery engine: local dry-run CLI (jig preview, jig run, and jig inspect) over the execution-plan and observability-records contracts.",
+  "description": "Jig private workspace shell: coordinates the jig-sdk, jig-cli, and jig-testkit packages plus repo-local checks.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -16,21 +16,19 @@
       "onFail": "warn"
     }
   },
-  "bin": {
-    "jig": "bin/jig.js"
-  },
   "scripts": {
     "dev:setup": "bash scripts/dev-setup.sh",
     "worktree:new": "bash scripts/worktree-new.sh",
     "worktree:clean": "bash scripts/worktree-clean.sh",
-    "build": "tsc -b",
+    "build": "tsc -b tsconfig.json",
     "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{md,yml,yaml}\"",
     "lint": "biome check .",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b tsconfig.json && tsc --noEmit -p tsconfig.tools.json",
+    "boundaries:check": "node scripts/check-package-boundaries.mjs",
     "delivery:check": "node scripts/check-delivery-foundation.mjs",
-    "test": "tsc -b && vitest run --coverage --passWithNoTests",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm delivery:check && pnpm test"
+    "test": "tsc -b tsconfig.json && vitest run --coverage --passWithNoTests",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm boundaries:check && pnpm delivery:check && pnpm test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",

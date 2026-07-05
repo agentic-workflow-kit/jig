@@ -1,45 +1,18 @@
 import assert from 'node:assert';
+import type { AgentPort, CapabilityAttestation } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
-import { composeReferenceRun } from '../../src/bootstrap.js';
 import {
   assertProviderConformance,
   evaluateProviderConformanceVerdicts,
   ProviderConformanceError,
   type ProviderManifest,
-} from '../../src/conformance/provider-conformance.js';
-import type { AgentPort, CapabilityAttestation } from '../../src/ports.js';
-import { approveSubstrateManifest } from '../../src/substrate.js';
-import type { ConfigDoc, PlanInstance } from '../../src/types.js';
+} from '../../src/index.js';
+import { approveSubstrateManifest, manifest, referenceSubject } from './helpers.js';
 
-const planInstance: PlanInstance = {
-  plan: {
-    id: 'plan-p6-conformance',
-    version: 'execution-plan-shape-v0',
-    stories: [{ id: 'STORY-1', title: 'Conformance story' }],
-  },
-};
-
-const config: ConfigDoc = {
-  runner: { mode: 'local-dry-run', recordDir: 'runs' },
-  drivers: {
-    agent: 'scripted-stub',
-    executionHost: 'local',
-  },
-};
-
-const manifest: ProviderManifest = {
-  id: 'reference-adapters',
-  network: 'none',
-  credentials: 'none',
-  capabilities: ['filesystem-edit'],
-};
+const referenceManifest: ProviderManifest = manifest(['filesystem-edit']);
 
 async function composedSubject() {
-  return await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
+  return referenceSubject();
 }
 
 test('P6-AC-1: a forbidden-method adapter is rejected', async () => {
@@ -53,7 +26,7 @@ test('P6-AC-1: a forbidden-method adapter is rejected', async () => {
           ...composed.agent,
           shellCommand: async () => undefined,
         } as AgentPort,
-        manifest,
+        manifest: referenceManifest,
       }),
     (error: unknown) =>
       error instanceof ProviderConformanceError && error.findings.includes('agent-privileged-method:shellCommand'),
@@ -85,7 +58,7 @@ test('P6-AC-2: an overstated-isolation adapter is rejected', async () => {
             ],
           }),
         },
-        manifest,
+        manifest: referenceManifest,
       }),
     (error: unknown) =>
       error instanceof ProviderConformanceError && error.findings.includes('host-isolation-overstated'),
@@ -114,7 +87,7 @@ test('P6-AC-2: a self-report-only isolation claim is classified explicitly', asy
         ],
       }),
     },
-    manifest,
+    manifest: referenceManifest,
   });
 
   assert.deepStrictEqual(verdicts, [
@@ -146,7 +119,7 @@ test('P6-AC-2: a positive-only isolation claim is classified as self-report-only
         ],
       }),
     },
-    manifest,
+    manifest: referenceManifest,
   });
 
   assert.deepStrictEqual(verdicts, [
@@ -170,7 +143,7 @@ test('P6-AC-2: a top-level-only isolation claim is classified as self-report-onl
         capabilityAttestations: [],
       }),
     },
-    manifest,
+    manifest: referenceManifest,
   });
 
   assert.deepStrictEqual(verdicts, [
@@ -188,7 +161,7 @@ test('P6-AC-6: a substrate-escalation adapter is rejected', async () => {
     () =>
       assertProviderConformance({
         ...composed,
-        manifest,
+        manifest: referenceManifest,
         approvedSubstrateManifest: approveSubstrateManifest({
           id: 'codex-real-driver',
           runtimes: ['node'],
@@ -200,6 +173,70 @@ test('P6-AC-6: a substrate-escalation adapter is rejected', async () => {
       }),
     (error: unknown) => error instanceof ProviderConformanceError && error.findings.includes('substrate-escalation'),
   );
+});
+
+test('P6-AC-6: an approved substrate request does not produce a false-positive verdict', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    manifest: referenceManifest,
+    approvedSubstrateManifest: approveSubstrateManifest({
+      id: 'codex-real-driver',
+      runtimes: ['node'],
+      argv: [['codex', 'exec']],
+      credentials: ['CODEX_API_KEY'],
+      egress: ['https://example.com'],
+    }),
+    substrateRequests: [{ kind: 'egress', value: 'https://example.com' }],
+  });
+
+  assert.deepStrictEqual(verdicts, []);
+});
+
+test('P6-AC-2: isolation comparisons handle none and missing strengths without false positives', async () => {
+  const composed = await composedSubject();
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost: {
+      describe: () => ({
+        driverId: 'minimal-host',
+        runContext: 'local',
+        isolationStrength: 'none',
+        capabilityAttestations: [
+          {
+            driverId: 'minimal-host',
+            capability: 'filesystem-edit',
+            runContext: 'local',
+            freshness: 'fresh',
+            positive: false,
+            provenIsolationStrength: 'none',
+          },
+        ],
+      }),
+    },
+    manifest: referenceManifest,
+    resumeAttestation: {
+      launch: {
+        driverId: 'launch-host',
+        capability: 'filesystem-edit',
+        runContext: 'launch',
+        freshness: 'fresh',
+        positive: true,
+        provenIsolationStrength: 'weak',
+      },
+      current: {
+        driverId: 'current-host',
+        capability: 'filesystem-edit',
+        runContext: 'resume',
+        freshness: 'fresh',
+        positive: true,
+      },
+    },
+  });
+
+  assert.deepStrictEqual(verdicts, []);
 });
 
 test('P6-AC-5: a drifted-attestation adapter is rejected', async () => {
@@ -218,7 +255,7 @@ test('P6-AC-5: a drifted-attestation adapter is rejected', async () => {
     () =>
       assertProviderConformance({
         ...composed,
-        manifest,
+        manifest: referenceManifest,
         resumeAttestation: {
           launch,
           current: {

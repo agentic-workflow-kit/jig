@@ -18,43 +18,43 @@ design reconciles to; where they conflict, name it rather than silently resolvin
 delivery, planning, and review records live under `docs/archive/`; treat them as provenance, not
 current implementation instructions.
 
-| Task                                                  | Read                                                        |
-| ----------------------------------------------------- | ----------------------------------------------------------- |
-| Intent, audience, the five guarantees, boundaries     | `docs/product/jig.md` (hub)                                 |
-| Guarantees in ID detail / scenarios / concepts        | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md` |
-| How a promise is met (contracts, state tables, seams) | `docs/design/` (live; start at its README and the ADR log)  |
-| Active delivery phasing toward the target state       | `docs/delivery/` (start at its README)                      |
-| Historical delivery sequencing and phase ladders      | `docs/archive/delivery/`                                    |
-| Historical design-work sequencing                     | `docs/archive/planning/design-track/`                       |
-| Point-in-time repo reviews and their findings         | `docs/archive/reviews/`                                     |
-| The engine source and its tests                       | `src/`, `tests/` (fixtures at `tests/fixtures/`)            |
-| Local agent runbooks                                  | `skills/`                                                   |
+| Task                                                  | Read                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Intent, audience, the five guarantees, boundaries     | `docs/product/jig.md` (hub)                                                    |
+| Guarantees in ID detail / scenarios / concepts        | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md`                    |
+| How a promise is met (contracts, state tables, seams) | `docs/design/` (live; start at its README and the ADR log)                     |
+| Active delivery phasing toward the target state       | `docs/delivery/` (start at its README)                                         |
+| Historical delivery sequencing and phase ladders      | `docs/archive/delivery/`                                                       |
+| Historical design-work sequencing                     | `docs/archive/planning/design-track/`                                          |
+| Point-in-time repo reviews and their findings         | `docs/archive/reviews/`                                                        |
+| The engine source and its tests                       | `packages/*/src`, `packages/*/tests`, `tests/` (fixtures at `tests/fixtures/`) |
+| Local agent runbooks                                  | `skills/`                                                                      |
 
 ## Status
 
 Jig is early source-checkout tooling. The CLI exposes `jig preview`, `jig run`, `jig inspect`, and
 `jig resume`; fixture-backed local runs are the supported way to exercise the repo from a fresh
-checkout. The package is private tooling (`@agentic-workflow-kit/jig-repo`, `"private": true`) —
-it does not publish `@agentic-workflow-kit/jig` yet, and the package decomposition remains
-design-owned. Product/design now describe the target SDK/CLI/testkit and Codex app-server
-direction; read those as target state, not as current shipped public API. EVRUN-partial is recorded;
-EVRUN-full remains future work.
+checkout. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
+`"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
+`@agentic-workflow-kit/jig-cli`, and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace
+publishes `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. EVRUN-partial
+is recorded; EVRUN-full remains future work.
 
 ## Commands
 
 ```bash
 pnpm install --frozen-lockfile   # setup (or: pnpm dev:setup)
-pnpm check                       # the full gate: lint, format:check, typecheck, delivery:check, test
+pnpm check                       # the full gate: lint, format:check, typecheck, boundaries:check, delivery:check, test
 pnpm build                       # tsc -b — emits dist/; required before running the CLI directly
-node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
+node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
-node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
+node packages/jig-cli/bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json
-node bin/jig.js inspect <runs/run-dir-from-output>
-node bin/jig.js resume <runs/run-dir-from-output> \
+node packages/jig-cli/bin/jig.js inspect <runs/run-dir-from-output>
+node packages/jig-cli/bin/jig.js resume <runs/run-dir-from-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
@@ -65,9 +65,9 @@ directly requires an explicit `pnpm build` beforehand.
 ## Gate and conventions
 
 - **`pnpm check`** before claiming any change done; show its output as evidence, don't assert
-  success. It runs biome (code format+lint), prettier (Markdown/YAML), `tsc -b`, the delivery
-  foundation check, and vitest with coverage thresholds enforced at 90% (aim 95%). Work is
-  test-driven.
+  success. It runs biome (code format+lint), prettier (Markdown/YAML), `tsc -b`, package-boundary
+  enforcement, the delivery foundation check, and vitest with coverage thresholds enforced at 90%
+  (aim 95%). Work is test-driven.
 - **Gate integrity:** do not skip steps, adjust thresholds, or widen exclusion lists to make
   `pnpm check` green — fix the cause, or raise it instead of routing around it.
 - **`main`-based:** branch from `main`, PR into it, green `check` required, review conversations

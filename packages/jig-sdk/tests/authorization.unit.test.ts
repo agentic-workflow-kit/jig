@@ -147,6 +147,6 @@ test('P3-AC-6: classifier is deterministic fixed lookup without model/provider a
   const second = authorizeRequest(request, scopedStory, policy);
   assert.deepStrictEqual(second, first);
 
-  const source = readFileSync(join(process.cwd(), 'src/authorization.ts'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'packages/jig-sdk/src/authorization.ts'), 'utf8');
   assert.doesNotMatch(source, /openai|anthropic|provider|model|confidence|score|heuristic/i);
 });

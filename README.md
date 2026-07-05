@@ -13,16 +13,17 @@ run record you can inspect, resume from, and audit.
 
 ## Status
 
-Jig is early source-checkout tooling. The checked-in package is
-`@agentic-workflow-kit/jig-repo` with `"private": true`; there is no published
-`@agentic-workflow-kit/jig` package, public export map, SDK stability contract, or provider
-ecosystem promise yet.
+Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
+`@agentic-workflow-kit/jig-repo` coordinating the private packages
+`@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`, and
+`@agentic-workflow-kit/jig-testkit`. There is still no published
+`@agentic-workflow-kit/jig` package, public SDK/provider stability contract, or provider
+ecosystem promise.
 
 The current CLI surface is `jig preview`, `jig run`, `jig inspect`, and `jig resume`. The
 fixture-backed commands below are the supported local way to exercise the repo from a fresh
-checkout. Product and design docs describe the target product and engineering direction,
-including future package boundaries (`jig-sdk`, `jig-cli`, `jig-testkit`) and Codex
-app-server transport work; those are not shipped public APIs today.
+checkout. The package split is now implementation fact inside this private workspace; Codex
+app-server transport work remains future implementation, not a shipped public API.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
 (`EVRUN-partial`). `EVRUN-full`, remote execution, public package publication, and a full
@@ -41,7 +42,7 @@ pnpm build
 Preview a plan without allocating a run:
 
 ```bash
-node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
+node packages/jig-cli/bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json
 ```
@@ -49,7 +50,7 @@ node bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
 Execute a local fixture-backed run:
 
 ```bash
-node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
+node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
@@ -58,8 +59,8 @@ node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
 Inspect or resume from the records the run produced:
 
 ```bash
-node bin/jig.js inspect runs/<run-directory-from-the-output>
-node bin/jig.js resume runs/<run-directory-from-the-output> \
+node packages/jig-cli/bin/jig.js inspect runs/<run-directory-from-the-output>
+node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
@@ -113,8 +114,8 @@ define / PRD     technical-design   design-to-plan     jig (run)         planned
 ## Development
 
 `pnpm check` is the required local and CI gate. It runs Biome, Prettier, strict TypeScript,
-the delivery-foundation fixture check, and Vitest with coverage thresholds enforced at 90%.
-Read [AGENTS.md](AGENTS.md) before non-trivial work in this repo.
+workspace boundary enforcement, the delivery-foundation fixture check, and Vitest with coverage
+thresholds enforced at 90%. Read [AGENTS.md](AGENTS.md) before non-trivial work in this repo.
 
 ## Contributing
 

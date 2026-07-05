@@ -35,27 +35,36 @@ or improvise phase boundaries per PR.
 
 ## Current baseline
 
-Verified against the repo at commit `f0d61db` (`docs: archive stale Jig housekeeping docs (#53)`):
+Verified against the repo after Phase 02 workspace split:
 
-- **One private package.** `@agentic-workflow-kit/jig-repo`, `private: true`, no `exports` map,
-  flat `src/`, no workspace packages. `bin/jig.js` calls `dist/src/cli.js`.
-- **Core lifecycle is implemented.** Plan intake (`src/plan-validator.ts`, `src/intake.ts` with a
-  validated-candidate chokepoint), orchestration (`src/harness.ts`), fail-closed authorization
-  (`src/authorization.ts`), append-only records with snapshots, redaction, and an HMAC integrity
-  sidecar (`src/records.ts`, `src/redaction.ts`, `src/integrity.ts`), projection-based inspect
-  and resume with no-double-effect replay (`src/projection.ts`, `src/resume.ts`).
-- **Provider seams exist with mixed maturity.** Four ports in `src/ports.ts`; the composition
-  root `src/bootstrap.ts` selects drivers by name and fails closed on unknown names. Forge
-  (`git`/`gh`-based GitHub driver) and Work source (GitHub Issues importer) are **real and
-  usable**. The Agent seam has a `CodexAgent` wrapper but **no production `CodexAgentSession`
-  transport** — `agent: 'codex'` is unusable from the shipped CLI. The real Execution host wraps
-  a confinement probe whose only concrete implementation is a **hardcoded always-strong stub**.
-- **Conformance suite** lives at `src/conformance/provider-conformance.ts` inside the production
-  tree, exercised from `tests/conformance/`.
-- **CLI surface** is `preview`, `run`, `inspect`, `resume` only. Owner decisions are an
-  interactive TTY prompt inside `jig run`. There is no setup, watch, ask-why, out-of-band
-  decide, stop, notices, or export surface, no work-profile or repo-floors artifact, and no MCP
-  or SDK consumer surface.
+- **Private workspace shell plus three private packages.** `@agentic-workflow-kit/jig-repo`
+  coordinates `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`, and
+  `@agentic-workflow-kit/jig-testkit`. The CLI entrypoint is `packages/jig-cli/bin/jig.js`.
+- **Core lifecycle is implemented in `packages/jig-sdk`.** Plan intake
+  (`packages/jig-sdk/src/plan-validator.ts`, `packages/jig-sdk/src/intake.ts` with a
+  validated-candidate chokepoint), orchestration (`packages/jig-sdk/src/harness.ts`), fail-closed
+  authorization (`packages/jig-sdk/src/authorization.ts`), append-only records with snapshots,
+  redaction, and an HMAC integrity sidecar (`packages/jig-sdk/src/records.ts`,
+  `packages/jig-sdk/src/redaction.ts`, `packages/jig-sdk/src/integrity.ts`), plus projection-based
+  inspect and resume with no-double-effect replay (`packages/jig-sdk/src/projection.ts`,
+  `packages/jig-sdk/src/resume.ts`).
+- **Provider seams exist with mixed maturity inside `packages/jig-sdk`.** Four ports in
+  `packages/jig-sdk/src/ports.ts`; the composition root `packages/jig-sdk/src/bootstrap.ts`
+  selects drivers by name and fails closed on unknown names. Forge (`git`/`gh`-based GitHub
+  driver) and Work source (GitHub Issues importer) are **real and usable**. The Agent seam has a
+  `CodexAgent` wrapper but **no production `CodexAgentSession` transport** — `agent: 'codex'` is
+  unusable from the shipped CLI. The real Execution host wraps a confinement probe whose only
+  concrete implementation is a **hardcoded always-strong stub**.
+- **Conformance and controlled doubles** now live in `packages/jig-testkit`
+  (`packages/jig-testkit/src/provider-conformance.ts`, `packages/jig-testkit/tests/conformance/`),
+  outside the production SDK dependency graph.
+- **CLI adapter** lives in `packages/jig-cli` (`packages/jig-cli/src/cli.ts`,
+  `packages/jig-cli/bin/jig.js`) and still exposes `preview`, `run`, `inspect`, and `resume` only.
+- **Driving surfaces**: the shipped CLI verbs remain `preview`, `run`, `inspect`, and `resume`,
+  and `packages/jig-sdk` now exposes a programmatic SDK consumer surface (`createJigSession` plus
+  operator/recovery SDK types). Owner decisions are still an interactive TTY prompt inside
+  `jig run`. There is still no setup, watch, ask-why, out-of-band decide, stop, notices, export
+  surface, work-profile or repo-floors artifact, or MCP surface.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. EVRUN-full (real
