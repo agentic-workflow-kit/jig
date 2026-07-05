@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { composeReferenceRun } from './bootstrap.js';
+import { type ComposeRunPortsOptions, composeReferenceRun } from './bootstrap.js';
 import {
   assertSupportedDriverSelection,
   type DriverSelection,
@@ -70,16 +70,25 @@ export interface ResumeRunOptions {
   redaction?: RedactionOptions;
 }
 
-export interface ResumeLoadedRunOptions {
+export interface ResumeLoadedRunPortsOptions
+  extends Pick<
+    ComposeRunPortsOptions,
+    | 'codexSession'
+    | 'realHostProbe'
+    | 'clock'
+    | 'substrateManifest'
+    | 'forgeTransport'
+    | 'workSourceTransport'
+    | 'redaction'
+  > {}
+
+export interface ResumeLoadedRunOptions extends ResumeLoadedRunPortsOptions {
   runDir: string;
   scriptedOutput: Record<string, unknown>;
   config?: ConfigDoc;
   policy?: PolicyDoc;
   planInstance?: PlanInstance;
   ownerDecisionSource?: ResumeOwnerDecisionSource;
-  forgeTransport?: GitHubForgeTransport;
-  workSourceTransport?: GitHubIssuesWorkSourceTransport;
-  redaction?: RedactionOptions;
 }
 
 const PLAN_SNAPSHOT_FILE = 'plan.snapshot.json';
@@ -581,6 +590,10 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
     planInstance: { plan: planSnapshot },
     config: configForResumeComposition(verifiedConfig, launchSelection),
     scriptedOutput: options.scriptedOutput,
+    codexSession: options.codexSession,
+    realHostProbe: options.realHostProbe,
+    clock: options.clock,
+    substrateManifest: options.substrateManifest,
     forgeTransport: options.forgeTransport,
     workSourceTransport: options.workSourceTransport,
     redaction: options.redaction,

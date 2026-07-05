@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
+import { createJigSession } from '../src/index.js';
 import { validatePlanForScheduling } from '../src/intake.js';
 import { writeIntegritySidecar } from '../src/integrity.js';
 import type { RunProjection } from '../src/projection.js';
@@ -16,6 +17,7 @@ import type {
   PolicyDoc,
   RunBinding,
   RunEvent,
+  Story,
   WorkspaceFingerprint,
 } from '../src/types.js';
 import { ScriptedWorker } from '../src/worker.js';
@@ -80,6 +82,13 @@ const realWorkSourceDriverBinding: DriverBinding = {
   executionHost: 'local',
   forge: 'reference',
   workSource: 'github-issues',
+};
+
+const realCodexDriverBinding: DriverBinding = {
+  agent: 'codex',
+  executionHost: 'real',
+  forge: 'reference',
+  workSource: 'reference',
 };
 
 function stoppedEvents(workspace = captureWorkspaceFingerprint(process.cwd())): RunEvent[] {
@@ -213,6 +222,65 @@ test('P4-AC-1: resume appends run.resumed and continues in the same run director
   };
   assert.strictEqual(runRecord.run.id, 'run-plan-resume-existing');
   assert.strictEqual(runRecord.run.attempt, 1);
+});
+
+test('P01-AC-1: session recovery forwards codex-session and real-host hooks into loaded resume composition', async () => {
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers(captureWorkspaceFingerprint(process.cwd()), realCodexDriverBinding),
+  );
+
+  let codexRuns = 0;
+  const codexSession = {
+    run: async (story: Story) => {
+      codexRuns += 1;
+      return {
+        status: 'completed' as const,
+        workerResult: {
+          storyId: story.id,
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      };
+    },
+  };
+  let probeRuns = 0;
+  const realHostProbe = {
+    run: async () => {
+      probeRuns += 1;
+      return {
+        observedAt: '2026-07-05T00:00:00.000Z',
+        freshnessWindowMs: 60_000,
+        terminationProvedEmpty: true,
+        negativeEgressProbePassed: true,
+        containmentMechanism: 'process-group' as const,
+        commandBindingPassed: true,
+        parentageProbePassed: true,
+        provenIsolationStrength: 'strong' as const,
+      };
+    },
+  };
+
+  const session = createJigSession({ codexSession, realHostProbe });
+  const status = await session.recovery.resume({
+    runDir,
+    scriptedOutput: {
+      stories: [
+        {
+          storyId: 'STORY-2',
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      ],
+    },
+  });
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(codexRuns, 1);
+  assert.strictEqual(probeRuns, 1);
+  const events = readRunEvents();
+  assert.ok(events.find((event) => event.family === 'run.resumed'));
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 'STORY-2'));
+  assert.ok(events.find((event) => event.family === 'run.completed'));
 });
 
 test('P4-AC-1: real RecordManager run output resumes through resumeRun without fixture aliases', async () => {
