@@ -38,6 +38,16 @@ export {
   type ResumeRunInput,
   type StartRunInput,
 } from './sdk.js';
+export {
+  createSetupArtifacts,
+  runDeclaredWorkspaceSetup,
+  type SetupAnswers,
+  type SetupArtifact,
+  type SetupCommandResult,
+  type SetupProviderPosture,
+  type SetupResult,
+  type SetupTemplate,
+} from './setup.js';
 export type {
   BoundOwnerConfiguration,
   ConfigDoc,

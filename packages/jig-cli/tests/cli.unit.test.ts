@@ -465,6 +465,73 @@ test('run(): "preview" validation error includes path and reason', async () => {
   );
 });
 
+test('P07-AC-1/5: setup command emits owner-readable artifacts from headless flags', async () => {
+  const setupDir = join(workDir, 'track-setup');
+  setArgv('setup', setupDir, '--track', 'TRACK-P07', '--template', 'assisted-local', '--posture', 'reference-scripted');
+
+  await run();
+
+  expect(exitSpy).not.toHaveBeenCalled();
+  const output = loggedLines();
+  assert.match(output, /--- Jig Setup ---/);
+  assert.match(output, /Status: created/);
+  assert.match(output, /Assisted gating/);
+  assert.ok(existsSync(join(setupDir, 'jig.config.json')));
+  assert.ok(existsSync(join(setupDir, 'policy.json')));
+});
+
+test('P07-AC-5: setup command accepts an answers file and flags can override it', async () => {
+  const setupDir = join(workDir, 'answers-setup');
+  const answersPath = join(workDir, 'setup-answers.json');
+  writeJson(answersPath, {
+    trackId: 'TRACK-P07',
+    template: 'assisted-local',
+    providerPosture: 'real-local',
+  });
+  setArgv('setup', setupDir, '--answers', answersPath, '--posture', 'reference-scripted');
+
+  await run();
+
+  const config = JSON.parse(readFileSync(join(setupDir, 'jig.config.json'), 'utf8')) as {
+    drivers: { agent: string };
+  };
+  assert.strictEqual(config.drivers.agent, 'scripted-stub');
+});
+
+test('P07-AC-4: setup command reports freshness action', async () => {
+  const setupDir = join(workDir, 'fresh-setup');
+  const marker = join(workDir, 'setup-ran');
+  setArgv(
+    'setup',
+    setupDir,
+    '--track',
+    'TRACK-P07',
+    '--setup-command',
+    `touch ${marker}`,
+    '--freshness-check',
+    'test -f never-fresh',
+  );
+
+  await run();
+
+  assert.match(loggedLines(), /Setup Command: ran-stale/);
+  assert.ok(existsSync(marker));
+});
+
+test('run(): "setup" validation errors are owner-readable', async () => {
+  setArgv('setup', join(workDir, 'bad-setup'), '--track', 'TRACK-P07', '--posture', 'unknown');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Invalid setup\.providerPosture/);
+});
+
+test('run(): "setup" without output directory prints usage and exits 1', async () => {
+  setArgv('setup');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /jig setup <output-directory>/);
+});
+
 test('P3-AC-1: preview reports bound plan, policy, and would-run story set without records', async () => {
   setArgv(
     'preview',

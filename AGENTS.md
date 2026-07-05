@@ -32,11 +32,11 @@ current implementation instructions.
 
 ## Status
 
-Jig is early source-checkout tooling. The CLI exposes `jig preview`, `jig run`, `jig inspect`, and
-`jig resume`; fixture-backed local runs are the supported way to exercise the repo from a fresh
-checkout. Runs now bind the launch policy together with any configured work profile and repo-policy
-floors, and resume reuses the recorded effective policy basis rather than trusting ambient local
-state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`, `"private": true`)
+Jig is early source-checkout tooling. The CLI exposes `jig setup`, `jig preview`, `jig run`,
+`jig inspect`, and `jig resume`; fixture-backed local runs are the supported way to exercise the
+repo from a fresh checkout. Runs now bind the launch policy together with any configured work profile
+and repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
+ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`, `"private": true`)
 coordinating the private packages `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`,
 and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
 `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
@@ -52,6 +52,10 @@ EVRUN-full remains future work.
 pnpm install --frozen-lockfile   # setup (or: pnpm dev:setup)
 pnpm check                       # the full gate: lint, format:check, typecheck, boundaries:check, links:check, delivery:check, test
 pnpm build                       # tsc -b — emits dist/; required before running the CLI directly
+node packages/jig-cli/bin/jig.js setup .jig/local-track \
+  --track local-track \
+  --template conservative-manual \
+  --posture reference-scripted
 node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
   --config tests/fixtures/m5b-local-mvp/local-config.json \
   --policy tests/fixtures/m5b-local-mvp/local-policy.json \

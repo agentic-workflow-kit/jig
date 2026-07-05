@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RunRecord } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
@@ -25,6 +26,28 @@ test('CLI smoke test: valid minimal plan', () => {
 
   const runRecord = JSON.parse(readFileSync(join(runDir, 'run.json'), 'utf8')) as RunRecord;
   assert.strictEqual(runRecord.run.status, 'success');
+});
+
+test('P07-AC-2/5: CLI setup emits artifacts that can launch a fixture run', () => {
+  const setupDir = mkdtempSync(join(tmpdir(), 'jig-cli-setup-'));
+  try {
+    const setupOutput = execSync(
+      `node packages/jig-cli/bin/jig.js setup ${setupDir} --track TRACK-P07 --template conservative-manual --posture reference-scripted`,
+      { encoding: 'utf8' },
+    );
+    assert.match(setupOutput, /Status: created/);
+    assert.match(setupOutput, /Manual gating/);
+    assert.ok(existsSync(join(setupDir, 'jig.config.json')));
+    assert.ok(existsSync(join(setupDir, 'setup-record.json')));
+
+    const runOutput = execSync(
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json --config ${setupDir}/jig.config.json --policy ${setupDir}/policy.json ${successOutputFlag}`,
+      { encoding: 'utf8' },
+    );
+    assert.match(runOutput, /Final Status: success/);
+  } finally {
+    rmSync(setupDir, { recursive: true, force: true });
+  }
 });
 
 test('CLI smoke test: invalid plan rejection', () => {

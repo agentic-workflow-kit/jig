@@ -1,0 +1,29 @@
+{
+  "version": "setup-template-v0",
+  "template": "assisted-local",
+  "reasoning": [
+    "Assisted gating lets reversible, non-privileged local work proceed while human-only categories stay routed.",
+    "Single-story concurrency keeps setup output compatible with the current local runner and review gate."
+  ],
+  "policyRules": {
+    "allowLocalDryRun": true,
+    "gatingPosture": "assisted",
+    "mergeSpectrum": "open-pr",
+    "concurrencyCeiling": 1,
+    "blockResolution": "quarantine-replan",
+    "ruleGoverningSurfaces": [".github/**", "policies/**"]
+  },
+  "workProfile": {
+    "model": "gpt-5.4",
+    "effort": "medium",
+    "promptStrategy": "dynamic-per-task",
+    "roleRealization": "single-agent"
+  },
+  "repoPolicyFloorRules": {
+    "gatingPosture": "manual",
+    "mergeSpectrum": "open-pr",
+    "concurrencyCeiling": 1,
+    "blockResolution": "quarantine-replan",
+    "ruleGoverningSurfaces": [".github/**", "policies/**"]
+  }
+}

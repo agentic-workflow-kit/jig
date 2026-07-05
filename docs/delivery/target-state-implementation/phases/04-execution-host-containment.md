@@ -1,6 +1,6 @@
 ---
 title: "Phase 04 - Execution-host containment and substrate enforcement"
-status: "implemented (#63)"
+status: "merged (#63)"
 ---
 
 # Phase 04 - Execution-host containment and substrate enforcement

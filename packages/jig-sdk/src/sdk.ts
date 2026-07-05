@@ -15,6 +15,7 @@ import {
   ResumeRefusal,
   resumeRunLoaded,
 } from './resume.js';
+import { runDeclaredWorkspaceSetup } from './setup.js';
 import { approveSubstrateManifest, SubstrateAuthorizationError } from './substrate.js';
 import type {
   BoundOwnerConfiguration,
@@ -225,7 +226,9 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
       },
 
       start: async (input): Promise<RunStatus> => {
+        PlanValidator.validate(input.planInstance);
         const ownerConfiguration = bindOwnerConfiguration(input.config, input.policy);
+        runDeclaredWorkspaceSetup(ownerConfiguration);
         let composed: Awaited<ReturnType<typeof composeReferenceRun>>;
         try {
           composed = await composeReferenceRun({

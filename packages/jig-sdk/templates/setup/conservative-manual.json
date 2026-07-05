@@ -1,0 +1,29 @@
+{
+  "version": "setup-template-v0",
+  "template": "conservative-manual",
+  "reasoning": [
+    "Manual gating keeps every owner-facing escalation explicit while the track is being introduced.",
+    "Open-PR merge posture and concurrency one match the repo floor used by the target-state delivery track."
+  ],
+  "policyRules": {
+    "allowLocalDryRun": true,
+    "gatingPosture": "manual",
+    "mergeSpectrum": "open-pr",
+    "concurrencyCeiling": 1,
+    "blockResolution": "quarantine-replan",
+    "ruleGoverningSurfaces": [".github/**", "policies/**"]
+  },
+  "workProfile": {
+    "model": "gpt-5.5",
+    "effort": "high",
+    "promptStrategy": "dynamic-per-task",
+    "roleRealization": "reviewer-assisted"
+  },
+  "repoPolicyFloorRules": {
+    "gatingPosture": "manual",
+    "mergeSpectrum": "open-pr",
+    "concurrencyCeiling": 1,
+    "blockResolution": "quarantine-replan",
+    "ruleGoverningSurfaces": [".github/**", "policies/**"]
+  }
+}
