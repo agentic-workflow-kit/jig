@@ -21,13 +21,14 @@ Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
 `@agentic-workflow-kit/jig` package, public SDK/provider stability contract, or provider
 ecosystem promise.
 
-The current CLI surface is `jig preview`, `jig run`, `jig inspect`, and `jig resume`. Launch binds
-the track policy plus any configured work profile and repo-policy floors, snapshots them into the
-run record, and reconstructs the effective floor-merged policy basis on resume. The fixture-backed
-commands below are the supported local way to exercise the repo from a fresh checkout. The package
-split is now implementation fact inside this private workspace; Codex app-server transport work
-remains future implementation, not a shipped public API, while the real execution-host path now
-exercises a local macOS process-group probe and reports an honest `weak` containment posture.
+The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`, and `jig resume`.
+Launch binds the track policy plus any configured work profile and repo-policy floors, snapshots
+them into the run record, and reconstructs the effective floor-merged policy basis on resume. The
+fixture-backed commands below are the supported local way to exercise the repo from a fresh
+checkout. The package split is now implementation fact inside this private workspace; Codex
+app-server transport work remains future implementation, not a shipped public API, while the real
+execution-host path now exercises a local macOS process-group probe and reports an honest `weak`
+containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
 (`EVRUN-partial`). The current real GitHub Forge/GitHub Issues path also carries blocked-PR
@@ -44,6 +45,15 @@ Requires Node `>=22.13.0` and pnpm `>=11.9.0`.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm build
+```
+
+Create a track-local owner-configuration starting point:
+
+```bash
+node packages/jig-cli/bin/jig.js setup .jig/local-track \
+  --track local-track \
+  --template conservative-manual \
+  --posture reference-scripted
 ```
 
 Preview a plan without allocating a run:

@@ -22,9 +22,10 @@ Suite-level framing (how Jig relates to the other products in the lifecycle) liv
 [organization profile](https://github.com/agentic-workflow-kit), not here. This repo stays
 scoped to **Jig the execution engine**.
 
-Current implementation truth includes a private real GitHub Forge/GitHub Issues path with
-blocked-PR surfacing, held-merge replay safety, landing-path redaction, and origin-bearing
-candidate provenance; phase-table PR-number status updates still live in delivery docs.
+Current implementation truth includes a private setup command that emits validated owner
+configuration, plus a private real GitHub Forge/GitHub Issues path with blocked-PR surfacing,
+held-merge replay safety, landing-path redaction, and origin-bearing candidate provenance;
+phase-table PR-number status updates still live in delivery docs.
 
 Preserve active design history in place:
 

@@ -1,6 +1,6 @@
 ---
 title: "Phase 06 - Owner configuration model"
-status: "implemented (#65)"
+status: "merged (#65)"
 ---
 
 # Phase 06 - Owner configuration model

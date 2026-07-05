@@ -185,6 +185,50 @@ test('start writes a successful run and inspect replays authoritative events', a
   assert.strictEqual(inspection.projection.planId, 'plan-sdk-session');
 });
 
+test('P07-AC-4: start runs declared workspace setup only when freshness check is stale', async () => {
+  const marker = join(workDir, 'run-setup-marker');
+  const session = createJigSession();
+  const configWithSetup: ConfigDoc = {
+    ...config,
+    track: {
+      id: 'TRACK-P07',
+      workProfile: {
+        version: 'work-profile-v0',
+        workProfile: {
+          id: 'work-profile-p07',
+          model: 'gpt-5',
+          effort: 'high',
+          setup: {
+            command: `touch ${marker}`,
+            freshnessCheck: `test -f ${marker}`,
+          },
+        },
+      },
+    },
+  };
+
+  await session.operator.start({
+    planInstance,
+    config: configWithSetup,
+    policy,
+    scriptedOutput: scriptedOutput(),
+  });
+
+  assert.ok(existsSync(marker));
+  unlinkSync(marker);
+  writeFileSync(marker, 'fresh\n');
+  const before = readFileSync(marker, 'utf8');
+
+  await session.operator.start({
+    planInstance,
+    config: configWithSetup,
+    policy,
+    scriptedOutput: scriptedOutput(),
+  });
+
+  assert.strictEqual(readFileSync(marker, 'utf8'), before);
+});
+
 test('start fails closed when work-source intake admits no valid candidates', async () => {
   const session = createJigSession({
     workSourceTransport: {

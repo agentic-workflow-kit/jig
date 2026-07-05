@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline/promises';
 import {
   createJigSession,
+  createSetupArtifacts,
   InspectRunError,
   type IntegrityVerification,
   loadConfig,
@@ -11,6 +12,7 @@ import {
   ResumeRefusal,
   type RunProjection,
   type RunRecord,
+  type SetupAnswers,
 } from '@agentic-workflow-kit/jig-sdk';
 
 export async function run(): Promise<void> {
@@ -21,6 +23,8 @@ export async function run(): Promise<void> {
     await handleRun(args.slice(1));
   } else if (command === 'preview') {
     await handlePreview(args.slice(1));
+  } else if (command === 'setup') {
+    await handleSetup(args.slice(1));
   } else if (command === 'inspect') {
     await handleInspect(args.slice(1));
   } else if (command === 'resume') {
@@ -33,12 +37,69 @@ export async function run(): Promise<void> {
 
 function printUsage(): void {
   console.error('Usage:');
+  console.error(
+    '  jig setup <output-directory> --track <track-id> --template <conservative-manual|assisted-local> --posture <reference-scripted|real-local> [--setup-command <command>] [--freshness-check <command>] [--answers <answers.json>] [--force]',
+  );
   console.error('  jig preview <plan> --config <config> --policy <policy>');
   console.error('  jig run <plan> --config <config> --policy <policy> --scripted-output <output>');
   console.error('  jig inspect <run-directory>');
   console.error(
     '  jig resume <run-directory> --scripted-output <output> [--config <config>] [--policy <policy>] [--plan <plan>]',
   );
+}
+
+async function handleSetup(args: string[]): Promise<void> {
+  const outputDir = args[0];
+  if (!outputDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const answerPath = getArg(args, '--answers');
+    const answerFile = answerPath ? (loadJson(answerPath) as Partial<SetupAnswers>) : {};
+    const answers: SetupAnswers = {
+      trackId: getArg(args, '--track') ?? answerFile.trackId ?? '',
+      template: (getArg(args, '--template') ??
+        answerFile.template ??
+        'conservative-manual') as SetupAnswers['template'],
+      providerPosture: (getArg(args, '--posture') ??
+        answerFile.providerPosture ??
+        'reference-scripted') as SetupAnswers['providerPosture'],
+      ...((getArg(args, '--setup-command') ?? answerFile.setupCommand)
+        ? { setupCommand: getArg(args, '--setup-command') ?? answerFile.setupCommand }
+        : {}),
+      ...((getArg(args, '--freshness-check') ?? answerFile.freshnessCheck)
+        ? { freshnessCheck: getArg(args, '--freshness-check') ?? answerFile.freshnessCheck }
+        : {}),
+      force: hasFlag(args, '--force') || answerFile.force === true,
+    };
+    const result = createSetupArtifacts(outputDir, answers);
+
+    console.log('\n--- Jig Setup ---');
+    console.log(`Status: ${result.status}`);
+    console.log(`Output Directory: ${result.outputDir}`);
+    console.log(`Template: ${result.template}`);
+    console.log(`Provider Posture: ${result.providerPosture}`);
+    console.log('Reasoning:');
+    for (const reason of result.reasoning) {
+      console.log(`  - ${reason}`);
+    }
+    if (result.artifacts.length > 0) {
+      console.log('Artifacts:');
+      for (const artifact of result.artifacts) {
+        console.log(`  - ${artifact.kind}: ${artifact.path}`);
+      }
+    }
+    if (result.setupCommand) {
+      console.log(`Setup Command: ${result.setupCommand.action}`);
+    }
+    console.log('-----------------\n');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
 }
 
 async function handlePreview(args: string[]): Promise<void> {
@@ -335,6 +396,10 @@ function getArg(args: string[], name: string): string | null {
     return args[index + 1];
   }
   return null;
+}
+
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name);
 }
 
 type AskOwnerQuestion = (prompt: string) => Promise<string>;
