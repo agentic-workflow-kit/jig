@@ -1,9 +1,11 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
 import { composeReferenceRun } from '../src/bootstrap.js';
+import { LocalHarness } from '../src/harness.js';
+import { validatePlanForScheduling } from '../src/intake.js';
 import { type CodexAgentSession, createCodexAgent } from '../src/providers/real/agent.js';
 import { approveSubstrateManifest, SubstrateAuthorizationError } from '../src/substrate.js';
-import type { ConfigDoc, PlanInstance } from '../src/types.js';
+import type { ConfigDoc, PlanInstance, PolicyDoc } from '../src/types.js';
 
 const planInstance: PlanInstance = {
   plan: {
@@ -22,6 +24,14 @@ const realAgentConfig: ConfigDoc = {
   runner: { mode: 'local-dry-run', recordDir: 'runs' },
   drivers: {
     agent: 'codex',
+  },
+};
+
+const allowLocalDryRunPolicy: PolicyDoc = {
+  policy: {
+    rules: {
+      allowLocalDryRun: true,
+    },
   },
 };
 
@@ -117,4 +127,41 @@ test('P6-AC-6: real agent substrate escalation is refused before returning evide
   });
 
   await assert.rejects(() => agent.execute(planInstance.plan.stories[0]), SubstrateAuthorizationError);
+});
+
+test('P6-AC-1: the harness closes a composed Codex agent after the run path finishes', async () => {
+  let closeCalls = 0;
+  const composed = await composeReferenceRun({
+    planInstance,
+    config: realAgentConfig,
+    scriptedOutput: {},
+    codexSession: {
+      run: async (story) => ({
+        status: 'completed',
+        workerResult: {
+          storyId: story.id,
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      }),
+      close: async () => {
+        closeCalls += 1;
+      },
+    },
+  });
+  const harness = new LocalHarness(
+    composed.agent,
+    {
+      init: () => {},
+      recordEvent: () => {},
+      finalize: async () => {},
+    },
+    null,
+  );
+
+  assert.strictEqual(
+    await harness.run(validatePlanForScheduling(planInstance), realAgentConfig, allowLocalDryRunPolicy),
+    'success',
+  );
+  assert.strictEqual(closeCalls, 1);
 });

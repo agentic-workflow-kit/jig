@@ -1,7 +1,11 @@
 import assert from 'node:assert';
 import { EventEmitter } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
-import { test, vi } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 interface FakeChild extends EventEmitter {
   stdout: EventEmitter;
@@ -105,6 +109,32 @@ test('P03-AC-2: stdio transport rejects request errors and pending work on exit'
   await assert.rejects(pendingRequest, /exited unexpectedly/);
 });
 
+test('P03-AC-2: stdio transport times out a request that never receives a response', async () => {
+  vi.useFakeTimers();
+  const child = createFakeChild();
+  const module = await importTransportWithMocks(child);
+  const transport = new module.__internal.StdioCodexRpcTransport();
+
+  const pendingRequest = transport.request('thread/start');
+  const rejection = assert.rejects(pendingRequest, /request timed out waiting for "thread\/start"/);
+  await vi.advanceTimersByTimeAsync(module.__internal.APP_SERVER_REQUEST_TIMEOUT_MS);
+  await rejection;
+});
+
+test('P03-AC-2: resolved stdio requests ignore their cleared timeout callback', async () => {
+  vi.useFakeTimers();
+  const child = createFakeChild();
+  const module = await importTransportWithMocks(child);
+  const transport = new module.__internal.StdioCodexRpcTransport();
+
+  const request = transport.request('thread/start');
+  child.stdout.emit('line', JSON.stringify({ id: 1, result: { ok: true } }));
+  await assert.doesNotReject(async () => {
+    await request;
+  });
+  await vi.advanceTimersByTimeAsync(module.__internal.APP_SERVER_REQUEST_TIMEOUT_MS);
+});
+
 test('P03-AC-2: stdio transport closes the child process cleanly', async () => {
   const child = createFakeChild();
   const module = await importTransportWithMocks(child);
@@ -115,6 +145,20 @@ test('P03-AC-2: stdio transport closes the child process cleanly', async () => {
   await closePromise;
 
   assert.strictEqual(child.stdin.ended, true);
+});
+
+test('P03-AC-2: transport close clears fallback timers once the child exits', async () => {
+  const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+  const child = createFakeChild();
+  const module = await importTransportWithMocks(child);
+  const transport = new module.__internal.StdioCodexRpcTransport();
+
+  const closePromise = transport.close();
+  child.emit('exit', 0, null);
+  await closePromise;
+
+  assert.ok(clearTimeoutSpy.mock.calls.length >= 2);
+  clearTimeoutSpy.mockRestore();
 });
 
 test('P03-AC-2: close is a no-op for an already killed child', async () => {

@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Clock } from './clock.js';
 import {
   assertSupportedDriverSelection,
@@ -53,10 +55,15 @@ export interface ComposedRunPorts {
 }
 
 function defaultSubstrateManifest(): ApprovedSubstrateManifest {
+  const schemaOutDir = join(tmpdir(), 'jig-codex-schema');
   return approveSubstrateManifest({
     id: 'codex-local-real-driver',
     runtimes: ['node'],
-    argv: [['codex', 'exec']],
+    argv: [
+      ['codex', '--version'],
+      ['codex', 'app-server', '--listen', 'stdio://'],
+      ['codex', 'app-server', 'generate-json-schema', '--out', schemaOutDir],
+    ],
     credentials: ['CODEX_API_KEY'],
     egress: [],
   });
