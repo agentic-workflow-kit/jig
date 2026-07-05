@@ -9,18 +9,21 @@ status: planned
 
 Deliver the guided setup surface: `jig setup` maps owner intent to a starting configuration —
 provider posture, policy template, work-profile template — with stated reasoning, always
-overridable, plus the staleness rule that setup only runs when the workspace is stale. Ship the
-first policy/work-profile templates as supported assets.
+overridable. It also makes the declared workspace setup command explicit so CFG-9 can skip that
+command when the workspace is already fresh. Ship the first policy/work-profile templates as
+supported assets.
 
 ## Background
 
 The product's "Driving a run" begins with setup: "pick the track you are configuring, choose
 the provider posture you want to start with, and get an understandable policy and work profile
 from templates before you tune them" (`CFG-5`), with presets as "strong defaults with stated
-reasoning" (`CFG-6`) and a stale-workspace-only rule (`CFG-9`). None of this exists: there is no
-setup command, no templates, and the fixture policy files are test assets, not owner-facing
+reasoning" (`CFG-6`). Separately, `CFG-9` says the owner declares a workspace setup command
+(for example, dependency installation) and Jig runs that command only when the workspace is
+stale. None of this exists: there is no guided setup surface, no owner-facing setup-command
+declaration, no templates, and the fixture policy files are test assets, not owner-facing
 starting points. Phase 06 gives this phase its subject matter — validated policy, work-profile,
-and floors artifacts to instantiate.
+floors artifacts, and setup-command configuration to instantiate.
 
 ## What To Do
 
@@ -35,8 +38,12 @@ and floors artifacts to instantiate.
 - Author the first template set as supported assets in the SDK/CLI packages (not in
   `tests/fixtures/`): at minimum a conservative manual-gating template and an assisted-mode
   template, each carrying its reasoning inline (`CFG-6` — reasoning is part of the preset).
-- Implement the `CFG-9` staleness rule: setup refuses to clobber a current, valid configuration
-  and says why; a stale or missing workspace configuration proceeds.
+- Implement the `CFG-9` setup-command rule separately from guided reconfiguration: capture the
+  owner-declared workspace setup command, define the freshness/staleness check P06 can validate,
+  and make command execution skip when the workspace is fresh and run only when stale.
+- Current valid configuration must not be silently clobbered, but it must not block intentional
+  reconfiguration. Re-running guided setup either no-ops with an explanation or requires an
+  explicit owner intent to replace/regenerate the selected templates.
 - Leave room for `CFG-8` prompt-strategy guidance in the work-profile template shape (a guided
   field with versioned guidance reference), without authoring the full guidance corpus.
 - Update README/AGENTS command surface docs in the same PR.
@@ -82,22 +89,26 @@ and floors artifacts to instantiate.
 
 ## Acceptance Criteria
 
-1. The design placement is recorded before implementation. `jig setup` on a fresh track
+1. The design placement is recorded before implementation. `jig setup` on a new track
    produces a valid policy + work profile from a chosen template and posture, with printed
    reasoning for each preset, and the settled audit trail shows one setup invocation.
 2. Every emitted artifact validates under P06 rules (test: emit, then launch a fixture run with
    the emitted config).
-3. Setup against a current, valid configuration refuses with an explanation; against a stale or
-   missing one it proceeds (`CFG-9` both directions).
-4. Headless invocation works (flags/answers file); interactive mode is a presentation layer
+3. Re-running guided setup against current valid configuration either no-ops with an explanation
+   or requires explicit owner intent before replacing/regenerating templates; no path silently
+   clobbers owner configuration.
+4. The declared workspace setup command follows `CFG-9` both directions: it skips when freshness
+   evidence says the workspace is current and runs only when the workspace is stale or missing
+   required setup output.
+5. Headless invocation works (flags/answers file); interactive mode is a presentation layer
    over the same call.
-5. Templates live outside `tests/fixtures/`; the fixture-conventions check is untouched.
-6. Docs updated: README/AGENTS list `setup`; goldens byte-identical.
+6. Templates live outside `tests/fixtures/`; the fixture-conventions check is untouched.
+7. Docs updated: README/AGENTS list `setup`; goldens byte-identical.
 
 ## Verification
 
-- `pnpm check`; integration test covering emit-then-run round trip; unit tests for staleness
-  and refusal paths.
+- `pnpm check`; integration test covering emit-then-run round trip; unit tests for guided
+  reconfiguration/no-clobber behavior and setup-command freshness/staleness paths.
 - Reviewer axes: template reasoning quality (owner-readable), no run logic at the edge,
   validation non-bypass, headless parity.
 
