@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import type { ConfigDoc, PolicyDoc } from './types.js';
+import { PlanValidator } from './plan-validator.js';
+import type { ConfigDoc, PlanInstance, PolicyDoc } from './types.js';
 
 export function loadJson(filePath: string): unknown {
   try {
@@ -9,6 +10,17 @@ export function loadJson(filePath: string): unknown {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to load JSON from "${filePath}": ${message}`);
   }
+}
+
+export function loadPlanInstance(planPath: string): PlanInstance {
+  const planInstance = loadJson(planPath) as PlanInstance;
+  try {
+    PlanValidator.validate(planInstance);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Plan validation failed for "${planPath}": ${message}`);
+  }
+  return planInstance;
 }
 
 export function loadConfig(configPath: string): ConfigDoc {

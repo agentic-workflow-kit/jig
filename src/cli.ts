@@ -1,16 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { composeReferenceRun } from './bootstrap.js';
-import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
-import { intakeCandidates } from './intake.js';
-import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
-import { loadConfig, loadJson, loadPolicy } from './loaders.js';
-import { PlanValidator } from './plan-validator.js';
-import { type ProjectionIssue, projectRunEvents, type RunProjection } from './projection.js';
-import { RecordManager } from './records.js';
-import { checkWorkspaceContinuity, ResumeRefusal, resumeRun } from './resume.js';
-import type { PlanInstance, RunBinding, RunRecord } from './types.js';
+import {
+  createJigSession,
+  InspectRunError,
+  type IntegrityVerification,
+  loadConfig,
+  loadJson,
+  loadPlanInstance,
+  loadPolicy,
+  type ProjectionIssue,
+  ResumeRefusal,
+  type RunProjection,
+  type RunRecord,
+} from './index.js';
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);
@@ -56,27 +57,21 @@ async function handlePreview(args: string[]): Promise<void> {
   }
 
   try {
-    const planInstance = loadJson(planPath);
-    try {
-      PlanValidator.validate(planInstance);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Plan validation failed for "${planPath}": ${message}`);
-    }
-
+    const planInstance = loadPlanInstance(planPath);
     const config = loadConfig(configPath);
     const policy = loadPolicy(policyPath);
-    const plan = (planInstance as PlanInstance).plan;
+    const session = createJigSession();
+    const preview = await session.operator.preview({ planInstance, config, policy });
 
     console.log('\n--- Run Preview ---');
-    console.log('Posture: run.previewed');
-    console.log(`Plan ID: ${plan.id}`);
-    console.log(`Policy ID: ${policy.policy?.id ?? 'unknown-policy'}`);
-    if (config.runner?.mode) {
-      console.log(`Mode: ${config.runner.mode}`);
+    console.log(`Posture: ${preview.posture}`);
+    console.log(`Plan ID: ${preview.planId}`);
+    console.log(`Policy ID: ${preview.policyId}`);
+    if (preview.mode) {
+      console.log(`Mode: ${preview.mode}`);
     }
     console.log('Would-run stories:');
-    for (const story of plan.stories) {
+    for (const story of preview.stories) {
       console.log(`  - ${story.id}: ${story.title}`);
     }
     console.log('-------------------\n');
@@ -104,47 +99,18 @@ async function handleRun(args: string[]): Promise<void> {
   }
 
   try {
-    const planInstance = loadJson(planPath);
-    try {
-      PlanValidator.validate(planInstance);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Plan validation failed for "${planPath}": ${message}`);
-    }
-
+    const planInstance = loadPlanInstance(planPath);
     const config = loadConfig(configPath);
     const policy = loadPolicy(policyPath);
-    const scriptedOutput = loadJson(scriptedOutputPath);
-    const composed = await composeReferenceRun({
-      planInstance: planInstance as PlanInstance,
+    const session = createJigSession({
+      ownerDecisionSource: createOwnerDecisionSource(),
+    });
+    const status = await session.operator.start({
+      planInstance,
       config,
-      scriptedOutput: scriptedOutput as Record<string, unknown>,
+      policy,
+      scriptedOutput: loadJson(scriptedOutputPath) as Record<string, unknown>,
     });
-    const recordManager = new RecordManager({
-      launchAttestation: composed.substrateManifest ? composed.capabilityAttestation : undefined,
-      substrateManifest: composed.substrateManifest,
-      redaction: composed.redaction,
-    });
-    const intake = await intakeCandidates(composed.workSource);
-    const [candidate] = intake.admitted;
-    if (!candidate) {
-      recordManager.init(composed.planInstance.plan, config, policy);
-      for (const rejection of intake.rejected) {
-        recordManager.recordEvent(rejection.event);
-      }
-      await recordManager.finalize('failure');
-      throw new Error('No validated work-source candidate available');
-    }
-    const harness = new LocalHarness(composed.agent, recordManager, createOwnerDecisionSource(), {
-      capabilityAttestation: composed.capabilityAttestation,
-      forge: composed.forge,
-      workspaceIsolation:
-        composed.executionHost.describe().driverId === 'real-host'
-          ? createInMemoryStoryWorkspaceIsolation(join(process.cwd(), '.jig-workspaces'))
-          : undefined,
-    });
-
-    const status = await harness.run(candidate, config, policy);
 
     if (status !== 'success') {
       process.exit(1);
@@ -170,13 +136,19 @@ async function handleResume(args: string[]): Promise<void> {
   }
 
   try {
-    const status = await resumeRun({
-      runDir,
-      scriptedOutputPath,
-      configPath: getArg(args, '--config'),
-      policyPath: getArg(args, '--policy'),
-      planPath: getArg(args, '--plan'),
+    const session = createJigSession({
       ownerDecisionSource: createOwnerDecisionSource(),
+    });
+    const status = await session.recovery.resume({
+      runDir,
+      scriptedOutput: loadJson(scriptedOutputPath) as Record<string, unknown>,
+      ...(getArg(args, '--config') ? { config: loadConfig(getArg(args, '--config') as string) } : {}),
+      ...(getArg(args, '--policy') ? { policy: loadPolicy(getArg(args, '--policy') as string) } : {}),
+      ...(getArg(args, '--plan')
+        ? {
+            planInstance: loadPlanInstance(getArg(args, '--plan') as string),
+          }
+        : {}),
     });
 
     if (status !== 'success') {
@@ -193,52 +165,6 @@ async function handleResume(args: string[]): Promise<void> {
   }
 }
 
-function readLaunchBindingForIntegrity(eventsJsonl: string): Pick<RunBinding, 'drivers'> | undefined {
-  const [launchLine] = eventsJsonl.split('\n');
-  if (!launchLine) {
-    return undefined;
-  }
-
-  try {
-    const launch = JSON.parse(launchLine) as { binding?: Pick<RunBinding, 'drivers'> };
-    return launch.binding;
-  } catch {
-    return undefined;
-  }
-}
-
-function verifyInspectIntegrity(runDir: string, eventsJsonl: string): IntegrityVerification {
-  return verifyIntegritySidecar(runDir, {
-    expected: launchBindingExpectsIntegrity(readLaunchBindingForIntegrity(eventsJsonl)),
-  });
-}
-
-function resumeInspectionDiagnostics(projection: RunProjection): ProjectionIssue[] {
-  if (projection.lifecycleState !== 'stopped') {
-    return [];
-  }
-
-  const continuity = checkWorkspaceContinuity(projection);
-  if (continuity.status === 'changed-basis') {
-    return [
-      {
-        code: 'resume-blocked-missing-approval',
-        message: `${continuity.message}; fresh owner approval is required before resume`,
-      },
-    ];
-  }
-  if (continuity.status === 'mismatch') {
-    return [
-      {
-        code: 'resume-blocked-workspace-mismatch',
-        message: continuity.message,
-      },
-    ];
-  }
-
-  return [];
-}
-
 async function handleInspect(args: string[]): Promise<void> {
   const runDir = args[0];
   if (!runDir) {
@@ -246,72 +172,34 @@ async function handleInspect(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  if (!existsSync(runDir)) {
-    console.error(`Error: Run directory "${runDir}" does not exist`);
-    process.exit(1);
-  }
-
-  const eventsJsonlPath = join(runDir, 'events.jsonl');
-  const runJsonPath = join(runDir, 'run.json');
-
-  if (existsSync(eventsJsonlPath)) {
-    const eventsJsonl = readFileSync(eventsJsonlPath, 'utf8');
-    let runRecord: RunRecord | null = null;
-    let cacheParseError: string | null = null;
-
-    if (existsSync(runJsonPath)) {
-      try {
-        runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        cacheParseError = `run.json cache unreadable and ignored: ${message}`;
-      }
-    }
-
-    const integrity = verifyInspectIntegrity(runDir, eventsJsonl);
-
-    try {
-      const projection = projectRunEvents({ eventsJsonl, runRecord });
+  try {
+    const session = createJigSession();
+    const inspection = await session.operator.inspect({ runDir });
+    if (inspection.kind === 'projection') {
       renderProjectionInspection(
-        runDir,
-        projection,
-        cacheParseError,
-        integrity,
-        resumeInspectionDiagnostics(projection),
+        inspection.runDir,
+        inspection.projection,
+        inspection.cacheParseError,
+        inspection.integrity,
+        inspection.resumeDiagnostics,
       );
       return;
-    } catch (err) {
-      if (runRecord && isLegacyProjectionFallback(err)) {
-        renderLegacyInspection(runDir, runRecord);
-        return;
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      if (integrity.status === 'broken') {
-        console.error(`Integrity Notice: ${integrity.code}: ${integrity.message}`);
-      }
-      console.error(`Error: Failed to inspect authoritative events.jsonl: ${message}`);
-      process.exit(1);
     }
-  }
 
-  if (!existsSync(runJsonPath)) {
-    console.error(`Error: Neither events.jsonl nor run.json found in "${runDir}"`);
-    process.exit(1);
-  }
-
-  try {
-    const runRecord = JSON.parse(readFileSync(runJsonPath, 'utf8')) as RunRecord;
-    renderLegacyInspection(runDir, runRecord);
+    renderLegacyInspection(inspection.runDir, inspection.runRecord);
   } catch (err) {
+    if (err instanceof InspectRunError && err.integrity?.status === 'broken') {
+      console.error(`Integrity Notice: ${err.integrity.code}: ${err.integrity.message}`);
+    }
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`Error: Failed to parse run.json: ${message}`);
+    console.error(`Error: ${message}`);
     process.exit(1);
   }
 }
 
 function renderProjectionInspection(
   runDir: string,
-  projection: ReturnType<typeof projectRunEvents>,
+  projection: RunProjection,
   cacheParseError: string | null,
   integrity: IntegrityVerification,
   resumeDiagnostics: ProjectionIssue[] = [],
@@ -439,10 +327,6 @@ function renderLegacyInspection(runDir: string, runRecord: RunRecord): void {
   }
 
   console.log('----------------------\n');
-}
-
-function isLegacyProjectionFallback(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'missing-launch-metadata';
 }
 
 function getArg(args: string[], name: string): string | null {
