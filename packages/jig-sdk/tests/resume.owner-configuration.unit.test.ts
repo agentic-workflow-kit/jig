@@ -279,6 +279,34 @@ test('P06-AC-1: resume refuses when owner-configuration binding refs exist witho
   );
 });
 
+test('P06-AC-1: resume refuses when work-profile snapshot id does not match launch binding workProfileRef', async () => {
+  writeStoppedRun();
+  writeFileSync(
+    join(runDir, 'work-profile.snapshot.json'),
+    JSON.stringify(
+      {
+        version: 'work-profile-v0',
+        workProfile: {
+          id: 'wrong-work-profile',
+          model: 'gpt-5',
+          effort: 'high',
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath: writeScriptedOutput(),
+      }),
+    /work-profile snapshot id "wrong-work-profile" does not match launch binding "work-profile-p06"/i,
+  );
+});
+
 test('P06-AC-1: resume refuses an effective-policy snapshot with the wrong document version', async () => {
   writeStoppedRun();
   writeFileSync(

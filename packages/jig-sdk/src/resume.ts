@@ -268,6 +268,16 @@ function loadRecordedOwnerConfiguration(
     );
   }
 
+  if (
+    typeof launchEvent?.binding?.workProfileRef === 'string' &&
+    workProfileSnapshot?.workProfile.id !== launchEvent.binding.workProfileRef
+  ) {
+    throw new ResumeRefusal(
+      'resume-blocked-binding-mismatch',
+      `resume-blocked-binding-mismatch: work-profile snapshot id "${workProfileSnapshot?.workProfile.id ?? 'unknown-work-profile'}" does not match launch binding "${launchEvent.binding.workProfileRef}"`,
+    );
+  }
+
   const reconstructed = bindOwnerConfiguration(
     {
       track: {

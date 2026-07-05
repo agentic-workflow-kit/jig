@@ -283,8 +283,14 @@ export function validateWorkProfileDoc(workProfile: WorkProfileDoc): WorkProfile
     'workProfile.workProfile',
   );
 
-  readString(workProfileRecord.id, 'workProfile.workProfile.id');
-  readString(workProfileRecord.model, 'workProfile.workProfile.model');
+  const id = readString(workProfileRecord.id, 'workProfile.workProfile.id');
+  if (id === undefined) {
+    throw new Error('Invalid workProfile.workProfile.id: expected a non-empty string');
+  }
+  const model = readString(workProfileRecord.model, 'workProfile.workProfile.model');
+  if (model === undefined) {
+    throw new Error('Invalid workProfile.workProfile.model: expected a non-empty string');
+  }
   const effort = readString(workProfileRecord.effort, 'workProfile.workProfile.effort');
   if (!effort || !SUPPORTED_EFFORT.has(effort)) {
     throw new Error('Invalid workProfile.workProfile.effort: expected "low", "medium", or "high"');
@@ -322,7 +328,10 @@ export function validateRepoPolicyFloorsDoc(repoPolicyFloors: RepoPolicyFloorsDo
 
   const floorRecord = assertObject(root.repoPolicyFloors, 'repoPolicyFloors.repoPolicyFloors');
   assertNoUnknownKeys(floorRecord, ['id', 'rules'], 'repoPolicyFloors.repoPolicyFloors');
-  readString(floorRecord.id, 'repoPolicyFloors.repoPolicyFloors.id');
+  const id = readString(floorRecord.id, 'repoPolicyFloors.repoPolicyFloors.id');
+  if (id === undefined) {
+    throw new Error('Invalid repoPolicyFloors.repoPolicyFloors.id: expected a non-empty string');
+  }
   if (floorRecord.rules === undefined) {
     throw new Error('Invalid repoPolicyFloors.repoPolicyFloors.rules: expected an object');
   }

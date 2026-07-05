@@ -312,6 +312,48 @@ test('P06-AC-7: work-profile validation refuses malformed versions and prompt-st
   );
 });
 
+test('P06-AC-7: work-profile validation requires id and model before effort-based validation', () => {
+  assert.throws(
+    () =>
+      bindOwnerConfiguration(
+        config({
+          track: {
+            id: 'TRACK-P06',
+            workProfile: {
+              version: 'work-profile-v0',
+              workProfile: {
+                model: 'gpt-5',
+                effort: 'high',
+              },
+            } as unknown as WorkProfileDoc,
+          },
+        }),
+        policy(),
+      ),
+    /workProfile\.workProfile\.id/,
+  );
+
+  assert.throws(
+    () =>
+      bindOwnerConfiguration(
+        config({
+          track: {
+            id: 'TRACK-P06',
+            workProfile: {
+              version: 'work-profile-v0',
+              workProfile: {
+                id: 'bad-profile',
+                effort: 'high',
+              },
+            } as unknown as WorkProfileDoc,
+          },
+        }),
+        policy(),
+      ),
+    /workProfile\.workProfile\.model/,
+  );
+});
+
 test('P06-AC-7: repo-floor validation refuses malformed versions and partial type errors', () => {
   assert.throws(
     () =>
@@ -355,6 +397,30 @@ test('P06-AC-7: repo-floor validation refuses malformed versions and partial typ
         policy(),
       ),
     /repoPolicyFloors\.repoPolicyFloors\.rules\.concurrencyCeiling/,
+  );
+});
+
+test('P06-AC-7: repo-floor validation requires id before allowing floors to tighten policy', () => {
+  assert.throws(
+    () =>
+      bindOwnerConfiguration(
+        config({
+          track: {
+            id: 'TRACK-P06',
+            workProfile: workProfile(),
+            repoPolicyFloors: {
+              version: 'repo-policy-floors-v0',
+              repoPolicyFloors: {
+                rules: {
+                  gatingPosture: 'manual',
+                },
+              },
+            } as unknown as RepoPolicyFloorsDoc,
+          },
+        }),
+        policy(),
+      ),
+    /repoPolicyFloors\.repoPolicyFloors\.id/,
   );
 });
 
