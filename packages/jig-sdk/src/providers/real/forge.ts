@@ -178,6 +178,11 @@ function parseLsRemoteHead(stdout: string, targetRef: string): string {
   return head;
 }
 
+async function readHostedHead(execute: CommandExecutor, targetRef: string): Promise<string> {
+  const { stdout } = await execute('git', ['ls-remote', '--heads', 'origin', targetRef]);
+  return parseLsRemoteHead(stdout, targetRef);
+}
+
 async function viewPullRequest(
   execute: CommandExecutor,
   selector: string | undefined,
@@ -248,7 +253,7 @@ export function createGitHubCommandTransport(execute: CommandExecutor = execFile
         }
         throw err;
       }
-      const targetHead = await readCurrentHead(execute, `refs/heads/${baseRefName}`);
+      const targetHead = await readHostedHead(execute, `refs/heads/${baseRefName}`);
       return {
         targetRef: `refs/heads/${baseRefName}`,
         targetHead,
@@ -257,15 +262,17 @@ export function createGitHubCommandTransport(execute: CommandExecutor = execFile
       };
     },
     readHead: async (request) => {
-      const { stdout } = await execute('git', ['ls-remote', '--heads', 'origin', request.targetRef]);
       return {
         targetRef: request.targetRef,
-        targetHead: parseLsRemoteHead(stdout, request.targetRef),
+        targetHead: await readHostedHead(execute, request.targetRef),
       };
     },
     openOrUpdatePullRequestForBlock: async (request) => {
       const branch = request.safeBranch ?? (await readCurrentBranch(execute));
       const targetHead = await readCurrentHead(execute, 'HEAD');
+      if (request.canPush === true) {
+        await execute('git', ['push', 'origin', `HEAD:${branch}`]);
+      }
       let parsed: Record<string, unknown>;
       try {
         parsed = await viewPullRequest(execute, branch);

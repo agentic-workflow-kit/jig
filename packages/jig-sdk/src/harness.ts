@@ -663,6 +663,10 @@ export class LocalHarness {
         }
 
         if (alreadyClosedStoryIds.has(story.id)) {
+          if (runStatus !== 'success') {
+            continue;
+          }
+
           if (pendingLandingStoryIds.has(story.id)) {
             const pendingLanding = await this.retryPendingLanding(story.id, resumePlan);
             if (pendingLanding.status === 'mismatched') {
