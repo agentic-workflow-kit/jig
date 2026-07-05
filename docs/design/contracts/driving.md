@@ -124,8 +124,9 @@ boundary that first-party consumers call. That does not move run logic into the 
 
 The product-posture disclaimer (no public package, export map, semver stability, or publishing
 promise today) is stated once, design-side, in [`README.md`](./README.md#notes); it is not
-restated here. The live implementation is still one private package. This contract describes the
-design boundary and the target dependency direction, not shipped package files.
+restated here. The live implementation is now a private workspace with `jig-sdk`, `jig-cli`, and
+`jig-testkit`. This contract still describes the design boundary and dependency direction, not a
+shipped public package promise.
 
 ## Driving actions at current altitude
 

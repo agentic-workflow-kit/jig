@@ -1,57 +1,21 @@
 import assert from 'node:assert';
+import type { ExecutionHostPort, WorkSourcePort } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
-import { composeReferenceRun } from '../../src/bootstrap.js';
-import {
-  assertProviderConformance,
-  ProviderConformanceError,
-  type ProviderManifest,
-} from '../../src/conformance/provider-conformance.js';
-import type { ExecutionHostPort, WorkSourcePort } from '../../src/ports.js';
-import type { ConfigDoc, PlanInstance } from '../../src/types.js';
+import { assertProviderConformance, ProviderConformanceError, type ProviderManifest } from '../../src/index.js';
+import { manifest, referenceSubject } from './helpers.js';
 
-const planInstance: PlanInstance = {
-  plan: {
-    id: 'plan-conformance',
-    version: 'execution-plan-shape-v0',
-    stories: [{ id: 'STORY-1', title: 'Conformance story' }],
-  },
-};
-
-const config: ConfigDoc = {
-  runner: { mode: 'local-dry-run', recordDir: 'runs' },
-  drivers: {
-    agent: 'scripted-stub',
-    executionHost: 'local',
-  },
-};
-
-const referenceManifest: ProviderManifest = {
-  id: 'reference-adapters',
-  network: 'none',
-  credentials: 'none',
-  capabilities: ['filesystem-edit'],
-};
+const referenceManifest: ProviderManifest = manifest(['filesystem-edit']);
 
 test('P5-AC-1: reference adapters pass the reusable conformance suite', async () => {
-  const composed = await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
-
   await assertProviderConformance({
-    ...composed,
+    ...referenceSubject(),
     manifest: referenceManifest,
     requestedCapabilities: ['filesystem-edit'],
   });
 });
 
 test('P5-AC-1: broken agent exposing a privileged method fails closed', async () => {
-  const composed = await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
+  const composed = referenceSubject();
   const brokenAgent = {
     ...composed.agent,
     merge: async () => undefined,
@@ -70,11 +34,7 @@ test('P5-AC-1: broken agent exposing a privileged method fails closed', async ()
 });
 
 test('P5-AC-1: broken host overstating isolation fails closed', async () => {
-  const composed = await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
+  const composed = referenceSubject();
   const brokenHost: ExecutionHostPort = {
     describe: () => ({
       driverId: 'broken-host',
@@ -107,11 +67,7 @@ test('P5-AC-1: broken host overstating isolation fails closed', async () => {
 });
 
 test('P5-AC-1: adapter acting beyond its manifest is rejected', async () => {
-  const composed = await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
+  const composed = referenceSubject();
 
   await assert.rejects(
     () =>
@@ -126,11 +82,7 @@ test('P5-AC-1: adapter acting beyond its manifest is rejected', async () => {
 });
 
 test('P5-AC-1: broken work source bypassing plan intake fails closed', async () => {
-  const composed = await composeReferenceRun({
-    planInstance,
-    config,
-    scriptedOutput: { storyId: 'STORY-1', outcome: 'success', evidence: { result: 'passed' } },
-  });
+  const composed = referenceSubject();
   const brokenWorkSource: WorkSourcePort = {
     candidates: () => [
       {

@@ -1,0 +1,12 @@
+{
+  "name": "@agentic-workflow-kit/jig-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jig": "bin/jig.js"
+  },
+  "dependencies": {
+    "@agentic-workflow-kit/jig-sdk": "workspace:*"
+  }
+}

@@ -139,9 +139,9 @@ consolidates existing security design only; it cites the existing `SEC-*`, `FENC
 
 Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
-found. No product conflicts are known. The current runtime remains one private package and is still
-pre-split and pre-session-observable; target package and Codex-transport direction must be read as
-design direction, not shipped public API.
+found. No product conflicts are known. The current runtime is now a private three-package workspace
+(`jig-sdk`, `jig-cli`, `jig-testkit`) and remains pre-session-observable; Codex-transport direction
+must still be read as design direction, not shipped public API.
 
 ## Historical planning track
 

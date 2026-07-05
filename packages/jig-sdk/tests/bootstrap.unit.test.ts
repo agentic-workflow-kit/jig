@@ -79,8 +79,8 @@ test('P5-AC-5: composition root validates pass-through work-source candidates th
 });
 
 test('P5-AC-3: only the composition root imports reference provider adapters', () => {
-  const files = sourceFiles(join(process.cwd(), 'src')).filter(
-    (file) => file !== join(process.cwd(), 'src/bootstrap.ts'),
+  const files = sourceFiles(join(process.cwd(), 'packages/jig-sdk/src')).filter(
+    (file) => file !== join(process.cwd(), 'packages/jig-sdk/src/bootstrap.ts'),
   );
 
   for (const file of files) {

@@ -11,7 +11,7 @@ import {
   ResumeRefusal,
   type RunProjection,
   type RunRecord,
-} from './index.js';
+} from '@agentic-workflow-kit/jig-sdk';
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);

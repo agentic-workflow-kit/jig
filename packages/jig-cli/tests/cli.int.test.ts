@@ -2,8 +2,8 @@ import assert from 'node:assert';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { RunRecord } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
-import type { RunRecord } from '../src/types.js';
 
 const configFlag = '--config tests/fixtures/m5b-local-mvp/local-config.json';
 const policyFlag = '--policy tests/fixtures/m5b-local-mvp/local-policy.json';
@@ -11,7 +11,7 @@ const successOutputFlag = '--scripted-output tests/fixtures/m5b-local-mvp/script
 
 test('CLI smoke test: valid minimal plan', () => {
   const output = execSync(
-    `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
+    `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
     { encoding: 'utf8' },
   );
   assert.match(output, /Final Status: success/);
@@ -30,7 +30,7 @@ test('CLI smoke test: valid minimal plan', () => {
 test('CLI smoke test: invalid plan rejection', () => {
   assert.throws(() => {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/invalid-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/invalid-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
       { stdio: 'pipe' },
     );
   }, /Invalid plan: unknown version "unknown-version"/);
@@ -39,7 +39,7 @@ test('CLI smoke test: invalid plan rejection', () => {
 test('CLI smoke test: scripted worker failure', () => {
   try {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-failure.json`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-failure.json`,
       { encoding: 'utf8', stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -53,7 +53,7 @@ test('CLI smoke test: scripted worker failure', () => {
 test('CLI smoke test: failure diagnostics existence', () => {
   try {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-failure.json`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-failure.json`,
       { encoding: 'utf8', stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -74,7 +74,7 @@ test('CLI smoke test: failure diagnostics existence', () => {
 
 test('CLI smoke test: multi-item success', () => {
   const output = execSync(
-    `node bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-success.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-success.json`,
+    `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-success.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-success.json`,
     { encoding: 'utf8' },
   );
   assert.match(output, /Final Status: success/);
@@ -83,7 +83,7 @@ test('CLI smoke test: multi-item success', () => {
 test('CLI smoke test: multi-item failure with blocked/skipped', () => {
   try {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-failure-blocks-dependent.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-failure-story-1.json`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-failure-blocks-dependent.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-failure-story-1.json`,
       { encoding: 'utf8', stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -107,7 +107,7 @@ test('CLI smoke test: multi-item failure with blocked/skipped', () => {
 
 test('CLI inspect test: success run', () => {
   const runOutput = execSync(
-    `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
+    `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
     {
       encoding: 'utf8',
     },
@@ -115,7 +115,7 @@ test('CLI inspect test: success run', () => {
   const runDirMatch = runOutput.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   if (runDirMatch) {
     const runDir = runDirMatch[1];
-    const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, {
+    const inspectOutput = execSync(`node packages/jig-cli/bin/jig.js inspect ${runDir}`, {
       encoding: 'utf8',
     });
     assert.match(inspectOutput, /--- Run Inspection ---/);
@@ -131,7 +131,7 @@ test('CLI inspect test: success run', () => {
 test('CLI inspect test: failure run with blocked/skipped', () => {
   try {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-failure-blocks-dependent.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-failure-story-1.json`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/multi-item-plan-failure-blocks-dependent.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-multi-failure-story-1.json`,
       { encoding: 'utf8', stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -140,7 +140,7 @@ test('CLI inspect test: failure run with blocked/skipped', () => {
     const runDirMatch = runOutput.match(/Records Directory: (runs\/run-multi-item-failure-\d+-[^\s]+)/);
     if (runDirMatch) {
       const runDir = runDirMatch[1];
-      const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, {
+      const inspectOutput = execSync(`node packages/jig-cli/bin/jig.js inspect ${runDir}`, {
         encoding: 'utf8',
       });
       assert.match(inspectOutput, /--- Run Inspection ---/);
@@ -158,7 +158,7 @@ test('CLI inspect test: failure run with blocked/skipped', () => {
 
 test('CLI inspect test: invalid run path', () => {
   try {
-    execSync('node bin/jig.js inspect non-existent-dir', { stdio: 'pipe' });
+    execSync('node packages/jig-cli/bin/jig.js inspect non-existent-dir', { stdio: 'pipe' });
     assert.fail('Should have failed');
   } catch (err) {
     assert.match(
@@ -171,7 +171,7 @@ test('CLI inspect test: invalid run path', () => {
 test('CLI run test: validation error includes path and reason', () => {
   try {
     execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/invalid-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/invalid-plan.json ${configFlag} ${policyFlag} ${successOutputFlag}`,
       { stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -185,13 +185,13 @@ test('CLI run test: validation error includes path and reason', () => {
 
 test('CLI inspect test: shows changed files if present', () => {
   const runOutput = execSync(
-    `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-with-files.json`,
+    `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} ${policyFlag} --scripted-output tests/fixtures/m5b-local-mvp/scripted-with-files.json`,
     { encoding: 'utf8' },
   );
   const runDirMatch = runOutput.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
   const runDir = runDirMatch[1];
-  const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, {
+  const inspectOutput = execSync(`node packages/jig-cli/bin/jig.js inspect ${runDir}`, {
     encoding: 'utf8',
   });
   assert.match(inspectOutput, /Changed files: src\/cli.js, src\/records.js/);
@@ -202,7 +202,7 @@ test('CLI inspect test: policy denial shows reason', () => {
   let exitCode: number | null = 0;
   try {
     runOutput = execSync(
-      `node bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} --policy tests/fixtures/m5b-local-mvp/local-policy-denied.json ${successOutputFlag}`,
+      `node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json ${configFlag} --policy tests/fixtures/m5b-local-mvp/local-policy-denied.json ${successOutputFlag}`,
       { encoding: 'utf8', stdio: 'pipe' },
     );
     assert.fail('Should have failed');
@@ -219,6 +219,6 @@ test('CLI inspect test: policy denial shows reason', () => {
   const runDirMatch = runOutput.match(/Records Directory: (runs\/run-plan-minimal-local-\d+-[^\s]+)/);
   assert.ok(runDirMatch, 'Failed to find run directory in output');
   const runDir = runDirMatch[1];
-  const inspectOutput = execSync(`node bin/jig.js inspect ${runDir}`, { encoding: 'utf8' });
+  const inspectOutput = execSync(`node packages/jig-cli/bin/jig.js inspect ${runDir}`, { encoding: 'utf8' });
   assert.match(inspectOutput, /Reason: Policy denial: allowLocalDryRun is not true/);
 });

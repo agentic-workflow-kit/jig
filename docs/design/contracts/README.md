@@ -95,11 +95,10 @@ the boundary kinds:
 
 - Jig owns the plan and records contracts as versioned seams: changing their shape is a breaking
   change for downstream consumers.
-- **Product-posture disclaimer, stated once here.** The current repo remains one private package:
-  there is no public provider API, package, export map, project reference, registry, manifest
-  schema, or semver stability promise today. Package split, export maps, project references,
-  provider publication, and public stability promises are outside this index — this page routes to
-  the applied ADRs above without making those implementation changes. `providers.md` and
+- **Product-posture disclaimer, stated once here.** The current repo is a private workspace with
+  private `jig-sdk`, `jig-cli`, and `jig-testkit` packages. There is still no public provider API,
+  registry publication, manifest schema promise, or semver stability promise. Public-provider
+  publication and public stability promises remain outside this index. `providers.md` and
   `driving.md` cross-reference this note rather than restating it.
 
 ## Reconciles to

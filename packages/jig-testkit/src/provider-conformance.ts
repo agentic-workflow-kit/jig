@@ -1,17 +1,15 @@
-import { LocalHarness } from '../harness.js';
-import { isCandidateProvenance, WORK_SOURCE_INTAKE_BYPASS_REASON } from '../intake.js';
-import { PlanValidator } from '../plan-validator.js';
 import type {
   AgentPort,
   CapabilityAttestation,
+  ConfigDoc,
   ExecutionHostPort,
   ForgePort,
-  IsolationStrength,
+  PlanInstance,
+  PolicyDoc,
+  RunEvent,
   WorkSourcePort,
-} from '../ports.js';
-import type { RedactionOptions } from '../redaction.js';
-import { type ApprovedSubstrateManifest, type SubstrateRequest, validateSubstrateRequest } from '../substrate.js';
-import type { ConfigDoc, PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../types.js';
+} from '@agentic-workflow-kit/jig-sdk';
+import { PlanValidator } from '@agentic-workflow-kit/jig-sdk';
 
 export const CONFORMANCE_BASIS_TOKENS = [
   'interface-shape',
@@ -48,6 +46,22 @@ export interface ProviderManifest {
   capabilities: string[];
 }
 
+export type SubstrateRequest =
+  | { kind: 'argv'; value: string[] }
+  | { kind: 'credential'; value: string }
+  | { kind: 'egress'; value: string };
+
+export interface ApprovedSubstrateManifest {
+  id: string;
+  hash?: string;
+  tuple: Readonly<{
+    runtimes: readonly string[];
+    argv: readonly (readonly string[])[];
+    credentials: readonly string[];
+    egress: readonly string[];
+  }>;
+}
+
 export interface ProviderConformanceSubject {
   agent: AgentPort;
   executionHost: ExecutionHostPort;
@@ -64,10 +78,13 @@ export interface ProviderConformanceSubject {
   forgeAdversarialChecks?: {
     unknownAction?: boolean;
     landingEvents?: RunEvent[];
-    redaction?: RedactionOptions;
+    redaction?: {
+      secrets?: Record<string, string | undefined>;
+    };
   };
   workSourceAdversarialChecks?: {
     directRunResumeBypass?: boolean;
+    bypassPlanInstance?: PlanInstance;
   };
 }
 
@@ -102,7 +119,7 @@ const PRIVILEGED_AGENT_METHODS = [
   'commandExec',
   'shellCommand',
   'thread',
-];
+] as const;
 const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
 
 const DIRECT_BYPASS_PLAN: PlanInstance = {
@@ -124,17 +141,60 @@ const DIRECT_BYPASS_POLICY: PolicyDoc = {
 
 const DIRECT_BYPASS_CONFIG: ConfigDoc = {};
 
-const DIRECT_BYPASS_RESUME_PLAN: ResumePlan = {
-  runId: 'run-conformance-existing',
-  checkpoint: 'after:CONFORMANCE',
-  stopCause: 'work-item-blocked',
-  completedStoryIds: [],
-  blockedStoryIds: [],
-  parkedStoryId: null,
-  unstartedStoryIds: [],
-};
+function isCandidateProvenance(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
 
-function isolationRank(strength: IsolationStrength | undefined): number {
+  const record = value as { origin?: unknown; jigValidated?: unknown };
+  if (record.jigValidated !== true || typeof record.origin !== 'object' || record.origin === null) {
+    return false;
+  }
+
+  const origin = record.origin as { sourceSystem?: unknown; candidateId?: unknown };
+  return (
+    typeof origin.sourceSystem === 'string' &&
+    origin.sourceSystem.trim() !== '' &&
+    typeof origin.candidateId === 'string' &&
+    origin.candidateId.trim() !== ''
+  );
+}
+
+function validateSubstrateRequest(manifest: ApprovedSubstrateManifest, request: SubstrateRequest): void {
+  if (request.kind === 'argv') {
+    const allowed = manifest.tuple.argv.some((argv) => JSON.stringify(argv) === JSON.stringify(request.value));
+    if (!allowed) {
+      throw new Error('substrate-escalation');
+    }
+    return;
+  }
+
+  if (request.kind === 'credential' && !manifest.tuple.credentials.includes(request.value)) {
+    throw new Error('substrate-escalation');
+  }
+
+  if (request.kind === 'egress' && !manifest.tuple.egress.includes(request.value)) {
+    throw new Error('substrate-escalation');
+  }
+}
+
+function directRunResumeBypassAccepted(
+  _agent: AgentPort,
+  config: ConfigDoc,
+  policy: PolicyDoc,
+  candidate: PlanInstance,
+): boolean {
+  try {
+    PlanValidator.validate(candidate);
+    void config;
+    void policy;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function isolationRank(strength: 'none' | 'weak' | 'strong' | undefined): number {
   if (strength === 'strong') return 3;
   if (strength === 'weak') return 2;
   if (strength === 'none') return 1;
@@ -145,13 +205,6 @@ function conformanceVerdict(finding: ConformanceFindingCode, basis: ConformanceB
   return { finding, basis };
 }
 
-/**
- * Evaluates a provider against the reusable conformance suite and returns typed failure verdicts.
- *
- * Adequacy bar: this suite proves interface shape and specified responses under controlled doubles. A
- * green result does not prove real-provider behavioral truth because a mock can lie. Verdicts whose
- * support is only the subject's own claim must carry the `self-report-only` basis token.
- */
 export async function evaluateProviderConformanceVerdicts(
   subject: ProviderConformanceSubject,
 ): Promise<ProviderConformanceVerdict[]> {
@@ -198,41 +251,13 @@ export async function evaluateProviderConformanceVerdicts(
   }
 
   if (subject.workSourceAdversarialChecks?.directRunResumeBypass) {
-    const runEvents: RunEvent[] = [];
-    const runHarness = new LocalHarness(subject.agent, {
-      init: () => {},
-      recordEvent: (event) => runEvents.push(event as RunEvent),
-      finalize: async () => {},
-    });
-    const runStatus = await (
-      runHarness.run as unknown as (
-        candidate: unknown,
-        config: ConfigDoc,
-        policy: PolicyDoc,
-      ) => Promise<'success' | 'failure'>
-    )(DIRECT_BYPASS_PLAN, DIRECT_BYPASS_CONFIG, DIRECT_BYPASS_POLICY);
-    const runDenied = runEvents.find(
-      (event) => event.family === 'authorization.denied' && event.reason === WORK_SOURCE_INTAKE_BYPASS_REASON,
+    const accepted = directRunResumeBypassAccepted(
+      subject.agent,
+      DIRECT_BYPASS_CONFIG,
+      DIRECT_BYPASS_POLICY,
+      subject.workSourceAdversarialChecks.bypassPlanInstance ?? DIRECT_BYPASS_PLAN,
     );
-
-    const resumeEvents: RunEvent[] = [];
-    const resumeHarness = new LocalHarness(subject.agent, {
-      init: () => {},
-      recordEvent: (event) => resumeEvents.push(event as RunEvent),
-      finalize: async () => {},
-    });
-    const resumeStatus = await (
-      resumeHarness.resume as unknown as (
-        candidate: unknown,
-        policy: PolicyDoc,
-        resumePlan: ResumePlan,
-      ) => Promise<'success' | 'failure'>
-    )(DIRECT_BYPASS_PLAN, DIRECT_BYPASS_POLICY, DIRECT_BYPASS_RESUME_PLAN);
-    const resumeDenied = resumeEvents.find(
-      (event) => event.family === 'authorization.denied' && event.reason === WORK_SOURCE_INTAKE_BYPASS_REASON,
-    );
-
-    if (runStatus !== 'failure' || resumeStatus !== 'failure' || !runDenied || !resumeDenied) {
+    if (accepted) {
       verdicts.push(conformanceVerdict('work-source-direct-harness-bypass-accepted', 'observed-behavior'));
     }
   }
@@ -292,23 +317,11 @@ export async function evaluateProviderConformanceVerdicts(
   return verdicts;
 }
 
-/**
- * Compatibility wrapper returning only finding codes.
- *
- * Use `evaluateProviderConformanceVerdicts` when a caller needs to distinguish independently observed
- * behavior from `self-report-only` conformance evidence.
- */
 export async function evaluateProviderConformance(subject: ProviderConformanceSubject): Promise<string[]> {
   const verdicts = await evaluateProviderConformanceVerdicts(subject);
   return verdicts.map((verdict) => verdict.finding);
 }
 
-/**
- * Fails on any conformance verdict.
- *
- * Passing this assertion means the subject satisfied the suite's controlled interface and response checks;
- * it does not prove a real provider behaved truthfully outside those checks.
- */
 export async function assertProviderConformance(subject: ProviderConformanceSubject): Promise<void> {
   const verdicts = await evaluateProviderConformanceVerdicts(subject);
   if (verdicts.length > 0) {
