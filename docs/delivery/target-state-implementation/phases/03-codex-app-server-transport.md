@@ -1,6 +1,6 @@
 ---
 title: "Phase 03 - Codex app-server transport"
-status: "merged (#57, #58, #59); AC1 fix in flight (#60)"
+status: "merged (#57, #58, #59, #60)"
 ---
 
 # Phase 03 - Codex app-server transport

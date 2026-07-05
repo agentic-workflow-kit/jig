@@ -18,6 +18,15 @@ const APP_SERVER_SCHEMA_OUT_DIR = join(tmpdir(), 'jig-codex-schema');
 const APP_SERVER_SCHEMA_LOCK_DIR = `${APP_SERVER_SCHEMA_OUT_DIR}.lock`;
 const APP_SERVER_SCHEMA_LOCK_RETRY_MS = 50;
 const APP_SERVER_SCHEMA_LOCK_STALE_MS = 60_000;
+// The v2 schema file carries the client-method wire names (thread/start, turn/start, ...).
+// Server-request and server-notification wire names (e.g. item/commandExecution/requestApproval)
+// live only in the v1 schema file on the pinned codex-cli release. Both files are required to
+// assemble a complete preflight surface; see REQUIRED_SERVER_REQUESTS below.
+const APP_SERVER_SCHEMA_FILES = [
+  'codex_app_server_protocol.v2.schemas.json',
+  'codex_app_server_protocol.schemas.json',
+] as const;
+const APP_SERVER_SCHEMA_SEPARATOR = '\n';
 let schemaGenerationLock: Promise<void> = Promise.resolve();
 const REQUIRED_SERVER_REQUESTS = ['item/commandExecution/requestApproval'] as const;
 const REQUIRED_SERVER_NOTIFICATIONS = [
@@ -292,6 +301,21 @@ function assertVersionPosture(rawVersion: string): string {
     );
   }
   return parsed;
+}
+
+async function readRequiredSchemaFile(outDir: string, fileName: string): Promise<string> {
+  const schemaPath = join(outDir, fileName);
+  try {
+    return await readFile(schemaPath, 'utf8');
+  } catch (error) {
+    if (isErrnoLike(error) && error.code === 'ENOENT') {
+      throw new CodexAppServerPreDispatchError(
+        'codex-app-server-surface-missing',
+        `codex pre-dispatch failed: required app-server schema file "${fileName}" was not generated`,
+      );
+    }
+    throw error;
+  }
 }
 
 function assertSchemaIncludes(schema: string, methods: readonly string[], kind: string): void {
@@ -704,11 +728,13 @@ class DefaultCodexAppServerEnvironment implements CodexAppServerEnvironment {
   async appServerSchema(): Promise<string> {
     return await withSchemaGenerationLock(async () => {
       const outDir = APP_SERVER_SCHEMA_OUT_DIR;
-      const schemaPath = join(outDir, 'codex_app_server_protocol.v2.schemas.json');
       try {
         await rm(outDir, { recursive: true, force: true });
         await execFileAsync('codex', ['app-server', 'generate-json-schema', '--out', outDir], { encoding: 'utf8' });
-        return await readFile(schemaPath, 'utf8');
+        const contents = await Promise.all(
+          APP_SERVER_SCHEMA_FILES.map((fileName) => readRequiredSchemaFile(outDir, fileName)),
+        );
+        return contents.join(APP_SERVER_SCHEMA_SEPARATOR);
       } finally {
         await rm(outDir, { recursive: true, force: true });
       }
@@ -989,6 +1015,9 @@ export const __internal = {
   APP_SERVER_SCHEMA_LOCK_DIR,
   APP_SERVER_SCHEMA_LOCK_RETRY_MS,
   APP_SERVER_SCHEMA_LOCK_STALE_MS,
+  APP_SERVER_SCHEMA_FILES,
+  APP_SERVER_SCHEMA_SEPARATOR,
+  readRequiredSchemaFile,
   acquireSchemaDirectoryLock,
   isStaleSchemaLock,
   assertSchemaIncludes,
