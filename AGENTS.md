@@ -23,6 +23,7 @@ current implementation instructions.
 | Intent, audience, the five guarantees, boundaries     | `docs/product/jig.md` (hub)                                 |
 | Guarantees in ID detail / scenarios / concepts        | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md` |
 | How a promise is met (contracts, state tables, seams) | `docs/design/` (live; start at its README and the ADR log)  |
+| Active delivery phasing toward the target state       | `docs/delivery/` (start at its README)                      |
 | Historical delivery sequencing and phase ladders      | `docs/archive/delivery/`                                    |
 | Historical design-work sequencing                     | `docs/archive/planning/design-track/`                       |
 | Point-in-time repo reviews and their findings         | `docs/archive/reviews/`                                     |
