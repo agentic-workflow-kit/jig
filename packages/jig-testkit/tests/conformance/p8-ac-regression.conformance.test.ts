@@ -64,6 +64,21 @@ test('P8-AC-2: direct-run-resume-bypass conformance case is refused and recorded
   assert.strictEqual(findings.includes('work-source-direct-harness-bypass-accepted'), false);
 });
 
+test('P8-AC-2: a raw but structurally valid bypass candidate is still rejected by the harness', async () => {
+  const composed = await composedSubject();
+
+  const findings = await evaluateProviderConformance({
+    ...composed,
+    manifest: referenceManifest,
+    workSourceAdversarialChecks: {
+      directRunResumeBypass: true,
+      bypassPlanInstance: planInstance('plan-p8-valid-bypass'),
+    },
+  });
+
+  assert.strictEqual(findings.includes('work-source-direct-harness-bypass-accepted'), false);
+});
+
 test('P8-AC-2: an invalid direct-run-resume bypass candidate is flagged', async () => {
   const composed = await composedSubject();
 

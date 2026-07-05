@@ -7,9 +7,10 @@ import type {
   PlanInstance,
   PolicyDoc,
   RunEvent,
+  RunStatus,
   WorkSourcePort,
 } from '@agentic-workflow-kit/jig-sdk';
-import { PlanValidator } from '@agentic-workflow-kit/jig-sdk';
+import { LocalHarness, PlanValidator } from '@agentic-workflow-kit/jig-sdk';
 
 export const CONFORMANCE_BASIS_TOKENS = [
   'interface-shape',
@@ -141,6 +142,16 @@ const DIRECT_BYPASS_POLICY: PolicyDoc = {
 
 const DIRECT_BYPASS_CONFIG: ConfigDoc = {};
 
+const DIRECT_BYPASS_RESUME_PLAN = {
+  runId: 'conformance-bypass-resume',
+  checkpoint: 'after:WORK-SOURCE-BYPASS',
+  stopCause: 'work-item-blocked',
+  completedStoryIds: [],
+  blockedStoryIds: [],
+  parkedStoryId: null,
+  unstartedStoryIds: [],
+};
+
 function isCandidateProvenance(value: unknown): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
@@ -179,19 +190,72 @@ function validateSubstrateRequest(manifest: ApprovedSubstrateManifest, request: 
 }
 
 function directRunResumeBypassAccepted(
-  _agent: AgentPort,
+  agent: AgentPort,
   config: ConfigDoc,
   policy: PolicyDoc,
   candidate: PlanInstance,
-): boolean {
+): Promise<boolean> {
+  return exerciseDirectRunResumeBypass(agent, config, policy, candidate);
+}
+
+class InMemoryRecordSink {
+  private initialized = false;
+  readonly events: Array<Pick<RunEvent, 'family'> & Partial<RunEvent>> = [];
+  finalizedStatus: RunStatus | null = null;
+
+  init(_plan?: unknown, _config?: unknown, _policy?: unknown): void {
+    this.initialized = true;
+  }
+
+  recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
+    if (!this.initialized) {
+      throw new Error('Record sink used before init');
+    }
+    this.events.push(event);
+  }
+
+  async finalize(status: RunStatus): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Record sink finalized before init');
+    }
+    this.finalizedStatus = status;
+  }
+}
+
+async function harnessBypassAccepted(
+  operation: (harness: LocalHarness, sink: InMemoryRecordSink) => Promise<RunStatus>,
+  agent: AgentPort,
+): Promise<boolean> {
+  const sink = new InMemoryRecordSink();
+  const harness = new LocalHarness(agent, sink);
+  const status = await operation(harness, sink);
+  const deniedEvent = sink.events.find((event) => event.family === 'authorization.denied');
+  return (
+    status !== 'failure' ||
+    sink.finalizedStatus !== 'failure' ||
+    deniedEvent?.reason !== 'work-source-plan-intake-bypass'
+  );
+}
+
+async function exerciseDirectRunResumeBypass(
+  agent: AgentPort,
+  config: ConfigDoc,
+  policy: PolicyDoc,
+  candidate: PlanInstance,
+): Promise<boolean> {
   try {
     PlanValidator.validate(candidate);
-    void config;
-    void policy;
-    return false;
   } catch {
     return true;
   }
+
+  const rawCandidate = candidate as unknown as Parameters<LocalHarness['run']>[0];
+  const runAccepted = await harnessBypassAccepted((harness) => harness.run(rawCandidate, config, policy), agent);
+  const resumeAccepted = await harnessBypassAccepted(async (harness, sink) => {
+    sink.init(candidate.plan, DIRECT_BYPASS_CONFIG, policy);
+    return await harness.resume(rawCandidate, policy, DIRECT_BYPASS_RESUME_PLAN);
+  }, agent);
+  return runAccepted || resumeAccepted;
 }
 
 function isolationRank(strength: 'none' | 'weak' | 'strong' | undefined): number {
@@ -251,7 +315,7 @@ export async function evaluateProviderConformanceVerdicts(
   }
 
   if (subject.workSourceAdversarialChecks?.directRunResumeBypass) {
-    const accepted = directRunResumeBypassAccepted(
+    const accepted = await directRunResumeBypassAccepted(
       subject.agent,
       DIRECT_BYPASS_CONFIG,
       DIRECT_BYPASS_POLICY,
