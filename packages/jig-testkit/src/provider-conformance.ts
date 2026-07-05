@@ -224,13 +224,24 @@ class InMemoryRecordSink {
 
 async function harnessBypassAccepted(
   operation: (harness: LocalHarness, sink: InMemoryRecordSink) => Promise<RunStatus>,
-  agent: AgentPort,
 ): Promise<boolean> {
   const sink = new InMemoryRecordSink();
-  const harness = new LocalHarness(agent, sink);
+  let executeCalled = false;
+  const sentinelAgent: AgentPort = {
+    execute: async (story) => {
+      executeCalled = true;
+      return {
+        storyId: story.id,
+        outcome: 'success',
+        evidence: { result: 'bypass-probe-executed' },
+      };
+    },
+  };
+  const harness = new LocalHarness(sentinelAgent, sink);
   const status = await operation(harness, sink);
   const deniedEvent = sink.events.find((event) => event.family === 'authorization.denied');
   return (
+    executeCalled ||
     status !== 'failure' ||
     sink.finalizedStatus !== 'failure' ||
     deniedEvent?.reason !== 'work-source-plan-intake-bypass'
@@ -238,7 +249,7 @@ async function harnessBypassAccepted(
 }
 
 async function exerciseDirectRunResumeBypass(
-  agent: AgentPort,
+  _agent: AgentPort,
   config: ConfigDoc,
   policy: PolicyDoc,
   candidate: PlanInstance,
@@ -250,11 +261,11 @@ async function exerciseDirectRunResumeBypass(
   }
 
   const rawCandidate = candidate as unknown as Parameters<LocalHarness['run']>[0];
-  const runAccepted = await harnessBypassAccepted((harness) => harness.run(rawCandidate, config, policy), agent);
+  const runAccepted = await harnessBypassAccepted((harness) => harness.run(rawCandidate, config, policy));
   const resumeAccepted = await harnessBypassAccepted(async (harness, sink) => {
     sink.init(candidate.plan, DIRECT_BYPASS_CONFIG, policy);
     return await harness.resume(rawCandidate, policy, DIRECT_BYPASS_RESUME_PLAN);
-  }, agent);
+  });
   return runAccepted || resumeAccepted;
 }
 

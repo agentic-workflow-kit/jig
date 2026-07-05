@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import type { WorkSourcePort } from '@agentic-workflow-kit/jig-sdk';
+import { LocalHarness, type WorkSourcePort } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
 import {
   assertProviderConformance,
@@ -98,6 +98,57 @@ test('P8-AC-2: an invalid direct-run-resume bypass candidate is flagged', async 
   });
 
   assert.strictEqual(findings.includes('work-source-direct-harness-bypass-accepted'), true);
+});
+
+test('P8-AC-2: the bypass probe reports a buggy harness without invoking the subject agent', async () => {
+  const originalRun = LocalHarness.prototype.run;
+  const originalResume = LocalHarness.prototype.resume;
+  let subjectAgentCalled = false;
+
+  LocalHarness.prototype.run = async function run(this: LocalHarness): Promise<'success'> {
+    await (
+      this as unknown as { worker: { execute(story: { id: string; title: string }): Promise<unknown> } }
+    ).worker.execute({
+      id: 'STORY-1',
+      title: 'Probe story',
+    });
+    return 'success';
+  };
+
+  LocalHarness.prototype.resume = async function resume(this: LocalHarness): Promise<'success'> {
+    await (
+      this as unknown as { worker: { execute(story: { id: string; title: string }): Promise<unknown> } }
+    ).worker.execute({
+      id: 'STORY-1',
+      title: 'Probe story',
+    });
+    return 'success';
+  };
+
+  try {
+    const composed = referenceSubject({
+      agent: {
+        execute: async () => {
+          subjectAgentCalled = true;
+          throw new Error('subject agent should not be invoked during bypass probes');
+        },
+      },
+    });
+
+    const findings = await evaluateProviderConformance({
+      ...composed,
+      manifest: referenceManifest,
+      workSourceAdversarialChecks: {
+        directRunResumeBypass: true,
+      },
+    });
+
+    assert.strictEqual(findings.includes('work-source-direct-harness-bypass-accepted'), true);
+    assert.strictEqual(subjectAgentCalled, false);
+  } finally {
+    LocalHarness.prototype.run = originalRun;
+    LocalHarness.prototype.resume = originalResume;
+  }
 });
 
 test('P8-AC-3: a collapsed-provenance work-source adapter is rejected', async () => {
