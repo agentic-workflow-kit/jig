@@ -12,7 +12,7 @@ N1a.
 
 ## Motivation
 
-The current real-agent path is an injected seam. [`src/providers/real/agent.ts`](../../../src/providers/real/agent.ts)
+The current real-agent path is an injected seam. [`src/providers/real/agent.ts`](../../../packages/jig-sdk/src/providers/real/agent.ts)
 defines `CodexAgentSession` as:
 
 ```ts

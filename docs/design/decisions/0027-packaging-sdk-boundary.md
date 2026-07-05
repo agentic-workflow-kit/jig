@@ -25,10 +25,10 @@ broader platform shape than jig has today.
 
 The live repo is still one private package: [`package.json`](../../../package.json) names
 `@agentic-workflow-kit/jig-repo`, sets `private: true`, and has no `exports` field. The current source
-tree keeps the provider-port interfaces in [`src/ports.ts`](../../../src/ports.ts), the composition
-factory in [`src/bootstrap.ts`](../../../src/bootstrap.ts), the CLI adapter in
-[`src/cli.ts`](../../../src/cli.ts), and the reusable conformance module in
-[`src/conformance/provider-conformance.ts`](../../../src/conformance/provider-conformance.ts). The
+tree keeps the provider-port interfaces in [`src/ports.ts`](../../../packages/jig-sdk/src/ports.ts), the composition
+factory in [`src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts), the CLI adapter in
+[`src/cli.ts`](../../../packages/jig-cli/src/cli.ts), and the reusable conformance module in
+[`src/conformance/provider-conformance.ts`](../../../packages/jig-testkit/src/provider-conformance.ts). The
 conformance tests import that production-tree conformance module directly from `tests/conformance/*`.
 [`tsconfig.base.json`](../../../tsconfig.base.json) already has `composite: true`, so the repo is
 project-reference-capable, but there are no per-package `tsconfig` files yet. The only configured gate

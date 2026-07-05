@@ -138,9 +138,11 @@ From P02 onward:
 - Every phase updates the status-bearing docs it invalidates (root `README.md` status section,
   `AGENTS.md` status, `docs/README.md`, package descriptions, `skills/README.md` CLI surface
   list) in the same PR. P14 audits the residue.
-- The repo has no Markdown link checker today. Reviewers spot-check relative links in changed
-  docs; if a phase adds substantial cross-linking, adding a link-check script to the gate is a
-  welcome, separate, small PR — not a silent gate weakening or a blocking requirement.
+- The gate enforces relative-link and anchor integrity across every tracked Markdown file via
+  `pnpm links:check` (`scripts/check-doc-links.mjs`): relative link targets must exist, and
+  fragments must match a heading in the target file under GitHub's slugging rules. External
+  URLs (`http://`, `https://`, `mailto:`) stay out of the gate deliberately — checking them would
+  break the hermetic posture (no real network reach from a check).
 - Each phase PR flips its own phase-table row and phase-doc frontmatter status to merged with
   its own PR number — no follow-up PRs for status. Since the number does not exist until the PR
   is opened: open the PR first, then push a status commit citing the exact number to the same
@@ -159,6 +161,30 @@ Beyond CI, each phase PR review verifies:
    shipped truth only.
 4. **Phase scope** — the diff matches the phase doc's What To Do and Out Of Scope; adjacent
    gaps found mid-phase become notes on the relevant phase doc, not scope creep.
+
+## Merge checklist
+
+Convenience aggregation of the rules above, in the order to walk them before requesting merge.
+The owning sections above remain normative — this list restates them for a single pre-merge
+pass and is not itself mechanically enforced.
+
+1. Full gate green locally, with the output shown as evidence, not asserted ([The gate](#the-gate)).
+2. Goldens are byte-identical, or the change is an owned, declared records-contract change
+   ([Golden-record discipline](#golden-record-discipline)).
+3. For real-provider phases (P03, P04, P05, P11): a smoke transcript is in the PR body or a
+   committed evidence record; a skipped run is a recorded escalation, not a silent "not run"
+   ([Evidence records and the EVRUN gates](#evidence-records-and-the-evrun-gates)).
+4. Smoke and evidence assertions are not satisfiable by a fail-closed refusal
+   ([Conformance and testkit posture](#conformance-and-testkit-posture)).
+5. Any export-map widening names the consumer that needs it
+   ([Package boundary checks](#package-boundary-checks)).
+6. The status flip lands in the same PR: open the PR first, then push a status commit citing
+   the exact PR number to the phase-table row and the phase-doc frontmatter
+   ([Docs checks](#docs-checks)).
+7. Status-bearing docs (root `README.md`, `AGENTS.md`, `docs/README.md`, package descriptions,
+   `skills/README.md` CLI surface list) are updated in the same PR ([Docs checks](#docs-checks)).
+8. All review threads are resolved, the PR is squash-merged, and the worktree is cleaned up
+   after merge (`AGENTS.md`).
 
 ## Definition of delivered
 

@@ -12,7 +12,7 @@ target. It records the `D-###` dispositions the coordinator made over each per-u
 (see [`../charter.md`](../charter.md#deliverable-rule)).
 
 Scope note. These `D-###` entries are the **execution** track's own review dispositions. Per
-[`../conventions.md`](../conventions.md#2-adrs-continue-in-place-from-0017) the design-layer ADR
+[`../conventions.md`](../conventions.md#2-the-adrdecision-log-continues-in-place-as-one-flat-log) the design-layer ADR
 log and each such log number independently, so this log's `D-###` restart at `D-001` and are
 distinct from — even where the numbers coincide with — the identifiers used in:
 

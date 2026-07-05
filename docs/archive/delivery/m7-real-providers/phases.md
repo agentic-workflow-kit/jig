@@ -10,7 +10,7 @@ traces to. Tests cite the AC IDs they prove. These phases promote the M5 `named 
 seams (agent driver, execution-host driver, forge driver, work-source driver, resume, capability
 attestation) to `exercised` with real effects, behind the ports pinned and merged in
 [Phase 5](../m5b-local-mvp-r2/phases.md#phase-5--integrated-provider-runs) (commit `f59a479`,
-[`../../../src/ports.ts`](../../../../src/ports.ts)).
+[`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts)).
 
 **Status as of 2026-07-04:** this phase ladder is retained as durable M7 delivery history after the
 org milestone accepted EVRUN-partial exit evidence. EVRUN-full and Codex transport hardening remain
@@ -28,7 +28,7 @@ The **real as-merged port shapes** these phases build on — cite these, not the
   (`fresh`/`stale`/`missing`), `positive`, `reportedIsolationStrength`,
   `provenIsolationStrength`, `failureToken`. `HostAttestation` carries the host `isolationStrength`
   (`none`/`weak`/`strong`) and its `capabilityAttestations`.
-- The composition root [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)
+- The composition root [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts)
   `composeReferenceRun` is the sole importer of the reference adapters and fails closed on an
   unknown driver name.
 - Encoding deltas already merged from the ADR 0021 sketch: there is no separate `containmentProof`
@@ -74,7 +74,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 **Requirements:**
 
 - A real agent driver (Codex-first) behind `AgentPort.execute(story)`, selected through
-  `composeReferenceRun`'s successor in [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts),
+  `composeReferenceRun`'s successor in [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts),
   performing real edits — replacing the scripted-worker stub for the driven path. The `AgentPort`
   still exposes no push/PR/merge/credential path (INV-002).
 - A real execution host behind `ExecutionHostPort.describe()` that returns a `HostAttestation` whose
@@ -163,8 +163,8 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../../src/ports.ts),
-  [`../../../src/bootstrap.ts`](../../../../src/bootstrap.ts)
+- [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts),
+  [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts)
 - [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md),
   [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3
 - [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
@@ -195,7 +195,7 @@ the `AgentPort` never gains a landing path.
 
 - A real Forge/GitHub adapter behind `ForgePort.land(request)` performing push, PR, and merge as the
   `LandingRequest.action` selects, invoked only by the runner at `done → landed`.
-- **`LandingRequest.action` union (Residual B):** [`../../../src/ports.ts`](../../../../src/ports.ts)
+- **`LandingRequest.action` union (Residual B):** [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts)
   now types `action` as the union `'push' | 'open-pr' | 'merge'` so the real Forge path can
   discriminate actions. The historical modeled golden value may still record `"push|open-pr|merge"`
   for byte-identity, but the typed port surface is the union.
@@ -220,7 +220,7 @@ the `AgentPort` never gains a landing path.
   decision 6.
 - **P7-AC-2** — `LandingRequest.action` is the union `'push' | 'open-pr' | 'merge'` and the real
   adapter discriminates on it; an unknown action fails closed. Traces:
-  [`../../../src/ports.ts`](../../../../src/ports.ts) (Residual B),
+  [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (Residual B),
   [`MERGE-2`](../../../product/guarantees.md#15-merge-on-evidence).
 - **P7-AC-3** — Re-running a landed effect (resume or retry) does not duplicate it: the prior landing
   is recognized from the records and the second attempt is a recorded no-op. Traces:
@@ -260,7 +260,7 @@ the `AgentPort` never gains a landing path.
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../../src/ports.ts) (`LandingRequest`, `ForgePort`)
+- [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (`LandingRequest`, `ForgePort`)
 - [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6
 - [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
   [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
@@ -307,7 +307,7 @@ came from.
 - **P8-AC-3** — A candidate's provenance names its real origin (source and identifier) rather than
   the single `'jig-validated'` literal, and the origin is legible in the run record. Traces:
   [`SEE-3`](../../../product/guarantees.md#5-full-observability),
-  [`../../../src/ports.ts`](../../../../src/ports.ts) (`CandidateWorkItem.provenance`).
+  [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (`CandidateWorkItem.provenance`).
 
 **Evidence/tests:**
 
@@ -327,7 +327,7 @@ came from.
 
 **Relevant references:**
 
-- [`../../../src/ports.ts`](../../../../src/ports.ts) (`WorkSourcePort`, `CandidateWorkItem`)
+- [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (`WorkSourcePort`, `CandidateWorkItem`)
 - [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
 - [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7
 

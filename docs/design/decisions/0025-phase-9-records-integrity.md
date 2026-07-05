@@ -46,7 +46,7 @@ integrity gate itself in [ADR 0020](./0020-phase-4-reliable-local-runs.md) §9.
 Confirmed against `src/` at authoring time (the **real as-merged** shapes, not the ADR 0021 sketch):
 
 - **The run directory holds `events.jsonl` (authoritative) + `run.json` (finalized cache) plus the
-  durable snapshots.** [`../../../src/resume.ts`](../../../src/resume.ts) reads back
+  durable snapshots.** [`../../../packages/jig-sdk/src/resume.ts`](../../../packages/jig-sdk/src/resume.ts) reads back
   `plan.snapshot.json` (`PLAN_SNAPSHOT_FILE`), `policy.snapshot.json` (`POLICY_SNAPSHOT_FILE`), and —
   since Phase 6 — `attestation.snapshot.json` (`ATTESTATION_SNAPSHOT_FILE`). These snapshot files, plus
   the `run.started` launch header at the head of `events.jsonl`, are exactly the durable evidence

@@ -69,36 +69,36 @@ and the contract owner (`repo-plan-m7.md` open question 2), not resolved locally
 Established by Phases 0–7 and confirmed against `src/` at authoring time (the **real as-merged** port
 shapes, not the ADR 0021 sketch):
 
-- **The Work-source seam is a merged jig-internal port** ([`../../../src/ports.ts`](../../../src/ports.ts)):
+- **The Work-source seam is a merged jig-internal port** ([`../../../packages/jig-sdk/src/ports.ts`](../../../packages/jig-sdk/src/ports.ts)):
   `WorkSourcePort.candidates(): CandidateWorkItem[] | Promise<CandidateWorkItem[]>`, and
   `CandidateWorkItem` is `{ planInstance: PlanInstance; provenance: 'jig-validated' }` — **`provenance`
   is a single string literal, `'jig-validated'`, not an origin-bearing shape**. It is the field Phase 8
   enriches.
-- **`PlanValidator` is a merged static validator** ([`../../../src/plan-validator.ts`](../../../src/plan-validator.ts)):
+- **`PlanValidator` is a merged static validator** ([`../../../packages/jig-sdk/src/plan-validator.ts`](../../../packages/jig-sdk/src/plan-validator.ts)):
   `PlanValidator.validate(planInstance): PlanInstance` — parses and validates against
   `execution-plan-shape-v0`, throws a reason-bearing `Error` on an unknown version, missing/malformed
   id, path-traversal id, empty/duplicate/late-dependency stories; otherwise returns the instance. It is
   the crossing every candidate must make (INV-007).
 - **The composition root validates the _seed_ plan, and this is where the Phase-8 gap lives.**
-  `composeReferenceRun` → `composeRunPorts` in [`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)
+  `composeReferenceRun` → `composeRunPorts` in [`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)
   calls `PlanValidator.validate(options.planInstance)` (line 164) — the **operator-supplied seed** plan
   — then wires `workSource: new ReferenceWorkSource(options.planInstance)`. But the thing actually
   **scheduled** is `candidate.planInstance` returned by `composed.workSource.candidates()`
-  ([`../../../src/cli.ts`](../../../src/cli.ts) lines 121→139, `harness.run(candidate.planInstance, …)`;
-  [`../../../src/resume.ts`](../../../src/resume.ts) line 390). Today `ReferenceWorkSource`
-  ([`../../../src/providers/reference/work-source.ts`](../../../src/providers/reference/work-source.ts))
+  ([`../../../packages/jig-cli/src/cli.ts`](../../../packages/jig-cli/src/cli.ts) lines 121→139, `harness.run(candidate.planInstance, …)`;
+  [`../../../packages/jig-sdk/src/resume.ts`](../../../packages/jig-sdk/src/resume.ts) line 390). Today `ReferenceWorkSource`
+  ([`../../../packages/jig-sdk/src/providers/reference/work-source.ts`](../../../packages/jig-sdk/src/providers/reference/work-source.ts))
   is **seeded from that same object**, so `candidate.planInstance === the validated seed` — **identity
   masks the gap**. A real importer breaks that identity: it builds fresh `planInstance`s from an external
   source that never crossed `validate`, and `harness.run(candidate.planInstance)` would schedule them
   **unvalidated**. That is exactly the INV-007 bypass P8-AC-2 must make impossible. Closing it
   structurally is the Phase-8 realization.
 - **The conformance suite already anchors the fail-closed crossing.** `provider-conformance.ts`
-  ([`../../../src/conformance/provider-conformance.ts`](../../../src/conformance/provider-conformance.ts)
+  ([`../../../packages/jig-testkit/src/provider-conformance.ts`](../../../packages/jig-testkit/src/provider-conformance.ts)
   lines 95–102) already calls `subject.workSource.candidates()`, runs `PlanValidator.validate` on each
   `candidate.planInstance`, and records the `work-source-plan-intake-bypass` finding when a candidate
   does not cross validation. Phase 8 extends this anchor; it does not invent it.
 - **The composition root fails closed on an unknown driver name.** `readDriverSelection` /
-  `assertReferenceSelection` ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)) supports
+  `assertReferenceSelection` ([`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)) supports
   `workSource=reference` only today and throws `ProviderSelectionError` on any other name — the same
   fail-closed selection the Phase-6 `agent=codex` and Phase-7 `forge=github` names extended. A real
   work-source selection is a new named driver in that same set.
@@ -112,7 +112,7 @@ Five settlements, binding on Phase 8. Each is a decision, not an open question.
 - **A real work-source driver, selected by name, sole-imported.** Phase 8 adds real importer(s) behind
   `WorkSourcePort.candidates()` producing `CandidateWorkItem`s from a real source (e.g. an issue
   tracker), selected through the `composeReferenceRun` successor
-  ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)) by a config driver name (e.g.
+  ([`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)) by a config driver name (e.g.
   `config.drivers.workSource = 'github-issues'`), mirroring the Phase-6 `agent: 'codex'` and Phase-7
   `forge: 'github'` selection pattern; bootstrap.ts today supports `workSource=reference` only and must
   gain the real name. The composition root stays the **sole importer** of the driver; the runner, Fence,
@@ -149,7 +149,7 @@ closes.
   a raw, unvalidated `PlanInstance`. Settled instead: **the scheduling API itself refuses any value
   without the marker.** `LocalHarness.run` and `LocalHarness.resume` — merged today as
   `run(planInstance: PlanInstance, config, policy)`
-  ([`../../../src/harness.ts`](../../../src/harness.ts) line 246) and
+  ([`../../../packages/jig-sdk/src/harness.ts`](../../../packages/jig-sdk/src/harness.ts) line 246) and
   `resume(planInstance: PlanInstance, policy, resumePlan)` (line 364), each accepting a **raw
   `PlanInstance`** — change to accept **only the validated wrapper**, never a raw `PlanInstance`.
 - **Two enforcement layers, both required — because a type-level brand is erased at runtime.** A
@@ -182,7 +182,7 @@ closes.
 - **A failing candidate is rejected or held and never scheduled (P8-AC-1).** A candidate whose
   `planInstance` fails `PlanValidator.validate` (an `Error` is thrown) is **rejected or held** — it does
   not reach the runner. Validation stays exactly the reason-bearing act
-  [`../../../src/plan-validator.ts`](../../../src/plan-validator.ts) already performs; Phase 8 adds no new
+  [`../../../packages/jig-sdk/src/plan-validator.ts`](../../../packages/jig-sdk/src/plan-validator.ts) already performs; Phase 8 adds no new
   validation semantics, only the guarantee that the **candidate** plan (not merely the seed) crosses it.
 - **A bypass attempt fails closed and is recorded (P8-AC-2).** An attempt to route a candidate to
   scheduling **without** `PlanValidator` — the structural bypass the chokepoint forecloses — fails closed
@@ -198,7 +198,7 @@ closes.
   record leg maps onto an **existing** family — story-lifecycle `rejected` / authorization `denied` with
   a reason basis — so **no new event family is minted**, the same discipline ADR 0023 held. The
   conformance-suite anchor `work-source-plan-intake-bypass`
-  ([`../../../src/conformance/provider-conformance.ts`](../../../src/conformance/provider-conformance.ts)
+  ([`../../../packages/jig-testkit/src/provider-conformance.ts`](../../../packages/jig-testkit/src/provider-conformance.ts)
   lines 95–102) rides Phase 8 for (a); a new direct-`run`/`resume`-bypass case anchors (b), exercising the
   **runtime** refusal (a marker-less object is fail-closed and recorded), not merely the compile error.
 - **The two-authorities discipline is the crossing (prior art, weighed).** The prototype's lesson (the
@@ -291,7 +291,7 @@ two-PR decomposition.
 
 - **A real work-source driver, selected by name, sole-imported.** Restated as the wiring rule: Phase 8
   adds the real driver name to the `composeReferenceRun` successor's selection set
-  ([`../../../src/bootstrap.ts`](../../../src/bootstrap.ts)); the composition root stays the **sole
+  ([`../../../packages/jig-sdk/src/bootstrap.ts`](../../../packages/jig-sdk/src/bootstrap.ts)); the composition root stays the **sole
   importer**; an unknown name fails closed (`ProviderSelectionError`). The intake chokepoint (Decision 2)
   is wired here or in a dedicated module both the run and resume paths call — never bypassed by either.
 - **The two regression anchors ride every Phase-8 sub-phase, not as their own phase:**
