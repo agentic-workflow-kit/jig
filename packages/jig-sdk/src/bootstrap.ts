@@ -9,6 +9,7 @@ import {
 import { PlanValidator } from './plan-validator.js';
 import type { AgentPort, CapabilityAttestation, ExecutionHostPort, ForgePort, WorkSourcePort } from './ports.js';
 import { type CodexAgentSession, createCodexAgent } from './providers/real/agent.js';
+import { createProductionCodexAgentSession } from './providers/real/codex-app-server.js';
 import type { ConfinementProbe } from './providers/real/confinement.js';
 import { createGitHubForge, type GitHubForgeTransport } from './providers/real/forge.js';
 import { createRealExecutionHost } from './providers/real/host.js';
@@ -28,6 +29,9 @@ export interface ComposeRunPortsOptions {
   planInstance: PlanInstance;
   scriptedOutput: Record<string, unknown>;
   codexSession?: CodexAgentSession;
+  ownerDecisionSource?: {
+    decide(request: unknown, story: unknown): Promise<'approve' | 'reject'>;
+  } | null;
   realHostProbe?: ConfinementProbe;
   clock?: Clock;
   substrateManifest?: SubstrateManifestInput;
@@ -62,14 +66,16 @@ function selectAgent(
   selection: DriverSelection,
   options: ComposeRunPortsOptions,
   substrateManifest?: ApprovedSubstrateManifest,
+  redaction?: RedactionOptions,
 ): AgentPort {
   if (selection.agent === 'codex') {
-    if (!options.codexSession) {
-      throw new ProviderSelectionError('Codex agent driver selected but no Codex session driver was provided.');
-    }
-
     return createCodexAgent({
-      session: options.codexSession,
+      session:
+        options.codexSession ??
+        createProductionCodexAgentSession({
+          ownerDecisionSource: options.ownerDecisionSource,
+          redaction,
+        }),
       substrateManifest,
     });
   }
@@ -157,11 +163,12 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
         },
       }
     : undefined;
+  const agent = selectAgent(selection, options, substrateManifest, redaction);
 
   return {
     planInstance: options.planInstance,
     driverSelection: selection,
-    agent: selectAgent(selection, options, substrateManifest),
+    agent,
     executionHost,
     forge: selectForge(selection, options),
     workSource: selectWorkSource(selection, options),

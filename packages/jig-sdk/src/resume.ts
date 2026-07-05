@@ -74,6 +74,7 @@ export interface ResumeLoadedRunPortsOptions
   extends Pick<
     ComposeRunPortsOptions,
     | 'codexSession'
+    | 'ownerDecisionSource'
     | 'realHostProbe'
     | 'clock'
     | 'substrateManifest'
