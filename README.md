@@ -30,9 +30,11 @@ remains future implementation, not a shipped public API, while the real executio
 exercises a local macOS process-group probe and reports an honest `weak` containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
-(`EVRUN-partial`). `EVRUN-full`, remote execution, public package publication, and a full
-Codex-driven agent leg remain future work; strong/no-phone-home execution-host evidence remains in
-that later proof step.
+(`EVRUN-partial`). The current real GitHub Forge/GitHub Issues path also carries blocked-PR
+surfacing, held-merge replay safety, landing-path redaction, and per-candidate origin-bearing
+provenance. `EVRUN-full`, remote execution, public package publication, and a full Codex-driven
+agent leg remain future work; strong/no-phone-home execution-host evidence remains in that later
+proof step.
 
 ## Quick Start
 

@@ -24,7 +24,7 @@ import {
   validateWorkProfileDoc,
 } from './owner-configuration.js';
 import { PlanValidator } from './plan-validator.js';
-import type { CapabilityAttestation, LandingAction } from './ports.js';
+import type { CapabilityAttestation, LandingAction, Mergeability } from './ports.js';
 import { projectRunEvents, type RunProjection } from './projection.js';
 import type { GitHubForgeTransport } from './providers/real/forge.js';
 import type { GitHubIssuesWorkSourceTransport } from './providers/real/work-source.js';
@@ -558,8 +558,27 @@ function findParkedRequest(events: RunEvent[], parkedStoryId: string | null): Re
 
 const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
 
+function latestItemEvents(events: RunEvent[]): RunEvent[] {
+  const latest = new Map<string, RunEvent>();
+  for (const event of events) {
+    if (
+      ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(event.family) &&
+      typeof event.storyId === 'string'
+    ) {
+      latest.set(event.storyId, event);
+    }
+  }
+  return [...latest.values()];
+}
+
 function isLandingAction(value: unknown): value is LandingAction {
   return value === 'push' || value === 'open-pr' || value === 'merge';
+}
+
+function isHeldMergeability(
+  value: unknown,
+): value is Extract<Mergeability, 'held-by-review' | 'held-by-merge-queue' | 'held-by-conflict'> {
+  return value === 'held-by-review' || value === 'held-by-merge-queue' || value === 'held-by-conflict';
 }
 
 function priorLandingsFromEvents(events: RunEvent[]): NonNullable<ResumePlan['priorLandings']> {
@@ -588,6 +607,38 @@ function priorLandingsFromEvents(events: RunEvent[]): NonNullable<ResumePlan['pr
     });
 }
 
+function pendingLandingsFromEvents(events: RunEvent[]): NonNullable<ResumePlan['pendingLandings']> {
+  const pending = new Map<string, NonNullable<ResumePlan['pendingLandings']>[number]>();
+
+  for (const event of events) {
+    if (
+      event.family === 'story.done' &&
+      typeof event.storyId === 'string' &&
+      isLandingAction(event.action) &&
+      isLandingAction(event.landingKind) &&
+      typeof event.targetRef === 'string' &&
+      typeof event.targetHead === 'string' &&
+      isHeldMergeability(event.mergeability)
+    ) {
+      pending.set(event.storyId, {
+        storyId: event.storyId,
+        action: event.action,
+        landingKind: event.landingKind,
+        targetRef: event.targetRef,
+        targetHead: event.targetHead,
+        mergeability: event.mergeability,
+      });
+      continue;
+    }
+
+    if (REAL_LANDING_FAMILIES.has(event.family) && typeof event.storyId === 'string') {
+      pending.delete(event.storyId);
+    }
+  }
+
+  return [...pending.values()];
+}
+
 export function buildResumePlan(projection: RunProjection, events: RunEvent[]): ResumePlan {
   if (projection.lifecycleState !== 'stopped' || !projection.safeCheckpoint || !projection.stopCause) {
     throw new Error('Cannot resume a run that is not stopped at a safe checkpoint');
@@ -595,9 +646,11 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
 
   const completedStoryIds: string[] = [];
   const blockedStoryIds: string[] = [];
+  const pendingLandings = pendingLandingsFromEvents(events);
+  const pendingLandingStoryIds = new Set(pendingLandings.map((landing) => landing.storyId));
   const priorLandings = priorLandingsFromEvents(events);
   for (const story of Object.values(projection.stories)) {
-    if (story.state === 'done') {
+    if (story.state === 'done' && !pendingLandingStoryIds.has(story.storyId)) {
       completedStoryIds.push(story.storyId);
     } else if (story.state === 'blocked') {
       blockedStoryIds.push(story.storyId);
@@ -612,6 +665,7 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
     stopCause: projection.stopCause,
     completedStoryIds,
     blockedStoryIds,
+    ...(pendingLandings.length > 0 ? { pendingLandings } : {}),
     ...(priorLandings.length > 0 ? { priorLandings } : {}),
     parkedStoryId,
     unstartedStoryIds: projection.unstartedStoryIds,
@@ -694,9 +748,7 @@ class ResumeRecordSink implements RecordSink {
       console.log(`Mode: ${this.projection.mode}`);
     }
 
-    const items = this.events.filter((event) =>
-      ['story.done', 'story.blocked', 'story.failed', 'story.skipped'].includes(event.family),
-    );
+    const items = latestItemEvents(this.events);
     if (items.length > 0) {
       console.log('\nItems:');
       for (const item of items) {
@@ -767,6 +819,7 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
     capabilityAttestation: launchAttestation ?? composed.capabilityAttestation,
     ownerConfiguration: recordedOwnerConfiguration,
     forge: composed.forge,
+    blockSurface: composed.blockSurface,
   });
 
   return await harness.resume(candidate, policySnapshot, resumePlan);

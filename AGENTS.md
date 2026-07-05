@@ -41,7 +41,9 @@ coordinating the private packages `@agentic-workflow-kit/jig-sdk`, `@agentic-wor
 and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
 `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
-at compose time; strong no-phone-home evidence remains future work. EVRUN-partial is recorded;
+at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
+held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance.
+Strong no-phone-home evidence remains future work. EVRUN-partial is recorded;
 EVRUN-full remains future work.
 
 ## Commands

@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { Clock } from './clock.js';
 import {
   assertSupportedDriverSelection,
@@ -43,6 +45,11 @@ export interface ComposeRunPortsOptions {
   workSourceTransport?: GitHubIssuesWorkSourceTransport;
 }
 
+export interface BlockSurfaceContext {
+  safeBranch?: string;
+  canPush?: boolean;
+}
+
 export interface ComposedRunPorts {
   planInstance: PlanInstance;
   driverSelection: DriverSelection;
@@ -53,7 +60,10 @@ export interface ComposedRunPorts {
   capabilityAttestation: CapabilityAttestation;
   substrateManifest?: ApprovedSubstrateManifest;
   redaction?: RedactionOptions;
+  blockSurface?: BlockSurfaceContext;
 }
+
+const execFileAsync = promisify(execFile);
 
 function defaultSubstrateManifest(selection: DriverSelection): ApprovedSubstrateManifest {
   const schemaOutDir = join(tmpdir(), 'jig-codex-schema');
@@ -155,6 +165,32 @@ function selectWorkSource(selection: DriverSelection, options: ComposeRunPortsOp
   return new ReferenceWorkSource(options.planInstance);
 }
 
+async function readCurrentBranch(): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+    const branch = stdout.trim();
+    return branch !== '' && branch !== 'HEAD' ? branch : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isSafeBranch(branch: string | undefined): branch is string {
+  return branch !== undefined && branch !== 'main' && branch !== 'master';
+}
+
+async function composeBlockSurfaceContext(selection: DriverSelection): Promise<BlockSurfaceContext | undefined> {
+  if (selection.forge !== 'github') {
+    return undefined;
+  }
+
+  const branch = await readCurrentBranch();
+  return {
+    safeBranch: isSafeBranch(branch) ? branch : undefined,
+    canPush: true,
+  };
+}
+
 async function composeRunPorts(options: ComposeRunPortsOptions): Promise<ComposedRunPorts> {
   PlanValidator.validate(options.planInstance);
   const selection = readDriverSelection(options.config);
@@ -191,6 +227,7 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
       }
     : undefined;
   const agent = selectAgent(selection, options, substrateManifest, redaction);
+  const blockSurface = await composeBlockSurfaceContext(selection);
 
   return {
     planInstance: options.planInstance,
@@ -202,6 +239,7 @@ async function composeRunPorts(options: ComposeRunPortsOptions): Promise<Compose
     capabilityAttestation,
     substrateManifest,
     redaction,
+    blockSurface,
   };
 }
 

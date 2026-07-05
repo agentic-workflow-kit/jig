@@ -34,6 +34,7 @@ export interface ExecutionHostPort {
 }
 
 export type LandingAction = 'push' | 'open-pr' | 'merge';
+export type Mergeability = 'not-evaluated' | 'held-by-review' | 'held-by-merge-queue' | 'held-by-conflict';
 
 export interface LandingRequest {
   storyId: string;

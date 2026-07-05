@@ -107,6 +107,8 @@ function candidateFromIssue(issue: unknown): RealWorkSourceCandidate {
 function parsePlanFromIssueBody(body: string): PlanInstance {
   const fenced = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/i.exec(body);
   const source = fenced?.[1] ?? body.trim();
+  const guidance =
+    'issue body must contain a JSON object with a top-level "plan" field, optionally inside a ```json fenced block';
   try {
     const parsed = JSON.parse(source) as unknown;
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && 'plan' in parsed) {
@@ -114,9 +116,9 @@ function parsePlanFromIssueBody(body: string): PlanInstance {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`github-issues-work-source-invalid-plan-json: ${message}`);
+    throw new Error(`github-issues-work-source-invalid-plan-json: ${guidance}; parse error: ${message}`);
   }
 
-  throw new Error('github-issues-work-source-invalid-plan-json: issue body does not contain a plan instance');
+  throw new Error(`github-issues-work-source-invalid-plan-json: ${guidance}`);
 }
 /* v8 ignore stop */

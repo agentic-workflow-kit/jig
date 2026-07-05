@@ -260,6 +260,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           capabilityAttestation: composed.capabilityAttestation,
           ownerConfiguration,
           forge: composed.forge,
+          blockSurface: composed.blockSurface,
           workspaceIsolation:
             composed.executionHost.describe().driverId === 'real-host'
               ? createInMemoryStoryWorkspaceIsolation(join(process.cwd(), '.jig-workspaces'))
