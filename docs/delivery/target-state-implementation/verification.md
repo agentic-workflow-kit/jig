@@ -78,6 +78,9 @@ byte-level compatibility surface for the observability-records v0 contract.
   comes from the smoke lane plus committed evidence records (below). Phase acceptance criteria
   must not cite conformance green as proof of real confinement, credential withholding, egress
   behavior, or forge/source effects.
+- Per [ADR 0026](../../design/decisions/0026-conformance-self-report-only.md)'s corollary,
+  smoke-lane assertions must not be satisfiable by a fail-closed refusal — reviewers check that
+  the asserted outcome is the observed success, not the result envelope.
 - The forbidden-method sweep (no push/PR/merge/credential path on `AgentPort`) must pass in
   every phase; P03 in particular must not widen the public agent surface.
 
@@ -97,6 +100,10 @@ byte-level compatibility surface for the observability-records v0 contract.
   track's scoping decision, not the evidence doc's.
 - Evidence is host- and version-pinned, and is an input to decisions, not authority. P13's
   freeze package cites evidence records; the contract owner decides.
+- For any phase whose acceptance criteria claim real-provider behavior (P03, P04, P05, P11), the
+  opt-in smoke run is a merge requirement, not a suggestion: the merging PR body must carry the
+  smoke transcript or point to a committed evidence record. Skipping the run is an explicit
+  escalation to the phase owner recorded in the PR, never a silent "not run" note.
 
 ## Security and redaction checks
 
@@ -134,6 +141,11 @@ From P02 onward:
 - The repo has no Markdown link checker today. Reviewers spot-check relative links in changed
   docs; if a phase adds substantial cross-linking, adding a link-check script to the gate is a
   welcome, separate, small PR — not a silent gate weakening or a blocking requirement.
+- Each phase PR flips its own phase-table row and phase-doc frontmatter status to merged with
+  its own PR number — no follow-up PRs for status. Since the number does not exist until the PR
+  is opened: open the PR first, then push a status commit citing the exact number to the same
+  branch before requesting review, so the squash-merge lands work and status together. The
+  track front page must never claim less progress than `main`.
 
 ## Reviewer inspection axes
 

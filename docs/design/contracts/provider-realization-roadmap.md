@@ -55,7 +55,8 @@ point, not a frozen contract.
   conformance and specified responses under controlled doubles. It does **not** prove real-provider
   behavioral truth: a mock can lie. Any conformance verdict whose basis is solely the subject's own
   claim is classified with the typed `self-report-only` token and must not be read as independently
-  verified conformance.
+  verified conformance. The same bar extends to smoke and evidence assertions: an assertion a
+  fail-closed refusal would also satisfy is not evidence of the claimed real-provider behavior.
 
 ## Phase 6 realization (ADR 0022)
 
