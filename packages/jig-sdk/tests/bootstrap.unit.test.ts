@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'vitest';
 import { composeReferenceRun, ProviderSelectionError } from '../src/bootstrap.js';
+import { SubstrateAuthorizationError } from '../src/substrate.js';
 import type { ConfigDoc, PlanInstance } from '../src/types.js';
 
 const planInstance: PlanInstance = {
@@ -209,7 +210,64 @@ test('P03-AC-1: default real Codex manifest declares the version, schema, and ap
   ]);
 });
 
-test('P03-AC-1: real execution host selection fails closed without a confinement probe', async () => {
+test('P04-AC-1: real execution host selection composes from configuration without a test-only probe', async () => {
+  if (process.platform !== 'darwin') {
+    await assert.rejects(
+      () =>
+        composeReferenceRun({
+          planInstance,
+          config: {
+            ...config,
+            drivers: {
+              agent: 'scripted-stub',
+              executionHost: 'real',
+            },
+          },
+          scriptedOutput: {},
+        }),
+      (error: unknown) => error instanceof ProviderSelectionError && /supported only on macOS/.test(error.message),
+    );
+    return;
+  }
+
+  const composed = await composeReferenceRun({
+    planInstance,
+    config: {
+      ...config,
+      drivers: {
+        agent: 'scripted-stub',
+        executionHost: 'real',
+      },
+    },
+    scriptedOutput: {},
+    realHostProbeFactory: () => ({
+      run: async () => ({
+        reportedIsolationStrength: 'weak',
+        observedAt: '2026-07-06T09:00:00.000Z',
+        freshnessWindowMs: 60_000,
+        terminationProvedEmpty: true,
+        negativeEgressProbePassed: false,
+        containmentMechanism: 'process-group',
+        commandBindingPassed: true,
+        parentageProbePassed: true,
+        provenIsolationStrength: 'weak',
+      }),
+    }),
+  });
+
+  const attestation = composed.executionHost.describe().capabilityAttestations[0];
+  assert.ok(attestation);
+  assert.strictEqual(attestation.driverId, 'real-host');
+  assert.strictEqual(attestation.containmentMechanism, 'process-group');
+  assert.strictEqual(attestation.reportedIsolationStrength, 'weak');
+  assert.strictEqual(attestation.provenIsolationStrength, 'weak');
+});
+
+test('P04-AC-4: real host substrate manifest enforcement refuses an out-of-tuple probe request', async () => {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+
   await assert.rejects(
     () =>
       composeReferenceRun({
@@ -217,14 +275,32 @@ test('P03-AC-1: real execution host selection fails closed without a confinement
         config: {
           ...config,
           drivers: {
-            agent: 'scripted-stub',
             executionHost: 'real',
           },
         },
         scriptedOutput: {},
+        realHostProbeFactory: () => ({
+          substrateRequests: [{ kind: 'argv', value: ['probe', 'launch'] }],
+          run: async () => ({
+            reportedIsolationStrength: 'weak',
+            observedAt: '2026-07-06T09:00:00.000Z',
+            freshnessWindowMs: 60_000,
+            terminationProvedEmpty: true,
+            negativeEgressProbePassed: false,
+            containmentMechanism: 'process-group',
+            commandBindingPassed: true,
+            parentageProbePassed: true,
+            provenIsolationStrength: 'weak',
+          }),
+        }),
+        substrateManifest: {
+          id: 'broken-real-host-substrate',
+          runtimes: ['node'],
+          argv: [],
+          credentials: [],
+          egress: [],
+        },
       }),
-    (error: unknown) =>
-      error instanceof ProviderSelectionError &&
-      /Real execution host selected but no confinement probe was provided/.test(error.message),
+    (error: unknown) => error instanceof SubstrateAuthorizationError && /substrate-escalation/.test(error.message),
   );
 });

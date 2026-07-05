@@ -54,8 +54,9 @@ Verified against the repo after Phase 02 workspace split:
   selects drivers by name and fails closed on unknown names. Forge (`git`/`gh`-based GitHub
   driver) and Work source (GitHub Issues importer) are **real and usable**. The Agent seam has a
   `CodexAgent` wrapper but **no production `CodexAgentSession` transport** — `agent: 'codex'` is
-  unusable from the shipped CLI. The real Execution host wraps a confinement probe whose only
-  concrete implementation is a **hardcoded always-strong stub**.
+  unusable from the shipped CLI. The real Execution host is now selectable on macOS and exercises
+  a local `process-group` confinement probe that reports an honest proven `weak` posture at
+  compose time; stronger no-phone-home evidence remains open for P11.
 - **Conformance and controlled doubles** now live in `packages/jig-testkit`
   (`packages/jig-testkit/src/provider-conformance.ts`, `packages/jig-testkit/tests/conformance/`),
   outside the production SDK dependency graph.
@@ -277,7 +278,7 @@ release posture`")
 | P01 | [SDK boundary and operator-control surface](./phases/01-sdk-boundary-and-operator-port.md) | merged (#55)                | —                 | First; everything else keys off this surface.                           |
 | P02 | [Package split: jig-sdk, jig-cli, jig-testkit](./phases/02-package-split-workspace.md)     | merged (#56, #58)           | P01               | Sole occupant of its slot — it moves every source file.                 |
 | P03 | [Codex app-server transport](./phases/03-codex-app-server-transport.md)                    | merged (#57, #58, #59, #60) | P01               | Parallel with P04–P10 after P02 (soft).                                 |
-| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | planned                     | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
+| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | implemented (#63)           | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
 | P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | planned                     | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
 | P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | planned                     | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
 | P07 | [Guided setup](./phases/07-guided-setup.md)                                                | planned                     | P06               | Parallel with anything not touching config templates.                   |

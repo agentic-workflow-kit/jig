@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import type { AgentPort, CapabilityAttestation } from '@agentic-workflow-kit/jig-sdk';
+import type { AgentPort, CapabilityAttestation, ExecutionHostPort } from '@agentic-workflow-kit/jig-sdk';
 import { test } from 'vitest';
 import {
   assertProviderConformance,
@@ -96,6 +96,38 @@ test('P6-AC-2: a self-report-only isolation claim is classified explicitly', asy
       basis: 'self-report-only',
     },
   ]);
+});
+
+test('P04-AC-5: the proven real-host path carries no self-report-only conformance finding', async () => {
+  const composed = await composedSubject();
+  const executionHost: ExecutionHostPort = {
+    describe: () => ({
+      driverId: 'real-host',
+      runContext: 'local-real-host',
+      isolationStrength: 'weak',
+      capabilityAttestations: [
+        {
+          driverId: 'real-host',
+          capability: 'filesystem-edit',
+          runContext: 'local-real-host',
+          freshness: 'fresh',
+          positive: true,
+          reportedIsolationStrength: 'weak',
+          provenIsolationStrength: 'weak',
+          provenBy: 'exercised-confinement-proof',
+          containmentMechanism: 'process-group',
+        },
+      ],
+    }),
+  };
+
+  const verdicts = await evaluateProviderConformanceVerdicts({
+    ...composed,
+    executionHost,
+    manifest: referenceManifest,
+  });
+
+  assert.deepStrictEqual(verdicts, []);
 });
 
 test('P6-AC-2: a positive-only isolation claim is classified as self-report-only', async () => {

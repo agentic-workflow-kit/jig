@@ -37,8 +37,10 @@ Jig is early source-checkout tooling. The CLI exposes `jig preview`, `jig run`, 
 checkout. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
 `"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
 `@agentic-workflow-kit/jig-cli`, and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace
-publishes `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. EVRUN-partial
-is recorded; EVRUN-full remains future work.
+publishes `@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
+execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
+at compose time; strong no-phone-home evidence remains future work. EVRUN-partial is recorded;
+EVRUN-full remains future work.
 
 ## Commands
 

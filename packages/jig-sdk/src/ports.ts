@@ -1,3 +1,4 @@
+import type { ContainmentMechanism } from './providers/real/confinement.js';
 import type { PlanInstance, RunEvent, Story, WorkerResult } from './types.js';
 
 export type IsolationStrength = 'none' | 'weak' | 'strong';
@@ -17,6 +18,7 @@ export interface CapabilityAttestation {
   reportedIsolationStrength?: IsolationStrength;
   provenIsolationStrength?: IsolationStrength;
   provenBy?: 'exercised-confinement-proof';
+  containmentMechanism?: ContainmentMechanism;
   failureToken?: HostFailureToken;
 }
 
