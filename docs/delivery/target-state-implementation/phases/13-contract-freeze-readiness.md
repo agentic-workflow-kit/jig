@@ -81,9 +81,11 @@ consumer, which is why the owner decides and this phase only prepares.
 
 ## Dependencies
 
-- **Requires:** P11 and P12 (hard); a contract-owner decision to conclude (blocking).
-- **Soft:** P05, P08, P09, P10 landed (their events are audit subjects; starting earlier means
-  auditing a moving target).
+- **Requires:** P05, P07, P08, P09, P10, P11, and P12 (hard; with their own transitive
+  dependencies this means the audit runs after P01–P12); a contract-owner decision to conclude
+  (blocking).
+- **Soft:** none for phases that can change contract bytes, event families, first-party driving
+  surfaces, evidence, or golden migration analysis.
 - **Unlocks:** P14's closing claims about contract posture.
 - **Parallel:** none with phases that change first-party driving surfaces.
 

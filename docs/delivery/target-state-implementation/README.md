@@ -226,6 +226,11 @@ release posture`")
   P03 --> P11
   P04 --> P11
   P06 --> P07
+  P05 --> P13
+  P07 --> P13
+  P08 --> P13
+  P09 --> P13
+  P10 --> P13
   P11 --> P13
   P12 --> P13
 
@@ -271,7 +276,7 @@ release posture`")
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned | P03, P04          | Sequential after both provider phases; benefits from P05.               |
 | P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
-| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned | P11, P12          | Blocked: also requires a contract-owner freeze decision.                |
+| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
 | P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned | All other phases  | Last; closes the track.                                                 |
 
 ## What can run in parallel
@@ -284,8 +289,10 @@ release posture`")
   doorbell/notice record vocabulary and should coordinate (or be assigned to one implementer in
   sequence).
 - **After P06**: P07 joins the parallel pool.
-- **After P02 + verb phases**: P12 can proceed while P11 runs. P13 waits for P12 because the
-  MCP adapter is part of the first-party driving surface the freeze-readiness audit must cover.
+- **After P02 + verb phases**: P12 can proceed while P11 runs. P13 waits for every phase that
+  can change first-party driving surfaces, provider records, owner configuration, observation,
+  decisions, export, evidence, or adapter coverage because its audit describes the state after
+  P01–P12.
 
 ## Sequential gates
 
@@ -294,10 +301,11 @@ release posture`")
 2. **P02 is exclusive** — no other phase should have PRs in flight while the source tree moves.
 3. **P03 + P04 → P11** — EVRUN-full needs a real agent leg and a real confinement leg; running
    it earlier reproduces EVRUN-partial, which exists.
-4. **P11 + P12 → P13** — the T14 v0 contract freeze is explicitly gated on the transport
-   implementation/evidence path (ADR 0028, Consequences), and P13 audits the first-party
-   driving surfaces including MCP. P13 additionally stops for the contract owner's freeze
-   decision; readiness work is in scope, the freeze itself is not.
+4. **P01–P12 → P13** — the T14 v0 contract freeze is explicitly gated on the transport
+   implementation/evidence path (ADR 0028, Consequences), and P13 audits the shipped contract
+   bytes, event families, first-party driving surfaces including MCP, and golden migration
+   posture after the implementation surface has stopped moving. P13 additionally stops for the
+   contract owner's freeze decision; readiness work is in scope, the freeze itself is not.
 5. **Everything → P14** — the closing audit only means something when the surface has stopped
    moving.
 
@@ -335,6 +343,11 @@ conflicts rather than resolving them):
   watch, inspect, ask-why, decide, and stop. P07, P08, P10, and P12 must route placement to the
   driving/records owners before treating setup, acknowledge/snooze, or export as
   operator-control port verbs.
+- **Resume placement is also unsettled at the driving boundary.** The shipped CLI has
+  `jig resume` and the SDK/package ADR expects a programmatic resume surface, but the active
+  driving contract does not include resume in the deliberate action set. P01 and P12 must route
+  whether resume is a driving action, recovery API, or CLI-only recovery surface before
+  exposing it as an operator-control port verb.
 - **MCP adapter package placement** is not settled by ADR 0027 (its matrix has no MCP package;
   the ADR only says CLI and MCP both call the SDK factory). P12 routes placement to a design
   decision.

@@ -22,7 +22,8 @@ current driving-action vocabulary; if they have not, the adapter ships the verbs
 grows with the port (that is the soft dependency, and shipping early with partial verbs is a
 deliberate choice for the implementer and reviewer to make against the product's "deliberate
 actions" framing). Setup, notice acknowledge/snooze, and export are exposed only if the earlier
-placement decisions have settled them as port verbs by merge time.
+placement decisions have settled them as port verbs by merge time. The same rule applies to
+resume: it is exposed over MCP only if P01's placement decision settled it as a port verb.
 
 ## What To Do
 
@@ -86,8 +87,9 @@ placement decisions have settled them as port verbs by merge time.
 
 1. The placement decision is recorded (ADR or design-doc deepening) before the implementing PR
    merges, and the implementation matches it.
-2. An MCP client can preview, start, inspect, and resume the fixture flow end to end; each
-   invocation shows exactly one audit event.
+2. An MCP client can preview, start, and inspect the fixture flow end to end; each invocation
+   shows exactly one audit event. Resume is covered only if it is available as a settled port
+   verb at merge time.
 3. Every port verb available at merge time is exposed; unavailable verbs are absent (not
    stubbed); the exposed set is documented.
 4. A routed human-category decision arriving via MCP still parks for the owner's decide flow —

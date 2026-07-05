@@ -9,9 +9,10 @@ status: planned
 
 Create Jig's supported programmatic surface inside the current single package: a consumer-safe
 session factory built on `composeReferenceRun`, a single supported entry module, and an
-operator-control port realization for the four existing driving actions (preview, run/start,
-inspect, resume). Rework the CLI to consume only that surface. No package files, workspace
-changes, or source moves — those are Phase 02.
+operator-control port realization for the current contract-listed driving commands already
+shipped through the CLI (`preview`, `run`/start, `inspect`). Rework the CLI to consume only that
+surface and route `resume` placement before exposing it as a driving verb. No package files,
+workspace changes, or source moves — those are Phase 02.
 
 ## Background
 
@@ -28,16 +29,22 @@ instead of inventing one mid-move.
 
 - Promote a higher-level SDK factory around the `composeReferenceRun(options)` pattern in
   `src/bootstrap.ts` (ADR 0027, decision 4) that returns a consumer-safe session/control-plane
-  surface for `preview`, `run`, `resume`, and `inspect`, with typed options including the
-  existing provider hooks (`codexSession`, `realHostProbe`, scripted output). The factory name
-  is this phase's to choose; the factory stays the sole importer/selector of concrete providers.
+  surface for `preview`, `run`/start, and `inspect`, with typed options including the existing
+  provider hooks (`codexSession`, `realHostProbe`, scripted output). The factory name is this
+  phase's to choose; the factory stays the sole importer/selector of concrete providers.
+- Route `resume` placement before implementation. The CLI already ships `jig resume`, and ADR
+  0027 expects a programmatic resume route, but the active driving contract does not name resume
+  as a deliberate driving action. Decide with the driving/core owners whether resume belongs on
+  the operator-control port, a recovery API adjacent to it, or a CLI-only recovery surface, then
+  wire the CLI through the settled supported surface.
 - Define one supported entry module (for example `src/index.ts`) that exports the factory, the
   four provider port types from `src/ports.ts`, plan intake, and the typed results the CLI
   renders. Everything not exported there is internal.
 - Refactor `src/cli.ts` so each subcommand is a thin realization of the operator-control port:
-  argument parsing, file loading convenience, one control-plane call, presentation, exit code.
-  Plan validation, provider selection, records semantics, and run-lifecycle meaning move behind
-  the surface (most already live in the right modules; the CLI stops reaching past them).
+  argument parsing, file loading convenience, one control-plane call, presentation, exit code
+  for contract-listed driving actions. `resume` follows the recorded placement decision. Plan
+  validation, provider selection, records semantics, and run-lifecycle meaning move behind the
+  supported surface (most already live in the right modules; the CLI stops reaching past them).
 - Realize the one-command / one-control-plane-call / one-audit-event invariant for the existing
   verbs to the extent the current record vocabulary allows. If honoring the audit-event leg for
   `inspect`/`preview` requires new record events on the reference path, stop (see below) rather
@@ -86,7 +93,8 @@ instead of inventing one mid-move.
 ## Acceptance Criteria
 
 1. A named SDK factory exists, is the only production path that composes providers, and returns
-   a typed session surface covering preview, run, resume, and inspect.
+   a typed session surface covering preview, run/start, and inspect, plus the settled resume
+   surface if the placement decision keeps resume in this phase.
 2. `src/cli.ts` imports only the supported entry module; a grep for CLI imports of
    `harness`/`bootstrap`/`projection`/`resume` internals comes back empty.
 3. One supported entry module defines the boundary; its exports are enumerated in the PR
