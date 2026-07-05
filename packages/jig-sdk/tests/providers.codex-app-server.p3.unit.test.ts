@@ -625,7 +625,6 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
     spawn: vi.fn(),
   }));
   vi.doMock('node:fs/promises', () => ({
-    mkdtemp: vi.fn(async () => '/tmp/jig-schema'),
     readFile: vi.fn(async () => schemaSurface),
     rm: vi.fn(async (path: string) => {
       rmCalls.push(path);
@@ -636,7 +635,10 @@ test('P03-AC-2: default environment reads version and schema and always cleans t
 
   assert.strictEqual(await environment.codexVersion(), 'codex-cli 0.142.5');
   assert.strictEqual(await environment.appServerSchema(), schemaSurface);
-  assert.deepStrictEqual(rmCalls, ['/tmp/jig-schema']);
+  assert.deepStrictEqual(rmCalls, [
+    module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+    module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+  ]);
 });
 
 test('P03-AC-2: default environment still removes the temp schema directory when schema generation fails', async () => {
@@ -657,7 +659,6 @@ test('P03-AC-2: default environment still removes the temp schema directory when
     spawn: vi.fn(),
   }));
   vi.doMock('node:fs/promises', () => ({
-    mkdtemp: vi.fn(async () => '/tmp/jig-schema-fail'),
     readFile: vi.fn(),
     rm: vi.fn(async (path: string) => {
       rmCalls.push(path);
@@ -667,7 +668,10 @@ test('P03-AC-2: default environment still removes the temp schema directory when
   const environment = new module.__internal.DefaultCodexAppServerEnvironment();
 
   await assert.rejects(() => environment.appServerSchema(), /schema generation failed/);
-  assert.deepStrictEqual(rmCalls, ['/tmp/jig-schema-fail']);
+  assert.deepStrictEqual(rmCalls, [
+    module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+    module.__internal.APP_SERVER_SCHEMA_OUT_DIR,
+  ]);
 });
 
 test('P03-AC-4: overlapping turn starts fail closed while an active turn is in progress', async () => {

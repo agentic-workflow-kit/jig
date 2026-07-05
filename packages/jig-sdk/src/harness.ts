@@ -272,81 +272,235 @@ export class LocalHarness {
     return 'failure';
   }
 
+  private async closeWorker(): Promise<void> {
+    if (!isClosableWorker(this.worker)) {
+      return;
+    }
+
+    await this.worker.close();
+  }
+
   async run(candidate: ValidatedCandidate, config: ConfigDoc, policy: PolicyDoc): Promise<RunStatus> {
-    if (!isValidatedCandidate(candidate)) {
-      return await this.refuseUnvalidatedRun(config, policy);
-    }
-
-    const planInstance = unwrapValidatedCandidate(candidate);
-    const { plan } = planInstance;
-    this.recordManager.init(plan, config, policy);
-
-    this.recordManager.recordEvent(admissionProvenanceEvent(candidate.provenance) ?? { family: 'run.started' });
-
-    // Enforce local dry-run policy
-    if (policy.policy?.rules?.allowLocalDryRun !== true) {
-      const reason = 'Policy denial: allowLocalDryRun is not true';
-      this.recordManager.recordEvent({
-        family: 'authorization.denied',
-        reason,
-      });
-      await this.recordManager.finalize('failure');
-      return 'failure';
-    }
-
-    let runStatus: RunStatus = 'success';
-    const blockedStoryIds = new Set<string>();
-    const unstartedStoryIds: string[] = [];
-    let checkpointStoryId: string | null = null;
-    let stopReason = 'work-item-blocked';
-    let hasUnattendedPark = false;
-    let unattendedParkCheckpoint: string | null = null;
-
-    if (
-      this.workspaceIsolation &&
-      plan.stories.length > 1 &&
-      plan.stories.every((story) => !Array.isArray(story.dependsOn))
-    ) {
-      const duplicateStoryId = findDuplicateStoryId(plan.stories);
-      if (duplicateStoryId) {
-        await this.recordBlockedStory(duplicateStoryId, 'workspace-collision', {
-          diagnostics: {
-            error: 'Duplicate story launch refused',
-            failureToken: 'workspace-collision',
-          },
-        });
-        runStatus = 'failure';
-        checkpointStoryId = duplicateStoryId;
-      } else {
-        const results = await Promise.all(plan.stories.map((story) => this.executeStory(story, policy, true)));
-        const failed = results.find(
-          (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
-        );
-        const unattendedPark = results.find(
-          (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
-            result.status === 'failure' && result.stopReason === 'unattended-park',
-        );
-        if (unattendedPark) {
-          hasUnattendedPark = true;
-          stopReason = 'unattended-park';
-          unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
-        }
-        runStatus = failed ? 'failure' : 'success';
-        checkpointStoryId = unattendedPark?.checkpointStoryId ?? failed?.checkpointStoryId ?? null;
+    try {
+      if (!isValidatedCandidate(candidate)) {
+        return await this.refuseUnvalidatedRun(config, policy);
       }
-    } else {
+
+      const planInstance = unwrapValidatedCandidate(candidate);
+      const { plan } = planInstance;
+      this.recordManager.init(plan, config, policy);
+
+      this.recordManager.recordEvent(admissionProvenanceEvent(candidate.provenance) ?? { family: 'run.started' });
+
+      // Enforce local dry-run policy
+      if (policy.policy?.rules?.allowLocalDryRun !== true) {
+        const reason = 'Policy denial: allowLocalDryRun is not true';
+        this.recordManager.recordEvent({
+          family: 'authorization.denied',
+          reason,
+        });
+        await this.recordManager.finalize('failure');
+        return 'failure';
+      }
+
+      let runStatus: RunStatus = 'success';
+      const blockedStoryIds = new Set<string>();
+      const unstartedStoryIds: string[] = [];
+      let checkpointStoryId: string | null = null;
+      let stopReason = 'work-item-blocked';
+      let hasUnattendedPark = false;
+      let unattendedParkCheckpoint: string | null = null;
+
+      if (
+        this.workspaceIsolation &&
+        plan.stories.length > 1 &&
+        plan.stories.every((story) => !Array.isArray(story.dependsOn))
+      ) {
+        const duplicateStoryId = findDuplicateStoryId(plan.stories);
+        if (duplicateStoryId) {
+          await this.recordBlockedStory(duplicateStoryId, 'workspace-collision', {
+            diagnostics: {
+              error: 'Duplicate story launch refused',
+              failureToken: 'workspace-collision',
+            },
+          });
+          runStatus = 'failure';
+          checkpointStoryId = duplicateStoryId;
+        } else {
+          const results = await Promise.all(plan.stories.map((story) => this.executeStory(story, policy, true)));
+          const failed = results.find(
+            (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
+          );
+          const unattendedPark = results.find(
+            (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
+              result.status === 'failure' && result.stopReason === 'unattended-park',
+          );
+          if (unattendedPark) {
+            hasUnattendedPark = true;
+            stopReason = 'unattended-park';
+            unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
+          }
+          runStatus = failed ? 'failure' : 'success';
+          checkpointStoryId = unattendedPark?.checkpointStoryId ?? failed?.checkpointStoryId ?? null;
+        }
+      } else {
+        for (const story of plan.stories) {
+          const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
+          const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
+
+          if (blockedBy) {
+            this.recordManager.recordEvent({
+              family: 'story.blocked',
+              storyId: story.id,
+              blockedBy,
+            });
+            blockedStoryIds.add(story.id); // Transitive blocking
+            continue;
+          }
+
+          if (runStatus !== 'success') {
+            unstartedStoryIds.push(story.id);
+            continue;
+          }
+
+          const storyResult = await this.executeStory(story, policy, true);
+          if (storyResult.status === 'success') {
+            continue;
+          }
+
+          if (storyResult.stopReason === 'unattended-park') {
+            hasUnattendedPark = true;
+            stopReason = 'unattended-park';
+            unattendedParkCheckpoint = storyResult.checkpointStoryId;
+            checkpointStoryId = storyResult.checkpointStoryId;
+            blockedStoryIds.add(story.id);
+            continue;
+          }
+
+          runStatus = 'failure';
+          blockedStoryIds.add(story.id);
+          checkpointStoryId = storyResult.checkpointStoryId;
+        }
+      }
+
+      if (hasUnattendedPark) {
+        runStatus = 'failure';
+        stopReason = 'unattended-park';
+        checkpointStoryId = unattendedParkCheckpoint;
+      }
+
+      if (runStatus === 'success') {
+        this.recordManager.recordEvent({ family: 'run.completed' });
+      } else {
+        this.recordManager.recordEvent({
+          family: 'run.stopped',
+          reason: stopReason,
+          checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
+          unstarted: unstartedStoryIds,
+        });
+      }
+
+      await this.recordManager.finalize(runStatus);
+      return runStatus;
+    } finally {
+      await this.closeWorker();
+    }
+  }
+
+  async resume(candidate: ValidatedCandidate, policy: PolicyDoc, resumePlan: ResumePlan): Promise<RunStatus> {
+    try {
+      if (!isValidatedCandidate(candidate)) {
+        return await this.refuseUnvalidatedResume();
+      }
+
+      const planInstance = unwrapValidatedCandidate(candidate);
+      const { plan } = planInstance;
+      this.recordManager.recordEvent({
+        family: 'run.resumed',
+        runId: resumePlan.runId,
+        checkpoint: resumePlan.checkpoint,
+      });
+
+      if (policy.policy?.rules?.allowLocalDryRun !== true) {
+        const reason = 'Policy denial: allowLocalDryRun is not true';
+        this.recordManager.recordEvent({
+          family: 'authorization.denied',
+          reason,
+        });
+        await this.recordManager.finalize('failure');
+        return 'failure';
+      }
+
+      let runStatus: RunStatus = 'success';
+      const blockedStoryIds = new Set(resumePlan.blockedStoryIds);
+      const completedStoryIds = new Set(resumePlan.completedStoryIds);
+      const alreadyClosedStoryIds = new Set([...resumePlan.completedStoryIds, ...resumePlan.blockedStoryIds]);
+      const unstartedStoryIds: string[] = [];
+      let checkpointStoryId: string | null = null;
+      let stopReason = 'work-item-blocked';
+      let hasUnattendedPark = false;
+      let unattendedParkCheckpoint: string | null = null;
+
       for (const story of plan.stories) {
         const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
-        const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
+        const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId) || depId === resumePlan.parkedStoryId);
 
         if (blockedBy) {
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            blockedBy,
-          });
-          blockedStoryIds.add(story.id); // Transitive blocking
+          if (!alreadyClosedStoryIds.has(story.id)) {
+            this.recordManager.recordEvent({
+              family: 'story.blocked',
+              storyId: story.id,
+              blockedBy,
+            });
+          }
+          blockedStoryIds.add(story.id);
           continue;
+        }
+
+        if (alreadyClosedStoryIds.has(story.id)) {
+          if (completedStoryIds.has(story.id)) {
+            const repeatedLanding = await this.recordRepeatedLandingNoop(story.id, resumePlan);
+            if (repeatedLanding.status === 'mismatched') {
+              runStatus = 'failure';
+              checkpointStoryId = repeatedLanding.checkpointStoryId;
+            }
+          }
+          continue;
+        }
+
+        if (story.id === resumePlan.parkedStoryId) {
+          if (!this.ownerDecisionSource) {
+            hasUnattendedPark = true;
+            blockedStoryIds.add(story.id);
+            stopReason = 'unattended-park';
+            unattendedParkCheckpoint = `${story.id}.parked`;
+            checkpointStoryId = unattendedParkCheckpoint;
+            continue;
+          }
+
+          const ownerDecision = await this.ownerDecisionSource.decide(resumePlan.parkedRequest ?? {}, story);
+          if (ownerDecision === 'reject') {
+            runStatus = 'failure';
+            blockedStoryIds.add(story.id);
+            checkpointStoryId = story.id;
+            this.recordManager.recordEvent({
+              family: 'authorization.denied',
+              storyId: story.id,
+              requestId: resumePlan.parkedRequest?.requestId,
+              requestKind: resumePlan.parkedRequest?.requestKind,
+              basis: ['owner-rejection'],
+            });
+            await this.recordBlockedStory(story.id, 'owner-rejection');
+            continue;
+          }
+
+          this.recordManager.recordEvent({
+            family: 'authorization.granted',
+            storyId: story.id,
+            requestId: resumePlan.parkedRequest?.requestId,
+            requestKind: resumePlan.parkedRequest?.requestKind,
+            basis: ['owner-approval'],
+          });
         }
 
         if (runStatus !== 'success') {
@@ -354,8 +508,9 @@ export class LocalHarness {
           continue;
         }
 
-        const storyResult = await this.executeStory(story, policy, true);
+        const storyResult = await this.executeStory(story, policy, story.id !== resumePlan.parkedStoryId);
         if (storyResult.status === 'success') {
+          completedStoryIds.add(story.id);
           continue;
         }
 
@@ -372,168 +527,29 @@ export class LocalHarness {
         blockedStoryIds.add(story.id);
         checkpointStoryId = storyResult.checkpointStoryId;
       }
-    }
 
-    if (hasUnattendedPark) {
-      runStatus = 'failure';
-      stopReason = 'unattended-park';
-      checkpointStoryId = unattendedParkCheckpoint;
-    }
-
-    if (runStatus === 'success') {
-      this.recordManager.recordEvent({ family: 'run.completed' });
-    } else {
-      this.recordManager.recordEvent({
-        family: 'run.stopped',
-        reason: stopReason,
-        checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
-        unstarted: unstartedStoryIds,
-      });
-    }
-
-    await this.recordManager.finalize(runStatus);
-    return runStatus;
-  }
-
-  async resume(candidate: ValidatedCandidate, policy: PolicyDoc, resumePlan: ResumePlan): Promise<RunStatus> {
-    if (!isValidatedCandidate(candidate)) {
-      return await this.refuseUnvalidatedResume();
-    }
-
-    const planInstance = unwrapValidatedCandidate(candidate);
-    const { plan } = planInstance;
-    this.recordManager.recordEvent({
-      family: 'run.resumed',
-      runId: resumePlan.runId,
-      checkpoint: resumePlan.checkpoint,
-    });
-
-    if (policy.policy?.rules?.allowLocalDryRun !== true) {
-      const reason = 'Policy denial: allowLocalDryRun is not true';
-      this.recordManager.recordEvent({
-        family: 'authorization.denied',
-        reason,
-      });
-      await this.recordManager.finalize('failure');
-      return 'failure';
-    }
-
-    let runStatus: RunStatus = 'success';
-    const blockedStoryIds = new Set(resumePlan.blockedStoryIds);
-    const completedStoryIds = new Set(resumePlan.completedStoryIds);
-    const alreadyClosedStoryIds = new Set([...resumePlan.completedStoryIds, ...resumePlan.blockedStoryIds]);
-    const unstartedStoryIds: string[] = [];
-    let checkpointStoryId: string | null = null;
-    let stopReason = 'work-item-blocked';
-    let hasUnattendedPark = false;
-    let unattendedParkCheckpoint: string | null = null;
-
-    for (const story of plan.stories) {
-      const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
-      const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId) || depId === resumePlan.parkedStoryId);
-
-      if (blockedBy) {
-        if (!alreadyClosedStoryIds.has(story.id)) {
-          this.recordManager.recordEvent({
-            family: 'story.blocked',
-            storyId: story.id,
-            blockedBy,
-          });
-        }
-        blockedStoryIds.add(story.id);
-        continue;
+      if (hasUnattendedPark) {
+        runStatus = 'failure';
+        stopReason = 'unattended-park';
+        checkpointStoryId = unattendedParkCheckpoint;
       }
 
-      if (alreadyClosedStoryIds.has(story.id)) {
-        if (completedStoryIds.has(story.id)) {
-          const repeatedLanding = await this.recordRepeatedLandingNoop(story.id, resumePlan);
-          if (repeatedLanding.status === 'mismatched') {
-            runStatus = 'failure';
-            checkpointStoryId = repeatedLanding.checkpointStoryId;
-          }
-        }
-        continue;
-      }
-
-      if (story.id === resumePlan.parkedStoryId) {
-        if (!this.ownerDecisionSource) {
-          hasUnattendedPark = true;
-          blockedStoryIds.add(story.id);
-          stopReason = 'unattended-park';
-          unattendedParkCheckpoint = `${story.id}.parked`;
-          checkpointStoryId = unattendedParkCheckpoint;
-          continue;
-        }
-
-        const ownerDecision = await this.ownerDecisionSource.decide(resumePlan.parkedRequest ?? {}, story);
-        if (ownerDecision === 'reject') {
-          runStatus = 'failure';
-          blockedStoryIds.add(story.id);
-          checkpointStoryId = story.id;
-          this.recordManager.recordEvent({
-            family: 'authorization.denied',
-            storyId: story.id,
-            requestId: resumePlan.parkedRequest?.requestId,
-            requestKind: resumePlan.parkedRequest?.requestKind,
-            basis: ['owner-rejection'],
-          });
-          await this.recordBlockedStory(story.id, 'owner-rejection');
-          continue;
-        }
-
+      if (runStatus === 'success') {
+        this.recordManager.recordEvent({ family: 'run.completed' });
+      } else {
         this.recordManager.recordEvent({
-          family: 'authorization.granted',
-          storyId: story.id,
-          requestId: resumePlan.parkedRequest?.requestId,
-          requestKind: resumePlan.parkedRequest?.requestKind,
-          basis: ['owner-approval'],
+          family: 'run.stopped',
+          reason: stopReason,
+          checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
+          unstarted: unstartedStoryIds,
         });
       }
 
-      if (runStatus !== 'success') {
-        unstartedStoryIds.push(story.id);
-        continue;
-      }
-
-      const storyResult = await this.executeStory(story, policy, story.id !== resumePlan.parkedStoryId);
-      if (storyResult.status === 'success') {
-        completedStoryIds.add(story.id);
-        continue;
-      }
-
-      if (storyResult.stopReason === 'unattended-park') {
-        hasUnattendedPark = true;
-        stopReason = 'unattended-park';
-        unattendedParkCheckpoint = storyResult.checkpointStoryId;
-        checkpointStoryId = storyResult.checkpointStoryId;
-        blockedStoryIds.add(story.id);
-        continue;
-      }
-
-      runStatus = 'failure';
-      blockedStoryIds.add(story.id);
-      checkpointStoryId = storyResult.checkpointStoryId;
+      await this.recordManager.finalize(runStatus);
+      return runStatus;
+    } finally {
+      await this.closeWorker();
     }
-
-    if (hasUnattendedPark) {
-      runStatus = 'failure';
-      stopReason = 'unattended-park';
-      checkpointStoryId = unattendedParkCheckpoint;
-    }
-
-    if (runStatus === 'success') {
-      this.recordManager.recordEvent({ family: 'run.completed' });
-    } else {
-      this.recordManager.recordEvent({
-        family: 'run.stopped',
-        reason: stopReason,
-        checkpoint: checkpointStoryId ? `after:${checkpointStoryId}` : undefined,
-        unstarted: unstartedStoryIds,
-      });
-    }
-
-    await this.recordManager.finalize(runStatus);
-    return runStatus;
   }
 
   private async executeStory(story: Story, policy: PolicyDoc, recordStarted: boolean): Promise<StoryExecutionResult> {
@@ -705,4 +721,8 @@ export class LocalHarness {
       return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
     }
   }
+}
+
+function isClosableWorker(worker: Worker): worker is Worker & { close(): Promise<void> } {
+  return 'close' in worker && typeof worker.close === 'function';
 }

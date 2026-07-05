@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, test } from 'vitest';
+import { afterEach, beforeEach, test, vi } from 'vitest';
 import { LocalHarness } from '../src/harness.js';
 import { createJigSession } from '../src/index.js';
 import { validatePlanForScheduling } from '../src/intake.js';
@@ -281,6 +281,65 @@ test('P01-AC-1: session recovery forwards codex-session and real-host hooks into
   assert.ok(events.find((event) => event.family === 'run.resumed'));
   assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 'STORY-2'));
   assert.ok(events.find((event) => event.family === 'run.completed'));
+});
+
+test('P03-AC-3: session recovery forwards owner decisions into composed Codex resume sessions', async () => {
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers(captureWorkspaceFingerprint(process.cwd()), realCodexDriverBinding),
+  );
+
+  vi.resetModules();
+  let receivedOwnerDecisionSource: unknown = null;
+  vi.doMock('../src/providers/real/codex-app-server.js', () => ({
+    createProductionCodexAgentSession: (options?: { ownerDecisionSource?: unknown }) => {
+      receivedOwnerDecisionSource = options?.ownerDecisionSource ?? null;
+      return {
+        run: async (story: Story) => ({
+          status: 'completed' as const,
+          workerResult: {
+            storyId: story.id,
+            outcome: 'success',
+            evidence: { result: 'passed' },
+          },
+        }),
+      };
+    },
+  }));
+  const { createJigSession: createMockedJigSession } = await import('../src/index.js');
+
+  const ownerDecisionSource = { decide: async () => 'approve' as const };
+  const session = createMockedJigSession({
+    realHostProbe: {
+      run: async () => ({
+        observedAt: '2026-07-05T00:00:00.000Z',
+        freshnessWindowMs: 60_000,
+        terminationProvedEmpty: true,
+        negativeEgressProbePassed: true,
+        containmentMechanism: 'process-group' as const,
+        commandBindingPassed: true,
+        parentageProbePassed: true,
+        provenIsolationStrength: 'strong' as const,
+      }),
+    },
+    ownerDecisionSource,
+  });
+
+  const status = await session.recovery.resume({
+    runDir,
+    scriptedOutput: {
+      stories: [
+        {
+          storyId: 'STORY-2',
+          outcome: 'success',
+          evidence: { result: 'passed' },
+        },
+      ],
+    },
+  });
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(receivedOwnerDecisionSource, ownerDecisionSource);
+  vi.doUnmock('../src/providers/real/codex-app-server.js');
 });
 
 test('P4-AC-1: real RecordManager run output resumes through resumeRun without fixture aliases', async () => {

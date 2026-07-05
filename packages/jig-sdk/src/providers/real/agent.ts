@@ -68,4 +68,8 @@ class CodexAgent implements AgentPort {
       },
     };
   }
+
+  async close(): Promise<void> {
+    await this.session.close?.();
+  }
 }

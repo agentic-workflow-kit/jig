@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'vitest';
 import { composeReferenceRun, ProviderSelectionError } from '../src/bootstrap.js';
@@ -179,5 +180,51 @@ test('P8-AC-1: unknown work-source driver selection fails closed', async () => {
       error instanceof ProviderSelectionError &&
       /Unsupported driver selection "workSource=jira"/.test(error.message) &&
       /workSource=reference\|github-issues/.test(error.message),
+  );
+});
+
+test('P03-AC-1: default real Codex manifest declares the version, schema, and app-server argv', async () => {
+  const composed = await composeReferenceRun({
+    planInstance,
+    config: {
+      ...config,
+      drivers: {
+        agent: 'codex',
+        executionHost: 'local',
+      },
+    },
+    scriptedOutput: {},
+    codexSession: {
+      run: async (story) => ({
+        status: 'completed',
+        workerResult: { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } },
+      }),
+    },
+  });
+
+  assert.deepStrictEqual(composed.substrateManifest?.tuple.argv, [
+    ['codex', '--version'],
+    ['codex', 'app-server', '--listen', 'stdio://'],
+    ['codex', 'app-server', 'generate-json-schema', '--out', join(tmpdir(), 'jig-codex-schema')],
+  ]);
+});
+
+test('P03-AC-1: real execution host selection fails closed without a confinement probe', async () => {
+  await assert.rejects(
+    () =>
+      composeReferenceRun({
+        planInstance,
+        config: {
+          ...config,
+          drivers: {
+            agent: 'scripted-stub',
+            executionHost: 'real',
+          },
+        },
+        scriptedOutput: {},
+      }),
+    (error: unknown) =>
+      error instanceof ProviderSelectionError &&
+      /Real execution host selected but no confinement probe was provided/.test(error.message),
   );
 });

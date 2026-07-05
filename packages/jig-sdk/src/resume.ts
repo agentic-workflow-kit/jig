@@ -592,6 +592,7 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
     config: configForResumeComposition(verifiedConfig, launchSelection),
     scriptedOutput: options.scriptedOutput,
     codexSession: options.codexSession,
+    ownerDecisionSource: options.ownerDecisionSource,
     realHostProbe: options.realHostProbe,
     clock: options.clock,
     substrateManifest: options.substrateManifest,

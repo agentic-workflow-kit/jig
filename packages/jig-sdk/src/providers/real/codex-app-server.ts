@@ -1,5 +1,5 @@
 import { type ChildProcessWithoutNullStreams, execFile, spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -13,6 +13,8 @@ const execFileAsync = promisify(execFile);
 const SUPPORTED_CODEX_VERSION = '0.142.5';
 const MAX_PROMPT_CHARS = 100_000;
 const REQUIRED_METHODS = ['initialize', 'thread/start', 'thread/resume', 'turn/start', 'turn/interrupt'] as const;
+const APP_SERVER_REQUEST_TIMEOUT_MS = 30_000;
+const APP_SERVER_SCHEMA_OUT_DIR = join(tmpdir(), 'jig-codex-schema');
 const REQUIRED_SERVER_REQUESTS = ['item/commandExecution/requestApproval'] as const;
 const REQUIRED_SERVER_NOTIFICATIONS = [
   'thread/started',
@@ -435,7 +437,15 @@ class CodexRunObserver {
 class StdioCodexRpcTransport implements CodexRpcTransport {
   private readonly child: ChildProcessWithoutNullStreams;
   private nextId = 1;
-  private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: unknown) => void }>();
+  private readonly pending = new Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (error: unknown) => void;
+      timeout: ReturnType<typeof setTimeout>;
+      method: string;
+    }
+  >();
   private serverRequestHandler: ((message: JsonRpcServerRequest) => Promise<void>) | null = null;
   private notificationHandler: ((message: JsonRpcNotification) => void) | null = null;
   private initialized = false;
@@ -456,10 +466,9 @@ class StdioCodexRpcTransport implements CodexRpcTransport {
       // stderr is intentionally not promoted beyond the adapter boundary in P03.
     });
     this.child.once('exit', () => {
-      for (const { reject } of this.pending.values()) {
-        reject(new Error('codex app-server exited unexpectedly'));
+      for (const [id, pending] of this.pending.entries()) {
+        this.rejectPending(id, pending, new Error('codex app-server exited unexpectedly'));
       }
-      this.pending.clear();
     });
   }
 
@@ -488,7 +497,20 @@ class StdioCodexRpcTransport implements CodexRpcTransport {
     const id = this.nextId++;
     const payload = params === undefined ? { id, method } : { id, method, params };
     return await new Promise<unknown>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timeout = setTimeout(() => {
+        const pending = this.pending.get(id);
+        if (!pending) {
+          return;
+        }
+        this.rejectPending(
+          id,
+          pending,
+          new Error(
+            `codex app-server request timed out waiting for "${pending.method}" after ${APP_SERVER_REQUEST_TIMEOUT_MS}ms`,
+          ),
+        );
+      }, APP_SERVER_REQUEST_TIMEOUT_MS);
+      this.pending.set(id, { resolve, reject, timeout, method });
       this.child.stdin.write(`${JSON.stringify(payload)}\n`);
     });
   }
@@ -530,6 +552,7 @@ class StdioCodexRpcTransport implements CodexRpcTransport {
         return;
       }
       this.pending.delete(id);
+      clearTimeout(pending.timeout);
       const error = isRecord(message.error) ? message.error : null;
       if (error) {
         pending.reject(new Error(asString(error.message) ?? 'codex app-server request failed'));
@@ -548,6 +571,21 @@ class StdioCodexRpcTransport implements CodexRpcTransport {
       this.notificationHandler?.(message as unknown as JsonRpcNotification);
     }
   }
+
+  private rejectPending(
+    id: number,
+    pending: {
+      resolve: (value: unknown) => void;
+      reject: (error: unknown) => void;
+      timeout: ReturnType<typeof setTimeout>;
+      method: string;
+    },
+    error: Error,
+  ): void {
+    this.pending.delete(id);
+    clearTimeout(pending.timeout);
+    pending.reject(error);
+  }
 }
 
 class DefaultCodexAppServerEnvironment implements CodexAppServerEnvironment {
@@ -561,9 +599,10 @@ class DefaultCodexAppServerEnvironment implements CodexAppServerEnvironment {
   }
 
   async appServerSchema(): Promise<string> {
-    const outDir = await mkdtemp(join(tmpdir(), 'jig-codex-schema-'));
+    const outDir = APP_SERVER_SCHEMA_OUT_DIR;
     const schemaPath = join(outDir, 'codex_app_server_protocol.v2.schemas.json');
     try {
+      await rm(outDir, { recursive: true, force: true });
       await execFileAsync('codex', ['app-server', 'generate-json-schema', '--out', outDir], { encoding: 'utf8' });
       return await readFile(schemaPath, 'utf8');
     } finally {
@@ -840,6 +879,8 @@ export const __internal = {
   CodexRunObserver,
   DefaultCodexAppServerEnvironment,
   StdioCodexRpcTransport,
+  APP_SERVER_REQUEST_TIMEOUT_MS,
+  APP_SERVER_SCHEMA_OUT_DIR,
   assertSchemaIncludes,
   assertVersionPosture,
   buildObservedEvidence,

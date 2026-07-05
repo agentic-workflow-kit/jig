@@ -26,6 +26,33 @@ test('LocalHarness sequential execution success', async () => {
   assert.strictEqual(status, 'success');
 });
 
+test('LocalHarness closes the worker after run completion', async () => {
+  let closeCalls = 0;
+  const worker = {
+    execute: async () => ({
+      outcome: 'success',
+      evidence: { result: 'passed' },
+    }),
+    close: async () => {
+      closeCalls += 1;
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: () => {},
+    finalize: async () => {},
+    printSummary: () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+
+  assert.strictEqual(await harness.run(validatePlanForScheduling(plan), {}, policy), 'success');
+  assert.strictEqual(closeCalls, 1);
+});
+
 test('LocalHarness sequential execution failure', async () => {
   const worker = {
     execute: async () => ({
@@ -46,6 +73,71 @@ test('LocalHarness sequential execution failure', async () => {
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
   const status = await harness.run(validatePlanForScheduling(plan), {}, policy);
   assert.strictEqual(status, 'failure');
+});
+
+test('LocalHarness closes the worker after resume completion', async () => {
+  let closeCalls = 0;
+  const worker = {
+    execute: async () => ({
+      outcome: 'success',
+      evidence: { result: 'passed' },
+    }),
+    close: async () => {
+      closeCalls += 1;
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: () => {},
+    finalize: async () => {},
+    printSummary: () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+  const resumePlan: ResumePlan = {
+    runId: 'run-1',
+    checkpoint: 'after:s0',
+    stopCause: 'work-item-blocked',
+    parkedStoryId: null,
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    unstartedStoryIds: [],
+  };
+
+  assert.strictEqual(await harness.resume(validatePlanForScheduling(plan), policy, resumePlan), 'success');
+  assert.strictEqual(closeCalls, 1);
+});
+
+test('LocalHarness surfaces close failures after finalization completes', async () => {
+  let finalized = false;
+  const worker = {
+    execute: async () => ({
+      outcome: 'success',
+      evidence: { result: 'passed' },
+    }),
+    close: async () => {
+      throw new Error('close failed');
+    },
+  };
+  const recordManager = {
+    init: () => {},
+    recordEvent: () => {},
+    finalize: async () => {
+      finalized = true;
+    },
+    printSummary: () => {},
+  };
+  const harness = new LocalHarness(worker, recordManager);
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 't1' }] },
+  };
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+
+  await assert.rejects(() => harness.run(validatePlanForScheduling(plan), {}, policy), /close failed/);
+  assert.strictEqual(finalized, true);
 });
 
 test('LocalHarness sequential execution catch worker error', async () => {
