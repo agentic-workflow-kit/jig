@@ -5,7 +5,7 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P06 are merged (see the [phase table](#phase-table)); the remaining
+**Status: in progress.** P01–P06 are merged and P07 is implemented in PR #66 (see the [phase table](#phase-table)); the remaining
 phases are planned. Phase statuses live in the phase table below and in each phase doc's
 frontmatter.
 
@@ -281,7 +281,7 @@ release posture`")
 | P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
 | P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
 | P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
-| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | planned                     | P06               | Parallel with anything not touching config templates.                   |
+| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | implemented (#66)           | P06               | Parallel with anything not touching config templates.                   |
 | P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | planned                     | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
 | P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | planned                     | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned                     | P01               | Parallel with P03–P09.                                                  |
