@@ -76,6 +76,7 @@ export interface ResumeLoadedRunPortsOptions
     | 'codexSession'
     | 'ownerDecisionSource'
     | 'realHostProbe'
+    | 'realHostProbeFactory'
     | 'clock'
     | 'substrateManifest'
     | 'forgeTransport'
@@ -594,6 +595,7 @@ export async function resumeRunLoaded(options: ResumeLoadedRunOptions): Promise<
     codexSession: options.codexSession,
     ownerDecisionSource: options.ownerDecisionSource,
     realHostProbe: options.realHostProbe,
+    realHostProbeFactory: options.realHostProbeFactory,
     clock: options.clock,
     substrateManifest: options.substrateManifest,
     forgeTransport: options.forgeTransport,

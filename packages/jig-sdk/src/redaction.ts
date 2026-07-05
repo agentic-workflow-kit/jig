@@ -16,6 +16,7 @@ export interface RedactionOptions {
 
 const SECRET_KEY_PATTERN = /(?:token|secret|credential|password|api[_-]?key)/i;
 const REDACTED = '[REDACTED]';
+const CODEX_SECRET_ENV_KEYS = ['CODEX_API_KEY'];
 const LANDING_PATH_SECRET_ENV_KEYS = ['GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_APP_TOKEN', 'GIT_ASKPASS'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,6 +31,10 @@ function secretValues(options: RedactionOptions): string[] {
 
 export function collectLandingPathSecrets(env: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
   return Object.fromEntries(LANDING_PATH_SECRET_ENV_KEYS.map((key) => [key, env[key]]));
+}
+
+export function collectCodexSecrets(env: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+  return Object.fromEntries(CODEX_SECRET_ENV_KEYS.map((key) => [key, env[key]]));
 }
 
 function redactString(value: string, secrets: string[]): string {

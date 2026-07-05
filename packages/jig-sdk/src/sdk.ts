@@ -276,6 +276,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           ownerDecisionSource: options.ownerDecisionSource ?? undefined,
           codexSession: options.codexSession,
           realHostProbe: options.realHostProbe,
+          realHostProbeFactory: options.realHostProbeFactory,
           clock: options.clock,
           substrateManifest: options.substrateManifest,
           forgeTransport: options.forgeTransport,

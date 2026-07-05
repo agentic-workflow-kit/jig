@@ -1,6 +1,6 @@
 ---
 title: "Phase 04 - Execution-host containment and substrate enforcement"
-status: planned
+status: "implemented (pending PR #)"
 ---
 
 # Phase 04 - Execution-host containment and substrate enforcement
