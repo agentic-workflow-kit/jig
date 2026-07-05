@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { test } from 'vitest';
-import { ProjectionError, projectRunEvents } from '../src/projection.js';
+import { askWhyFromEvents, ProjectionError, projectRunEvents, projectWatch } from '../src/projection.js';
 import type { RunEvent, RunRecord } from '../src/types.js';
 
 function launchHeader(overrides: Partial<RunEvent> = {}): RunEvent {
@@ -845,4 +845,397 @@ test('P4-AC-4: legacy or incomplete run.started launch headers are rejected when
       return true;
     },
   );
+});
+
+test('P08-AC-1/2: watch groups story posture and reflects durable notice attention events', () => {
+  const projection = projectWatch({
+    eventsJsonl: stringifyJsonl([
+      ...stoppedRunEvents(),
+      {
+        family: 'notice.snoozed',
+        actor: 'owner',
+        timestamp: '2026-07-02T10:00:10.000Z',
+        noticeId: 'unattended-park',
+        snoozedUntil: '2026-07-02T11:00:00.000Z',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.signal, 'parked');
+  assert.deepStrictEqual(
+    projection.groups.done.map((story) => story.storyId),
+    ['STORY-1'],
+  );
+  assert.deepStrictEqual(
+    projection.groups.parked.map((story) => story.storyId),
+    ['STORY-2'],
+  );
+  assert.strictEqual(projection.notices[0]?.id, 'unattended-park');
+  assert.strictEqual(projection.notices[0]?.state, 'snoozed');
+  assert.strictEqual(projection.notices[0]?.snoozedUntil, '2026-07-02T11:00:00.000Z');
+});
+
+test('P08-AC-2: acknowledged notices persist as owner records without changing story state', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...stoppedRunEvents(),
+      {
+        family: 'notice.acknowledged',
+        actor: 'owner',
+        timestamp: '2026-07-02T10:00:10.000Z',
+        noticeId: 'unattended-park',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.stories['STORY-2']?.state, 'parked');
+  assert.strictEqual(projection.notices[0]?.id, 'unattended-park');
+  assert.strictEqual(projection.notices[0]?.state, 'acknowledged');
+});
+
+test('P08-AC-3: ask-why explains blocked, done, and parked stories from cited records', () => {
+  const eventsJsonl = stringifyJsonl([
+    launchHeader(),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:01.000Z',
+      storyId: 'STORY-DONE',
+    },
+    {
+      family: 'evidence.modeled',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:02.000Z',
+      storyId: 'STORY-DONE',
+      result: 'passed',
+      changedFiles: ['src/done.ts'],
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:03.000Z',
+      storyId: 'STORY-DONE',
+      changedFiles: ['src/done.ts'],
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:04.000Z',
+      storyId: 'STORY-BLOCKED',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:05.000Z',
+      storyId: 'STORY-BLOCKED',
+      reason: 'evidence-gate-failed',
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:06.000Z',
+      storyId: 'STORY-PARKED',
+    },
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:07.000Z',
+      storyId: 'STORY-PARKED',
+      reason: 'owner-decision-required',
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:08.000Z',
+      reason: 'unattended-park',
+      checkpoint: 'after:STORY-PARKED.parked',
+      unstarted: [],
+    },
+  ]);
+
+  const blocked = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-BLOCKED' });
+  assert.match(blocked.answer, /blocked because evidence-gate-failed/);
+  assert.ok(blocked.citations.some((citation) => citation.family === 'story.blocked' && citation.line === 6));
+
+  const done = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-DONE' });
+  assert.match(done.answer, /story.done transition completed/);
+  assert.ok(done.citations.some((citation) => citation.family === 'evidence.modeled'));
+
+  const parked = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-PARKED' });
+  assert.match(parked.answer, /parked waiting for owner attention/);
+  assert.ok(parked.citations.some((citation) => citation.family === 'story.parked'));
+});
+
+test('P08-AC-1: watch emits finished, blocked, progressing, and idle signals from records', () => {
+  const completed = projectWatch({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+      },
+    ]),
+  });
+  assert.strictEqual(completed.signal, 'finished');
+
+  const blocked = projectWatch({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+        storyId: 'STORY-BLOCKED',
+      },
+      {
+        family: 'story.blocked',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:02.000Z',
+        storyId: 'STORY-BLOCKED',
+        reason: 'worker-reported-failure',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:03.000Z',
+        reason: 'work-item-blocked',
+        checkpoint: 'after:STORY-BLOCKED',
+        unstarted: [],
+      },
+    ]),
+  });
+  assert.strictEqual(blocked.signal, 'blocked');
+
+  const progressing = projectWatch({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+        storyId: 'STORY-ACTIVE',
+      },
+    ]),
+  });
+  assert.strictEqual(progressing.signal, 'progressing');
+
+  const idle = projectWatch({ eventsJsonl: stringifyJsonl([launchHeader()]) });
+  assert.strictEqual(idle.signal, 'idle');
+});
+
+test('P08-AC-3: ask-why explains run-level terminal and non-terminal states', () => {
+  const completed = askWhyFromEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+      },
+    ]),
+  });
+  assert.match(completed.answer, /run completed/);
+  assert.ok(completed.citations.some((citation) => citation.family === 'run.completed'));
+
+  const stopped = askWhyFromEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:01.000Z',
+        storyId: 'STORY-BLOCKED',
+      },
+      {
+        family: 'story.blocked',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:02.000Z',
+        storyId: 'STORY-BLOCKED',
+        reason: 'worker-reported-failure',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:03.000Z',
+        reason: 'work-item-blocked',
+        checkpoint: 'after:STORY-BLOCKED',
+        unstarted: [],
+      },
+    ]),
+  });
+  assert.match(stopped.answer, /stopped at after:STORY-BLOCKED because work-item-blocked/);
+
+  const running = askWhyFromEvents({ eventsJsonl: stringifyJsonl([launchHeader()]) });
+  assert.match(running.answer, /run is started/);
+});
+
+test('P08-AC-3: ask-why covers landing, active, waiting, and unknown story cases', () => {
+  const eventsJsonl = stringifyJsonl([
+    launchHeader(),
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:01.000Z',
+      storyId: 'STORY-WAITING',
+      blockedBy: 'STORY-DONE',
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:02.000Z',
+      storyId: 'STORY-DONE',
+    },
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:03.000Z',
+      storyId: 'STORY-DONE',
+    },
+    {
+      family: 'runner-action.merged',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:04.000Z',
+      storyId: 'STORY-DONE',
+      targetRef: 'main',
+      targetHead: 'abc123',
+    },
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:05.000Z',
+      storyId: 'STORY-ACTIVE',
+    },
+  ]);
+
+  const landed = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-DONE' });
+  assert.match(landed.answer, /recorded landing activity/);
+
+  const active = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-ACTIVE' });
+  assert.match(active.answer, /is progressing/);
+
+  const waiting = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-WAITING' });
+  assert.match(waiting.answer, /blocked because blocked by STORY-DONE/);
+
+  assert.throws(() => askWhyFromEvents({ eventsJsonl, storyId: 'STORY-MISSING' }), /No recorded story/);
+});
+
+test('P08-AC-2: malformed notice attention records fail closed', () => {
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          ...stoppedRunEvents(),
+          {
+            family: 'notice.acknowledged',
+            actor: 'owner',
+            timestamp: '2026-07-02T10:00:10.000Z',
+          },
+        ]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'missing-notice-id');
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          ...stoppedRunEvents(),
+          {
+            family: 'notice.acknowledged',
+            actor: 'runner',
+            timestamp: '2026-07-02T10:00:10.000Z',
+            noticeId: 'unattended-park',
+          },
+        ]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'invalid-notice-actor');
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          ...stoppedRunEvents(),
+          {
+            family: 'notice.snoozed',
+            actor: 'owner',
+            timestamp: '2026-07-02T10:00:10.000Z',
+            noticeId: 'unattended-park',
+          },
+        ]),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProjectionError);
+      assert.strictEqual(error.code, 'missing-snoozed-until');
+      return true;
+    },
+  );
+});
+
+test('P08-AC-3: blocked PR surfacing records remain explainable citations', () => {
+  const eventsJsonl = stringifyJsonl([
+    launchHeader(),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:01.000Z',
+      storyId: 'STORY-BLOCKED',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:02.000Z',
+      storyId: 'STORY-BLOCKED',
+      reason: 'worker-reported-failure',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:03.000Z',
+      storyId: 'STORY-BLOCKED',
+      reason: 'pr-surfacing-failed',
+    },
+    {
+      family: 'runner-action.opened-pr',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:04.000Z',
+      storyId: 'STORY-BLOCKED',
+    },
+    {
+      family: 'runner-action.posted-status',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:05.000Z',
+      storyId: 'STORY-BLOCKED',
+    },
+    {
+      family: 'runner-action.posted-comment',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:06.000Z',
+      storyId: 'STORY-BLOCKED',
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:07.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-BLOCKED',
+      unstarted: [],
+    },
+  ]);
+
+  const projection = projectRunEvents({ eventsJsonl });
+  assert.strictEqual(projection.stories['STORY-BLOCKED']?.lastEventFamily, 'runner-action.posted-comment');
+
+  const why = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-BLOCKED' });
+  assert.match(why.answer, /blocked because pr-surfacing-failed/);
+  assert.ok(why.citations.some((citation) => citation.family === 'runner-action.opened-pr'));
 });

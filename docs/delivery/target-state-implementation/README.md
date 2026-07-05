@@ -5,9 +5,9 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P06 are merged and P07 is implemented in PR #66 (see the [phase table](#phase-table)); the remaining
-phases are planned. Phase statuses live in the phase table below and in each phase doc's
-frontmatter.
+**Status: in progress.** P01–P07 are merged and P08 is implemented pending PR merge (see the
+[phase table](#phase-table)); the remaining phases are planned. Phase statuses live in the phase
+table below and in each phase doc's frontmatter.
 
 ## Overview
 
@@ -61,12 +61,12 @@ Verified against the repo after Phase 02 workspace split:
   (`packages/jig-testkit/src/provider-conformance.ts`, `packages/jig-testkit/tests/conformance/`),
   outside the production SDK dependency graph.
 - **CLI adapter** lives in `packages/jig-cli` (`packages/jig-cli/src/cli.ts`,
-  `packages/jig-cli/bin/jig.js`) and still exposes `preview`, `run`, `inspect`, and `resume` only.
-- **Driving surfaces**: the shipped CLI verbs remain `preview`, `run`, `inspect`, and `resume`,
-  and `packages/jig-sdk` now exposes a programmatic SDK consumer surface (`createJigSession` plus
-  operator/recovery SDK types). Owner decisions are still an interactive TTY prompt inside
-  `jig run`. There is still no setup, watch, ask-why, out-of-band decide, stop, notices, export
-  surface, work-profile or repo-floors artifact, or MCP surface.
+  `packages/jig-cli/bin/jig.js`) and exposes `setup`, `preview`, `run`, `inspect`, `resume`,
+  `watch`, `ask-why`, `notice-ack`, and `notice-snooze`.
+- **Driving surfaces**: `packages/jig-sdk` exposes a programmatic SDK consumer surface
+  (`createJigSession` plus operator/recovery SDK types). Owner decisions are still an interactive
+  TTY prompt inside `jig run`. There is still no out-of-band decide, stop, export surface, or MCP
+  surface.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. EVRUN-full (real
@@ -281,8 +281,8 @@ release posture`")
 | P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
 | P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
 | P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
-| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | implemented (#66)           | P06               | Parallel with anything not touching config templates.                   |
-| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | planned                     | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
+| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
+| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | implemented                 | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
 | P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | planned                     | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned                     | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned                     | P03, P04          | Sequential after both provider phases; benefits from P05.               |

@@ -21,14 +21,14 @@ Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
 `@agentic-workflow-kit/jig` package, public SDK/provider stability contract, or provider
 ecosystem promise.
 
-The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`, and `jig resume`.
-Launch binds the track policy plus any configured work profile and repo-policy floors, snapshots
-them into the run record, and reconstructs the effective floor-merged policy basis on resume. The
-fixture-backed commands below are the supported local way to exercise the repo from a fresh
-checkout. The package split is now implementation fact inside this private workspace; Codex
-app-server transport work remains future implementation, not a shipped public API, while the real
-execution-host path now exercises a local macOS process-group probe and reports an honest `weak`
-containment posture.
+The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`, `jig resume`,
+`jig watch`, `jig ask-why`, `jig notice-ack`, and `jig notice-snooze`. Launch binds the track
+policy plus any configured work profile and repo-policy floors, snapshots them into the run record,
+and reconstructs the effective floor-merged policy basis on resume. The fixture-backed commands
+below are the supported local way to exercise the repo from a fresh checkout. The package split is
+now implementation fact inside this private workspace; Codex app-server transport work remains
+future implementation, not a shipped public API, while the real execution-host path now exercises a
+local macOS process-group probe and reports an honest `weak` containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
 (`EVRUN-partial`). The current real GitHub Forge/GitHub Issues path also carries blocked-PR
@@ -82,10 +82,15 @@ node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.j
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
 
-Inspect or resume from the records the run produced:
+Inspect, watch, explain, or resume from the records the run produced:
 
 ```bash
 node packages/jig-cli/bin/jig.js inspect runs/<run-directory-from-the-output>
+node packages/jig-cli/bin/jig.js watch runs/<run-directory-from-the-output>
+node packages/jig-cli/bin/jig.js ask-why runs/<run-directory-from-the-output> --story STORY-1
+node packages/jig-cli/bin/jig.js notice-ack runs/<run-directory-from-the-output> unattended-park
+node packages/jig-cli/bin/jig.js notice-snooze runs/<run-directory-from-the-output> unattended-park \
+  --until 2026-07-03T12:00:00.000Z
 node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
@@ -93,8 +98,9 @@ node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
 `jig run` validates the plan at the intake boundary, binds config and policy together with any
 configured work profile and repo-policy floors, adjudicates worker requests through the local
 authorization fence, executes eligible stories, and writes `run.json` plus append-only
-`events.jsonl`. `jig inspect` and `jig resume` read those records rather than trusting terminal
-scrollback.
+`events.jsonl`. `jig inspect`, `jig watch`, `jig ask-why`, and `jig resume` read those records
+rather than trusting terminal scrollback; notice acknowledge/snooze append owner attention events
+to the same record.
 
 ## What Jig Promises
 

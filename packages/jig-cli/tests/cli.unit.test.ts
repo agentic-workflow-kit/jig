@@ -1234,6 +1234,22 @@ test('run(): inspect renders a sparse record: no mode, diagnostics without optio
   assert.doesNotMatch(inspectOutput, /stdout:/);
 });
 
+test('run(): inspect renders legacy run-scope authorization denial when no item outcomes exist', async () => {
+  const runDir = join(workDir, 'legacy-denial-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  const deniedRecord = {
+    run: { id: 'old-denied-run', status: 'failure', planId: 'old-denied-plan' },
+    events: [{ family: 'authorization.denied', reason: 'policy denied before stories' }],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(deniedRecord, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  assert.match(loggedLines(), /Reason: policy denied before stories/);
+});
+
 test('PR-AC-4: inspect preserves historical story.failed and story.skipped aliases', async () => {
   const runDir = join(workDir, 'historical-run-dir');
   mkdirSync(runDir, { recursive: true });
@@ -1286,4 +1302,135 @@ test('run(): invalid plan path surfaces the validation error and exits 1', async
     erroredLines(),
     /Plan validation failed for ".*invalid-plan\.json": Invalid plan: unknown version "unknown-version"/,
   );
+});
+
+test('P08-AC-1/2: watch renders liveness groups and notice queue from records', async () => {
+  const runDir = join(workDir, 'watch-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('watch', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /--- Run Watch ---/);
+  assert.match(output, /Signal: parked/);
+  assert.match(output, /Done:\n {2}- STORY-1: done/);
+  assert.match(output, /Parked:\n {2}- STORY-2: parked \(owner-decision-required\)/);
+  assert.match(output, /Notices:/);
+  assert.match(output, /unattended-park: urgent\/open/);
+  assert.match(output, /Next: review the parked authorization request and resume or stop the run/);
+});
+
+test('P08-AC-3: ask-why cites recorded events for parked story explanations', async () => {
+  const runDir = join(workDir, 'why-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('ask-why', runDir, '--story', 'STORY-2');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Subject: STORY-2/);
+  assert.match(output, /parked waiting for owner attention/);
+  assert.match(output, /line 8: story\.parked reason=owner-decision-required/);
+});
+
+test('P08-AC-2/4: notice acknowledge appends a durable owner event and watch reflects it', async () => {
+  const runDir = join(workDir, 'notice-ack-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('notice-ack', runDir, 'unattended-park');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+  assert.match(loggedLines(), /unattended-park: urgent\/acknowledged/);
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.some(
+      (event) =>
+        event.family === 'notice.acknowledged' && event.actor === 'owner' && event.noticeId === 'unattended-park',
+    ),
+  );
+
+  logSpy.mockClear();
+  setArgv('watch', runDir);
+  await run();
+  assert.match(loggedLines(), /unattended-park: urgent\/acknowledged/);
+});
+
+test('P08-AC-2/4: notice snooze appends a durable owner event and watch reflects it', async () => {
+  const runDir = join(workDir, 'notice-snooze-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('notice-snooze', runDir, 'unattended-park', '--until', '2026-07-03T12:00:00.000Z');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /unattended-park: urgent\/snoozed until 2026-07-03T12:00:00.000Z/);
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.some(
+      (event) =>
+        event.family === 'notice.snoozed' &&
+        event.actor === 'owner' &&
+        event.noticeId === 'unattended-park' &&
+        event.snoozedUntil === '2026-07-03T12:00:00.000Z',
+    ),
+  );
+});
+
+test('run(): P08 observation commands validate required arguments', async () => {
+  for (const args of [
+    ['watch'],
+    ['ask-why'],
+    ['notice-ack'],
+    ['notice-ack', 'runs/run-existing'],
+    ['notice-snooze'],
+    ['notice-snooze', 'runs/run-existing', 'unattended-park'],
+  ]) {
+    setArgv(...args);
+    await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    assert.match(erroredLines(), /Usage:/);
+    exitSpy.mockClear();
+    errorSpy.mockClear();
+  }
+});
+
+test('run(): P08 observation commands surface operator errors', async () => {
+  setArgv('watch', join(workDir, 'missing-watch-run'));
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Run directory ".*missing-watch-run" does not exist/);
+
+  exitSpy.mockClear();
+  errorSpy.mockClear();
+
+  const runDir = join(workDir, 'unknown-notice-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+  setArgv('notice-ack', runDir, 'missing-notice');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Notice "missing-notice" is not open for this run/);
+
+  exitSpy.mockClear();
+  errorSpy.mockClear();
+
+  setArgv('notice-snooze', runDir, 'unattended-park', '--until', 'not-a-date');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Invalid --until timestamp/);
 });

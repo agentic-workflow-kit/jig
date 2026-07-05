@@ -39,6 +39,17 @@ export interface ProjectionIssue {
   details?: string[];
 }
 
+export type NoticeUrgency = 'info' | 'attention' | 'urgent';
+export type NoticeState = 'open' | 'acknowledged' | 'snoozed';
+
+export interface ProjectedNotice extends ProjectionIssue {
+  id: string;
+  urgency: NoticeUrgency;
+  nextAction: string;
+  state: NoticeState;
+  snoozedUntil?: string;
+}
+
 export interface ProjectedStory {
   storyId: string;
   state: ProjectedStoryState;
@@ -67,7 +78,7 @@ export interface RunProjection {
   stories: Record<string, ProjectedStory>;
   changedFiles: string[];
   diagnostics: ProjectionIssue[];
-  notices: ProjectionIssue[];
+  notices: ProjectedNotice[];
   eventCount: number;
 }
 
@@ -76,10 +87,42 @@ export interface ProjectRunEventsInput {
   runRecord?: RunRecord | null;
 }
 
-interface ParsedEvent {
+export interface ParsedEvent {
   event: RunEvent;
   line: number;
   offset: number;
+}
+
+export type WatchSignal = 'progressing' | 'idle' | 'parked' | 'blocked' | 'finished';
+
+export interface WatchProjection {
+  runId: string;
+  status: ProjectionStatus;
+  lifecycleState: ProjectionLifecycleState;
+  signal: WatchSignal;
+  groups: {
+    progressing: ProjectedStory[];
+    parked: ProjectedStory[];
+    blocked: ProjectedStory[];
+    done: ProjectedStory[];
+    waiting: ProjectedStory[];
+  };
+  notices: ProjectedNotice[];
+  eventCount: number;
+}
+
+export interface WhyCitation {
+  line: number;
+  family: string;
+  storyId?: string;
+  reason?: string;
+  details?: string[];
+}
+
+export interface AskWhyResult {
+  subject: string;
+  answer: string;
+  citations: WhyCitation[];
 }
 
 export class ProjectionError extends Error {
@@ -112,7 +155,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseEventsJsonl(eventsJsonl: string): ParsedEvent[] {
+export function parseEventsJsonl(eventsJsonl: string): ParsedEvent[] {
   const parsedEvents: ParsedEvent[] = [];
   const lines = eventsJsonl.split('\n');
   let offset = 0;
@@ -165,6 +208,34 @@ function parseEventsJsonl(eventsJsonl: string): ParsedEvent[] {
   }
 
   return parsedEvents;
+}
+
+function noticeDetails(parsedEvent: ParsedEvent): string[] | undefined {
+  const details: string[] = [];
+  if (typeof parsedEvent.event.storyId === 'string') details.push(`story=${parsedEvent.event.storyId}`);
+  if (typeof parsedEvent.event.checkpoint === 'string') details.push(`checkpoint=${parsedEvent.event.checkpoint}`);
+  if (typeof parsedEvent.event.reason === 'string') details.push(`reason=${parsedEvent.event.reason}`);
+  return details.length > 0 ? details : undefined;
+}
+
+function createNotice(input: {
+  id: string;
+  code: string;
+  message: string;
+  urgency: NoticeUrgency;
+  nextAction: string;
+  parsedEvent?: ParsedEvent;
+}): ProjectedNotice {
+  return {
+    id: input.id,
+    code: input.code,
+    message: input.message,
+    urgency: input.urgency,
+    nextAction: input.nextAction,
+    state: 'open',
+    ...(input.parsedEvent ? { line: input.parsedEvent.line, offset: input.parsedEvent.offset } : {}),
+    ...(input.parsedEvent ? { details: noticeDetails(input.parsedEvent) } : {}),
+  };
 }
 
 function requireActor(parsedEvent: ParsedEvent): void {
@@ -498,7 +569,8 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
   requireActor(parsedEvents[0]);
   const launch = readLaunchHeader(parsedEvents[0]);
   const diagnostics: ProjectionIssue[] = [];
-  const notices: ProjectionIssue[] = [];
+  const notices: ProjectedNotice[] = [];
+  const noticeAttention = new Map<string, { state: NoticeState; snoozedUntil?: string }>();
   const stories = new Map<string, StoryAccumulator>();
   const changedFiles: string[] = [];
 
@@ -618,6 +690,38 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
       continue;
     }
 
+    if (family === 'notice.acknowledged' || family === 'notice.snoozed') {
+      if (parsedEvent.event.actor !== 'owner') {
+        throw new ProjectionError(
+          'invalid-notice-actor',
+          `${family} on line ${parsedEvent.line} must be recorded by actor owner`,
+          parsedEvent,
+        );
+      }
+      if (typeof parsedEvent.event.noticeId !== 'string' || parsedEvent.event.noticeId.trim() === '') {
+        throw new ProjectionError(
+          'missing-notice-id',
+          `${family} on line ${parsedEvent.line} is missing required noticeId`,
+          parsedEvent,
+        );
+      }
+      if (
+        family === 'notice.snoozed' &&
+        (typeof parsedEvent.event.snoozedUntil !== 'string' || parsedEvent.event.snoozedUntil.trim() === '')
+      ) {
+        throw new ProjectionError(
+          'missing-snoozed-until',
+          `${family} on line ${parsedEvent.line} is missing required snoozedUntil`,
+          parsedEvent,
+        );
+      }
+      noticeAttention.set(parsedEvent.event.noticeId, {
+        state: family === 'notice.acknowledged' ? 'acknowledged' : 'snoozed',
+        ...(typeof parsedEvent.event.snoozedUntil === 'string' ? { snoozedUntil: parsedEvent.event.snoozedUntil } : {}),
+      });
+      continue;
+    }
+
     assertActiveRun(lifecycleState, parsedEvent);
 
     const storyId = requireStoryId(parsedEvent);
@@ -732,24 +836,64 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
   }
 
   if (stopCause === 'unattended-park') {
-    notices.push({
-      code: 'unattended-park',
-      message: 'run stopped at an unattended parked story',
-    });
+    const stopEvent = parsedEvents.find(
+      (entry) => entry.event.family === 'run.stopped' && entry.event.reason === stopCause,
+    );
+    notices.push(
+      createNotice({
+        id: 'unattended-park',
+        code: 'unattended-park',
+        message: 'run stopped at an unattended parked story',
+        urgency: 'urgent',
+        nextAction: 'review the parked authorization request and resume or stop the run',
+        parsedEvent: stopEvent,
+      }),
+    );
   }
 
   if (sawEvidenceGateFailure) {
-    notices.push({
-      code: 'evidence-gate-failure',
-      message: 'projection found a story blocked by the evidence gate',
-    });
+    const evidenceEvent = parsedEvents.find(
+      (entry) => entry.event.family === 'story.blocked' && entry.event.reason === 'evidence-gate-failed',
+    );
+    notices.push(
+      createNotice({
+        id: 'evidence-gate-failure',
+        code: 'evidence-gate-failure',
+        message: 'projection found a story blocked by the evidence gate',
+        urgency: 'attention',
+        nextAction: 'inspect the evidence diagnostics before continuing',
+        parsedEvent: evidenceEvent,
+      }),
+    );
   }
 
   if (sawAuthorizationDenial) {
-    notices.push({
-      code: 'policy-authorization-denial',
-      message: 'projection found a policy or authorization denial',
-    });
+    const denialEvent = parsedEvents.find(
+      (entry) =>
+        entry.event.family === 'authorization.denied' ||
+        (entry.event.family === 'story.blocked' &&
+          (entry.event.reason === 'authorization-denied' || entry.event.reason === 'owner-rejection')),
+    );
+    notices.push(
+      createNotice({
+        id: 'policy-authorization-denial',
+        code: 'policy-authorization-denial',
+        message: 'projection found a policy or authorization denial',
+        urgency: 'attention',
+        nextAction: 'review the denied request and policy basis',
+        parsedEvent: denialEvent,
+      }),
+    );
+  }
+
+  for (const notice of notices) {
+    const attention = noticeAttention.get(notice.id);
+    if (attention) {
+      notice.state = attention.state;
+      if (attention.snoozedUntil) {
+        notice.snoozedUntil = attention.snoozedUntil;
+      }
+    }
   }
 
   const projection: RunProjection = {
@@ -783,4 +927,130 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
   projection.diagnostics.push(...compareRunRecord(input.runRecord, projection, parsedEvents));
 
   return projection;
+}
+
+export function projectWatch(input: ProjectRunEventsInput): WatchProjection {
+  const projection = projectRunEvents(input);
+  const stories = Object.values(projection.stories);
+  const groups = {
+    progressing: stories.filter((story) => story.state === 'started'),
+    parked: stories.filter((story) => story.state === 'parked'),
+    blocked: stories.filter((story) => story.state === 'blocked' || story.state === 'rejected'),
+    done: stories.filter((story) => story.state === 'done'),
+    waiting: stories.filter((story) => story.state === 'unstarted'),
+  };
+  const signal: WatchSignal =
+    projection.lifecycleState === 'completed'
+      ? 'finished'
+      : groups.blocked.length > 0
+        ? 'blocked'
+        : groups.parked.length > 0
+          ? 'parked'
+          : groups.progressing.length > 0
+            ? 'progressing'
+            : 'idle';
+
+  return {
+    runId: projection.runId,
+    status: projection.status,
+    lifecycleState: projection.lifecycleState,
+    signal,
+    groups,
+    notices: projection.notices,
+    eventCount: projection.eventCount,
+  };
+}
+
+function citationFromEvent(parsedEvent: ParsedEvent): WhyCitation {
+  const details: string[] = [];
+  if (typeof parsedEvent.event.requestId === 'string') details.push(`request=${parsedEvent.event.requestId}`);
+  if (typeof parsedEvent.event.requestKind === 'string') details.push(`kind=${parsedEvent.event.requestKind}`);
+  if (Array.isArray(parsedEvent.event.basis)) {
+    details.push(`basis=${parsedEvent.event.basis.filter((entry) => typeof entry === 'string').join(',')}`);
+  }
+  if (Array.isArray(parsedEvent.event.changedFiles))
+    details.push(`changed=${parsedEvent.event.changedFiles.join(',')}`);
+
+  return {
+    line: parsedEvent.line,
+    family: parsedEvent.event.family,
+    ...(typeof parsedEvent.event.storyId === 'string' ? { storyId: parsedEvent.event.storyId } : {}),
+    ...(typeof parsedEvent.event.reason === 'string' ? { reason: parsedEvent.event.reason } : {}),
+    ...(details.length > 0 ? { details } : {}),
+  };
+}
+
+function describeStoryWhy(story: ProjectedStory, citations: WhyCitation[]): string {
+  if (story.state === 'blocked') {
+    const cause = story.blockedBy ? `blocked by ${story.blockedBy}` : (story.reason ?? 'a recorded block');
+    return `${story.storyId} is blocked because ${cause}.`;
+  }
+  if (story.state === 'parked') {
+    return `${story.storyId} is parked waiting for owner attention${story.reason ? ` (${story.reason})` : ''}.`;
+  }
+  if (story.state === 'done') {
+    const landing = citations.find((citation) =>
+      ['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged'].includes(citation.family),
+    );
+    if (landing) {
+      return `${story.storyId} is done and has recorded landing activity (${landing.family}).`;
+    }
+    return `${story.storyId} is done because its recorded evidence and story.done transition completed.`;
+  }
+  if (story.state === 'started') {
+    return `${story.storyId} is progressing; the latest recorded transition is ${story.lastEventFamily}.`;
+  }
+  return `${story.storyId} is waiting; no terminal record has been appended yet.`;
+}
+
+export function askWhyFromEvents(input: ProjectRunEventsInput & { storyId?: string }): AskWhyResult {
+  const parsedEvents = parseEventsJsonl(input.eventsJsonl);
+  const projection = projectRunEvents(input);
+
+  if (input.storyId) {
+    const story = projection.stories[input.storyId];
+    if (!story) {
+      throw new ProjectionError('unknown-story', `No recorded story "${input.storyId}" exists in this run`);
+    }
+    const citations = parsedEvents
+      .filter((entry) => entry.event.storyId === input.storyId)
+      .filter((entry) =>
+        [
+          'authorization.requested',
+          'authorization.granted',
+          'authorization.denied',
+          'authorization.routed',
+          'story.parked',
+          'evidence.modeled',
+          'story.done',
+          'story.blocked',
+          'runner-action.pushed',
+          'runner-action.opened-pr',
+          'runner-action.merged',
+        ].includes(entry.event.family),
+      )
+      .map(citationFromEvent);
+    return {
+      subject: input.storyId,
+      answer: describeStoryWhy(story, citations),
+      citations,
+    };
+  }
+
+  const runCitations = parsedEvents
+    .filter((entry) => ['run.completed', 'run.stopped', 'authorization.denied'].includes(entry.event.family))
+    .map(citationFromEvent);
+  const summary =
+    projection.lifecycleState === 'completed'
+      ? 'The run completed because run.completed is recorded.'
+      : projection.lifecycleState === 'stopped'
+        ? `The run stopped at ${projection.safeCheckpoint ?? 'an unknown checkpoint'} because ${
+            projection.stopCause ?? 'the record says it stopped'
+          }.`
+        : `The run is ${projection.lifecycleState}; no terminal run record is present yet.`;
+  return {
+    subject: projection.runId,
+    answer: summary,
+    citations: runCitations,
+  };
 }

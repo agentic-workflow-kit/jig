@@ -20,8 +20,19 @@ export {
 export { bindOwnerConfiguration, createDefaultOwnerConfiguration } from './owner-configuration.js';
 export { PlanValidator } from './plan-validator.js';
 export type { AgentPort, CapabilityAttestation, ExecutionHostPort, ForgePort, WorkSourcePort } from './ports.js';
-export type { ProjectionIssue, RunProjection } from './projection.js';
+export type {
+  AskWhyResult,
+  NoticeState,
+  NoticeUrgency,
+  ProjectedNotice,
+  ProjectionIssue,
+  RunProjection,
+  WatchProjection,
+  WatchSignal,
+  WhyCitation,
+} from './projection.js';
 export {
+  type AskWhyInput,
   type CreateJigSessionOptions,
   createJigSession,
   InspectRunError,
@@ -31,12 +42,16 @@ export {
   type JigRecoverySurface,
   type JigSession,
   type LegacyInspectionResult,
+  type NoticeActionInput,
+  type NoticeActionResult,
   type PreviewRunInput,
   type PreviewRunResult,
   type ProjectionInspectionResult,
   ResumeRefusal,
   type ResumeRunInput,
+  type SnoozeNoticeInput,
   type StartRunInput,
+  type WatchRunInput,
 } from './sdk.js';
 export {
   createSetupArtifacts,

@@ -96,16 +96,17 @@ reference to real (Phase 5–8), and records tamper-evidence (Phase 9).
 Cross-cutting posture settled after the phase series: what a green conformance run does and does
 not prove, the packaging/SDK boundary, and the Codex transport seam.
 
-| #    | Title                                                                 | Gloss                                                                                                                                                 | Date | Status  |
-| ---- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
-| 0026 | Conformance self-report-only basis and controlled-double adequacy bar | Names "self-report-only" as a conformance-verdict basis; a green mock/controlled-double suite never proves real-provider truth                        | —    | applied |
-| 0027 | Packaging and SDK boundary                                            | Settles the three-package target (`jig-sdk` / `jig-cli` / `jig-testkit`) and what each package may and must not depend on                             | —    | applied |
-| 0028 | Codex app-server transport and session-observable adapter seam        | Picks the owned stdio Codex app-server transport and widens the internal adapter to a session-observable seam behind the unchanged public `AgentPort` | —    | applied |
-| 0029 | Guided setup is a configuration operation                             | Places `jig setup` as a first-party configuration operation that emits validated artifacts, not as an operator-control verb                           | —    | applied |
+| #    | Title                                                                   | Gloss                                                                                                                                                 | Date | Status  |
+| ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
+| 0026 | Conformance self-report-only basis and controlled-double adequacy bar   | Names "self-report-only" as a conformance-verdict basis; a green mock/controlled-double suite never proves real-provider truth                        | —    | applied |
+| 0027 | Packaging and SDK boundary                                              | Settles the three-package target (`jig-sdk` / `jig-cli` / `jig-testkit`) and what each package may and must not depend on                             | —    | applied |
+| 0028 | Codex app-server transport and session-observable adapter seam          | Picks the owned stdio Codex app-server transport and widens the internal adapter to a session-observable seam behind the unchanged public `AgentPort` | —    | applied |
+| 0029 | Guided setup is a configuration operation                               | Places `jig setup` as a first-party configuration operation that emits validated artifacts, not as an operator-control verb                           | —    | applied |
+| 0030 | Observation surfaces are operator projections with owner notice records | Places `watch` and `ask-why` on the operator port and acknowledge/snooze as additive owner notice records                                             | —    | applied |
 
 ## Open questions
 
-- **ADRs 0026–0029 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0029 do not.
-  Rather than invent a date, the Date column is left blank for those four. Whether to add a
-  `- Date:` line to 0026–0029 (and, if so, what date to use — authoring date vs. merge date) is a
+- **ADRs 0026–0030 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0030 do not.
+  Rather than invent a date, the Date column is left blank for those five. Whether to add a
+  `- Date:` line to 0026–0030 (and, if so, what date to use — authoring date vs. merge date) is a
   genuine decision about this log's own convention and is not resolved here.

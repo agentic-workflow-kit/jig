@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline/promises';
 import {
+  type AskWhyResult,
   createJigSession,
   createSetupArtifacts,
   InspectRunError,
@@ -8,11 +9,14 @@ import {
   loadJson,
   loadPlanInstance,
   loadPolicy,
+  type NoticeActionResult,
+  type ProjectedNotice,
   type ProjectionIssue,
   ResumeRefusal,
   type RunProjection,
   type RunRecord,
   type SetupAnswers,
+  type WatchProjection,
 } from '@agentic-workflow-kit/jig-sdk';
 
 export async function run(): Promise<void> {
@@ -27,6 +31,14 @@ export async function run(): Promise<void> {
     await handleSetup(args.slice(1));
   } else if (command === 'inspect') {
     await handleInspect(args.slice(1));
+  } else if (command === 'watch') {
+    await handleWatch(args.slice(1));
+  } else if (command === 'ask-why') {
+    await handleAskWhy(args.slice(1));
+  } else if (command === 'notice-ack') {
+    await handleNoticeAck(args.slice(1));
+  } else if (command === 'notice-snooze') {
+    await handleNoticeSnooze(args.slice(1));
   } else if (command === 'resume') {
     await handleResume(args.slice(1));
   } else {
@@ -43,6 +55,10 @@ function printUsage(): void {
   console.error('  jig preview <plan> --config <config> --policy <policy>');
   console.error('  jig run <plan> --config <config> --policy <policy> --scripted-output <output>');
   console.error('  jig inspect <run-directory>');
+  console.error('  jig watch <run-directory>');
+  console.error('  jig ask-why <run-directory> [--story <story-id>]');
+  console.error('  jig notice-ack <run-directory> <notice-id>');
+  console.error('  jig notice-snooze <run-directory> <notice-id> --until <iso-timestamp>');
   console.error(
     '  jig resume <run-directory> --scripted-output <output> [--config <config>] [--policy <policy>] [--plan <plan>]',
   );
@@ -256,6 +272,136 @@ async function handleInspect(args: string[]): Promise<void> {
     console.error(`Error: ${message}`);
     process.exit(1);
   }
+}
+
+async function handleWatch(args: string[]): Promise<void> {
+  const runDir = args[0];
+  if (!runDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderWatch(await session.operator.watch({ runDir }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
+async function handleAskWhy(args: string[]): Promise<void> {
+  const runDir = args[0];
+  if (!runDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderAskWhy(await session.operator.askWhy({ runDir, storyId: getArg(args, '--story') ?? undefined }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
+async function handleNoticeAck(args: string[]): Promise<void> {
+  const [runDir, noticeId] = args;
+  if (!runDir || !noticeId) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderNoticeAction(await session.operator.acknowledgeNotice({ runDir, noticeId }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
+async function handleNoticeSnooze(args: string[]): Promise<void> {
+  const [runDir, noticeId] = args;
+  const until = getArg(args, '--until');
+  if (!runDir || !noticeId || !until) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderNoticeAction(await session.operator.snoozeNotice({ runDir, noticeId, until }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
+function renderWatch(watch: WatchProjection): void {
+  console.log('\n--- Run Watch ---');
+  console.log(`Run ID: ${watch.runId}`);
+  console.log(`Status: ${watch.status}`);
+  console.log(`Lifecycle: ${watch.lifecycleState}`);
+  console.log(`Signal: ${watch.signal}`);
+  renderWatchGroup('Progressing', watch.groups.progressing);
+  renderWatchGroup('Parked', watch.groups.parked);
+  renderWatchGroup('Blocked', watch.groups.blocked);
+  renderWatchGroup('Done', watch.groups.done);
+  renderWatchGroup('Waiting', watch.groups.waiting);
+  renderProjectedNotices(watch.notices);
+  console.log('-----------------\n');
+}
+
+function renderWatchGroup(label: string, stories: WatchProjection['groups']['done']): void {
+  if (stories.length === 0) return;
+  console.log(`${label}:`);
+  for (const story of stories) {
+    const details = story.reason ? ` (${story.reason})` : story.blockedBy ? ` (blocked by ${story.blockedBy})` : '';
+    console.log(`  - ${story.storyId}: ${story.state}${details}`);
+  }
+}
+
+function renderAskWhy(result: AskWhyResult): void {
+  console.log('\n--- Ask Why ---');
+  console.log(`Subject: ${result.subject}`);
+  console.log(`Answer: ${result.answer}`);
+  if (result.citations.length > 0) {
+    console.log('Citations:');
+    for (const citation of result.citations) {
+      const reason = citation.reason ? ` reason=${citation.reason}` : '';
+      const details = citation.details?.length ? ` ${citation.details.join(' ')}` : '';
+      console.log(`  - line ${citation.line}: ${citation.family}${reason}${details}`);
+    }
+  }
+  console.log('---------------\n');
+}
+
+function renderNoticeAction(result: NoticeActionResult): void {
+  console.log('\n--- Notice Action ---');
+  console.log(`Records Directory: ${result.runDir}`);
+  renderNotice(result.notice);
+  console.log('---------------------\n');
+}
+
+function renderProjectedNotices(notices: ProjectedNotice[]): void {
+  if (notices.length === 0) return;
+  console.log('Notices:');
+  for (const notice of notices) {
+    renderNotice(notice);
+  }
+}
+
+function renderNotice(notice: ProjectedNotice): void {
+  const snoozed = notice.snoozedUntil ? ` until ${notice.snoozedUntil}` : '';
+  console.log(`  - ${notice.id}: ${notice.urgency}/${notice.state}${snoozed}`);
+  console.log(`    ${notice.message}`);
+  console.log(`    Next: ${notice.nextAction}`);
 }
 
 function renderProjectionInspection(
