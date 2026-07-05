@@ -17,6 +17,8 @@ export type CodexSessionResult =
 
 export interface CodexAgentSession {
   run(story: Story): Promise<CodexSessionResult>;
+  interruptActiveTurn?(): Promise<boolean>;
+  close?(): Promise<void>;
 }
 
 export interface CodexAgentOptions {

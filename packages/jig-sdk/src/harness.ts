@@ -648,6 +648,7 @@ export class LocalHarness {
         storyId: story.id,
         result: result.evidence.result,
         changedFiles: result.changedFiles,
+        observed: result.evidence.observed,
       });
 
       if (result.outcome !== 'success') {

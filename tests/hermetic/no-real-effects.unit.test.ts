@@ -7,7 +7,7 @@
 // Deliberately imports only the side-effect-free ./violation.ts, never the setup module: the
 // setup's import side effects would install the guard even in a lane whose setupFiles wiring
 // was dropped, and this file's wiring proof for the `unit` lane would go vacuous.
-import { exec, execFile, execFileSync, execSync, spawnSync } from 'node:child_process';
+import { exec, execFile, execFileSync, execSync, spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -66,6 +66,17 @@ test('seeded violation: execFileSync("codex", ...) is blocked by the hermetic gu
   }
   assert.ok(caught instanceof HermeticGuardViolation, `expected HermeticGuardViolation, got ${String(caught)}`);
   assert.match((caught as Error).message, /blocked real execFileSync\("codex"/);
+});
+
+test('seeded violation: spawn("codex", ["app-server", ...]) is blocked by the hermetic guard', () => {
+  let caught: unknown;
+  try {
+    spawn('codex', ['app-server', '--listen', 'stdio://']);
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof HermeticGuardViolation, `expected HermeticGuardViolation, got ${String(caught)}`);
+  assert.match((caught as Error).message, /blocked real spawn\("codex"/);
 });
 
 test('seeded violation: fetch to a non-local host is blocked by the hermetic guard', async () => {
