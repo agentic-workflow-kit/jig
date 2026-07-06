@@ -34,7 +34,7 @@ decision records and reference material.
 | Core data ports                                           | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass                                                                         |
 | Contracts overview                                        | `contracts/README.md`                                                                                                                                | overview    | —                                                                                                                       |
 | Data contracts                                            | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                                                                           |
-| Driving / providers                                       | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / EVRUN-full evidence gates                                                                      |
+| Driving / providers                                       | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / remaining EVRUN evidence gates                                                                 |
 | Provider realization roadmap                              | [`contracts/provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md)                                                           | roadmap     | grows as later provider-realization phases land                                                                         |
 | Security model                                            | [`security-model.md`](./security-model.md)                                                                                                           | **draft**   | grows as new controls are designed                                                                                      |
 | Decisions                                                 | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                                                                             |
@@ -157,6 +157,6 @@ already complete.
 - implementation of the ADR 0027 package split, including package files, export maps, project
   references, source moves, dependency rules, and publishing posture;
 - provider package publication or a third-party provider ecosystem commitment;
-- EVRUN-full, prompt-size / bounded-context behavior, Windows / Git Bash support, and other evidence
-  gates that ADR 0028 leaves open;
+- remaining EVRUN no-phone-home/idempotency, prompt-size / bounded-context behavior, Windows /
+  Git Bash support, and other evidence gates that ADR 0028 leaves open;
 - the implementation code itself.

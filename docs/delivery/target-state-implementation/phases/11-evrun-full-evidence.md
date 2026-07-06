@@ -1,6 +1,6 @@
 ---
 title: "Phase 11 - EVRUN-full evidence"
-status: "merged (#70; blocked evidence)"
+status: "merged (#70; combined smoke captured, stronger probes open)"
 ---
 
 # Phase 11 - EVRUN-full evidence
@@ -10,10 +10,10 @@ status: "merged (#70; blocked evidence)"
 Run and commit the EVRUN-full evidence: a real, end-to-end Codex-driven delivery — GitHub
 Issues work source, real Codex agent over the app-server transport, real execution-host
 containment, real GitHub Forge landing, integrity and redaction active — plus the adversarial
-probes EVRUN-partial could not claim (no-phone-home, multi-run idempotency). The implemented P11
-record is an honest blocked capture attempt: the narrow Codex app-server and real-host smoke probes
-were refreshed, but the combined EVRUN-full path could not run because the sandbox GitHub and
-integrity prerequisites were absent. Product code changes are not this phase's purpose.
+probes EVRUN-partial could not claim (no-phone-home, multi-run idempotency). P11 first landed an
+honest blocked capture attempt; a later follow-up captured the combined real GitHub / real Codex /
+real-host `open-pr` smoke. Strong no-phone-home, held-merge replay, and multi-run idempotency
+remain open. Product code changes are not this phase's purpose.
 
 ## Background
 
@@ -54,8 +54,9 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
   in [`product/jig.md`](../../../product/jig.md#what-jig-isnt-yet).
 - A successful capture would prove `SEC-2` (no-phone-home proven, not asserted), `RESUME-3` (no
   double effect against real systems), and `MERGE-2`/`FENCE-3` observations on a real path.
-- The implemented blocked capture attempt does not unlock P13 or authorize P14 status claims;
-  those remain gated on either EVRUN-full evidence or an explicit owner decision to defer the gate.
+- The later combined smoke removes the original "real Codex plus real GitHub path unproven"
+  blocker. P13/P14 status claims still need either stronger no-phone-home/idempotency evidence or
+  an explicit owner decision to defer those gates.
 
 ## Technical Requirements
 
@@ -86,28 +87,31 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 - **Requires:** P03 and P04 (hard).
 - **Benefits from:** P05 (block-surfacing and held-merge paths worth capturing in the same
   sweep).
-- **Would unlock:** P13 (hard) and P14 status claims only after EVRUN-full evidence or an explicit
-  owner deferral decision.
+- **Would unlock:** P13 (hard) and P14 status claims only after the remaining no-phone-home /
+  idempotency evidence is captured or explicitly deferred by the owner.
 - **Parallel:** P07–P10, P12 may proceed concurrently.
 
 ## Acceptance Criteria
 
 These criteria remain the bar for closing this phase. The per-AC disposition markers below
-record honest current state as of the #70 merge; they do not lower the bar.
+record honest current state after the #70 merge and the later 2026-07-06 follow-up capture; they
+do not lower the bar for the stronger probes.
 
 1. A committed, dated EVRUN-full evidence record (or record set) exists under
    `docs/design/evidence/`, indexed, convention-complete (versions, hashes, Limitations,
    redaction statement, ID citations).
-   **Disposition at #70 merge: not met.** What was delivered instead is the blocked-attempt
-   record `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md`. A full capture
-   re-attempt is still owed before this criterion is met.
+   **Current disposition: met for the combined smoke record.**
+   `docs/design/evidence/2026-07-06-evrun-full-smoke.md` records the successful combined path.
+   `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md` remains as provenance for the
+   earlier blocked attempt.
 2. The record demonstrates: real Codex editing through the owned app-server transport; real,
    exercised confinement with honest strength; an adversarial no-phone-home observation; and
    multi-run idempotency against a real landed effect.
-   **Disposition at #70 merge: not met.** The combined EVRUN-full path could not run because
-   the sandbox GitHub and integrity prerequisites were absent; the blocked-attempt record
-   `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md` documents what was observed
-   instead. A full capture re-attempt remains required before this criterion is met.
+   **Current disposition: partially met.** The combined smoke demonstrates real Codex editing
+   through the owned app-server transport, real macOS execution-host attestation with honest
+   `weak` strength, real GitHub Issues / Forge effects, records integrity, and redaction. The
+   adversarial no-phone-home observation remains `ambiguous`, and multi-run idempotency against a
+   repeated real landed effect remains unproven.
 3. Hosted/remote operation and Windows behavior are explicitly restated as out of scope in the
    Limitations section.
 4. README/AGENTS/product status lines about EVRUN reflect the new boundary — no claim exceeds
