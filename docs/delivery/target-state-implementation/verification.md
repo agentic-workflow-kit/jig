@@ -106,13 +106,13 @@ byte-level compatibility surface for the observability-records v0 contract.
   dated filename and header, exact external tool versions, content hashes for captured
   transcripts, a required `Limitations` section, an explicit redaction statement, and citations
   to the guarantee/invariant/ADR IDs the evidence supports.
-- **EVRUN-partial** is the committed baseline. **EVRUN-full** (P11) must prove at minimum: real
-  Codex editing through the app-server transport, real execution-host confinement, adversarial
-  no-phone-home behavior, and multi-run idempotency — four of the six gaps the
-  [evidence boundary](../../design/evidence/README.md#evrun-evidence-boundary) names. The
-  remaining two — hosted or remote operation and Windows behavior — stay explicitly out of this
-  track (remote is a product deferral; Windows gates on `N1A-P14`); that grouping is this
-  track's scoping decision, not the evidence doc's.
+- **EVRUN-partial** is the committed baseline. **EVRUN-full** (P11) now includes a combined smoke
+  proving real Codex editing through the app-server transport, real macOS execution-host
+  attestation, real GitHub effects, records integrity, and redaction. The remaining P11 evidence
+  gates are adversarial no-phone-home behavior and multi-run idempotency against a repeated real
+  effect. Hosted or remote operation and Windows behavior stay explicitly out of this track
+  (remote is a product deferral; Windows gates on `N1A-P14`); that grouping is this track's
+  scoping decision, not the evidence doc's.
 - Evidence is host- and version-pinned, and is an input to decisions, not authority. P13's
   freeze package cites evidence records; the contract owner decides.
 - For any phase whose acceptance criteria claim real-provider behavior (P03, P04, P05, P11), the
@@ -222,8 +222,9 @@ The track is delivered when all of the following hold, with evidence:
 1. Every phase P01–P14 is merged with its acceptance criteria checked off in review.
 2. `pnpm check` is green on `main` with the P02 package layout and boundary enforcement in the
    gate.
-3. EVRUN-full is committed under `docs/design/evidence/` and indexed, with its limitations
-   honestly stated.
+3. EVRUN-full combined-smoke evidence is committed under `docs/design/evidence/` and indexed, with
+   limitations honestly stated and remaining no-phone-home/idempotency gates either evidenced or
+   explicitly deferred.
 4. The P14 guarantee-coverage audit maps every product ID in
    [`guarantees.md`](../../product/guarantees.md) to shipped behavior plus tests, or to an
    explicitly recorded deferral (remote hosts, triggers, Windows, ecosystem distribution).

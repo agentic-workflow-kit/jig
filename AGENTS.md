@@ -50,9 +50,10 @@ the success-path real Forge `open-pr` smoke has been rerun on the current checko
 held-merge and commit-status/comment block-surfacing legs remain unit-proven with real-effect
 evidence still owed.
 Strong no-phone-home evidence remains future work. EVRUN-partial is recorded; P11 also records a
-blocked EVRUN-full capture attempt where the narrow Codex app-server and real-host smokes passed
-outside the Codex sandbox, but the combined real GitHub path could not run without sandbox
-credentials and an integrity key. EVRUN-full remains future work.
+blocked EVRUN-full capture attempt plus a later successful combined EVRUN-full smoke: real GitHub
+Issues, real Codex app-server, real host attestation, real GitHub Forge `open-pr`, and records
+integrity on the disposable target repo. Strong no-phone-home, held-merge/idempotency, hosted, and
+Windows evidence remain future work.
 
 ## Commands
 
