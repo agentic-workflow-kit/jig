@@ -135,6 +135,7 @@ export interface ProjectionInspectionResult {
   integrity: IntegrityVerification;
   resumeDiagnostics: ProjectionIssue[];
   exportAudit: ExportAuditRecord[];
+  exportAuditDiagnostics: ProjectionIssue[];
 }
 
 export interface LegacyInspectionResult {
@@ -229,6 +230,29 @@ function exportCitation(record: ExportAuditRecord): WhyCitation {
     ...(typeof record.event.reason === 'string' ? { reason: record.event.reason } : {}),
     ...(details.length > 0 ? { details } : {}),
   };
+}
+
+function readInspectableExportAudit(runDir: string): {
+  exportAudit: ExportAuditRecord[];
+  exportAuditDiagnostics: ProjectionIssue[];
+} {
+  try {
+    return {
+      exportAudit: readExportAudit(runDir),
+      exportAuditDiagnostics: [],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      exportAudit: [],
+      exportAuditDiagnostics: [
+        {
+          code: 'export-audit-unreadable',
+          message: `export audit sidecar unreadable and ignored: ${message}`,
+        },
+      ],
+    };
+  }
 }
 
 function readProjectionInputs(runDir: string): { eventsJsonl: string; runRecord: RunRecord | null } {
@@ -521,6 +545,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
 
           try {
             const projection = projectRunEvents({ eventsJsonl, runRecord });
+            const exportAudit = readInspectableExportAudit(input.runDir);
             return {
               kind: 'projection',
               runDir: input.runDir,
@@ -528,7 +553,8 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
               cacheParseError,
               integrity,
               resumeDiagnostics: resumeInspectionDiagnostics(projection),
-              exportAudit: readExportAudit(input.runDir),
+              exportAudit: exportAudit.exportAudit,
+              exportAuditDiagnostics: exportAudit.exportAuditDiagnostics,
             };
           } catch (err) {
             if (runRecord && isLegacyProjectionFallback(err)) {
@@ -571,7 +597,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
         if (input.storyId) {
           return result;
         }
-        const exportAudit = readExportAudit(input.runDir);
+        const exportAudit = readInspectableExportAudit(input.runDir).exportAudit;
         const latestExport = exportAudit.at(-1);
         if (!latestExport) {
           return result;

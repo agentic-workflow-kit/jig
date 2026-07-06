@@ -276,6 +276,7 @@ async function handleInspect(args: string[]): Promise<void> {
         inspection.integrity,
         inspection.resumeDiagnostics,
         inspection.exportAudit,
+        inspection.exportAuditDiagnostics,
       );
       return;
     }
@@ -535,6 +536,7 @@ function renderProjectionInspection(
   integrity: IntegrityVerification,
   resumeDiagnostics: ProjectionIssue[] = [],
   exportAudit: ExportAuditRecord[] = [],
+  exportAuditDiagnostics: ProjectionIssue[] = [],
 ): void {
   console.log('\n--- Run Inspection ---');
   console.log(`Run ID: ${projection.runId}`);
@@ -580,7 +582,7 @@ function renderProjectionInspection(
     }
   }
 
-  const diagnostics = [...projection.diagnostics, ...resumeDiagnostics];
+  const diagnostics = [...projection.diagnostics, ...resumeDiagnostics, ...exportAuditDiagnostics];
   if (cacheParseError) {
     diagnostics.push({
       code: 'run.json-cache-unreadable',

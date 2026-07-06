@@ -1606,6 +1606,27 @@ test('P10-F10: custom-dir export remains attributable from inspect and run-level
   assert.match(whyOutput, /artifact=.*custom-export-audit-dir.*audit-export.*\.json/);
 });
 
+test('P10 review: malformed export audit sidecar becomes an inspect diagnostic and does not break ask-why', async () => {
+  const runDir = join(workDir, 'malformed-export-audit-cli-run-dir');
+  mkdirSync(join(runDir, 'exports'), { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+  writeFileSync(join(runDir, 'exports', 'export-audit.jsonl'), '{"family":"export.prepared"\n');
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+  const inspectOutput = loggedLines();
+  assert.match(inspectOutput, /export-audit-unreadable: export audit sidecar unreadable and ignored/);
+
+  logSpy.mockClear();
+  setArgv('ask-why', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+  const whyOutput = loggedLines();
+  assert.match(whyOutput, /The run stopped at after:STORY-2\.parked/);
+  assert.doesNotMatch(whyOutput, /exports\/export-audit\.jsonl/);
+});
+
 test('P08-AC-3: ask-why surfaces operator errors', async () => {
   setArgv('ask-why', join(workDir, 'missing-why-run'));
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);

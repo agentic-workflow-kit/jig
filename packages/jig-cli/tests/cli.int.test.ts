@@ -328,8 +328,15 @@ test('P08-F11: watch observes a live run from a second process and then the fini
     assert.match(watchWhileRunning, /Signal: progressing/);
     assert.match(watchWhileRunning, /Progressing:\n {2}- STORY-1: started/);
 
-    writeFileSync(continueFile, 'continue\n');
-    await new Promise<void>((resolve, reject) => {
+    const driverExit = new Promise<void>((resolve, reject) => {
+      if (driver.exitCode !== null) {
+        if (driver.exitCode === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`driver exited with code ${String(driver.exitCode)}`));
+        return;
+      }
       driver.once('exit', (code) => {
         if (code === 0) {
           resolve();
@@ -339,6 +346,8 @@ test('P08-F11: watch observes a live run from a second process and then the fini
       });
       driver.once('error', reject);
     });
+    writeFileSync(continueFile, 'continue\n');
+    await driverExit;
 
     const watchAfterCompletion = execSync(`node packages/jig-cli/bin/jig.js watch ${runDir}`, {
       encoding: 'utf8',
