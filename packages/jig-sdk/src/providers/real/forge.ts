@@ -140,24 +140,27 @@ function mergeabilityForMessage(
   }
 
   if (
+    normalized.includes('base branch policy') ||
+    normalized.includes('policy prohibits the merge') ||
+    normalized.includes('protected branch') ||
+    normalized.includes('branch protection') ||
+    normalized.includes('required review') ||
+    normalized.includes('required approving review') ||
+    normalized.includes('approving review is required') ||
+    normalized.includes('required status') ||
+    normalized.includes('required checks') ||
+    normalized.includes('review required')
+  ) {
+    return 'held-by-review';
+  }
+
+  if (
     normalized.includes('cannot be merged cleanly') ||
     normalized.includes('not mergeable') ||
     normalized.includes('merge conflict') ||
     normalized.includes('conflict')
   ) {
     return 'held-by-conflict';
-  }
-
-  if (
-    normalized.includes('protected branch') ||
-    normalized.includes('branch protection') ||
-    normalized.includes('required review') ||
-    normalized.includes('required approving review') ||
-    normalized.includes('required status') ||
-    normalized.includes('required checks') ||
-    normalized.includes('review required')
-  ) {
-    return 'held-by-review';
   }
 
   return null;

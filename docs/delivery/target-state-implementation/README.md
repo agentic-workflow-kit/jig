@@ -60,8 +60,8 @@ Verified against the repo after Phase 02 workspace split:
   includes the private production Codex app-server transport: `bootstrap.ts` composes
   `createProductionCodexAgentSession`, and driver selection supports `agent: 'codex'`. The
   remaining limitation is evidence, not absence of implementation: P11 now records the combined
-  real Codex / real GitHub `open-pr` smoke, while stronger no-phone-home and repeated-effect
-  idempotency evidence remain open. The real Execution host is now selectable on macOS and
+  real Codex / real GitHub `open-pr` smoke and a later real repeated-effect idempotency smoke,
+  while stronger no-phone-home evidence remains open. The real Execution host is now selectable on macOS and
   exercises a local `process-group` confinement probe that reports an honest proven `weak` posture
   at compose time.
 - **Conformance and controlled doubles** now live in `packages/jig-testkit`
@@ -78,9 +78,9 @@ Verified against the repo after Phase 02 workspace split:
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. P11 also records the
-  earlier blocked EVRUN-full attempt and the later combined real Codex / real-host / real GitHub
-  `open-pr` smoke. Strong no-phone-home, held-merge/idempotency, hosted, and Windows evidence
-  remain open.
+  earlier blocked EVRUN-full attempt, the later combined real Codex / real-host / real GitHub
+  `open-pr` smoke, and the follow-up held-merge / resume idempotency smokes. Strong
+  no-phone-home, hosted, and Windows evidence remain open.
 
 ## Desired target state
 
@@ -103,9 +103,9 @@ Verified against the repo after Phase 02 workspace split:
 - **Observability** ([guarantee 5](../../product/guarantees.md#5-full-observability)): watch,
   notices with acknowledge/snooze, ask-why, and write-once redacted export, all answered from
   the run's own records.
-- **Evidence**: EVRUN-full combined smoke committed; remaining no-phone-home/idempotency evidence
-  captured or explicitly deferred; contract-freeze readiness prepared for the contract owner's T14
-  decision.
+- **Evidence**: EVRUN-full combined smoke committed; repeated-effect idempotency captured; remaining
+  no-phone-home evidence captured or explicitly deferred; contract-freeze readiness prepared for the
+  contract owner's T14 decision.
 - **Docs**: README, AGENTS.md, and docs indexes state the shipped surface truthfully at every
   phase boundary.
 
@@ -346,16 +346,13 @@ boundary enforcement from P02 on, docs checks, and the definition of "delivered"
 Per the escalation rule (product owns what/why; design reconciles to product; delivery names
 conflicts rather than resolving them):
 
-- **`MERGE-5` is partially proven; block-surfacing real-effect evidence is still owed.** The
-  product guarantees blocked-PR surfacing. Surfacing is now reachable from normal runner wiring,
-  and the success-path real Forge `open-pr` smoke was rerun on the current checkout
-  (`docs/design/evidence/2026-07-06-p05-real-forge-smoke-rerun.md`). The commit-status/comment
-  block-surfacing leg remains unit-proven, the earlier commit-status write/read attempt failed
-  with an HTTP 403, and held-merge posture was never observed against a protected target — the
-  EVRUN-partial-style smoke records explicitly do not claim `MERGE-5` end to end. Additional
-  real-effect proof remains required before the claim is fully proven; see the review record
-  `docs/archive/reviews/2026-07-06-p04-p12-target-state-review.md` for the observed failure
-  detail.
+- **`MERGE-5` has real-effect evidence.** The product guarantees blocked-PR surfacing. Surfacing is
+  reachable from normal runner wiring, the success-path real Forge `open-pr` smoke was rerun on the
+  current checkout (`docs/design/evidence/2026-07-06-p05-real-forge-smoke-rerun.md`), and the
+  follow-up held-merge smoke observed a protected-branch `done-not-landed` outcome plus readable
+  PR/status/comment block surfacing
+  (`docs/design/evidence/2026-07-06-p05-held-merge-smoke.md`). Earlier partial records remain
+  provenance for the previous gap, not the current claim.
 - **GUARD-2 pause shape is an open design question** (distinct sub-state vs. reusing `parked`,
   raised in [`plan-intake.md`](../../design/core/plan-intake.md#open-questions);
   [`authorization.md`](../../design/core/authorization.md) explicitly declines to invent a new

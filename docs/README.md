@@ -25,9 +25,8 @@ scoped to **Jig the execution engine**.
 Current implementation truth includes a private setup command that emits validated owner
 configuration, plus a private real GitHub Forge/GitHub Issues path with blocked-PR surfacing,
 held-merge replay safety, landing-path redaction, and origin-bearing candidate provenance —
-the success-path real Forge `open-pr` smoke has been rerun on the current checkout, while
-held-merge and commit-status/comment block-surfacing legs remain unit-proven with real-effect
-evidence still owed;
+the success-path real Forge `open-pr`, protected-branch held merge, commit-status/comment
+block-surfacing, and resume idempotency smokes have been captured on the current checkout;
 phase-table PR-number status updates still live in delivery docs.
 
 Preserve active design history in place:

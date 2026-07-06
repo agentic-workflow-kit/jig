@@ -326,9 +326,11 @@ consolidation:
 
 - **EVRUN-full is only partially closed.** EVRUN-partial remains the M7 baseline, and the later
   EVRUN-full combined smoke proves the real Codex / real-host / real GitHub `open-pr` path against
-  a disposable sandbox. It still does not prove adversarial no-phone-home behavior or multi-run
-  idempotency against a repeated real effect ([`evidence/README.md`](./evidence/README.md);
-  [`evidence/2026-07-06-evrun-full-smoke.md`](./evidence/2026-07-06-evrun-full-smoke.md)).
+  a disposable sandbox. A later RESUME-3 smoke proves multi-run idempotency against a repeated real
+  `open-pr` effect. The remaining EVRUN evidence gap is adversarial no-phone-home behavior
+  ([`evidence/README.md`](./evidence/README.md);
+  [`evidence/2026-07-06-evrun-full-smoke.md`](./evidence/2026-07-06-evrun-full-smoke.md);
+  [`evidence/2026-07-06-resume-idempotency-smoke.md`](./evidence/2026-07-06-resume-idempotency-smoke.md)).
 - **No-phone-home is not yet adversarially probed.** The design requires proven, not asserted,
   confinement, but red-team adversarial probing of the no-phone-home boundary remains later
   integration work, not yet exercised ([`contracts/providers.md`](./contracts/providers.md)
