@@ -5,9 +5,9 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P09 are merged and P10 is open as PR #69 (see the
-[phase table](#phase-table)); the remaining phases are planned. Phase statuses live in the phase
-table below and in each phase doc's frontmatter.
+**Status: in progress.** P01–P10 are merged and P11 has captured a blocked EVRUN-full evidence
+attempt (see the [phase table](#phase-table)); the remaining phases are planned. Phase statuses live
+in the phase table below and in each phase doc's frontmatter.
 
 ## Overview
 
@@ -69,8 +69,10 @@ Verified against the repo after Phase 02 workspace split:
   terminal runs. There is still no MCP surface.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
-  work-source → forge → records-integrity run with a **scripted** agent leg. EVRUN-full (real
-  Codex leg, real confinement, adversarial no-phone-home, multi-run idempotency) remains open.
+  work-source → forge → records-integrity run with a **scripted** agent leg. P11 captured a
+  blocked EVRUN-full attempt: narrow Codex app-server and real-host smokes pass outside the
+  sandbox, but the combined real GitHub path could not run without sandbox credentials and an
+  integrity key. EVRUN-full remains open.
 
 ## Desired target state
 
@@ -273,22 +275,22 @@ release posture`")
 
 ## Phase table
 
-| ID  | Phase                                                                                      | Status                      | Hard dependencies | Parallelization                                                         |
-| --- | ------------------------------------------------------------------------------------------ | --------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| P01 | [SDK boundary and operator-control surface](./phases/01-sdk-boundary-and-operator-port.md) | merged (#55)                | —                 | First; everything else keys off this surface.                           |
-| P02 | [Package split: jig-sdk, jig-cli, jig-testkit](./phases/02-package-split-workspace.md)     | merged (#56, #58)           | P01               | Sole occupant of its slot — it moves every source file.                 |
-| P03 | [Codex app-server transport](./phases/03-codex-app-server-transport.md)                    | merged (#57, #58, #59, #60) | P01               | Parallel with P04–P10 after P02 (soft).                                 |
-| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
-| P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
-| P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
-| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
-| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
-| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
-| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | PR #69                      | P01               | Parallel with P03–P09.                                                  |
-| P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned                     | P03, P04          | Sequential after both provider phases; benefits from P05.               |
-| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                     | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
-| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                     | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
-| P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned                     | All other phases  | Last; closes the track.                                                 |
+| ID  | Phase                                                                                      | Status                         | Hard dependencies | Parallelization                                                         |
+| --- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------- | ----------------------------------------------------------------------- |
+| P01 | [SDK boundary and operator-control surface](./phases/01-sdk-boundary-and-operator-port.md) | merged (#55)                   | —                 | First; everything else keys off this surface.                           |
+| P02 | [Package split: jig-sdk, jig-cli, jig-testkit](./phases/02-package-split-workspace.md)     | merged (#56, #58)              | P01               | Sole occupant of its slot — it moves every source file.                 |
+| P03 | [Codex app-server transport](./phases/03-codex-app-server-transport.md)                    | merged (#57, #58, #59, #60)    | P01               | Parallel with P04–P10 after P02 (soft).                                 |
+| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                   | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
+| P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                   | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
+| P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                   | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
+| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                   | P06               | Parallel with anything not touching config templates.                   |
+| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                   | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
+| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                   | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
+| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | merged (#69)                   | P01               | Parallel with P03–P09.                                                  |
+| P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | implemented (blocked evidence) | P03, P04          | Sequential after both provider phases; benefits from P05.               |
+| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                        | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
+| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                        | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
+| P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned                        | All other phases  | Last; closes the track.                                                 |
 
 ## What can run in parallel
 

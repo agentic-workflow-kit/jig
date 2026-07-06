@@ -26,6 +26,7 @@ guarantee, invariant, or decision IDs the evidence supports.
 | 2026-07-04 | [N1A-P09/P10 busy behavior and cleanup](./2026-07-04-n1a-p09-p10-busy-cleanup.md)                                           | Overlapping turn-start behavior, malformed request handling, and restart cleanup evidence for N1b.                                                                                     |
 | 2026-07-04 | [N1A-P11/P12 resume and durability](./2026-07-04-n1a-p11-p12-resume-durability.md)                                          | Persistent thread resume and durable app-server session-state evidence for N1b.                                                                                                        |
 | 2026-07-04 | [EVRUN partial real-provider smoke evidence](./2026-07-04-evrun-partial-smoke.md)                                           | Applied evidence for one `work-source -> forge -> records-integrity` smoke run against the disposable sandbox, with a scripted/injected agent leg and explicit EVRUN-full limitations. |
+| 2026-07-06 | [EVRUN-full capture attempt](./2026-07-06-evrun-full-capture-attempt.md)                                                    | P11 capture attempt showing successful narrow Codex app-server and real-host smokes, plus the exact missing-prerequisite blocker that keeps EVRUN-full unproven.                       |
 
 ## N1a deferred probes
 
@@ -40,7 +41,9 @@ guarantee, invariant, or decision IDs the evidence supports.
 
 ## EVRUN evidence boundary
 
-The EVRUN-partial record was enough for the org M7 exit decision, but it is not EVRUN-full. It does
-not prove real Codex editing, real execution-host confinement, adversarial no-phone-home behavior,
-multi-run idempotency, hosted/remote operation, or Windows behavior. Those limits remain inputs to
-later Codex transport implementation and contract-freeze decisions.
+The EVRUN-partial record was enough for the org M7 exit decision, but it is not EVRUN-full. The
+2026-07-06 P11 capture attempt refreshes the narrow Codex app-server and macOS real-host smoke
+evidence, but it still does not prove the combined real Codex, real GitHub, real execution-host,
+integrity, adversarial no-phone-home, and multi-run idempotency path. EVRUN-full remains unproven
+until the missing sandbox credentials/configuration are supplied and the combined scenario runs.
+Hosted/remote operation and Windows behavior also remain unproven.

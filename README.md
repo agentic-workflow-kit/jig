@@ -33,11 +33,13 @@ execution-host path now exercises a local macOS process-group probe and reports 
 containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
-(`EVRUN-partial`). The current real GitHub Forge/GitHub Issues path also carries blocked-PR
-surfacing, held-merge replay safety, landing-path redaction, and per-candidate origin-bearing
-provenance. `EVRUN-full`, remote execution, public package publication, and a full Codex-driven
-agent leg remain future work; strong/no-phone-home execution-host evidence remains in that later
-proof step.
+(`EVRUN-partial`). P11 also captured an EVRUN-full attempt: the narrow Codex app-server and
+real-host smokes pass outside the Codex sandbox, but the combined real GitHub path could not run
+without sandbox credentials and an integrity key. The current real GitHub Forge/GitHub Issues path
+also carries blocked-PR surfacing, held-merge replay safety, landing-path redaction, and
+per-candidate origin-bearing provenance. `EVRUN-full`, remote execution, public package
+publication, and a full Codex-driven agent leg remain future work; strong/no-phone-home
+execution-host evidence remains in that later proof step.
 
 ## Quick Start
 
