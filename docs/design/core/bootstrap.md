@@ -12,7 +12,8 @@ without committing to a run identity.
 ## Owns
 
 - Load and validate the plan, delegating to [`plan-intake`](./plan-intake.md).
-- Load and bind policy and repo-level floors, frozen at launch (GUARD-1).
+- Load and bind policy, acceptance/review expectations, and repo-level floors, frozen at launch
+  (GUARD-1).
 - Resolve the track and work profile for the run.
 - Set up the isolated workspace (ISO-4).
 - Wire the provider adapters: the composition root selects which agent, host, forge, and
@@ -33,6 +34,8 @@ without committing to a run identity.
   the one place that imports provider implementations.
 - Wires the Fence/Doorbell with the bound policy at launch and on resume; the classifier rules stay
   in [`authorization.md`](./authorization.md).
+- Preserves any policy/config-selected acceptance strength as part of the launch-bound posture;
+  detailed runtime/config schema for richer review lanes remains follow-up.
 
 ```mermaid
 %%{init: {
@@ -107,7 +110,7 @@ write binding record**`")
 | Term                 | Meaning                                                                                                                            | Owner                                                        |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Preview              | The recorded-but-non-committing bootstrap path that validates and binds but does not create a run.                                 | Bootstrap                                                    |
-| Launch binding       | The policy, work-profile, plan, and repo-floor references fixed for a run's lifetime.                                              | Bootstrap                                                    |
+| Launch binding       | The policy, acceptance posture, work-profile, plan, and repo-floor references fixed for a run's lifetime.                          | Bootstrap                                                    |
 | Binding record       | The first durable run record that ties run identity to the launch binding.                                                         | Records store, appended by Bootstrap                         |
 | Storage preflight    | Bootstrap's fail-closed check that the configured records substrate can safely support start or resume.                            | Bootstrap                                                    |
 | Resume re-entry      | Re-entering bootstrap for an already allocated run to re-validate binding, re-wire providers, and re-check storage before handoff. | Bootstrap                                                    |
@@ -129,8 +132,8 @@ The sequence below makes each step explicit and names where sibling surfaces are
    Bootstrap delegates admission to [`plan-intake.md`](./plan-intake.md). Unknown, malformed, or
    incompatible plans stop here. No run identity exists yet.
 2. **Bind launch-governing references.**
-   Bootstrap resolves the plan's policy, work-profile, and repo-floor references and freezes them
-   for the run. This is the concrete GUARD-1 binding point.
+   Bootstrap resolves the plan's policy, acceptance/review posture, work-profile, and repo-floor
+   references and freezes them for the run. This is the concrete GUARD-1 binding point.
 3. **Branch by intent: preview or start.**
    `preview` remains non-committing. `start` continues into realization.
 4. **Resolve track/work-profile realization inputs.**
@@ -174,7 +177,8 @@ append/replay rules.
 
 [`plan-intake.md`](./plan-intake.md) owns plan admission and the policy/evidence shape bootstrap
 consumes. Bootstrap delegates load/validate there, then binds the admitted references it returns.
-Bootstrap does not reinterpret unknown format, policy content, or evidence categories locally.
+Bootstrap does not reinterpret unknown format, policy content, acceptance strength, or evidence
+categories locally.
 
 ### Fence and Doorbell wiring seam
 
@@ -231,7 +235,8 @@ doing so would undercut RESUME-4's diagnosable-stop contract.
 Bootstrap is the concrete owner of performing the launch binding GUARD-1 requires.
 
 - The binding includes the admitted plan reference plus the policy, work-profile, and repo-floor
-  references the run is allowed to operate under.
+  references the run is allowed to operate under, including any policy/config-selected
+  acceptance/review posture.
 - Bootstrap freezes that binding before execution wiring begins. A provider implementation may
   receive the bound context, but it may not widen or replace it.
 - The binding becomes durable only when the binding record append succeeds through the configured
@@ -287,7 +292,7 @@ The binding record is one such irreversible boundary. Resume reads it; it never 
 Bootstrap preserves the original launch binding across resume:
 
 - same run identity;
-- same bound plan/policy/work-profile/repo-floor references;
+- same bound plan/policy/acceptance/work-profile/repo-floor references;
 - same authority to continue only if the resume prerequisites remain satisfied.
 
 If bootstrap cannot prove that continuity from durable evidence, it stops rather than "helpfully"
@@ -385,7 +390,7 @@ freezing a record shape:
 
 | Invariant or state rule                     | Bootstrap implication                                                                                        | Source                                                     |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| GUARD-1 launch binding is fixed for the run | bind once before execution; do not silently widen or swap on resume                                          | [../../product/guarantees.md](../../product/guarantees.md) |
+| GUARD-1 launch binding is fixed for the run | bind once before execution, including acceptance posture; do not silently widen or swap on resume            | [../../product/guarantees.md](../../product/guarantees.md) |
 | RESUME-3 no-double-effect                   | resume reads prior durable effects and never replays irreversible actions just because composition restarted | [../../product/guarantees.md](../../product/guarantees.md) |
 | RESUME-4 fail closed and diagnosable        | storage-preflight failures stop start/resume with explicit cause                                             | [../../product/guarantees.md](../../product/guarantees.md) |
 | SEE-1 run identity and visibility binding   | start requires durable binding record before handoff                                                         | [../../product/guarantees.md](../../product/guarantees.md) |
@@ -410,6 +415,8 @@ freezing a record shape:
 - binding-append failure -> stop before orchestration handoff;
 - missing or contradictory resume evidence -> stop instead of rebinding or replaying effects;
 - missing required approval evidence for resume -> stop and let the authority spine govern re-entry.
+- missing required acceptance/review evidence -> stop or route according to the bound policy, never
+  rebind to weaker criteria.
 
 ### Observability
 
@@ -475,6 +482,8 @@ ledger.
   (`run.previewed`) through the SDK/operator record path — but it commits no run: no run identity is
   allocated and no workspace, provider, or privileged side effects occur.
 - Policy (plus repo-level floors) is immutable for the life of the run once bound here.
+- Acceptance/review strength selected by policy/configuration is likewise launch-bound; bootstrap
+  preserves that posture but does not define the future schema or reviewer implementation.
 - Capability-attestation depth remains seam-owned by [`authorization.md`](./authorization.md) and
   later provider work; bootstrap only composes that spine.
 

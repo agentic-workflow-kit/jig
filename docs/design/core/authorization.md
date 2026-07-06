@@ -12,7 +12,8 @@ assertion.
 The Fence owns the classifier behind `authorize(request, boundPolicy)`, the Doorbell owns durable,
 narrow escalation, and capability attestation gates autonomy on proof. The work-item and run state
 machines remain [`orchestration.md`](./orchestration.md)'s territory; policy content and
-rule-governing-surface declaration remain outside this file.
+rule-governing-surface declaration remain outside this file. Review/verification verdicts are
+evidence inputs consumed by policy/orchestration, not a second authorization system.
 
 ## Owns
 
@@ -25,6 +26,8 @@ rule-governing-surface declaration remain outside this file.
   granting narrowly when the owner decides (DOOR-1, DOOR-2, DOOR-3).
 - Gating autonomy on capability attestation: fresh, positive proof a driver can perform an
   action safely before that action is auto-grantable (EARN-1, EARN-2, STACK-4, DRIVE-1).
+- Routing ambiguous, risky, unproven, stale, self-reported, or inconclusive acceptance conditions
+  to the Doorbell or fail-closed outcome according to the bound policy.
 
 ## Interface
 
@@ -114,12 +117,13 @@ out by the runner on the worker's behalf.
 
 ## Authority model
 
-| Part                        | Owns                                                                                                                   | Reads                                                                                  | Does not own                                                          |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Fence classifier            | Classifying a request as `grant`, `deny`, or `route` using the fixed CFG-10 boundary, declared scope, and bound policy | Worker request, bound policy, declared authority expectations, capability proof status | Work-item transition table, policy authoring, provider implementation |
-| Doorbell escalation         | Durable routing to an owner decision point and narrow human grants                                                     | Routed request, bound policy, prior escalation context                                 | Policy content, run/work-item stop mechanics, records storage engine  |
-| Capability-attestation gate | Whether autonomy may rely on a driver's proof for this action in this run context                                      | Driver proof, run context, requested action class                                      | Conformance-suite design, provider adapter implementation             |
-| Runner                      | Executing any privileged action that a grant permits                                                                   | Fence decision, owner decision                                                         | Holding the worker's authority boundary open                          |
+| Part                        | Owns                                                                                                                   | Reads                                                                                  | Does not own                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Fence classifier            | Classifying a request as `grant`, `deny`, or `route` using the fixed CFG-10 boundary, declared scope, and bound policy | Worker request, bound policy, declared authority expectations, capability proof status | Work-item transition table, policy authoring, provider implementation  |
+| Doorbell escalation         | Durable routing to an owner decision point and narrow human grants                                                     | Routed request, bound policy, prior escalation context                                 | Policy content, run/work-item stop mechanics, records storage engine   |
+| Capability-attestation gate | Whether autonomy may rely on a driver's proof for this action in this run context                                      | Driver proof, run context, requested action class                                      | Conformance-suite design, provider adapter implementation              |
+| Runner                      | Executing any privileged action that a grant permits                                                                   | Fence decision, owner decision                                                         | Holding the worker's authority boundary open                           |
+| Verifier/reviewer lane      | No authorization authority; emits evidence assessment or verdict for policy/orchestration to consume                   | Bound policy requirement, work/evidence under review                                   | Granting requests, landing work, weakening policy, holding credentials |
 
 ## Fixed category boundary
 
@@ -131,6 +135,7 @@ it, and no model adjudicates edge cases at runtime.
 | Declared, approved, reversible, non-privileged, and not touching rule-governing surfaces  | `grant` candidate | This is the only class eligible for assisted autonomy                 |
 | Touches credentials, push, merge, rule-governing files, or otherwise irreversible effects | `route`           | The product boundary requires a human decision here                   |
 | Ambiguous, risky, or unproven relative to the bound policy or capability proof            | `route`           | Uncertainty closes the door rather than weakening the guarantee       |
+| Missing, stale, self-reported, or inconclusive required acceptance/review evidence        | `route` or stop   | A weak verdict cannot become permission to proceed                    |
 | Undeclared, unapproved, or outside bound scope                                            | `deny`            | FENCE-1 is fail-closed on requests the run was not authorized to make |
 
 This boundary is intentionally category-based, not confidence-based. A request does not become
@@ -202,6 +207,9 @@ The Doorbell is the owner-facing side of routed authority decisions.
   the run, not a broader standing exception.
 - A routed request may be approved, rejected, or explicitly overridden, but any approval still
   stays scoped to the immediate need and is executed by the runner, not the worker.
+- A routed acceptance/review gap is resolved by owner/policy decision or stops; the reviewer cannot
+  weaken its own acceptance requirement, and the worker cannot supply self-review as sufficient
+  proof.
 
 This file owns the authorization-side escalation discipline only. The work-item `started → parked`
 and `parked → started | rejected` transitions that consume routed decisions remain defined in
@@ -265,6 +273,8 @@ matters."
   the parked/escalation path.
 - The runner remains the only component that performs privileged actions, even after a grant or
   owner approval.
+- The verifier/reviewer remains an evidence source only: it does not authorize worker requests,
+  hold forge credentials, invoke Forge, or create lifecycle transitions directly.
 - The records system remains the durable evidence substrate for authorization and escalation
   outcomes; this file names the decisions that must be recorded but does not own record storage or
   event-shape design.
@@ -312,6 +322,8 @@ These are unnumbered candidates only. They do not extend the ledger here.
   happens, the runner is what makes it happen.
 - The GUARD-2 rule itself stays outside this file; authorization owns only the enforcement leg
   that refuses auto-grant and routes to the owner.
+- Review/verification gaps follow the same fail-closed posture: missing, stale, self-reported, or
+  inconclusive proof routes or stops; it never weakens the bound policy.
 - Deferred / extension points: the depth of capability-attestation conformance checking, and the
   manual-vs-assisted posture's exact tuning surface, are not specified here.
 

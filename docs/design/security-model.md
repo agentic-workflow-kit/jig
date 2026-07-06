@@ -17,14 +17,15 @@ threat-model view rather than per-seam prose.
 
 ## Trust model — who is trusted, who is not
 
-| Party                                       | Trust status                            | Why                                                                                                                                                                                                                                                             |
-| ------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Jig-core (runner, fence, doorbell, records) | Trusted                                 | The runner is jig's trusted orchestrator: it holds credentials, is the sole authority to push/PR/merge, and performs irreversible actions only under policy and evidence ([`core/README.md`](./core/README.md) §B; FENCE-3, MERGE-2, SEC-3).                    |
-| Agent / worker (Agent seam)                 | Untrusted                               | A contained coding agent: reads a work item, writes code, runs checks, reports — holds no credentials and cannot push/PR/merge or widen its own authority ([`contracts/providers.md`](./contracts/providers.md) "Agent port"; FENCE-3).                         |
-| Execution host                              | Untrusted until proven                  | Provides isolation/containment for the worker; its isolation strength is a claim until proven, judged by `provenIsolationStrength`, not `reportedIsolationStrength` ([`core/authorization.md`](./core/authorization.md) "Phase 6 realization"; DRIVE-3, ISO-4). |
-| Forge (code host)                           | Untrusted, runner-invoked only          | Respects branch protection and merge queues as real governing constraints; only the runner invokes push/PR/merge through it ([`contracts/providers.md`](./contracts/providers.md) "Forge port"; MERGE-2, MERGE-5).                                              |
-| Work source                                 | Untrusted, never a scheduling authority | May supply provenance/import behavior, but the validated execution plan is jig's only runtime scheduling input; the seam never bypasses `PlanValidator` ([`contracts/providers.md`](./contracts/providers.md) "Work source port"; INV-007).                     |
-| Owner / operator                            | Trusted decision-maker                  | Authors policy and plan, and is the one party whose approval can grant a routed request or a re-approval ([`core/authorization.md`](./core/authorization.md) "Doorbell escalation"; DOOR-1..3).                                                                 |
+| Party                                       | Trust status                            | Why                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jig-core (runner, fence, doorbell, records) | Trusted                                 | The runner is jig's trusted orchestrator: it holds credentials, is the sole authority to push/PR/merge, and performs irreversible actions only under policy and evidence ([`core/README.md`](./core/README.md) §B; FENCE-3, MERGE-2, SEC-3).                                              |
+| Agent / worker (Agent seam)                 | Untrusted                               | A contained coding agent: reads a work item, writes code, runs checks, reports — holds no credentials and cannot push/PR/merge or widen its own authority ([`contracts/providers.md`](./contracts/providers.md) "Agent port"; FENCE-3).                                                   |
+| Verifier / reviewer                         | Governed evidence assessor              | Emits an acceptance verdict or evidence assessment when launch-bound policy requires an implemented review lane; it does not land work, hold forge credentials, redefine policy, or transition lifecycle directly ([`core/orchestration.md`](./core/orchestration.md); MERGE-1, MERGE-3). |
+| Execution host                              | Untrusted until proven                  | Provides isolation/containment for the worker; its isolation strength is a claim until proven, judged by `provenIsolationStrength`, not `reportedIsolationStrength` ([`core/authorization.md`](./core/authorization.md) "Phase 6 realization"; DRIVE-3, ISO-4).                           |
+| Forge (code host)                           | Untrusted, runner-invoked only          | Deterministic adapter for push/PR/status/comment/merge; respects branch protection and merge queues as real governing constraints; only the runner invokes it ([`contracts/providers.md`](./contracts/providers.md) "Forge port"; MERGE-2, MERGE-5).                                      |
+| Work source                                 | Untrusted, never a scheduling authority | May supply provenance/import behavior, but the validated execution plan is jig's only runtime scheduling input; the seam never bypasses `PlanValidator` ([`contracts/providers.md`](./contracts/providers.md) "Work source port"; INV-007).                                               |
+| Owner / operator                            | Trusted decision-maker                  | Authors policy and plan, and is the one party whose approval can grant a routed request or a re-approval ([`core/authorization.md`](./core/authorization.md) "Doorbell escalation"; DOOR-1..3).                                                                                           |
 
 The single organizing idea: **jig-core is the only trusted party at runtime.** Every provider seam
 (agent, execution host, forge, work source) is an untrusted, swappable boundary that jig-core
@@ -32,7 +33,8 @@ governs, never a party jig-core takes on faith ([`contracts/providers.md`](./con
 "Contract stance"). Landing credentials and irreversible authority stay on the trusted side of that
 line; they are never handed across it (STACK-5). A provider seam may still use a bounded,
 manifest-governed read or transport credential where its job requires one, but never landing or
-policy authority.
+policy authority. The verifier/reviewer is separate from those seams: it can assess work or
+evidence, but it cannot become the owner, runner, Forge provider, or execution host proof.
 
 ## The fence + fail-closed authorization spine
 
@@ -43,6 +45,8 @@ boundary"; FENCE-1, FENCE-2). Its decision order is:
 1. Undeclared or out-of-approved-scope → `deny` (fail-closed; FENCE-1).
 2. Credentials, push/merge, rule-governing touch, irreversible effect, ambiguity, or insufficient
    proof → `route` to the Doorbell.
+   Missing, stale, self-reported, or inconclusive required acceptance/review evidence follows the
+   same fail-closed posture.
 3. Declared, reversible, non-privileged, and not rule-governing, with sufficient proof → `grant`
    candidate.
 4. If the classifier cannot justify `grant` from the fixed rules, `route` — uncertainty never
@@ -127,6 +131,8 @@ Only the runner holds landing credentials and the sole authority to push, open P
   never invokes landing authority directly, and a Forge adapter cannot become a second policy or
   state authority for merge decisions ([`contracts/providers.md`](./contracts/providers.md) "Forge
   port").
+- The **Verifier/reviewer** lane never holds landing credentials and never invokes Forge directly;
+  it emits an assessment the runner consumes under policy.
 
 This is the same posture stated in the product guarantee: "the thing that writes code is not the
 thing that ships it" (MERGE-2), and "the thing writing code is never the thing holding the keys"
@@ -155,6 +161,9 @@ the host or the worker ([`contracts/providers.md`](./contracts/providers.md) "Ex
   diagnosable stop. This is distinct from capability attestation: the manifest bounds what a driver
   may ask for, attestation proves what the host actually confines
   ([`core/authorization.md`](./core/authorization.md) "Phase 6 realization").
+
+The verifier/reviewer lane does not carry SEC-2. It may assess evidence, but execution-host
+confinement remains the host/core proof boundary; Forge remains the external-operation adapter.
 
 The execution host is described in the design as "local-first today"
 ([`core/README.md`](./core/README.md) §C), so the honesty posture above is the guarantee that must
@@ -206,17 +215,18 @@ exports (SEC-1). This is enforced at the records boundary, not left to later sur
 
 ## Threat surfaces and how they are contained
 
-| Threat surface                                                     | Containment                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Worker tries to widen its own authority or act outside scope       | Fence denies by fixed CFG-10 category, fail-closed on anything undeclared or unapproved; the boundary is never model-adjudicated (FENCE-1, FENCE-2; [`core/authorization.md`](./core/authorization.md)).                                                                                                                       |
-| Worker tries to push, open a PR, or merge directly                 | Structurally impossible: the Agent port has no privileged method (`INV-002`), checked by a conformance forbidden-method sweep; landing is runner-invoked only through the Forge seam (FENCE-3, MERGE-2; [`contracts/providers.md`](./contracts/providers.md)).                                                                 |
-| Provider over-reports capability or isolation strength             | Capability attestation and execution-host proof are judged on **proven**, not reported, strength; an overstated report is recorded and unlocks nothing beyond what was proven (DRIVE-3, EARN-1/2; [`core/authorization.md`](./core/authorization.md)).                                                                         |
-| A run tries to change its own governing rules and call itself done | GUARD-2: a rule-governing touch pauses completion for fresh owner re-approval and evidence, enforced by the Fence/Doorbell and consumed by the run lifecycle (GUARD-2; [`core/plan-intake.md`](./core/plan-intake.md), [`core/authorization.md`](./core/authorization.md)).                                                    |
-| Secrets leak into records, logs, or exports                        | Redaction posture is governed per record at append time; unknown/ambiguous posture is rejected, and export stays write-once and redacted-by-default (SEC-1, SEE-6; [`core/records.md`](./core/records.md)).                                                                                                                    |
-| Worker attempts outbound network access ("phone home")             | Execution-host confinement must be proven (exercised check), not merely reported; core judges on proven isolation strength (SEC-2, DRIVE-3; [`core/authorization.md`](./core/authorization.md), [`contracts/providers.md`](./contracts/providers.md)).                                                                         |
-| A conformance-green mock is mistaken for a truthful real provider  | ADR 0026: `self-report-only` is a distinct, non-passing basis token; a green controlled-double suite is explicitly not proof of real-provider truth (ADR 0026).                                                                                                                                                                |
-| Resumed run tries to widen scope on a stale or changed basis       | Resume adjudicates against the **launch** attestation and policy binding; a broken integrity chain hard-refuses with no override, and a legitimate changed basis blocks pending fresh owner re-approval — never a silent rebind (GUARD-1; [`core/authorization.md`](./core/authorization.md) "Phase 9 realization"; ADR 0025). |
-| Work source or forge tries to bypass validated scheduling / policy | Work source candidates cross `PlanValidator` before reaching runtime scheduling (INV-007); Forge cannot re-judge evidence sufficiency or become a second policy authority (`contracts/providers.md`).                                                                                                                          |
+| Threat surface                                                     | Containment                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker tries to widen its own authority or act outside scope       | Fence denies by fixed CFG-10 category, fail-closed on anything undeclared or unapproved; the boundary is never model-adjudicated (FENCE-1, FENCE-2; [`core/authorization.md`](./core/authorization.md)).                                                                                                                                                             |
+| Worker tries to push, open a PR, or merge directly                 | Structurally impossible: the Agent port has no privileged method (`INV-002`), checked by a conformance forbidden-method sweep; landing is runner-invoked only through the Forge seam (FENCE-3, MERGE-2; [`contracts/providers.md`](./contracts/providers.md)).                                                                                                       |
+| Worker or reviewer tries to self-certify acceptance                | Required acceptance/review evidence must come from the governed lane policy selected before launch, not from worker self-report or reviewer-selected weaker criteria; missing or inconclusive proof routes/stops rather than lowering policy (MERGE-1, MERGE-3; [`core/plan-intake.md`](./core/plan-intake.md), [`core/orchestration.md`](./core/orchestration.md)). |
+| Provider over-reports capability or isolation strength             | Capability attestation and execution-host proof are judged on **proven**, not reported, strength; an overstated report is recorded and unlocks nothing beyond what was proven (DRIVE-3, EARN-1/2; [`core/authorization.md`](./core/authorization.md)).                                                                                                               |
+| A run tries to change its own governing rules and call itself done | GUARD-2: a rule-governing touch pauses completion for fresh owner re-approval and evidence, enforced by the Fence/Doorbell and consumed by the run lifecycle (GUARD-2; [`core/plan-intake.md`](./core/plan-intake.md), [`core/authorization.md`](./core/authorization.md)).                                                                                          |
+| Secrets leak into records, logs, or exports                        | Redaction posture is governed per record at append time; unknown/ambiguous posture is rejected, and export stays write-once and redacted-by-default (SEC-1, SEE-6; [`core/records.md`](./core/records.md)).                                                                                                                                                          |
+| Worker attempts outbound network access ("phone home")             | Execution-host confinement must be proven (exercised check), not merely reported; core judges on proven isolation strength (SEC-2, DRIVE-3; [`core/authorization.md`](./core/authorization.md), [`contracts/providers.md`](./contracts/providers.md)).                                                                                                               |
+| A conformance-green mock is mistaken for a truthful real provider  | ADR 0026: `self-report-only` is a distinct, non-passing basis token; a green controlled-double suite is explicitly not proof of real-provider truth (ADR 0026).                                                                                                                                                                                                      |
+| Resumed run tries to widen scope on a stale or changed basis       | Resume adjudicates against the **launch** attestation and policy binding; a broken integrity chain hard-refuses with no override, and a legitimate changed basis blocks pending fresh owner re-approval — never a silent rebind (GUARD-1; [`core/authorization.md`](./core/authorization.md) "Phase 9 realization"; ADR 0025).                                       |
+| Work source or forge tries to bypass validated scheduling / policy | Work source candidates cross `PlanValidator` before reaching runtime scheduling (INV-007); Forge cannot re-judge evidence sufficiency or become a second policy authority (`contracts/providers.md`).                                                                                                                                                                |
 
 ## Trust-boundary diagram
 
@@ -258,6 +268,12 @@ governed, redacted, append-only`")
     fence ~~~ doorbell ~~~ runner ~~~ records
   end
 
+  subgraph governed["Governed lane — independent assessment"]
+    direction LR
+    review("`**Verifier / reviewer**
+verdict only`")
+  end
+
   subgraph untrusted["Untrusted — provider seams (governed at the boundary)"]
     direction LR
     worker("`**Agent / worker**
@@ -277,6 +293,7 @@ never bypasses PlanValidator`")
   fence -->|route| doorbell
   fence -->|deny, fail-closed| deny("`**Deny**`")
   doorbell -->|narrow grant| runner
+  review -->|verdict / evidence assessment| runner
   runner -->|push / PR / merge| forge
   runner -->|contains + drives| worker
   worker -.->|runs inside| host
@@ -290,25 +307,29 @@ runtime scheduling input`")
 
   subgraph legend[" "]
     direction LR
-    l1(" ") ~~~ lt1["trusted (jig-core)"] ~~~ l2(" ") ~~~ lt2["untrusted (provider seam)"] ~~~ l3(" ") ~~~ lt3["owner"]
+    l1(" ") ~~~ lt1["trusted (jig-core)"] ~~~ l2(" ") ~~~ lt2["governed lane"] ~~~ l3(" ") ~~~ lt3["untrusted (provider seam)"] ~~~ l4(" ") ~~~ lt4["owner"]
   end
   style legend fill:transparent,stroke:transparent,color:transparent
 
   classDef coreBox fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef governedBox fill:#f5eefc,stroke:#6b3fa0,stroke-width:2px,color:#32194f,rx:16,ry:16;
   classDef seamBox fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
   classDef commonBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
   classDef legendCore fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendGoverned fill:#f5eefc,stroke:#6b3fa0,stroke-width:2px,color:#32194f,rx:6,ry:6;
   classDef legendSeam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:6,ry:6;
   classDef legendOwner fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
   classDef legendText fill:transparent,stroke:transparent,color:#666666;
 
   class fence,doorbell,runner,records,plan coreBox;
+  class review governedBox;
   class worker,host,forge,source seamBox;
   class owner,deny commonBox;
   class l1 legendCore;
-  class l2 legendSeam;
-  class l3 legendOwner;
-  class lt1,lt2,lt3 legendText;
+  class l2 legendGoverned;
+  class l3 legendSeam;
+  class l4 legendOwner;
+  class lt1,lt2,lt3,lt4 legendText;
 ```
 
 ## Honest edge

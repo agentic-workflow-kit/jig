@@ -5,8 +5,9 @@ status: draft
 
 # Records — the event-log engine
 
-Produces the durable, ordered, redaction-aware records that are the evidence itself. State and
-summary are never authored directly — they are pure projections replayed from the log.
+Produces the durable, ordered, redaction-aware records that are the evidence itself, including
+governed acceptance/review verdicts when an implemented lane emits them. State and summary are
+never authored directly — they are pure projections replayed from the log.
 
 ## Owns
 
@@ -16,6 +17,8 @@ summary are never authored directly — they are pure projections replayed from 
 - Redaction posture recorded per record.
 - Export: a write-once, redacted artifact a finished run produces.
 - The source data for notices and for "ask why" — both read from the same log, nothing parallel.
+- The durable evidence posture for acceptance/review verdicts and supporting evidence, without
+  freezing a new record schema here.
 
 ## Interface
 
@@ -142,7 +145,7 @@ for the projections and exports core already relies on.
 ### A caller or consumer implements
 
 - Emitting governed events into this port from already-settled core callers such as the runner and
-  cited authorization path.
+  cited authorization path, and governed verifier/reviewer lanes once implemented.
 - Reading projections, inspect/ask-why views, notices, or export outputs derived from the same log.
 
 ### Must not
@@ -158,8 +161,9 @@ for the projections and exports core already relies on.
 
 This doc does not author any new state or transition. It names the already-settled emission points
 only: `RunStore` receives the events emitted from the cited run/work-item lifecycle flow in
-[`orchestration.md`](./orchestration.md), along with cited authorization outcomes as sources. The
-port boundary here is the durable append and replay surface those existing callers use.
+[`orchestration.md`](./orchestration.md), along with cited authorization outcomes and implemented
+acceptance/review verdicts as sources. The port boundary here is the durable append and replay
+surface those existing callers use.
 
 ## Relationship to the observability-records v0 contract
 
@@ -206,6 +210,8 @@ inspects and the runner decides from, satisfying the "records are the evidence" 
 ## Redaction and evidence posture
 
 - Records are the evidence Jig decides from and the evidence the owner inspects afterward.
+- Acceptance/review verdicts and their supporting evidence are durable evidence inputs when policy
+  requires them; they do not create a second narrative outside the log.
 - Secrets, credentials, tokens, and sensitive values are omitted or redacted before governed record
   persistence, not merely before later surfacing; the redaction posture is part of the governed
   record path, not an optional afterthought.
@@ -297,11 +303,13 @@ Records remains the durable evidence substrate for both runtime decisions and la
   history;
 - export produces a write-once redacted artifact from that same history;
 - downstream consumers read the records/evidence surface but do not redefine it.
+- verifier/reviewer outputs are recorded as governed evidence inputs; the reviewer does not append
+  around the runner-owned record path or become a records authority.
 
 This surface is also a downstream contract for the execution-host seam. The capability / attestation
-event families already named in the cited observability-records v0 contract must be framable
-against this engine's append-and-project model; this file therefore preserves the records/evidence
-surface as a core-owned seam without freezing new fields here.
+and future acceptance/review event families must be framable against this engine's append-and-project
+model; this file therefore preserves the records/evidence surface as a core-owned seam without
+freezing new fields here.
 
 ## Failure posture
 
@@ -331,6 +339,8 @@ available invariant number is `INV-019`.
   derived from replay and do not become append authorities.
 - **No parallel narrative.** The explanation of what happened remains reconstructible from records
   rather than a separate mutable story.
+- **Review verdicts are evidence inputs.** Acceptance/review results are appended through the
+  governed evidence path when implemented; they do not authorize landing by themselves.
 - **Redaction is governed at the boundary.** Surfaced records and exports preserve the safety
   posture of the evidence stream instead of bypassing it later.
 - **Unknown redaction/export posture is fail-closed.** A governed append without valid posture is
@@ -357,6 +367,9 @@ available invariant number is `INV-019`.
   model pipelines remain out of scope until a later proof gate justifies them.
 - **Deferred — export encoding and downstream analytics shape.** External representation details and
   between-runs consumption stay downstream of this port contract.
+- **Deferred — acceptance/review record detail.** If the richer acceptance/review lane needs new
+  event families or fields, that belongs in a future records-contract design change; this pass only
+  names the durable evidence posture.
 - **Deferred — replay-drift handling surface.** This file names replay drift as a correctness failure,
   but not yet whether later design work surfaces it as a stop token, notice, export denial, or
   another diagnosable outcome.

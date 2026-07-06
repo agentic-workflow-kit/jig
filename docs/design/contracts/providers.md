@@ -15,8 +15,8 @@ governed in [`../core/`](../core/README.md).
   reports; holds no credentials.
 - The **Execution host** port — where the worker runs; provides isolation and reports its
   isolation strength honestly.
-- The **Forge** port — the push / PR / merge target; respects branch protection and merge
-  queues.
+- The **Forge** port — the deterministic adapter for runner-invoked push / PR / status / comment /
+  merge operations; respects branch protection and merge queues.
 - The **Work source** port — where work items originate.
 - The posture that seams are authority boundaries: credentials and irreversible authority stay
   where the fence and runner govern them, never with a provider.
@@ -40,7 +40,7 @@ inventory in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md).
   progress.
 - **Execution host port** — abstracts where the worker is contained.
 - **Forge port** — abstracts the code host a run pushes to, opens PRs against, and merges
-  through.
+  through; it translates authorized requests into deterministic forge operations.
 - **Work source port** — abstracts where work items originate. It may supply provenance or
   future import/sync behavior, but the validated execution plan remains jig's only runtime
   scheduling input; the Work source seam never bypasses the plan.
@@ -101,6 +101,7 @@ ports, but it does not get to redefine:
 
 - what counts as authorization or escalation;
 - what counts as evidence or completion;
+- what counts as an acceptance/review verdict;
 - what `done`, `landed`, `blocked`, or `parked` mean;
 - where credentials and irreversible authority live;
 - how work becomes eligible to run.
@@ -161,7 +162,8 @@ relationships these seams participate in:
   requests crossing the Fence's `authorize(request, boundPolicy) → grant | deny | route` decision
   from [`../core/authorization.md`](../core/authorization.md).
 - The **Forge** port is invoked by the runner at the `done → landed` boundary named in
-  [`../core/orchestration.md`](../core/orchestration.md); the worker does not invoke it.
+  [`../core/orchestration.md`](../core/orchestration.md), and for deterministic PR/status/comment
+  surfacing the runner has already authorized. The worker and verifier/reviewer do not invoke it.
 - The **Work source** port may supply provenance or import/sync behavior before runtime execution,
   but it does not bypass validated plan intake; the validated execution plan remains jig's only
   runtime scheduling input.
@@ -310,24 +312,27 @@ authorization, or log semantics they already own.
 ### Forge port
 
 Seed interface preserved: **Forge port** — abstracts the code host a run pushes to, opens PRs
-against, and merges through.
+against, comments/statuses on, and merges through.
 
 This section deepens the existing Forge seed in place rather than replacing it. The preserved port
 line above, the file-level Owns / Interface / Notes / diagram, and the port-invocation point that
 the runner invokes this seam at the `done -> landed` boundary remain the governing seed statements
 for this seam. The Forge provider implements behind that port, consuming the runner-owned
 orchestration surface from [`../core/orchestration.md`](../core/orchestration.md), the
-evidence-sufficiency and GUARD-2 preconditions from [`../core/plan-intake.md`](../core/plan-intake.md)
-and [`../core/authorization.md`](../core/authorization.md), and the records/log surface from
+evidence-sufficiency, acceptance/review, and GUARD-2 preconditions from
+[`../core/plan-intake.md`](../core/plan-intake.md) and
+[`../core/authorization.md`](../core/authorization.md), and the records/log surface from
 [`../core/records.md`](../core/records.md) read-only. It does not redefine evidence sufficiency,
-GUARD-2 detection or re-approval, done-versus-landed semantics, blocked-state ownership, or log
-consistency those core and prior-wave surfaces already own.
+review verdict sufficiency, GUARD-2 detection or re-approval, done-versus-landed semantics,
+blocked-state ownership, or log consistency those core and prior-wave surfaces already own.
 
 **Core owns**
 
 - The rule that push, PR creation, and merge are runner authority, never worker authority.
 - The meaning of `done` versus `landed`, and the evidence gate that must already be satisfied before
   landing is attempted.
+- The review/acceptance gate that must already be satisfied, when launch-bound policy requires an
+  implemented lane, before landing is attempted.
 - The decision that branch protection, merge queues, and other forge-side controls are respected as
   governing constraints, not bypass targets.
 - The record/evidence boundary for what is attempted, blocked, or landed.
@@ -348,6 +353,8 @@ consistency those core and prior-wave surfaces already own.
 
 - A concrete integration to the code host behind the runner-owned seam.
 - The mechanics needed for the runner to push, open PRs, and merge through the forge.
+- The mechanics needed for the runner to post statuses and comments through the forge when the
+  runner has already authorized that surfacing.
 - Truthful surfacing of forge-side constraints and outcomes back to the core.
 - A runner-exclusive landing adapter that executes push / PR / merge only as the runner's delegate,
   never as worker-held authority and never as an alternate policy or lifecycle owner.
@@ -368,8 +375,9 @@ consistency those core and prior-wave surfaces already own.
 - Redefine what counts as evidence-met, done, or landed.
 - Hide forge-side blockers or silently widen authority around branch protection or queues.
 - Become a second policy or state authority for merge decisions.
-- Re-judge evidence sufficiency, capability freshness, or completion readiness that core already
-  judged before invoking the seam.
+- Re-judge evidence sufficiency, review verdict sufficiency, capability freshness, or completion
+  readiness that core already judged before invoking the seam.
+- Act as another agent, reviewer, or owner-decision substitute.
 - Detect, classify, or capture GUARD-2 rule-governing-surface re-approval on its own; that remains
   with the plan/policy/evidence and authority-spine surfaces this seam consumes.
 - Redefine blocked-state ownership, invent a second records fallback, or treat forge-surface
@@ -435,8 +443,9 @@ to the invariant ledger in this pass. If future numbering is needed, the next av
   behavior only; landing authority stays runner-owned.
 - **Execution-host confinement is proven, not trusted by self-report.** The no-phone-home guarantee
   is a core-owned boundary the host must substantiate.
-- **Forge is runner-invoked only.** Push, PR, and merge pass through a runner-owned seam after
-  policy-bound evidence gates, never directly from the worker.
+- **Forge is deterministic and runner-invoked only.** Push, PR, status, comment, and merge pass
+  through a runner-owned adapter after policy-bound evidence and acceptance gates, never directly
+  from the worker or reviewer.
 - **Work source never bypasses validated plan intake.** Provenance can enter; runtime scheduling
   does not.
 - **Capabilities are attested, not assumed.** Missing, stale, or failed proof reduces autonomy

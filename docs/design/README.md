@@ -29,12 +29,12 @@ decision records and reference material.
 | Glossary                                                  | [`glossary.md`](./glossary.md)                                                                                                                       | overview    | grows as new ubiquitous-language terms are named                                                                        |
 | Core overview                                             | `core/README.md`                                                                                                                                     | overview    | —                                                                                                                       |
 | Domain model (configuration + runtime/observation groups) | [`domain/configuration-and-work.md`](./domain/configuration-and-work.md), [`domain/runtime-and-observation.md`](./domain/runtime-and-observation.md) | **draft**   | later hardening / downstream waves; jig-core and the provider seams are specified in `core/` and `contracts/`, not here |
-| Core lifecycle                                            | [`core/bootstrap.md`](./core/bootstrap.md), [`core/orchestration.md`](./core/orchestration.md)                                                       | **draft**   | later hardening / Wave 5 findings / implementation planning                                                             |
+| Core lifecycle                                            | [`core/bootstrap.md`](./core/bootstrap.md), [`core/orchestration.md`](./core/orchestration.md)                                                       | **draft**   | later hardening / review-lane implementation planning / Wave 5 findings                                                 |
 | Core authorization                                        | [`core/authorization.md`](./core/authorization.md)                                                                                                   | **draft**   | later hardening / conformance-policy detail / implementation planning                                                   |
 | Core data ports                                           | [`core/plan-intake.md`](./core/plan-intake.md), [`core/records.md`](./core/records.md)                                                               | **draft**   | implementation planning / later core-parts pass                                                                         |
 | Contracts overview                                        | `contracts/README.md`                                                                                                                                | overview    | —                                                                                                                       |
 | Data contracts                                            | `contracts/{execution-plan, observability-records}-contract-v0.md`                                                                                   | contract v0 | field-level schema (intentionally not frozen)                                                                           |
-| Driving / providers                                       | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / remaining EVRUN evidence gates                                                                 |
+| Driving / providers                                       | [`contracts/driving.md`](./contracts/driving.md), [`contracts/providers.md`](./contracts/providers.md)                                               | **draft**   | package implementation / acceptance-lane integration / remaining EVRUN evidence gates                                   |
 | Provider realization roadmap                              | [`contracts/provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md)                                                           | roadmap     | grows as later provider-realization phases land                                                                         |
 | Security model                                            | [`security-model.md`](./security-model.md)                                                                                                           | **draft**   | grows as new controls are designed                                                                                      |
 | Decisions                                                 | `decisions/*`                                                                                                                                        | log         | grows as decisions are made                                                                                             |
@@ -52,9 +52,9 @@ entity model, the structure diagram, and the bootstrap→core flow. Then the per
 - [`bootstrap.md`](./core/bootstrap.md) — the launch / composition root: load, validate, bind,
   wire, identify, ready.
 - [`plan-intake.md`](./core/plan-intake.md) — parse + validate a plan instance; reject unknown
-  formats.
+  formats; carry policy-owned evidence and acceptance expectations at launch.
 - [`orchestration.md`](./core/orchestration.md) — the runner: run/work-item state machines,
-  eligibility, runner-only actions.
+  eligibility, policy/evidence evaluation, governed review-lane consumption, runner-only actions.
 - [`authorization.md`](./core/authorization.md) — the fence, doorbell, and capability attestation
   (the fail-closed spine).
 - [`records.md`](./core/records.md) — the append-only event log, pure projections, and export.
@@ -96,8 +96,9 @@ Every interface at jig's boundary — what others call or implement — in three
   (output).
 - [`providers.md`](./contracts/providers.md) — the four swappable provider seams, provider
   extractability posture, conformance/testkit routing, and the Codex app-server adapter constraint
-  from ADR 0028; the chronological Phase 5-8 ADR-realization history for those seams is split out
-  into [`provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md).
+  from ADR 0028; Forge remains a deterministic runner-invoked adapter, not another reviewer or
+  policy authority. The chronological Phase 5-8 ADR-realization history for those seams is split
+  out into [`provider-realization-roadmap.md`](./contracts/provider-realization-roadmap.md).
 
 ## [`decisions/`](./decisions/) — the decision log
 
@@ -140,9 +141,12 @@ consolidates existing security design only; it cites the existing `SEC-*`, `FENC
 
 Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
-found. No product conflicts are known. The current runtime is now a private four-package workspace
-(`jig-sdk`, `jig-cli`, `jig-mcp`, `jig-testkit`) and remains pre-session-observable;
-Codex-transport direction must still be read as design direction, not shipped public API.
+found. No product conflicts are known. The product clarification treats verification before landing
+as a policy/config-owned acceptance/review lane; this design reflects that boundary without
+claiming a shipped runtime/config/schema implementation beyond existing evidence. The current
+runtime is now a private four-package workspace (`jig-sdk`, `jig-cli`, `jig-mcp`, `jig-testkit`)
+and remains pre-session-observable; Codex-transport direction must still be read as design
+direction, not shipped public API.
 
 ## Historical planning track
 
@@ -159,4 +163,6 @@ already complete.
 - provider package publication or a third-party provider ecosystem commitment;
 - remaining EVRUN no-phone-home/idempotency, prompt-size / bounded-context behavior, Windows /
   Git Bash support, and other evidence gates that ADR 0028 leaves open;
+- runtime/config/policy implementation of the richer acceptance/review lane, including any records
+  or verdict handling required before Forge landing;
 - the implementation code itself.

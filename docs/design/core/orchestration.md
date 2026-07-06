@@ -6,8 +6,9 @@ status: draft
 # Orchestration — the runner
 
 The runner is jig's trusted orchestrator: it drives a launched run from start to finish, owns
-the run and work-item state machines, resolves what is eligible to run next, and is the sole
-holder of the privileged authority needed to land work.
+the run and work-item state machines, resolves what is eligible to run next, consumes policy-bound
+evidence and acceptance verdicts, and is the sole holder of the privileged authority needed to land
+work.
 
 ## Owns
 
@@ -16,6 +17,10 @@ holder of the privileged authority needed to land work.
   (ISO-1); a blocked item halts itself and its downstream dependents while independent work
   keeps moving.
 - Driving each eligible work item to the agent port and recording its outcome.
+- Invoking and consuming any implemented verifier/reviewer lane the launch-bound policy requires,
+  without becoming the reviewer itself.
+- Evaluating policy/evidence sufficiency for lifecycle transitions, Doorbell escalation, and Forge
+  invocation.
 - Holding credentials and the sole authority to push, open a PR, and merge (FENCE-3, MERGE-2) —
   the thing that writes code is never the thing that ships it.
 - The done/landed distinction: a work item being done (evidence met) is separate from it being
@@ -24,9 +29,10 @@ holder of the privileged authority needed to land work.
 ## Interface
 
 Consumes the `ValidatedPlan` (from plan-intake) and the bound policy; consumes fence decisions
-(grant / deny / route) and modeled evidence as inputs to its state transitions. Drives the agent
-port to carry out a work item. Emits every transition and decision as an event to the records
-port.
+(grant / deny / route), implemented verifier/reviewer verdicts, and modeled evidence as inputs to
+its state transitions. Drives the agent port to carry out a work item and invokes Forge only after
+policy/evidence/acceptance gates pass. Emits every transition and decision as an event to the
+records port.
 
 ## Diagram
 
@@ -108,6 +114,9 @@ checkpoint.
   branch to handle defensively.
 - Landing — the merge step from done to landed — is exclusively runner-owned; no other
   component performs it.
+- The runner can invoke a governed verifier/reviewer lane when policy requires one, but it does not
+  perform code review logic itself, accept worker self-review as proof, or implement forge-specific
+  API mechanics directly.
 - Parallel-workspace concurrency across work items (ISO-4) is a named extension point here,
   realized per story in the "Phase 6 realization" note under the work-item transition table below.
   Resume-after-interruption mechanics are a named extension point here and are owned by
@@ -316,7 +325,7 @@ event-type string and no new field.
 | Transition           | Guard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Emitted event |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `eligible → started` | Dependency-aware eligibility resolves: every prerequisite has **landed**, so the item may begin ([`ISO-1`](../../product/guarantees.md#32-work-level-failure-isolation), INV-005 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)). See the eligibility entry-guard note below.                                                                                                                                                                                                                                                                                | `started`     |
-| `started → done`     | Independent evidence aligned to the policy in force is met — never the worker's self-report ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence); sufficiency is Policy's, [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)). Fence `grant` is the continue-condition that lets the item stay on this path; it is not itself an edge (see below).                                                                                                                                                                                                            | `done`        |
+| `started → done`     | Independent evidence aligned to the policy in force is met — never the worker's self-report ([`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence); sufficiency is Policy's, [`MERGE-3`](../../product/guarantees.md#15-merge-on-evidence)). When the launch-bound policy requires an implemented verifier/reviewer lane, that lane's verdict or evidence assessment must be one of the inputs the runner consumes before judging done. Fence `grant` is the continue-condition that lets the item stay on this path; it is not itself an edge (see below).                 | `done`        |
 | `started → parked`   | The Fence routes the item's request to the owner: an ambiguous, risky, or unproven action escalates through the Doorbell rather than being guessed ([`authorize → route`](authorization.md), [`DOOR-1`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)); the park is durable ([`DOOR-2`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)).                                                                                                                                                                                             | `parked`      |
 | `started → blocked`  | The Fence **denies** the item's request, fail-closed — the request is outside declared, approved scope ([`authorize → deny`](authorization.md), [`FENCE-1`](../../product/guarantees.md#11-the-fence--runtime-authorization); FAIL-002 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)); **or** the item cannot proceed for a recorded reason (FAIL-003 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)) — treating an unmet evidence gate as one such non-proceeding reason is a **(modeling decision)**, see the open question below. | `blocked`     |
 | `parked → started`   | The owner resolves the escalation in favour of proceeding; the narrow grant is scoped to the need in front of the run ([`DOOR-3`](../../product/guarantees.md#14-the-doorbell--approval-and-escalation)).                                                                                                                                                                                                                                                                                                                                                                           | `unparked`    |
@@ -382,16 +391,23 @@ guards, so they are recorded as properties of a state rather than forced into a 
   ([`FENCE-3`](../../product/guarantees.md#11-the-fence--runtime-authorization),
   [`MERGE-2`](../../product/guarantees.md#15-merge-on-evidence)) — the existing "Owns" prose
   above, restated here as it governs the `done → landed` guard.
+- **Review is governed evidence input, not worker self-certification.** A verifier/reviewer may be a
+  human, agent, or deterministic checker, but the worker does not review itself as sufficient proof;
+  the reviewer does not land work or move lifecycle state; and missing, stale, self-reported, or
+  inconclusive review evidence routes through policy to Doorbell or stop rather than lowering the
+  done guard.
 
 ### Two authority mechanisms across this table
 
-The closed table exercises the two authority mechanisms this area holds, and must not collapse
-them (INV-008 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)): (a) the
-**Fence** adjudicates each worker request into `grant | deny | route`, which the table consumes
-as the guard on `started`'s exits; and (b) at **landing**, the **runner-exclusive** push/PR/merge
-action gates `done → landed`. These are distinct authorities — Fence adjudication governs whether
-an action is allowed; runner-owned landing governs whether the merge fires — and no single row
-conflates them.
+The closed table exercises the authority mechanisms this area holds, and must not collapse them
+(INV-008 in [`../notes/runtime-design-m5a.md`](../notes/runtime-design-m5a.md)): (a) the
+**Fence** adjudicates each worker request into `grant | deny | route`, which the table consumes as
+the guard on `started`'s exits; (b) the **review/verification lane**, when implemented and required
+by policy, emits verdict/evidence assessment for the runner to consume; and (c) at **landing**, the
+**runner-exclusive** push/PR/merge action gates `done → landed`. These are distinct authorities —
+Fence adjudication governs whether an action is allowed; review/verification assesses work or
+evidence without landing it; runner-owned landing governs whether the merge fires — and no single
+row conflates them.
 
 **Phase 5 realization ([ADR 0021](../decisions/0021-phase-5-integrated-provider-runs.md)).** The
 runner-exclusive landing at `done → landed` is invoked through the `ForgePort` seam
