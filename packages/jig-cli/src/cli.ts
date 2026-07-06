@@ -4,6 +4,7 @@ import {
   createJigSession,
   createSetupArtifacts,
   type DecideRunResult,
+  type ExportAuditRecord,
   type ExportRunResult,
   InspectRunError,
   type IntegrityVerification,
@@ -274,6 +275,8 @@ async function handleInspect(args: string[]): Promise<void> {
         inspection.cacheParseError,
         inspection.integrity,
         inspection.resumeDiagnostics,
+        inspection.exportAudit,
+        inspection.exportAuditDiagnostics,
       );
       return;
     }
@@ -495,9 +498,10 @@ function renderAskWhy(result: AskWhyResult): void {
   if (result.citations.length > 0) {
     console.log('Citations:');
     for (const citation of result.citations) {
+      const source = citation.source ? `${citation.source}:` : '';
       const reason = citation.reason ? ` reason=${citation.reason}` : '';
       const details = citation.details?.length ? ` ${citation.details.join(' ')}` : '';
-      console.log(`  - line ${citation.line}: ${citation.family}${reason}${details}`);
+      console.log(`  - ${source}line ${citation.line}: ${citation.family}${reason}${details}`);
     }
   }
   console.log('---------------\n');
@@ -531,6 +535,8 @@ function renderProjectionInspection(
   cacheParseError: string | null,
   integrity: IntegrityVerification,
   resumeDiagnostics: ProjectionIssue[] = [],
+  exportAudit: ExportAuditRecord[] = [],
+  exportAuditDiagnostics: ProjectionIssue[] = [],
 ): void {
   console.log('\n--- Run Inspection ---');
   console.log(`Run ID: ${projection.runId}`);
@@ -576,7 +582,7 @@ function renderProjectionInspection(
     }
   }
 
-  const diagnostics = [...projection.diagnostics, ...resumeDiagnostics];
+  const diagnostics = [...projection.diagnostics, ...resumeDiagnostics, ...exportAuditDiagnostics];
   if (cacheParseError) {
     diagnostics.push({
       code: 'run.json-cache-unreadable',
@@ -604,6 +610,23 @@ function renderProjectionInspection(
 
   if (projection.changedFiles.length > 0) {
     console.log(`\nChanged files: ${projection.changedFiles.join(', ')}`);
+  }
+
+  if (exportAudit.length > 0) {
+    const latestExport = exportAudit[exportAudit.length - 1];
+    if (latestExport) {
+      console.log('\nLatest Export Attempt:');
+      console.log(`  - ${latestExport.event.family} at ${latestExport.event.timestamp}`);
+      if (latestExport.event.artifactPath) {
+        console.log(`    Artifact: ${latestExport.event.artifactPath}`);
+      }
+      if (latestExport.event.artifactSha256) {
+        console.log(`    SHA-256: ${latestExport.event.artifactSha256}`);
+      }
+      if (latestExport.event.reason) {
+        console.log(`    Reason: ${latestExport.event.reason}`);
+      }
+    }
   }
 
   console.log('----------------------\n');

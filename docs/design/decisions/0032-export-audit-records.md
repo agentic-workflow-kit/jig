@@ -31,8 +31,12 @@ The export encoding is JSON with format id `jig.audit-export.v0`. The artifact c
 - redacted exported events with line numbers; and
 - visible withheld-event entries for unsupported, missing, or ambiguous export posture.
 
-Export attempts write one audit event to `exports/export-audit.jsonl` (or the caller-provided
-output directory), not to the run's authoritative `events.jsonl`.
+Export attempts write one audit event to the caller-visible audit file in the selected export
+directory: `exports/export-audit.jsonl` by default, or `export-audit.jsonl` in the caller-provided
+output directory. When a caller-provided output directory differs from `<runDir>/exports`, Jig also
+mirrors the same event byte-for-byte into `<runDir>/exports/export-audit.jsonl` as the run-owned
+discoverability sidecar that `inspect` and run-level `ask-why` read. Neither copy is written to the
+run's authoritative `events.jsonl`.
 
 - Successful attempts write `export.prepared` with artifact path and SHA-256.
 - Refused attempts write `export.denied` with a reason.
@@ -48,6 +52,9 @@ timestamped artifact with a unique suffix and leaves prior artifacts intact.
 ## Consequences
 
 - Export can satisfy `SEE-6` without changing replay semantics or mutating finalized run logs.
+- Consumers have one authority split: the selected export directory is the returned export-local
+  audit location, while `<runDir>/exports/export-audit.jsonl` is the canonical run-owned
+  discoverability sidecar for later observation surfaces.
 - Compliance handoff gets one self-contained JSON artifact plus a local audit trail of export
   attempts.
 - Unknown or ambiguous export posture never silently leaks content; the artifact either withholds

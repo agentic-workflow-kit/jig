@@ -1,4 +1,5 @@
 export { ProviderSelectionError } from './bootstrap.js';
+export type { ExportAuditEntry, ExportAuditRecord } from './export-audit.js';
 export { LocalHarness } from './harness.js';
 export {
   type CandidateIntakeResult,

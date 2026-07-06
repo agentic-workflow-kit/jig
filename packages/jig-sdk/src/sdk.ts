@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ComposeRunPortsOptions, composeReferenceRun } from './bootstrap.js';
 import { type ExportRunInput, type ExportRunResult, exportRun } from './export.js';
+import { type ExportAuditRecord, readExportAudit } from './export-audit.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
 import {
@@ -22,6 +23,7 @@ import {
   projectWatch,
   type RunProjection,
   type WatchProjection,
+  type WhyCitation,
 } from './projection.js';
 import { RecordManager } from './records.js';
 import {
@@ -132,6 +134,8 @@ export interface ProjectionInspectionResult {
   cacheParseError: string | null;
   integrity: IntegrityVerification;
   resumeDiagnostics: ProjectionIssue[];
+  exportAudit: ExportAuditRecord[];
+  exportAuditDiagnostics: ProjectionIssue[];
 }
 
 export interface LegacyInspectionResult {
@@ -205,6 +209,50 @@ function verifyInspectIntegrity(runDir: string, eventsJsonl: string): IntegrityV
   return verifyIntegritySidecar(runDir, {
     expected: launchBindingExpectsIntegrity(readLaunchBindingForIntegrity(eventsJsonl)),
   });
+}
+
+function describeLatestExport(record: ExportAuditRecord): string {
+  const event = record.event;
+  if (event.family === 'export.prepared') {
+    return `This run was exported at ${event.timestamp}.`;
+  }
+  return `The latest export attempt for this run was refused at ${event.timestamp}${event.reason ? ` (${event.reason})` : ''}.`;
+}
+
+function exportCitation(record: ExportAuditRecord): WhyCitation {
+  const details: string[] = [];
+  if (record.event.artifactPath) details.push(`artifact=${record.event.artifactPath}`);
+  if (record.event.artifactSha256) details.push(`sha256=${record.event.artifactSha256}`);
+  return {
+    source: 'exports/export-audit.jsonl',
+    line: record.line,
+    family: record.event.family,
+    ...(typeof record.event.reason === 'string' ? { reason: record.event.reason } : {}),
+    ...(details.length > 0 ? { details } : {}),
+  };
+}
+
+function readInspectableExportAudit(runDir: string): {
+  exportAudit: ExportAuditRecord[];
+  exportAuditDiagnostics: ProjectionIssue[];
+} {
+  try {
+    return {
+      exportAudit: readExportAudit(runDir),
+      exportAuditDiagnostics: [],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      exportAudit: [],
+      exportAuditDiagnostics: [
+        {
+          code: 'export-audit-unreadable',
+          message: `export audit sidecar unreadable and ignored: ${message}`,
+        },
+      ],
+    };
+  }
 }
 
 function readProjectionInputs(runDir: string): { eventsJsonl: string; runRecord: RunRecord | null } {
@@ -497,6 +545,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
 
           try {
             const projection = projectRunEvents({ eventsJsonl, runRecord });
+            const exportAudit = readInspectableExportAudit(input.runDir);
             return {
               kind: 'projection',
               runDir: input.runDir,
@@ -504,6 +553,8 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
               cacheParseError,
               integrity,
               resumeDiagnostics: resumeInspectionDiagnostics(projection),
+              exportAudit: exportAudit.exportAudit,
+              exportAuditDiagnostics: exportAudit.exportAuditDiagnostics,
             };
           } catch (err) {
             if (runRecord && isLegacyProjectionFallback(err)) {
@@ -542,7 +593,20 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
 
       askWhy: async (input): Promise<AskWhyResult> => {
         const { eventsJsonl, runRecord } = readProjectionInputs(input.runDir);
-        return askWhyFromEvents({ eventsJsonl, runRecord, storyId: input.storyId });
+        const result = askWhyFromEvents({ eventsJsonl, runRecord, storyId: input.storyId });
+        if (input.storyId) {
+          return result;
+        }
+        const exportAudit = readInspectableExportAudit(input.runDir).exportAudit;
+        const latestExport = exportAudit.at(-1);
+        if (!latestExport) {
+          return result;
+        }
+        return {
+          ...result,
+          answer: `${result.answer} ${describeLatestExport(latestExport)}`,
+          citations: [...result.citations, exportCitation(latestExport)],
+        };
       },
 
       acknowledgeNotice: async (input): Promise<NoticeActionResult> => {

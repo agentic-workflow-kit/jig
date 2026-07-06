@@ -1360,6 +1360,25 @@ test('P08-AC-3/4: operator askWhy cites the recorded story cause', async () => {
   assert.ok(result.citations.some((citation) => citation.family === 'story.parked' && citation.line === 6));
 });
 
+test('P10 review: malformed export audit sidecar is ignored for inspect and run-level askWhy', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('malformed-export-audit-run');
+  mkdirSync(join(runDir, 'exports'), { recursive: true });
+  writeFileSync(join(runDir, 'exports', 'export-audit.jsonl'), '{"family":"export.prepared"\n');
+
+  const inspection = await session.operator.inspect({ runDir });
+  assert.strictEqual(inspection.kind, 'projection');
+  assert.deepStrictEqual(inspection.exportAudit, []);
+  assert.deepStrictEqual(
+    inspection.exportAuditDiagnostics.map((diagnostic) => diagnostic.code),
+    ['export-audit-unreadable'],
+  );
+
+  const why = await session.operator.askWhy({ runDir });
+  assert.match(why.answer, /The run stopped at after:STORY-2\.parked/);
+  assert.ok(!why.citations.some((citation) => citation.family === 'export.prepared'));
+});
+
 test('P08-AC-2/4: operator acknowledgeNotice appends owner notice state', async () => {
   const session = createJigSession();
   const runDir = writeObservationRun();

@@ -58,9 +58,13 @@ guarantee-5 commitment with no implementation trace at all.
   says so honestly.
 - Redaction is applied at export time from recorded posture, not re-derived by scanning; an
   ambiguity is a diagnosable stop (consistent with the append-time rule).
-- One export invocation, one audit event in the settled location; goldens byte-identical (export
-  reads records, it does not add reference-path events — any export audit event must not land in
-  the exported run's log after finalization; design the audit location with the records owner).
+- One export invocation, one audit event payload in the settled locations: the selected export
+  directory keeps the returned export-local audit file, and when that directory differs from
+  `<runDir>/exports`, Jig mirrors the same event byte-for-byte into
+  `<runDir>/exports/export-audit.jsonl` as the run-owned discoverability sidecar for
+  `inspect`/`ask-why`; goldens byte-identical (export reads records, it does not add
+  reference-path events — no export audit event may land in the exported run's log after
+  finalization).
 - No upload, no external sink — export writes a local artifact (`CFG-7` consumers take it from
   there).
 
@@ -93,8 +97,9 @@ guarantee-5 commitment with no implementation trace at all.
 3. A tampered event log (integrity sidecar mismatch) refuses export through the settled drift
    surface; the refusal is recorded and explained.
 4. Re-export yields a new, distinguishable artifact; no path mutates an existing export.
-5. Exporting a live run refuses with guidance; the export invocation carries one audit event in
-   the settled location.
+5. Exporting a live run refuses with guidance; the export invocation carries one audit event
+   payload in the settled export-local audit file and, when needed for discoverability, a
+   byte-identical mirror in `<runDir>/exports/export-audit.jsonl`.
 6. The encoding/drift decisions are recorded in the design layer (ADR or deepened records.md)
    before the implementing code merges; goldens byte-identical.
 

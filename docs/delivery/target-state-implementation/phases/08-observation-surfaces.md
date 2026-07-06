@@ -110,6 +110,9 @@ and that ask-why answers from the run's own record.
 
 - `pnpm check`; projection unit tests for every new derivation; an integration test driving a
   run and watching it from a second process.
+- Current posture note: the shipped watch surface projects LIVE posture into the settled
+  snapshot signals (`progressing`, `idle`, `parked`, `blocked`, `finished`); it does not emit a
+  separate literal `stalled` status string.
 - Reviewer axes: purity of projections, additive-only record changes, SEE-3 fidelity (answers
   come from the record), LIVE thresholds policy-sourced not hardcoded.
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
-import { execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RunRecord } from '@agentic-workflow-kit/jig-sdk';
@@ -9,6 +9,16 @@ import { test } from 'vitest';
 const configFlag = '--config tests/fixtures/m5b-local-mvp/local-config.json';
 const policyFlag = '--policy tests/fixtures/m5b-local-mvp/local-policy.json';
 const successOutputFlag = '--scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json';
+
+async function waitForPath(path: string, timeoutMs = 5_000): Promise<void> {
+  const startedAt = Date.now();
+  while (!existsSync(path)) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error(`Timed out waiting for ${path}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
 
 test('CLI smoke test: valid minimal plan', () => {
   const output = execSync(
@@ -244,4 +254,108 @@ test('CLI inspect test: policy denial shows reason', () => {
   const runDir = runDirMatch[1];
   const inspectOutput = execSync(`node packages/jig-cli/bin/jig.js inspect ${runDir}`, { encoding: 'utf8' });
   assert.match(inspectOutput, /Reason: Policy denial: allowLocalDryRun is not true/);
+});
+
+test('P08-F11: watch observes a live run from a second process and then the finished record', async () => {
+  const runRoot = mkdtempSync(join(tmpdir(), 'jig-watch-int-'));
+  const runDir = join(runRoot, 'run-live-watch');
+  mkdirSync(runDir, { recursive: true });
+  const readyFile = join(runRoot, 'ready');
+  const continueFile = join(runRoot, 'continue');
+
+  const driverScript = `
+    const { mkdirSync, writeFileSync, appendFileSync, existsSync } = require('node:fs');
+    const { join } = require('node:path');
+    const runDir = process.argv[1];
+    const readyFile = process.argv[2];
+    const continueFile = process.argv[3];
+    const eventsPath = join(runDir, 'events.jsonl');
+    const write = (event) => appendFileSync(eventsPath, JSON.stringify(event) + '\\n');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(eventsPath, '');
+    write({
+      family: 'run.started',
+      actor: 'runner',
+      timestamp: '2026-07-06T09:00:00.000Z',
+      runId: 'run-cli-watch-int',
+      planId: 'plan-cli-watch-int',
+      mode: 'local-dry-run',
+      binding: {
+        policyRef: 'policy-cli-watch-int',
+        configRef: 'mode=local-dry-run;recordDir=runs',
+        workspace: { repoRoot: runDir, head: '0123456789abcdef0123456789abcdef01234567', changeSetHash: 'workspace-clean' }
+      },
+      posture: { record: 'safe-for-owner-record', export: 'redacted' },
+      planSnapshot: { ref: 'plan.snapshot.json' },
+      policySnapshot: { ref: 'policy.snapshot.json' }
+    });
+    write({
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-06T09:00:01.000Z',
+      storyId: 'STORY-1'
+    });
+    writeFileSync(readyFile, 'ready\\n');
+    const timer = setInterval(() => {
+      if (!existsSync(continueFile)) return;
+      clearInterval(timer);
+      write({
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-06T09:00:02.000Z',
+        storyId: 'STORY-1'
+      });
+      write({
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-06T09:00:03.000Z'
+      });
+      process.exit(0);
+    }, 20);
+  `;
+
+  const driver = spawn(process.execPath, ['-e', driverScript, runDir, readyFile, continueFile], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  try {
+    await waitForPath(readyFile);
+
+    const watchWhileRunning = execSync(`node packages/jig-cli/bin/jig.js watch ${runDir}`, {
+      encoding: 'utf8',
+    });
+    assert.match(watchWhileRunning, /--- Run Watch ---/);
+    assert.match(watchWhileRunning, /Signal: progressing/);
+    assert.match(watchWhileRunning, /Progressing:\n {2}- STORY-1: started/);
+
+    const driverExit = new Promise<void>((resolve, reject) => {
+      if (driver.exitCode !== null) {
+        if (driver.exitCode === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`driver exited with code ${String(driver.exitCode)}`));
+        return;
+      }
+      driver.once('exit', (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`driver exited with code ${String(code)}`));
+      });
+      driver.once('error', reject);
+    });
+    writeFileSync(continueFile, 'continue\n');
+    await driverExit;
+
+    const watchAfterCompletion = execSync(`node packages/jig-cli/bin/jig.js watch ${runDir}`, {
+      encoding: 'utf8',
+    });
+    assert.match(watchAfterCompletion, /Signal: finished/);
+    assert.match(watchAfterCompletion, /Done:\n {2}- STORY-1: done/);
+  } finally {
+    driver.kill();
+    rmSync(runRoot, { recursive: true, force: true });
+  }
 });
