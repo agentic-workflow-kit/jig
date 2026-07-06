@@ -1,6 +1,6 @@
 ---
 title: "Phase 12 - MCP driving adapter"
-status: planned
+status: "pr #71"
 ---
 
 # Phase 12 - MCP driving adapter
@@ -14,27 +14,22 @@ importing no provider contracts, and consuming only `jig-sdk`.
 
 ## Background
 
-The product boundary names the sequence: "its CLI today, a future MCP surface next," and the
-driving contract designs for three adapters (CLI/MCP/SDK) over one port from the start. ADR
-0027 expects MCP to be the SDK's second consumer. Nothing MCP-shaped exists in the repo. By
-this phase, the SDK package exists (P02) and — if P08/P09 have landed — the port carries the
-current driving-action vocabulary; if they have not, the adapter ships the verbs that exist and
-grows with the port (that is the soft dependency, and shipping early with partial verbs is a
-deliberate choice for the implementer and reviewer to make against the product's "deliberate
-actions" framing). Setup, notice acknowledge/snooze, and export are exposed only if the earlier
-placement decisions have settled them as port verbs by merge time. The same rule applies to
-resume: it is exposed over MCP only if P01's placement decision settled it as a port verb.
+The product boundary names the sequence: CLI, private MCP, and SDK, and the driving contract designs
+for three adapters (CLI/MCP/SDK) over one port from the start. ADR 0027 expects MCP to be the SDK's
+second consumer; ADR 0033 places it in a dedicated private `jig-mcp` adapter package. The SDK
+package exists (P02), P08/P09/P10 have landed, and the port carries the current driving-action
+vocabulary. Setup stays out because ADR 0029 placed it as configuration, not an operator-control
+verb. Resume stays out because it is on the SDK recovery surface, not the operator-control port.
 
 ## What To Do
 
-- First, route the placement decision: ADR 0027's package matrix has no MCP package — decide
-  (with the design owner, likely a short ADR) whether the MCP adapter lives in `jig-cli`
-  (renamed scope), a new `jig-mcp` package, or an SDK-internal module; the decision must keep
-  the dependency matrix's spirit — adapters depend on `jig-sdk`, never the reverse.
+- First, route the placement decision: ADR 0033 places the adapter in a new private `jig-mcp`
+  package that depends on `jig-sdk`, never the reverse.
 - Implement the MCP server as a thin adapter: each driving action settled on the port by merge
   time (start, preview, watch, inspect, ask-why, decide, stop, plus any explicitly settled
-  additions) maps to one MCP tool that makes one control-plane call and yields one audit event;
-  invalid input still produces the audit posture the driving contract requires.
+  additions) maps to one MCP tool that makes one SDK operator-control call and preserves the
+  SDK-owned record behavior for that action; invalid input still returns through the same
+  transport-level error envelope without adding transport-specific audit records.
 - Presentation only at the edge: results are the SDK's typed results rendered for tool
   consumption; long-running actions (watch) map to MCP-appropriate patterns without moving
   lifecycle logic into the adapter.
@@ -59,7 +54,9 @@ resume: it is exposed over MCP only if P01's placement decision settled it as a 
 
 - The adapter holds no run logic, eligibility, or authorization semantics; it imports `jig-sdk`
   only (boundary check enforces this after placement).
-- One tool call = one control-plane call = one audit event; no hidden multi-step fan-out.
+- One tool call = one SDK operator-control call; no hidden multi-step fan-out. Durable audit
+  records remain owned by the SDK/operator path for the invoked action, so MCP must not synthesize a
+  second transport-specific audit layer.
 - The MCP surface is private/unstable like everything else: no stability promise, explicitly
   marked, consistent with the product posture.
 - Decision-category integrity: nothing about MCP transport changes what requires a human
@@ -87,21 +84,23 @@ resume: it is exposed over MCP only if P01's placement decision settled it as a 
 
 1. The placement decision is recorded (ADR or design-doc deepening) before the implementing PR
    merges, and the implementation matches it.
-2. An MCP client can preview, start, and inspect the fixture flow end to end; each invocation
-   shows exactly one audit event. Resume is covered only if it is available as a settled port
-   verb at merge time.
+2. An MCP client can preview, start, and inspect the fixture flow end to end; each MCP invocation
+   makes exactly one SDK operator-control call, and durable records match the SDK behavior for that
+   action. Resume is covered only if it is available as a settled port verb at merge time.
 3. Every port verb available at merge time is exposed; unavailable verbs are absent (not
    stubbed); the exposed set is documented.
 4. A routed human-category decision arriving via MCP still parks for the owner's decide flow —
    demonstrated by test — and no MCP path reaches provider contracts (boundary check).
-5. Behavior parity test: the same action via CLI and via MCP produces equivalent record shapes.
+5. Behavior parity test: the same action via CLI and via MCP produces equivalent `run.json` and
+   `events.jsonl` record shapes after volatile run IDs, timestamps, and workspace-specific fields are
+   normalized.
 6. Goldens byte-identical; boundary enforcement green; docs updated with the posture statement.
 
 ## Verification
 
 - `pnpm check` including the dependency-boundary rules over the new adapter's home.
 - Integration tests driving the MCP surface with an in-process client against fixtures.
-- Reviewer axes: thinness (diff should be dominated by adapter/presentation code), audit-event
+- Reviewer axes: thinness (diff should be dominated by adapter/presentation code), SDK record
   fidelity, decision-category integrity, parity with CLI semantics.
 
 ## Out Of Scope

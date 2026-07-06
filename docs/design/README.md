@@ -88,7 +88,8 @@ Every interface at jig's boundary — what others call or implement — in three
 **[boundary map](./contracts/README.md)**.
 
 - [`driving.md`](./contracts/driving.md) — how consumers drive jig: CLI, MCP, SDK; reconciled with
-  the future internal `jig-sdk` package boundary from ADR 0027.
+  the internal `jig-sdk` package boundary from ADR 0027 and the private MCP package placement from
+  ADR 0033.
 - the two **data contracts** —
   [`execution-plan-contract-v0.md`](./contracts/execution-plan-contract-v0.md) (input) and
   [`observability-records-contract-v0.md`](./contracts/observability-records-contract-v0.md)
@@ -106,12 +107,12 @@ M5a slice.
 Current reconciliation notes:
 
 - [ADR 0027](./decisions/0027-packaging-sdk-boundary.md) settles the target internal package
-  direction: `jig-sdk`, `jig-cli`, and `jig-testkit`, with the root package remaining private. It
-  authorizes design direction only; it does not create packages, exports, project references, or a
-  publish/stability promise.
+  direction: `jig-sdk`, `jig-cli`, and `jig-testkit`, with the root package remaining private.
 - [ADR 0028](./decisions/0028-codex-app-server-transport.md) selects owned stdio app-server as the
   first Codex transport target and keeps the session-observable Codex seam internal to the real
   adapter. Public `AgentPort` stays final-result oriented.
+- [ADR 0033](./decisions/0033-mcp-adapter-package.md) places MCP in a private `jig-mcp` adapter
+  package that depends on `jig-sdk` and creates no public stability promise.
 
 ## [`evidence/`](./evidence/) — committed evidence inputs
 
@@ -139,9 +140,9 @@ consolidates existing security design only; it cites the existing `SEC-*`, `FENC
 
 Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
-found. No product conflicts are known. The current runtime is now a private three-package workspace
-(`jig-sdk`, `jig-cli`, `jig-testkit`) and remains pre-session-observable; Codex-transport direction
-must still be read as design direction, not shipped public API.
+found. No product conflicts are known. The current runtime is now a private four-package workspace
+(`jig-sdk`, `jig-cli`, `jig-mcp`, `jig-testkit`) and remains pre-session-observable;
+Codex-transport direction must still be read as design direction, not shipped public API.
 
 ## Historical planning track
 

@@ -106,10 +106,11 @@ surfaces, durable control records, and local audit exports.
 | 0030 | Observation surfaces are operator projections with owner notice records | Places `watch` and `ask-why` on the operator port and acknowledge/snooze as additive owner notice records                                             | —    | applied |
 | 0031 | Owner decisions and stops are durable control records                   | Places `decide` and `stop` on the operator port as additive control records consumed by existing replay/resume semantics                              | —    | applied |
 | 0032 | Export audit records are write-once JSON artifacts                      | Places `export` on the operator port, settles JSON export encoding, and records export audit events outside finalized run logs                        | —    | applied |
+| 0033 | MCP adapter lives in a private jig-mcp package                          | Places MCP in its own private adapter package that depends on `jig-sdk`, exposes settled operator verbs, and creates no stability promise             | —    | applied |
 
 ## Open questions
 
-- **ADRs 0026–0032 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0032 do not.
-  Rather than invent a date, the Date column is left blank for those six. Whether to add a
-  `- Date:` line to 0026–0031 (and, if so, what date to use — authoring date vs. merge date) is a
+- **ADRs 0026–0033 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0033 do not.
+  Rather than invent a date, the Date column is left blank for those eight. Whether to add a
+  `- Date:` line to 0026–0033 (and, if so, what date to use — authoring date vs. merge date) is a
   genuine decision about this log's own convention and is not resolved here.

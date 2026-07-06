@@ -102,8 +102,9 @@ and [`contracts/providers.md`](./contracts/providers.md).
   production runtime graph. See [`contracts/providers.md`](./contracts/providers.md) and
   [`contracts/README.md`](./contracts/README.md).
 - **Driving boundary** — the operator surface realized as CLI / MCP / SDK adapters: one command
-  becomes one control-plane call and one audit event; the edge holds no run logic and imports no
-  provider contracts. See [`contracts/driving.md`](./contracts/driving.md).
+  becomes one control-plane call with durable records owned by the SDK/operator implementation; the
+  edge holds no run logic and imports no provider contracts. See
+  [`contracts/driving.md`](./contracts/driving.md).
 - **jig-cli** — the target terminal-adapter package from ADR 0027; consumes `jig-sdk` rather than
   deep-importing core or provider internals. See
   [`decisions/0027-packaging-sdk-boundary.md`](./decisions/0027-packaging-sdk-boundary.md).
@@ -113,9 +114,9 @@ and [`contracts/providers.md`](./contracts/providers.md).
   and [`contracts/driving.md#sdk-package-reconciliation`](./contracts/driving.md#sdk-package-reconciliation).
 - **jig-testkit** — the target package from ADR 0027 that owns the conformance suite. See
   [`decisions/0027-packaging-sdk-boundary.md`](./decisions/0027-packaging-sdk-boundary.md).
-- **Operator surface** — the thin entry point (CLI / SDK / embed) the owner drives jig through;
-  one command becomes one control-plane call and one audit event; the edge holds no run logic and
-  imports no provider contracts. See
+- **Operator surface** — the thin entry point (CLI / MCP / SDK / embed) the owner drives jig
+  through; one command becomes one control-plane call with durable records owned by the
+  SDK/operator implementation; the edge holds no run logic and imports no provider contracts. See
   [`core/README.md#b-jig-core--the-trusted-runner-governs-the-seams`](./core/README.md#b-jig-core--the-trusted-runner-governs-the-seams)
   and [`contracts/driving.md`](./contracts/driving.md).
 

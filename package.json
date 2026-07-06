@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig private workspace shell: coordinates the jig-sdk, jig-cli, and jig-testkit packages plus repo-local checks.",
+  "description": "Jig private workspace shell: coordinates the jig-sdk, jig-cli, jig-mcp, and jig-testkit packages plus repo-local checks.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -21,6 +21,7 @@
     "worktree:new": "bash scripts/worktree-new.sh",
     "worktree:clean": "bash scripts/worktree-clean.sh",
     "build": "tsc -b tsconfig.json",
+    "mcp": "node packages/jig-mcp/bin/jig-mcp.js",
     "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{md,yml,yaml}\"",
     "lint": "biome check .",

@@ -472,8 +472,8 @@ ledger.
 ## Notes
 
 - `preview` walks load, validate, and bind and is still recorded — it emits its own audit event
-  (`run.previewed`), honoring the one-command / one-audit invariant — but it commits no run: no
-  run identity is allocated and no workspace, provider, or privileged side effects occur.
+  (`run.previewed`) through the SDK/operator record path — but it commits no run: no run identity is
+  allocated and no workspace, provider, or privileged side effects occur.
 - Policy (plus repo-level floors) is immutable for the life of the run once bound here.
 - Capability-attestation depth remains seam-owned by [`authorization.md`](./authorization.md) and
   later provider work; bootstrap only composes that spine.

@@ -271,7 +271,7 @@ The domain model of this group — each entity's owns / reads / does-not-own, th
 
 | Entity                 | Responsibility (owns)                                                                                                                                                                                                                       | Product IDs                               |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Operator surface       | The thin entry point (CLI / SDK / embed) the owner drives jig through: one command becomes one control-plane call and one audit event; the edge holds no run logic and imports no provider contracts.                                       | jig.md; SEE-1                             |
+| Operator surface       | The thin entry point (CLI / MCP / SDK / embed) the owner drives jig through: one command becomes one control-plane call with SDK/operator-owned records; the edge holds no run logic and imports no provider contracts.                     | jig.md; SEE-1                             |
 | Runner                 | Jig's trusted orchestrator. Resolves eligibility/order, drives each work item, holds credentials and the sole authority to push/PR/merge, and performs irreversible actions only under policy + evidence. Governs the seams; is not a seam. | concepts; FENCE-3, MERGE-2, SEC-3         |
 | Fence                  | Runtime authorization: authorizes every worker request before it executes, fail-closed; grant / deny / route by fixed category; cannot be loosened mid-run.                                                                                 | FENCE-1, FENCE-2, GUARD-1, CFG-10         |
 | Doorbell               | Escalation surface: routes ambiguous/risky/unproven actions to the owner; parks durably (survives interruption); grants are narrow, not blanket.                                                                                            | DOOR-1, DOOR-2, DOOR-3                    |
@@ -303,7 +303,7 @@ The domain model of this group — Run, Evidence, Notice, and the Run-records ev
 ## The spine in one paragraph
 
 The owner authors a track (plan + policy + work profile) and starts a run through the operator
-surface (one command, one control-plane call, one audit event). The runner binds the policy
+surface (one command, one control-plane call, SDK/operator-owned records). The runner binds the policy
 at launch, resolves which work items are eligible from their dependencies, and drives each by
 handing work to the worker (the agent seam) running inside the execution host. Every action the
 worker wants goes through the fence, which grants, denies, or routes it by fixed category;

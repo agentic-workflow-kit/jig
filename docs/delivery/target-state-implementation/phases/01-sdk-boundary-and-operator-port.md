@@ -45,10 +45,10 @@ instead of inventing one mid-move.
   for contract-listed driving actions. `resume` follows the recorded placement decision. Plan
   validation, provider selection, records semantics, and run-lifecycle meaning move behind the
   supported surface (most already live in the right modules; the CLI stops reaching past them).
-- Realize the one-command / one-control-plane-call / one-audit-event invariant for the existing
-  verbs to the extent the current record vocabulary allows. If honoring the audit-event leg for
-  `inspect`/`preview` requires new record events on the reference path, stop (see below) rather
-  than changing goldens silently.
+- Realize the one-command / one-control-plane-call / SDK-owned-records invariant for the existing
+  verbs to the extent the current record vocabulary allows. If honoring a durable-record leg for
+  `inspect`/`preview` requires new record events on the reference path, stop (see below) rather than
+  changing goldens silently.
 - Update `AGENTS.md`/`README.md` only if the described CLI behavior changes (it should not).
 
 ## Why

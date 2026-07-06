@@ -7,11 +7,13 @@ const rootManifestPath = join(rootDir, 'package.json');
 const knownPackageNames = new Map([
   ['jig-sdk', '@agentic-workflow-kit/jig-sdk'],
   ['jig-cli', '@agentic-workflow-kit/jig-cli'],
+  ['jig-mcp', '@agentic-workflow-kit/jig-mcp'],
   ['jig-testkit', '@agentic-workflow-kit/jig-testkit'],
 ]);
 const allowedImports = new Map([
   ['jig-sdk', new Set()],
   ['jig-cli', new Set(['@agentic-workflow-kit/jig-sdk'])],
+  ['jig-mcp', new Set(['@agentic-workflow-kit/jig-sdk'])],
   ['jig-testkit', new Set(['@agentic-workflow-kit/jig-sdk'])],
 ]);
 

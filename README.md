@@ -17,13 +17,16 @@ output is a run record you can inspect, resume from, and audit.
 Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
 `@agentic-workflow-kit/jig-repo` coordinating the private packages
 `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`, and
-`@agentic-workflow-kit/jig-testkit`. There is still no published
-`@agentic-workflow-kit/jig` package, public SDK/provider stability contract, or provider
-ecosystem promise.
+`@agentic-workflow-kit/jig-mcp`, and `@agentic-workflow-kit/jig-testkit`. There is still no
+published `@agentic-workflow-kit/jig` package, public SDK/provider/MCP stability contract, or
+provider ecosystem promise.
 
 The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`, `jig resume`,
 `jig watch`, `jig ask-why`, `jig notice-ack`, `jig notice-snooze`, `jig decide`, `jig stop`, and
 `jig export`.
+The private MCP surface lives in `@agentic-workflow-kit/jig-mcp` and exposes the settled
+operator-control verbs as source-checkout tool calls; it is not published and carries no stability
+promise.
 Launch binds the track policy plus any configured work profile and repo-policy floors, snapshots
 them into the run record, and reconstructs the effective floor-merged policy basis on resume. The
 fixture-backed commands below are the supported local way to exercise the repo from a fresh
@@ -100,6 +103,13 @@ node packages/jig-cli/bin/jig.js stop runs/<run-directory-from-the-output> --rea
 node packages/jig-cli/bin/jig.js export runs/<run-directory-from-the-output>
 node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
+```
+
+Run the private MCP stdio adapter after building:
+
+```bash
+pnpm build
+pnpm mcp
 ```
 
 `jig run` validates the plan at the intake boundary, binds config and policy together with any
