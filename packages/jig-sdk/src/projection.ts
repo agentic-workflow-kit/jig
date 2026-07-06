@@ -60,6 +60,12 @@ export interface ProjectedStory {
   lastEventFamily: string;
 }
 
+export interface RoutedDecisionSurface {
+  storyId: string;
+  requestId?: string;
+  requestKind?: string;
+}
+
 export interface RunProjection {
   runId: string;
   planId: string;
@@ -74,6 +80,7 @@ export interface RunProjection {
   stopCause?: string;
   summaryReason?: string;
   safeCheckpoint?: string;
+  routedDecision?: RoutedDecisionSurface;
   unstartedStoryIds: string[];
   stories: Record<string, ProjectedStory>;
   changedFiles: string[];
@@ -146,6 +153,10 @@ interface StoryAccumulator {
   diagnostics?: Diagnostics;
   changedFiles: string[];
   lastEventFamily: string;
+  parkedRequestId?: string;
+  parkedRequestKind?: string;
+  lastRoutedRequestId?: string;
+  lastRoutedRequestKind?: string;
 }
 
 const VALID_RECORD_POSTURE = 'safe-for-owner-record';
@@ -545,6 +556,39 @@ function compareRunRecord(
   ];
 }
 
+function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
+  if (!checkpoint?.startsWith('after:') || !checkpoint.endsWith('.parked')) {
+    return null;
+  }
+  return checkpoint.slice('after:'.length, -'.parked'.length);
+}
+
+function deriveRoutedDecision(
+  lifecycleState: ProjectionLifecycleState,
+  safeCheckpoint: string | undefined,
+  stories: Map<string, StoryAccumulator>,
+  parkOrder: string[],
+): RoutedDecisionSurface | undefined {
+  const routedStoryId =
+    lifecycleState === 'started' || lifecycleState === 'resumed'
+      ? [...parkOrder].reverse().find((storyId) => stories.get(storyId)?.state === 'parked')
+      : lifecycleState === 'stopped'
+        ? (parkedStoryIdFromCheckpoint(safeCheckpoint) ?? undefined)
+        : undefined;
+  if (!routedStoryId) {
+    return undefined;
+  }
+
+  // For stopped runs the checkpoint names the routed story even if a crafted log leaves it
+  // non-parked; decide() still owns the decision-not-parked refusal for that case.
+  const story = stories.get(routedStoryId);
+  return {
+    storyId: routedStoryId,
+    ...(story?.parkedRequestId ? { requestId: story.parkedRequestId } : {}),
+    ...(story?.parkedRequestKind ? { requestKind: story.parkedRequestKind } : {}),
+  };
+}
+
 function checkpointMatchesStory(stories: Map<string, StoryAccumulator>, checkpoint: string): boolean {
   if (!checkpoint.startsWith('after:')) {
     return false;
@@ -580,6 +624,7 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
   let summaryReason: string | undefined;
   let safeCheckpoint: string | undefined;
   let unstartedStoryIds: string[] = [];
+  let parkOrder: string[] = [];
   let sawEvidenceGateFailure = false;
   let sawAuthorizationDenial = false;
 
@@ -775,15 +820,32 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
         story.lastEventFamily = family;
         break;
       case 'authorization.routed':
-        assertStoryState(story, ['started'], parsedEvent, storyId);
+        // A routed record is legal while parked too: hand-off re-targets the already-parked
+        // routed question (ADR 0031) without changing the story state.
+        assertStoryState(story, ['started', 'parked'], parsedEvent, storyId);
+        story.lastRoutedRequestId =
+          typeof parsedEvent.event.requestId === 'string' ? parsedEvent.event.requestId : undefined;
+        story.lastRoutedRequestKind =
+          typeof parsedEvent.event.requestKind === 'string' ? parsedEvent.event.requestKind : undefined;
         story.lastEventFamily = family;
         break;
-      case 'story.parked':
+      case 'story.parked': {
         assertStoryState(story, ['started'], parsedEvent, storyId);
         story.state = 'parked';
         story.reason = typeof parsedEvent.event.reason === 'string' ? parsedEvent.event.reason : undefined;
+        const parkedRequestId =
+          typeof parsedEvent.event.requestId === 'string' ? parsedEvent.event.requestId : undefined;
+        story.parkedRequestId = parkedRequestId ?? story.lastRoutedRequestId;
+        story.parkedRequestKind =
+          typeof parsedEvent.event.requestKind === 'string'
+            ? parsedEvent.event.requestKind
+            : parkedRequestId === undefined || parkedRequestId === story.lastRoutedRequestId
+              ? story.lastRoutedRequestKind
+              : undefined;
         story.lastEventFamily = family;
+        parkOrder = [...parkOrder.filter((parkedStoryId) => parkedStoryId !== storyId), storyId];
         break;
+      }
       case 'evidence.modeled':
         assertStoryState(story, ['started'], parsedEvent, storyId);
         appendChangedFiles(story.changedFiles, parsedEvent.event.changedFiles);
@@ -928,6 +990,7 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
     stopCause,
     summaryReason,
     safeCheckpoint,
+    routedDecision: deriveRoutedDecision(lifecycleState, safeCheckpoint, stories, parkOrder),
     unstartedStoryIds,
     stories: Object.fromEntries(
       Array.from(stories.entries()).map(([storyId, story]) => [

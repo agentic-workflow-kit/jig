@@ -1306,3 +1306,164 @@ test('P09-AC-1/3: ResumePlan carries the latest durable owner decision for the p
     handedOffTo: 'platform-owner',
   });
 });
+
+function parkedStopProjection(): RunProjection {
+  return {
+    runId: 'run-existing',
+    planId: 'plan-resume',
+    mode: 'local-dry-run',
+    binding: {
+      policyRef: 'local-dry-run-policy',
+      configRef: 'mode=local-dry-run;recordDir=runs',
+      workspace: {
+        repoRoot: '/tmp/jig',
+        head: 'abc',
+        changeSetHash: 'clean',
+      },
+    },
+    workspace: {
+      repoRoot: '/tmp/jig',
+      head: 'abc',
+      changeSetHash: 'clean',
+    },
+    posture: {
+      record: 'safe-for-owner-record',
+      export: 'redacted',
+    },
+    planSnapshotRef: 'plan.snapshot.json',
+    policySnapshotRef: 'policy.snapshot.json',
+    status: 'failure',
+    lifecycleState: 'stopped',
+    stopCause: 'unattended-park',
+    safeCheckpoint: 'after:STORY-2.parked',
+    unstartedStoryIds: [],
+    stories: {
+      'STORY-2': { storyId: 'STORY-2', state: 'parked', changedFiles: [], lastEventFamily: 'story.parked' },
+    },
+    changedFiles: [],
+    diagnostics: [],
+    notices: [],
+    eventCount: 6,
+  };
+}
+
+test('P09-F2: a decision consumed live at a safe boundary is not re-applied by resume', () => {
+  const resumePlan = buildResumePlan(parkedStopProjection(), [
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 'STORY-2',
+      outcome: 'approve',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'authorization.granted',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      basis: ['owner-approval'],
+    },
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-2',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  assert.strictEqual(resumePlan.parkedDecision, undefined);
+});
+
+test('P09-F2: a decision recorded before the story ever parked is not treated as pending', () => {
+  const resumePlan = buildResumePlan(parkedStopProjection(), [
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 'STORY-2',
+      outcome: 'approve',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  assert.strictEqual(resumePlan.parkedDecision, undefined);
+});
+
+test('P09-F2: a live-consumed hand-off is not returned as a pending resume decision', () => {
+  const resumePlan = buildResumePlan(parkedStopProjection(), [
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 'STORY-2',
+      outcome: 'hand-off',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      handedOffTo: 'platform-owner',
+    },
+    {
+      family: 'authorization.routed',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      basis: ['owner-hand-off'],
+      handedOffTo: 'platform-owner',
+    },
+  ]);
+
+  assert.strictEqual(resumePlan.parkedDecision, undefined);
+});
+
+test('P09-F2: a rejection consumed live is not re-applied by resume', () => {
+  const resumePlan = buildResumePlan(parkedStopProjection(), [
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 'STORY-2',
+      outcome: 'reject',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'authorization.denied',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      basis: ['owner-rejection'],
+    },
+  ]);
+
+  assert.strictEqual(resumePlan.parkedDecision, undefined);
+});

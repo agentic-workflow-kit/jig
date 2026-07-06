@@ -1,8 +1,13 @@
 import assert from 'node:assert';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'vitest';
-import { LocalHarness } from '../src/harness.js';
+import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from '../src/harness.js';
 import { validatePlanForScheduling } from '../src/intake.js';
-import type { PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../src/types.js';
+import { RecordManager } from '../src/records.js';
+import { createJigSession, type DecideRunResult } from '../src/sdk.js';
+import type { ConfigDoc, PlanInstance, PolicyDoc, ResumePlan, RunEvent } from '../src/types.js';
 
 test('LocalHarness sequential execution success', async () => {
   const worker = {
@@ -1415,6 +1420,977 @@ test('P09-AC-5: interactive hand-off without a target is recorded as rejection',
         event.family === 'authorization.routed' && Array.isArray(event.basis) && event.basis.includes('owner-hand-off'),
     ),
   );
+});
+
+interface LiveDecideRunFixture {
+  events: RunEvent[];
+  harness: LocalHarness;
+  s1Executions: () => number;
+}
+
+// Builds a two-story live run where s1 parks on a routed decision and the supplied out-of-band
+// events become durable while s2 executes, exactly where an operator decide would land.
+function liveParkedRunFixture(
+  outOfBandEvents: RunEvent[],
+  s1SecondExecution: () => Record<string, unknown> = () => ({
+    storyId: 's1',
+    outcome: 'success',
+    evidence: { result: 'passed' },
+  }),
+): LiveDecideRunFixture {
+  const events: RunEvent[] = [];
+  let outOfBandIndex: number | null = null;
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          s1Executions += 1;
+          if (s1Executions === 1) {
+            return {
+              storyId: 's1',
+              outcome: 'success',
+              evidence: { result: 'passed' },
+              requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+            };
+          }
+          return s1SecondExecution();
+        }
+        if (outOfBandIndex === null) {
+          outOfBandIndex = events.length;
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () =>
+        outOfBandIndex === null
+          ? [...events]
+          : [...events.slice(0, outOfBandIndex), ...outOfBandEvents, ...events.slice(outOfBandIndex)],
+      finalize: async () => {},
+    },
+  );
+  return { events, harness, s1Executions: () => s1Executions };
+}
+
+const liveDecidePlan: PlanInstance = {
+  plan: {
+    id: 'p1',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 's1', title: 'parks on a routed decision' },
+      { id: 's2', title: 'keeps the run live' },
+    ],
+  },
+};
+
+test('P09-F2: a live run consumes an out-of-band owner approval at the next safe boundary', async () => {
+  const fixture = liveParkedRunFixture([
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'approve',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(fixture.s1Executions(), 2);
+  const events = fixture.events;
+  const parkIndex = events.findIndex((event) => event.family === 'story.parked' && event.storyId === 's1');
+  const grantIndex = events.findIndex(
+    (event) =>
+      event.family === 'authorization.granted' &&
+      event.storyId === 's1' &&
+      Array.isArray(event.basis) &&
+      event.basis.includes('owner-approval'),
+  );
+  const doneIndex = events.findIndex((event) => event.family === 'story.done' && event.storyId === 's1');
+  assert.ok(parkIndex >= 0 && grantIndex >= 0 && doneIndex >= 0);
+  assert.ok(parkIndex < grantIndex && grantIndex < doneIndex);
+  assert.strictEqual(events[grantIndex]?.requestId, 'REQ-1');
+  assert.ok(events.find((event) => event.family === 'run.completed'));
+  assert.ok(!events.find((event) => event.family === 'run.stopped'));
+  // The durable decision already exists out of band; the harness must not re-record it.
+  assert.ok(!events.find((event) => event.family === 'owner-decision.recorded'));
+  assert.strictEqual(events.filter((event) => event.family === 'story.started' && event.storyId === 's1').length, 1);
+});
+
+test('P09-F2: a final sequential parked story consumes an out-of-band approval at its own park boundary', async () => {
+  const events: RunEvent[] = [];
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async () => {
+        s1Executions += 1;
+        if (s1Executions === 1) {
+          return {
+            storyId: 's1',
+            outcome: 'success',
+            evidence: { result: 'passed' },
+            requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+          };
+        }
+        return { storyId: 's1', outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [
+        ...events,
+        {
+          family: 'owner-decision.recorded',
+          actor: 'owner',
+          storyId: 's1',
+          outcome: 'approve',
+          requestId: 'REQ-1',
+          requestKind: 'edit-files',
+        } as RunEvent,
+      ],
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p-single-live-decide',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 's1', title: 'parks as the final sequential story' }],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(s1Executions, 2);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.granted' &&
+        event.storyId === 's1' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-approval'),
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's1'));
+  assert.ok(events.find((event) => event.family === 'run.completed'));
+  assert.ok(!events.find((event) => event.family === 'run.stopped'));
+});
+
+test('P09-F2: a live approved re-execution reuses the parked story workspace', async () => {
+  const events: RunEvent[] = [];
+  const seenWorkspacePaths: string[] = [];
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string; workspace?: { path: string } }) => {
+        if (story.id === 's1') {
+          s1Executions += 1;
+          seenWorkspacePaths.push(story.workspace?.path ?? 'missing');
+          if (s1Executions === 1) {
+            return {
+              storyId: 's1',
+              outcome: 'success',
+              evidence: { result: 'passed' },
+              requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+            };
+          }
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [
+        ...events,
+        {
+          family: 'owner-decision.recorded',
+          actor: 'owner',
+          storyId: 's1',
+          outcome: 'approve',
+          requestId: 'REQ-1',
+          requestKind: 'edit-files',
+        } as RunEvent,
+      ],
+      finalize: async () => {},
+    },
+    null,
+    { workspaceIsolation: createInMemoryStoryWorkspaceIsolation('/tmp/jig-live-decide-reuse') },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p-live-reuse-workspace',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'parks on a routed decision' },
+        { id: 's2', title: 'provides the next safe boundary' },
+      ],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(s1Executions, 2);
+  assert.deepStrictEqual(seenWorkspacePaths, ['/tmp/jig-live-decide-reuse/s1', '/tmp/jig-live-decide-reuse/s1']);
+});
+
+test('P09-F2: a stop appended during approved live re-execution wins before completion is reported', async () => {
+  const events: RunEvent[] = [];
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          s1Executions += 1;
+          if (s1Executions === 1) {
+            return {
+              storyId: 's1',
+              outcome: 'success',
+              evidence: { result: 'passed' },
+              requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+            };
+          }
+          events.push({
+            family: 'operator-action.requested',
+            actor: 'owner',
+            action: 'stop',
+            reason: 'owner-requested-pause',
+          } as RunEvent);
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [
+        ...events,
+        {
+          family: 'owner-decision.recorded',
+          actor: 'owner',
+          storyId: 's1',
+          outcome: 'approve',
+          requestId: 'REQ-1',
+          requestKind: 'edit-files',
+        } as RunEvent,
+      ],
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p-live-stop-after-reexec',
+      version: 'execution-plan-shape-v0',
+      stories: [{ id: 's1', title: 'parks as the final sequential story' }],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(s1Executions, 2);
+  assert.ok(events.find((event) => event.family === 'authorization.granted' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'owner-requested-pause' && event.checkpoint === 'after:s1',
+    ),
+  );
+  assert.ok(!events.find((event) => event.family === 'run.completed'));
+});
+
+test('P09-F2: a live out-of-band rejection blocks the parked story at the next safe boundary', async () => {
+  const fixture = liveParkedRunFixture([
+    {
+      // An unknown outcome is ignored rather than consumed.
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'defer',
+    },
+    {
+      // No request identifiers on the decision: the park event supplies them.
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'reject',
+    },
+  ]);
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(fixture.s1Executions(), 1);
+  const events = fixture.events;
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.denied' &&
+        event.storyId === 's1' &&
+        event.requestId === 'REQ-1' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-rejection'),
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) => event.family === 'story.blocked' && event.storyId === 's1' && event.reason === 'owner-rejection',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'work-item-blocked' && event.checkpoint === 'after:s1',
+    ),
+  );
+});
+
+test('P09-F2: a live out-of-band hand-off records one re-target and keeps the story parked', async () => {
+  const fixture = liveParkedRunFixture([
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'hand-off',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      handedOffTo: 'platform-owner',
+    },
+  ]);
+  // A third story adds a later safe boundary: the consumed hand-off must not re-route there.
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'parks on a routed decision' },
+        { id: 's2', title: 'keeps the run live' },
+        { id: 's3', title: 'adds a later boundary' },
+      ],
+    },
+  };
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(fixture.s1Executions(), 1);
+  const events = fixture.events;
+  const reroutes = events.filter(
+    (event) =>
+      event.family === 'authorization.routed' &&
+      event.storyId === 's1' &&
+      event.requestId === 'REQ-1' &&
+      Array.isArray(event.basis) &&
+      event.basis.includes('owner-hand-off') &&
+      event.handedOffTo === 'platform-owner',
+  );
+  assert.strictEqual(reroutes.length, 1);
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's3'));
+  assert.ok(!events.find((event) => event.family === 'authorization.granted' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'unattended-park' && event.checkpoint === 'after:s1.parked',
+    ),
+  );
+});
+
+test('P09-F2: a stop request and a pending decision at the same boundary resolve stop-first', async () => {
+  const fixture = liveParkedRunFixture([
+    {
+      family: 'operator-action.requested',
+      actor: 'owner',
+      action: 'stop',
+      reason: 'owner-requested-pause',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'approve',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(fixture.s1Executions(), 1);
+  const events = fixture.events;
+  // Stop-wins: the decision stays durable and unconsumed for resume to pick up.
+  assert.ok(!events.find((event) => event.family === 'authorization.granted' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'unattended-park' && event.checkpoint === 'after:s1.parked',
+    ),
+  );
+});
+
+test('P09-F2: a consumed live decision is not re-applied when the story parks again', async () => {
+  const fixture = liveParkedRunFixture(
+    [
+      {
+        family: 'owner-decision.recorded',
+        actor: 'owner',
+        storyId: 's1',
+        outcome: 'approve',
+        requestId: 'REQ-1',
+        requestKind: 'edit-files',
+      },
+    ],
+    () => ({
+      storyId: 's1',
+      outcome: 'success',
+      evidence: { result: 'passed' },
+      requests: [{ id: 'REQ-2', kind: 'edit-files', privileged: true }],
+    }),
+  );
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(fixture.s1Executions(), 2);
+  const events = fixture.events;
+  const grants = events.filter(
+    (event) =>
+      event.family === 'authorization.granted' &&
+      event.storyId === 's1' &&
+      Array.isArray(event.basis) &&
+      event.basis.includes('owner-approval'),
+  );
+  assert.strictEqual(grants.length, 1);
+  assert.strictEqual(events.filter((event) => event.family === 'story.parked' && event.storyId === 's1').length, 2);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'unattended-park' && event.checkpoint === 'after:s1.parked',
+    ),
+  );
+});
+
+test('P09-F2: an approved re-execution that blocks stops the run at the blocked story', async () => {
+  const fixture = liveParkedRunFixture(
+    [
+      {
+        family: 'owner-decision.recorded',
+        actor: 'owner',
+        storyId: 's1',
+        outcome: 'approve',
+        requestId: 'REQ-1',
+        requestKind: 'edit-files',
+      },
+    ],
+    () => ({ storyId: 's1', outcome: 'failure', evidence: { result: 'failed' } }),
+  );
+
+  const status = await fixture.harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(fixture.s1Executions(), 2);
+  const events = fixture.events;
+  assert.ok(events.find((event) => event.family === 'authorization.granted' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'story.blocked' && event.storyId === 's1' && event.reason === 'worker-reported-failure',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'work-item-blocked' && event.checkpoint === 'after:s1',
+    ),
+  );
+});
+
+test('P09-F2: an approval consumed after an unrelated block keeps the blocked-run checkpoint honest', async () => {
+  const events: RunEvent[] = [];
+  let outOfBandIndex: number | null = null;
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's0') {
+          return { storyId: 's0', outcome: 'failure', evidence: { result: 'failed' } };
+        }
+        if (story.id === 's1') {
+          s1Executions += 1;
+          if (s1Executions === 1) {
+            return {
+              storyId: 's1',
+              outcome: 'success',
+              evidence: { result: 'passed' },
+              requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+            };
+          }
+          return { storyId: 's1', outcome: 'success', evidence: { result: 'passed' } };
+        }
+        outOfBandIndex = events.length;
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () =>
+        outOfBandIndex === null
+          ? [...events]
+          : [
+              ...events.slice(0, outOfBandIndex),
+              {
+                family: 'owner-decision.recorded',
+                actor: 'owner',
+                storyId: 's1',
+                outcome: 'approve',
+                requestId: 'REQ-1',
+                requestKind: 'edit-files',
+              } as RunEvent,
+              ...events.slice(outOfBandIndex),
+            ],
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's0', title: 'blocks first' },
+        { id: 's1', title: 'parks on a routed decision' },
+        { id: 's2', title: 'keeps the run live' },
+      ],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true, blockResolution: 'continue-independent-work' } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.strictEqual(s1Executions, 2);
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'work-item-blocked' && event.checkpoint === 'after:s1',
+    ),
+  );
+});
+
+test('P09-F2: without a durable log reader a live parked run still stops unattended', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          return {
+            storyId: 's1',
+            outcome: 'success',
+            evidence: { result: 'passed' },
+            requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+          };
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      finalize: async () => {},
+    },
+  );
+
+  const status = await harness.run(
+    validatePlanForScheduling(liveDecidePlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' && event.reason === 'unattended-park' && event.checkpoint === 'after:s1.parked',
+    ),
+  );
+});
+
+test('P09-F2: a batched live run consumes an out-of-band approval at the batch boundary', async () => {
+  const events: RunEvent[] = [];
+  let s1Executions = 0;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          s1Executions += 1;
+          if (s1Executions === 1) {
+            return {
+              storyId: 's1',
+              outcome: 'success',
+              evidence: { result: 'passed' },
+              requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+            };
+          }
+          return { storyId: 's1', outcome: 'success', evidence: { result: 'passed' } };
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      // The decide lands while the batch is executing; the durable log always orders it after
+      // the recorded park.
+      readEvents: () => [
+        ...events,
+        {
+          family: 'owner-decision.recorded',
+          actor: 'owner',
+          storyId: 's1',
+          outcome: 'approve',
+          requestId: 'REQ-1',
+          requestKind: 'edit-files',
+        } as RunEvent,
+      ],
+      finalize: async () => {},
+    },
+    null,
+    { workspaceIsolation: createInMemoryStoryWorkspaceIsolation('/tmp/jig-live-decide-batch') },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p-batch',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'parks in the batch' },
+        { id: 's2', title: 'succeeds in the batch' },
+      ],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true, concurrencyCeiling: 2 } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(s1Executions, 2);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.granted' &&
+        event.storyId === 's1' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-approval'),
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's1'));
+  assert.ok(events.find((event) => event.family === 'run.completed'));
+  assert.ok(!events.find((event) => event.family === 'run.stopped'));
+  // The re-execution reuses the parked story's workspace instead of re-allocating.
+  assert.ok(!events.find((event) => event.family === 'story.blocked' && event.reason === 'workspace-collision'));
+});
+
+function batchedParkedHarness(outOfBandEvents: RunEvent[]): { events: RunEvent[]; harness: LocalHarness } {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          return {
+            storyId: 's1',
+            outcome: 'success',
+            evidence: { result: 'passed' },
+            requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+          };
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [...events, ...outOfBandEvents],
+      finalize: async () => {},
+    },
+    null,
+    { workspaceIsolation: createInMemoryStoryWorkspaceIsolation('/tmp/jig-live-decide-batch') },
+  );
+  return { events, harness };
+}
+
+const batchedFourStoryPlan: PlanInstance = {
+  plan: {
+    id: 'p-batch-4',
+    version: 'execution-plan-shape-v0',
+    stories: [
+      { id: 's1', title: 'parks in the first batch' },
+      { id: 's2', title: 'succeeds in the first batch' },
+      { id: 's3', title: 'second batch' },
+      { id: 's4', title: 'second batch' },
+    ],
+  },
+};
+
+test('P09-F2: a batched stop request wins over a pending decision at the batch boundary', async () => {
+  const { events, harness } = batchedParkedHarness([
+    {
+      family: 'operator-action.requested',
+      actor: 'owner',
+      action: 'stop',
+      reason: 'owner-requested-pause',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'approve',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  const status = await harness.run(
+    validatePlanForScheduling(batchedFourStoryPlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true, concurrencyCeiling: 2 } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  // Stop-wins: the decision stays durable and unconsumed for resume.
+  assert.ok(!events.find((event) => event.family === 'authorization.granted' && event.storyId === 's1'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' &&
+        event.reason === 'unattended-park' &&
+        event.checkpoint === 'after:s1.parked' &&
+        Array.isArray(event.unstarted) &&
+        event.unstarted.includes('s3') &&
+        event.unstarted.includes('s4'),
+    ),
+  );
+});
+
+test('P09-F2: a batched rejection blocks the parked story and quarantines the remaining batches', async () => {
+  const { events, harness } = batchedParkedHarness([
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 's1',
+      outcome: 'reject',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  const status = await harness.run(
+    validatePlanForScheduling(batchedFourStoryPlan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true, concurrencyCeiling: 2 } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.denied' &&
+        event.storyId === 's1' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-rejection'),
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) => event.family === 'story.blocked' && event.storyId === 's1' && event.reason === 'owner-rejection',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' &&
+        event.reason === 'work-item-blocked' &&
+        event.checkpoint === 'after:s1' &&
+        Array.isArray(event.unstarted) &&
+        event.unstarted.includes('s3') &&
+        event.unstarted.includes('s4'),
+    ),
+  );
+});
+
+test('P09-F2/P09-AC-5: an out-of-band decide against the live record is consumed and matches the interactive record shape', async () => {
+  const workDir = mkdtempSync(join(tmpdir(), 'jig-live-decide-'));
+  const recordDir = join(workDir, 'runs');
+  const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
+  try {
+    const config: ConfigDoc = { runner: { mode: 'local-dry-run', recordDir } };
+    let s1Executions = 0;
+    const decideResults: DecideRunResult[] = [];
+    const harness = new LocalHarness(
+      {
+        execute: async (story: { id: string }) => {
+          if (story.id === 's1') {
+            s1Executions += 1;
+            if (s1Executions === 1) {
+              return {
+                storyId: 's1',
+                outcome: 'success',
+                evidence: { result: 'passed' },
+                requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+              };
+            }
+            return { storyId: 's1', outcome: 'success', evidence: { result: 'passed' } };
+          }
+          const [runName] = readdirSync(recordDir);
+          assert.ok(runName, 'expected the live run directory to exist');
+          decideResults.push(
+            await createJigSession().operator.decide({
+              runDir: join(recordDir, runName),
+              outcome: 'approve',
+            }),
+          );
+          return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+        },
+      },
+      new RecordManager(),
+    );
+    const plan: PlanInstance = {
+      plan: {
+        id: 'p-live-decide',
+        version: 'execution-plan-shape-v0',
+        stories: [
+          { id: 's1', title: 'parks on a routed decision' },
+          { id: 's2', title: 'decides out of band while live' },
+        ],
+      },
+    };
+
+    const status = await harness.run(validatePlanForScheduling(plan), config, policy);
+
+    assert.strictEqual(status, 'success');
+    assert.strictEqual(s1Executions, 2);
+    assert.strictEqual(decideResults.length, 1);
+    assert.strictEqual(decideResults[0]?.outcome, 'approve');
+    assert.strictEqual(decideResults[0]?.storyId, 's1');
+
+    const [runName] = readdirSync(recordDir);
+    assert.ok(runName);
+    const recorded = readFileSync(join(recordDir, runName, 'events.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as RunEvent);
+    const decision = recorded.find((event) => event.family === 'owner-decision.recorded');
+    assert.ok(decision, 'expected the out-of-band decision in the durable record');
+    assert.strictEqual(decision.actor, 'owner');
+    assert.strictEqual(decision.storyId, 's1');
+    assert.strictEqual(decision.outcome, 'approve');
+    assert.strictEqual(decision.requestId, 'REQ-1');
+    assert.strictEqual(decision.requestKind, 'edit-files');
+    const decisionIndex = recorded.indexOf(decision);
+    const grantIndex = recorded.findIndex(
+      (event) =>
+        event.family === 'authorization.granted' &&
+        event.storyId === 's1' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-approval'),
+    );
+    assert.ok(decisionIndex < grantIndex, 'the decision must precede its recorded consumption');
+    assert.ok(recorded.find((event) => event.family === 'run.completed'));
+    assert.ok(!recorded.find((event) => event.family === 'run.stopped'));
+    assert.ok(!recorded.find((event) => event.family === 'owner-decision.refused'));
+
+    // Interactive control: the in-process prompt answering the same routed request must record
+    // an identically shaped owner-decision event (P09-AC-5 parity across surfaces).
+    const interactiveDir = join(workDir, 'interactive-runs');
+    const interactiveHarness = new LocalHarness(
+      {
+        execute: async (story: { id: string }) => ({
+          storyId: story.id,
+          outcome: 'success',
+          evidence: { result: 'passed' },
+          requests: [{ id: 'REQ-1', kind: 'edit-files', privileged: true }],
+        }),
+      },
+      new RecordManager(),
+      { decide: async () => 'approve' },
+    );
+    const interactivePlan: PlanInstance = {
+      plan: {
+        id: 'p-interactive-decide',
+        version: 'execution-plan-shape-v0',
+        stories: [{ id: 's1', title: 'answers interactively' }],
+      },
+    };
+    const interactiveStatus = await interactiveHarness.run(
+      validatePlanForScheduling(interactivePlan),
+      { runner: { mode: 'local-dry-run', recordDir: interactiveDir } },
+      policy,
+    );
+    assert.strictEqual(interactiveStatus, 'success');
+    const [interactiveRunName] = readdirSync(interactiveDir);
+    assert.ok(interactiveRunName);
+    const interactiveEvents = readFileSync(join(interactiveDir, interactiveRunName, 'events.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as RunEvent);
+    const interactiveDecision = interactiveEvents.find((event) => event.family === 'owner-decision.recorded');
+    assert.ok(interactiveDecision, 'expected the interactive decision in the durable record');
+    assert.deepStrictEqual(Object.keys(decision).sort(), Object.keys(interactiveDecision).sort());
+    assert.strictEqual(decision.requestId, interactiveDecision.requestId);
+    assert.strictEqual(decision.requestKind, interactiveDecision.requestKind);
+    assert.strictEqual(decision.outcome, interactiveDecision.outcome);
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
+  }
 });
 
 test('P3/P4: harness records grant, deny, routed approval, missing evidence, and failed evidence branches', async () => {

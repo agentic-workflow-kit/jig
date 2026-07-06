@@ -44,6 +44,23 @@ interface StopRequest {
   reason: string;
 }
 
+interface PendingLiveDecision {
+  outcome: OwnerDecision;
+  handedOffTo?: string;
+  requestId?: string;
+  requestKind?: string;
+}
+
+interface LiveParkState {
+  runStatus: RunStatus;
+  stopReason: string;
+  hasUnattendedPark: boolean;
+  unattendedParkCheckpoint: string | null;
+  checkpointStoryId: string | null;
+}
+
+const PARKED_CHECKPOINT_SUFFIX = '.parked';
+
 function normalizeOwnerDecision(decision: OwnerDecisionResult): NormalizedOwnerDecision {
   if (typeof decision === 'string') {
     return { outcome: decision };
@@ -157,6 +174,7 @@ export class LocalHarness {
   private readonly landingAction: LandingAction;
   private readonly blockSurface: HarnessPorts['blockSurface'];
   private readonly workspaceIsolation: PerStoryWorkspaceIsolation | undefined;
+  private readonly storyWorkspaces = new Map<string, StoryWorkspace>();
 
   constructor(
     worker: Worker,
@@ -316,6 +334,170 @@ export class LocalHarness {
       }
     }
     return request;
+  }
+
+  private pendingLiveDecision(storyId: string): PendingLiveDecision | null {
+    const readEvents = this.recordManager.readEvents;
+    if (!readEvents) {
+      return null;
+    }
+
+    // A decision is pending when it answers the story's latest park and no authorization
+    // consequence has been recorded for the story since. The subsequent granted, denied, or
+    // routed record is what marks a decision consumed, so one durable decision is applied once.
+    let parkedRequest: { requestId?: string; requestKind?: string } | null = null;
+    let pending: PendingLiveDecision | null = null;
+    for (const event of readEvents.call(this.recordManager)) {
+      if (event.storyId !== storyId) {
+        continue;
+      }
+      if (event.family === 'story.parked') {
+        parkedRequest = {
+          ...(typeof event.requestId === 'string' ? { requestId: event.requestId } : {}),
+          ...(typeof event.requestKind === 'string' ? { requestKind: event.requestKind } : {}),
+        };
+        pending = null;
+        continue;
+      }
+      if (
+        pending &&
+        (event.family === 'authorization.granted' ||
+          event.family === 'authorization.denied' ||
+          event.family === 'authorization.routed')
+      ) {
+        pending = null;
+        continue;
+      }
+      if (!parkedRequest || event.family !== 'owner-decision.recorded') {
+        continue;
+      }
+      const outcome = event.outcome;
+      if (outcome !== 'approve' && outcome !== 'reject' && outcome !== 'override' && outcome !== 'hand-off') {
+        continue;
+      }
+      const requestId = typeof event.requestId === 'string' ? event.requestId : parkedRequest.requestId;
+      const requestKind = typeof event.requestKind === 'string' ? event.requestKind : parkedRequest.requestKind;
+      pending = {
+        outcome,
+        ...(typeof event.handedOffTo === 'string' ? { handedOffTo: event.handedOffTo } : {}),
+        ...(requestId ? { requestId } : {}),
+        ...(requestKind ? { requestKind } : {}),
+      };
+    }
+    return pending;
+  }
+
+  private parkedStoryIdFromLiveCheckpoint(checkpoint: string | null): string | null {
+    if (!checkpoint?.endsWith(PARKED_CHECKPOINT_SUFFIX)) {
+      return null;
+    }
+    return checkpoint.slice(0, -PARKED_CHECKPOINT_SUFFIX.length);
+  }
+
+  // Consumes a durable out-of-band owner decision for the currently parked routed story at a
+  // safe boundary. Callers poll this at the same boundaries as latestStopRequest(), and only
+  // when no stop request is pending: a stop and a decision arriving together resolve stop-first
+  // (the conservative order), leaving the decision durable and pending for resume.
+  private async consumePendingLiveDecision(
+    stories: Story[],
+    policy: PolicyDoc,
+    state: LiveParkState,
+    blockedStoryIds: Set<string>,
+  ): Promise<LiveParkState> {
+    const parkedStoryId = this.parkedStoryIdFromLiveCheckpoint(state.unattendedParkCheckpoint);
+    if (!parkedStoryId) {
+      return state;
+    }
+    const story = stories.find((entry) => entry.id === parkedStoryId);
+    if (!story) {
+      return state;
+    }
+    const decision = this.pendingLiveDecision(parkedStoryId);
+    if (!decision) {
+      return state;
+    }
+
+    if (decision.outcome === 'hand-off') {
+      // Same consequence as an interactive hand-off: record the routed re-target and keep the
+      // story parked; the run still stops at the parked checkpoint.
+      this.recordManager.recordEvent({
+        family: 'authorization.routed',
+        storyId: parkedStoryId,
+        requestId: decision.requestId,
+        requestKind: decision.requestKind,
+        basis: ['owner-hand-off'],
+        ...(decision.handedOffTo ? { handedOffTo: decision.handedOffTo } : {}),
+      });
+      return state;
+    }
+
+    if (decision.outcome === 'reject') {
+      this.recordManager.recordEvent({
+        family: 'authorization.denied',
+        storyId: parkedStoryId,
+        requestId: decision.requestId,
+        requestKind: decision.requestKind,
+        basis: ['owner-rejection'],
+      });
+      await this.recordBlockedStory(parkedStoryId, 'owner-rejection');
+      return {
+        runStatus: 'failure',
+        stopReason: 'work-item-blocked',
+        hasUnattendedPark: false,
+        unattendedParkCheckpoint: null,
+        checkpointStoryId: parkedStoryId,
+      };
+    }
+
+    this.recordManager.recordEvent({
+      family: 'authorization.granted',
+      storyId: parkedStoryId,
+      requestId: decision.requestId,
+      requestKind: decision.requestKind,
+      basis: [decision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
+    });
+    // Mirror resume's approved-park semantics: re-execute the story without re-recording
+    // story.started, while reusing the parked story's isolated workspace instead of allocating
+    // a second one or falling back to the ambient checkout.
+    const result = await this.executeStory(story, policy, false, {
+      workspace: this.storyWorkspaces.get(parkedStoryId),
+    });
+    if (result.status === 'success') {
+      blockedStoryIds.delete(parkedStoryId);
+      const stopRequest = this.latestStopRequest();
+      if (stopRequest) {
+        return {
+          runStatus: 'failure',
+          stopReason: stopRequest.reason,
+          hasUnattendedPark: false,
+          unattendedParkCheckpoint: null,
+          checkpointStoryId: parkedStoryId,
+        };
+      }
+      return {
+        runStatus: state.runStatus,
+        stopReason: 'work-item-blocked',
+        hasUnattendedPark: false,
+        unattendedParkCheckpoint: null,
+        checkpointStoryId: state.runStatus === 'failure' ? parkedStoryId : null,
+      };
+    }
+    if (result.stopReason === 'unattended-park') {
+      return {
+        ...state,
+        stopReason: 'unattended-park',
+        hasUnattendedPark: true,
+        unattendedParkCheckpoint: result.checkpointStoryId,
+        checkpointStoryId: result.checkpointStoryId,
+      };
+    }
+    return {
+      runStatus: 'failure',
+      stopReason: 'work-item-blocked',
+      hasUnattendedPark: false,
+      unattendedParkCheckpoint: null,
+      checkpointStoryId: result.checkpointStoryId,
+    };
   }
 
   private async recordBlockedStory(
@@ -571,7 +753,8 @@ export class LocalHarness {
             const batch = plan.stories.slice(index, index + ceiling);
             const results = await Promise.all(batch.map((story) => this.executeStory(story, policy, true)));
             const failed = results.find(
-              (result): result is Extract<StoryExecutionResult, { status: 'failure' }> => result.status === 'failure',
+              (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
+                result.status === 'failure' && result.stopReason !== 'unattended-park',
             );
             const unattendedPark = results.find(
               (result): result is Extract<StoryExecutionResult, { status: 'failure' }> =>
@@ -582,10 +765,33 @@ export class LocalHarness {
               stopReason = 'unattended-park';
               unattendedParkCheckpoint = unattendedPark.checkpointStoryId;
               checkpointStoryId = unattendedPark.checkpointStoryId;
-              for (const remainingStory of plan.stories.slice(index + ceiling)) {
-                unstartedStoryIds.push(remainingStory.id);
+              // Stop-wins: only consume a pending out-of-band decision when no stop request is
+              // queued at this boundary; a queued stop leaves the decision pending for resume.
+              if (!this.latestStopRequest()) {
+                const parkState = await this.consumePendingLiveDecision(
+                  plan.stories,
+                  policy,
+                  { runStatus, stopReason, hasUnattendedPark, unattendedParkCheckpoint, checkpointStoryId },
+                  blockedStoryIds,
+                );
+                runStatus = parkState.runStatus;
+                stopReason = parkState.stopReason;
+                hasUnattendedPark = parkState.hasUnattendedPark;
+                unattendedParkCheckpoint = parkState.unattendedParkCheckpoint;
+                checkpointStoryId = parkState.checkpointStoryId;
               }
-              break;
+              if (hasUnattendedPark) {
+                for (const remainingStory of plan.stories.slice(index + ceiling)) {
+                  unstartedStoryIds.push(remainingStory.id);
+                }
+                break;
+              }
+              if (runStatus === 'failure' && !shouldContinueIndependentWork) {
+                for (const remainingStory of plan.stories.slice(index + ceiling)) {
+                  unstartedStoryIds.push(remainingStory.id);
+                }
+                break;
+              }
             }
             if (failed) {
               runStatus = 'failure';
@@ -642,6 +848,17 @@ export class LocalHarness {
               }
               break;
             }
+            const parkState = await this.consumePendingLiveDecision(
+              plan.stories,
+              policy,
+              { runStatus, stopReason, hasUnattendedPark, unattendedParkCheckpoint, checkpointStoryId },
+              blockedStoryIds,
+            );
+            runStatus = parkState.runStatus;
+            stopReason = parkState.stopReason;
+            hasUnattendedPark = parkState.hasUnattendedPark;
+            unattendedParkCheckpoint = parkState.unattendedParkCheckpoint;
+            checkpointStoryId = parkState.checkpointStoryId;
             continue;
           }
 
@@ -651,6 +868,19 @@ export class LocalHarness {
             unattendedParkCheckpoint = storyResult.checkpointStoryId;
             checkpointStoryId = storyResult.checkpointStoryId;
             blockedStoryIds.add(story.id);
+            if (!this.latestStopRequest()) {
+              const parkState = await this.consumePendingLiveDecision(
+                plan.stories,
+                policy,
+                { runStatus, stopReason, hasUnattendedPark, unattendedParkCheckpoint, checkpointStoryId },
+                blockedStoryIds,
+              );
+              runStatus = parkState.runStatus;
+              stopReason = parkState.stopReason;
+              hasUnattendedPark = parkState.hasUnattendedPark;
+              unattendedParkCheckpoint = parkState.unattendedParkCheckpoint;
+              checkpointStoryId = parkState.checkpointStoryId;
+            }
             continue;
           }
 
@@ -882,6 +1112,17 @@ export class LocalHarness {
             }
             break;
           }
+          const parkState = await this.consumePendingLiveDecision(
+            plan.stories,
+            policy,
+            { runStatus, stopReason, hasUnattendedPark, unattendedParkCheckpoint, checkpointStoryId },
+            blockedStoryIds,
+          );
+          runStatus = parkState.runStatus;
+          stopReason = parkState.stopReason;
+          hasUnattendedPark = parkState.hasUnattendedPark;
+          unattendedParkCheckpoint = parkState.unattendedParkCheckpoint;
+          checkpointStoryId = parkState.checkpointStoryId;
           continue;
         }
 
@@ -923,18 +1164,30 @@ export class LocalHarness {
     }
   }
 
-  private async executeStory(story: Story, policy: PolicyDoc, recordStarted: boolean): Promise<StoryExecutionResult> {
+  private async executeStory(
+    story: Story,
+    policy: PolicyDoc,
+    recordStarted: boolean,
+    options: { workspace?: StoryWorkspace } = {},
+  ): Promise<StoryExecutionResult> {
     const policyInForce = this.policyInForce(policy);
     try {
-      const workspace = this.workspaceIsolation?.allocate(story);
-      if (workspace && 'failureToken' in workspace) {
-        await this.recordBlockedStory(story.id, 'workspace-collision', {
-          diagnostics: {
-            error: 'Duplicate story launch refused',
-            failureToken: workspace.failureToken,
-          },
-        });
-        return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
+      let workspace = options.workspace;
+      if (!workspace) {
+        const allocatedWorkspace = this.workspaceIsolation?.allocate(story);
+        if (allocatedWorkspace && 'failureToken' in allocatedWorkspace) {
+          await this.recordBlockedStory(story.id, 'workspace-collision', {
+            diagnostics: {
+              error: 'Duplicate story launch refused',
+              failureToken: allocatedWorkspace.failureToken,
+            },
+          });
+          return { status: 'failure', stopReason: 'work-item-blocked', checkpointStoryId: story.id };
+        }
+        workspace = allocatedWorkspace;
+        if (workspace) {
+          this.storyWorkspaces.set(story.id, workspace);
+        }
       }
 
       if (recordStarted) {

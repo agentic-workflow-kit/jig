@@ -56,3 +56,23 @@ interrupted parked runs can resume without re-asking.
 - Ask-why and replay can cite decision/refusal records without treating them as story transitions.
 - P12 can expose `decide` and `stop` through MCP later as thin calls over the same SDK surface.
 - Multi-user authentication and remote approval channels remain outside this decision.
+
+## Addendum - Live-run out-of-band decisions
+
+The out-of-band `decide` surface also answers a live run. The records projection exposes a
+routed-decision surface naming the currently parked routed story: for a stopped run it is derived
+from the parked safe checkpoint (unchanged), and for a live run it is the latest still-parked
+story. `decide` appends the same `owner-decision.recorded` record either way; no new lifecycle
+state or event family exists.
+
+A running harness polls the durable log for a pending decision at the same safe story boundaries
+where it polls stop requests. Consumption records only the existing authorization consequence -
+`authorization.granted` for approve/override (and the story re-executes, mirroring resume's
+approved-park semantics), `authorization.denied` plus the owner-rejection block for reject, and
+the `authorization.routed` re-target for hand-off, which keeps the story parked. A hand-off's
+routed record is therefore legal against a parked story in replay.
+
+Precedence is stop-first: when a stop request and a decision are both pending at a boundary, the
+harness consumes the stop and leaves the decision durable and unconsumed for resume. A decision is
+pending only when it answers the story's latest park and no authorization consequence follows it,
+so a decision consumed live is never re-applied by resume or by a later boundary.

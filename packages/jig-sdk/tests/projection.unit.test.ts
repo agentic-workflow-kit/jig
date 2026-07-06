@@ -1309,3 +1309,150 @@ test('P08-AC-3: blocked PR surfacing records remain explainable citations', () =
   assert.match(why.answer, /blocked because pr-surfacing-failed/);
   assert.ok(why.citations.some((citation) => citation.family === 'runner-action.opened-pr'));
 });
+
+function liveParkedEvents(): RunEvent[] {
+  return [
+    launchHeader(),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'authorization.routed',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:02.000Z',
+      storyId: 'STORY-1',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      basis: ['fence-routed'],
+    },
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      timestamp: '2026-07-02T10:00:03.000Z',
+      storyId: 'STORY-1',
+      requestId: 'REQ-1',
+      reason: 'owner-decision-required',
+    },
+  ];
+}
+
+test('P09-F2: a live parked run exposes the routed-decision surface without a safe checkpoint', () => {
+  const projection = projectRunEvents({ eventsJsonl: stringifyJsonl(liveParkedEvents()) });
+
+  assert.strictEqual(projection.lifecycleState, 'started');
+  assert.strictEqual(projection.safeCheckpoint, undefined);
+  // The park omits the request kind; the routed record supplies it.
+  assert.deepStrictEqual(projection.routedDecision, {
+    storyId: 'STORY-1',
+    requestId: 'REQ-1',
+    requestKind: 'edit-files',
+  });
+});
+
+test('P09-F2: the stopped-run routed-decision surface matches the parked safe checkpoint', () => {
+  const projection = projectRunEvents({ eventsJsonl: stringifyJsonl(stoppedRunEvents()) });
+
+  assert.strictEqual(projection.safeCheckpoint, 'after:STORY-2.parked');
+  assert.deepStrictEqual(projection.routedDecision, {
+    storyId: 'STORY-2',
+    requestId: 'REQ-2',
+    requestKind: 'edit-rule-governing-file',
+  });
+});
+
+test('P09-F2: completed, unparked, and granted-after-park runs expose no routed decision', () => {
+  const completed = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      { family: 'run.completed', actor: 'runner', timestamp: '2026-07-02T10:00:01.000Z' },
+    ]),
+  });
+  assert.strictEqual(completed.routedDecision, undefined);
+
+  const unparked = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      launchHeader(),
+      { family: 'story.started', actor: 'runner', timestamp: '2026-07-02T10:00:01.000Z', storyId: 'STORY-1' },
+    ]),
+  });
+  assert.strictEqual(unparked.routedDecision, undefined);
+
+  const granted = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...liveParkedEvents(),
+      {
+        family: 'owner-decision.recorded',
+        actor: 'owner',
+        timestamp: '2026-07-02T10:00:04.000Z',
+        storyId: 'STORY-1',
+        outcome: 'approve',
+        requestId: 'REQ-1',
+        requestKind: 'edit-files',
+      },
+      {
+        family: 'authorization.granted',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:05.000Z',
+        storyId: 'STORY-1',
+        requestId: 'REQ-1',
+        requestKind: 'edit-files',
+        basis: ['owner-approval'],
+      },
+    ]),
+  });
+  assert.strictEqual(granted.routedDecision, undefined);
+  assert.strictEqual(granted.stories['STORY-1']?.state, 'started');
+});
+
+test('P09-F2: the latest still-parked story owns the live routed-decision surface', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...liveParkedEvents(),
+      { family: 'story.started', actor: 'runner', timestamp: '2026-07-02T10:00:04.000Z', storyId: 'STORY-2' },
+      {
+        family: 'authorization.routed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:05.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+        requestKind: 'edit-files',
+        basis: ['fence-routed'],
+      },
+      {
+        family: 'story.parked',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:06.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+        reason: 'owner-decision-required',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.routedDecision?.storyId, 'STORY-2');
+  assert.strictEqual(projection.routedDecision?.requestId, 'REQ-2');
+});
+
+test('P09-F2: a hand-off routed record against a parked story replays legally', () => {
+  const projection = projectRunEvents({
+    eventsJsonl: stringifyJsonl([
+      ...liveParkedEvents(),
+      {
+        family: 'authorization.routed',
+        actor: 'runner',
+        timestamp: '2026-07-02T10:00:04.000Z',
+        storyId: 'STORY-1',
+        requestId: 'REQ-1',
+        requestKind: 'edit-files',
+        basis: ['owner-hand-off'],
+        handedOffTo: 'platform-owner',
+      },
+    ]),
+  });
+
+  assert.strictEqual(projection.stories['STORY-1']?.state, 'parked');
+  assert.strictEqual(projection.stories['STORY-1']?.lastEventFamily, 'authorization.routed');
+});
