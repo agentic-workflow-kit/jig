@@ -1,6 +1,6 @@
 ---
 title: "Phase 12 - MCP driving adapter"
-status: "pr #71"
+status: "merged (#71)"
 ---
 
 # Phase 12 - MCP driving adapter

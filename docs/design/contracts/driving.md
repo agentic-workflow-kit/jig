@@ -14,7 +14,8 @@ that action. The edge holds no run logic and imports no provider contracts — i
 ## Owns
 
 - The inbound driving interface jig is operated through.
-- The deliberate driving actions: start, preview, watch, inspect, ask-why, decide, stop, export.
+- The deliberate driving actions: start, preview, watch, inspect, ask-why, notice-ack,
+  notice-snooze, decide, stop, export.
 - The one-command / one-control-plane-call / SDK-owned-records invariant.
 - Keeping the edge free of run logic — orchestration, eligibility, and authorization stay in
   core.
@@ -130,9 +131,13 @@ shipped public package promise.
 
 ## Driving actions at current altitude
 
-The driving action set is: start, preview, watch, inspect, ask-why, decide, stop, and export. This
-section stays at design altitude only. It names the deliberate actions the port carries without
-freezing exact method signatures or adapter-specific representation.
+The driving action set is: start, preview, watch, inspect, ask-why, notice acknowledge, notice
+snooze, decide, stop, and export. [ADR 0030](../decisions/0030-observation-surface-placement.md)
+places notice acknowledge and snooze as owner notice records on this same operator-control port.
+ADR 0032 places export on the same port, and ADR 0033 keeps `resume` on the SDK recovery surface
+rather than on the operator-control port or MCP adapter. This section stays at design altitude
+only. It names the deliberate actions the port carries without freezing exact method signatures or
+adapter-specific representation.
 
 ## Invocation into cited core surfaces
 
@@ -198,12 +203,14 @@ available invariant number is `INV-019`.
 
 ## Reconciles to
 
-- `docs/product/jig.md` — "Driving a run" (start, preview, watch, inspect, ask-why, decide, stop;
-  "You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
-  software"); "Operator-initiated" (see "What Jig isn't (yet)"); "Product boundaries" for no public
-  package/export/stability promise today.
+- `docs/product/jig.md` — "Driving a run" (start, preview, watch, inspect, ask-why, acknowledge or
+  snooze a notice, decide, stop; "You run Jig from a terminal, drive it as a tool from your own
+  agent, or embed it in your own software"); "Operator-initiated" (see "What Jig isn't (yet)");
+  "Product boundaries" for no public package/export/stability promise today.
 - ADR 0032 — export is an operator-control action that writes a local audit artifact and records
   export audit events outside finalized run logs.
+- ADR 0033 — `resume` is a recovery-surface operation and MCP lives in the private `jig-mcp`
+  adapter package; neither changes the operator-control port verb set.
 - ADR 0027 — the `jig-sdk` package boundary is distribution/dependency structure, while this document's
   SDK adapter remains a thin driving realization.
 - `SEE-1` — full run visibility, surfaced through inspect/ask-why on the operator boundary.

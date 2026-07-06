@@ -45,7 +45,8 @@ ambient local state. The repo is a private pnpm workspace shell (`@agentic-workf
 or makes a public SDK/provider/MCP stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
 at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
-held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance.
+held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance —
+held-merge and commit-status legs are unit-proven, with real-effect evidence pending a rerun.
 Strong no-phone-home evidence remains future work. EVRUN-partial is recorded; P11 also records a
 blocked EVRUN-full capture attempt where the narrow Codex app-server and real-host smokes passed
 outside the Codex sandbox, but the combined real GitHub path could not run without sandbox
