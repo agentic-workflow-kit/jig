@@ -44,7 +44,9 @@ function runDirFor(recordDir: string): string {
 }
 
 test('export: refuses when the run directory does not exist', () => {
-  assert.throws(() => exportRun({ runDir: join(tmpdir(), 'jig-export-does-not-exist') }), /does not exist/);
+  const parentDir = mkdtempSync(join(tmpdir(), 'jig-export-missing-parent-'));
+  cleanupDirs.push(parentDir);
+  assert.throws(() => exportRun({ runDir: join(parentDir, 'jig-export-does-not-exist') }), /does not exist/);
 });
 
 test('export: refuses when events.jsonl is missing from an existing run directory', () => {
