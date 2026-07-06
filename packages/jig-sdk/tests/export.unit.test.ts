@@ -279,5 +279,32 @@ test('export: honors a custom outputDir instead of the default runDir/exports lo
 
   assert.strictEqual(result.status, 'exported');
   assert.ok(result.artifactPath?.startsWith(outputDir));
-  assert.strictEqual(existsSync(join(runDir, 'exports')), false);
+  assert.ok(existsSync(join(outputDir, 'export-audit.jsonl')));
+  assert.ok(existsSync(join(runDir, 'exports', 'export-audit.jsonl')));
+  assert.strictEqual(
+    readFileSync(join(runDir, 'exports', 'export-audit.jsonl'), 'utf8'),
+    readFileSync(join(outputDir, 'export-audit.jsonl'), 'utf8'),
+  );
+});
+
+test('export: trailing-slash canonical outputDir does not duplicate the audit event', async () => {
+  const recordDir = tempRecordDir();
+  const manager = new RecordManager();
+  manager.init(plan(), config(recordDir), policy());
+  manager.recordEvent({ family: 'run.started' });
+  manager.recordEvent({ family: 'story.started', storyId: 'STORY-1' });
+  manager.recordEvent({ family: 'story.done', storyId: 'STORY-1', changedFiles: [] });
+  manager.recordEvent({ family: 'run.completed' });
+  await manager.finalize('success');
+  const runDir = runDirFor(recordDir);
+
+  const outputDir = `${join(runDir, 'exports')}/`;
+  const result = exportRun({ runDir, outputDir });
+
+  assert.strictEqual(result.status, 'exported');
+  const auditLines = readFileSync(join(runDir, 'exports', 'export-audit.jsonl'), 'utf8')
+    .trim()
+    .split('\n');
+  assert.strictEqual(auditLines.length, 1);
+  assert.match(auditLines[0] ?? '', /"family":"export\.prepared"/);
 });

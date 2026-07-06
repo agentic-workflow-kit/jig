@@ -119,6 +119,7 @@ export interface WatchProjection {
 }
 
 export interface WhyCitation {
+  source?: string;
   line: number;
   family: string;
   storyId?: string;

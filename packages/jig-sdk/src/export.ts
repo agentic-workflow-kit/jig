@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { type IntegrityVerification, launchBindingExpectsIntegrity, verifyIntegritySidecar } from './integrity.js';
 import { parseEventsJsonl, projectRunEvents, type RunProjection } from './projection.js';
 import { RedactionAmbiguityError, redactValue } from './redaction.js';
@@ -105,16 +105,33 @@ function exportDirFor(input: ExportRunInput): string {
   return input.outputDir ?? join(input.runDir, EXPORTS_DIR);
 }
 
+function canonicalAuditDir(runDir: string): string {
+  return join(runDir, EXPORTS_DIR);
+}
+
+function auditPathForDir(outputDir: string): string {
+  return join(outputDir, EXPORT_AUDIT_FILE);
+}
+
 function appendAuditEvent(outputDir: string, event: ExportAuditEvent): string {
   mkdirSync(outputDir, { recursive: true });
-  const auditPath = join(outputDir, EXPORT_AUDIT_FILE);
+  const auditPath = auditPathForDir(outputDir);
   appendFileSync(auditPath, `${JSON.stringify(event)}\n`);
   return auditPath;
 }
 
-function refuse(input: ExportRunInput, reason: string, runId?: string): ExportRunResult {
+function appendDiscoverableAuditEvent(input: ExportRunInput, event: ExportAuditEvent): string {
   const outputDir = exportDirFor(input);
-  const auditEventPath = appendAuditEvent(outputDir, {
+  const auditEventPath = appendAuditEvent(outputDir, event);
+  const canonicalDir = canonicalAuditDir(input.runDir);
+  if (resolve(auditPathForDir(canonicalDir)) !== resolve(auditPathForDir(outputDir))) {
+    appendAuditEvent(canonicalDir, event);
+  }
+  return auditEventPath;
+}
+
+function refuse(input: ExportRunInput, reason: string, runId?: string): ExportRunResult {
+  const auditEventPath = appendDiscoverableAuditEvent(input, {
     family: 'export.denied',
     actor: 'owner',
     timestamp: new Date().toISOString(),
@@ -264,7 +281,7 @@ export function exportRun(input: ExportRunInput): ExportRunResult {
   const path = artifactPath(outputDir, projection, createdAt);
   writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, { flag: 'wx' });
   const artifactSha256 = sha256(readFileSync(path));
-  const auditEventPath = appendAuditEvent(outputDir, {
+  const auditEventPath = appendDiscoverableAuditEvent(input, {
     family: 'export.prepared',
     actor: 'owner',
     timestamp: createdAt,
