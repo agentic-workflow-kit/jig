@@ -1,6 +1,6 @@
 ---
 title: "Phase 11 - EVRUN-full evidence"
-status: implemented — blocked evidence record
+status: "pr #70 — blocked evidence record"
 ---
 
 # Phase 11 - EVRUN-full evidence
