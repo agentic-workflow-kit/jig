@@ -1,6 +1,6 @@
 ---
 title: "Phase 11 - EVRUN-full evidence"
-status: "pr #70 — blocked evidence record"
+status: "merged (#70; blocked evidence)"
 ---
 
 # Phase 11 - EVRUN-full evidence
@@ -92,12 +92,22 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 
 ## Acceptance Criteria
 
+These criteria remain the bar for closing this phase. The per-AC disposition markers below
+record honest current state as of the #70 merge; they do not lower the bar.
+
 1. A committed, dated EVRUN-full evidence record (or record set) exists under
    `docs/design/evidence/`, indexed, convention-complete (versions, hashes, Limitations,
    redaction statement, ID citations).
+   **Disposition at #70 merge: not met.** What was delivered instead is the blocked-attempt
+   record `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md`. A full capture
+   re-attempt is still owed before this criterion is met.
 2. The record demonstrates: real Codex editing through the owned app-server transport; real,
    exercised confinement with honest strength; an adversarial no-phone-home observation; and
    multi-run idempotency against a real landed effect.
+   **Disposition at #70 merge: not met.** The combined EVRUN-full path could not run because
+   the sandbox GitHub and integrity prerequisites were absent; the blocked-attempt record
+   `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md` documents what was observed
+   instead. A full capture re-attempt remains required before this criterion is met.
 3. Hosted/remote operation and Windows behavior are explicitly restated as out of scope in the
    Limitations section.
 4. README/AGENTS/product status lines about EVRUN reflect the new boundary — no claim exceeds

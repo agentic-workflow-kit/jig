@@ -26,23 +26,24 @@ The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`,
 `jig export`.
 The private MCP surface lives in `@agentic-workflow-kit/jig-mcp` and exposes the settled
 operator-control verbs as source-checkout tool calls; it is not published and carries no stability
-promise.
+promise. `jig resume` remains a CLI/SDK recovery operation rather than an MCP operator-control
+verb.
 Launch binds the track policy plus any configured work profile and repo-policy floors, snapshots
 them into the run record, and reconstructs the effective floor-merged policy basis on resume. The
 fixture-backed commands below are the supported local way to exercise the repo from a fresh
-checkout. The package split is now implementation fact inside this private workspace; Codex
-app-server transport work remains future implementation, not a shipped public API, while the real
-execution-host path now exercises a local macOS process-group probe and reports an honest `weak`
-containment posture.
+checkout. The package split and the private Codex app-server transport are now implementation fact
+inside this private workspace; neither creates a shipped public API. The real execution-host path
+now exercises a local macOS process-group probe and reports an honest `weak` containment posture.
 
 Current evidence proves a scoped real-provider path with a scripted agent leg
 (`EVRUN-partial`). P11 also captured an EVRUN-full attempt: the narrow Codex app-server and
 real-host smokes pass outside the Codex sandbox, but the combined real GitHub path could not run
 without sandbox credentials and an integrity key. The current real GitHub Forge/GitHub Issues path
 also carries blocked-PR surfacing, held-merge replay safety, landing-path redaction, and
-per-candidate origin-bearing provenance. `EVRUN-full`, remote execution, public package
-publication, and a full Codex-driven agent leg remain future work; strong/no-phone-home
-execution-host evidence remains in that later proof step.
+per-candidate origin-bearing provenance — held-merge and commit-status legs are unit-proven, with
+real-effect evidence pending a rerun. `EVRUN-full`, remote execution, public package publication,
+and a full Codex-driven agent leg remain future work; strong/no-phone-home execution-host evidence
+remains in that later proof step.
 
 ## Quick Start
 

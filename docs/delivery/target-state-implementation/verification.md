@@ -21,11 +21,26 @@ Gate integrity rules (from [`AGENTS.md`](../../../AGENTS.md)):
 
 - No skipped steps, no threshold adjustments, no widened exclusion lists. Coverage stays
   enforced at 90% (aim 95%) across whatever package layout exists after P02.
+- **Coverage headroom.** A PR may merge only if its gate run reports branch coverage at or above
+  90.5%. The enforced floor in `vitest.config.ts` stays 90 — the 0.5-point headroom absorbs
+  run-to-run coverage jitter so that a green PR cannot produce a red main.
 - After P02 the gate additionally enforces the ADR 0027 dependency matrix (see
   [package boundary checks](#package-boundary-checks)); later phases inherit that check.
 - A phase that must change gate mechanics (for example, P02 re-wiring `pnpm check` to fan out
   across workspace packages) changes the mechanics without reducing what is checked, and its PR
   review verifies exactly that.
+
+## Review gate
+
+A PR merges only after the automatic hosted review has posted and all of its threads are
+resolved. Merging ahead of the review is a recorded escalation in the PR, never silent (incident
+class: `#68` merged three minutes before its review posted).
+
+## Post-merge watch
+
+After each squash-merge, the merger watches the main push `check` run to conclusion. A red main
+run halts further merges until main is green again (incident class: three consecutive red main
+runs went unnoticed).
 
 ## Test lanes
 
@@ -146,8 +161,14 @@ From P02 onward:
 - Each phase PR flips its own phase-table row and phase-doc frontmatter status to merged with
   its own PR number — no follow-up PRs for status. Since the number does not exist until the PR
   is opened: open the PR first, then push a status commit citing the exact number to the same
-  branch before requesting review, so the squash-merge lands work and status together. The
-  track front page must never claim less progress than `main`.
+  branch before requesting review, so the squash-merge lands work and status together.
+- **Status-flip rule.** The status commit writes `merged (#N)` _before_ the merge happens, and
+  this is the sanctioned convention: the squash-merge lands the work and the status atomically in
+  one commit. Writing an interim status such as `implemented (#N)` or `PR #N` and relying on a
+  later PR to flip it to `merged` is a rule violation, not a lighter-weight variant — it is the
+  observed daisy-chain failure mode where the tail row goes stale (the last phase never gets its
+  follow-up flip and the track front page under-reports `main`). The track front page must never
+  claim less progress than `main`.
 
 ## Reviewer inspection axes
 
@@ -169,22 +190,30 @@ The owning sections above remain normative — this list restates them for a sin
 pass and is not itself mechanically enforced.
 
 1. Full gate green locally, with the output shown as evidence, not asserted ([The gate](#the-gate)).
-2. Goldens are byte-identical, or the change is an owned, declared records-contract change
+2. The gate run's reported branch coverage is at or above 90.5%, the enforced-floor headroom
+   ([The gate](#the-gate)).
+3. Goldens are byte-identical, or the change is an owned, declared records-contract change
    ([Golden-record discipline](#golden-record-discipline)).
-3. For real-provider phases (P03, P04, P05, P11): a smoke transcript is in the PR body or a
+4. For real-provider phases (P03, P04, P05, P11): a smoke transcript is in the PR body or a
    committed evidence record; a skipped run is a recorded escalation, not a silent "not run"
    ([Evidence records and the EVRUN gates](#evidence-records-and-the-evrun-gates)).
-4. Smoke and evidence assertions are not satisfiable by a fail-closed refusal
+5. Smoke and evidence assertions are not satisfiable by a fail-closed refusal
    ([Conformance and testkit posture](#conformance-and-testkit-posture)).
-5. Any export-map widening names the consumer that needs it
+6. Any export-map widening names the consumer that needs it
    ([Package boundary checks](#package-boundary-checks)).
-6. The status flip lands in the same PR: open the PR first, then push a status commit citing
-   the exact PR number to the phase-table row and the phase-doc frontmatter
+7. The status flip lands in the same PR: open the PR first, then push a status commit citing
+   the exact PR number to the phase-table row and the phase-doc frontmatter, writing `merged
+(#N)` directly — never an interim `implemented (#N)`/`PR #N` left for a later PR to flip
    ([Docs checks](#docs-checks)).
-7. Status-bearing docs (root `README.md`, `AGENTS.md`, `docs/README.md`, package descriptions,
+8. Status-bearing docs (root `README.md`, `AGENTS.md`, `docs/README.md`, package descriptions,
    `skills/README.md` CLI surface list) are updated in the same PR ([Docs checks](#docs-checks)).
-8. All review threads are resolved, the PR is squash-merged, and the worktree is cleaned up
-   after merge (`AGENTS.md`).
+9. The automatic hosted review has posted and all review threads (including its own) are
+   resolved before merge; merging ahead of the review is a recorded escalation, never silent
+   ([Review gate](#review-gate)).
+10. The PR is squash-merged and the worktree is cleaned up after merge (`AGENTS.md`).
+11. After the squash-merge, the merger watches the main push `check` run to conclusion; a red
+    main run halts further merges until main is green again
+    ([Post-merge watch](#post-merge-watch)).
 
 ## Definition of delivered
 

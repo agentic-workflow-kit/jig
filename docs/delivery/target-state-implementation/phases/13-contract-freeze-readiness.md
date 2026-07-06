@@ -1,6 +1,6 @@
 ---
 title: "Phase 13 - Contract v0 freeze readiness"
-status: planned
+status: blocked
 ---
 
 # Phase 13 - Contract v0 freeze readiness
@@ -76,8 +76,8 @@ consumer, which is why the owner decides and this phase only prepares.
   [ADR 0026](../../../design/decisions/0026-conformance-self-report-only.md) (verdict
   vocabulary constraints)
 - P11's evidence records; the golden files under `tests/fixtures/m5b-local-mvp/`
-- Source of truth for shipped shapes: `src/plan-validator.ts`, `src/records.ts`,
-  `src/projection.ts` (post-P02 package locations)
+- Source of truth for shipped shapes: `packages/jig-sdk/src/plan-validator.ts`,
+  `packages/jig-sdk/src/records.ts`, `packages/jig-sdk/src/projection.ts`
 
 ## Dependencies
 
