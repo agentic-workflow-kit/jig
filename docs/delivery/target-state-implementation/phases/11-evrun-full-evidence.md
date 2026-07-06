@@ -1,6 +1,6 @@
 ---
 title: "Phase 11 - EVRUN-full evidence"
-status: planned
+status: "pr #70 — blocked evidence record"
 ---
 
 # Phase 11 - EVRUN-full evidence
@@ -10,9 +10,10 @@ status: planned
 Run and commit the EVRUN-full evidence: a real, end-to-end Codex-driven delivery — GitHub
 Issues work source, real Codex agent over the app-server transport, real execution-host
 containment, real GitHub Forge landing, integrity and redaction active — plus the adversarial
-probes EVRUN-partial could not claim (no-phone-home, multi-run idempotency). The deliverable is
-committed evidence records and the status updates they authorize; product code changes are not
-this phase's purpose.
+probes EVRUN-partial could not claim (no-phone-home, multi-run idempotency). The implemented P11
+record is an honest blocked capture attempt: the narrow Codex app-server and real-host smoke probes
+were refreshed, but the combined EVRUN-full path could not run because the sandbox GitHub and
+integrity prerequisites were absent. Product code changes are not this phase's purpose.
 
 ## Background
 
@@ -48,13 +49,13 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 
 ## Why
 
-- Closes the EVRUN-full gate named in
+- Attempts the EVRUN-full gate named in
   [`evidence/README.md`](../../../design/evidence/README.md#evrun-evidence-boundary) and echoed
   in [`product/jig.md`](../../../product/jig.md#what-jig-isnt-yet).
-- `SEC-2` (no-phone-home proven, not asserted), `RESUME-3` (no double effect against real
-  systems), `MERGE-2`/`FENCE-3` observed on a real path.
-- Unblocks P13 (the freeze is gated on the transport implementation/evidence path — ADR 0028
-  Consequences).
+- A successful capture would prove `SEC-2` (no-phone-home proven, not asserted), `RESUME-3` (no
+  double effect against real systems), and `MERGE-2`/`FENCE-3` observations on a real path.
+- The implemented blocked capture attempt does not unlock P13 or authorize P14 status claims;
+  those remain gated on either EVRUN-full evidence or an explicit owner decision to defer the gate.
 
 ## Technical Requirements
 
@@ -85,7 +86,8 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 - **Requires:** P03 and P04 (hard).
 - **Benefits from:** P05 (block-surfacing and held-merge paths worth capturing in the same
   sweep).
-- **Unlocks:** P13 (hard); authorizes P14's status claims.
+- **Would unlock:** P13 (hard) and P14 status claims only after EVRUN-full evidence or an explicit
+  owner deferral decision.
 - **Parallel:** P07–P10, P12 may proceed concurrently.
 
 ## Acceptance Criteria

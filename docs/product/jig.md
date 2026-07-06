@@ -198,8 +198,10 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - **A tool you run, not a service you buy.** Jig is not a hosted, multi-tenant service in v1.
 - **The full agent-driven real run is still debt.** Current evidence proves a real work-source,
   Forge, and records-integrity path with a scripted agent leg. That scoped proof is
-  EVRUN-partial; EVRUN-full — the full Codex-driven agent leg — remains unproven, as do remote
-  execution, no-phone-home behavior, and every transport edge.
+  EVRUN-partial. A later P11 capture attempt refreshed narrow Codex app-server and real-host smoke
+  evidence but could not run the combined GitHub path without sandbox credentials and an integrity
+  key. EVRUN-full — the full Codex-driven agent leg — remains unproven, as do remote execution,
+  no-phone-home behavior, and every transport edge.
 - **No silent legacy coping.** Jig refuses configuration it doesn't understand, with guidance,
   rather than guessing at an outdated format.
 
