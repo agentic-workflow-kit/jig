@@ -29,9 +29,11 @@ spine, and where Jig fits in the suite, start at
 
 ## 1. Control & trust
 
-**Intended behavior.** The agent is a contained worker. It can request work, produce code, run
-checks, and report progress, but it cannot expand its own authority or land changes by
-self-report. Jig is responsible for keeping the authority boundary real.
+**Intended behavior.** Jig is a delivery harness, not a coding agent with shipping authority. The
+agent is a contained worker. It can request work, produce code, run requested checks, and report
+progress/evidence, but it cannot expand its own authority, decide evidence sufficiency, choose or
+weaken acceptance level, review itself as sufficient proof, or land changes by self-report. Jig is
+responsible for keeping the authority boundary real.
 
 ### 1.1 The fence — runtime authorization
 
@@ -70,17 +72,19 @@ self-report. Jig is responsible for keeping the authority boundary real.
 
 **What counts as evidence.** At product altitude, evidence falls into three categories: (a)
 **automated checks** — tests, builds, linters, and gates the runner observes directly, never
-taken from the worker's word; (b) **review** — an approval from a human or delegated reviewer
-the policy requires; and (c) **capability proof** — fresh attestation that a driver can safely
-perform what is being trusted (see [earned trust](#12-earned-trust--capability-attestation)).
-Policy decides which categories, and how much of each, a story needs before it may land.
+taken from the worker's word; (b) **review / acceptance** — a verdict or evidence assessment from
+the independent lane policy requires, such as a mechanical evidence check, structured independent
+review, real code review, owner review, or specialist/security/contracts review; and (c)
+**capability proof** — fresh attestation that a driver can safely perform what is being trusted
+(see [earned trust](#12-earned-trust--capability-attestation)). Policy decides which categories,
+and how much of each, a story needs before it may land.
 
 - **MERGE-1.** Completing and landing work requires independent evidence aligned to the policy,
   never the worker's self-report alone.
 - **MERGE-2.** Push, PR creation, and merge are runner authority. The thing that writes code is
   not the thing that ships it.
 - **MERGE-3.** Done conditions are explicit and policy-bound. The owner decides what evidence
-  is required before work may land.
+  and acceptance strength are required before work may land.
 - **MERGE-4.** Done and merged are separate milestones. Jig proves a story is _done_ — its
   evidence is met — independently of whether its PR is _mergeable right now_. Branch protection,
   a merge queue, or a conflict can hold a done story without erasing that the work is done.
@@ -101,7 +105,8 @@ Policy decides which categories, and how much of each, a story needs before it m
 
 **Honest edge.** Jig protects the shape of trust; the substance of each gate is still the
 owner's responsibility. A weak review, empty verification command, or vague plan remains weak.
-Jig makes that weakness visible instead of pretending it is proof.
+Jig makes that weakness visible instead of pretending it is proof; missing or inconclusive
+acceptance means less autonomy or an inspectable stop, not a weaker guarantee.
 
 ## 2. Configuration ownership
 
@@ -110,8 +115,8 @@ being handed an undifferentiated wall of knobs. Policy is the safety contract. W
 how the work gets done. Jig derives live behavior from those choices and the plan.
 
 - **CFG-1. Policy is the governance contract.** It expresses gating posture, merge spectrum,
-  concurrency ceiling, retry budget, required reviews, approvals, escalation rules, and the
-  anti-gaming floor. Because policy governs safety, changing it is itself governed.
+  concurrency ceiling, retry budget, required reviews, acceptance strength, approvals, escalation
+  rules, and the anti-gaming floor. Because policy governs safety, changing it is itself governed.
 - **CFG-2. The work profile is the realization.** It expresses cost, quality, and behavior:
   model, effort, prompt strategy, and role realization. It is freely tunable because it does
   not lower the safety floor.
@@ -277,5 +282,5 @@ records.
 
 - [Jig — the execution engine](./jig.md) — product overview, spine, workflow, boundaries.
 - [How you use Jig](./use-cases.md) — worked scenarios that make each guarantee concrete.
-- [Product concepts](./concepts.md) — tracks, stories, runner/worker authority, SDK boundaries,
-  providers, and conformance.
+- [Product concepts](./concepts.md) — tracks, stories, runner/worker/verifier authority, SDK
+  boundaries, providers, and conformance.

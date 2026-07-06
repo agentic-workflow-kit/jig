@@ -7,9 +7,9 @@ status: draft — product overview
 
 Jig is the deterministic execution engine you run as `jig`. At product altitude,
 `@agentic-workflow-kit/jig` names the Jig product identity; there is no public package, export,
-or stability promise today. You give Jig an approved **execution plan** and a **policy**; it turns that
-plan into reviewed, landed work as far as the policy allows, or into a deliberate, inspectable
-stop when the work should not continue.
+or stability promise today. You give Jig an approved **execution plan** plus owner-controlled
+**policy** and **configuration**; it turns those inputs into safe, evidenced delivery as far as
+policy allows, or into a deliberate, inspectable stop when the work should not continue.
 
 This page is the product contract for Jig: who it serves, what job it does, what promises it
 makes, and where its boundaries are. It does not define low-level protocol mechanics,
@@ -19,7 +19,8 @@ design and delivery planning own how those promises are implemented and verified
 > **The product layer, at a glance.** This page is the hub. Two companion pages carry the
 > detail: **[the five guarantees](./guarantees.md)** (full, ID-bearing specification) and
 > **[how you use Jig](./use-cases.md)** (worked scenarios). [Product concepts](./concepts.md)
-> covers tracks, stories, runner/worker authority, SDK boundaries, providers, and conformance.
+> covers tracks, stories, runner/worker/verifier authority, SDK boundaries, providers, and
+> conformance.
 
 ## Product Spine
 
@@ -27,7 +28,7 @@ design and delivery planning own how those promises are implemented and verified
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | User                | An owner/operator with product and design judgment who cannot safely supervise every agent action manually.                                                                                                                      |
 | Also serves         | Integrators and tool builders who consume Jig's programmatic surface and its structured records — driving Jig from their own agent, embedding it, or building analyzers, dashboards, and story sources around it (CFG-7, SEE-2). |
-| Job                 | Turn an approved execution plan into reviewed, landed work while preserving human control.                                                                                                                                       |
+| Job                 | Turn an approved execution plan and owner policy/configuration into safe, evidenced delivery or an inspectable stop while preserving human control.                                                                              |
 | Current alternative | A chain of one-off agent sessions, manual PR and review follow-up, ad hoc notes, and fragile recovery.                                                                                                                           |
 | Before              | The owner cannot tell whether the agent stayed inside policy, what evidence justified a merge, or how to resume safely after interruption.                                                                                       |
 | After               | The owner delegates execution under policy and receives evidence, escalation points, recovery, and a reconstructible outcome.                                                                                                    |
@@ -37,11 +38,15 @@ design and delivery planning own how those promises are implemented and verified
 
 Jig starts where planning ends:
 
-1. You provide an execution plan and policy.
+1. You provide an execution plan, policy, and configuration.
 2. Jig runs eligible work under that policy, with the worker contained behind authorization
    and the runner holding privileged actions.
-3. Jig asks for a human decision when policy, evidence, or capability proof requires it.
-4. Jig lands work only on evidence, or stops in a named state with enough information to
+3. Jig's product model treats acceptance/review before landing as a policy-selected lane; richer
+   runtime support for that lane remains implementation follow-up unless current design or code has
+   separately proven it.
+4. Jig asks for a human decision when policy, evidence, implemented acceptance checks, or
+   capability proof requires it.
+5. Jig lands work only on evidence, or stops in a named state with enough information to
    recover, re-plan, or reject.
 
 ```mermaid
@@ -63,7 +68,8 @@ flowchart TD
 ```
 
 The supporting products can help produce the product definition, design, and plan. They are
-strong defaults, not prerequisites. Jig's minimum input is a valid execution plan.
+strong defaults, not prerequisites. Jig's hard input boundary is a valid execution plan; the run's
+safety and acceptance posture comes from owner-controlled policy and configuration.
 
 ### Driving a run
 
@@ -131,13 +137,58 @@ see **[the five guarantees in detail](./guarantees.md)**.
    structured records that owners and tools can inspect.
    _([detail](./guarantees.md#5-full-observability))_
 
+### The run roles
+
+Jig's product promise depends on keeping these roles separate:
+
+| Role                  | Product boundary                                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**            | Owner-controlled run/repo wiring: which track, work profile, providers, and operating posture are selected before launch.                                                                   |
+| **Policy**            | Owner-controlled safety and acceptance contract: gating posture, acceptance strength, escalation, reviews, and merge conditions. Fixed at launch for the run.                               |
+| **Plan**              | The approved execution plan and Jig's hard input boundary: stories, dependencies, and done conditions.                                                                                      |
+| **Runner**            | Jig's trusted orchestrator: owns lifecycle, policy enforcement, evidence consumption, Doorbell escalation, records append, and provider invocation. It is not a code reviewer or forge API. |
+| **Worker**            | The contained implementer: edits code, runs requested checks, and reports results/evidence. It does not hold forge credentials, land work, choose acceptance strength, or review itself.    |
+| **Verifier/reviewer** | The independent acceptance lane: human, agent, or deterministic checker that assesses evidence, diff, or output and emits a verdict for Runner/policy to consume.                           |
+| **Fence**             | Runtime authorization: approves, denies, or routes worker requests before they execute.                                                                                                     |
+| **Doorbell**          | Owner escalation for ambiguous, risky, or unproven decisions; grants remain narrow and recorded.                                                                                            |
+| **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it after gates pass.   |
+| **Execution host**    | The environment containing the worker and proving the isolation/no-phone-home posture policy relies on.                                                                                     |
+| **Work source**       | Supplies candidate work and provenance, but never bypasses plan validation.                                                                                                                 |
+| **Records**           | Durable evidence trail for governed decisions, evidence, verdicts, stops, and outcomes.                                                                                                     |
+
+This is why Jig is not "an agent that codes." Jig is the harness around a worker: the worker
+produces work, the verifier/reviewer assesses it, the runner enforces policy and lifecycle, the
+forge provider performs deterministic external operations, and the owner owns risk decisions.
+
+### Acceptance before landing
+
+Verification before push, PR, or merge is a configurable acceptance/review lane selected by the
+owner's policy and configuration before launch. At product altitude, that lane can be as simple or
+as strong as the policy requires:
+
+- a mechanical evidence check over recorded commands and outputs;
+- structured independent review of the diff and evidence;
+- real code review in the owner's normal review flow;
+- explicit owner review;
+- specialist review, such as security, contracts, data, or platform review.
+
+In the product model, the lane emits a verdict or evidence assessment. It does not land work, hold
+privileged forge credentials, redefine policy, select weaker acceptance, or create lifecycle
+transitions directly. Runner consumes the verdict, records it, and enforces policy when the lane is
+implemented for the selected policy. If proof is missing, stale, self-reported, weak, or
+inconclusive, Jig routes to the Doorbell or stops according to policy; it does not lower the bar.
+
+This section names the product model and target boundary. Runtime/config/policy support for richer
+acceptance lanes is implementation follow-up unless current design or code has separately proven
+that support.
+
 ### Enforce vs. Guide
 
 Most of the suite guides: it gives templates, presets, product practices, and planning
 discipline the owner can adapt. Jig enforces only the floors that make delegation safe:
 authorization before action, policy that cannot be quietly weakened, runner-owned irreversible
-actions, and evidence before landing work. The owner still chooses the policy posture and the
-strength of the gates.
+actions, implemented acceptance gates before landing when policy requires them, and evidence before
+landing work. The owner still chooses the policy posture and the strength of the gates.
 
 ## How you use Jig
 
@@ -147,10 +198,11 @@ each making one of the five guarantees concrete.
 
 ## Product Boundaries
 
-Jig owns execution under policy: authorization, escalation, evidence, recovery, stack seams,
-and run visibility. The supporting products can help produce better product definitions,
-designs, and execution plans, but Jig does not require them. The learning loop is between-runs
-improvement, not part of Jig's per-run hot path.
+Jig owns execution under policy: orchestration, authorization, escalation, evidence consumption,
+implemented acceptance verdict consumption, recovery, provider invocation, stack seams, and run
+visibility. The supporting products can help produce better product definitions, designs, and
+execution plans, but Jig does not require them. The learning loop is between-runs improvement, not
+part of Jig's per-run hot path.
 
 Design owns the implementation details behind these promises: event schema shape, protocol
 mechanics, provider contracts, exact policy classifiers, setup prompts, configuration file shape,
@@ -171,6 +223,11 @@ declare their authority, and can be swapped or extracted later without changing 
 guarantees — a first-party provider gets no privileged shortcut a third-party one couldn't use.
 This is a product promise about portability and owner trust, not a decision about package layout
 or publication.
+
+The Forge provider is one of those replaceable providers, not another agent. It translates a
+Runner-authorized external operation into deterministic forge effects and reports the result. It
+does not decide whether evidence is sufficient, whether policy allows landing, or whether the work
+should ship.
 
 Provider extensibility is settled product scope. Owners and teams should be able to bring a
 compatible provider for a supported seam and plug it into Jig without forking Jig core. That
@@ -241,7 +298,7 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 
 - [The five guarantees (detail)](./guarantees.md) — full ID-bearing specification.
 - [How you use Jig](./use-cases.md) — worked scenarios for each guarantee.
-- [Product concepts](./concepts.md) — tracks, stories, runner/worker authority, SDK boundaries,
-  providers, and conformance.
+- [Product concepts](./concepts.md) — tracks, stories, runner/worker/verifier authority, SDK
+  boundaries, providers, and conformance.
 - [Engineering design](../design/) — the implementation reference for how these product
   commitments are satisfied.
