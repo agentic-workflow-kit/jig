@@ -28,13 +28,18 @@ import type { ConfigDoc, PlanInstance } from './types.js';
 
 export { ProviderSelectionError } from './driver-selection.js';
 
+type OwnerDecisionOutcome = 'approve' | 'reject' | 'override' | 'hand-off';
+type OwnerDecisionResult =
+  | Exclude<OwnerDecisionOutcome, 'hand-off'>
+  | { outcome: OwnerDecisionOutcome; handedOffTo?: string };
+
 export interface ComposeRunPortsOptions {
   config: ConfigDoc;
   planInstance: PlanInstance;
   scriptedOutput: Record<string, unknown>;
   codexSession?: CodexAgentSession;
   ownerDecisionSource?: {
-    decide(request: unknown, story: unknown): Promise<'approve' | 'reject'>;
+    decide(request: unknown, story: unknown): Promise<OwnerDecisionResult>;
   } | null;
   realHostProbe?: ConfinementProbe;
   realHostProbeFactory?: () => ConfinementProbe;

@@ -1,6 +1,6 @@
 ---
 title: "Phase 09 - Owner decision and run control: decide, stop"
-status: planned
+status: "pr #68"
 ---
 
 # Phase 09 - Owner decision and run control: decide, stop
@@ -78,8 +78,9 @@ be decided and then resumed/continued. `stop` similarly exists as a lifecycle st
   owner-decision flow), [`design/core/orchestration.md`](../../../design/core/orchestration.md)
   (run lifecycle: `started → stopped`, resume), [driving
   contract](../../../design/contracts/driving.md) (decide via the operator boundary)
-- Source: `src/cli.ts` (`createOwnerDecisionSource`), `src/harness.ts`, `src/resume.ts`,
-  `src/projection.ts`, `src/records.ts`
+- Source: `packages/jig-cli/src/cli.ts` (`createOwnerDecisionSource`),
+  `packages/jig-sdk/src/harness.ts`, `packages/jig-sdk/src/resume.ts`,
+  `packages/jig-sdk/src/projection.ts`, `packages/jig-sdk/src/records.ts`
 - Tests: harness/resume unit tests, `tests/cli.int.test.ts`
 
 ## Dependencies

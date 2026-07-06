@@ -1068,3 +1068,324 @@ test('P08-AC-4: watch fails closed for missing events logs', async () => {
 
   await assert.rejects(() => session.operator.watch({ runDir }), /Missing authoritative events\.jsonl/);
 });
+
+test('P09-AC-1/2: operator decide records one routed owner decision and refuses duplicates', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun();
+
+  const result = await session.operator.decide({
+    runDir,
+    outcome: 'override',
+    reason: 'owner accepts local risk',
+  });
+
+  assert.deepStrictEqual(result, {
+    runDir,
+    outcome: 'override',
+    storyId: 'STORY-2',
+    reason: 'owner accepts local risk',
+  });
+
+  const duplicate = await session.operator.decide({ runDir, outcome: 'approve' });
+  assert.strictEqual(duplicate.outcome, 'refused');
+  assert.strictEqual(duplicate.reason, 'decision-already-recorded');
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.actor === 'owner' &&
+        event.storyId === 'STORY-2' &&
+        event.outcome === 'override',
+    ),
+  );
+  assert.ok(
+    events.find((event) => event.family === 'owner-decision.refused' && event.reason === 'decision-already-recorded'),
+  );
+});
+
+test('P09-AC-1/2: operator decide honors explicit routed stories and hand-off targets', async () => {
+  const session = createJigSession();
+
+  const approveRun = writeObservationRun('explicit-story-approve-run');
+  const approved = await session.operator.decide({
+    runDir: approveRun,
+    outcome: 'approve',
+    storyId: 'STORY-2',
+  });
+  assert.strictEqual(approved.outcome, 'approve');
+  assert.strictEqual(approved.storyId, 'STORY-2');
+
+  const rejectRun = writeObservationRun('reject-run');
+  const rejected = await session.operator.decide({ runDir: rejectRun, outcome: 'reject' });
+  assert.strictEqual(rejected.outcome, 'reject');
+  const duplicateReject = await session.operator.decide({ runDir: rejectRun, outcome: 'approve' });
+  assert.strictEqual(duplicateReject.outcome, 'refused');
+  assert.strictEqual(duplicateReject.reason, 'decision-already-recorded');
+
+  const handoffRun = writeObservationRun('handoff-run');
+  const handedOff = await session.operator.decide({
+    runDir: handoffRun,
+    outcome: 'hand-off',
+    handedOffTo: 'platform-owner',
+  });
+  assert.strictEqual(handedOff.outcome, 'hand-off');
+  const duplicateHandOff = await session.operator.decide({ runDir: handoffRun, outcome: 'approve' });
+  assert.strictEqual(duplicateHandOff.outcome, 'refused');
+  assert.strictEqual(duplicateHandOff.reason, 'decision-already-recorded');
+
+  const events = readFileSync(join(handoffRun, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.outcome === 'hand-off' &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+});
+
+test('P09-AC-1/2: operator decide carries parked request identifiers into decision records', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('parked-request-decision-run');
+  const lines = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  const parked = lines.find((event) => event.family === 'story.parked');
+  assert.ok(parked);
+  parked.requestId = 'REQ-2';
+  parked.requestKind = 'edit-files';
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(lines));
+
+  await session.operator.decide({ runDir, outcome: 'approve' });
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' && event.requestId === 'REQ-2' && event.requestKind === 'edit-files',
+    ),
+  );
+});
+
+test('P09-AC-1/2: operator decide refuses missing hand-off targets and out-of-scope stories', async () => {
+  const session = createJigSession();
+
+  const missingTargetRun = writeObservationRun('missing-handoff-target-run');
+  const missingTarget = await session.operator.decide({ runDir: missingTargetRun, outcome: 'hand-off' });
+  assert.strictEqual(missingTarget.outcome, 'refused');
+  assert.strictEqual(missingTarget.reason, 'missing-hand-off-target');
+
+  const outOfScopeRun = writeObservationRun('out-of-scope-decision-run');
+  const outOfScope = await session.operator.decide({
+    runDir: outOfScopeRun,
+    outcome: 'approve',
+    storyId: 'STORY-404',
+  });
+  assert.strictEqual(outOfScope.outcome, 'refused');
+  assert.strictEqual(outOfScope.reason, 'decision-outside-routed-scope');
+});
+
+test('P09-AC-3: operator decide records refusals when no routed decision exists', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'completed-decision-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+      },
+    ]),
+  );
+
+  const result = await session.operator.decide({ runDir, outcome: 'approve' });
+
+  assert.strictEqual(result.outcome, 'refused');
+  assert.strictEqual(result.reason, 'no-routed-decision');
+});
+
+test('P09-AC-1/2: operator decide extends records integrity sidecar when present', async () => {
+  const session = createJigSession();
+  const runDir = writeObservationRun('integrity-decision-run');
+  writeIntegritySidecar(runDir);
+
+  const beforeLineCount = JSON.parse(readFileSync(join(runDir, 'integrity.json'), 'utf8')).eventLog.lineCount;
+  await session.operator.decide({ runDir, outcome: 'approve' });
+  const afterLineCount = JSON.parse(readFileSync(join(runDir, 'integrity.json'), 'utf8')).eventLog.lineCount;
+
+  assert.strictEqual(afterLineCount, beforeLineCount + 1);
+});
+
+test('P09-AC-1/4: control actions refuse broken records integrity', async () => {
+  const session = createJigSession();
+  const decisionRun = writeObservationRun('broken-integrity-decision-run');
+  writeIntegritySidecar(decisionRun);
+  writeFileSync(
+    join(decisionRun, 'events.jsonl'),
+    `${readFileSync(join(decisionRun, 'events.jsonl'), 'utf8')}not-json\n`,
+  );
+
+  await assert.rejects(
+    () => session.operator.decide({ runDir: decisionRun, outcome: 'approve' }),
+    (error: unknown) => error instanceof InspectRunError && /Refusing to append owner decision/.test(error.message),
+  );
+
+  const stopRun = writeObservationRun('broken-integrity-stop-run');
+  writeIntegritySidecar(stopRun);
+  writeFileSync(join(stopRun, 'events.jsonl'), `${readFileSync(join(stopRun, 'events.jsonl'), 'utf8')}not-json\n`);
+
+  await assert.rejects(
+    () => session.operator.stop({ runDir: stopRun }),
+    (error: unknown) => error instanceof InspectRunError && /Refusing to append operator action/.test(error.message),
+  );
+});
+
+test('P09-AC-4: operator stop requests a coordinated stop for live runs', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'active-stoppable-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'evidence.modeled',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        result: 'passed',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+
+  const requested = await session.operator.stop({ runDir, reason: 'owner-requested-pause' });
+
+  assert.deepStrictEqual(requested, {
+    runDir,
+    status: 'requested',
+    checkpoint: 'after:STORY-1',
+    reason: 'owner-requested-pause',
+  });
+  const watch = await session.operator.watch({ runDir });
+  assert.strictEqual(watch.lifecycleState, 'started');
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(events.find((event) => event.family === 'operator-action.requested' && event.action === 'stop'));
+});
+
+test('P09-AC-4: operator stop requests a coordinated stop for resumed runs', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'resumed-stoppable-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.parked',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        reason: 'owner-decision-required',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        reason: 'unattended-park',
+        checkpoint: 'after:STORY-1.parked',
+      },
+      {
+        family: 'run.resumed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:04.000Z',
+        checkpoint: 'after:STORY-1.parked',
+      },
+    ]),
+  );
+
+  const requested = await session.operator.stop({ runDir });
+
+  assert.strictEqual(requested.status, 'requested');
+  assert.strictEqual(requested.checkpoint, 'after:STORY-1.parked');
+  assert.strictEqual(requested.reason, 'operator-stop');
+});
+
+test('P09-AC-4: operator stop refuses runs without a safe checkpoint or already terminal runs', async () => {
+  const session = createJigSession();
+  const unsafeRun = join(workDir, 'active-unsafe-run');
+  mkdirSync(unsafeRun, { recursive: true });
+  writeFileSync(
+    join(unsafeRun, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+
+  const unsafe = await session.operator.stop({ runDir: unsafeRun });
+  assert.strictEqual(unsafe.status, 'requested');
+  assert.strictEqual(unsafe.reason, 'operator-stop');
+
+  const terminal = await session.operator.stop({ runDir: writeObservationRun('already-stopped-run') });
+  assert.strictEqual(terminal.status, 'refused');
+  assert.strictEqual(terminal.reason, 'run-already-stopped');
+
+  const completedRun = join(workDir, 'already-completed-run');
+  mkdirSync(completedRun, { recursive: true });
+  writeFileSync(
+    join(completedRun, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+      },
+    ]),
+  );
+
+  const completed = await session.operator.stop({ runDir: completedRun });
+  assert.strictEqual(completed.status, 'refused');
+  assert.strictEqual(completed.reason, 'run-already-completed');
+});

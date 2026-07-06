@@ -722,6 +722,31 @@ export function projectRunEvents(input: ProjectRunEventsInput): RunProjection {
       continue;
     }
 
+    if (family === 'owner-decision.recorded' || family === 'owner-decision.refused') {
+      if (parsedEvent.event.actor !== 'owner') {
+        throw new ProjectionError(
+          'invalid-owner-decision-actor',
+          `${family} on line ${parsedEvent.line} must be recorded by actor owner`,
+          parsedEvent,
+        );
+      }
+      if (
+        family === 'owner-decision.recorded' &&
+        (typeof parsedEvent.event.storyId !== 'string' || parsedEvent.event.storyId.trim() === '')
+      ) {
+        throw new ProjectionError(
+          'missing-story-id',
+          `${family} on line ${parsedEvent.line} is missing required storyId`,
+          parsedEvent,
+        );
+      }
+      continue;
+    }
+
+    if (family === 'operator-action.requested' || family === 'operator-action.refused') {
+      continue;
+    }
+
     assertActiveRun(lifecycleState, parsedEvent);
 
     const storyId = requireStoryId(parsedEvent);
@@ -1034,6 +1059,10 @@ export function askWhyFromEvents(input: ProjectRunEventsInput & { storyId?: stri
           'authorization.granted',
           'authorization.denied',
           'authorization.routed',
+          'owner-decision.recorded',
+          'owner-decision.refused',
+          'operator-action.requested',
+          'operator-action.refused',
           'story.parked',
           'evidence.modeled',
           'story.done',

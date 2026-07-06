@@ -28,15 +28,35 @@ import type {
   Worker,
 } from './types.js';
 
-type OwnerDecision = 'approve' | 'reject';
+type OwnerDecision = 'approve' | 'reject' | 'override' | 'hand-off';
+type OwnerDecisionResult = Exclude<OwnerDecision, 'hand-off'> | { outcome: OwnerDecision; handedOffTo?: string };
+type NormalizedOwnerDecision = { outcome: OwnerDecision; handedOffTo?: string };
 
 interface OwnerDecisionSource {
-  decide(request: unknown, story: unknown): Promise<OwnerDecision>;
+  decide(request: unknown, story: unknown): Promise<OwnerDecisionResult>;
 }
 
 type StoryExecutionResult =
   | { status: 'success' }
   | { status: 'failure'; stopReason: 'work-item-blocked' | 'unattended-park'; checkpointStoryId: string };
+
+interface StopRequest {
+  reason: string;
+}
+
+function normalizeOwnerDecision(decision: OwnerDecisionResult): NormalizedOwnerDecision {
+  if (typeof decision === 'string') {
+    return { outcome: decision };
+  }
+  if (decision.outcome === 'hand-off' && (!decision.handedOffTo || decision.handedOffTo.trim() === '')) {
+    return { outcome: 'reject' };
+  }
+  const handedOffTo = decision.handedOffTo?.trim();
+  return {
+    outcome: decision.outcome,
+    ...(decision.outcome === 'hand-off' && handedOffTo ? { handedOffTo } : {}),
+  };
+}
 
 interface HarnessPorts {
   capabilityAttestation?: CapabilityAttestation;
@@ -239,8 +259,9 @@ export class LocalHarness {
       return 'parked';
     }
 
-    const ownerDecision = await this.ownerDecisionSource.decide(request, story);
-    if (ownerDecision === 'reject') {
+    const ownerDecision = normalizeOwnerDecision(await this.ownerDecisionSource.decide(request, story));
+    this.recordOwnerDecision(request, story, ownerDecision);
+    if (ownerDecision.outcome === 'reject') {
       this.recordManager.recordEvent({
         family: 'authorization.denied',
         storyId: story.id,
@@ -251,14 +272,50 @@ export class LocalHarness {
       return 'rejected';
     }
 
+    if (ownerDecision.outcome === 'hand-off') {
+      return 'parked';
+    }
+
     this.recordManager.recordEvent({
       family: 'authorization.granted',
       storyId: story.id,
       requestId: request.id,
       requestKind: request.kind,
-      basis: ['owner-approval'],
+      basis: [ownerDecision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
     });
     return 'approved';
+  }
+
+  private recordOwnerDecision(request: unknown, story: Story, decision: NormalizedOwnerDecision): void {
+    const requestRecord = request && typeof request === 'object' ? (request as Record<string, unknown>) : {};
+    this.recordManager.recordEvent({
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: story.id,
+      outcome: decision.outcome,
+      ...(decision.handedOffTo ? { handedOffTo: decision.handedOffTo } : {}),
+      ...(typeof requestRecord.id === 'string' ? { requestId: requestRecord.id } : {}),
+      ...(typeof requestRecord.kind === 'string' ? { requestKind: requestRecord.kind } : {}),
+    });
+  }
+
+  private latestStopRequest(): StopRequest | null {
+    const readEvents = this.recordManager.readEvents;
+    if (!readEvents) {
+      return null;
+    }
+
+    let request: StopRequest | null = null;
+    for (const event of readEvents.call(this.recordManager)) {
+      if (event.family === 'operator-action.requested' && event.action === 'stop') {
+        request = { reason: typeof event.reason === 'string' ? event.reason : 'operator-stop' };
+        continue;
+      }
+      if (event.family === 'run.stopped' || (event.family === 'operator-action.refused' && event.action === 'stop')) {
+        request = null;
+      }
+    }
+    return request;
   }
 
   private async recordBlockedStory(
@@ -540,10 +597,21 @@ export class LocalHarness {
                 break;
               }
             }
+            const stopRequest = this.latestStopRequest();
+            if (stopRequest) {
+              runStatus = 'failure';
+              stopReason = stopRequest.reason;
+              checkpointStoryId = batch.at(-1)?.id ?? checkpointStoryId;
+              for (const remainingStory of plan.stories.slice(index + ceiling)) {
+                unstartedStoryIds.push(remainingStory.id);
+              }
+              break;
+            }
           }
         }
       } else {
-        for (const story of plan.stories) {
+        for (let index = 0; index < plan.stories.length; index += 1) {
+          const story = plan.stories[index] as Story;
           const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
           const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId));
 
@@ -564,6 +632,16 @@ export class LocalHarness {
 
           const storyResult = await this.executeStory(story, policy, true);
           if (storyResult.status === 'success') {
+            const stopRequest = this.latestStopRequest();
+            if (stopRequest) {
+              runStatus = 'failure';
+              stopReason = stopRequest.reason;
+              checkpointStoryId = story.id;
+              for (const remainingStory of plan.stories.slice(index + 1)) {
+                unstartedStoryIds.push(remainingStory.id);
+              }
+              break;
+            }
             continue;
           }
 
@@ -646,7 +724,8 @@ export class LocalHarness {
       let hasUnattendedPark = false;
       let unattendedParkCheckpoint: string | null = null;
 
-      for (const story of plan.stories) {
+      for (let index = 0; index < plan.stories.length; index += 1) {
+        const story = plan.stories[index] as Story;
         const dependsOn = Array.isArray(story.dependsOn) ? (story.dependsOn as string[]) : undefined;
         const blockedBy = dependsOn?.find((depId) => blockedStoryIds.has(depId) || depId === resumePlan.parkedStoryId);
 
@@ -687,38 +766,100 @@ export class LocalHarness {
         }
 
         if (story.id === resumePlan.parkedStoryId) {
-          if (!this.ownerDecisionSource) {
+          if (resumePlan.parkedDecision?.outcome === 'hand-off') {
             hasUnattendedPark = true;
             blockedStoryIds.add(story.id);
             stopReason = 'unattended-park';
             unattendedParkCheckpoint = `${story.id}.parked`;
             checkpointStoryId = unattendedParkCheckpoint;
+            this.recordManager.recordEvent({
+              family: 'authorization.routed',
+              storyId: story.id,
+              requestId: resumePlan.parkedDecision.requestId ?? resumePlan.parkedRequest?.requestId,
+              requestKind: resumePlan.parkedDecision.requestKind ?? resumePlan.parkedRequest?.requestKind,
+              basis: ['owner-hand-off'],
+              handedOffTo: resumePlan.parkedDecision.handedOffTo,
+            });
             continue;
           }
 
-          const ownerDecision = await this.ownerDecisionSource.decide(resumePlan.parkedRequest ?? {}, story);
-          if (ownerDecision === 'reject') {
+          if (resumePlan.parkedDecision?.outcome === 'reject') {
             runStatus = 'failure';
             blockedStoryIds.add(story.id);
             checkpointStoryId = story.id;
             this.recordManager.recordEvent({
               family: 'authorization.denied',
               storyId: story.id,
-              requestId: resumePlan.parkedRequest?.requestId,
-              requestKind: resumePlan.parkedRequest?.requestKind,
+              requestId: resumePlan.parkedDecision.requestId ?? resumePlan.parkedRequest?.requestId,
+              requestKind: resumePlan.parkedDecision.requestKind ?? resumePlan.parkedRequest?.requestKind,
               basis: ['owner-rejection'],
             });
             await this.recordBlockedStory(story.id, 'owner-rejection');
             continue;
           }
 
-          this.recordManager.recordEvent({
-            family: 'authorization.granted',
-            storyId: story.id,
-            requestId: resumePlan.parkedRequest?.requestId,
-            requestKind: resumePlan.parkedRequest?.requestKind,
-            basis: ['owner-approval'],
-          });
+          if (resumePlan.parkedDecision?.outcome === 'approve' || resumePlan.parkedDecision?.outcome === 'override') {
+            this.recordManager.recordEvent({
+              family: 'authorization.granted',
+              storyId: story.id,
+              requestId: resumePlan.parkedDecision.requestId ?? resumePlan.parkedRequest?.requestId,
+              requestKind: resumePlan.parkedDecision.requestKind ?? resumePlan.parkedRequest?.requestKind,
+              basis: [resumePlan.parkedDecision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
+            });
+          } else {
+            if (!this.ownerDecisionSource) {
+              hasUnattendedPark = true;
+              blockedStoryIds.add(story.id);
+              stopReason = 'unattended-park';
+              unattendedParkCheckpoint = `${story.id}.parked`;
+              checkpointStoryId = unattendedParkCheckpoint;
+              continue;
+            }
+
+            const ownerDecision = normalizeOwnerDecision(
+              await this.ownerDecisionSource.decide(resumePlan.parkedRequest ?? {}, story),
+            );
+            this.recordOwnerDecision(resumePlan.parkedRequest ?? {}, story, ownerDecision);
+            if (ownerDecision.outcome === 'reject') {
+              runStatus = 'failure';
+              blockedStoryIds.add(story.id);
+              checkpointStoryId = story.id;
+              this.recordManager.recordEvent({
+                family: 'authorization.denied',
+                storyId: story.id,
+                requestId: resumePlan.parkedRequest?.requestId,
+                requestKind: resumePlan.parkedRequest?.requestKind,
+                basis: ['owner-rejection'],
+              });
+              await this.recordBlockedStory(story.id, 'owner-rejection');
+              continue;
+            }
+
+            if (ownerDecision.outcome === 'hand-off') {
+              hasUnattendedPark = true;
+              blockedStoryIds.add(story.id);
+              stopReason = 'unattended-park';
+              unattendedParkCheckpoint = `${story.id}.parked`;
+              checkpointStoryId = unattendedParkCheckpoint;
+              this.recordManager.recordEvent({
+                family: 'authorization.routed',
+                storyId: story.id,
+                requestId: resumePlan.parkedRequest?.requestId,
+                requestKind: resumePlan.parkedRequest?.requestKind,
+                basis: ['owner-hand-off'],
+                ...(ownerDecision.handedOffTo ? { handedOffTo: ownerDecision.handedOffTo } : {}),
+              });
+              continue;
+            }
+
+            this.recordManager.recordEvent({
+              family: 'authorization.granted',
+              storyId: story.id,
+              requestId: resumePlan.parkedRequest?.requestId,
+              requestKind: resumePlan.parkedRequest?.requestKind,
+              basis: [ownerDecision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
+            });
+          }
         }
 
         if (runStatus !== 'success' && this.blockResolution(policy) !== 'continue-independent-work') {
@@ -729,6 +870,18 @@ export class LocalHarness {
         const storyResult = await this.executeStory(story, policy, story.id !== resumePlan.parkedStoryId);
         if (storyResult.status === 'success') {
           completedStoryIds.add(story.id);
+          const stopRequest = this.latestStopRequest();
+          if (stopRequest) {
+            runStatus = 'failure';
+            stopReason = stopRequest.reason;
+            checkpointStoryId = story.id;
+            for (const remainingStory of plan.stories.slice(index + 1)) {
+              if (!alreadyClosedStoryIds.has(remainingStory.id)) {
+                unstartedStoryIds.push(remainingStory.id);
+              }
+            }
+            break;
+          }
           continue;
         }
 
@@ -846,16 +999,29 @@ export class LocalHarness {
           return { status: 'failure', stopReason: 'unattended-park', checkpointStoryId: `${story.id}.parked` };
         }
 
-        const ownerDecision = await this.ownerDecisionSource.decide(request, story);
-        if (ownerDecision === 'approve') {
+        const ownerDecision = normalizeOwnerDecision(await this.ownerDecisionSource.decide(request, story));
+        this.recordOwnerDecision(request, story, ownerDecision);
+        if (ownerDecision.outcome === 'approve' || ownerDecision.outcome === 'override') {
           this.recordManager.recordEvent({
             family: 'authorization.granted',
             storyId: story.id,
             requestId: request.id,
             requestKind: request.kind,
-            basis: ['owner-approval'],
+            basis: [ownerDecision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
           });
           continue;
+        }
+
+        if (ownerDecision.outcome === 'hand-off') {
+          this.recordManager.recordEvent({
+            family: 'authorization.routed',
+            storyId: story.id,
+            requestId: request.id,
+            requestKind: request.kind,
+            basis: ['owner-hand-off'],
+            ...(ownerDecision.handedOffTo ? { handedOffTo: ownerDecision.handedOffTo } : {}),
+          });
+          return { status: 'failure', stopReason: 'unattended-park', checkpointStoryId: `${story.id}.parked` };
         }
 
         this.recordManager.recordEvent({

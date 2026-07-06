@@ -38,10 +38,11 @@ const REQUIRED_SERVER_NOTIFICATIONS = [
   'item/completed',
 ] as const;
 
-type OwnerDecision = 'approve' | 'reject';
+type OwnerDecision = 'approve' | 'reject' | 'override' | 'hand-off';
+type OwnerDecisionResult = Exclude<OwnerDecision, 'hand-off'> | { outcome: OwnerDecision; handedOffTo?: string };
 
 export interface CodexOwnerDecisionSource {
-  decide(request: unknown, story: unknown): Promise<OwnerDecision>;
+  decide(request: unknown, story: unknown): Promise<OwnerDecisionResult>;
 }
 
 export interface CodexAppServerSessionOptions {
@@ -525,13 +526,15 @@ class CodexRunObserver {
       return;
     }
 
-    const ownerDecision = await this.ownerDecisionSource.decide(approvalRequest, this.story);
-    const decision: ApprovalDecision = ownerDecision === 'approve' ? 'accept' : 'decline';
+    const ownerDecisionResult = await this.ownerDecisionSource.decide(approvalRequest, this.story);
+    const ownerDecision = typeof ownerDecisionResult === 'string' ? ownerDecisionResult : ownerDecisionResult.outcome;
+    const approved = ownerDecision === 'approve' || ownerDecision === 'override';
+    const decision: ApprovalDecision = approved ? 'accept' : 'decline';
     this.approvals.push({
       kind: 'command-execution',
       requestId,
       command,
-      decision: ownerDecision === 'approve' ? 'approved' : 'rejected',
+      decision: approved ? 'approved' : 'rejected',
       reason,
     });
     await this.respondToApprovalRequest(message.id, decision);

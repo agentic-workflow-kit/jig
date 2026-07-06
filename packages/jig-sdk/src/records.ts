@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   assertSupportedDriverSelection,
@@ -237,12 +237,28 @@ export class RecordManager implements RecordSink {
 
   private appendEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
     const redactedEvent = redactValue(event, this.options.redaction) as Pick<RunEvent, 'family'> & Partial<RunEvent>;
-    const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
+    const timestampedEvent: RunEvent = {
+      ...redactedEvent,
+      actor: redactedEvent.actor ?? 'runner',
+      timestamp: new Date().toISOString(),
+    };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
     if (this.integrityEnabled) {
       writeIntegritySidecar(this.runDir);
     }
+  }
+
+  readEvents(): RunEvent[] {
+    const eventsPath = join(this.runDir, 'events.jsonl');
+    if (!existsSync(eventsPath)) {
+      return [...this.events];
+    }
+    return readFileSync(eventsPath, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .map((line) => JSON.parse(line) as RunEvent);
   }
 
   async finalize(status: RunStatus): Promise<void> {

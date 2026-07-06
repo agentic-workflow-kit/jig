@@ -16,6 +16,7 @@ import {
   askWhyFromEvents,
   type ProjectedNotice,
   type ProjectionIssue,
+  parseEventsJsonl,
   projectRunEvents,
   projectWatch,
   type RunProjection,
@@ -92,6 +93,35 @@ export interface NoticeActionResult {
   notice: ProjectedNotice;
 }
 
+export type OwnerDecisionOutcome = 'approve' | 'reject' | 'override' | 'hand-off';
+
+export interface DecideRunInput {
+  runDir: string;
+  outcome: OwnerDecisionOutcome;
+  storyId?: string;
+  reason?: string;
+  handedOffTo?: string;
+}
+
+export interface DecideRunResult {
+  runDir: string;
+  outcome: OwnerDecisionOutcome | 'refused';
+  storyId?: string;
+  reason?: string;
+}
+
+export interface StopRunInput {
+  runDir: string;
+  reason?: string;
+}
+
+export interface StopRunResult {
+  runDir: string;
+  status: 'requested' | 'stopped' | 'refused';
+  checkpoint?: string;
+  reason?: string;
+}
+
 export interface ProjectionInspectionResult {
   kind: 'projection';
   runDir: string;
@@ -125,6 +155,8 @@ export interface JigOperatorControlPort {
   askWhy(input: AskWhyInput): Promise<AskWhyResult>;
   acknowledgeNotice(input: NoticeActionInput): Promise<NoticeActionResult>;
   snoozeNotice(input: SnoozeNoticeInput): Promise<NoticeActionResult>;
+  decide(input: DecideRunInput): Promise<DecideRunResult>;
+  stop(input: StopRunInput): Promise<StopRunResult>;
 }
 
 export interface JigRecoverySurface {
@@ -197,14 +229,14 @@ function readProjectionInputs(runDir: string): { eventsJsonl: string; runRecord:
   };
 }
 
-function assertNoticeWriteAllowed(runDir: string, eventsJsonl: string): void {
+function assertOwnerAppendAllowed(runDir: string, eventsJsonl: string, action: string): void {
   const integrity = verifyInspectIntegrity(runDir, eventsJsonl);
   if (integrity.status === 'broken') {
-    throw new InspectRunError(`Refusing to append notice action: ${integrity.message}`, integrity);
+    throw new InspectRunError(`Refusing to append ${action}: ${integrity.message}`, integrity);
   }
 }
 
-function appendOwnerNoticeEvent(runDir: string, event: Record<string, unknown>): void {
+function appendOwnerEvent(runDir: string, event: Record<string, unknown>): void {
   appendFileSync(
     join(runDir, 'events.jsonl'),
     `${JSON.stringify({ ...event, actor: 'owner', timestamp: new Date().toISOString() })}\n`,
@@ -212,6 +244,95 @@ function appendOwnerNoticeEvent(runDir: string, event: Record<string, unknown>):
   if (existsSync(join(runDir, 'integrity.json'))) {
     writeIntegritySidecar(runDir);
   }
+}
+
+function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
+  if (!checkpoint?.startsWith('after:') || !checkpoint.endsWith('.parked')) {
+    return null;
+  }
+  return checkpoint.slice('after:'.length, -'.parked'.length);
+}
+
+function findLatestParkedRequest(eventsJsonl: string, storyId: string): { requestId?: string; requestKind?: string } {
+  let request: { requestId?: string; requestKind?: string } = {};
+  for (const parsed of parseEventsJsonl(eventsJsonl)) {
+    const event = parsed.event;
+    if (event.family !== 'story.parked' || event.storyId !== storyId) {
+      continue;
+    }
+    request = {
+      requestId: typeof event.requestId === 'string' ? event.requestId : undefined,
+      requestKind: typeof event.requestKind === 'string' ? event.requestKind : undefined,
+    };
+  }
+  return request;
+}
+
+function latestOwnerDecision(eventsJsonl: string, storyId: string): OwnerDecisionOutcome | null {
+  let outcome: OwnerDecisionOutcome | null = null;
+  for (const parsed of parseEventsJsonl(eventsJsonl)) {
+    const event = parsed.event;
+    if (event.family !== 'owner-decision.recorded' || event.storyId !== storyId) {
+      continue;
+    }
+    if (
+      event.outcome === 'approve' ||
+      event.outcome === 'reject' ||
+      event.outcome === 'override' ||
+      event.outcome === 'hand-off'
+    ) {
+      outcome = event.outcome;
+    }
+  }
+  return outcome;
+}
+
+function appendDecisionRefusal(runDir: string, input: DecideRunInput, reason: string): DecideRunResult {
+  appendOwnerEvent(runDir, {
+    family: 'owner-decision.refused',
+    requestedOutcome: input.outcome,
+    ...(input.storyId ? { storyId: input.storyId } : {}),
+    reason,
+  });
+  return { runDir, outcome: 'refused', ...(input.storyId ? { storyId: input.storyId } : {}), reason };
+}
+
+function appendStopRefusal(runDir: string, reason: string): StopRunResult {
+  appendOwnerEvent(runDir, {
+    family: 'operator-action.refused',
+    action: 'stop',
+    reason,
+  });
+  return { runDir, status: 'refused', reason };
+}
+
+function appendStopRequest(runDir: string, reason: string, checkpoint: string | null | undefined): StopRunResult {
+  appendOwnerEvent(runDir, {
+    family: 'operator-action.requested',
+    action: 'stop',
+    reason,
+  });
+  return { runDir, status: 'requested', reason, ...(checkpoint ? { checkpoint } : {}) };
+}
+
+function currentSafeCheckpoint(projection: RunProjection): string | null {
+  if (projection.safeCheckpoint) {
+    return projection.safeCheckpoint;
+  }
+  const stories = Object.values(projection.stories);
+  for (let index = stories.length - 1; index >= 0; index -= 1) {
+    const story = stories[index];
+    if (!story) {
+      continue;
+    }
+    if (story.state === 'parked') {
+      return `after:${story.storyId}.parked`;
+    }
+    if (story.state === 'done' || story.state === 'blocked' || story.state === 'rejected') {
+      return `after:${story.storyId}`;
+    }
+  }
+  return null;
 }
 
 function resumeInspectionDiagnostics(projection: RunProjection): ProjectionIssue[] {
@@ -433,12 +554,12 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
 
       acknowledgeNotice: async (input): Promise<NoticeActionResult> => {
         const before = readProjectionInputs(input.runDir);
-        assertNoticeWriteAllowed(input.runDir, before.eventsJsonl);
+        assertOwnerAppendAllowed(input.runDir, before.eventsJsonl, 'notice action');
         const existing = projectWatch(before).notices.find((notice) => notice.id === input.noticeId);
         if (!existing) {
           throw new Error(`Notice "${input.noticeId}" is not open for this run`);
         }
-        appendOwnerNoticeEvent(input.runDir, {
+        appendOwnerEvent(input.runDir, {
           family: 'notice.acknowledged',
           noticeId: input.noticeId,
         });
@@ -452,7 +573,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
 
       snoozeNotice: async (input): Promise<NoticeActionResult> => {
         const before = readProjectionInputs(input.runDir);
-        assertNoticeWriteAllowed(input.runDir, before.eventsJsonl);
+        assertOwnerAppendAllowed(input.runDir, before.eventsJsonl, 'notice action');
         const existing = projectWatch(before).notices.find((notice) => notice.id === input.noticeId);
         if (!existing) {
           throw new Error(`Notice "${input.noticeId}" is not open for this run`);
@@ -460,7 +581,7 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
         if (Number.isNaN(Date.parse(input.until))) {
           throw new Error(`Invalid --until timestamp "${input.until}"`);
         }
-        appendOwnerNoticeEvent(input.runDir, {
+        appendOwnerEvent(input.runDir, {
           family: 'notice.snoozed',
           noticeId: input.noticeId,
           snoozedUntil: input.until,
@@ -471,6 +592,53 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           throw new Error(`Notice "${input.noticeId}" disappeared after snooze`);
         }
         return { runDir: input.runDir, notice };
+      },
+
+      decide: async (input): Promise<DecideRunResult> => {
+        const before = readProjectionInputs(input.runDir);
+        assertOwnerAppendAllowed(input.runDir, before.eventsJsonl, 'owner decision');
+        const projection = projectRunEvents(before);
+        const routedStoryId = parkedStoryIdFromCheckpoint(projection.safeCheckpoint);
+        if (projection.lifecycleState !== 'stopped' || !routedStoryId) {
+          return appendDecisionRefusal(input.runDir, input, 'no-routed-decision');
+        }
+        if (input.storyId && input.storyId !== routedStoryId) {
+          return appendDecisionRefusal(input.runDir, input, 'decision-outside-routed-scope');
+        }
+        const parkedStoryId = input.storyId ?? routedStoryId;
+        if (projection.stories[parkedStoryId]?.state !== 'parked') {
+          return appendDecisionRefusal(input.runDir, { ...input, storyId: parkedStoryId }, 'decision-not-parked');
+        }
+        if (latestOwnerDecision(before.eventsJsonl, parkedStoryId)) {
+          return appendDecisionRefusal(input.runDir, { ...input, storyId: parkedStoryId }, 'decision-already-recorded');
+        }
+        if (input.outcome === 'hand-off' && (!input.handedOffTo || input.handedOffTo.trim() === '')) {
+          return appendDecisionRefusal(input.runDir, { ...input, storyId: parkedStoryId }, 'missing-hand-off-target');
+        }
+
+        const parkedRequest = findLatestParkedRequest(before.eventsJsonl, parkedStoryId);
+        appendOwnerEvent(input.runDir, {
+          family: 'owner-decision.recorded',
+          storyId: parkedStoryId,
+          outcome: input.outcome,
+          ...parkedRequest,
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.outcome === 'hand-off' ? { handedOffTo: input.handedOffTo } : {}),
+        });
+        return { runDir: input.runDir, outcome: input.outcome, storyId: parkedStoryId, reason: input.reason };
+      },
+
+      stop: async (input): Promise<StopRunResult> => {
+        const before = readProjectionInputs(input.runDir);
+        assertOwnerAppendAllowed(input.runDir, before.eventsJsonl, 'operator action');
+        const projection = projectRunEvents(before);
+        if (projection.lifecycleState === 'stopped' || projection.lifecycleState === 'completed') {
+          return appendStopRefusal(input.runDir, `run-already-${projection.lifecycleState}`);
+        }
+        if (projection.lifecycleState === 'started' || projection.lifecycleState === 'resumed') {
+          return appendStopRequest(input.runDir, input.reason ?? 'operator-stop', currentSafeCheckpoint(projection));
+        }
+        return appendStopRefusal(input.runDir, 'no-safe-stop-checkpoint');
       },
     },
 

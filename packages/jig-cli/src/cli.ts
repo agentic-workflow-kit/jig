@@ -3,6 +3,7 @@ import {
   type AskWhyResult,
   createJigSession,
   createSetupArtifacts,
+  type DecideRunResult,
   InspectRunError,
   type IntegrityVerification,
   loadConfig,
@@ -10,12 +11,14 @@ import {
   loadPlanInstance,
   loadPolicy,
   type NoticeActionResult,
+  type OwnerDecisionOutcome,
   type ProjectedNotice,
   type ProjectionIssue,
   ResumeRefusal,
   type RunProjection,
   type RunRecord,
   type SetupAnswers,
+  type StopRunResult,
   type WatchProjection,
 } from '@agentic-workflow-kit/jig-sdk';
 
@@ -39,6 +42,10 @@ export async function run(): Promise<void> {
     await handleNoticeAck(args.slice(1));
   } else if (command === 'notice-snooze') {
     await handleNoticeSnooze(args.slice(1));
+  } else if (command === 'decide') {
+    await handleDecide(args.slice(1));
+  } else if (command === 'stop') {
+    await handleStop(args.slice(1));
   } else if (command === 'resume') {
     await handleResume(args.slice(1));
   } else {
@@ -59,6 +66,10 @@ function printUsage(): void {
   console.error('  jig ask-why <run-directory> [--story <story-id>]');
   console.error('  jig notice-ack <run-directory> <notice-id>');
   console.error('  jig notice-snooze <run-directory> <notice-id> --until <iso-timestamp>');
+  console.error(
+    '  jig decide <run-directory> --outcome <approve|reject|override|hand-off> [--story <story-id>] [--reason <text>] [--to <owner>]',
+  );
+  console.error('  jig stop <run-directory> [--reason <text>]');
   console.error(
     '  jig resume <run-directory> --scripted-output <output> [--config <config>] [--policy <policy>] [--plan <plan>]',
   );
@@ -343,6 +354,61 @@ async function handleNoticeSnooze(args: string[]): Promise<void> {
   }
 }
 
+function parseDecisionOutcome(value: string | null): OwnerDecisionOutcome | null {
+  if (value === 'approve' || value === 'reject' || value === 'override' || value === 'hand-off') {
+    return value;
+  }
+  return null;
+}
+
+async function handleDecide(args: string[]): Promise<void> {
+  const runDir = args[0];
+  const outcome = parseDecisionOutcome(getArg(args, '--outcome'));
+  if (!runDir || !outcome) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderDecision(
+      await session.operator.decide({
+        runDir,
+        outcome,
+        ...(getArg(args, '--story') ? { storyId: getArg(args, '--story') as string } : {}),
+        ...(getArg(args, '--reason') ? { reason: getArg(args, '--reason') as string } : {}),
+        ...(getArg(args, '--to') ? { handedOffTo: getArg(args, '--to') as string } : {}),
+      }),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
+async function handleStop(args: string[]): Promise<void> {
+  const runDir = args[0];
+  if (!runDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderStop(
+      await session.operator.stop({
+        runDir,
+        ...(getArg(args, '--reason') ? { reason: getArg(args, '--reason') as string } : {}),
+      }),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
 function renderWatch(watch: WatchProjection): void {
   console.log('\n--- Run Watch ---');
   console.log(`Run ID: ${watch.runId}`);
@@ -356,6 +422,24 @@ function renderWatch(watch: WatchProjection): void {
   renderWatchGroup('Waiting', watch.groups.waiting);
   renderProjectedNotices(watch.notices);
   console.log('-----------------\n');
+}
+
+function renderDecision(result: DecideRunResult): void {
+  console.log('\n--- Owner Decision ---');
+  console.log(`Records Directory: ${result.runDir}`);
+  console.log(`Outcome: ${result.outcome}`);
+  if (result.storyId) console.log(`Story: ${result.storyId}`);
+  if (result.reason) console.log(`Reason: ${result.reason}`);
+  console.log('----------------------\n');
+}
+
+function renderStop(result: StopRunResult): void {
+  console.log('\n--- Run Stop ---');
+  console.log(`Records Directory: ${result.runDir}`);
+  console.log(`Status: ${result.status}`);
+  if (result.checkpoint) console.log(`Checkpoint: ${result.checkpoint}`);
+  if (result.reason) console.log(`Reason: ${result.reason}`);
+  console.log('----------------\n');
 }
 
 function renderWatchGroup(label: string, stories: WatchProjection['groups']['done']): void {
@@ -561,7 +645,10 @@ async function askOwnerQuestion(prompt: string): Promise<string> {
 }
 
 export function createOwnerDecisionSource(options: { interactive?: boolean; ask?: AskOwnerQuestion } = {}): {
-  decide(request: unknown, story: unknown): Promise<'approve' | 'reject'>;
+  decide(
+    request: unknown,
+    story: unknown,
+  ): Promise<Exclude<OwnerDecisionOutcome, 'hand-off'> | { outcome: OwnerDecisionOutcome; handedOffTo?: string }>;
 } | null {
   const interactive = options.interactive ?? process.stdin.isTTY;
   if (!interactive) {
@@ -570,15 +657,25 @@ export function createOwnerDecisionSource(options: { interactive?: boolean; ask?
   const ask = options.ask ?? askOwnerQuestion;
 
   return {
-    decide: async (request: unknown, story: unknown): Promise<'approve' | 'reject'> => {
+    decide: async (
+      request: unknown,
+      story: unknown,
+    ): Promise<Exclude<OwnerDecisionOutcome, 'hand-off'> | { outcome: OwnerDecisionOutcome; handedOffTo?: string }> => {
       const storyId = typeof story === 'object' && story !== null && 'id' in story ? String(story.id) : 'unknown-story';
       const requestId =
         typeof request === 'object' && request !== null && 'id' in request ? String(request.id) : 'unknown-request';
       const requestKind =
         typeof request === 'object' && request !== null && 'kind' in request ? String(request.kind) : 'unknown-kind';
       console.log(`Owner decision required for ${storyId} request ${requestId} (${requestKind}).`);
-      const answer = (await ask('Approve this request? [y/N] ')).trim().toLowerCase();
-      return answer === 'y' || answer === 'yes' || answer === 'approve' ? 'approve' : 'reject';
+      const answer = (await ask('Decision [approve/reject/override/hand-off] (default reject): ')).trim().toLowerCase();
+      if (answer === 'y' || answer === 'yes' || answer === 'approve') return 'approve';
+      if (answer === 'override') return 'override';
+      if (answer === 'hand-off' || answer === 'handoff' || answer === 'hand off') {
+        const handedOffTo = (await ask('Hand-off target: ')).trim();
+        if (!handedOffTo) return 'reject';
+        return { outcome: 'hand-off', handedOffTo };
+      }
+      return 'reject';
     },
   };
 }

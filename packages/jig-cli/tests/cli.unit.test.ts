@@ -616,6 +616,64 @@ test('P3-AC-4: owner decision source approves and rejects through injected promp
   assert.ok(createOwnerDecisionSource({ interactive: true }));
 });
 
+test('P09-AC-5: owner decision source supports override and hand-off vocabulary', async () => {
+  const shortApproveSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'y' });
+  assert.ok(shortApproveSource);
+  await expect(shortApproveSource.decide({ id: 'REQ-y', kind: 'edit-files' }, { id: 'STORY-y' })).resolves.toBe(
+    'approve',
+  );
+
+  const longApproveSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'yes' });
+  assert.ok(longApproveSource);
+  await expect(longApproveSource.decide({ id: 'REQ-yes', kind: 'edit-files' }, { id: 'STORY-yes' })).resolves.toBe(
+    'approve',
+  );
+
+  const overrideSource = createOwnerDecisionSource({ interactive: true, ask: async () => 'override' });
+  assert.ok(overrideSource);
+  await expect(overrideSource.decide({ id: 'REQ-2', kind: 'edit-files' }, { id: 'STORY-2' })).resolves.toBe('override');
+
+  const handoffAnswers = ['hand-off', 'platform-owner'];
+  const handoffSource = createOwnerDecisionSource({ interactive: true, ask: async () => handoffAnswers.shift() ?? '' });
+  assert.ok(handoffSource);
+  await expect(handoffSource.decide({ id: 'REQ-3', kind: 'edit-files' }, { id: 'STORY-3' })).resolves.toEqual({
+    outcome: 'hand-off',
+    handedOffTo: 'platform-owner',
+  });
+
+  const compactHandoffAnswers = ['handoff', 'ops-owner'];
+  const compactHandoffSource = createOwnerDecisionSource({
+    interactive: true,
+    ask: async () => compactHandoffAnswers.shift() ?? '',
+  });
+  assert.ok(compactHandoffSource);
+  await expect(compactHandoffSource.decide({ id: 'REQ-4', kind: 'edit-files' }, { id: 'STORY-4' })).resolves.toEqual({
+    outcome: 'hand-off',
+    handedOffTo: 'ops-owner',
+  });
+
+  const spacedHandoffAnswers = ['hand off', 'delivery-owner'];
+  const spacedHandoffSource = createOwnerDecisionSource({
+    interactive: true,
+    ask: async () => spacedHandoffAnswers.shift() ?? '',
+  });
+  assert.ok(spacedHandoffSource);
+  await expect(spacedHandoffSource.decide({ id: 'REQ-5', kind: 'edit-files' }, { id: 'STORY-5' })).resolves.toEqual({
+    outcome: 'hand-off',
+    handedOffTo: 'delivery-owner',
+  });
+
+  const blankHandoffAnswers = ['hand-off', ''];
+  const blankHandoffSource = createOwnerDecisionSource({
+    interactive: true,
+    ask: async () => blankHandoffAnswers.shift() ?? '',
+  });
+  assert.ok(blankHandoffSource);
+  await expect(blankHandoffSource.decide({ id: 'REQ-6', kind: 'edit-files' }, { id: 'STORY-6' })).resolves.toBe(
+    'reject',
+  );
+});
+
 test('run(): "run" with no plan path prints usage and exits 1', async () => {
   setArgv('run');
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
@@ -748,13 +806,63 @@ test('P4-AC-4: inspect renders stop cause, projected notice, checkpoint, and cha
   assert.match(output, /Changed files: src\/cli\.ts/);
 });
 
+test('P4-AC-4: inspect renders projected story diagnostics', async () => {
+  const runDir = join(workDir, 'events-only-diagnostics-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+        diagnostics: {
+          exitCode: 2,
+          error: 'diagnostic warning',
+          stdout: 'diagnostic line\nmore detail',
+        },
+      },
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+      },
+    ]),
+  );
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /- STORY-1: done/);
+  assert.match(output, /Diagnostics:/);
+  assert.match(output, /exitCode: 2/);
+  assert.match(output, /error: diagnostic warning/);
+  assert.match(output, /stdout: diagnostic line\.\.\./);
+});
+
 test('P4-AC-4: inspect renders a clean completed projection without stop or notice sections', async () => {
   const runDir = join(workDir, 'events-only-completed-run');
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, 'events.jsonl'),
     stringifyJsonl([
-      phase4LaunchHeader(),
+      phase4LaunchHeader({
+        binding: {
+          policyRef: 'policy:local-dry-run',
+          configRef: 'mode=local-dry-run;recordDir=runs',
+          workspace: captureWorkspaceFingerprint(originalCwd),
+        },
+      }),
       {
         family: 'story.started',
         actor: 'runner',
@@ -1250,6 +1358,64 @@ test('run(): inspect renders legacy run-scope authorization denial when no item 
   assert.match(loggedLines(), /Reason: policy denied before stories/);
 });
 
+test('run(): inspect tolerates legacy run records without item outcomes or denial reasons', async () => {
+  const runDir = join(workDir, 'legacy-empty-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  const record = {
+    run: { id: 'old-empty-run', status: 'success', planId: 'old-empty-plan' },
+    events: [],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(record, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Final Status: success/);
+  assert.doesNotMatch(output, /Reason:/);
+});
+
+test('run(): inspect tolerates legacy failed run records without authorization denial reasons', async () => {
+  const runDir = join(workDir, 'legacy-failed-empty-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  const record = {
+    run: { id: 'old-failed-empty-run', status: 'failure', planId: 'old-failed-empty-plan' },
+    events: [],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(record, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Final Status: failure/);
+  assert.doesNotMatch(output, /Reason:/);
+});
+
+test('run(): inspect renders legacy blocked-by, skipped, and changed-file details', async () => {
+  const runDir = join(workDir, 'legacy-item-detail-run');
+  mkdirSync(runDir, { recursive: true });
+  const record = {
+    run: { id: 'run-legacy-item-detail', status: 'failure', planId: 'plan-phase4-cli', mode: 'local-dry-run' },
+    events: [
+      { family: 'story.blocked', storyId: 'STORY-1', blockedBy: 'STORY-0', changedFiles: ['src/blocked.ts'] },
+      { family: 'story.skipped', storyId: 'STORY-2', reason: 'run stopped after failure' },
+    ],
+  };
+  writeFileSync(join(runDir, 'run.json'), JSON.stringify(record, null, 2));
+
+  setArgv('inspect', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /- STORY-1: blocked \(blocked by STORY-0\)/);
+  assert.match(output, /Changed files: src\/blocked\.ts/);
+  assert.match(output, /- STORY-2: skipped \(run stopped after failure\)/);
+});
+
 test('PR-AC-4: inspect preserves historical story.failed and story.skipped aliases', async () => {
   const runDir = join(workDir, 'historical-run-dir');
   mkdirSync(runDir, { recursive: true });
@@ -1262,6 +1428,7 @@ test('PR-AC-4: inspect preserves historical story.failed and story.skipped alias
         diagnostics: {
           exitCode: 1,
           error: 'old failure',
+          stdout: 'first line\nsecond line',
         },
       },
       {
@@ -1282,6 +1449,7 @@ test('PR-AC-4: inspect preserves historical story.failed and story.skipped alias
   assert.match(inspectOutput, /Diagnostics:/);
   assert.match(inspectOutput, /exitCode: 1/);
   assert.match(inspectOutput, /error: old failure/);
+  assert.match(inspectOutput, /stdout: first line\.\.\./);
   assert.match(inspectOutput, /- STORY-2: skipped \(run stopped after failure\)/);
 });
 
@@ -1323,6 +1491,20 @@ test('P08-AC-1/2: watch renders liveness groups and notice queue from records', 
   assert.match(output, /Next: review the parked authorization request and resume or stop the run/);
 });
 
+test('P08-AC-1: watch renders active runs without notices', async () => {
+  const runDir = join(workDir, 'watch-active-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl([phase4LaunchHeader()]));
+
+  setArgv('watch', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Signal: idle/);
+  assert.doesNotMatch(output, /Notices:/);
+});
+
 test('P08-AC-3: ask-why cites recorded events for parked story explanations', async () => {
   const runDir = join(workDir, 'why-run-dir');
   mkdirSync(runDir, { recursive: true });
@@ -1336,6 +1518,62 @@ test('P08-AC-3: ask-why cites recorded events for parked story explanations', as
   assert.match(output, /Subject: STORY-2/);
   assert.match(output, /parked waiting for owner attention/);
   assert.match(output, /line 8: story\.parked reason=owner-decision-required/);
+});
+
+test('P08-AC-3: ask-why renders active runs without citations', async () => {
+  const runDir = join(workDir, 'why-active-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl([phase4LaunchHeader()]));
+
+  setArgv('ask-why', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /The run is started; no terminal run record is present yet/);
+  assert.doesNotMatch(output, /Citations:/);
+});
+
+test('P08-AC-3: ask-why explains stopped runs without an explicit stop reason', async () => {
+  const runDir = join(workDir, 'why-stopped-fallback-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'run.stopped',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        checkpoint: 'after:STORY-1',
+      },
+    ]),
+  );
+
+  setArgv('ask-why', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  assert.match(loggedLines(), /because unknown-stop-cause/);
+});
+
+test('P08-AC-3: ask-why surfaces operator errors', async () => {
+  setArgv('ask-why', join(workDir, 'missing-why-run'));
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Run directory ".*missing-why-run" does not exist/);
 });
 
 test('P08-AC-2/4: notice acknowledge appends a durable owner event and watch reflects it', async () => {
@@ -1433,4 +1671,167 @@ test('run(): P08 observation commands surface operator errors', async () => {
   await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
   expect(exitSpy).toHaveBeenCalledWith(1);
   assert.match(erroredLines(), /Invalid --until timestamp/);
+});
+
+test('P09-AC-1/2: decide appends a durable owner decision and renders the result', async () => {
+  const runDir = join(workDir, 'decide-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('decide', runDir, '--outcome', 'hand-off', '--to', 'platform-owner', '--reason', 'needs platform review');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /--- Owner Decision ---/);
+  assert.match(output, /Outcome: hand-off/);
+  assert.match(output, /Story: STORY-2/);
+  assert.match(output, /Reason: needs platform review/);
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.some(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.actor === 'owner' &&
+        event.storyId === 'STORY-2' &&
+        event.outcome === 'hand-off' &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+});
+
+test('P09-AC-1/2: decide accepts an explicit story without optional reason or hand-off target', async () => {
+  const runDir = join(workDir, 'decide-explicit-story-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('decide', runDir, '--outcome', 'approve', '--story', 'STORY-2');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Outcome: approve/);
+  assert.match(output, /Story: STORY-2/);
+  assert.doesNotMatch(output, /Reason:/);
+});
+
+test('P09-AC-3: decide renders refusals without an attached story', async () => {
+  const runDir = join(workDir, 'decide-refused-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'run.completed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+      },
+    ]),
+  );
+
+  setArgv('decide', runDir, '--outcome', 'approve');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /Outcome: refused/);
+  assert.match(output, /Reason: no-routed-decision/);
+  assert.doesNotMatch(output, /Story:/);
+});
+
+test('P09-AC-4: stop requests a coordinated stop and renders the request', async () => {
+  const runDir = join(workDir, 'stop-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+
+  setArgv('stop', runDir, '--reason', 'operator-pause');
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /--- Run Stop ---/);
+  assert.match(output, /Status: requested/);
+  assert.match(output, /Checkpoint: after:STORY-1/);
+  assert.match(output, /Reason: operator-pause/);
+});
+
+test('P09-AC-4: stop can use the default operator-stop reason', async () => {
+  const runDir = join(workDir, 'stop-default-reason-run-dir');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+
+  setArgv('stop', runDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+  assert.match(loggedLines(), /Reason: operator-stop/);
+});
+
+test('run(): P09 control commands validate required arguments', async () => {
+  for (const args of [
+    ['decide'],
+    ['decide', 'runs/run-existing'],
+    ['decide', 'runs/run-existing', '--outcome', 'maybe'],
+    ['stop'],
+  ]) {
+    setArgv(...args);
+    await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    assert.match(erroredLines(), /Usage:/);
+    exitSpy.mockClear();
+    errorSpy.mockClear();
+  }
+});
+
+test('run(): P09 control commands surface operator errors', async () => {
+  setArgv('decide', join(workDir, 'missing-decision-run'), '--outcome', 'approve');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Run directory ".*missing-decision-run" does not exist/);
+
+  exitSpy.mockClear();
+  errorSpy.mockClear();
+
+  setArgv('stop', join(workDir, 'missing-stop-run'));
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Run directory ".*missing-stop-run" does not exist/);
 });

@@ -906,6 +906,63 @@ test('P08-AC-2: acknowledged notices persist as owner records without changing s
   assert.strictEqual(projection.notices[0]?.state, 'acknowledged');
 });
 
+test('P09-AC-1/2: owner decision records replay without changing projected story state', () => {
+  const eventsJsonl = stringifyJsonl([
+    ...stoppedRunEvents(),
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      timestamp: '2026-07-02T10:00:10.000Z',
+      storyId: 'STORY-2',
+      outcome: 'approve',
+      requestId: 'REQ-2',
+      requestKind: 'edit-files',
+    },
+  ]);
+
+  const projection = projectRunEvents({ eventsJsonl });
+  const answer = askWhyFromEvents({ eventsJsonl, storyId: 'STORY-2' });
+
+  assert.strictEqual(projection.stories['STORY-2']?.state, 'parked');
+  assert.strictEqual(projection.lifecycleState, 'stopped');
+  assert.ok(answer.citations.some((citation) => citation.family === 'owner-decision.recorded'));
+});
+
+test('P09-AC-1/2: owner decision records must be owner-scoped and story-scoped', () => {
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          ...stoppedRunEvents(),
+          {
+            family: 'owner-decision.recorded',
+            actor: 'runner',
+            timestamp: '2026-07-02T10:00:10.000Z',
+            storyId: 'STORY-2',
+            outcome: 'approve',
+          },
+        ]),
+      }),
+    /owner-decision\.recorded on line \d+ must be recorded by actor owner/,
+  );
+
+  assert.throws(
+    () =>
+      projectRunEvents({
+        eventsJsonl: stringifyJsonl([
+          ...stoppedRunEvents(),
+          {
+            family: 'owner-decision.recorded',
+            actor: 'owner',
+            timestamp: '2026-07-02T10:00:10.000Z',
+            outcome: 'approve',
+          },
+        ]),
+      }),
+    /owner-decision\.recorded on line \d+ is missing required storyId/,
+  );
+});
+
 test('P08-AC-3: ask-why explains blocked, done, and parked stories from cited records', () => {
   const eventsJsonl = stringifyJsonl([
     launchHeader(),
