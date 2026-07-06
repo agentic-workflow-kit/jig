@@ -289,16 +289,21 @@ above.
   touched any of them across the full P04-P12 range. Byte-identical confirmed.
 - **Hosted Codex reviews caught real pre-merge bugs.** Per coordinator audit evidence
   (PR #69 review threads), an export redaction leak of event-derived diagnostics into audit
-  artifacts and a run-id path-traversal issue were both found and fixed. Verified locally: commit
-  `6c92620` ("fix: harden export redaction paths", present in this repo's object store though not
-  reachable from any branch tip — a pre-squash PR-branch commit) adds `filenameSafeRunId()` to
-  sanitize the export artifact filename and `redactedProjectionForExport()` to redact the
-  exported projection, with `packages/jig-sdk/tests/sdk.unit.test.ts` gaining 102 lines of
-  regression coverage in the same commit. Per coordinator audit evidence (PR #63 thread), a
-  compose-time substrate-denial recording gap was found and fixed; verified locally: commit
-  `7f73757` ("fix: record real-host substrate denials", also present but unreachable from any
-  branch tip) adds 64 lines to `packages/jig-sdk/src/sdk.ts` and 97 lines of regression tests in
-  the same commit.
+  artifacts and a run-id path-traversal issue were both found and fixed. Verified locally from
+  reachable squash commit `95f5fd8` (PR #69): it introduces
+  `redactedProjectionForExport()` in [`packages/jig-sdk/src/export.ts`](../../../packages/jig-sdk/src/export.ts#L182)
+  and `filenameSafeRunId()` in the same file
+  ([lines 186-193](../../../packages/jig-sdk/src/export.ts#L186)), and the reachable tests at
+  [`packages/jig-sdk/tests/sdk.unit.test.ts`](../../../packages/jig-sdk/tests/sdk.unit.test.ts#L536)
+  and [line 616](../../../packages/jig-sdk/tests/sdk.unit.test.ts#L616) verify projection redaction
+  and sanitized artifact paths. Per coordinator audit evidence (PR #63 thread), a compose-time
+  substrate-denial recording gap was found and fixed; verified locally from reachable phase commit
+  `ec82f32` and the current tree: `createJigSession()` now routes
+  `SubstrateAuthorizationError` through `recordComposeTimeSubstrateFailure()` in
+  [`packages/jig-sdk/src/sdk.ts`](../../../packages/jig-sdk/src/sdk.ts#L376), and the reachable
+  regression test
+  [`P04-AC-3: compose-time real-host substrate rejection is recorded as a diagnosable stopped run`](../../../packages/jig-sdk/tests/sdk.unit.test.ts#L807)
+  proves the blocked-story / `run.stopped` record path.
 - **ADRs recorded in the same PRs as their implementations.** Verified: ADRs 0029-0033
   (`docs/design/decisions/0029-guided-setup-placement.md` through
   `0033-mcp-adapter-package.md`) all exist at `a239986`, aligned with P07/P08/P09/P10/P12
