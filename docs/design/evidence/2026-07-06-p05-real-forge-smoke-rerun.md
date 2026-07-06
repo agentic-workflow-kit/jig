@@ -76,8 +76,9 @@ The smoke-created sandbox pull request was closed after capture and its branch w
 
 No tokens or credentials appear in this record. The sandbox repository name is intentionally
 cited. The smoke asserts the serialized run artifacts and emitted evidence facts do not include
-the GitHub token, `x-access-token`, the askpass path, credential-bearing URLs, or the integrity
-key. The integrity sidecar carries only the digest and the non-secret key id supplied for the run.
+the GitHub token, `x-access-token`, the askpass path, or credential-bearing URLs. The integrity
+key was supplied only as a coordinator environment variable; the integrity sidecar carries the
+HMAC digest and the non-secret key id supplied for the run, not the raw key.
 
 ## Supported IDs
 
