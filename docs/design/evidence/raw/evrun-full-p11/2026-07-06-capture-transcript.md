@@ -34,7 +34,7 @@ codex-cli 0.142.5
 WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)
 
 $ uname -a
-Darwin Aryes-MacBook-Pro.local 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:38:56 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6000 arm64
+Darwin <redacted-hostname> 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:38:56 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6000 arm64
 ```
 
 ## Required Environment Availability
@@ -59,7 +59,7 @@ Sandbox run:
 ```text
 $ CODEX_APP_SERVER_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/codex-app-server.p3.smoke.test.ts
 
- RUN  v4.1.9 /Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-p11-evrun-full-evidence
+ RUN  v4.1.9 <redacted-worktree>
 
  ❯ |smoke| packages/jig-sdk/tests/smoke/codex-app-server.p3.smoke.test.ts (1 test | 1 failed) 547ms
      × runs a real Codex app-server turn behind the opt-in smoke gate 546ms
@@ -78,7 +78,7 @@ Rerun outside the sandbox after the process-start failure:
 ```text
 $ CODEX_APP_SERVER_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/codex-app-server.p3.smoke.test.ts
 
- RUN  v4.1.9 /Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-p11-evrun-full-evidence
+ RUN  v4.1.9 <redacted-worktree>
 
  Test Files  1 passed (1)
       Tests  1 passed (1)
@@ -93,7 +93,7 @@ Sandbox run:
 ```text
 $ EVRUN_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/real-host.p4.smoke.test.ts
 
- RUN  v4.1.9 /Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-p11-evrun-full-evidence
+ RUN  v4.1.9 <redacted-worktree>
 
  ❯ |smoke| packages/jig-sdk/tests/smoke/real-host.p4.smoke.test.ts (1 test | 1 failed) 7ms
      × compose-time macOS probe yields an honest process-group attestation 6ms
@@ -112,7 +112,7 @@ Rerun outside the sandbox after the localhost bind failure:
 ```text
 $ EVRUN_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/real-host.p4.smoke.test.ts
 
- RUN  v4.1.9 /Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-p11-evrun-full-evidence
+ RUN  v4.1.9 <redacted-worktree>
 
  Test Files  1 passed (1)
       Tests  1 passed (1)
@@ -125,7 +125,7 @@ $ EVRUN_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/real-
 ```text
 $ EVRUN_SMOKE=1 corepack pnpm exec vitest run packages/jig-sdk/tests/smoke/evrun-partial.smoke.test.ts
 
- RUN  v4.1.9 /Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-p11-evrun-full-evidence
+ RUN  v4.1.9 <redacted-worktree>
 
  ❯ |smoke| packages/jig-sdk/tests/smoke/evrun-partial.smoke.test.ts (1 test | 1 failed) 3ms
      × work-source to real forge landing records and verifies integrity with a scripted agent leg 3ms

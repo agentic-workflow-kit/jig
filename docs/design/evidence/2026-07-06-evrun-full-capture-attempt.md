@@ -60,7 +60,7 @@ values were printed or committed.
 
 | Artifact                                              | SHA-256                                                            |
 | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| `raw/evrun-full-p11/2026-07-06-capture-transcript.md` | `770a12af9bdcf160df1528dfd50761e785dd5d3be5fd6228540a1272b7da140e` |
+| `raw/evrun-full-p11/2026-07-06-capture-transcript.md` | `7162927f31dfbbda7a1508e4e9116fc2d942c7d8c251070d0fd8cc4af7e93515` |
 
 ## Redaction
 
