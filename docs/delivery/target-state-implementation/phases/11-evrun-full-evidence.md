@@ -12,8 +12,9 @@ Issues work source, real Codex agent over the app-server transport, real executi
 containment, real GitHub Forge landing, integrity and redaction active — plus the adversarial
 probes EVRUN-partial could not claim (no-phone-home, multi-run idempotency). P11 first landed an
 honest blocked capture attempt; a later follow-up captured the combined real GitHub / real Codex /
-real-host `open-pr` smoke. Strong no-phone-home, held-merge replay, and multi-run idempotency
-remain open. Product code changes are not this phase's purpose.
+real-host `open-pr` smoke, and this follow-up captured multi-run idempotency against a real
+`open-pr` effect. Strong no-phone-home remains open. Product code changes are not this phase's
+purpose.
 
 ## Background
 
@@ -55,8 +56,9 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 - A successful capture would prove `SEC-2` (no-phone-home proven, not asserted), `RESUME-3` (no
   double effect against real systems), and `MERGE-2`/`FENCE-3` observations on a real path.
 - The later combined smoke removes the original "real Codex plus real GitHub path unproven"
-  blocker. P13/P14 status claims still need either stronger no-phone-home/idempotency evidence or
-  an explicit owner decision to defer those gates.
+  blocker, and the RESUME-3 smoke removes the repeated real-effect idempotency blocker. P13/P14
+  status claims still need either stronger no-phone-home evidence or an explicit owner decision to
+  defer that gate.
 
 ## Technical Requirements
 
@@ -87,8 +89,8 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 - **Requires:** P03 and P04 (hard).
 - **Benefits from:** P05 (block-surfacing and held-merge paths worth capturing in the same
   sweep).
-- **Would unlock:** P13 (hard) and P14 status claims only after the remaining no-phone-home /
-  idempotency evidence is captured or explicitly deferred by the owner.
+- **Would unlock:** P13 (hard) and P14 status claims only after the remaining no-phone-home
+  evidence is captured or explicitly deferred by the owner.
 - **Parallel:** P07–P10, P12 may proceed concurrently.
 
 ## Acceptance Criteria
@@ -110,8 +112,8 @@ do not lower the bar for the stronger probes.
    **Current disposition: partially met.** The combined smoke demonstrates real Codex editing
    through the owned app-server transport, real macOS execution-host attestation with honest
    `weak` strength, real GitHub Issues / Forge effects, records integrity, and redaction. The
-   adversarial no-phone-home observation remains `ambiguous`, and multi-run idempotency against a
-   repeated real landed effect remains unproven.
+   RESUME-3 smoke demonstrates multi-run idempotency against a repeated real `open-pr` effect. The
+   adversarial no-phone-home observation remains `ambiguous`.
 3. Hosted/remote operation and Windows behavior are explicitly restated as out of scope in the
    Limitations section.
 4. README/AGENTS/product status lines about EVRUN reflect the new boundary — no claim exceeds

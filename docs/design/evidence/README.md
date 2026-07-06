@@ -29,6 +29,8 @@ guarantee, invariant, or decision IDs the evidence supports.
 | 2026-07-06 | [EVRUN-full capture attempt](./2026-07-06-evrun-full-capture-attempt.md)                                                    | P11 capture attempt showing successful narrow Codex app-server and real-host smokes, plus the exact missing-prerequisite blocker that kept the combined smoke unproven at that point.    |
 | 2026-07-06 | [EVRUN-full combined smoke](./2026-07-06-evrun-full-smoke.md)                                                               | Successful combined GitHub Issues -> real Codex app-server -> real host -> GitHub Forge `open-pr` -> records-integrity smoke, with stronger no-phone-home/idempotency probes still open. |
 | 2026-07-06 | [P05 real Forge smoke rerun](./2026-07-06-p05-real-forge-smoke-rerun.md)                                                    | Current-checkout rerun of the real GitHub Issues -> GitHub Forge `open-pr` smoke against the disposable sandbox, with records integrity verified and explicit MERGE-5 limitations.       |
+| 2026-07-06 | [P05 held-merge and block-surfacing smoke](./2026-07-06-p05-held-merge-smoke.md)                                            | Real protected-branch held merge plus PR/status/comment block surfacing against the disposable sandbox, closing the MERGE-5 real-effect evidence gap.                                    |
+| 2026-07-06 | [RESUME-3 real-effect idempotency smoke](./2026-07-06-resume-idempotency-smoke.md)                                          | Real `open-pr` landing followed by resume no-op recognition with `already-landed`, proving the repeated-effect idempotency leg against the disposable sandbox.                           |
 
 ## N1a deferred probes
 
@@ -47,5 +49,6 @@ The EVRUN-partial record was enough for the org M7 exit decision, but it is not 
 2026-07-06 P11 capture attempt records the original missing-prerequisite blocker. The later
 2026-07-06 EVRUN-full combined smoke proves the combined real Codex, real GitHub, real
 execution-host, records-integrity, and redaction path for an operator-initiated disposable
-`open-pr` run. Strong adversarial no-phone-home evidence, multi-run idempotency against a repeated
-real effect, hosted/remote operation, and Windows behavior remain unproven.
+`open-pr` run. The RESUME-3 smoke proves multi-run idempotency against a repeated real `open-pr`
+effect. Strong adversarial no-phone-home evidence, hosted/remote operation, and Windows behavior
+remain unproven.

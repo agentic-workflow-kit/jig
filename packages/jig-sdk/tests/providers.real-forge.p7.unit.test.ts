@@ -709,6 +709,77 @@ test('P05 MERGE-4: a held merge records done-not-landed instead of forcing merge
   );
 });
 
+test('P05 MERGE-5: base branch policy refusal is classified as review-held before conflict wording', async () => {
+  const execute: CommandExecutor = async (file, args) => {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
+      return {
+        stdout: JSON.stringify({
+          number: 18,
+          url: 'https://github.example/pull/18',
+          headRefName: 'phase-7',
+          headRefOid: 'held-head',
+          baseRefName: 'main',
+        }),
+      };
+    }
+
+    if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') {
+      throw new Error(
+        [
+          'Command failed: gh pr merge --squash --delete-branch=false',
+          'X Pull request agentic-workflow-kit/jig-smoke-target#18 is not mergeable: the base branch policy prohibits the merge.',
+          'To have the pull request merged after all the requirements have been met, add the `--auto` flag.',
+        ].join('\n'),
+      );
+    }
+
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  };
+
+  const outcome = await createGitHubCommandTransport(execute).mergePullRequest({
+    storyId: 'STORY-1',
+    action: 'merge',
+  });
+
+  assert.strictEqual(outcome.mergeability, 'held-by-review');
+  assert.strictEqual(outcome.targetHead, 'held-head');
+});
+
+test('P05 MERGE-5: approving-review GraphQL refusal is classified as review-held', async () => {
+  const execute: CommandExecutor = async (file, args) => {
+    if (file === 'gh' && args.join(' ') === 'pr view --json number,url,headRefName,headRefOid,baseRefName') {
+      return {
+        stdout: JSON.stringify({
+          number: 19,
+          url: 'https://github.example/pull/19',
+          headRefName: 'phase-7',
+          headRefOid: 'review-held-head',
+          baseRefName: 'main',
+        }),
+      };
+    }
+
+    if (file === 'gh' && args.join(' ') === 'pr merge --squash --delete-branch=false') {
+      throw new Error(
+        [
+          'Command failed: gh pr merge --squash --delete-branch=false',
+          'GraphQL: At least 1 approving review is required by reviewers with write access. (mergePullRequest)',
+        ].join('\n'),
+      );
+    }
+
+    throw new Error(`unexpected command: ${file} ${args.join(' ')}`);
+  };
+
+  const outcome = await createGitHubCommandTransport(execute).mergePullRequest({
+    storyId: 'STORY-1',
+    action: 'merge',
+  });
+
+  assert.strictEqual(outcome.mergeability, 'held-by-review');
+  assert.strictEqual(outcome.targetHead, 'review-held-head');
+});
+
 test('P7-AC-3: a land-then-relaunch is recognized from the records and is a recorded no-op', async () => {
   const calls: string[] = [];
   const priorEvents: RunEvent[] = [

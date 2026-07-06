@@ -35,16 +35,13 @@ checkout. The package split and the private Codex app-server transport are now i
 inside this private workspace; neither creates a shipped public API. The real execution-host path
 now exercises a local macOS process-group probe and reports an honest `weak` containment posture.
 
-Current evidence proves a scoped real-provider path with a scripted agent leg
-(`EVRUN-partial`). P11 also captured an EVRUN-full attempt: the narrow Codex app-server and
-real-host smokes pass outside the Codex sandbox, but the combined real GitHub path could not run
-without sandbox credentials and an integrity key. The current real GitHub Forge/GitHub Issues path
-also carries blocked-PR surfacing, held-merge replay safety, landing-path redaction, and
-per-candidate origin-bearing provenance — the success-path real Forge `open-pr` smoke has been
-rerun on the current checkout, while held-merge and commit-status/comment block-surfacing legs
-remain unit-proven with real-effect evidence still owed. `EVRUN-full`, remote execution, public
-package publication, and a full Codex-driven agent leg remain future work; strong/no-phone-home
-execution-host evidence remains in that later proof step.
+Current evidence proves scoped real-provider paths with a scripted agent leg (`EVRUN-partial` and
+P05 follow-up smokes). P11 also captured a combined EVRUN-full smoke with real GitHub Issues, real
+Codex app-server, real host attestation, real GitHub Forge `open-pr`, records integrity, and
+redaction on the disposable target repo. The current real GitHub Forge path now carries real-effect
+evidence for blocked-PR surfacing, held-merge posture, landing-path redaction, repeated-effect
+idempotency, and per-candidate origin-bearing provenance. Remote execution, public package
+publication, and strong/no-phone-home execution-host evidence remain future work.
 
 ## Quick Start
 

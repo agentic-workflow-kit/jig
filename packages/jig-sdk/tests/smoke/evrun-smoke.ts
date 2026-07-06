@@ -52,7 +52,7 @@ export interface EvRunEvidenceFacts {
   };
 }
 
-function sha256(bytes: Buffer): string {
+export function sha256(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
@@ -81,6 +81,12 @@ export function assertSerializedTokenClean(serialized: string): void {
     assert.strictEqual(serialized.includes(forbidden), false, 'serialized evidence must not contain credentials');
   }
   assert.doesNotMatch(serialized, /https:\/\/[^:\s/]+:[^@\s/]+@/i);
+}
+
+export function emitJsonEvidenceFacts(outPath: string, facts: Record<string, unknown>): void {
+  const serialized = `${JSON.stringify(facts, null, 2)}\n`;
+  assertSerializedTokenClean(serialized);
+  writeFileSync(outPath, serialized);
 }
 
 function assertArtifactTokenClean(runDir: string): {
