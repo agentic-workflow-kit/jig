@@ -5,9 +5,9 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P10 are merged and P11 has captured a blocked EVRUN-full evidence
-attempt (see the [phase table](#phase-table)); the remaining phases are planned. Phase statuses live
-in the phase table below and in each phase doc's frontmatter.
+**Status: in progress.** P01–P11 are merged, including P11's blocked EVRUN-full evidence record, and
+P12 is open in PR #71 (see the [phase table](#phase-table)); the remaining phases are planned. Phase
+statuses live in the phase table below and in each phase doc's frontmatter.
 
 ## Overview
 
@@ -291,7 +291,7 @@ release posture`")
 | P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                   | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | merged (#69)                   | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | merged (#70; blocked evidence) | P03, P04          | Sequential after both provider phases; benefits from P05.               |
-| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | implemented                    | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
+| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | pr #71                         | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
 | P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                        | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
 | P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned                        | All other phases  | Last; closes the track.                                                 |
 

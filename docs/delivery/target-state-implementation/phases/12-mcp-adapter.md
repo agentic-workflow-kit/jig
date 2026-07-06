@@ -1,6 +1,6 @@
 ---
 title: "Phase 12 - MCP driving adapter"
-status: implemented
+status: "pr #71"
 ---
 
 # Phase 12 - MCP driving adapter
