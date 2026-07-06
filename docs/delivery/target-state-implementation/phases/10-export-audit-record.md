@@ -1,6 +1,6 @@
 ---
 title: "Phase 10 - Export: write-once audit record"
-status: implemented
+status: "pr #69"
 ---
 
 # Phase 10 - Export: write-once audit record

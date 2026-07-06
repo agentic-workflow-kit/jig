@@ -5,7 +5,7 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P09 are merged and P10 is implemented locally pending PR (see the
+**Status: in progress.** P01–P09 are merged and P10 is open as PR #69 (see the
 [phase table](#phase-table)); the remaining phases are planned. Phase statuses live in the phase
 table below and in each phase doc's frontmatter.
 
@@ -284,7 +284,7 @@ release posture`")
 | P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
 | P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
 | P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
-| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | implemented                 | P01               | Parallel with P03–P09.                                                  |
+| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | PR #69                      | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned                     | P03, P04          | Sequential after both provider phases; benefits from P05.               |
 | P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                     | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
 | P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                     | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
