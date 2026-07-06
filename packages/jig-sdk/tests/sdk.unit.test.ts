@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { writeIntegritySidecar } from '../src/integrity.js';
 import { createJigSession, InspectRunError } from '../src/sdk.js';
@@ -531,6 +531,106 @@ test('P10 coverage: export visibly withholds missing and ambiguous event export 
       reason: 'redaction-export-posture-ambiguous: could not classify sensitive value "events[2].apiKey"',
     },
   ]);
+});
+
+test('P10 review: export redacts event-derived projection diagnostics', async () => {
+  const runDir = writeCompletedRun('projection-redaction-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-projection-redaction', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      reason: 'worker-reported-failure',
+      diagnostics: {
+        apiKey: 'secret-value',
+        error: 'failed with diagnostic',
+      } as never,
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-1',
+      unstarted: [],
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir });
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    projection: { stories: { 'STORY-1': { diagnostics: { apiKey?: string; error?: string } } } };
+    events: Array<{ event: { diagnostics?: { apiKey?: string; error?: string } } }>;
+  };
+
+  assert.strictEqual(artifact.projection.stories['STORY-1'].diagnostics.apiKey, '[REDACTED]');
+  assert.strictEqual(artifact.projection.stories['STORY-1'].diagnostics.error, 'failed with diagnostic');
+  const blockedEvent = artifact.events.find((entry) => entry.event.diagnostics);
+  assert.strictEqual(blockedEvent?.event.diagnostics?.apiKey, '[REDACTED]');
+});
+
+test('P10 review: export refuses when projection redaction is ambiguous', async () => {
+  const runDir = writeCompletedRun('projection-ambiguity-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-projection-ambiguity', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      reason: 'worker-reported-failure',
+      diagnostics: {
+        apiKey: '',
+      } as never,
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-1',
+      unstarted: [],
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'refused');
+  assert.match(result.reason ?? '', /projection\.stories\.STORY-1\.diagnostics\.apiKey/);
+  assert.match(readFileSync(result.auditEventPath, 'utf8'), /"family":"export\.denied"/);
+});
+
+test('P10 review: export sanitizes run ids before composing artifact paths', async () => {
+  const outputDir = join(workDir, 'path-safe-exports');
+  const runDir = writeCompletedRun('path-safe-run', [
+    phase4LaunchHeader({ runId: '../escaped', planId: 'plan-sdk-session' }),
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir, outputDir });
+
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  assert.strictEqual(dirname(result.artifactPath), outputDir);
+  assert.match(result.artifactPath, /_escaped-audit-export-/);
+  assert.ok(!existsSync(join(workDir, 'escaped')));
 });
 
 test('P07-AC-4: start runs declared workspace setup only when freshness check is stale', async () => {

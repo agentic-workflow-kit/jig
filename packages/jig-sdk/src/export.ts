@@ -179,9 +179,18 @@ function exportEvents(
   return { events, withheldEvents };
 }
 
+function redactedProjectionForExport(projection: RunProjection): RunProjection {
+  return redactValue(projection, { enabled: true }, 'projection') as RunProjection;
+}
+
+function filenameSafeRunId(runId: string): string {
+  const safe = runId.replace(/[^A-Za-z0-9_-]/g, '_').replace(/_+/g, '_');
+  return safe === '' ? 'run' : safe;
+}
+
 function artifactPath(outputDir: string, projection: RunProjection, createdAt: string): string {
   const timestamp = createdAt.replace(/[:.]/g, '-');
-  return join(outputDir, `${projection.runId}-audit-export-${timestamp}-${randomUUID()}.json`);
+  return join(outputDir, `${filenameSafeRunId(projection.runId)}-audit-export-${timestamp}-${randomUUID()}.json`);
 }
 
 export function exportRun(input: ExportRunInput): ExportRunResult {
@@ -218,6 +227,15 @@ export function exportRun(input: ExportRunInput): ExportRunResult {
   mkdirSync(outputDir, { recursive: true });
   const createdAt = new Date().toISOString();
   const redacted = exportEvents(eventsJsonl, projection);
+  let exportProjection: RunProjection;
+  try {
+    exportProjection = redactedProjectionForExport(projection);
+  } catch (error) {
+    if (error instanceof RedactionAmbiguityError) {
+      return refuse(input, error.message, projection.runId);
+    }
+    throw error;
+  }
   const artifact: ExportArtifact = {
     format: EXPORT_FORMAT,
     createdAt,
@@ -239,7 +257,7 @@ export function exportRun(input: ExportRunInput): ExportRunResult {
         policy: 'withhold-unknown-or-ambiguous',
       },
     },
-    projection,
+    projection: exportProjection,
     events: redacted.events,
     withheldEvents: redacted.withheldEvents,
   };
