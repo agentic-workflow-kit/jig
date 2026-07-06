@@ -1010,6 +1010,413 @@ test('P4-AC-1: parked resume owner rejection blocks the parked story and preserv
   assert.ok(events.find((e) => e.family === 'run.stopped' && e.unstarted?.includes('s2')));
 });
 
+test('P09-AC-3: parked resume consumes durable owner approval without prompting', async () => {
+  const events: RunEvent[] = [];
+  let prompted = false;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        assert.strictEqual(story.id, 's1');
+        return { outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (e: RunEvent) => events.push(e),
+      finalize: async () => {},
+    },
+    {
+      decide: async () => {
+        prompted = true;
+        return 'reject';
+      },
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'parked' }] },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1.parked',
+    stopCause: 'unattended-park',
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    parkedStoryId: 's1',
+    unstartedStoryIds: ['s1'],
+    parkedRequest: { requestId: 'REQ-1', requestKind: 'edit-files' },
+    parkedDecision: { outcome: 'approve', requestId: 'REQ-1', requestKind: 'edit-files' },
+  };
+
+  const status = await harness.resume(
+    validatePlanForScheduling(plan),
+    { policy: { rules: { allowLocalDryRun: true } } },
+    resumePlan,
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.strictEqual(prompted, false);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.granted' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-approval'),
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's1'));
+});
+
+test('P09-AC-3: parked resume consumes durable owner rejection without executing work', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async () => {
+        assert.fail('rejected parked work must not execute');
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (e: RunEvent) => events.push(e),
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'parked' }] },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1.parked',
+    stopCause: 'unattended-park',
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    parkedStoryId: 's1',
+    unstartedStoryIds: ['s1'],
+    parkedDecision: { outcome: 'reject', requestId: 'REQ-1', requestKind: 'edit-files' },
+  };
+
+  const status = await harness.resume(
+    validatePlanForScheduling(plan),
+    { policy: { rules: { allowLocalDryRun: true } } },
+    resumePlan,
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.denied' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-rejection'),
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'story.blocked' && event.reason === 'owner-rejection'));
+});
+
+test('P09-AC-3: parked resume preserves durable hand-off as a routed stop', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async () => {
+        assert.fail('handed-off parked work must remain stopped');
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (e: RunEvent) => events.push(e),
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'parked' }] },
+  };
+  const resumePlan: ResumePlan = {
+    runId: 'run-p1-existing',
+    checkpoint: 'after:s1.parked',
+    stopCause: 'unattended-park',
+    completedStoryIds: [],
+    blockedStoryIds: [],
+    parkedStoryId: 's1',
+    unstartedStoryIds: ['s1'],
+    parkedDecision: {
+      outcome: 'hand-off',
+      requestId: 'REQ-1',
+      requestKind: 'edit-files',
+      handedOffTo: 'platform-owner',
+    },
+  };
+
+  const status = await harness.resume(
+    validatePlanForScheduling(plan),
+    { policy: { rules: { allowLocalDryRun: true } } },
+    resumePlan,
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.routed' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-hand-off') &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'run.stopped' && event.checkpoint === 'after:s1.parked'));
+});
+
+test('P09-AC-4: live run consumes an out-of-band stop request at the next safe boundary', async () => {
+  const events: RunEvent[] = [];
+  let externalStopRequested = false;
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => {
+        if (story.id === 's1') {
+          externalStopRequested = true;
+        }
+        return { storyId: story.id, outcome: 'success', evidence: { result: 'passed' } };
+      },
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [
+        ...events,
+        ...(externalStopRequested
+          ? [
+              {
+                family: 'operator-action.requested',
+                actor: 'owner',
+                action: 'stop',
+                reason: 'owner-requested-pause',
+              } as RunEvent,
+            ]
+          : []),
+      ],
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: {
+      id: 'p1',
+      version: 'execution-plan-shape-v0',
+      stories: [
+        { id: 's1', title: 'first' },
+        { id: 's2', title: 'second' },
+      ],
+    },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(events.find((event) => event.family === 'story.done' && event.storyId === 's1'));
+  assert.ok(!events.find((event) => event.family === 'story.started' && event.storyId === 's2'));
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'run.stopped' &&
+        event.reason === 'owner-requested-pause' &&
+        event.checkpoint === 'after:s1' &&
+        event.unstarted?.includes('s2'),
+    ),
+  );
+});
+
+test('P09-AC-4: refused stop requests do not halt a live run', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => ({
+        storyId: story.id,
+        outcome: 'success',
+        evidence: { result: 'passed' },
+      }),
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      readEvents: () => [
+        ...events,
+        {
+          family: 'operator-action.requested',
+          actor: 'owner',
+          action: 'stop',
+          reason: 'stale-request',
+        } as RunEvent,
+        {
+          family: 'operator-action.refused',
+          actor: 'owner',
+          action: 'stop',
+          reason: 'request-cancelled',
+        } as RunEvent,
+      ],
+      finalize: async () => {},
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'first' }] },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.ok(events.find((event) => event.family === 'run.completed'));
+});
+
+test('P09-AC-5: interactive owner decisions record the shared decision event shape', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => ({
+        storyId: story.id,
+        outcome: 'success',
+        evidence: { result: 'passed' },
+        requests: [{ id: 'REQ-override', kind: 'edit-files', privileged: true }],
+      }),
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      finalize: async () => {},
+    },
+    {
+      decide: async () => 'override',
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'first' }] },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'success');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.actor === 'owner' &&
+        event.storyId === 's1' &&
+        event.outcome === 'override',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.granted' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-override'),
+    ),
+  );
+});
+
+test('P09-AC-5: interactive hand-off records the target on decision and routed authorization', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => ({
+        storyId: story.id,
+        outcome: 'success',
+        evidence: { result: 'passed' },
+        requests: [{ id: 'REQ-handoff', kind: 'edit-files', privileged: true }],
+      }),
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      finalize: async () => {},
+    },
+    {
+      decide: async () => ({ outcome: 'hand-off', handedOffTo: 'platform-owner' }),
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'first' }] },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.outcome === 'hand-off' &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.routed' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-hand-off') &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+});
+
+test('P09-AC-5: interactive hand-off without a target is recorded as rejection', async () => {
+  const events: RunEvent[] = [];
+  const harness = new LocalHarness(
+    {
+      execute: async (story: { id: string }) => ({
+        storyId: story.id,
+        outcome: 'success',
+        evidence: { result: 'passed' },
+        requests: [{ id: 'REQ-handoff-missing-target', kind: 'edit-files', privileged: true }],
+      }),
+    },
+    {
+      init: () => {},
+      recordEvent: (event: RunEvent) => events.push(event),
+      finalize: async () => {},
+    },
+    {
+      decide: async () => ({ outcome: 'hand-off' }),
+    },
+  );
+  const plan: PlanInstance = {
+    plan: { id: 'p1', version: 'execution-plan-shape-v0', stories: [{ id: 's1', title: 'first' }] },
+  };
+
+  const status = await harness.run(
+    validatePlanForScheduling(plan),
+    {},
+    { policy: { rules: { allowLocalDryRun: true } } },
+  );
+
+  assert.strictEqual(status, 'failure');
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' && event.outcome === 'reject' && event.handedOffTo === undefined,
+    ),
+  );
+  assert.ok(events.find((event) => event.family === 'authorization.denied'));
+  assert.ok(
+    !events.find(
+      (event) =>
+        event.family === 'authorization.routed' && Array.isArray(event.basis) && event.basis.includes('owner-hand-off'),
+    ),
+  );
+});
+
 test('P3/P4: harness records grant, deny, routed approval, missing evidence, and failed evidence branches', async () => {
   const policy: PolicyDoc = { policy: { rules: { allowLocalDryRun: true } } };
 

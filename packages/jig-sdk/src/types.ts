@@ -302,6 +302,12 @@ export interface ResumePlan {
     requestKind?: string;
     [key: string]: unknown;
   };
+  parkedDecision?: {
+    outcome: 'approve' | 'reject' | 'override' | 'hand-off';
+    requestId?: string;
+    requestKind?: string;
+    handedOffTo?: string;
+  };
 }
 
 export interface WorkerResult {
@@ -342,5 +348,6 @@ export interface Worker {
 export interface RecordSink {
   init(plan: Plan, config: ConfigDoc, policy: PolicyDoc, ownerConfiguration?: BoundOwnerConfiguration): void;
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void;
+  readEvents?(): RunEvent[];
   finalize(status: RunStatus): Promise<void>;
 }

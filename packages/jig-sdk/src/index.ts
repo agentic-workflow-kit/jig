@@ -35,6 +35,8 @@ export {
   type AskWhyInput,
   type CreateJigSessionOptions,
   createJigSession,
+  type DecideRunInput,
+  type DecideRunResult,
   InspectRunError,
   type InspectRunInput,
   type InspectRunResult,
@@ -44,6 +46,7 @@ export {
   type LegacyInspectionResult,
   type NoticeActionInput,
   type NoticeActionResult,
+  type OwnerDecisionOutcome,
   type PreviewRunInput,
   type PreviewRunResult,
   type ProjectionInspectionResult,
@@ -51,6 +54,8 @@ export {
   type ResumeRunInput,
   type SnoozeNoticeInput,
   type StartRunInput,
+  type StopRunInput,
+  type StopRunResult,
   type WatchRunInput,
 } from './sdk.js';
 export {

@@ -34,8 +34,9 @@ current implementation instructions.
 
 Jig is early source-checkout tooling. The CLI exposes `jig setup`, `jig preview`, `jig run`,
 `jig inspect`, `jig resume`, `jig watch`, `jig ask-why`, `jig notice-ack`, and
-`jig notice-snooze`; fixture-backed local runs are the supported way to exercise the repo from a
-fresh checkout. Runs now bind the launch policy together with any configured work profile and
+`jig notice-snooze`, `jig decide`, and `jig stop`; fixture-backed local runs are the supported way
+to exercise the repo from a fresh checkout. Runs now bind the launch policy together with any
+configured work profile and
 repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
 ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
 `"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
@@ -70,6 +71,8 @@ node packages/jig-cli/bin/jig.js ask-why <runs/run-dir-from-output> --story STOR
 node packages/jig-cli/bin/jig.js notice-ack <runs/run-dir-from-output> unattended-park
 node packages/jig-cli/bin/jig.js notice-snooze <runs/run-dir-from-output> unattended-park \
   --until 2026-07-03T12:00:00.000Z
+node packages/jig-cli/bin/jig.js decide <runs/run-dir-from-output> --outcome approve
+node packages/jig-cli/bin/jig.js stop <runs/run-dir-from-output> --reason owner-requested-pause
 node packages/jig-cli/bin/jig.js resume <runs/run-dir-from-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```

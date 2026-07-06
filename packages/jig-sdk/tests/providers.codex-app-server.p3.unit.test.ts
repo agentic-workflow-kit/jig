@@ -317,7 +317,7 @@ test('P03-AC-3: approval relay uses the owner decision source and records approv
   const session = createProductionCodexAgentSession({
     environment,
     ownerDecisionSource: {
-      decide: async () => 'approve',
+      decide: async () => ({ outcome: 'override' as const }),
     },
   });
 

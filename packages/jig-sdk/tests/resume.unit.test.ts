@@ -938,6 +938,92 @@ test('P9-AC-2: changed basis resumes only after narrow owner re-approval evidenc
   assert.ok(events.find((event) => event.family === 'run.resumed'));
 });
 
+test('P09-AC-3: changed-basis hand-off records the target and refuses resume', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    }),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        ownerDecisionSource: { decide: async () => ({ outcome: 'hand-off' as const, handedOffTo: 'platform-owner' }) },
+      }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-missing-approval' &&
+      /handed off/.test(error.message),
+  );
+
+  const events = readRunEvents();
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.outcome === 'hand-off' &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.denied' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-hand-off') &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+});
+
+test('P09-AC-3: changed-basis hand-off without a target is recorded as rejection', async () => {
+  const workspace = captureWorkspaceFingerprint(process.cwd());
+  assertGitWorkspace(workspace);
+  writeStoppedIntegrityRun(
+    stoppedEventsWithDrivers({
+      ...workspace,
+      changeSetHash: `${workspace.changeSetHash}-changed`,
+    }),
+  );
+  const scriptedOutputPath = writeScriptedOutput();
+
+  await assert.rejects(
+    () =>
+      resumeRun({
+        runDir,
+        scriptedOutputPath,
+        ownerDecisionSource: { decide: async () => ({ outcome: 'hand-off' as const }) },
+      }),
+    (error: unknown) =>
+      error instanceof ResumeRefusal &&
+      error.reason === 'resume-blocked-missing-approval' &&
+      /rejected/.test(error.message),
+  );
+
+  const events = readRunEvents();
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' && event.outcome === 'reject' && event.handedOffTo === undefined,
+    ),
+  );
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'authorization.denied' &&
+        Array.isArray(event.basis) &&
+        event.basis.includes('owner-rejection') &&
+        event.handedOffTo === undefined,
+    ),
+  );
+});
+
 test('P9-AC-2: non-resumable changed-basis runs append no owner approval evidence', async () => {
   const workspace = captureWorkspaceFingerprint(process.cwd());
   assertGitWorkspace(workspace);
@@ -1153,4 +1239,70 @@ test('P4-AC-1: ResumePlan omits parked request when checkpoint is not backed by 
     ).parkedRequest,
     undefined,
   );
+});
+
+test('P09-AC-1/3: ResumePlan carries the latest durable owner decision for the parked story', () => {
+  const projection: RunProjection = {
+    runId: 'run-existing',
+    planId: 'plan-resume',
+    mode: 'local-dry-run',
+    binding: {
+      policyRef: 'local-dry-run-policy',
+      configRef: 'mode=local-dry-run;recordDir=runs',
+      workspace: {
+        repoRoot: '/tmp/jig',
+        head: 'abc',
+        changeSetHash: 'clean',
+      },
+    },
+    workspace: {
+      repoRoot: '/tmp/jig',
+      head: 'abc',
+      changeSetHash: 'clean',
+    },
+    posture: {
+      record: 'safe-for-owner-record',
+      export: 'redacted',
+    },
+    planSnapshotRef: 'plan.snapshot.json',
+    policySnapshotRef: 'policy.snapshot.json',
+    status: 'failure',
+    lifecycleState: 'stopped',
+    stopCause: 'unattended-park',
+    safeCheckpoint: 'after:STORY-2.parked',
+    unstartedStoryIds: [],
+    stories: {
+      'STORY-2': { storyId: 'STORY-2', state: 'parked', changedFiles: [], lastEventFamily: 'story.parked' },
+    },
+    changedFiles: [],
+    diagnostics: [],
+    notices: [],
+    eventCount: 4,
+  };
+
+  const resumePlan = buildResumePlan(projection, [
+    {
+      family: 'story.parked',
+      actor: 'runner',
+      storyId: 'STORY-2',
+      requestId: 'REQ-2',
+      requestKind: 'edit-files',
+    },
+    {
+      family: 'owner-decision.recorded',
+      actor: 'owner',
+      storyId: 'STORY-2',
+      outcome: 'hand-off',
+      requestId: 'REQ-2',
+      requestKind: 'edit-files',
+      handedOffTo: 'platform-owner',
+    },
+  ]);
+
+  assert.deepStrictEqual(resumePlan.parkedDecision, {
+    outcome: 'hand-off',
+    requestId: 'REQ-2',
+    requestKind: 'edit-files',
+    handedOffTo: 'platform-owner',
+  });
 });

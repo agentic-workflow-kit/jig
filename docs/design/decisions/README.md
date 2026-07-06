@@ -13,8 +13,8 @@ dispositions) and grows as new design decisions are made.
 plain-language one-liner for titles that lean on internal shorthand (`S-00n`, `INV-nnn`, `ISO-n`,
 `SURF-nnn`); it restates the ADR's own title/decision, it does not reinterpret it — read the ADR
 itself for the binding text. The **Date** column is read from each ADR's own trailing
-`- Date:` line; ADRs 0001–0025 carry one, ADRs 0026–0028 do not yet, so those cells are left
-blank rather than guessed. **Status** is uniformly `applied` across all 28 ADRs today — see
+`- Date:` line; ADRs 0001–0025 carry one, ADRs 0026–0031 do not yet, so those cells are left
+blank rather than guessed. **Status** is uniformly `applied` across all 31 ADRs today — see
 ["What 'applied' means here"](#what-applied-means-here) below before reading it as "shipped in
 code."
 
@@ -91,10 +91,11 @@ reference to real (Phase 5–8), and records tamper-evidence (Phase 9).
 | 0024 | Phase 8 real work-source integration: the seed-vs-candidate intake chokepoint, richer provenance, and the two-authorities crossing                                   | Real work-source importers must cross a single validated intake chokepoint; provenance is enriched without the source becoming a second scheduling authority                                 | 2026-07-04 | applied |
 | 0025 | Phase 9 records-integrity: sidecar tamper-evidence, active resume-blocked-missing-approval, the tamper-vs-changed-basis split, and the resume driver-binding fold-in | Adds sidecar tamper-evidence (an env-keyed HMAC) over run records and activates the resume re-approval gate for safety-relevant changes                                                      | 2026-07-04 | applied |
 
-## Posture decisions (0026–0028)
+## Posture decisions (0026–0031)
 
 Cross-cutting posture settled after the phase series: what a green conformance run does and does
-not prove, the packaging/SDK boundary, and the Codex transport seam.
+not prove, the packaging/SDK boundary, the Codex transport seam, guided setup, observation
+surfaces, and durable control records.
 
 | #    | Title                                                                   | Gloss                                                                                                                                                 | Date | Status  |
 | ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
@@ -103,10 +104,11 @@ not prove, the packaging/SDK boundary, and the Codex transport seam.
 | 0028 | Codex app-server transport and session-observable adapter seam          | Picks the owned stdio Codex app-server transport and widens the internal adapter to a session-observable seam behind the unchanged public `AgentPort` | —    | applied |
 | 0029 | Guided setup is a configuration operation                               | Places `jig setup` as a first-party configuration operation that emits validated artifacts, not as an operator-control verb                           | —    | applied |
 | 0030 | Observation surfaces are operator projections with owner notice records | Places `watch` and `ask-why` on the operator port and acknowledge/snooze as additive owner notice records                                             | —    | applied |
+| 0031 | Owner decisions and stops are durable control records                   | Places `decide` and `stop` on the operator port as additive control records consumed by existing replay/resume semantics                              | —    | applied |
 
 ## Open questions
 
-- **ADRs 0026–0030 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0030 do not.
-  Rather than invent a date, the Date column is left blank for those five. Whether to add a
-  `- Date:` line to 0026–0030 (and, if so, what date to use — authoring date vs. merge date) is a
+- **ADRs 0026–0031 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0031 do not.
+  Rather than invent a date, the Date column is left blank for those six. Whether to add a
+  `- Date:` line to 0026–0031 (and, if so, what date to use — authoring date vs. merge date) is a
   genuine decision about this log's own convention and is not resolved here.

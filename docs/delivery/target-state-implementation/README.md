@@ -5,7 +5,7 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P07 are merged and P08 is implemented in PR #67 pending merge (see the
+**Status: in progress.** P01–P08 are merged and P09 is implemented locally pending PR (see the
 [phase table](#phase-table)); the remaining phases are planned. Phase statuses live in the phase
 table below and in each phase doc's frontmatter.
 
@@ -62,11 +62,10 @@ Verified against the repo after Phase 02 workspace split:
   outside the production SDK dependency graph.
 - **CLI adapter** lives in `packages/jig-cli` (`packages/jig-cli/src/cli.ts`,
   `packages/jig-cli/bin/jig.js`) and exposes `setup`, `preview`, `run`, `inspect`, `resume`,
-  `watch`, `ask-why`, `notice-ack`, and `notice-snooze`.
+  `watch`, `ask-why`, `notice-ack`, `notice-snooze`, `decide`, and `stop`.
 - **Driving surfaces**: `packages/jig-sdk` exposes a programmatic SDK consumer surface
-  (`createJigSession` plus operator/recovery SDK types). Owner decisions are still an interactive
-  TTY prompt inside `jig run`. There is still no out-of-band decide, stop, export surface, or MCP
-  surface.
+  (`createJigSession` plus operator/recovery SDK types). Out-of-band `decide` and `stop` are now
+  durable owner/operator actions. There is still no export surface or MCP surface.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. EVRUN-full (real
@@ -282,8 +281,8 @@ release posture`")
 | P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
 | P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
 | P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
-| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | implemented (#67)           | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
-| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | planned                     | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
+| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
+| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | implemented                 | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
 | P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned                     | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned                     | P03, P04          | Sequential after both provider phases; benefits from P05.               |
 | P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                     | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |

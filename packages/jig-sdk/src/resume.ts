@@ -61,8 +61,28 @@ export class ResumeRefusal extends Error {
   }
 }
 
+type OwnerDecisionOutcome = 'approve' | 'reject' | 'override' | 'hand-off';
+type OwnerDecisionResult =
+  | Exclude<OwnerDecisionOutcome, 'hand-off'>
+  | { outcome: OwnerDecisionOutcome; handedOffTo?: string };
+type NormalizedOwnerDecision = { outcome: OwnerDecisionOutcome; handedOffTo?: string };
+
 export interface ResumeOwnerDecisionSource {
-  decide(request: unknown, story: unknown): Promise<'approve' | 'reject'>;
+  decide(request: unknown, story: unknown): Promise<OwnerDecisionResult>;
+}
+
+function normalizeOwnerDecision(decision: OwnerDecisionResult): NormalizedOwnerDecision {
+  if (typeof decision === 'string') {
+    return { outcome: decision };
+  }
+  if (decision.outcome === 'hand-off' && (!decision.handedOffTo || decision.handedOffTo.trim() === '')) {
+    return { outcome: 'reject' };
+  }
+  const handedOffTo = decision.handedOffTo?.trim();
+  return {
+    outcome: decision.outcome,
+    ...(decision.outcome === 'hand-off' && handedOffTo ? { handedOffTo } : {}),
+  };
 }
 
 export interface ResumeRunOptions {
@@ -503,18 +523,30 @@ async function requireChangedBasisReapproval(
     id: projection.runId,
     title: 'Resume changed basis re-approval',
   };
-  const decision = await options.ownerDecisionSource.decide(request, story);
-  if (decision === 'reject') {
+  const decision = normalizeOwnerDecision(await options.ownerDecisionSource.decide(request, story));
+  recordSink.recordEvent({
+    family: 'owner-decision.recorded',
+    actor: 'owner',
+    storyId: story.id,
+    outcome: decision.outcome,
+    ...(decision.handedOffTo ? { handedOffTo: decision.handedOffTo } : {}),
+    requestId: request.id,
+    requestKind: request.kind,
+  });
+  if (decision.outcome === 'reject' || decision.outcome === 'hand-off') {
     recordSink.recordEvent({
       family: 'authorization.denied',
       requestId: request.id,
       requestKind: request.kind,
-      reason: 'resume-changed-basis-rejected',
-      basis: ['owner-rejection'],
+      reason: decision.outcome === 'hand-off' ? 'resume-changed-basis-handed-off' : 'resume-changed-basis-rejected',
+      basis: [decision.outcome === 'hand-off' ? 'owner-hand-off' : 'owner-rejection'],
+      ...(decision.handedOffTo ? { handedOffTo: decision.handedOffTo } : {}),
     });
     throw new ResumeRefusal(
       'resume-blocked-missing-approval',
-      `resume-blocked-missing-approval: ${continuity.message}; owner rejected resume`,
+      `resume-blocked-missing-approval: ${continuity.message}; owner ${
+        decision.outcome === 'hand-off' ? 'handed off' : 'rejected'
+      } resume`,
     );
   }
 
@@ -523,7 +555,7 @@ async function requireChangedBasisReapproval(
     requestId: request.id,
     requestKind: request.kind,
     reason: 'resume-changed-basis-approved',
-    basis: ['owner-approval'],
+    basis: [decision.outcome === 'override' ? 'owner-override' : 'owner-approval'],
   });
 }
 
@@ -554,6 +586,34 @@ function findParkedRequest(events: RunEvent[], parkedStoryId: string | null): Re
     requestId: typeof parkedEvent.requestId === 'string' ? parkedEvent.requestId : undefined,
     requestKind: typeof parkedEvent.requestKind === 'string' ? parkedEvent.requestKind : undefined,
   };
+}
+
+function findParkedDecision(events: RunEvent[], parkedStoryId: string | null): ResumePlan['parkedDecision'] {
+  if (!parkedStoryId) {
+    return undefined;
+  }
+
+  let decision: ResumePlan['parkedDecision'];
+  for (const event of events) {
+    if (event.family !== 'owner-decision.recorded' || event.storyId !== parkedStoryId) {
+      continue;
+    }
+    if (
+      event.outcome !== 'approve' &&
+      event.outcome !== 'reject' &&
+      event.outcome !== 'override' &&
+      event.outcome !== 'hand-off'
+    ) {
+      continue;
+    }
+    decision = {
+      outcome: event.outcome,
+      requestId: typeof event.requestId === 'string' ? event.requestId : undefined,
+      requestKind: typeof event.requestKind === 'string' ? event.requestKind : undefined,
+      handedOffTo: typeof event.handedOffTo === 'string' ? event.handedOffTo : undefined,
+    };
+  }
+  return decision;
 }
 
 const REAL_LANDING_FAMILIES = new Set(['runner-action.pushed', 'runner-action.opened-pr', 'runner-action.merged']);
@@ -658,6 +718,7 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
   }
 
   const parkedStoryId = parkedStoryIdFromCheckpoint(projection.safeCheckpoint);
+  const parkedDecision = findParkedDecision(events, parkedStoryId);
 
   return {
     runId: projection.runId,
@@ -670,6 +731,7 @@ export function buildResumePlan(projection: RunProjection, events: RunEvent[]): 
     parkedStoryId,
     unstartedStoryIds: projection.unstartedStoryIds,
     parkedRequest: findParkedRequest(events, parkedStoryId),
+    ...(parkedDecision ? { parkedDecision } : {}),
   };
 }
 
@@ -699,12 +761,25 @@ class ResumeRecordSink implements RecordSink {
 
   recordEvent(event: Pick<RunEvent, 'family'> & Partial<RunEvent>): void {
     const redactedEvent = redactValue(event, this.redaction) as Pick<RunEvent, 'family'> & Partial<RunEvent>;
-    const timestampedEvent: RunEvent = { ...redactedEvent, actor: 'runner', timestamp: new Date().toISOString() };
+    const timestampedEvent: RunEvent = {
+      ...redactedEvent,
+      actor: redactedEvent.actor ?? 'runner',
+      timestamp: new Date().toISOString(),
+    };
     this.events.push(timestampedEvent);
     appendFileSync(join(this.runDir, 'events.jsonl'), `${JSON.stringify(timestampedEvent)}\n`);
     if (this.integrityEnabled) {
       writeIntegritySidecar(this.runDir);
     }
+  }
+
+  readEvents(): RunEvent[] {
+    const eventsPath = join(this.runDir, 'events.jsonl');
+    return readFileSync(eventsPath, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .map((line) => JSON.parse(line) as RunEvent);
   }
 
   async finalize(status: RunStatus): Promise<void> {
