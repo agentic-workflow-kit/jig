@@ -345,12 +345,14 @@ boundary enforcement from P02 on, docs checks, and the definition of "delivered"
 Per the escalation rule (product owns what/why; design reconciles to product; delivery names
 conflicts rather than resolving them):
 
-- **`MERGE-5` is partially proven; real-effect rerun is still owed.** The product guarantees
-  blocked-PR surfacing. Surfacing is now reachable from normal runner wiring, and the PR-creation
-  and comment legs were smoke-proven (`#64`). The commit-status write/read leg failed with an
-  HTTP 403, and held-merge posture was never observed against a protected target — the
-  EVRUN-partial record explicitly does not claim `MERGE-5` end to end. A real-effect rerun remains
-  required before the claim is fully proven; see the review record
+- **`MERGE-5` is partially proven; block-surfacing real-effect evidence is still owed.** The
+  product guarantees blocked-PR surfacing. Surfacing is now reachable from normal runner wiring,
+  and the success-path real Forge `open-pr` smoke was rerun on the current checkout
+  (`docs/design/evidence/2026-07-06-p05-real-forge-smoke-rerun.md`). The commit-status/comment
+  block-surfacing leg remains unit-proven, the earlier commit-status write/read attempt failed
+  with an HTTP 403, and held-merge posture was never observed against a protected target — the
+  EVRUN-partial-style smoke records explicitly do not claim `MERGE-5` end to end. Additional
+  real-effect proof remains required before the claim is fully proven; see the review record
   `docs/archive/reviews/2026-07-06-p04-p12-target-state-review.md` for the observed failure
   detail.
 - **GUARD-2 pause shape is an open design question** (distinct sub-state vs. reusing `parked`,

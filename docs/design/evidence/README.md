@@ -27,6 +27,7 @@ guarantee, invariant, or decision IDs the evidence supports.
 | 2026-07-04 | [N1A-P11/P12 resume and durability](./2026-07-04-n1a-p11-p12-resume-durability.md)                                          | Persistent thread resume and durable app-server session-state evidence for N1b.                                                                                                        |
 | 2026-07-04 | [EVRUN partial real-provider smoke evidence](./2026-07-04-evrun-partial-smoke.md)                                           | Applied evidence for one `work-source -> forge -> records-integrity` smoke run against the disposable sandbox, with a scripted/injected agent leg and explicit EVRUN-full limitations. |
 | 2026-07-06 | [EVRUN-full capture attempt](./2026-07-06-evrun-full-capture-attempt.md)                                                    | P11 capture attempt showing successful narrow Codex app-server and real-host smokes, plus the exact missing-prerequisite blocker that keeps EVRUN-full unproven.                       |
+| 2026-07-06 | [P05 real Forge smoke rerun](./2026-07-06-p05-real-forge-smoke-rerun.md)                                                    | Current-checkout rerun of the real GitHub Issues -> GitHub Forge `open-pr` smoke against the disposable sandbox, with records integrity verified and explicit MERGE-5 limitations.     |
 
 ## N1a deferred probes
 

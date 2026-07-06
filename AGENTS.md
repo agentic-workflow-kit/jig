@@ -46,7 +46,9 @@ or makes a public SDK/provider/MCP stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
 at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
 held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance —
-held-merge and commit-status legs are unit-proven, with real-effect evidence pending a rerun.
+the success-path real Forge `open-pr` smoke has been rerun on the current checkout, while
+held-merge and commit-status/comment block-surfacing legs remain unit-proven with real-effect
+evidence still owed.
 Strong no-phone-home evidence remains future work. EVRUN-partial is recorded; P11 also records a
 blocked EVRUN-full capture attempt where the narrow Codex app-server and real-host smokes passed
 outside the Codex sandbox, but the combined real GitHub path could not run without sandbox
