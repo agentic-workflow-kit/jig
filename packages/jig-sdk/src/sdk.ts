@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ComposeRunPortsOptions, composeReferenceRun } from './bootstrap.js';
+import { type ExportRunInput, type ExportRunResult, exportRun } from './export.js';
 import { createInMemoryStoryWorkspaceIsolation, LocalHarness } from './harness.js';
 import { intakeCandidates } from './intake.js';
 import {
@@ -122,6 +123,8 @@ export interface StopRunResult {
   reason?: string;
 }
 
+export type { ExportRunInput, ExportRunResult };
+
 export interface ProjectionInspectionResult {
   kind: 'projection';
   runDir: string;
@@ -157,6 +160,7 @@ export interface JigOperatorControlPort {
   snoozeNotice(input: SnoozeNoticeInput): Promise<NoticeActionResult>;
   decide(input: DecideRunInput): Promise<DecideRunResult>;
   stop(input: StopRunInput): Promise<StopRunResult>;
+  export(input: ExportRunInput): Promise<ExportRunResult>;
 }
 
 export interface JigRecoverySurface {
@@ -640,6 +644,8 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
         }
         return appendStopRefusal(input.runDir, 'no-safe-stop-checkpoint');
       },
+
+      export: async (input): Promise<ExportRunResult> => exportRun(input),
     },
 
     recovery: {

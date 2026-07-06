@@ -4,6 +4,7 @@ import {
   createJigSession,
   createSetupArtifacts,
   type DecideRunResult,
+  type ExportRunResult,
   InspectRunError,
   type IntegrityVerification,
   loadConfig,
@@ -46,6 +47,8 @@ export async function run(): Promise<void> {
     await handleDecide(args.slice(1));
   } else if (command === 'stop') {
     await handleStop(args.slice(1));
+  } else if (command === 'export') {
+    await handleExport(args.slice(1));
   } else if (command === 'resume') {
     await handleResume(args.slice(1));
   } else {
@@ -70,6 +73,7 @@ function printUsage(): void {
     '  jig decide <run-directory> --outcome <approve|reject|override|hand-off> [--story <story-id>] [--reason <text>] [--to <owner>]',
   );
   console.error('  jig stop <run-directory> [--reason <text>]');
+  console.error('  jig export <run-directory> [--output-dir <directory>]');
   console.error(
     '  jig resume <run-directory> --scripted-output <output> [--config <config>] [--policy <policy>] [--plan <plan>]',
   );
@@ -409,6 +413,28 @@ async function handleStop(args: string[]): Promise<void> {
   }
 }
 
+async function handleExport(args: string[]): Promise<void> {
+  const runDir = args[0];
+  if (!runDir) {
+    printUsage();
+    process.exit(1);
+  }
+
+  try {
+    const session = createJigSession();
+    renderExport(
+      await session.operator.export({
+        runDir,
+        ...(getArg(args, '--output-dir') ? { outputDir: getArg(args, '--output-dir') as string } : {}),
+      }),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
+}
+
 function renderWatch(watch: WatchProjection): void {
   console.log('\n--- Run Watch ---');
   console.log(`Run ID: ${watch.runId}`);
@@ -440,6 +466,17 @@ function renderStop(result: StopRunResult): void {
   if (result.checkpoint) console.log(`Checkpoint: ${result.checkpoint}`);
   if (result.reason) console.log(`Reason: ${result.reason}`);
   console.log('----------------\n');
+}
+
+function renderExport(result: ExportRunResult): void {
+  console.log('\n--- Run Export ---');
+  console.log(`Records Directory: ${result.runDir}`);
+  console.log(`Status: ${result.status}`);
+  console.log(`Audit Event: ${result.auditEventPath}`);
+  if (result.artifactPath) console.log(`Artifact: ${result.artifactPath}`);
+  if (result.artifactSha256) console.log(`SHA-256: ${result.artifactSha256}`);
+  if (result.reason) console.log(`Reason: ${result.reason}`);
+  console.log('------------------\n');
 }
 
 function renderWatchGroup(label: string, stories: WatchProjection['groups']['done']): void {

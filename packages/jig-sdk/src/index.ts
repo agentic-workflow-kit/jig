@@ -37,6 +37,8 @@ export {
   createJigSession,
   type DecideRunInput,
   type DecideRunResult,
+  type ExportRunInput,
+  type ExportRunResult,
   InspectRunError,
   type InspectRunInput,
   type InspectRunResult,

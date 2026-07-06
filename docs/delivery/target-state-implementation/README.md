@@ -5,7 +5,7 @@ status: in progress
 
 # Target-state implementation — delivery track
 
-**Status: in progress.** P01–P08 are merged and P09 is open as PR #68 (see the
+**Status: in progress.** P01–P09 are merged and P10 is implemented locally pending PR (see the
 [phase table](#phase-table)); the remaining phases are planned. Phase statuses live in the phase
 table below and in each phase doc's frontmatter.
 
@@ -62,10 +62,11 @@ Verified against the repo after Phase 02 workspace split:
   outside the production SDK dependency graph.
 - **CLI adapter** lives in `packages/jig-cli` (`packages/jig-cli/src/cli.ts`,
   `packages/jig-cli/bin/jig.js`) and exposes `setup`, `preview`, `run`, `inspect`, `resume`,
-  `watch`, `ask-why`, `notice-ack`, `notice-snooze`, `decide`, and `stop`.
+  `watch`, `ask-why`, `notice-ack`, `notice-snooze`, `decide`, `stop`, and `export`.
 - **Driving surfaces**: `packages/jig-sdk` exposes a programmatic SDK consumer surface
   (`createJigSession` plus operator/recovery SDK types). Out-of-band `decide` and `stop` are now
-  durable owner/operator actions. There is still no export surface or MCP surface.
+  durable owner/operator actions, and `export` produces local write-once audit artifacts for
+  terminal runs. There is still no MCP surface.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. EVRUN-full (real
@@ -282,8 +283,8 @@ release posture`")
 | P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
 | P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
 | P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
-| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | PR #68                      | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
-| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | planned                     | P01               | Parallel with P03–P09.                                                  |
+| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
+| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | implemented                 | P01               | Parallel with P03–P09.                                                  |
 | P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | planned                     | P03, P04          | Sequential after both provider phases; benefits from P05.               |
 | P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                     | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
 | P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                     | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
@@ -344,15 +345,14 @@ conflicts rather than resolving them):
 - **Evidence-gate-failure modeling** is flagged in
   [`orchestration.md`](../../design/core/orchestration.md) as "a modeling decision, not a
   source-settled rule". P08's notice vocabulary must not silently harden it.
-- **Export encoding and replay-drift handling** are deferred in
-  [`records.md`](../../design/core/records.md); P10 routes them to the records design owner
-  before implementing.
-- **Owner-facing setup, notices, and export placement are not settled as driving verbs.** The
+- **Export encoding and replay-drift handling** are settled by
+  [ADR 0032](../../design/decisions/0032-export-audit-records.md): local JSON artifacts,
+  export-audit sidecar events outside finalized run logs, and fail-closed denial on drift.
+- **Owner-facing setup, notices, and export placement are not all settled as driving verbs.** The
   product wants guided setup, notice acknowledge/snooze, and export surfaces, but the active
   [driving contract](../../design/contracts/driving.md) currently names only start, preview,
-  watch, inspect, ask-why, decide, and stop. P07, P08, P10, and P12 must route placement to the
-  driving/records owners before treating setup, acknowledge/snooze, or export as
-  operator-control port verbs.
+  watch, inspect, ask-why, decide, and stop. P07, P08, and P10 have routed their placements;
+  P12 must do the same before adding MCP.
 - **Resume placement is also unsettled at the driving boundary.** The shipped CLI has
   `jig resume` and the SDK/package ADR expects a programmatic resume surface, but the active
   driving contract does not include resume in the deliberate action set. P01 and P12 must route

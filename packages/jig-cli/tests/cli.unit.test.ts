@@ -1673,6 +1673,42 @@ test('run(): P08 observation commands surface operator errors', async () => {
   assert.match(erroredLines(), /Invalid --until timestamp/);
 });
 
+test('P10-AC-1/4: export renders a write-once artifact and audit event', async () => {
+  const runDir = join(workDir, 'export-run-dir');
+  const outputDir = join(workDir, 'custom-exports');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(stoppedProjectionEvents()));
+
+  setArgv('export', runDir, '--output-dir', outputDir);
+  await run();
+  expect(exitSpy).not.toHaveBeenCalled();
+
+  const output = loggedLines();
+  assert.match(output, /--- Run Export ---/);
+  assert.match(output, /Status: exported/);
+  assert.match(output, /Audit Event:/);
+  assert.match(output, /Artifact:/);
+  assert.match(output, /SHA-256:/);
+
+  const artifacts = readdirSync(outputDir).filter((entry) => entry.endsWith('.json') && entry !== 'export-audit.jsonl');
+  assert.strictEqual(artifacts.length, 1);
+  const artifact = JSON.parse(readFileSync(join(outputDir, artifacts[0] as string), 'utf8')) as {
+    format: string;
+    manifest: { lifecycleState: string; status: string };
+  };
+  assert.strictEqual(artifact.format, 'jig.audit-export.v0');
+  assert.strictEqual(artifact.manifest.lifecycleState, 'stopped');
+  assert.strictEqual(artifact.manifest.status, 'failure');
+  assert.match(readFileSync(join(outputDir, 'export-audit.jsonl'), 'utf8'), /"family":"export\.prepared"/);
+});
+
+test('run(): export validates required arguments', async () => {
+  setArgv('export');
+  await expect(run()).rejects.toBeInstanceOf(ProcessExitSentinel);
+  expect(exitSpy).toHaveBeenCalledWith(1);
+  assert.match(erroredLines(), /Usage:/);
+});
+
 test('P09-AC-1/2: decide appends a durable owner decision and renders the result', async () => {
   const runDir = join(workDir, 'decide-run-dir');
   mkdirSync(runDir, { recursive: true });

@@ -22,7 +22,8 @@ Jig is early source-checkout tooling. The repo is a private pnpm workspace shell
 ecosystem promise.
 
 The current CLI surface is `jig setup`, `jig preview`, `jig run`, `jig inspect`, `jig resume`,
-`jig watch`, `jig ask-why`, `jig notice-ack`, `jig notice-snooze`, `jig decide`, and `jig stop`.
+`jig watch`, `jig ask-why`, `jig notice-ack`, `jig notice-snooze`, `jig decide`, `jig stop`, and
+`jig export`.
 Launch binds the track policy plus any configured work profile and repo-policy floors, snapshots
 them into the run record, and reconstructs the effective floor-merged policy basis on resume. The
 fixture-backed commands below are the supported local way to exercise the repo from a fresh
@@ -94,6 +95,7 @@ node packages/jig-cli/bin/jig.js notice-snooze runs/<run-directory-from-the-outp
   --until 2026-07-03T12:00:00.000Z
 node packages/jig-cli/bin/jig.js decide runs/<run-directory-from-the-output> --outcome approve
 node packages/jig-cli/bin/jig.js stop runs/<run-directory-from-the-output> --reason owner-requested-pause
+node packages/jig-cli/bin/jig.js export runs/<run-directory-from-the-output>
 node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
 ```
@@ -101,9 +103,10 @@ node packages/jig-cli/bin/jig.js resume runs/<run-directory-from-the-output> \
 `jig run` validates the plan at the intake boundary, binds config and policy together with any
 configured work profile and repo-policy floors, adjudicates worker requests through the local
 authorization fence, executes eligible stories, and writes `run.json` plus append-only
-`events.jsonl`. `jig inspect`, `jig watch`, `jig ask-why`, and `jig resume` read those records
-rather than trusting terminal scrollback; notice acknowledge/snooze, out-of-band decisions, and
-operator stops append owner/operator events to the same record.
+`events.jsonl`. `jig inspect`, `jig watch`, `jig ask-why`, `jig resume`, and `jig export` read
+those records rather than trusting terminal scrollback; notice acknowledge/snooze, out-of-band
+decisions, and operator stops append owner/operator events to the same record. Export writes a
+local write-once audit artifact plus an export-audit sidecar, not a remote upload.
 
 ## What Jig Promises
 
