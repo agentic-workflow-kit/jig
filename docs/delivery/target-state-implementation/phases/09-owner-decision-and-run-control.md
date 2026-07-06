@@ -1,6 +1,6 @@
 ---
 title: "Phase 09 - Owner decision and run control: decide, stop"
-status: "pr #68"
+status: "merged (#68)"
 ---
 
 # Phase 09 - Owner decision and run control: decide, stop

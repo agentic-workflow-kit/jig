@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import { writeIntegritySidecar } from '../src/integrity.js';
 import { createJigSession, InspectRunError } from '../src/sdk.js';
@@ -159,6 +159,43 @@ function writeObservationRun(name = 'observation-run'): string {
   return runDir;
 }
 
+function writeCompletedRun(name = 'completed-run', events: RunEvent[] = []): string {
+  const runDir = join(workDir, name);
+  mkdirSync(runDir, { recursive: true });
+  const runEvents =
+    events.length > 0
+      ? events
+      : [
+          phase4LaunchHeader({ runId: 'run-sdk-export', planId: 'plan-sdk-session' }),
+          {
+            family: 'story.started',
+            actor: 'runner',
+            timestamp: '2026-07-03T09:00:01.000Z',
+            storyId: 'STORY-1',
+          },
+          {
+            family: 'evidence.modeled',
+            actor: 'runner',
+            timestamp: '2026-07-03T09:00:02.000Z',
+            storyId: 'STORY-1',
+            result: { status: 'passed' },
+          },
+          {
+            family: 'story.done',
+            actor: 'runner',
+            timestamp: '2026-07-03T09:00:03.000Z',
+            storyId: 'STORY-1',
+          },
+          {
+            family: 'run.completed',
+            actor: 'runner',
+            timestamp: '2026-07-03T09:00:04.000Z',
+          },
+        ];
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl(runEvents));
+  return runDir;
+}
+
 function initGitWorkspace(cwd: string): void {
   execFileSync('git', ['init'], { cwd, stdio: 'ignore' });
   execFileSync('git', ['config', 'user.name', 'jig test'], { cwd, stdio: 'ignore' });
@@ -266,6 +303,334 @@ test('start writes a successful run and inspect replays authoritative events', a
   assert.strictEqual(inspection.kind, 'projection');
   assert.strictEqual(inspection.projection.status, 'success');
   assert.strictEqual(inspection.projection.planId, 'plan-sdk-session');
+});
+
+test('P10-AC-1: export writes a redacted audit artifact for a completed run', async () => {
+  const runDir = writeCompletedRun();
+  const session = createJigSession();
+  const result = await session.operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  assert.ok(result.artifactSha256);
+  assert.ok(existsSync(result.artifactPath));
+  assert.ok(existsSync(result.auditEventPath));
+
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    format: string;
+    manifest: {
+      runId: string;
+      lifecycleState: string;
+      status: string;
+      exportedEventCount: number;
+      withheldEventCount: number;
+    };
+    events: Array<{ event: { family: string } }>;
+    withheldEvents: unknown[];
+    source: { integrity: { status: string } };
+  };
+  assert.strictEqual(artifact.format, 'jig.audit-export.v0');
+  assert.strictEqual(artifact.manifest.runId, 'run-sdk-export');
+  assert.strictEqual(artifact.manifest.lifecycleState, 'completed');
+  assert.strictEqual(artifact.manifest.status, 'success');
+  assert.strictEqual(artifact.manifest.exportedEventCount, 5);
+  assert.strictEqual(artifact.manifest.withheldEventCount, 0);
+  assert.deepStrictEqual(
+    artifact.events.map((entry) => entry.event.family),
+    ['run.started', 'story.started', 'evidence.modeled', 'story.done', 'run.completed'],
+  );
+  assert.deepStrictEqual(artifact.withheldEvents, []);
+  assert.strictEqual(artifact.source.integrity.status, 'not-applicable');
+
+  const audit = readFileSync(result.auditEventPath, 'utf8');
+  assert.match(audit, /"family":"export\.prepared"/);
+  assert.match(audit, /"runId":"run-sdk-export"/);
+});
+
+test('P10-AC-4: re-export creates a new artifact without mutating the previous export', async () => {
+  const runDir = writeCompletedRun();
+  const session = createJigSession();
+  const first = await session.operator.export({ runDir });
+  assert.ok(first.artifactPath);
+  const firstContent = readFileSync(first.artifactPath, 'utf8');
+
+  const second = await session.operator.export({ runDir });
+  assert.strictEqual(second.status, 'exported');
+  assert.ok(second.artifactPath);
+  assert.notStrictEqual(second.artifactPath, first.artifactPath);
+  assert.strictEqual(readFileSync(first.artifactPath, 'utf8'), firstContent);
+});
+
+test('P10-AC-2: export visibly withholds events with unsupported export posture', async () => {
+  const runDir = writeCompletedRun('withheld-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-withheld', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+      posture: { record: 'safe-for-owner-record', export: 'owner-only' },
+    } as unknown as RunEvent,
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+    },
+  ]);
+  const result = await createJigSession().operator.export({ runDir });
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    manifest: { exportedEventCount: number; withheldEventCount: number };
+    withheldEvents: Array<{ line: number; family: string; reason: string }>;
+  };
+
+  assert.strictEqual(artifact.manifest.exportedEventCount, 3);
+  assert.strictEqual(artifact.manifest.withheldEventCount, 1);
+  assert.deepStrictEqual(artifact.withheldEvents, [
+    {
+      line: 2,
+      family: 'story.started',
+      reason: 'unsupported-export-posture:owner-only',
+    },
+  ]);
+});
+
+test('P10-AC-5: export refuses a live run and records an export denial audit event', async () => {
+  const runDir = join(workDir, 'live-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), stringifyJsonl([phase4LaunchHeader({ runId: 'run-sdk-live' })]));
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'refused');
+  assert.strictEqual(result.reason, 'run-not-finished:started');
+  assert.ok(!result.artifactPath);
+  assert.match(readFileSync(result.auditEventPath, 'utf8'), /"family":"export\.denied"/);
+});
+
+test('P10-AC-3: export refuses a tampered run when an integrity sidecar exists', async () => {
+  const runDir = writeCompletedRun('tampered-run', [
+    phase4LaunchHeader({
+      runId: 'run-sdk-tampered',
+      binding: {
+        policyRef: 'policy-sdk-session',
+        configRef: 'mode=local-dry-run;recordDir=runs',
+        workspace: captureWorkspaceFingerprint(workDir),
+        drivers: {
+          agent: 'scripted',
+          executionHost: 'reference',
+          forge: 'reference',
+          workSource: 'reference',
+        },
+      },
+    }),
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+    },
+  ]);
+  writeIntegritySidecar(runDir);
+  writeFileSync(join(runDir, 'events.jsonl'), `${readFileSync(join(runDir, 'events.jsonl'), 'utf8').trimEnd()}\n `);
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'refused');
+  assert.match(result.reason ?? '', /integrity-artifact-mismatch/);
+  assert.match(readFileSync(result.auditEventPath, 'utf8'), /"family":"export\.denied"/);
+});
+
+test('P10 coverage: export validates run directory inputs before writing audit events', async () => {
+  const session = createJigSession();
+  await assert.rejects(() => session.operator.export({ runDir: join(workDir, 'missing-run') }), /does not exist/);
+
+  const runDir = join(workDir, 'missing-events-run');
+  mkdirSync(runDir, { recursive: true });
+  await assert.rejects(() => session.operator.export({ runDir }), /Missing authoritative events\.jsonl/);
+});
+
+test('P10 coverage: export records projection drift when replay cannot reconstruct the run', async () => {
+  const runDir = join(workDir, 'projection-drift-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'events.jsonl'), `${JSON.stringify({ family: 'story.done', storyId: 'STORY-1' })}\n`);
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'refused');
+  assert.match(result.reason ?? '', /projection-drift/);
+  assert.match(readFileSync(result.auditEventPath, 'utf8'), /"family":"export\.denied"/);
+});
+
+test('P10 coverage: export ignores an unreadable run.json cache for reference runs', async () => {
+  const runDir = writeCompletedRun('bad-cache-run');
+  writeFileSync(join(runDir, 'run.json'), '{not-json');
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    source: { integrity: { status: string } };
+  };
+  assert.strictEqual(artifact.source.integrity.status, 'not-applicable');
+});
+
+test('P10 coverage: export visibly withholds missing and ambiguous event export posture', async () => {
+  const runDir = writeCompletedRun('ambiguous-posture-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-ambiguous', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+      posture: { record: 'safe-for-owner-record', export: 1 },
+    } as unknown as RunEvent,
+    {
+      family: 'evidence.modeled',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      apiKey: '',
+    } as unknown as RunEvent,
+    {
+      family: 'story.done',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:04.000Z',
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir });
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    withheldEvents: Array<{ line: number; family: string; reason: string }>;
+  };
+
+  assert.deepStrictEqual(artifact.withheldEvents, [
+    {
+      line: 2,
+      family: 'story.started',
+      reason: 'missing-export-posture',
+    },
+    {
+      line: 3,
+      family: 'evidence.modeled',
+      reason: 'redaction-export-posture-ambiguous: could not classify sensitive value "events[2].apiKey"',
+    },
+  ]);
+});
+
+test('P10 review: export redacts event-derived projection diagnostics', async () => {
+  const runDir = writeCompletedRun('projection-redaction-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-projection-redaction', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      reason: 'worker-reported-failure',
+      diagnostics: {
+        apiKey: 'secret-value',
+        error: 'failed with diagnostic',
+      } as never,
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-1',
+      unstarted: [],
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir });
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  const artifact = JSON.parse(readFileSync(result.artifactPath, 'utf8')) as {
+    projection: { stories: { 'STORY-1': { diagnostics: { apiKey?: string; error?: string } } } };
+    events: Array<{ event: { diagnostics?: { apiKey?: string; error?: string } } }>;
+  };
+
+  assert.strictEqual(artifact.projection.stories['STORY-1'].diagnostics.apiKey, '[REDACTED]');
+  assert.strictEqual(artifact.projection.stories['STORY-1'].diagnostics.error, 'failed with diagnostic');
+  const blockedEvent = artifact.events.find((entry) => entry.event.diagnostics);
+  assert.strictEqual(blockedEvent?.event.diagnostics?.apiKey, '[REDACTED]');
+});
+
+test('P10 review: export refuses when projection redaction is ambiguous', async () => {
+  const runDir = writeCompletedRun('projection-ambiguity-run', [
+    phase4LaunchHeader({ runId: 'run-sdk-projection-ambiguity', planId: 'plan-sdk-session' }),
+    {
+      family: 'story.started',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+      storyId: 'STORY-1',
+    },
+    {
+      family: 'story.blocked',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:02.000Z',
+      storyId: 'STORY-1',
+      reason: 'worker-reported-failure',
+      diagnostics: {
+        apiKey: '',
+      } as never,
+    },
+    {
+      family: 'run.stopped',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:03.000Z',
+      reason: 'work-item-blocked',
+      checkpoint: 'after:STORY-1',
+      unstarted: [],
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir });
+
+  assert.strictEqual(result.status, 'refused');
+  assert.match(result.reason ?? '', /projection\.stories\.STORY-1\.diagnostics\.apiKey/);
+  assert.match(readFileSync(result.auditEventPath, 'utf8'), /"family":"export\.denied"/);
+});
+
+test('P10 review: export sanitizes run ids before composing artifact paths', async () => {
+  const outputDir = join(workDir, 'path-safe-exports');
+  const runDir = writeCompletedRun('path-safe-run', [
+    phase4LaunchHeader({ runId: '../escaped', planId: 'plan-sdk-session' }),
+    {
+      family: 'run.completed',
+      actor: 'runner',
+      timestamp: '2026-07-03T09:00:01.000Z',
+    },
+  ]);
+
+  const result = await createJigSession().operator.export({ runDir, outputDir });
+
+  assert.strictEqual(result.status, 'exported');
+  assert.ok(result.artifactPath);
+  assert.strictEqual(dirname(result.artifactPath), outputDir);
+  assert.match(result.artifactPath, /_escaped-audit-export-/);
+  assert.ok(!existsSync(join(workDir, 'escaped')));
 });
 
 test('P07-AC-4: start runs declared workspace setup only when freshness check is stale', async () => {

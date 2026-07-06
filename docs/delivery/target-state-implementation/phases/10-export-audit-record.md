@@ -1,6 +1,6 @@
 ---
 title: "Phase 10 - Export: write-once audit record"
-status: planned
+status: "pr #69"
 ---
 
 # Phase 10 - Export: write-once audit record
@@ -71,6 +71,8 @@ guarantee-5 commitment with no implementation trace at all.
   decisions), [`design/domain/runtime-and-observation.md`](../../../design/domain/runtime-and-observation.md)
 - [Observability-records contract v0](../../../design/contracts/observability-records-contract-v0.md)
   (export file format listed as deferred)
+- [ADR 0032](../../../design/decisions/0032-export-audit-records.md) (settled P10 export
+  encoding, audit-event location, and drift handling)
 - Source: `src/records.ts`, `src/integrity.ts`, `src/redaction.ts`, `src/projection.ts`
 - Tests: records/integrity/redaction unit tests
 

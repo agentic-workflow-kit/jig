@@ -14,7 +14,7 @@ boundary.
 ## Owns
 
 - The inbound driving interface jig is operated through.
-- The deliberate driving actions: start, preview, watch, inspect, ask-why, decide, stop.
+- The deliberate driving actions: start, preview, watch, inspect, ask-why, decide, stop, export.
 - The one-command / one-control-plane-call / one-audit-event invariant.
 - Keeping the edge free of run logic — orchestration, eligibility, and authorization stay in
   core.
@@ -130,9 +130,9 @@ shipped public package promise.
 
 ## Driving actions at current altitude
 
-The driving action set is: start, preview, watch, inspect, ask-why, decide, and stop. This section
-stays at design altitude only. It names the deliberate actions the port carries without freezing
-exact method signatures or adapter-specific representation.
+The driving action set is: start, preview, watch, inspect, ask-why, decide, stop, and export. This
+section stays at design altitude only. It names the deliberate actions the port carries without
+freezing exact method signatures or adapter-specific representation.
 
 ## Invocation into cited core surfaces
 
@@ -199,6 +199,8 @@ available invariant number is `INV-019`.
   "You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
   software"); "Operator-initiated" (see "What Jig isn't (yet)"); "Product boundaries" for no public
   package/export/stability promise today.
+- ADR 0032 — export is an operator-control action that writes a local audit artifact and records
+  export audit events outside finalized run logs.
 - ADR 0027 — the `jig-sdk` package boundary is distribution/dependency structure, while this document's
   SDK adapter remains a thin driving realization.
 - `SEE-1` — full run visibility, surfaced through inspect/ask-why on the operator boundary.
