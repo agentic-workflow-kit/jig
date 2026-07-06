@@ -250,33 +250,22 @@ function appendOwnerEvent(runDir: string, event: Record<string, unknown>): void 
   }
 }
 
-function parkedStoryIdFromCheckpoint(checkpoint: string | undefined): string | null {
-  if (!checkpoint?.startsWith('after:') || !checkpoint.endsWith('.parked')) {
-    return null;
-  }
-  return checkpoint.slice('after:'.length, -'.parked'.length);
-}
-
-function findLatestParkedRequest(eventsJsonl: string, storyId: string): { requestId?: string; requestKind?: string } {
-  let request: { requestId?: string; requestKind?: string } = {};
-  for (const parsed of parseEventsJsonl(eventsJsonl)) {
-    const event = parsed.event;
-    if (event.family !== 'story.parked' || event.storyId !== storyId) {
-      continue;
-    }
-    request = {
-      requestId: typeof event.requestId === 'string' ? event.requestId : undefined,
-      requestKind: typeof event.requestKind === 'string' ? event.requestKind : undefined,
-    };
-  }
-  return request;
-}
-
 function latestOwnerDecision(eventsJsonl: string, storyId: string): OwnerDecisionOutcome | null {
+  // Scope the duplicate check to the story's current park: a decision consumed on an earlier
+  // park answers that earlier routed question only, so a re-parked story accepts a fresh decide.
+  let sawPark = false;
   let outcome: OwnerDecisionOutcome | null = null;
   for (const parsed of parseEventsJsonl(eventsJsonl)) {
     const event = parsed.event;
-    if (event.family !== 'owner-decision.recorded' || event.storyId !== storyId) {
+    if (event.storyId !== storyId) {
+      continue;
+    }
+    if (event.family === 'story.parked') {
+      sawPark = true;
+      outcome = null;
+      continue;
+    }
+    if (!sawPark || event.family !== 'owner-decision.recorded') {
       continue;
     }
     if (
@@ -602,14 +591,17 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
         const before = readProjectionInputs(input.runDir);
         assertOwnerAppendAllowed(input.runDir, before.eventsJsonl, 'owner decision');
         const projection = projectRunEvents(before);
-        const routedStoryId = parkedStoryIdFromCheckpoint(projection.safeCheckpoint);
-        if (projection.lifecycleState !== 'stopped' || !routedStoryId) {
+        // The projection's routed-decision surface names the routed parked story for both a
+        // stopped run (via the safe checkpoint) and a live run (a running harness consumes the
+        // recorded decision at its next safe boundary).
+        const routedDecision = projection.routedDecision;
+        if (!routedDecision) {
           return appendDecisionRefusal(input.runDir, input, 'no-routed-decision');
         }
-        if (input.storyId && input.storyId !== routedStoryId) {
+        if (input.storyId && input.storyId !== routedDecision.storyId) {
           return appendDecisionRefusal(input.runDir, input, 'decision-outside-routed-scope');
         }
-        const parkedStoryId = input.storyId ?? routedStoryId;
+        const parkedStoryId = input.storyId ?? routedDecision.storyId;
         if (projection.stories[parkedStoryId]?.state !== 'parked') {
           return appendDecisionRefusal(input.runDir, { ...input, storyId: parkedStoryId }, 'decision-not-parked');
         }
@@ -620,12 +612,12 @@ export function createJigSession(options: CreateJigSessionOptions = {}): JigSess
           return appendDecisionRefusal(input.runDir, { ...input, storyId: parkedStoryId }, 'missing-hand-off-target');
         }
 
-        const parkedRequest = findLatestParkedRequest(before.eventsJsonl, parkedStoryId);
         appendOwnerEvent(input.runDir, {
           family: 'owner-decision.recorded',
           storyId: parkedStoryId,
           outcome: input.outcome,
-          ...parkedRequest,
+          ...(routedDecision.requestId ? { requestId: routedDecision.requestId } : {}),
+          ...(routedDecision.requestKind ? { requestKind: routedDecision.requestKind } : {}),
           ...(input.reason ? { reason: input.reason } : {}),
           ...(input.outcome === 'hand-off' ? { handedOffTo: input.handedOffTo } : {}),
         });

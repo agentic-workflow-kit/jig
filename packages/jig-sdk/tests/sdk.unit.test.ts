@@ -1584,6 +1584,164 @@ test('P09-AC-3: operator decide records refusals when no routed decision exists'
   assert.strictEqual(result.reason, 'no-routed-decision');
 });
 
+// A live run: STORY-2 is parked on a routed request and no terminal run.stopped exists yet.
+function writeLiveParkedRun(name = 'live-parked-run'): string {
+  const runDir = join(workDir, name);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.done',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:02.000Z',
+        storyId: 'STORY-1',
+      },
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:03.000Z',
+        storyId: 'STORY-2',
+      },
+      {
+        family: 'authorization.routed',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:04.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+        requestKind: 'edit-files',
+        basis: ['fence-routed'],
+      },
+      {
+        family: 'story.parked',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:05.000Z',
+        storyId: 'STORY-2',
+        requestId: 'REQ-2',
+        reason: 'owner-decision-required',
+      },
+    ]),
+  );
+  return runDir;
+}
+
+test('P09-F2: decide routes a live parked run instead of refusing', async () => {
+  const session = createJigSession();
+  const runDir = writeLiveParkedRun();
+
+  const result = await session.operator.decide({ runDir, outcome: 'approve' });
+
+  assert.deepStrictEqual(result, {
+    runDir,
+    outcome: 'approve',
+    storyId: 'STORY-2',
+    reason: undefined,
+  });
+
+  const events = readFileSync(join(runDir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  const decision = events.find((event) => event.family === 'owner-decision.recorded');
+  assert.ok(decision);
+  assert.strictEqual(decision.actor, 'owner');
+  assert.strictEqual(decision.storyId, 'STORY-2');
+  assert.strictEqual(decision.outcome, 'approve');
+  assert.strictEqual(decision.requestId, 'REQ-2');
+  // The park event omits the request kind; the routed record supplies it so the out-of-band
+  // decision record matches the interactive record shape.
+  assert.strictEqual(decision.requestKind, 'edit-files');
+  assert.ok(!events.find((event) => event.family === 'owner-decision.refused'));
+});
+
+test('P09-F2: live decide records reject and hand-off outcomes with their targets', async () => {
+  const session = createJigSession();
+
+  const rejectRun = writeLiveParkedRun('live-reject-run');
+  const rejected = await session.operator.decide({ runDir: rejectRun, outcome: 'reject' });
+  assert.strictEqual(rejected.outcome, 'reject');
+  assert.strictEqual(rejected.storyId, 'STORY-2');
+
+  const handoffRun = writeLiveParkedRun('live-handoff-run');
+  const handedOff = await session.operator.decide({
+    runDir: handoffRun,
+    outcome: 'hand-off',
+    handedOffTo: 'platform-owner',
+  });
+  assert.strictEqual(handedOff.outcome, 'hand-off');
+  const events = readFileSync(join(handoffRun, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as RunEvent);
+  assert.ok(
+    events.find(
+      (event) =>
+        event.family === 'owner-decision.recorded' &&
+        event.outcome === 'hand-off' &&
+        event.handedOffTo === 'platform-owner',
+    ),
+  );
+});
+
+test('P09-F2: duplicate live decide refuses decision-already-recorded', async () => {
+  const session = createJigSession();
+  const runDir = writeLiveParkedRun('live-duplicate-run');
+
+  await session.operator.decide({ runDir, outcome: 'approve' });
+  const duplicate = await session.operator.decide({ runDir, outcome: 'reject' });
+
+  assert.strictEqual(duplicate.outcome, 'refused');
+  assert.strictEqual(duplicate.reason, 'decision-already-recorded');
+});
+
+test('P09-F2: live decide refuses out-of-scope stories and missing hand-off targets', async () => {
+  const session = createJigSession();
+
+  const outOfScopeRun = writeLiveParkedRun('live-out-of-scope-run');
+  const outOfScope = await session.operator.decide({
+    runDir: outOfScopeRun,
+    outcome: 'approve',
+    storyId: 'STORY-404',
+  });
+  assert.strictEqual(outOfScope.outcome, 'refused');
+  assert.strictEqual(outOfScope.reason, 'decision-outside-routed-scope');
+
+  const missingTargetRun = writeLiveParkedRun('live-missing-target-run');
+  const missingTarget = await session.operator.decide({ runDir: missingTargetRun, outcome: 'hand-off' });
+  assert.strictEqual(missingTarget.outcome, 'refused');
+  assert.strictEqual(missingTarget.reason, 'missing-hand-off-target');
+});
+
+test('P09-F2/AC-3: live decide against a run with no parked story still refuses no-routed-decision', async () => {
+  const session = createJigSession();
+  const runDir = join(workDir, 'live-unparked-run');
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, 'events.jsonl'),
+    stringifyJsonl([
+      phase4LaunchHeader(),
+      {
+        family: 'story.started',
+        actor: 'runner',
+        timestamp: '2026-07-03T09:00:01.000Z',
+        storyId: 'STORY-1',
+      },
+    ]),
+  );
+
+  const result = await session.operator.decide({ runDir, outcome: 'approve' });
+
+  assert.strictEqual(result.outcome, 'refused');
+  assert.strictEqual(result.reason, 'no-routed-decision');
+});
+
 test('P09-AC-1/2: operator decide extends records integrity sidecar when present', async () => {
   const session = createJigSession();
   const runDir = writeObservationRun('integrity-decision-run');

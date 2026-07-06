@@ -593,9 +593,30 @@ function findParkedDecision(events: RunEvent[], parkedStoryId: string | null): R
     return undefined;
   }
 
+  // Only a decision recorded for the story's latest park is pending. A decision that already
+  // produced an authorization consequence was consumed - for example live, at a running
+  // harness's safe boundary - and must not be re-applied.
+  let sawPark = false;
   let decision: ResumePlan['parkedDecision'];
   for (const event of events) {
-    if (event.family !== 'owner-decision.recorded' || event.storyId !== parkedStoryId) {
+    if (event.storyId !== parkedStoryId) {
+      continue;
+    }
+    if (event.family === 'story.parked') {
+      sawPark = true;
+      decision = undefined;
+      continue;
+    }
+    if (
+      decision &&
+      (event.family === 'authorization.granted' ||
+        event.family === 'authorization.denied' ||
+        event.family === 'authorization.routed')
+    ) {
+      decision = undefined;
+      continue;
+    }
+    if (!sawPark || event.family !== 'owner-decision.recorded') {
       continue;
     }
     if (
