@@ -1,0 +1,21 @@
+{
+  "name": "@agentic-workflow-kit/jig-mcp",
+  "version": "0.0.0",
+  "description": "Private Jig MCP adapter: thin tool surface over the Jig SDK operator-control port.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jig-mcp": "bin/jig-mcp.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "dependencies": {
+    "@agentic-workflow-kit/jig-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.2.1"
+  }
+}

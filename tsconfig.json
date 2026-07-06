@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/jig-sdk" },
     { "path": "./packages/jig-cli" },
+    { "path": "./packages/jig-mcp" },
     { "path": "./packages/jig-testkit" }
   ]
 }

@@ -40,8 +40,9 @@ configured work profile and
 repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
 ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
 `"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
-`@agentic-workflow-kit/jig-cli`, and `@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes
-`@agentic-workflow-kit/jig` or makes a public SDK/provider stability promise. The real
+`@agentic-workflow-kit/jig-cli`, `@agentic-workflow-kit/jig-mcp`, and
+`@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes `@agentic-workflow-kit/jig`
+or makes a public SDK/provider/MCP stability promise. The real
 execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
 at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
 held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance.
@@ -78,6 +79,7 @@ node packages/jig-cli/bin/jig.js stop <runs/run-dir-from-output> --reason owner-
 node packages/jig-cli/bin/jig.js export <runs/run-dir-from-output>
 node packages/jig-cli/bin/jig.js resume <runs/run-dir-from-output> \
   --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
+pnpm mcp                         # after pnpm build: private stdio MCP adapter
 ```
 
 `pnpm test` builds first (`tsc -b`, incremental) and then runs vitest with enforced 90%

@@ -38,7 +38,7 @@ be decided and then resumed/continued. `stop` similarly exists as a lifecycle st
   existing `stopped` state, with the record showing a clean stop (no half-recorded effects;
   in-flight irreversible actions complete or are interrupted per the agent seam's interrupt
   semantics), such that `resume` works afterward.
-- Extend the operator-control port with both actions; one action, one call, one audit event —
+- Extend the operator-control port with both actions; one action, one call, SDK-owned records —
   including refused decisions (deciding a non-parked story is a recorded refusal, not a crash).
 - Coordinate record vocabulary with P08 (shared doorbell/notice families).
 

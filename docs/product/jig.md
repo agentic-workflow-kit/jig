@@ -158,12 +158,12 @@ storage strategy, and delivery gates. Planning owns delivery-level acceptance cr
 sequencing. Product keeps the outcome-level commitments and the IDs in
 [the five guarantees](./guarantees.md).
 
-Jig exposes a stable programmatic surface for its first-party consumers — its CLI today, a
-future MCP surface next — so those consumers do their work through that surface instead of
-reaching into Jig internals. The product promise is the boundary and its stability posture:
-no public package and no external stability commitment today, and any future change to that
-posture is a deliberate, owner-visible decision rather than a quiet drift. How the boundary is
-drawn, packaged, and released is design's.
+Jig exposes a stable programmatic surface for its first-party consumers — its CLI, private MCP
+adapter, and SDK boundary — so those consumers do their work through that surface instead of reaching
+into Jig internals. The product promise is the boundary and its stability posture: no public package
+and no external stability commitment today, and any future change to that posture is a deliberate,
+owner-visible decision rather than a quiet drift. How the boundary is drawn, packaged, and released
+is design's.
 
 That same boundary is where provider replaceability lives. Bundled providers may ship with Jig,
 but they behave like replaceable providers at the boundary: they prove their capabilities,

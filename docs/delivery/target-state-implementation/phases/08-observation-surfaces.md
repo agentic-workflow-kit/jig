@@ -38,8 +38,8 @@ and that ask-why answers from the run's own record.
   assembled from recorded decisions, authorizations, evidence, and transitions (`SEE-1`),
   consumable without extra tooling (`SEE-4`).
 - Extend the operator-control port with `watch` and `ask-why` per the
-  one-action/one-call/one-audit invariant; keep all logic in projections/core, presentation at
-  the edge.
+  one-action/one-call/SDK-owned-records invariant; keep all logic in projections/core, presentation
+  at the edge.
 - Route acknowledge/snooze placement before implementation. The product requires durable notice
   attention state, but the active driving contract does not currently name acknowledge or snooze
   as driving actions; decide with the driving/records owners whether they are port verbs,

@@ -87,6 +87,8 @@ the boundary kinds:
 - [ADR 0027](../decisions/0027-packaging-sdk-boundary.md) settles the future internal package
   direction: `jig-sdk` owns the programmatic core/port/factory boundary, `jig-cli` is the terminal
   adapter, and `jig-testkit` owns conformance.
+- [ADR 0033](../decisions/0033-mcp-adapter-package.md) places MCP in a private `jig-mcp` adapter
+  package that depends on `jig-sdk`.
 - [ADR 0028](../decisions/0028-codex-app-server-transport.md) settles the first Codex Agent adapter
   transport as an owned stdio app-server process with an internal session-observable seam. The public
   provider boundary remains `AgentPort`; app-server protocol objects do not become Jig contracts.
@@ -96,10 +98,10 @@ the boundary kinds:
 - Jig owns the plan and records contracts as versioned seams: changing their shape is a breaking
   change for downstream consumers.
 - **Product-posture disclaimer, stated once here.** The current repo is a private workspace with
-  private `jig-sdk`, `jig-cli`, and `jig-testkit` packages. There is still no public provider API,
-  registry publication, manifest schema promise, or semver stability promise. Public-provider
-  publication and public stability promises remain outside this index. `providers.md` and
-  `driving.md` cross-reference this note rather than restating it.
+  private `jig-sdk`, `jig-cli`, `jig-mcp`, and `jig-testkit` packages. There is still no public
+  provider API, registry publication, manifest schema promise, MCP stability promise, or semver
+  stability promise. Public-provider publication and public stability promises remain outside this
+  index. `providers.md` and `driving.md` cross-reference this note rather than restating it.
 
 ## Reconciles to
 

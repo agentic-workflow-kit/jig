@@ -38,9 +38,10 @@ or improvise phase boundaries per PR.
 
 Verified against the repo after Phase 02 workspace split:
 
-- **Private workspace shell plus three private packages.** `@agentic-workflow-kit/jig-repo`
-  coordinates `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`, and
-  `@agentic-workflow-kit/jig-testkit`. The CLI entrypoint is `packages/jig-cli/bin/jig.js`.
+- **Private workspace shell plus four private packages.** `@agentic-workflow-kit/jig-repo`
+  coordinates `@agentic-workflow-kit/jig-sdk`, `@agentic-workflow-kit/jig-cli`,
+  `@agentic-workflow-kit/jig-mcp`, and `@agentic-workflow-kit/jig-testkit`. The CLI entrypoint is
+  `packages/jig-cli/bin/jig.js`; the MCP stdio entrypoint is `packages/jig-mcp/bin/jig-mcp.js`.
 - **Core lifecycle is implemented in `packages/jig-sdk`.** Plan intake
   (`packages/jig-sdk/src/plan-validator.ts`, `packages/jig-sdk/src/intake.ts` with a
   validated-candidate chokepoint), orchestration (`packages/jig-sdk/src/harness.ts`), fail-closed
@@ -66,7 +67,8 @@ Verified against the repo after Phase 02 workspace split:
 - **Driving surfaces**: `packages/jig-sdk` exposes a programmatic SDK consumer surface
   (`createJigSession` plus operator/recovery SDK types). Out-of-band `decide` and `stop` are now
   durable owner/operator actions, and `export` produces local write-once audit artifacts for
-  terminal runs. There is still no MCP surface.
+  terminal runs. `packages/jig-mcp` exposes the settled operator-control verbs as a private stdio
+  MCP adapter.
 - **Evidence**: EVRUN-partial is committed
   ([evidence index](../../design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. P11 captured a
@@ -81,7 +83,8 @@ Verified against the repo after Phase 02 workspace split:
   private coordination shell; no publish or stability promise is created.
 - **Driving** ([driving contract](../../design/contracts/driving.md)): CLI, MCP, and SDK
   adapters as thin realizations of one operator-control port carrying start, preview, watch,
-  inspect, ask-why, decide, and stop — one action, one control-plane call, one audit event.
+  inspect, ask-why, decide, and stop — one action, one control-plane call, SDK/operator-owned
+  records.
 - **Providers** ([providers contract](../../design/contracts/providers.md),
   [realization roadmap](../../design/contracts/provider-realization-roadmap.md)): a real Codex
   agent behind `AgentPort` over the owned stdio app-server (ADR 0028), an execution host with
@@ -275,22 +278,22 @@ release posture`")
 
 ## Phase table
 
-| ID  | Phase                                                                                      | Status                      | Hard dependencies | Parallelization                                                         |
-| --- | ------------------------------------------------------------------------------------------ | --------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| P01 | [SDK boundary and operator-control surface](./phases/01-sdk-boundary-and-operator-port.md) | merged (#55)                | —                 | First; everything else keys off this surface.                           |
-| P02 | [Package split: jig-sdk, jig-cli, jig-testkit](./phases/02-package-split-workspace.md)     | merged (#56, #58)           | P01               | Sole occupant of its slot — it moves every source file.                 |
-| P03 | [Codex app-server transport](./phases/03-codex-app-server-transport.md)                    | merged (#57, #58, #59, #60) | P01               | Parallel with P04–P10 after P02 (soft).                                 |
-| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
-| P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
-| P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
-| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                | P06               | Parallel with anything not touching config templates.                   |
-| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
-| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
-| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | merged (#69)                | P01               | Parallel with P03–P09.                                                  |
-| P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | PR #70 (blocked evidence)   | P03, P04          | Sequential after both provider phases; benefits from P05.               |
-| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | planned                     | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
-| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                     | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
-| P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned                     | All other phases  | Last; closes the track.                                                 |
+| ID  | Phase                                                                                      | Status                         | Hard dependencies | Parallelization                                                         |
+| --- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------- | ----------------------------------------------------------------------- |
+| P01 | [SDK boundary and operator-control surface](./phases/01-sdk-boundary-and-operator-port.md) | merged (#55)                   | —                 | First; everything else keys off this surface.                           |
+| P02 | [Package split: jig-sdk, jig-cli, jig-testkit](./phases/02-package-split-workspace.md)     | merged (#56, #58)              | P01               | Sole occupant of its slot — it moves every source file.                 |
+| P03 | [Codex app-server transport](./phases/03-codex-app-server-transport.md)                    | merged (#57, #58, #59, #60)    | P01               | Parallel with P04–P10 after P02 (soft).                                 |
+| P04 | [Execution-host containment and substrate](./phases/04-execution-host-containment.md)      | merged (#63)                   | —                 | Parallel with P03, P05–P10 after P02 (soft).                            |
+| P05 | [Forge and work-source completion](./phases/05-forge-and-work-source-completion.md)        | merged (#64)                   | —                 | Parallel with P03, P04, P06–P10 after P02 (soft).                       |
+| P06 | [Owner configuration model](./phases/06-owner-configuration-model.md)                      | merged (#65)                   | —                 | Parallel with P03–P05, P08–P10 after P02 (soft).                        |
+| P07 | [Guided setup](./phases/07-guided-setup.md)                                                | merged (#66)                   | P06               | Parallel with anything not touching config templates.                   |
+| P08 | [Watch, notices, ask-why](./phases/08-observation-surfaces.md)                             | merged (#67)                   | P01               | Parallel with P03–P06, P09, P10; coordinate record vocabulary with P09. |
+| P09 | [Decide and stop](./phases/09-owner-decision-and-run-control.md)                           | merged (#68)                   | P01               | Parallel with P03–P06, P08, P10; coordinate record vocabulary with P08. |
+| P10 | [Export: write-once audit record](./phases/10-export-audit-record.md)                      | merged (#69)                   | P01               | Parallel with P03–P09.                                                  |
+| P11 | [EVRUN-full evidence](./phases/11-evrun-full-evidence.md)                                  | merged (#70; blocked evidence) | P03, P04          | Sequential after both provider phases; benefits from P05.               |
+| P12 | [MCP driving adapter](./phases/12-mcp-adapter.md)                                          | implemented                    | P02               | Parallel with P11; soft dependency on P08/P09 for verb coverage.        |
+| P13 | [Contract v0 freeze readiness](./phases/13-contract-freeze-readiness.md)                   | planned                        | P05, P07–P12      | Blocked: also requires a contract-owner freeze decision.                |
+| P14 | [Target-state audit, docs, release posture](./phases/14-docs-and-release-readiness.md)     | planned                        | All other phases  | Last; closes the track.                                                 |
 
 ## What can run in parallel
 
@@ -350,19 +353,16 @@ conflicts rather than resolving them):
 - **Export encoding and replay-drift handling** are settled by
   [ADR 0032](../../design/decisions/0032-export-audit-records.md): local JSON artifacts,
   export-audit sidecar events outside finalized run logs, and fail-closed denial on drift.
-- **Owner-facing setup, notices, and export placement are not all settled as driving verbs.** The
-  product wants guided setup, notice acknowledge/snooze, and export surfaces, but the active
-  [driving contract](../../design/contracts/driving.md) currently names only start, preview,
-  watch, inspect, ask-why, decide, and stop. P07, P08, and P10 have routed their placements;
-  P12 must do the same before adding MCP.
+- **Owner-facing setup, notices, and export placement are settled for MCP.** ADR 0029 keeps setup
+  as configuration rather than an operator-control verb; ADR 0030 places notice acknowledge/snooze
+  as owner notice records; ADR 0032 places export on the operator port.
 - **Resume placement is also unsettled at the driving boundary.** The shipped CLI has
   `jig resume` and the SDK/package ADR expects a programmatic resume surface, but the active
   driving contract does not include resume in the deliberate action set. P01 and P12 must route
   whether resume is a driving action, recovery API, or CLI-only recovery surface before
   exposing it as an operator-control port verb.
-- **MCP adapter package placement** is not settled by ADR 0027 (its matrix has no MCP package;
-  the ADR only says CLI and MCP both call the SDK factory). P12 routes placement to a design
-  decision.
+- **MCP adapter package placement** is settled by ADR 0033: MCP lives in a private `jig-mcp`
+  adapter package that depends on `jig-sdk` and carries no publish or stability promise.
 - **ADR `applied` status does not mean implemented** — the
   [decision index](../../design/decisions/README.md) warns about this itself. This track's
   baseline was mapped from source and tests, not from ADR statuses.

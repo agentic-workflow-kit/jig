@@ -6,16 +6,16 @@ status: draft
 # Driving contracts — how consumers drive jig
 
 The driving boundary is the operator surface realized as CLI / MCP / SDK adapters: one command
-becomes one control-plane call and one audit event. The edge holds no run logic and imports no
-provider contracts — it only calls into [`../core/`](../core/README.md). "SDK adapter" here names an
-architectural edge realization; ADR 0027 separately settles the future internal `jig-sdk` package
-boundary.
+becomes one control-plane call, with durable records owned by the SDK/operator implementation for
+that action. The edge holds no run logic and imports no provider contracts — it only calls into
+[`../core/`](../core/README.md). "SDK adapter" here names an architectural edge realization; ADR
+0027 separately settles the future internal `jig-sdk` package boundary.
 
 ## Owns
 
 - The inbound driving interface jig is operated through.
 - The deliberate driving actions: start, preview, watch, inspect, ask-why, decide, stop, export.
-- The one-command / one-control-plane-call / one-audit-event invariant.
+- The one-command / one-control-plane-call / SDK-owned-records invariant.
 - Keeping the edge free of run logic — orchestration, eligibility, and authorization stay in
   core.
 
@@ -55,7 +55,7 @@ via MCP`")
   adapter("`**Operator-surface adapter**
 CLI / MCP / SDK`")
   onecall("`**One control-plane call**
-+ one audit event`")
++ SDK-owned records`")
   core("`**Jig-core**`")
 
   term --> adapter
@@ -78,7 +78,7 @@ CLI / MCP / SDK`")
 
 - The operator-control port contract and the deliberate driving-action vocabulary at the current
   altitude.
-- The one-command / one-control-plane-call / one-audit-event invariant.
+- The one-command / one-control-plane-call / SDK-owned-records invariant.
 - The meaning of the control-plane calls once they enter core.
 - The rule that orchestration, eligibility, authorization, and provider interaction remain out of
   the edge.
@@ -106,8 +106,8 @@ edge-owned behavior.
 The anti-corruption stance is different from the swappable provider seams. This edge is not where
 run logic lives and it is not a place to redefine provider capability, authorization, or lifecycle
 semantics. The edge translates operator intent into one control-plane call through the cited core
-surface and records one audit event for that action; it does not reach around the port into core or
-into provider contracts directly.
+surface and preserves the SDK/operator record behavior for that action; it does not reach around the
+port into core or into provider contracts directly.
 
 ## SDK package reconciliation
 
@@ -123,8 +123,8 @@ boundary that first-party consumers call. That does not move run logic into the 
   import provider or core internals.
 
 The product-posture disclaimer (no public package, export map, semver stability, or publishing
-promise today) is stated once, design-side, in [`README.md`](./README.md#notes); it is not
-restated here. The live implementation is now a private workspace with `jig-sdk`, `jig-cli`, and
+promise today) is stated once, design-side, in [`README.md`](./README.md#notes); it is not restated
+here. The live implementation is now a private workspace with `jig-sdk`, `jig-cli`, `jig-mcp`, and
 `jig-testkit`. This contract still describes the design boundary and dependency direction, not a
 shipped public package promise.
 
@@ -144,10 +144,12 @@ owner-facing control through the same operator boundary; it does not redesign or
 
 ## Audit-event posture
 
-- One operator action maps to one control-plane call and one audit event, including invalid input.
-- Audit posture belongs to the driving boundary even when the requested action does not proceed.
-- The edge contributes the operator-facing entry record, while the meaning and downstream effects of
-  the call remain core-owned.
+- One operator action maps to one control-plane call. Durable audit records remain owned by the
+  SDK/operator implementation for that action rather than by each adapter transport.
+- Audit posture belongs to the driving boundary even when the requested action does not proceed, but
+  CLI, MCP, and SDK adapters must not invent divergent transport-specific audit semantics.
+- The edge contributes the operator-facing invocation, while the meaning, record shape, and
+  downstream effects of the call remain core-owned.
 
 ## Edge discipline and contract posture
 
@@ -163,8 +165,9 @@ owner-facing control through the same operator boundary; it does not redesign or
 These are unnumbered candidates only. If a future consolidated ledger needs numbering, the next
 available invariant number is `INV-019`.
 
-- **One action, one call, one audit event.** The operator boundary preserves a single deliberate
-  driving act rather than fanning it into hidden multi-step control paths.
+- **One action, one call, SDK-owned records.** The operator boundary preserves a single deliberate
+  driving act rather than fanning it into hidden multi-step control paths or adapter-specific record
+  semantics.
 - **Edge holds no run logic.** Orchestration, eligibility, and authorization semantics remain in
   core.
 - **Edge imports no provider contracts.** Driving adapters do not couple directly to swappable
