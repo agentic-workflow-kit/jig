@@ -40,10 +40,11 @@ Current evidence proves a scoped real-provider path with a scripted agent leg
 real-host smokes pass outside the Codex sandbox, but the combined real GitHub path could not run
 without sandbox credentials and an integrity key. The current real GitHub Forge/GitHub Issues path
 also carries blocked-PR surfacing, held-merge replay safety, landing-path redaction, and
-per-candidate origin-bearing provenance — held-merge and commit-status legs are unit-proven, with
-real-effect evidence pending a rerun. `EVRUN-full`, remote execution, public package publication,
-and a full Codex-driven agent leg remain future work; strong/no-phone-home execution-host evidence
-remains in that later proof step.
+per-candidate origin-bearing provenance — the success-path real Forge `open-pr` smoke has been
+rerun on the current checkout, while held-merge and commit-status/comment block-surfacing legs
+remain unit-proven with real-effect evidence still owed. `EVRUN-full`, remote execution, public
+package publication, and a full Codex-driven agent leg remain future work; strong/no-phone-home
+execution-host evidence remains in that later proof step.
 
 ## Quick Start
 
