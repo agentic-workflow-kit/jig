@@ -27,3 +27,26 @@ test('P6-AC-3: an in-window real-clock attestation is fresh', () => {
 
   assert.strictEqual(freshness, 'fresh');
 });
+
+test('P6-AC-3: fixedClock refuses to construct from an unparsable timestamp', () => {
+  assert.throws(() => fixedClock('not-a-real-timestamp'), /Invalid fixed clock timestamp/);
+});
+
+test('P6-AC-3: omitting a clock falls back to the system clock and still evaluates freshness', () => {
+  const freshness = decideFreshness({
+    observedAt: new Date().toISOString(),
+    windowMs: 60_000,
+  });
+
+  assert.strictEqual(freshness, 'fresh');
+});
+
+test('P6-AC-3: a clock that reports an invalid current time yields missing freshness rather than throwing', () => {
+  const freshness = decideFreshness({
+    observedAt: '2026-07-03T10:00:00.000Z',
+    windowMs: 1_000,
+    clock: { now: () => new Date(Number.NaN) },
+  });
+
+  assert.strictEqual(freshness, 'missing');
+});
