@@ -111,6 +111,18 @@ no-phone-home among its unproven gaps.
 - Reviewer axes: is the proof exercised or derived; honesty of the strength category; failure
   tokens wired to policy consequence; no autonomy on report.
 
+### Post-merge notes
+
+- The negative-egress check originally shipped as a hardcoded `negativeEgressProbePassed: false`
+  with no mechanism behind it and no escalation recorded — exactly the "declared constant" shape
+  this phase exists to forbid. The remediation replaces the constant with an exercised, injectable
+  egress-attempt check: the confined probe child dials a routable non-loopback target before
+  teardown and records the observed outcome (`blocked`/`open`/`ambiguous`) in the probe result
+  and attestation; only an explicit local/policy denial counts as `blocked` for the TEST-NET
+  target. On the current macOS process-group (weak) host the honest observation remains
+  not-blocked, so `strong` stays unreachable — the deliverable is the exercised mechanism and
+  recorded observation, not an EVRUN-full real-effect proof.
+
 ## Out Of Scope
 
 - Remote execution hosts (product deferral).

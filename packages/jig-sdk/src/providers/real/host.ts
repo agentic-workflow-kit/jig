@@ -1,6 +1,10 @@
 import { type Clock, systemClock } from '../../clock.js';
 import type { CapabilityAttestation, ExecutionHostPort, HostAttestation, IsolationStrength } from '../../ports.js';
-import { type ApprovedSubstrateManifest, validateSubstrateRequest } from '../../substrate.js';
+import {
+  type ApprovedSubstrateManifest,
+  SubstrateAuthorizationError,
+  validateSubstrateRequest,
+} from '../../substrate.js';
 import {
   type ConfinementProbe,
   createMacosProcessGroupConfinementProbe,
@@ -42,8 +46,17 @@ function isolationStrengthRank(strength: IsolationStrength): number {
 export async function createRealExecutionHost(options: RealExecutionHostOptions): Promise<ExecutionHostPort> {
   const capability = options.capability ?? 'filesystem-edit';
   const runContext = options.runContext ?? 'local-real-host';
-  for (const request of options.probe.substrateRequests ?? []) {
-    if (options.substrateManifest) {
+  const probeSubstrateRequests = options.probe.substrateRequests ?? [];
+  if (probeSubstrateRequests.length > 0) {
+    // Fail closed: a probe that declares substrate requests without an approved manifest must
+    // refuse — silently skipping validation would let an unvetted request through unrecorded.
+    if (!options.substrateManifest) {
+      throw new SubstrateAuthorizationError(
+        probeSubstrateRequests[0],
+        `substrate-escalation: probe declared ${String(probeSubstrateRequests.length)} substrate request(s) but no approved substrate manifest was supplied`,
+      );
+    }
+    for (const request of probeSubstrateRequests) {
       validateSubstrateRequest(options.substrateManifest, request);
     }
   }
@@ -62,6 +75,7 @@ export async function createRealExecutionHost(options: RealExecutionHostOptions)
     provenIsolationStrength,
     provenBy: proof.positive && !overstated ? proof.provenBy : undefined,
     containmentMechanism: proof.containmentMechanism,
+    negativeEgressObservedOutcome: proof.negativeEgressObservedOutcome,
     failureToken: overstated ? 'isolation-strength-overstated' : proof.failureToken,
   };
 
@@ -81,6 +95,7 @@ export function createControlledStrongConfinementProbe(observedAt = new Date().t
       freshnessWindowMs: 60_000,
       terminationProvedEmpty: true,
       negativeEgressProbePassed: true,
+      negativeEgressObservedOutcome: 'blocked',
       containmentMechanism: 'process-group',
       commandBindingPassed: true,
       parentageProbePassed: true,
