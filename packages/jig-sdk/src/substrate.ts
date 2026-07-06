@@ -27,8 +27,8 @@ export interface ApprovedSubstrateManifest {
 export class SubstrateAuthorizationError extends Error {
   readonly request: SubstrateRequest;
 
-  constructor(request: SubstrateRequest) {
-    super(`substrate-escalation: ${request.kind} request is outside the approved manifest tuple`);
+  constructor(request: SubstrateRequest, message?: string) {
+    super(message ?? `substrate-escalation: ${request.kind} request is outside the approved manifest tuple`);
     this.name = 'SubstrateAuthorizationError';
     this.request = request;
   }

@@ -108,6 +108,7 @@ test('P6-AC-2: honest weak proof remains positive for a weak real-host posture',
         freshnessWindowMs: 1_000,
         terminationProvedEmpty: true,
         negativeEgressProbePassed: false,
+        negativeEgressObservedOutcome: 'ambiguous',
         containmentMechanism: 'process-group',
         commandBindingPassed: true,
         parentageProbePassed: true,
@@ -119,6 +120,7 @@ test('P6-AC-2: honest weak proof remains positive for a weak real-host posture',
   assert.strictEqual(host.describe().capabilityAttestations[0]?.positive, true);
   assert.strictEqual(host.describe().capabilityAttestations[0]?.reportedIsolationStrength, 'weak');
   assert.strictEqual(host.describe().capabilityAttestations[0]?.provenIsolationStrength, 'weak');
+  assert.strictEqual(host.describe().capabilityAttestations[0]?.negativeEgressObservedOutcome, 'ambiguous');
 });
 
 test('P04-AC-1: host defaults preserve run context, capability, and none proof reporting', async () => {
@@ -240,6 +242,41 @@ test('P04-AC-4: real host validates probe substrate requests against the manifes
       }),
     SubstrateAuthorizationError,
   );
+});
+
+test('F9: real host fails closed when a probe declares substrate requests without a manifest', async () => {
+  let probeExercised = false;
+  const declaredRequest = { kind: 'egress' as const, value: 'tcp:127.0.0.1:ephemeral' };
+
+  await assert.rejects(
+    () =>
+      createRealExecutionHost({
+        clock: fixedClock('2026-07-03T10:00:00.000Z'),
+        probe: {
+          substrateRequests: [declaredRequest],
+          run: async () => {
+            probeExercised = true;
+            return {
+              observedAt: '2026-07-03T10:00:00.000Z',
+              freshnessWindowMs: 1_000,
+              terminationProvedEmpty: true,
+              negativeEgressProbePassed: false,
+              containmentMechanism: 'process-group' as const,
+              commandBindingPassed: true,
+              parentageProbePassed: true,
+              provenIsolationStrength: 'weak' as const,
+            };
+          },
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof SubstrateAuthorizationError);
+      assert.match(error.message, /no approved substrate manifest was supplied/);
+      assert.deepStrictEqual(error.request, declaredRequest);
+      return true;
+    },
+  );
+  assert.strictEqual(probeExercised, false);
 });
 
 test('P6-AC-2: controlled strong confinement probe remains available for hermetic doubles', async () => {

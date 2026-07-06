@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { createServer } from 'node:net';
+import { createConnection, createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { type Clock, decideFreshness } from '../../clock.js';
 import type { CapabilityFreshness, HostFailureToken, IsolationStrength } from '../../ports.js';
@@ -8,14 +8,45 @@ import type { SubstrateRequest } from '../../substrate.js';
 
 export type ContainmentMechanism = 'process-group' | 'kernel-tree' | 'job-object';
 const LOOPBACK_EGRESS_REQUEST = 'loopback-tcp-connect';
+const NEGATIVE_EGRESS_REQUEST = 'negative-egress-tcp-connect';
 const PROBE_GRACE_PERIOD_MS = 250;
 const PROBE_FRESHNESS_WINDOW_MS = 60_000;
+
+// TEST-NET-3 (RFC 5737, 203.0.113.0/24) is reserved documentation address space: it is
+// routable-shaped (not loopback or link-local) but never assigned, so the dial attempt is a
+// genuine outbound egress exercise that can never reach or disturb a real service — the
+// no-phone-home discipline holds even when the real dialer runs in the smoke lane.
+const NEGATIVE_EGRESS_TARGET_HOST = '203.0.113.1';
+const NEGATIVE_EGRESS_TARGET_PORT = 443;
+const NEGATIVE_EGRESS_TIMEOUT_MS = 1_500;
+
+/**
+ * Observed outcome of the negative-egress dial attempt:
+ *
+ * - `blocked` — the local stack demonstrably denied the attempt by explicit local/policy
+ *   refusal (EPERM/EACCES) before any route or peer response. Only this outcome may count
+ *   toward a passed negative-egress probe.
+ * - `open` — the attempt demonstrably left the host: either the connection established, or a
+ *   peer/network response came back (ECONNREFUSED/ECONNRESET means a packet round-trip
+ *   happened, which proves egress was not blocked).
+ * - `ambiguous` — nothing conclusive was observed (timeout with no answer, or an unrecognized
+ *   error). On an open-egress host dialing TEST-NET-3 this is the common honest outcome: no
+ *   answer is indistinguishable from a silent block, so it must never count as `blocked`.
+ */
+export type NegativeEgressOutcome = 'blocked' | 'open' | 'ambiguous';
+
+export interface NegativeEgressAttemptOptions {
+  host: string;
+  port: number;
+  timeoutMs: number;
+}
 
 interface ChildProbePayload {
   observedAt: string;
   observedExecArgv: string[];
   parentPid: number;
   loopbackReachable: boolean;
+  negativeEgressObservedOutcome: NegativeEgressOutcome;
 }
 
 type ProbeStream = Pick<NodeJS.ReadableStream, 'on'>;
@@ -65,11 +96,36 @@ const PROBE_CHILD_SOURCE = [
   "  socket.once('error', () => finish(false));",
   '  socket.setTimeout(500, () => finish(false));',
   '});',
+  'const negativeEgressObservedOutcome = await new Promise((resolve) => {',
+  `  const socket = createConnection({ host: ${JSON.stringify(NEGATIVE_EGRESS_TARGET_HOST)}, port: ${String(NEGATIVE_EGRESS_TARGET_PORT)} });`,
+  '  let settled = false;',
+  '  const finish = (outcome) => {',
+  '    if (settled) return;',
+  '    settled = true;',
+  '    socket.destroy();',
+  '    resolve(outcome);',
+  '  };',
+  "  socket.once('connect', () => finish('open'));",
+  "  socket.once('error', (error) => {",
+  "    const code = error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : undefined;",
+  "    if (code === 'ECONNREFUSED' || code === 'ECONNRESET') {",
+  "      finish('open');",
+  '      return;',
+  '    }',
+  "    if (code === 'EPERM' || code === 'EACCES') {",
+  "      finish('blocked');",
+  '      return;',
+  '    }',
+  "    finish('ambiguous');",
+  '  });',
+  `  socket.setTimeout(${String(NEGATIVE_EGRESS_TIMEOUT_MS)}, () => finish('ambiguous'));`,
+  '});',
   'const payload = {',
   '  observedAt: new Date().toISOString(),',
   '  observedExecArgv: process.execArgv,',
   '  parentPid: process.ppid,',
   '  loopbackReachable,',
+  '  negativeEgressObservedOutcome,',
   '};',
   'await new Promise((resolve, reject) => {',
   "  process.stdout.write(JSON.stringify(payload) + '\\n', (error) => {",
@@ -88,6 +144,13 @@ export interface ConfinementProbeResult {
   freshnessWindowMs: number;
   terminationProvedEmpty: boolean;
   negativeEgressProbePassed: boolean;
+  /**
+   * The raw observed outcome of the negative-egress dial attempt, recorded alongside the
+   * derived pass/fail boolean so downstream evidence (attestations, the EVRUN-full
+   * no-phone-home leg) can cite what an exercised check actually observed instead of a
+   * constant. Absent only for probe doubles that do not exercise the check at all.
+   */
+  negativeEgressObservedOutcome?: NegativeEgressOutcome;
   containmentMechanism?: ContainmentMechanism;
   commandBindingPassed: boolean;
   parentageProbePassed: boolean;
@@ -101,6 +164,7 @@ export interface ConfinementProof {
   provenIsolationStrength?: IsolationStrength;
   provenBy?: 'exercised-confinement-proof';
   containmentMechanism?: ContainmentMechanism;
+  negativeEgressObservedOutcome?: NegativeEgressOutcome;
   failureToken?: HostFailureToken;
 }
 
@@ -128,6 +192,57 @@ function proofSupportsClaimedStrength(result: ConfinementProbeResult): boolean {
   }
 
   return result.provenIsolationStrength === 'weak' || result.provenIsolationStrength === 'none';
+}
+
+const BLOCKED_EGRESS_ERROR_CODES = new Set(['EPERM', 'EACCES']);
+const OPEN_EGRESS_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET']);
+
+export function classifyNegativeEgressDialError(error: unknown): NegativeEgressOutcome {
+  if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+    if (OPEN_EGRESS_ERROR_CODES.has(error.code)) {
+      return 'open';
+    }
+    if (BLOCKED_EGRESS_ERROR_CODES.has(error.code)) {
+      return 'blocked';
+    }
+  }
+
+  return 'ambiguous';
+}
+
+/**
+ * The real negative-egress dialer: attempts a TCP connect toward the configured target and
+ * classifies what was actually observed. The confinement probe child uses the same semantics;
+ * this helper exists so hermetic unit tests can exercise that classification with an injected
+ * `createConnection` double and without real network I/O.
+ */
+export async function attemptNegativeEgressDial(
+  options: NegativeEgressAttemptOptions,
+  createConnectionImpl: typeof createConnection = createConnection,
+): Promise<NegativeEgressOutcome> {
+  return await new Promise((resolve) => {
+    const socket = createConnectionImpl({ host: options.host, port: options.port });
+    let settled = false;
+    const finish = (outcome: NegativeEgressOutcome) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(outcome);
+    };
+    socket.once('connect', () => finish('open'));
+    socket.once('error', (error) => finish(classifyNegativeEgressDialError(error)));
+    socket.setTimeout(options.timeoutMs, () => finish('ambiguous'));
+  });
+}
+
+export function defaultNegativeEgressAttemptOptions(): NegativeEgressAttemptOptions {
+  return {
+    host: NEGATIVE_EGRESS_TARGET_HOST,
+    port: NEGATIVE_EGRESS_TARGET_PORT,
+    timeoutMs: NEGATIVE_EGRESS_TIMEOUT_MS,
+  };
 }
 
 function defaultConfinementRuntime(): ProcessGroupConfinementRuntime {
@@ -168,6 +283,7 @@ export function localProcessGroupProbeSubstrateRequests(execPath = process.execP
   return [
     { kind: 'argv', value: localProcessGroupProbeCommand(execPath) },
     { kind: 'egress', value: LOOPBACK_EGRESS_REQUEST },
+    { kind: 'egress', value: NEGATIVE_EGRESS_REQUEST },
   ];
 }
 
@@ -276,7 +392,8 @@ export function createMacosProcessGroupConfinementProbe(
           observedAt: payload.observedAt,
           freshnessWindowMs: PROBE_FRESHNESS_WINDOW_MS,
           terminationProvedEmpty,
-          negativeEgressProbePassed: false,
+          negativeEgressProbePassed: payload.negativeEgressObservedOutcome === 'blocked',
+          negativeEgressObservedOutcome: payload.negativeEgressObservedOutcome,
           containmentMechanism: 'process-group',
           commandBindingPassed,
           parentageProbePassed,
@@ -305,6 +422,7 @@ export async function exerciseConfinementProbe(probe: ConfinementProbe, clock: C
     provenIsolationStrength: result.provenIsolationStrength,
     provenBy: positive ? 'exercised-confinement-proof' : undefined,
     containmentMechanism: result.containmentMechanism,
+    negativeEgressObservedOutcome: result.negativeEgressObservedOutcome,
     failureToken: positive ? undefined : 'containment-unproven',
   };
 }

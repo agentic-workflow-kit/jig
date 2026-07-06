@@ -1,4 +1,4 @@
-import type { ContainmentMechanism } from './providers/real/confinement.js';
+import type { ContainmentMechanism, NegativeEgressOutcome } from './providers/real/confinement.js';
 import type { PlanInstance, RunEvent, Story, WorkerResult } from './types.js';
 
 export type IsolationStrength = 'none' | 'weak' | 'strong';
@@ -19,6 +19,11 @@ export interface CapabilityAttestation {
   provenIsolationStrength?: IsolationStrength;
   provenBy?: 'exercised-confinement-proof';
   containmentMechanism?: ContainmentMechanism;
+  /**
+   * Raw observed outcome of the probe's negative-egress dial attempt, when the probe exercised
+   * one — lets downstream evidence cite the observation, not just derived booleans.
+   */
+  negativeEgressObservedOutcome?: NegativeEgressOutcome;
   failureToken?: HostFailureToken;
 }
 
