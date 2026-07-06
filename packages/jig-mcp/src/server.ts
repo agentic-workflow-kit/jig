@@ -64,6 +64,16 @@ async function invokeTool(action: string, call: () => Promise<unknown>) {
   }
 }
 
+async function withoutConsoleLog<T>(call: () => Promise<T>): Promise<T> {
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    return await call();
+  } finally {
+    console.log = originalLog;
+  }
+}
+
 function registerOperatorTools(server: McpServer, operator: JigOperatorControlPort): void {
   server.registerTool(
     'jig_preview',
@@ -100,12 +110,14 @@ function registerOperatorTools(server: McpServer, operator: JigOperatorControlPo
     },
     async ({ planInstance, config, policy, scriptedOutput }) =>
       invokeTool('start', () =>
-        operator.start({
-          planInstance: asPlanInstance(planInstance),
-          config: asConfigDoc(config),
-          policy: asPolicyDoc(policy),
-          scriptedOutput,
-        }),
+        withoutConsoleLog(() =>
+          operator.start({
+            planInstance: asPlanInstance(planInstance),
+            config: asConfigDoc(config),
+            policy: asPolicyDoc(policy),
+            scriptedOutput,
+          }),
+        ),
       ),
   );
 

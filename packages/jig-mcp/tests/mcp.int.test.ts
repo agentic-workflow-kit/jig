@@ -311,14 +311,25 @@ test('P12-AC-2: in-process MCP client previews, starts, and inspects a fixture f
     assert.strictEqual(preview.ok, true);
     assert.strictEqual(preview.action, 'preview');
 
-    const start = await callTool(mcp.client, 'jig_start', {
-      planInstance,
-      config,
-      policy,
-      scriptedOutput: scriptedOutput(),
-    });
+    const consoleLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      consoleLines.push(args.map(String).join(' '));
+    };
+    let start: Awaited<ReturnType<typeof callTool>>;
+    try {
+      start = await callTool(mcp.client, 'jig_start', {
+        planInstance,
+        config,
+        policy,
+        scriptedOutput: scriptedOutput(),
+      });
+    } finally {
+      console.log = originalLog;
+    }
     assert.strictEqual(start.ok, true);
     assert.strictEqual(start.result, 'success');
+    assert.deepStrictEqual(consoleLines, []);
 
     const runDir = firstRunDir();
     assert.ok(existsSync(join(runDir, 'events.jsonl')));
