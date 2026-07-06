@@ -433,6 +433,21 @@ test('P12-AC-3: thin MCP tools call the matching operator methods without hidden
   }
 });
 
+test('P12-AC-3: an operator failure that throws a real Error surfaces its message, not a stringified wrapper', async () => {
+  const operator = stubOperator({
+    inspect: async () => {
+      throw new Error('inspect-real-error-failure');
+    },
+  });
+  const mcp = await connectMcp(operator);
+  try {
+    const failure = await callTool(mcp.client, 'jig_inspect', { runDir: 'run-a' });
+    assert.deepStrictEqual(failure, { ok: false, action: 'inspect', error: 'inspect-real-error-failure' });
+  } finally {
+    await mcp.close();
+  }
+});
+
 test('P12-AC-3: defaulted and optional inputs remain adapter-owned presentation only', async () => {
   const calls: unknown[] = [];
   const operator = stubOperator({

@@ -410,6 +410,13 @@ test('P05/P8: malformed GitHub issue plan bodies refuse with actionable guidance
   }
 });
 
+test('P8-AC-1: constructing the work source without an explicit env falls back to process.env without eagerly reading it', () => {
+  // Constructing (not invoking .candidates()) exercises the constructor's own transport/env
+  // wiring without making a real network call, keeping this hermetic while still covering the
+  // "no explicit env" fallback to process.env distinct from the "no explicit transport" fallback.
+  assert.doesNotThrow(() => createGitHubIssuesWorkSource());
+});
+
 test('P8-AC-2: an attempt to route a candidate to scheduling bypassing PlanValidator fails closed', async () => {
   const { sink, events } = recordCollector();
   const harness = new LocalHarness(

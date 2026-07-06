@@ -155,3 +155,48 @@ test('P06-AC-7: loadConfig refuses non-string track owner-configuration fields i
   assert.throws(() => loadConfig(workProfilePath), /config\.track\.workProfilePath/);
   assert.throws(() => loadConfig(repoPolicyFloorsPath), /config\.track\.repoPolicyFloorsPath/);
 });
+
+test('P06-AC-7: loadConfig pluralizes "fields" in the unknown-field message for the root, runner, and track blocks', () => {
+  const rootPath = writeTempJson('invalid-config-root-multi.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: {},
+    extraOne: true,
+    extraTwo: true,
+  });
+  const runnerPath = writeTempJson('invalid-runner-multi.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs', shellOne: 'zsh', shellTwo: 'bash' },
+    drivers: {},
+  });
+  const trackPath = writeTempJson('invalid-track-multi.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: {},
+    track: { id: 'TRACK', unexpectedOne: true, unexpectedTwo: true },
+  });
+
+  assert.throws(() => loadConfig(rootPath), /unknown root fields extraOne, extraTwo/);
+  assert.throws(() => loadConfig(runnerPath), /config\.runner: unknown fields shellOne, shellTwo/);
+  assert.throws(() => loadConfig(trackPath), /config\.track: unknown fields unexpectedOne, unexpectedTwo/);
+});
+
+test('P06-AC-7: loadConfig singularizes "field" in the unknown-field message for the drivers block', () => {
+  const configPath = writeTempJson('invalid-driver-single.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: { shell: 'zsh' },
+  });
+
+  assert.throws(() => loadConfig(configPath), /config\.drivers: unknown field shell(?!s)/);
+});
+
+test('P06-AC-7: loadConfig accepts a track with only an id and no owner-configuration artifact paths', () => {
+  const configPath = writeTempJson('track-id-only.json', {
+    runner: { mode: 'local-dry-run', recordDir: 'runs' },
+    drivers: {},
+    track: { id: 'TRACK-ID-ONLY' },
+  });
+
+  const config = loadConfig(configPath);
+
+  assert.strictEqual(config.track?.id, 'TRACK-ID-ONLY');
+  assert.strictEqual(config.track?.workProfile, undefined);
+  assert.strictEqual(config.track?.repoPolicyFloors, undefined);
+});
