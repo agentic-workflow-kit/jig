@@ -151,7 +151,7 @@ Jig's product promise depends on keeping these roles separate:
 | **Verifier/reviewer** | The independent acceptance lane: human, agent, or deterministic checker that assesses evidence, diff, or output and emits a verdict for Runner/policy to consume.                           |
 | **Fence**             | Runtime authorization: approves, denies, or routes worker requests before they execute.                                                                                                     |
 | **Doorbell**          | Owner escalation for ambiguous, risky, or unproven decisions; grants remain narrow and recorded.                                                                                            |
-| **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it after gates pass.   |
+| **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it under policy.       |
 | **Execution host**    | The environment containing the worker and proving the isolation/no-phone-home posture policy relies on.                                                                                     |
 | **Work source**       | Supplies candidate work and provenance, but never bypasses plan validation.                                                                                                                 |
 | **Records**           | Durable evidence trail for governed decisions, evidence, verdicts, stops, and outcomes.                                                                                                     |
@@ -162,9 +162,11 @@ forge provider performs deterministic external operations, and the owner owns ri
 
 ### Acceptance before landing
 
-Verification before push, PR, or merge is a configurable acceptance/review lane selected by the
-owner's policy and configuration before launch. At product altitude, that lane can be as simple or
-as strong as the policy requires:
+Verification before merge/landing is a configurable acceptance/review lane selected by the owner's
+policy and configuration before launch. Some review modes, especially ordinary code review, may
+require Runner to push a branch or open/update a PR so the review can happen or blocked work can be
+surfaced safely. Those forge operations are still runner-invoked and policy-governed, but they are
+not acceptance. At product altitude, the lane can be as simple or as strong as the policy requires:
 
 - a mechanical evidence check over recorded commands and outputs;
 - structured independent review of the diff and evidence;

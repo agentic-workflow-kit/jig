@@ -165,8 +165,9 @@ through the same declared authority and conformance proof at the boundary.
 
 A **Forge provider** is deterministic adapter capability behind the Forge seam. It performs external
 forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation
-only when the Runner invokes it after policy/evidence/acceptance gates pass. It is not another
-agent and does not decide what should happen.
+only when the Runner invokes it under the policy gate for that operation. Opening or updating a PR
+may be how a configured review lane gets evidence; merge/landing remains gated on the required
+acceptance verdict. Forge is not another agent and does not decide what should happen.
 
 The **conformance surface** is the repeatable proof behind that trust. It gives Jig and provider
 authors a shared way to check capability, containment, declared authority, and adversarial cases.
