@@ -13,8 +13,8 @@ dispositions) and grows as new design decisions are made.
 plain-language one-liner for titles that lean on internal shorthand (`S-00n`, `INV-nnn`, `ISO-n`,
 `SURF-nnn`); it restates the ADR's own title/decision, it does not reinterpret it — read the ADR
 itself for the binding text. The **Date** column is read from each ADR's own trailing
-`- Date:` line; ADRs 0001–0025 carry one, ADRs 0026–0032 do not yet, so those cells are left
-blank rather than guessed. **Status** is uniformly `applied` across all 32 ADRs today — see
+`- Date:` line; ADRs 0001–0025 carry one, ADRs 0026–0034 do not yet, so those cells are left
+blank rather than guessed. **Status** is uniformly `applied` across all 34 ADRs today — see
 ["What 'applied' means here"](#what-applied-means-here) below before reading it as "shipped in
 code."
 
@@ -91,11 +91,12 @@ reference to real (Phase 5–8), and records tamper-evidence (Phase 9).
 | 0024 | Phase 8 real work-source integration: the seed-vs-candidate intake chokepoint, richer provenance, and the two-authorities crossing                                   | Real work-source importers must cross a single validated intake chokepoint; provenance is enriched without the source becoming a second scheduling authority                                 | 2026-07-04 | applied |
 | 0025 | Phase 9 records-integrity: sidecar tamper-evidence, active resume-blocked-missing-approval, the tamper-vs-changed-basis split, and the resume driver-binding fold-in | Adds sidecar tamper-evidence (an env-keyed HMAC) over run records and activates the resume re-approval gate for safety-relevant changes                                                      | 2026-07-04 | applied |
 
-## Posture decisions (0026–0032)
+## Posture decisions (0026–0034)
 
 Cross-cutting posture settled after the phase series: what a green conformance run does and does
 not prove, the packaging/SDK boundary, the Codex transport seam, guided setup, observation
-surfaces, durable control records, and local audit exports.
+surfaces, durable control records, local audit exports, the MCP adapter package, and the governed
+acceptance/review lane.
 
 | #    | Title                                                                   | Gloss                                                                                                                                                 | Date | Status  |
 | ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
@@ -107,10 +108,11 @@ surfaces, durable control records, and local audit exports.
 | 0031 | Owner decisions and stops are durable control records                   | Places `decide` and `stop` on the operator port as additive control records consumed by existing replay/resume semantics                              | —    | applied |
 | 0032 | Export audit records are write-once JSON artifacts                      | Places `export` on the operator port, settles JSON export encoding, and records export audit events outside finalized run logs                        | —    | applied |
 | 0033 | MCP adapter lives in a private jig-mcp package                          | Places MCP in its own private adapter package that depends on `jig-sdk`, exposes settled operator verbs, and creates no stability promise             | —    | applied |
+| 0034 | Acceptance/review lane and verifier boundary                            | Settles the verifier/reviewer lane as governed evidence, not Jig-core, Worker, Forge, Owner/Doorbell, or a fifth provider seam                        | —    | applied |
 
 ## Open questions
 
-- **ADRs 0026–0033 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0033 do not.
-  Rather than invent a date, the Date column is left blank for those eight. Whether to add a
-  `- Date:` line to 0026–0033 (and, if so, what date to use — authoring date vs. merge date) is a
+- **ADRs 0026–0034 carry no `- Date:` line.** Every ADR from 0001–0025 has one; 0026–0034 do not.
+  Rather than invent a date, the Date column is left blank for those nine. Whether to add a
+  `- Date:` line to 0026–0034 (and, if so, what date to use — authoring date vs. merge date) is a
   genuine decision about this log's own convention and is not resolved here.

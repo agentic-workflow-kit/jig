@@ -107,6 +107,8 @@ M5a slice.
 
 Current reconciliation notes:
 
+- [ADR 0034](./decisions/0034-acceptance-review-lane.md) settles the verifier/reviewer lane as
+  governed evidence: not Jig-core, Worker, Forge, Owner/Doorbell, or a fifth provider seam.
 - [ADR 0027](./decisions/0027-packaging-sdk-boundary.md) settles the target internal package
   direction: `jig-sdk`, `jig-cli`, and `jig-testkit`, with the root package remaining private.
 - [ADR 0028](./decisions/0028-codex-app-server-transport.md) selects owned stdio app-server as the
@@ -142,8 +144,9 @@ consolidates existing security design only; it cites the existing `SEC-*`, `FENC
 Design reconciles _to_ the product layer. The current design maps back to the ID-bearing
 commitments in [the five guarantees](../product/guarantees.md) and names product conflicts where
 found. No product conflicts are known. The product clarification treats verification before landing
-as a policy/config-owned acceptance/review lane; this design reflects that boundary without
-claiming a shipped runtime/config/schema implementation beyond existing evidence. The current
+as a policy/config-owned acceptance/review lane; [ADR 0034](./decisions/0034-acceptance-review-lane.md)
+anchors that boundary without claiming a shipped runtime/config/schema implementation beyond
+existing evidence. The current
 runtime is now a private four-package workspace (`jig-sdk`, `jig-cli`, `jig-mcp`, `jig-testkit`)
 and remains pre-session-observable; Codex-transport direction must still be read as design
 direction, not shipped public API.

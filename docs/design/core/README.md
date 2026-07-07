@@ -296,6 +296,10 @@ The domain model of this group — each entity's owns / reads / does-not-own, th
 | Review lane            | Governed assessment lane selected by launch-bound policy/configuration. Emits a verdict or evidence assessment for the runner/policy to consume; does not land work, hold forge credentials, redefine policy, or transition lifecycle directly.                                                                                   | MERGE-1, MERGE-3, CFG-1                   |
 | Run records            | Durable, ordered, structured records — the evidence itself; state/summary/metrics are pure projections of an append-only log; exportable write-once, redacted. The source of notices and "ask why."                                                                                                                               | SEE-1..6                                  |
 
+The review lane boundary is settled by
+[ADR 0034](../decisions/0034-acceptance-review-lane.md): it is governed evidence, not Jig-core,
+Worker, Forge, Owner/Doorbell, or a fifth provider seam.
+
 Operator-surface detail (the CLI / SDK / embed contract) lives in
 [`../contracts/driving.md`](../contracts/driving.md).
 

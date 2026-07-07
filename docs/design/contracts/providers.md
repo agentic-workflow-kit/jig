@@ -108,6 +108,8 @@ ports, but it does not get to redefine:
 
 This file therefore describes each seam as an owns / implements / must-not contract, while leaving
 adapter mechanics, schemas, and manifest detail for later work.
+[ADR 0034](../decisions/0034-acceptance-review-lane.md) also fixes that the verifier/reviewer is a
+governed evidence lane outside this provider set, not a fifth seam.
 
 ## Provider extension and package posture
 

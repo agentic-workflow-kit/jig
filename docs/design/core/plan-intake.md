@@ -288,6 +288,9 @@ observes directly. Their category semantics are:
 Review / acceptance is a verdict or evidence assessment from the governed lane that policy
 requires. The lane may be a mechanical evidence check, structured independent review, real code
 review, owner review, or specialist review, but this doc does not turn those levels into a schema.
+The lane boundary is settled in [ADR 0034](../decisions/0034-acceptance-review-lane.md): the
+verifier/reviewer emits governed evidence, not lifecycle, Forge, authorization, or provider-seam
+authority.
 Its category semantics are:
 
 - policy decides whether review is required and for which classes of change;
