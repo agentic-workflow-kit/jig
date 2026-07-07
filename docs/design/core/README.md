@@ -66,7 +66,7 @@ how work is done`")
     direction LR
 
     runner("`**Runner**
-holds the keys`")
+		orchestrates + enforces`")
     fence("`**Fence**
 grants or denies`")
     doorbell("`**Doorbell**
@@ -75,6 +75,13 @@ escalates to you`")
 the evidence log`")
 
     runner ~~~ fence ~~~ doorbell ~~~ records
+  end
+
+  subgraph reviewLane["Governed acceptance lane — independent assessment"]
+    direction LR
+
+    review("`**Verifier / reviewer**
+policy-owned verdict`")
   end
 
   subgraph seams["Seams — swappable, governed at the boundary"]
@@ -102,26 +109,33 @@ supplies work items`")
     lt2["jig-core (trusted)"]
 
     l3(" ")
-    lt3["swappable seam"]
+    lt3["governed lane"]
 
     l4(" ")
-    lt4["you"]
+    lt4["swappable seam"]
 
-    l1 ~~~ lt1 ~~~ l2 ~~~ lt2 ~~~ l3 ~~~ lt3 ~~~ l4 ~~~ lt4
+    l5(" ")
+    lt5["you"]
+
+    l1 ~~~ lt1 ~~~ l2 ~~~ lt2 ~~~ l3 ~~~ lt3 ~~~ l4 ~~~ lt4 ~~~ l5 ~~~ lt5
   end
 
   owner -->|authors, starts| config
   config -->|plan + policy| core
+  core -->|invokes when policy requires| reviewLane
+  reviewLane -->|verdict / evidence| core
   core -->|drives + governs| seams
   seams ~~~ legend
 
   classDef ownerBox fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:16,ry:16;
   classDef youAuthor fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:16,ry:16;
   classDef trusted fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:16,ry:16;
+  classDef governed fill:#f5eefc,stroke:#6b3fa0,stroke-width:2px,color:#32194f,rx:16,ry:16;
   classDef seam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:16,ry:16;
 
   classDef legendAuthor fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:6,ry:6;
   classDef legendTrusted fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:6,ry:6;
+  classDef legendGoverned fill:#f5eefc,stroke:#6b3fa0,stroke-width:2px,color:#32194f,rx:6,ry:6;
   classDef legendSeam fill:#fff0ea,stroke:#a43f22,stroke-width:2px,color:#4d1f12,rx:6,ry:6;
   classDef legendYou fill:#f6f4ed,stroke:#77736d,stroke-width:2px,color:#2b2b2b,rx:6,ry:6;
   classDef legendText fill:transparent,stroke:transparent,color:#666666;
@@ -129,16 +143,19 @@ supplies work items`")
   class owner ownerBox;
   class track,plan,policy,profile youAuthor;
   class runner,fence,doorbell,records trusted;
+  class review governed;
   class worker,host,forge,source seam;
 
   class l1 legendAuthor;
   class l2 legendTrusted;
-  class l3 legendSeam;
-  class l4 legendYou;
-  class lt1,lt2,lt3,lt4 legendText;
+  class l3 legendGoverned;
+  class l4 legendSeam;
+  class l5 legendYou;
+  class lt1,lt2,lt3,lt4,lt5 legendText;
 
   style config fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
   style core fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
+  style reviewLane fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
   style seams fill:#fbfaf7,stroke:#b8b8b1,stroke-width:2px,color:#2b2b2b,rx:18,ry:18
 
   style legend fill:transparent,stroke:transparent,color:transparent
@@ -269,47 +286,50 @@ The domain model of this group — each entity's owns / reads / does-not-own, th
 
 ### B. Jig-core — the trusted runner (governs the seams)
 
-| Entity                 | Responsibility (owns)                                                                                                                                                                                                                       | Product IDs                               |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Operator surface       | The thin entry point (CLI / MCP / SDK / embed) the owner drives jig through: one command becomes one control-plane call with SDK/operator-owned records; the edge holds no run logic and imports no provider contracts.                     | jig.md; SEE-1                             |
-| Runner                 | Jig's trusted orchestrator. Resolves eligibility/order, drives each work item, holds credentials and the sole authority to push/PR/merge, and performs irreversible actions only under policy + evidence. Governs the seams; is not a seam. | concepts; FENCE-3, MERGE-2, SEC-3         |
-| Fence                  | Runtime authorization: authorizes every worker request before it executes, fail-closed; grant / deny / route by fixed category; cannot be loosened mid-run.                                                                                 | FENCE-1, FENCE-2, GUARD-1, CFG-10         |
-| Doorbell               | Escalation surface: routes ambiguous/risky/unproven actions to the owner; parks durably (survives interruption); grants are narrow, not blanket.                                                                                            | DOOR-1, DOOR-2, DOOR-3                    |
-| Capability attestation | Earned-trust gate: requires fresh, positive proof a driver can perform a capability safely; missing or stale proof means less autonomy, not a weaker guarantee.                                                                             | EARN-1, EARN-2, STACK-4, DRIVE-1, DRIVE-3 |
-| Run records            | Durable, ordered, structured records — the evidence itself; state/summary/metrics are pure projections of an append-only log; exportable write-once, redacted. The source of notices and "ask why."                                         | SEE-1..6                                  |
+| Entity                 | Responsibility (owns)                                                                                                                                                                                                                                                                                                             | Product IDs                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Operator surface       | The thin entry point (CLI / MCP / SDK / embed) the owner drives jig through: one command becomes one control-plane call with SDK/operator-owned records; the edge holds no run logic and imports no provider contracts.                                                                                                           | jig.md; SEE-1                             |
+| Runner                 | Jig's trusted orchestrator. Resolves eligibility/order, drives each work item, invokes governed review/verification lanes when implemented and policy requires them, holds credentials and the sole authority to push/PR/merge, and performs irreversible actions only under policy + evidence. Governs the seams; is not a seam. | concepts; FENCE-3, MERGE-2, SEC-3         |
+| Fence                  | Runtime authorization: authorizes every worker request before it executes, fail-closed; grant / deny / route by fixed category; cannot be loosened mid-run.                                                                                                                                                                       | FENCE-1, FENCE-2, GUARD-1, CFG-10         |
+| Doorbell               | Escalation surface: routes ambiguous/risky/unproven actions to the owner; parks durably (survives interruption); grants are narrow, not blanket.                                                                                                                                                                                  | DOOR-1, DOOR-2, DOOR-3                    |
+| Capability attestation | Earned-trust gate: requires fresh, positive proof a driver can perform a capability safely; missing or stale proof means less autonomy, not a weaker guarantee.                                                                                                                                                                   | EARN-1, EARN-2, STACK-4, DRIVE-1, DRIVE-3 |
+| Review lane            | Governed assessment lane selected by launch-bound policy/configuration. Emits a verdict or evidence assessment for the runner/policy to consume; does not land work, hold forge credentials, redefine policy, or transition lifecycle directly.                                                                                   | MERGE-1, MERGE-3, CFG-1                   |
+| Run records            | Durable, ordered, structured records — the evidence itself; state/summary/metrics are pure projections of an append-only log; exportable write-once, redacted. The source of notices and "ask why."                                                                                                                               | SEE-1..6                                  |
 
 Operator-surface detail (the CLI / SDK / embed contract) lives in
 [`../contracts/driving.md`](../contracts/driving.md).
 
 ### C. The four seams — swappable, governed at the authority boundary
 
-| Entity           | Responsibility (owns)                                                                                                                                    | Product IDs                      |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Agent (= worker) | The contained coding agent: reads a work item, writes code, runs checks, reports. Holds no credentials; cannot push/PR/merge or widen its own authority. | concepts; FENCE-3                |
-| Execution host   | Where the worker runs; provides isolation/containment and reports its isolation strength honestly; local-first today.                                    | STACK-2, STACK-5, DRIVE-3, ISO-4 |
-| Forge            | The code host: push/PR/merge target; respects branch protection and merge queues; where a block surfaces as a real PR.                                   | STACK-2, MERGE-5                 |
-| Work source      | Where work items originate (an extension seam; the plan is the hard input).                                                                              | STACK-2                          |
+| Entity           | Responsibility (owns)                                                                                                                                               | Product IDs                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Agent (= worker) | The contained coding agent: reads a work item, writes code, runs checks, reports. Holds no credentials; cannot push/PR/merge or widen its own authority.            | concepts; FENCE-3                |
+| Execution host   | Where the worker runs; provides isolation/containment and reports its isolation strength honestly; local-first today.                                               | STACK-2, STACK-5, DRIVE-3, ISO-4 |
+| Forge            | Deterministic adapter for runner-invoked push/PR/status/comment/merge operations; respects branch protection and merge queues; where a block surfaces as a real PR. | STACK-2, MERGE-5                 |
+| Work source      | Where work items originate (an extension seam; the plan is the hard input).                                                                                         | STACK-2                          |
 
 ### D. What you observe (run artifacts)
 
-| Entity   | Responsibility (owns)                                                                                             | Product IDs      |
-| -------- | ----------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Run      | One execution of a plan under a policy; reconstructible end to end.                                               | jig.md           |
-| Evidence | What gates landing — automated checks + review + capability proof; never the worker's self-report alone.          | MERGE-1, MERGE-3 |
-| Notice   | A triaged attention item per parked/blocked/stale/overdue condition: what it is, how urgent, what you can do now. | SEE-5            |
+| Entity   | Responsibility (owns)                                                                                                                 | Product IDs      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Run      | One execution of a plan under a policy; reconstructible end to end.                                                                   | jig.md           |
+| Evidence | What gates landing — automated checks + governed review/acceptance verdicts + capability proof; never the worker's self-report alone. | MERGE-1, MERGE-3 |
+| Notice   | A triaged attention item per parked/blocked/stale/overdue condition: what it is, how urgent, what you can do now.                     | SEE-5            |
 
 The domain model of this group — Run, Evidence, Notice, and the Run-records event-log entity they derive from, each with its owns / reads / does-not-own, the runtime seam, and the lifecycle terms it carries — is authored in [`../domain/runtime-and-observation.md`](../domain/runtime-and-observation.md).
 
 ## The spine in one paragraph
 
 The owner authors a track (plan + policy + work profile) and starts a run through the operator
-surface (one command, one control-plane call, SDK/operator-owned records). The runner binds the policy
-at launch, resolves which work items are eligible from their dependencies, and drives each by
-handing work to the worker (the agent seam) running inside the execution host. Every action the
-worker wants goes through the fence, which grants, denies, or routes it by fixed category;
-routed or risky calls ring the doorbell for the owner. The runner — never the worker — pushes,
-opens PRs, and merges through the forge, and only on evidence. Every decision lands in run
-records, from which the owner inspects, asks "why," and works a queue of notices.
+surface (one command, one control-plane call, SDK/operator-owned records). The runner binds the
+policy at launch, resolves which work items are eligible from their dependencies, and drives each
+by handing work to the worker (the agent seam) running inside the execution host. Every action the
+worker wants goes through the fence, which grants, denies, or routes it by fixed category; routed
+or risky calls ring the doorbell for the owner. When launch-bound policy/configuration requires an
+implemented acceptance lane, the runner consumes the verifier/reviewer verdict as evidence input.
+The runner — never the worker — pushes, opens PRs, and merges through the forge, and only on
+policy-sufficient evidence. Every decision lands in run records, from which the owner inspects,
+asks "why," and works a queue of notices.
 
 ## The two lifecycles
 

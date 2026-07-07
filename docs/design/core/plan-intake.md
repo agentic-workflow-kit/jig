@@ -11,9 +11,10 @@ intent. It is the boundary [`bootstrap`](./bootstrap.md) calls before anything e
 
 This doc is the home for the plan / policy / evidence design beneath the `PlanValidator` port: the
 port surface and its diagram, plus the owned domain content underneath — parse/validate/reject
-mechanics, the policy model, the evidence/attestation category model, and the GUARD-2 rule
-declaration. The execution-plan v0 contract remains cited and unfrozen; `authorization.md` remains
-the enforcement sibling, and `orchestration.md` remains the pause-point sibling.
+mechanics, the policy model, the evidence/attestation category model, acceptance/review
+expectations, and the GUARD-2 rule declaration. The execution-plan v0 contract remains cited and
+unfrozen; `authorization.md` remains the enforcement sibling, and `orchestration.md` remains the
+pause-point sibling.
 
 ## Owns
 
@@ -213,6 +214,8 @@ The most important contract properties for this deepened design are:
   than embedding a mutable override.
 - **Done and evidence requirements** — a plan carries evidence categories and references, while
   policy later judges sufficiency.
+- **Acceptance / review expectations** — a plan can carry declared review needs, while
+  owner-controlled policy/configuration selects the required acceptance strength before launch.
 - **Authority and approval needs** — a plan declares expected reversible, privileged, and
   rule-governing touches so later authorization can fail closed.
 
@@ -228,6 +231,9 @@ later consumes.
   boundary promised by `CFG-10`.
 - **Merge spectrum** — the evidence posture that must be satisfied before a story may move from
   done to landed.
+- **Acceptance / review lane strength** — the review or verification posture required before
+  landing, selected before launch and consumed as evidence rather than chosen by the worker,
+  reviewer, or Forge provider mid-run.
 - **Concurrency ceiling** — the highest concurrency the run may derive, subject to plan and other
   safety constraints.
 - **Retry budget** — whether and how much retry behavior is allowed before a human checkpoint is
@@ -244,6 +250,8 @@ later consumes.
   work profile tunes realization and may not lower that floor (`CFG-1`, `CFG-2`).
 - **Policy is fixed at launch.** A run binds to policy at launch and does not silently widen or
   swap it mid-run (`GUARD-1`).
+- **Acceptance strength is launch-bound.** Worker, reviewer, and Forge provider cannot downgrade the
+  required acceptance/review lane after launch.
 - **The `CFG-10` category boundary is fixed.** The reversible/non-privileged/non-rule-governing
   versus credentials/push-merge/rule-governing/irreversible split is a product promise, not a
   model-adjudicated runtime judgment.
@@ -257,6 +265,8 @@ later consumes.
 - Work-item or run pause-state mechanics; those remain in [`orchestration.md`](./orchestration.md)'s
   settled lifecycle territory.
 - Field-level plan schema; that remains with the cited v0 contract.
+- Detailed acceptance-lane schema, reviewer taxonomy, or provider method signatures; those remain
+  future implementation/design follow-up.
 
 ## Evidence / attestation category model
 
@@ -273,16 +283,21 @@ observes directly. Their category semantics are:
 - a missing or failed required check leaves the story short of done-evidence, regardless of worker
   confidence.
 
-### Category 2 — review
+### Category 2 — review / acceptance
 
-Review is an approval from a human or delegated reviewer that policy requires. Its category
-semantics are:
+Review / acceptance is a verdict or evidence assessment from the governed lane that policy
+requires. The lane may be a mechanical evidence check, structured independent review, real code
+review, owner review, or specialist review, but this doc does not turn those levels into a schema.
+Its category semantics are:
 
 - policy decides whether review is required and for which classes of change;
+- policy/configuration select the required acceptance strength before launch, not during the run;
 - review is durable evidence only when recorded through the runtime's owned approval / notice
   surfaces, not when asserted informally by the worker;
 - review may satisfy part of a story's evidence posture without collapsing the done-versus-landed
   distinction.
+- the reviewer/verifier emits an assessment; it does not land work, hold forge credentials,
+  redefine policy, or select weaker criteria.
 
 ### Category 3 — capability proof
 
@@ -306,6 +321,8 @@ The required sufficiency rules are:
 - policy may require one, two, or all three categories depending on story class and risk;
 - `done` and `landed` remain separate milestones even when a story's evidence is already
   satisfied;
+- a required review/acceptance lane must be satisfied by the governed verifier/reviewer verdict or
+  assessment before it can contribute to `done`;
 - capability proof never substitutes for unrelated automated checks or required review unless the
   policy explicitly treats it as evidence for that capability-specific trust question.
 
@@ -337,6 +354,8 @@ This design keeps one authority for what counts as evidence:
 
 - **The runner and its owned runtime surfaces observe evidence directly.** Evidence is never taken
   from the worker's self-report alone.
+- **The verifier/reviewer emits governed evidence input.** Its verdict can be consumed by the
+  runner and policy, but it does not author lifecycle transitions or landing authority.
 - **The records surface persists what was observed.** This file names the category vocabulary; it
   does not create a second persistence channel.
 - **Authorization and lifecycle consume the resulting judgments.** This file does not move those
@@ -389,9 +408,10 @@ then declare itself done.
   named reason.
 - Rejection is terminal for intake of that submitted instance: no run is created from it.
 - Contract-shape mismatch is handled as a seam-governance issue, not as local silent coercion.
-- Insufficient evidence, stale capability proof, missing capability proof, or unresolved GUARD-2
-  re-approval are not parse failures; they are later runtime failure/judgment conditions defined by
-  the policy/evidence model this file owns and consumed by sibling runtime docs.
+- Insufficient evidence, stale capability proof, missing capability proof, missing or inconclusive
+  required acceptance/review evidence, or unresolved GUARD-2 re-approval are not parse failures;
+  they are later runtime failure/judgment conditions defined by the policy/evidence model this file
+  owns and consumed by sibling runtime docs.
 
 ## Port-boundary invariant candidates
 
@@ -428,6 +448,8 @@ available invariant number is `INV-019`.
 
 - **Evidence is observed, never self-certified.** A worker's self-report alone cannot satisfy the
   evidence posture policy requires for landing.
+- **Acceptance strength is owner-bound.** Required review/verification strength is selected by
+  policy/configuration before launch; worker, reviewer, and Forge provider cannot weaken it mid-run.
 - **Capability proof must be fresh for the current driver/run context.** Missing or stale proof
   reduces autonomy rather than weakening the guarantee.
 - **Touching a rule-governing surface forces pause-before-completion.** A run may not change the
