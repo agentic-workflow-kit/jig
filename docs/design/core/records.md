@@ -306,6 +306,10 @@ Records remains the durable evidence substrate for both runtime decisions and la
 - verifier/reviewer outputs are recorded as governed evidence inputs; the reviewer does not append
   around the runner-owned record path or become a records authority.
 
+This acceptance/review evidence boundary is settled by
+[ADR 0034](../decisions/0034-acceptance-review-lane.md); this file preserves the append/project
+posture without freezing verdict event families or fields.
+
 This surface is also a downstream contract for the execution-host seam. The capability / attestation
 and future acceptance/review event families must be framable against this engine's append-and-project
 model; this file therefore preserves the records/evidence surface as a core-owned seam without

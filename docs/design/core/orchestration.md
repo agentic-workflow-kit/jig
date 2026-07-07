@@ -116,7 +116,8 @@ checkpoint.
   component performs it.
 - The runner can invoke a governed verifier/reviewer lane when policy requires one, but it does not
   perform code review logic itself, accept worker self-review as proof, or implement forge-specific
-  API mechanics directly.
+  API mechanics directly. The lane boundary is settled in
+  [ADR 0034](../decisions/0034-acceptance-review-lane.md).
 - Parallel-workspace concurrency across work items (ISO-4) is a named extension point here,
   realized per story in the "Phase 6 realization" note under the work-item transition table below.
   Resume-after-interruption mechanics are a named extension point here and are owned by

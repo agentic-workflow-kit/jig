@@ -125,6 +125,9 @@ out by the runner on the worker's behalf.
 | Runner                      | Executing any privileged action that a grant permits                                                                   | Fence decision, owner decision                                                         | Holding the worker's authority boundary open                           |
 | Verifier/reviewer lane      | No authorization authority; emits evidence assessment or verdict for policy/orchestration to consume                   | Bound policy requirement, work/evidence under review                                   | Granting requests, landing work, weakening policy, holding credentials |
 
+[ADR 0034](../decisions/0034-acceptance-review-lane.md) is the authority for keeping the
+verifier/reviewer lane outside authorization, Forge, and provider-seam ownership.
+
 ## Fixed category boundary
 
 CFG-10 fixes the category line. The Fence applies that fixed line; it does not learn or improvise

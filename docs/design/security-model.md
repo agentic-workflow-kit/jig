@@ -34,7 +34,8 @@ governs, never a party jig-core takes on faith ([`contracts/providers.md`](./con
 line; they are never handed across it (STACK-5). A provider seam may still use a bounded,
 manifest-governed read or transport credential where its job requires one, but never landing or
 policy authority. The verifier/reviewer is separate from those seams: it can assess work or
-evidence, but it cannot become the owner, runner, Forge provider, or execution host proof.
+evidence, but it cannot become the owner, runner, Forge provider, or execution host proof. That
+boundary is settled by [ADR 0034](./decisions/0034-acceptance-review-lane.md).
 
 ## The fence + fail-closed authorization spine
 

@@ -178,7 +178,9 @@ append/replay rules.
 [`plan-intake.md`](./plan-intake.md) owns plan admission and the policy/evidence shape bootstrap
 consumes. Bootstrap delegates load/validate there, then binds the admitted references it returns.
 Bootstrap does not reinterpret unknown format, policy content, acceptance strength, or evidence
-categories locally.
+categories locally. The launch-bound acceptance/review posture follows
+[ADR 0034](../decisions/0034-acceptance-review-lane.md)'s verifier boundary; bootstrap preserves
+the selected posture but does not define reviewer implementation or schema.
 
 ### Fence and Doorbell wiring seam
 
