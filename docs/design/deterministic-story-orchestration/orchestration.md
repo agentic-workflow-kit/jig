@@ -5,9 +5,10 @@ status: proposal — agreed design, not yet reconciled or adopted
 
 # Orchestration
 
-This layer defines the deterministic core, its effect boundaries, and its structured interaction
-with the two judgment-bearing roles. It consumes the immutable, resolved envelope defined by the
-[input layer](inputs.md).
+This layer defines the deterministic core, the runtime that coordinates it, their effect
+boundaries, and their structured interaction with the two judgment-bearing roles. It consumes the
+immutable, resolved envelope defined by the [input layer](inputs.md) and follows the persistence
+ordering defined by [events and runtime state](events-and-runtime-state.md).
 
 ## Component model
 
@@ -21,10 +22,14 @@ flowchart LR
         Routes["Resolved story routes"]
     end
 
-    subgraph Core["Deterministic orchestration core"]
-        Orchestrator["Orchestrator<br/>DAG scheduling<br/>story state machine<br/>counters and target lease"]
-        RunState[("Run state and event record")]
-        Orchestrator <--> RunState
+    subgraph Core["Deterministic orchestration runtime"]
+        Runtime["Runtime coordinator<br/>persist · advance · dispatch"]
+        Orchestrator["Orchestration core<br/>DAG · state machine<br/>counters · target lease"]
+        RunState["In-memory run state"]
+        EventStore[("Append-only event store")]
+        Runtime <--> Orchestrator
+        Runtime <--> RunState
+        Runtime --> EventStore
     end
 
     subgraph Ports["Narrow effect interfaces"]
@@ -42,29 +47,29 @@ flowchart LR
 
     Target["Configured target<br/>local branch or remote forge"]
 
-    Plan --> Orchestrator
-    Policy --> Orchestrator
-    Config --> Orchestrator
-    Routes --> Orchestrator
+    Plan --> Runtime
+    Policy --> Runtime
+    Config --> Runtime
+    Routes --> Runtime
 
-    Orchestrator <-->|"validated assignments and results"| AgentPort
+    Runtime <-->|"validated assignments and results"| AgentPort
     AgentPort <-->|"same session"| Implementer
     AgentPort <-->|"same session"| Reviewer
 
-    Orchestrator -->|"review findings"| Implementer
-    Implementer -->|"candidate submission"| Orchestrator
-    Orchestrator -->|"candidate at exact SHA"| Reviewer
-    Reviewer -->|"complete-package verdict"| Orchestrator
+    Runtime -->|"review findings"| Implementer
+    Implementer -->|"candidate submission"| Runtime
+    Runtime -->|"candidate at exact SHA"| Reviewer
+    Reviewer -->|"complete-package verdict"| Runtime
 
-    Orchestrator <-->|"typed workspace commands"| WorkspacePort
+    Runtime <-->|"typed workspace commands"| WorkspacePort
     WorkspacePort --> Worktree
     Implementer -->|"writes, checks, and commits"| Worktree
     Reviewer -->|"reads exact candidate"| Worktree
 
-    Orchestrator <-->|"typed final-verification command and result"| VerificationPort
+    Runtime <-->|"typed final-verification command and result"| VerificationPort
     VerificationPort -->|"checks approved content"| Worktree
 
-    Orchestrator <-->|"approved delivery commands and results"| DeliveryPort
+    Runtime <-->|"approved delivery commands and results"| DeliveryPort
     Worktree -->|"approved branch and SHA"| DeliveryPort
     DeliveryPort --> Target
 
@@ -74,41 +79,46 @@ flowchart LR
     classDef agent fill:#e8f7ed,stroke:#4f8a63,color:#172033;
     classDef target fill:#fce8e6,stroke:#a7615b,color:#172033;
     class Plan,Policy,Config,Routes input;
-    class Orchestrator,RunState core;
+    class Runtime,Orchestrator,RunState,EventStore core;
     class AgentPort,WorkspacePort,VerificationPort,DeliveryPort port;
     class Worktree,Implementer,Reviewer agent;
     class Target target;
 ```
 
-The absence of a direct edge between implementer and reviewer is intentional. The orchestrator
-owns their communication protocol and audit trail without altering their findings.
+The absence of a direct edge between implementer and reviewer is intentional. The runtime owns
+their communication protocol and submits the resulting events without altering either role's
+facts. The core does not know how events are persisted or how an effect interface is implemented.
 
 ## Responsibilities
 
-| Component                    | Owns                                                                                                                                                                                                     | Must not own                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Orchestrator                 | Input-envelope validation, deterministic route resolution, DAG eligibility, scheduling, lifecycle transitions, message validation, counters, target queue and lease, command dispatch, outcome recording | Coding, review judgment, conflict resolution, PR prose, interpreting project-specific check output, direct Git/worktree/forge mechanics |
-| Agent-session interface      | Spawn, continue, identify, and close role-specific sessions using the resolved profile                                                                                                                   | Story state, routing judgment, review policy, delivery authority                                                                        |
-| Workspace interface          | Create, inspect, update, and safely remove story worktrees                                                                                                                                               | Agent judgment, dependency scheduling, remote delivery                                                                                  |
-| Local-verification interface | Execute the configured final local check set against an exact candidate and return a typed result                                                                                                        | Deciding which checks are required, interpreting acceptability, editing code, delivery authority                                        |
-| Delivery interface           | Deterministic branch push, optional PR creation, remote-check observation, configured merge, result confirmation                                                                                         | Whether a package is acceptable, conflict resolution, weakening required checks                                                         |
-| Implementer                  | Implement the story, rebase when assigned, resolve conflicts, run its assigned checks before commit, commit the checked candidate, propose delivery metadata                                             | Review its own work as sufficient, push, create a PR, merge, or clean resources                                                         |
-| Reviewer                     | Assess the exact candidate, its evidence, and its delivery metadata; return approval, findings, or a block                                                                                               | Repeat implementer checks by default, edit implementation, mutate lifecycle state, push, create a PR, merge, or clean resources         |
-| Run state and event record   | Immutable input basis, resolved routes, story states, counters, commands, structured handoffs, decisions, SHAs, and effect outcomes                                                                      | Independent policy or judgment                                                                                                          |
+| Component                    | Owns                                                                                                                                                                          | Must not own                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchestration core           | Input-envelope validation, deterministic route resolution, DAG eligibility, scheduling, lifecycle decisions, counters, target queue and lease                                 | Persistence, command dispatch, coding, review judgment, conflict resolution, PR prose, project-specific check interpretation, mechanics |
+| Runtime coordinator          | Live run state, trigger validation, core invocation, trusted event-draft submission, persistence-before-state ordering, state adoption, effect dispatch, typed-result routing | Implementation or review judgment, rewriting producer facts, deriving state from stored events, provider-specific mechanics             |
+| Event recorder and store     | Trusted event envelopes, atomic append, durable immutable events, store-controlled ordering metadata                                                                          | Runtime state, replay in the first phase, policy, story decisions, changing producer facts                                              |
+| Agent-session interface      | Spawn, continue, identify, and close role-specific sessions using the resolved profile                                                                                        | Story state, routing judgment, review policy, delivery authority                                                                        |
+| Workspace interface          | Create, inspect, update, and safely remove story worktrees                                                                                                                    | Agent judgment, dependency scheduling, remote delivery                                                                                  |
+| Local-verification interface | Execute the configured final local check set against an exact candidate and return a typed result                                                                             | Deciding which checks are required, interpreting acceptability, editing code, delivery authority                                        |
+| Delivery interface           | Deterministic branch push, optional PR creation, remote-check observation, configured merge, result confirmation                                                              | Whether a package is acceptable, conflict resolution, weakening required checks                                                         |
+| Implementer                  | Implement the story, rebase when assigned, resolve conflicts, run its assigned checks before commit, commit the checked candidate, propose delivery metadata                  | Review its own work as sufficient, push, create a PR, merge, or clean resources                                                         |
+| Reviewer                     | Assess the exact candidate, its evidence, and its delivery metadata; return approval, findings, or a block                                                                    | Repeat implementer checks by default, edit implementation, mutate lifecycle state, push, create a PR, merge, or clean resources         |
+| In-memory run state          | Immutable input basis, resolved routes, story states, counters, target queue, and active resource identities                                                                  | Persistence, replay, independent policy, or judgment                                                                                    |
 
 ## SOLID posture
 
-- **Single responsibility:** input resolution, scheduling, workspace effects, session management,
-  implementation, review, local verification, and delivery are distinct responsibilities.
+- **Single responsibility:** input resolution, deterministic decisions, runtime coordination,
+  event persistence, workspace effects, session management, implementation, review, local
+  verification, and delivery are distinct responsibilities.
 - **Open/closed:** future routing dimensions, delivery targets, hosted-review stages, specialist
   reviewers, and checkpoint strategies extend narrow boundaries rather than adding judgment to the
-  orchestrator.
+  core.
 - **Liskov substitution:** any implementation of an effect interface must preserve the same typed
   outcomes and fail-closed invariants. A replacement cannot silently acquire decision authority.
 - **Interface segregation:** agent-session, workspace, local-verification, and delivery
   capabilities remain separate; no general-purpose provider interface grants unrelated authority.
-- **Dependency inversion:** the orchestration core depends on message and effect contracts, not on
-  a particular agent, check command, Git implementation, or repository host.
+- **Dependency inversion:** the orchestration core depends on domain inputs and decisions. The
+  runtime depends on event and effect contracts, not on a particular store, agent, check command,
+  Git implementation, or repository host.
 
 This proposal avoids a generic plugin framework in the first phase. The boundaries are intended to
 make later extraction possible without paying that complexity cost now.
@@ -124,7 +134,7 @@ Each story has exactly one active delivery unit:
 - one implementer session;
 - one reviewer session;
 - zero or one pull request, depending on delivery policy; and
-- structured candidate, review, checkpoint, verification, and delivery records.
+- structured candidate, review, checkpoint, verification, and delivery facts emitted as events.
 
 The story branch is both the implementation branch and the delivery source. There is no separate
 per-run integration branch in this proposal. Stories may implement and undergo initial review in
@@ -132,7 +142,8 @@ parallel, but they finalize serially into the run's one configured target.
 
 ## Structured agent protocol
 
-Agent outputs are untrusted external input. The orchestrator validates them before changing state.
+Agent outputs are untrusted external input. The runtime validates them before asking the core for
+a transition. The transition's events must persist before the runtime adopts the next state.
 Free-form text may be retained as supporting detail, but it never acts as a control signal.
 
 ### Story assignment
@@ -204,8 +215,10 @@ Approval freezes an immutable package containing:
 - resolved role routes; and
 - current review-fix and target-refresh counters.
 
-The orchestrator may add deterministic metadata such as story identifiers and recorded effect
-results. It must not invent or rewrite factual claims. Any code mutation invalidates the package
-and requires another implementer check, commit, and review round.
+The runtime may add deterministic package metadata such as story identifiers and accepted effect
+results. It must not invent or rewrite factual claims. The event recorder separately supplies the
+trusted common envelope defined by [events and runtime state](events-and-runtime-state.md). Any
+code mutation invalidates the package and requires another implementer check, commit, and review
+round.
 
 The package then enters the [story-execution finalization flow](story-execution.md).

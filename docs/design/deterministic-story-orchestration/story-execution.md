@@ -7,7 +7,8 @@ status: proposal — agreed design, not yet reconciled or adopted
 
 This layer defines scheduling and the lifecycle of one story after the
 [input envelope](inputs.md) has passed preflight and the
-[orchestration core](orchestration.md) has recorded its resolved routes.
+[orchestration runtime](orchestration.md) holds its resolved routes in memory and has persisted the
+run-initialization events.
 
 ## Story lifecycle
 
@@ -27,10 +28,8 @@ stateDiagram-v2
     state "Retiring resources" as Retiring
     state "Closed" as Closed
     state "Blocked" as Blocked
-    state "Blocked by dependency" as BlockedByDependency
 
     Waiting --> Eligible: all prerequisites landed
-    Waiting --> BlockedByDependency: any prerequisite blocked
 
     Eligible --> Provisioning
     Provisioning --> Implementing: worktree and branch ready
@@ -76,12 +75,11 @@ stateDiagram-v2
 
     Closed --> [*]
     Blocked --> [*]
-    BlockedByDependency --> [*]
 
     note right of Blocked
         Preserve committed branch and evidence
         Best-effort push-on-block by default
-        Transitively block downstream stories
+        Downstream stories remain ineligible
         Independent stories continue
     end note
 
@@ -97,7 +95,7 @@ stateDiagram-v2
     class Waiting,Eligible,FinalizationQueue waiting;
     class Provisioning,Implementing,Reviewing,Approved,Finalizing,Retiring active;
     class Landed,Closed complete;
-    class Blocked,BlockedByDependency stopped;
+    class Blocked stopped;
 ```
 
 The diagram shows the logical states. A transition back from final local verification to
@@ -106,13 +104,15 @@ implementer-check-commit-review sequence before finalization can resume.
 
 ## Eligibility and provisioning
 
-The orchestrator computes eligibility from the plan's dependency graph and recorded landed or
-blocked outcomes. When capacity is available, it dispatches workspace creation for an eligible
-story and starts its implementer session in that worktree using the story's frozen route.
+The core computes eligibility from the plan's dependency graph and the landed or blocked
+outcomes in live state. When capacity is available, it dispatches workspace creation for an
+eligible story and starts its implementer session in that worktree using the story's frozen route.
 
-If an upstream story blocks, every transitive dependent becomes `blocked-by-dependency` with a
-causal path to the originating block. Those downstream stories receive no worktrees or agent
-sessions. Unrelated eligible stories continue.
+If an upstream story blocks, every transitive dependent remains waiting and becomes permanently
+ineligible. Those downstream stories undergo no separate transition, emit no synthetic block
+event, and receive no worktrees or agent sessions. A normal `run.completed` event reports their
+derived outcome as `not-run: dependency-blocked` with the originating blocked story as root cause.
+Unrelated eligible stories continue.
 
 ## Scheduling and capacity
 
@@ -120,7 +120,7 @@ The first phase uses simple story-count concurrency rather than weighted schedul
 
 - policy defines the maximum number of concurrently active stories;
 - configuration declares actual available session capacity;
-- the orchestrator respects the lower effective limit; and
+- the core respects the lower effective limit; and
 - size and complexity influence routing, effort, and budget, but not a scheduling weight.
 
 An implementation or initial review may proceed in parallel with work on independent stories.
@@ -136,17 +136,17 @@ For the initial candidate and after every reviewer-requested fix, the same seque
    candidate.
 4. Once the assigned checks pass, the implementer makes no further content changes before commit.
 5. The implementer commits and submits the exact candidate with its evidence.
-6. The orchestrator validates the submission and assigns the exact SHA to the same reviewer.
+6. The runtime validates the submission and assigns the exact SHA to the same reviewer.
 7. The reviewer evaluates the code, requirements, evidence, and delivery metadata without
    repeating implementer checks by default.
 
-`changes-required` findings return through the orchestrator to the same implementer. The same
+`changes-required` findings return through the runtime to the same implementer. The same
 reviewer assesses the next committed candidate. Reviewer-requested correction rounds increment the
 review-fix counter. A successful review produces an approved delivery package.
 
 The default maximum is five review-fix loops. Exhausting the fifth loop blocks the story with
-`review-loop-limit-exceeded`, blocks all transitive dependents, preserves the branch and evidence,
-and leaves independent work eligible.
+`review-loop-limit-exceeded`, makes all transitive dependents permanently ineligible, preserves
+the branch and evidence, and leaves independent work eligible.
 
 The resolved implementer and reviewer routes remain fixed through all normal rounds. There is no
 automatic model escalation, session replacement, or mid-story rerouting in the first phase.
@@ -158,8 +158,9 @@ the target's finalization lease. Other stories may continue implementation and i
 while waiting, but no other orchestrated story may merge into that target during the lease.
 
 The lease begins when a story starts final target alignment and ends when its landing is confirmed
-or the story reaches a named blocked outcome. After a process interruption, the target must be read
-again; an old lease is never assumed valid. Full session or run recovery remains deferred.
+or the story reaches a named blocked outcome. A process interruption loses the in-memory lease and
+run state; the interrupted run cannot resume in the first phase. A later new or recovery-capable
+run must read the target again and never assume the old lease remains valid.
 
 Waiting stories do not rebase after every preceding merge. They align once when their own
 finalization turn begins. This avoids deterministic churn when several stories were developed in
@@ -167,15 +168,15 @@ parallel.
 
 ## Target alignment and refreshed review
 
-When finalization starts, the orchestrator reads the current target SHA.
+When finalization starts, the runtime reads the current target SHA.
 
 - If the approved story is already based on that SHA, it may proceed to the configured final local
   verification mode.
-- If the target moved, the orchestrator asks the same implementer to rebase onto the exact target
+- If the target moved, the runtime asks the same implementer to rebase onto the exact target
   and resolve conflicts.
 - Before committing the refreshed candidate, the implementer reruns every assigned check.
 - The same reviewer reviews the complete refreshed package and approves its new exact SHA.
-- Immediately before delivery, the orchestrator confirms both the approved branch SHA and target
+- Immediately before delivery, the runtime confirms both the approved branch SHA and target
   SHA still match the reviewed finalization basis.
 
 A rebase rewrites branch history and invalidates the prior approval. If the branch already exists

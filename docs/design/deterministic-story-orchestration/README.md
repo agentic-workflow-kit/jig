@@ -12,17 +12,18 @@ design session on 2026-07-14. It deliberately does not depend on, amend, or clai
 any existing product, design, delivery, or runtime document. A later adoption pass may reconcile
 it with those artifacts.
 
-The proposal reduces delivery orchestration to a deterministic coordinator, two judgment-bearing
-agent roles per story, and narrow deterministic interfaces for agent sessions, workspace effects,
-local verification, and delivery effects. The files in this directory form one proposal and are
-intended to be read together.
+The proposal reduces delivery orchestration to a deterministic coordinator, in-memory runtime
+state, an append-only event trail, two judgment-bearing agent roles per story, and narrow
+deterministic interfaces for agent sessions, workspace effects, local verification, and delivery
+effects. The files in this directory form one proposal and are intended to be read together.
 
 ## Summary
 
 The system receives an already-approved, immutable execution plan, policy, and configuration.
 Input production, classification, and approval are outside this proposal. Before performing any
-side effect, deterministic preflight resolves every story's implementer and reviewer routes and
-rejects the entire run if the input envelope is incomplete or impossible to execute.
+agent, workspace, verification, or delivery operation, deterministic preflight resolves every
+story's implementer and reviewer routes and rejects the entire run if the input envelope is
+incomplete or impossible to execute.
 
 For every eligible story, the system creates one branch and worktree, retains one implementer and
 one reviewer through a bounded implementation-review loop, and requires the reviewer to approve a
@@ -31,20 +32,22 @@ target is serialized. If the target has moved, the same implementer rebases and 
 conflicts, and the same reviewer reviews the updated package before deterministic delivery
 proceeds.
 
-The orchestrator makes no implementation, review, conflict-resolution, metadata-writing, check,
-or merge judgment. It deterministically validates inputs, resolves configured routes, schedules
-work, validates structured messages, enforces counters, holds the finalization lease, dispatches
-commands through narrow interfaces, and records outcomes.
+The orchestration core makes no implementation, review, conflict-resolution, metadata-writing,
+check, merge, or persistence judgment. It deterministically resolves configured routes, schedules
+work, enforces counters, and manages the finalization lease. The runtime validates external
+messages and persists the core's resulting events before adopting new in-memory state and
+dispatching operations through narrow interfaces.
 
 ## Document layers
 
-| Layer | Document                                              | Owns                                                                                                      |
-| ----- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 0     | This overview                                         | Status, scope, goals, invariants, and navigation                                                          |
-| 1     | [Inputs](inputs.md)                                   | Plan, policy, configuration, routing, evidence responsibilities, immutability, and preflight              |
-| 2     | [Orchestration](orchestration.md)                     | Deterministic core, effect boundaries, responsibilities, SOLID posture, and agent protocol                |
-| 3     | [Story execution](story-execution.md)                 | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
-| 4     | [Delivery and operations](delivery-and-operations.md) | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
+| Layer | Document                                                | Owns                                                                                                      |
+| ----- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 0     | This overview                                           | Status, scope, goals, invariants, and navigation                                                          |
+| 1     | [Inputs](inputs.md)                                     | Plan, policy, configuration, routing, evidence responsibilities, immutability, and preflight              |
+| 2     | [Events and runtime state](events-and-runtime-state.md) | In-memory state, transitions, event creation, persistence ordering, event catalog, and derived outcomes   |
+| 3     | [Orchestration](orchestration.md)                       | Deterministic core, runtime coordination, effect boundaries, responsibilities, and agent protocol         |
+| 4     | [Story execution](story-execution.md)                   | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
+| 5     | [Delivery and operations](delivery-and-operations.md)   | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
 
 ## Goals
 
@@ -53,12 +56,14 @@ commands through narrow interfaces, and records outcomes.
 - Keep implementation and review judgment in separate agent sessions.
 - Preserve the same implementer and reviewer throughout a story's normal lifecycle.
 - Apply one uniform, immutable policy to every story in the run.
-- Route stories deterministically from approved plan characteristics rather than orchestrator
+- Route stories deterministically from approved plan characteristics rather than core
   judgment.
 - Make every transition depend on validated structured artifacts rather than free-form agent
   conversation.
+- Persist each transition's immutable events before changing live state or dispatching its
+  operations.
 - Assign checks and evidence responsibilities ahead of time instead of repeating the same work
-  across implementer, reviewer, and orchestrator.
+  across implementer, reviewer, and runtime.
 - Review the exact candidate and its complete delivery metadata before it can land.
 - Serialize finalization without serializing implementation and initial review.
 - Fail closed while allowing independent stories to continue.
@@ -71,6 +76,7 @@ commands through narrow interfaces, and records outcomes.
 - Changing an approved input after the run starts.
 - Reclassifying or dynamically rerouting a story during execution.
 - Recovering or replacing a lost implementer or reviewer session.
+- Reconstructing runtime state by replaying events or loading a persisted state snapshot.
 - Hosted pull-request review or processing hosted review feedback.
 - Letting an agent decide whether or how to push, create a pull request, or merge.
 - Giving the implementer or reviewer repository-host credentials.
@@ -81,17 +87,17 @@ commands through narrow interfaces, and records outcomes.
 ## Core invariants
 
 1. The plan, policy, configuration, and resolved routes are approved and frozen before execution.
-2. The orchestrator is deterministic. It coordinates judgment-bearing agents but does not make
-   their judgments.
+2. The orchestration core is deterministic. It coordinates judgment-bearing agents but does not
+   make their judgments.
 3. One uniform policy applies to every story. Stories cannot override it.
 4. One run targets one repository, one integration target, and one delivery environment.
-5. Every story declares size and complexity; the orchestrator never infers either value.
+5. Every story declares size and complexity; the orchestration core never infers either value.
 6. One story owns one branch, one worktree, one implementer session, one reviewer session, and at
    most one pull request.
-7. Implementer and reviewer never communicate directly. Every handoff passes through the
-   orchestrator as a validated structured message.
-8. The implementer writes code. The reviewer assesses the complete delivery package. The
-   orchestrator alone changes lifecycle state.
+7. Implementer and reviewer never communicate directly. Every handoff passes through the runtime
+   as a validated structured message.
+8. The implementer writes code. The reviewer assesses the complete delivery package. The core
+   alone decides lifecycle changes, and the runtime adopts them only after event persistence.
 9. The implementer runs its assigned checks before committing and submitting every candidate.
    The reviewer consumes that evidence rather than repeating those checks.
 10. Reviewer approval is tied to an exact commit SHA. Any later code mutation invalidates it.
@@ -103,6 +109,11 @@ commands through narrow interfaces, and records outcomes.
 15. Dependency eligibility changes when a prerequisite lands, not when its cleanup finishes.
 16. Blocking propagates only to transitive dependents. Independent stories continue.
 17. Worktree removal never discards uncommitted or insufficiently preserved work.
+18. Runtime state is in memory only in the first phase; the event store persists events only.
+19. A transition's events are durably appended before the runtime adopts its next state or
+    dispatches operations.
+20. Only the directly blocked story emits `story.blocked`; downstream `dependency-blocked`
+    outcomes are derived from the plan DAG.
 
 ## End-to-end view
 
@@ -117,7 +128,9 @@ flowchart LR
 
     subgraph Deterministic["Deterministic system"]
         Preflight["Preflight<br/>validate and resolve routes"]
-        Orchestrator["Orchestrator<br/>schedule · coordinate<br/>record · fail closed"]
+        Runtime["Runtime coordinator<br/>persist · advance · dispatch"]
+        Core["Orchestration core<br/>decide · schedule · fail closed"]
+        Events[("Append-only events")]
         Effects["Narrow effect interfaces<br/>sessions · workspace<br/>verification · delivery"]
     end
 
@@ -131,12 +144,14 @@ flowchart LR
     Plan --> Preflight
     Policy --> Preflight
     Config --> Preflight
-    Preflight -->|"resolved immutable run"| Orchestrator
-    Orchestrator <--> Effects
-    Orchestrator -->|"assignment"| Implementer
-    Implementer -->|"candidate and evidence"| Orchestrator
-    Orchestrator -->|"exact candidate"| Reviewer
-    Reviewer -->|"verdict"| Orchestrator
+    Preflight -->|"resolved immutable run"| Runtime
+    Runtime <--> Core
+    Runtime -->|"persist before effects"| Events
+    Runtime <--> Effects
+    Runtime -->|"assignment"| Implementer
+    Implementer -->|"candidate and evidence"| Runtime
+    Runtime -->|"exact candidate"| Reviewer
+    Reviewer -->|"verdict"| Runtime
     Effects --> Target
 
     classDef input fill:#e8f1ff,stroke:#5a78a8,color:#172033;
@@ -144,7 +159,7 @@ flowchart LR
     classDef agent fill:#e8f7ed,stroke:#4f8a63,color:#172033;
     classDef target fill:#f1e9ff,stroke:#8061a8,color:#172033;
     class Plan,Policy,Config input;
-    class Preflight,Orchestrator,Effects core;
+    class Preflight,Runtime,Core,Events,Effects core;
     class Implementer,Reviewer agent;
     class Target target;
 ```

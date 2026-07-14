@@ -18,9 +18,9 @@ Every run begins with three already-prepared and already-approved inputs:
 - the **configuration**, which supplies the concrete environment and capabilities used to apply
   those rules.
 
-The three inputs form one execution envelope. Approval happens upstream. The orchestrator does not
+The three inputs form one execution envelope. Approval happens upstream. The runtime does not
 ask for routine human approval after receiving the envelope; it validates the envelope and either
-starts the run or rejects it before any side effect.
+starts the run or rejects it before any agent, workspace, verification, or delivery operation.
 
 Input production, classification, compilation, and approval are outside this proposal.
 
@@ -52,7 +52,7 @@ They remain independent. A large, low-complexity story may need more time withou
 stronger model. A small, high-complexity story may need little implementation time while requiring
 stronger reasoning and review.
 
-The classifications are approved plan facts. The orchestrator never infers, defaults, or changes
+The classifications are approved plan facts. The core never infers, defaults, or changes
 them. An agent may report that a classification appears unsuitable, but the first phase either
 continues under the resolved route or blocks when that route cannot complete the story.
 
@@ -134,13 +134,13 @@ keeps model names out of plans and routing intent independent of one provider.
 
 The fully resolved route is frozen for the story before the run starts. In the first phase:
 
-- the orchestrator does not select a model through judgment;
+- the core does not select a model through judgment;
 - the route does not change when a story proves harder than expected;
 - budget exhaustion or an unusable route blocks the story and its transitive dependents; and
 - unrelated stories continue.
 
 Future policy may define deterministic fallback or escalation chains without changing the plan or
-giving routing judgment to the orchestrator.
+giving routing judgment to the core.
 
 ## Checks and evidence responsibilities
 
@@ -160,8 +160,8 @@ only when:
 4. the evidence can be associated with that exact committed content.
 
 The reviewer consumes this evidence and does not rerun the same checks merely for confirmation.
-The orchestrator validates evidence presence, provenance, success, and association with the
-candidate; it does not interpret project-specific output.
+The runtime validates evidence presence, provenance, success, and association with the candidate;
+it does not interpret project-specific output.
 
 ### Additional diagnostics
 
@@ -180,8 +180,8 @@ Policy has two final-local-verification modes:
 | `none`          | Trust the implementer's recorded check evidence and proceed directly to delivery.                                                             |
 
 The deterministic mode is an intentional independent confirmation, not another agent review. The
-orchestrator core dispatches it through the narrow local-verification interface and consumes a
-typed result; it does not run or interpret project commands itself.
+runtime dispatches it through the narrow local-verification interface and consumes a typed result;
+the core does not run or interpret project commands itself.
 
 Remote continuous integration is not a third local-verification mode. When delivery creates a pull
 request, its normal remote checks still run and must satisfy the configured delivery environment
@@ -189,8 +189,9 @@ before merge. Policy may choose local deterministic verification or none before 
 
 ## Immutability
 
-The plan, policy, and configuration are frozen when execution starts. Preflight also records each
-story's resolved route, and those resolutions are frozen with the input envelope.
+The plan, policy, and configuration are frozen when execution starts. Preflight also resolves each
+story's route, and those resolutions are frozen with the input envelope in live runtime state and
+the run-initialization event payload.
 
 Runtime facts may change without changing the inputs, including:
 
@@ -207,7 +208,7 @@ explicit pause-and-reconfigure capability is outside the first phase.
 ## Preflight resolution
 
 Preflight validates the complete envelope before creating a worktree, spawning an agent, pushing a
-branch, or performing another side effect. It must confirm at least that:
+branch, or performing another execution operation. It must confirm at least that:
 
 - the plan contains no invalid or cyclic dependency graph;
 - the run names one repository and one integration target;
@@ -220,8 +221,10 @@ branch, or performing another side effect. It must confirm at least that:
 - the selected delivery mode can satisfy its required gates.
 
 Missing classifications, unmatched routes, unsupported policy, unavailable required capabilities,
-or contradictory inputs reject the entire run before side effects. Preflight does not partially
-start the subset it can resolve.
+or contradictory inputs reject the entire run before execution operations. The runtime may record
+the `preflight.failed` event, but preflight does not partially start the subset it can resolve.
 
-Once preflight succeeds, the orchestrator records the immutable envelope and resolved routes, then
-begins the [story-execution lifecycle](story-execution.md).
+Once preflight succeeds, the runtime adopts the immutable envelope and resolved routes in memory,
+persists the initialization events according to the
+[events and runtime-state contract](events-and-runtime-state.md), then begins the
+[story-execution lifecycle](story-execution.md).

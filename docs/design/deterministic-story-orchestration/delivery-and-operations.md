@@ -26,7 +26,7 @@ Checkpoint enforcement is independently `best-effort` or `required`. The default
 A best-effort failure is recorded and local work continues. A required checkpoint failure blocks
 the story.
 
-Implementers never push. The orchestrator dispatches a deterministic branch-push operation through
+Implementers never push. The runtime dispatches a deterministic branch-push operation through
 the delivery interface and records the exact pushed SHA. Ordinary checkpoint pushes are
 fast-forward-only. A remote update after an explicit target rebase may use guarded
 `force-with-lease` against the previously recorded remote SHA.
@@ -35,12 +35,12 @@ fast-forward-only. A remote update after an explicit target rebase may use guard
 
 After reviewer approval and target alignment, policy selects one of two modes:
 
-- **`deterministic`**, the default: the orchestrator dispatches the configured final check set once
+- **`deterministic`**, the default: the runtime dispatches the configured final check set once
   through the local-verification interface against the exact approved candidate.
 - **`none`:** the system trusts the implementer's check evidence and proceeds to delivery.
 
-The orchestrator core does not run project commands or interpret their output. It validates the
-typed result and the exact candidate identity returned by the interface.
+The core does not run project commands or interpret their output. The runtime validates the typed
+result and the exact candidate identity returned by the interface.
 
 A failed deterministic verification does not let delivery proceed. If the failure indicates a
 code problem, the story returns to the same implementer. Any code mutation invalidates approval,
@@ -53,7 +53,7 @@ verification was enabled. They must reach the configured acceptable state before
 
 ## Deterministic delivery
 
-The orchestrator dispatches delivery only for the current approved package. Policy and
+The runtime dispatches delivery only for the current approved package. Policy and
 configuration determine:
 
 - whether delivery pushes only, creates a pull request, or integrates directly;
@@ -65,11 +65,11 @@ configuration determine:
 
 For the first phase, a pull request is a delivery mechanism, not another review stage. The
 implementer proposes its title and body, and the reviewer approves their factual accuracy and
-completeness as part of the package. The orchestrator creates the pull request through the delivery
+completeness as part of the package. The runtime creates the pull request through the delivery
 interface, observes its normal remote checks, and requests the configured merge. Hosted review is
 not part of this phase.
 
-Immediately before a merge or direct integration, the orchestrator confirms that the approved
+Immediately before a merge or direct integration, the runtime confirms that the approved
 branch SHA and target SHA still match the reviewed finalization basis. If the target moved, the
 story returns through target alignment and refreshed review. Transient delivery failures may be
 retried deterministically; a non-recoverable failure blocks the story with a recorded reason.
@@ -97,28 +97,30 @@ closure.
 
 The first phase uses fail-closed story outcomes:
 
-| Cause                                                    | Story outcome                            | Downstream effect                                        | Independent work              |
-| -------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------- | ----------------------------- |
-| Five unsuccessful review-fix loops                       | `blocked: review-loop-limit-exceeded`    | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Five repeated target refreshes                           | `blocked: target-refresh-limit-exceeded` | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Reviewer explicitly cannot approve                       | `blocked` with structured reason         | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Implementer or reviewer session is irrecoverably lost    | `blocked: agent-session-lost`            | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Resolved agent route or budget cannot complete the story | `blocked` with structured reason         | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Required checkpoint cannot be persisted                  | `blocked: checkpoint-failed`             | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Best-effort checkpoint fails                             | No state change; record failure          | None                                                     | Continues                     |
-| Non-recoverable verification or delivery failure         | `blocked` with structured reason         | All transitive dependents become `blocked-by-dependency` | Continues                     |
-| Cleanup fails after landing confirmation                 | Remains `landed` and `retiring`          | Dependents remain eligible                               | Continues subject to capacity |
+| Cause                                                    | Story outcome                            | Downstream effect                                   | Independent work              |
+| -------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------- | ----------------------------- |
+| Five unsuccessful review-fix loops                       | `blocked: review-loop-limit-exceeded`    | Transitive dependents remain permanently ineligible | Continues                     |
+| Five repeated target refreshes                           | `blocked: target-refresh-limit-exceeded` | Transitive dependents remain permanently ineligible | Continues                     |
+| Reviewer explicitly cannot approve                       | `blocked` with structured reason         | Transitive dependents remain permanently ineligible | Continues                     |
+| Implementer or reviewer session is irrecoverably lost    | `blocked: agent-session-lost`            | Transitive dependents remain permanently ineligible | Continues                     |
+| Resolved agent route or budget cannot complete the story | `blocked` with structured reason         | Transitive dependents remain permanently ineligible | Continues                     |
+| Required checkpoint cannot be persisted                  | `blocked: checkpoint-failed`             | Transitive dependents remain permanently ineligible | Continues                     |
+| Best-effort checkpoint fails                             | No state change; record failure          | None                                                | Continues                     |
+| Non-recoverable verification or delivery failure         | `blocked` with structured reason         | Transitive dependents remain permanently ineligible | Continues                     |
+| Cleanup fails after landing confirmation                 | Remains `landed` and `retiring`          | Dependents remain eligible                          | Continues subject to capacity |
 
-Every `blocked-by-dependency` record retains the causal path to its originating blocked story. A
-run may therefore finish with a mixed result: landed stories, directly blocked stories, and
-stories blocked by dependency.
+Only the story that directly encounters a blocking condition emits `story.blocked`. Transitive
+dependents remain pending and emit no synthetic block events. At normal completion, the
+`run.completed` event derives their outcome as `not-run: dependency-blocked` and names the
+originating blocked story. A run may therefore finish with a mixed result: landed stories,
+directly blocked stories, and derived dependency-blocked outcomes.
 
 Invalid or unresolved input is different: it rejects the entire run during preflight before story
 states or side effects exist.
 
 ## Retirement after a block
 
-After the original story blocks, the orchestrator retires its resources without discarding work:
+After the original story blocks, the runtime retires its resources without discarding work:
 
 1. Confirm that the latest candidate is committed and record its branch and SHA.
 2. Apply the configured checkpoint policy, including a no-PR remote push when required.
@@ -127,9 +129,9 @@ After the original story blocks, the orchestrator retires its resources without 
 5. Remove the worktree only after confirming it has no uncommitted work and the branch is preserved
    in every policy-required location.
 
-Blocking propagation does not wait for this retirement sequence. Downstream stories become
-`blocked-by-dependency` immediately, and independent work may continue subject to available
-capacity.
+Dependency ineligibility does not wait for this retirement sequence. Downstream stories stop being
+eligible immediately without emitting another event, and independent work may continue subject to
+available capacity.
 
 ## Agreed first-phase defaults
 
@@ -153,11 +155,13 @@ capacity.
 | Dependency unlock point       | Confirmed landing                                                              |
 | Lost agent session            | Block story; recovery deferred                                                 |
 | Cleanup failure after landing | Retry without reversing landing                                                |
+| Runtime state                 | In memory only; no first-phase resume                                          |
+| Durable run data              | Append-only events; no persisted current-state snapshot                        |
 
 ## Extension points
 
 The design intentionally leaves the following additions possible without assigning new judgment
-to the orchestrator:
+to the core:
 
 - **Routing dimensions:** add approved plan characteristics such as risk, security sensitivity,
   domain, or required capabilities and extend the uniform policy's deterministic routing rules.
@@ -170,17 +174,19 @@ to the orchestrator:
   integration branch, a patch export, or another deterministic target.
 - **Alternative workspace:** implement the workspace interface with another isolation substrate.
 - **Agent providers:** implement the agent-session interface without exposing provider-specific
-  protocol objects to the orchestrator.
+  protocol objects to the runtime or core.
 - **Verification providers:** replace the local-verification implementation while preserving its
   exact-candidate and typed-result contract.
 - **Metadata assistance:** add a low-cost, unprivileged copywriting helper that proposes text; the
   reviewer still approves it and the helper gains no delivery authority.
-- **Recovery:** reconstruct or replace agent sessions from structured records in a later phase.
+- **Recovery:** add an explicit snapshot, projection, or replay model and reconstruct or replace
+  agent sessions in a later phase.
 
 ## Deferred decisions
 
-- Exact schemas and versioning for inputs, resolved routes, assignments, submissions, verdicts,
-  packages, effects, and records.
+- Exact payload schemas for the agreed event catalog and the remaining input, route, assignment,
+  submission, verdict, package, and effect contracts.
+- Concrete event storage, indexing, retention, artifact storage, and any future projection model.
 - Input production, story classification, and upstream approval workflow.
 - Additional routing dimensions and deterministic escalation rules.
 - Session recovery, agent replacement, and replay after process interruption.
