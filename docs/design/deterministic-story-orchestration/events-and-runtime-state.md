@@ -43,7 +43,8 @@ The design keeps four concepts distinct:
 One accepted trigger produces one transition. A transition may emit multiple events and request
 multiple operations. Outgoing operations are not themselves completed facts: their requested,
 succeeded, or failed outcomes are recorded as separate events. An operation result returns to the
-runtime as a later trigger.
+runtime as a later trigger. The draft [operation and result contracts](operations-and-results.md)
+define the closed request/result distinction and operation-event mapping.
 
 A malformed, stale, or otherwise invalid message does not change domain state. The runtime may
 still record a `message.rejected` event describing the rejected input.
@@ -199,7 +200,8 @@ become an implicit control-state source without a separate design decision.
 
 - Exact payload schemas and producer-reference structure.
 - Concrete event-store implementation, indexing, retention, and internal ordering metadata.
-- Artifact storage and retention for large logs, patches, evidence, or full transcripts.
+- Concrete artifact storage, encryption, archival, and physical-retention mechanics; the draft
+  [evidence boundary](evidence-and-artifacts.md) defines their conceptual contract.
 - Replay, projections, snapshots, recovery, and schema migration across resumable runs.
 - Event-bus, observer, export, and telemetry delivery semantics.
 - Direct producer submission beyond the runtime's first-phase single-submitter model.

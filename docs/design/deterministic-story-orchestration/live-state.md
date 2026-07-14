@@ -139,8 +139,9 @@ A `StoryState` may reference an operation it is waiting for when the lifecycle r
 relationship. It does not duplicate the operation's full record. A transition may atomically settle
 an operation, advance a story, and update a run-wide fact such as the finalization lease.
 
-Exact operation kinds, request and result contracts, idempotency requirements, and retention bounds
-remain part of later port and message design.
+The draft [operation and result contracts](operations-and-results.md) propose the exact conceptual
+operation kinds, validation boundary, and idempotency rules. Concrete schemas, failure-policy
+mapping, and retention bounds remain deferred.
 
 ## Landed and blocked retention
 
@@ -203,7 +204,9 @@ The live-state model preserves these invariants:
 ## Deferred decisions
 
 - Field-level entity and value-object schemas.
-- Exact operation, message, and result unions.
-- Port contracts and provider-specific reference shapes.
+- Concrete operation, message, and result schemas; the conceptual draft is in
+  [Operations and results](operations-and-results.md).
+- Concrete port interfaces and provider-specific reference shapes; the conceptual draft is in
+  [Port boundaries](ports.md).
 - Operation tombstone bounds and detailed failure or timeout behavior.
 - State snapshots, replay, interrupted-run recovery, and distributed state ownership.

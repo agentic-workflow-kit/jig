@@ -146,7 +146,8 @@ giving routing judgment to the core.
 
 Inputs assign mandatory validation responsibilities ahead of execution. They define which checks
 exist, who owns them, when they run, what evidence they produce, and which later actors consume
-that evidence.
+that evidence. The draft [evidence and artifact boundary](evidence-and-artifacts.md) refines how
+those requirements become typed manifests and immutable supporting artifacts.
 
 ### Implementer-owned checks
 
@@ -223,6 +224,9 @@ branch, or performing another execution operation. It must confirm at least that
 Missing classifications, unmatched routes, unsupported policy, unavailable required capabilities,
 or contradictory inputs reject the entire run before execution operations. The runtime may record
 the `preflight.failed` event, but preflight does not partially start the subset it can resolve.
+
+The draft [port-boundary layer](ports.md) defines the capability declarations that this validation
+would consume; their concrete serialization remains deferred.
 
 Once preflight succeeds, the runtime adopts the immutable envelope and resolved routes in memory,
 persists the initialization events according to the

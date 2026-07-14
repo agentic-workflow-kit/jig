@@ -29,69 +29,24 @@ The functional spine is agreed:
 | Live state       | Separate run and story entities, centralized atomic management, operation registry, and compact terminal retention  | [Live state](live-state.md)                             |
 
 The proposal therefore defines what the simplified engine must accomplish, the main lifecycle
-invariants, and the conceptual live-state ownership model. It does not yet define the external port
-contracts, operation/result types, artifact boundaries, or runtime failure mechanics required to
-implement that model cleanly.
+invariants, and the conceptual live-state ownership model. Three additional contract layers have
+been drafted autonomously for review; failure/liveness and the later slices remain undesigned.
 
-## Recommended design order
+## Draft layers awaiting review
 
-### 1. Port boundaries
+| Slice                  | Draft direction                                                                                                            | Document                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Port boundaries        | Six narrow ports: event store, artifact store, agent sessions, workspace, local verification, and delivery                 | [Port boundaries](ports.md)                         |
+| Operations and results | Closed request/result unions, factual completed versus technical failure, operation catalog, validation, and idempotency   | [Operations and results](operations-and-results.md) |
+| Evidence and artifacts | Bounded decision facts and manifests, immutable artifact references, trusted attribution, integrity, access, and retention | [Evidence and artifacts](evidence-and-artifacts.md) |
 
-Define the minimum semantic capabilities the runtime needs from the external world. The candidate
-first-phase boundaries are:
+These documents are review drafts, not agreed layers. Approval should either accept them, revise
+them, or return the affected slice to open design before the proposal treats their contracts as
+settled.
 
-- **Agent-session port:** create, continue, identify, and close retained implementer and reviewer
-  sessions.
-- **Workspace port:** create, inspect, update, and safely remove story worktrees and branches.
-- **Event-store port:** atomically append trusted persisted events and expose only the storage
-  behavior required by the first phase.
-- **Local-verification port:** execute the configured final check set against an exact candidate.
-- **Delivery port:** checkpoint or deliver an exact branch and SHA, optionally create a pull
-  request, observe remote checks, merge, and confirm landing.
+## Recommended design order after draft review
 
-The exact port operations and result types are not yet agreed.
-
-The first phase does not currently need:
-
-- a **plan-source port**, because an approved immutable envelope is supplied to the runtime;
-- a separate **execution-host port**, because environment mechanics remain behind the agent and
-  verification implementations;
-- a forge-specific port, because GitHub or another forge is an implementation of delivery; or
-- an observability control port, because observability consumes events and must not affect
-  orchestration decisions.
-
-These exclusions remain design recommendations until the port slice is agreed.
-
-### 2. Typed operations, messages, and results
-
-For each agreed port, define:
-
-- the semantic operation the runtime may request;
-- the typed success, failure, and rejected-result outcomes;
-- operation identity and request/result matching;
-- role-specific agent assignments and responses;
-- validation at the runtime boundary; and
-- the mapping from each accepted result to the agreed event catalog.
-
-Provider SDK objects, raw GitHub responses, filesystem implementation details, and agent-provider
-protocol objects must remain behind their adapters.
-
-### 3. Evidence and artifact boundary
-
-Decide which decision-relevant evidence remains inline in typed event payloads and which large data
-is stored separately behind immutable references. This includes:
-
-- implementer check output;
-- patches and changed-path evidence;
-- reviewer diagnostics;
-- final local-verification logs;
-- remote-check and merge evidence; and
-- optional agent transcripts.
-
-The design must also set redaction, integrity, retention, and missing-artifact behavior without
-turning raw artifact parsing into orchestration judgment.
-
-### 4. Failure and liveness semantics
+### 1. Failure and liveness semantics
 
 Complete the runtime behavior for:
 
@@ -106,7 +61,7 @@ Complete the runtime behavior for:
 Recovery remains deferred, but first-phase operation semantics should avoid making later recovery
 or reconciliation impossible.
 
-### 5. Composition and authority
+### 2. Composition and authority
 
 Define how the approved configuration selects concrete implementations and how preflight proves
 that they can satisfy policy. Cover:
@@ -118,7 +73,7 @@ that they can satisfy policy. Cover:
 - clock and identifier generation; and
 - enforcement that implementer and reviewer sessions never receive delivery authority.
 
-### 6. Read models and observability
+### 3. Read models and observability
 
 Separate live and durable views:
 
@@ -129,7 +84,7 @@ Separate live and durable views:
 
 An event bus, replay model, and projection-backed recovery remain separate future decisions.
 
-### 7. Testing and conformance
+### 4. Testing and conformance
 
 Define the evidence required to trust the design:
 

@@ -63,6 +63,11 @@ configuration determine:
 - required remote check states when a pull request exists; and
 - remote checkpoint requirements.
 
+The draft [port boundary](ports.md) and [operation catalog](operations-and-results.md) split this
+flow into exact target observation, branch publication, optional PR creation, remote-check
+observation, integration, and landing-confirmation capabilities. The delivery adapter reports each
+fact; it does not choose the sequence.
+
 For the first phase, a pull request is a delivery mechanism, not another review stage. The
 implementer proposes its title and body, and the reviewer approves their factual accuracy and
 completeness as part of the package. The runtime creates the pull request through the delivery

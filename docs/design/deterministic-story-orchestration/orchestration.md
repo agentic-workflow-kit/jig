@@ -25,10 +25,10 @@ flowchart LR
     subgraph Core["Deterministic orchestration runtime"]
         Runtime["Runtime coordinator<br/>persist · advance · dispatch"]
         Orchestrator["Orchestration core<br/>DAG · state machine<br/>counters · target lease"]
-        RunState["In-memory run state"]
+        LiveState["In-memory live state<br/>run · stories · operations"]
         EventStore[("Append-only event store")]
         Runtime <--> Orchestrator
-        Runtime <--> RunState
+        Runtime <--> LiveState
         Runtime --> EventStore
     end
 
@@ -79,7 +79,7 @@ flowchart LR
     classDef agent fill:#e8f7ed,stroke:#4f8a63,color:#172033;
     classDef target fill:#fce8e6,stroke:#a7615b,color:#172033;
     class Plan,Policy,Config,Routes input;
-    class Runtime,Orchestrator,RunState,EventStore core;
+    class Runtime,Orchestrator,LiveState,EventStore core;
     class AgentPort,WorkspacePort,VerificationPort,DeliveryPort port;
     class Worktree,Implementer,Reviewer agent;
     class Target target;
@@ -91,18 +91,18 @@ facts. The core does not know how events are persisted or how an effect interfac
 
 ## Responsibilities
 
-| Component                    | Owns                                                                                                                                                                          | Must not own                                                                                                                            |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Orchestration core           | Input-envelope validation, deterministic route resolution, DAG eligibility, scheduling, lifecycle decisions, counters, target queue and lease                                 | Persistence, command dispatch, coding, review judgment, conflict resolution, PR prose, project-specific check interpretation, mechanics |
-| Runtime coordinator          | Live run state, trigger validation, core invocation, trusted event-draft submission, persistence-before-state ordering, state adoption, effect dispatch, typed-result routing | Implementation or review judgment, rewriting producer facts, deriving state from stored events, provider-specific mechanics             |
-| Event recorder and store     | Trusted event envelopes, atomic append, durable immutable events, store-controlled ordering metadata                                                                          | Runtime state, replay in the first phase, policy, story decisions, changing producer facts                                              |
-| Agent-session interface      | Spawn, continue, identify, and close role-specific sessions using the resolved profile                                                                                        | Story state, routing judgment, review policy, delivery authority                                                                        |
-| Workspace interface          | Create, inspect, update, and safely remove story worktrees                                                                                                                    | Agent judgment, dependency scheduling, remote delivery                                                                                  |
-| Local-verification interface | Execute the configured final local check set against an exact candidate and return a typed result                                                                             | Deciding which checks are required, interpreting acceptability, editing code, delivery authority                                        |
-| Delivery interface           | Deterministic branch push, optional PR creation, remote-check observation, configured merge, result confirmation                                                              | Whether a package is acceptable, conflict resolution, weakening required checks                                                         |
-| Implementer                  | Implement the story, rebase when assigned, resolve conflicts, run its assigned checks before commit, commit the checked candidate, propose delivery metadata                  | Review its own work as sufficient, push, create a PR, merge, or clean resources                                                         |
-| Reviewer                     | Assess the exact candidate, its evidence, and its delivery metadata; return approval, findings, or a block                                                                    | Repeat implementer checks by default, edit implementation, mutate lifecycle state, push, create a PR, merge, or clean resources         |
-| In-memory run state          | Immutable input basis, resolved routes, story states, counters, target queue, and active resource identities                                                                  | Persistence, replay, independent policy, or judgment                                                                                    |
+| Component                    | Owns                                                                                                                                                                                                     | Must not own                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchestration core           | Input-envelope validation, deterministic route resolution, DAG eligibility, scheduling, lifecycle decisions, counters, deterministic finalization selection, and lease decisions                         | Persistence, command dispatch, coding, review judgment, conflict resolution, PR prose, project-specific check interpretation, mechanics |
+| Runtime coordinator          | Centralized `LiveState` management, trigger validation, core invocation, trusted event-draft submission, persistence-before-state ordering, atomic state adoption, effect dispatch, typed-result routing | Implementation or review judgment, rewriting producer facts, deriving state from stored events, provider-specific mechanics             |
+| Event recorder and store     | Trusted event envelopes, atomic append, durable immutable events, store-controlled ordering metadata                                                                                                     | Runtime state, replay in the first phase, policy, story decisions, changing producer facts                                              |
+| Agent-session interface      | Spawn, continue, identify, and close role-specific sessions using the resolved profile                                                                                                                   | Story state, routing judgment, review policy, delivery authority                                                                        |
+| Workspace interface          | Create, inspect, update, and safely remove story worktrees                                                                                                                                               | Agent judgment, dependency scheduling, remote delivery                                                                                  |
+| Local-verification interface | Execute the configured final local check set against an exact candidate and return a typed result                                                                                                        | Deciding which checks are required, interpreting acceptability, editing code, delivery authority                                        |
+| Delivery interface           | Deterministic branch push, optional PR creation, remote-check observation, configured merge, result confirmation                                                                                         | Whether a package is acceptable, conflict resolution, weakening required checks                                                         |
+| Implementer                  | Implement the story, rebase when assigned, resolve conflicts, run its assigned checks before commit, commit the checked candidate, propose delivery metadata                                             | Review its own work as sufficient, push, create a PR, merge, or clean resources                                                         |
+| Reviewer                     | Assess the exact candidate, its evidence, and its delivery metadata; return approval, findings, or a block                                                                                               | Repeat implementer checks by default, edit implementation, mutate lifecycle state, push, create a PR, merge, or clean resources         |
+| In-memory live state         | Separate `RunState` and `StoryState` entities, landed-story index, operation registry, counters, lease, and active resource identities                                                                   | Immutable input ownership, persistence, replay, independent policy, or judgment                                                         |
 
 ## SOLID posture
 
@@ -120,8 +120,10 @@ facts. The core does not know how events are persisted or how an effect interfac
   runtime depends on event and effect contracts, not on a particular store, agent, check command,
   Git implementation, or repository host.
 
-This proposal avoids a generic plugin framework in the first phase. The boundaries are intended to
-make later extraction possible without paying that complexity cost now.
+This proposal avoids a generic plugin framework in the first phase. The draft
+[port-boundary layer](ports.md) and [operation contracts](operations-and-results.md) refine these
+responsibilities without changing the core's authority. The boundaries are intended to make later
+extraction possible without paying that complexity cost now.
 
 ## Per-story resources
 
@@ -144,7 +146,9 @@ parallel, but they finalize serially into the run's one configured target.
 
 Agent outputs are untrusted external input. The runtime validates them before asking the core for
 a transition. The transition's events must persist before the runtime adopts the next state.
-Free-form text may be retained as supporting detail, but it never acts as a control signal.
+Free-form text may be retained as supporting detail, but it never acts as a control signal. The
+draft [evidence and artifact boundary](evidence-and-artifacts.md) defines how bounded decision facts
+and larger supporting content remain separate.
 
 ### Story assignment
 

@@ -1,16 +1,17 @@
 ---
 title: "Deterministic story orchestration — standalone proposal"
-status: proposal — agreed design, not yet reconciled or adopted
+status: proposal — agreed foundation with draft contract layers, not yet adopted
 ---
 
 # Deterministic story orchestration
 
 ## Status and intent
 
-This document set captures a self-contained orchestration design agreed during an exploratory
-design session on 2026-07-14. It deliberately does not depend on, amend, or claim consistency with
-any existing product, design, delivery, or runtime document. A later adoption pass may reconcile
-it with those artifacts.
+This document set captures a self-contained orchestration design created during an exploratory
+design session on 2026-07-14. Foundation layers marked as agreed reflect reviewed decisions. Port,
+operation-result, and evidence-artifact layers are autonomous drafts awaiting review. The set
+deliberately does not depend on, amend, or claim consistency with any existing product, design,
+delivery, or runtime document. A later adoption pass may reconcile it with those artifacts.
 
 The proposal reduces delivery orchestration to a deterministic coordinator, in-memory runtime
 state, an append-only event trail, two judgment-bearing agent roles per story, and narrow
@@ -36,24 +37,28 @@ The orchestration core makes no implementation, review, conflict-resolution, met
 check, merge, or persistence judgment. It deterministically resolves configured routes, schedules
 work, enforces counters, and manages the finalization lease. The runtime validates external
 messages and persists the core's resulting events before adopting new in-memory state and
-dispatching operations through narrow interfaces.
+dispatching operations through narrow interfaces. Draft contract layers further separate six
+ports, closed typed operations and results, and bounded evidence manifests backed by immutable
+artifacts.
 
 ## Document layers
 
-| Layer | Document                                                | Owns                                                                                                      |
-| ----- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 0     | This overview                                           | Status, scope, goals, invariants, and navigation                                                          |
-| 1     | [Inputs](inputs.md)                                     | Plan, policy, configuration, routing, evidence responsibilities, immutability, and preflight              |
-| 2     | [Events and runtime state](events-and-runtime-state.md) | Transitions, event creation, persistence ordering, event catalog, and durable derived outcomes            |
-| 3     | [Live state](live-state.md)                             | Run, story, operation, and retention ownership within the centralized in-memory consistency boundary      |
-| 4     | [Orchestration](orchestration.md)                       | Deterministic core, runtime coordination, effect boundaries, responsibilities, and agent protocol         |
-| 5     | [Story execution](story-execution.md)                   | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
-| 6     | [Delivery and operations](delivery-and-operations.md)   | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
+| Layer | Document                                                    | Owns                                                                                                      |
+| ----- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 0     | This overview                                               | Status, scope, goals, invariants, and navigation                                                          |
+| 1     | [Inputs](inputs.md)                                         | Plan, policy, configuration, routing, evidence responsibilities, immutability, and preflight              |
+| 2     | [Events and runtime state](events-and-runtime-state.md)     | Transitions, event creation, persistence ordering, event catalog, and durable derived outcomes            |
+| 3     | [Live state](live-state.md)                                 | Run, story, operation, and retention ownership within the centralized in-memory consistency boundary      |
+| 4     | [Port boundaries](ports.md) — draft                         | Six narrow infrastructure and effect boundaries with explicit authority                                   |
+| 5     | [Operations and results](operations-and-results.md) — draft | Closed request/result unions, operation catalog, validation, correlation, and idempotency                 |
+| 6     | [Evidence and artifacts](evidence-and-artifacts.md) — draft | Decision facts, evidence manifests, artifact references, integrity, access, and retention                 |
+| 7     | [Orchestration](orchestration.md)                           | Deterministic core, runtime coordination, effect boundaries, responsibilities, and agent protocol         |
+| 8     | [Story execution](story-execution.md)                       | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
+| 9     | [Delivery and operations](delivery-and-operations.md)       | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
 
-Open conceptual work is tracked separately in
-[Next conceptual design decisions](next-design-decisions.md). That planning companion is not an
-agreed design layer until its individual decisions are resolved and moved into the documents
-above.
+Open conceptual work and draft-review status are tracked separately in
+[Next conceptual design decisions](next-design-decisions.md). Draft layers do not become agreed
+design merely by appearing in this index.
 
 ## Goals
 
