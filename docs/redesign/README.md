@@ -26,6 +26,9 @@ full-lifecycle architecture. The governing authority is the [initiative goal](./
    crafted and reviewed without requiring every session to read guidance for other layers.
 6. Stage 2 has not started. Implementation, migration planning, delivery sequencing, and
    current-state publication remain excluded from this initiative.
+7. The proposed [Stage 2 execution plan](./STAGE-2-EXECUTION-PLAN.md) preserves the verified
+   orientation checkpoint and defines the gated path to decision-complete architecture. Execution
+   awaits explicit owner approval at its G0 gate.
 
 ## Authority and precedence
 
@@ -121,25 +124,23 @@ Use the layers in order:
 
 ## Workspace map
 
-| Path                                                                                                 | Purpose                                                                           | Status                                                     |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`GOAL.md`](./GOAL.md)                                                                               | Governing initiative goal, approval model, completion criteria, and non-goals.    | approved Layer 0 authority                                 |
-| [`guidelines/`](./guidelines/)                                                                       | Needs-routed operational handbook; read the index and only the active layer page. | active documentation standard                              |
-| [`architecture-design-and-documentation-guide.md`](./architecture-design-and-documentation-guide.md) | Comprehensive rationale, research basis, expanded examples, and source reference. | optional deep reference                                    |
-| [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)                         | Pre-goal standalone proposal.                                                     | immutable input                                            |
-| [`reviews/`](./reviews/)                                                                             | Independent Claude Fable and Codex reviews of that proposal.                      | immutable evidence; unapplied to proposal; used in Stage 1 |
-| [`design/README.md`](./design/README.md)                                                             | Canonical high-level architecture and invariants.                                 | Stage 1 approved and locked                                |
-| [`design/decisions.md`](./design/decisions.md)                                                       | Canonical Stage 1 decisions, trade-offs, deferrals, and approval record.          | Stage 1 approved and locked                                |
-| [`HANDOFF-stage-1-high-level-architecture.md`](./HANDOFF-stage-1-high-level-architecture.md)         | Historical cold-start prompt for the completed Stage 1 work.                      | closed and superseded                                      |
+| Path                                                                                                 | Purpose                                                                                 | Status                                                     |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`GOAL.md`](./GOAL.md)                                                                               | Governing initiative goal, approval model, completion criteria, and non-goals.          | approved Layer 0 authority                                 |
+| [`guidelines/`](./guidelines/)                                                                       | Needs-routed operational handbook; read the index and only the active layer page.       | active documentation standard                              |
+| [`architecture-design-and-documentation-guide.md`](./architecture-design-and-documentation-guide.md) | Comprehensive rationale, research basis, expanded examples, and source reference.       | optional deep reference                                    |
+| [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)                         | Pre-goal standalone proposal.                                                           | immutable input                                            |
+| [`reviews/`](./reviews/)                                                                             | Independent Claude Fable and Codex reviews of that proposal.                            | immutable evidence; unapplied to proposal; used in Stage 1 |
+| [`design/README.md`](./design/README.md)                                                             | Canonical high-level architecture and invariants.                                       | Stage 1 approved and locked                                |
+| [`design/decisions.md`](./design/decisions.md)                                                       | Canonical Stage 1 decisions, trade-offs, deferrals, and approval record.                | Stage 1 approved and locked                                |
+| [`STAGE-2-EXECUTION-PLAN.md`](./STAGE-2-EXECUTION-PLAN.md)                                           | Verified Stage 2 checkpoint, execution DAG, owner gates, agent roster, and review plan. | proposed; execution awaits G0 owner approval               |
+| [`HANDOFF-stage-1-high-level-architecture.md`](./HANDOFF-stage-1-high-level-architecture.md)         | Historical cold-start prompt for the completed Stage 1 work.                            | closed and superseded                                      |
 
 ## Next session — Stage 2
 
-Start from the locked [Stage 1 architecture](./design/README.md) and
-[decision record](./design/decisions.md), then read the
-[guidelines index](./guidelines/README.md) and
-[Layer 2 — Detailed architecture](./guidelines/02-detailed-architecture.md). Use only the proposal
-and review slices relevant to the detailed decision being closed. The historical Stage 1 handoff
-must not be executed.
+Start from the proposed [Stage 2 execution plan](./STAGE-2-EXECUTION-PLAN.md). When its freshness
+contract passes, use its verified checkpoint and phase-specific source packets instead of repeating
+the full orientation sweep. The historical Stage 1 handoff must not be executed.
 
 Stage 2 may refine the locked foundation but cannot change it without an explicit Stage 1 reopen,
 impact statement, and renewed owner approval. Implementation, migration planning, delivery
