@@ -5,6 +5,12 @@ status: proposal — agreed foundation with draft contract layers, not yet adopt
 
 # Deterministic story orchestration
 
+> **Immutable reference — do not continue the redesign here.** The
+> [main initiative goal](../GOAL.md) is the current authority. This standalone proposal and its
+> reviews are inputs to that initiative; they are not the approved architecture. New design work
+> must be recreated outside this folder, beginning with a high-level architecture that is approved
+> and locked before decision-complete design starts.
+
 ## Status and intent
 
 This document set captures a self-contained orchestration design created during an exploratory
