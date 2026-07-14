@@ -44,10 +44,11 @@ dispatching operations through narrow interfaces.
 | ----- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | 0     | This overview                                           | Status, scope, goals, invariants, and navigation                                                          |
 | 1     | [Inputs](inputs.md)                                     | Plan, policy, configuration, routing, evidence responsibilities, immutability, and preflight              |
-| 2     | [Events and runtime state](events-and-runtime-state.md) | In-memory state, transitions, event creation, persistence ordering, event catalog, and derived outcomes   |
-| 3     | [Orchestration](orchestration.md)                       | Deterministic core, runtime coordination, effect boundaries, responsibilities, and agent protocol         |
-| 4     | [Story execution](story-execution.md)                   | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
-| 5     | [Delivery and operations](delivery-and-operations.md)   | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
+| 2     | [Events and runtime state](events-and-runtime-state.md) | Transitions, event creation, persistence ordering, event catalog, and durable derived outcomes            |
+| 3     | [Live state](live-state.md)                             | Run, story, operation, and retention ownership within the centralized in-memory consistency boundary      |
+| 4     | [Orchestration](orchestration.md)                       | Deterministic core, runtime coordination, effect boundaries, responsibilities, and agent protocol         |
+| 5     | [Story execution](story-execution.md)                   | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
+| 6     | [Delivery and operations](delivery-and-operations.md)   | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
 
 Open conceptual work is tracked separately in
 [Next conceptual design decisions](next-design-decisions.md). That planning companion is not an

@@ -8,7 +8,9 @@ status: proposal — agreed design, not yet reconciled or adopted
 This layer defines the first-phase relationship between the live orchestration state and the
 durable facts produced during a run. It deliberately does not select an event bus, require event
 sourcing, or define recovery. It consumes the immutable [input envelope](inputs.md) and supplies
-the event vocabulary used by the [orchestration runtime](orchestration.md).
+the event vocabulary used by the [orchestration runtime](orchestration.md). The separate
+[live-state layer](live-state.md) defines the entities, ownership, and retention rules inside the
+runtime's in-memory consistency boundary.
 
 ## First-phase model
 

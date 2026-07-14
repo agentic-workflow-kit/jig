@@ -25,35 +25,17 @@ The functional spine is agreed:
 | Core and runtime | Deterministic decisions are separate from runtime validation, persistence, live state adoption, and effect dispatch | [Orchestration](orchestration.md)                       |
 | Story execution  | One isolated delivery unit per story, retained implementer and reviewer, bounded review and target-refresh loops    | [Story execution](story-execution.md)                   |
 | Delivery         | Serialized finalization, policy-driven checkpointing and delivery, exact landing confirmation, safe cleanup         | [Delivery and operations](delivery-and-operations.md)   |
-| Events and state | In-memory runtime state, event-only durable storage, trusted envelopes, persistence before state and operations     | [Events and runtime state](events-and-runtime-state.md) |
+| Events           | Event-only durable storage, trusted envelopes, and persistence before live-state adoption or operation dispatch     | [Events and runtime state](events-and-runtime-state.md) |
+| Live state       | Separate run and story entities, centralized atomic management, operation registry, and compact terminal retention  | [Live state](live-state.md)                             |
 
-The proposal therefore defines what the simplified engine must accomplish and the main lifecycle
-invariants. It does not yet define all of the core state entities, external port contracts,
-operation/result types, artifact boundaries, or runtime failure mechanics required to implement
-that model cleanly.
+The proposal therefore defines what the simplified engine must accomplish, the main lifecycle
+invariants, and the conceptual live-state ownership model. It does not yet define the external port
+contracts, operation/result types, artifact boundaries, or runtime failure mechanics required to
+implement that model cleanly.
 
 ## Recommended design order
 
-### 1. Live in-memory state entities
-
-This is the recommended next design slice because both core transitions and port contracts need a
-shared vocabulary for the live state they affect.
-
-Define conceptually:
-
-- what belongs to `RunState` versus each `StoryState`;
-- candidate, review, approval, branch, worktree, agent-session, delivery, and finalization-lease
-  references;
-- which values are owned state and which are derived from the plan or other state;
-- how pending operations and resource usage are represented;
-- where review-fix and target-refresh counters live;
-- which facts are invalidated when the candidate SHA changes; and
-- the invariants that prevent contradictory live states.
-
-This slice should settle entities, ownership, relationships, and invalidation rules without yet
-designing field-level serialization schemas.
-
-### 2. Port boundaries
+### 1. Port boundaries
 
 Define the minimum semantic capabilities the runtime needs from the external world. The candidate
 first-phase boundaries are:
@@ -80,7 +62,7 @@ The first phase does not currently need:
 
 These exclusions remain design recommendations until the port slice is agreed.
 
-### 3. Typed operations, messages, and results
+### 2. Typed operations, messages, and results
 
 For each agreed port, define:
 
@@ -94,7 +76,7 @@ For each agreed port, define:
 Provider SDK objects, raw GitHub responses, filesystem implementation details, and agent-provider
 protocol objects must remain behind their adapters.
 
-### 4. Evidence and artifact boundary
+### 3. Evidence and artifact boundary
 
 Decide which decision-relevant evidence remains inline in typed event payloads and which large data
 is stored separately behind immutable references. This includes:
@@ -109,7 +91,7 @@ is stored separately behind immutable references. This includes:
 The design must also set redaction, integrity, retention, and missing-artifact behavior without
 turning raw artifact parsing into orchestration judgment.
 
-### 5. Failure and liveness semantics
+### 4. Failure and liveness semantics
 
 Complete the runtime behavior for:
 
@@ -124,7 +106,7 @@ Complete the runtime behavior for:
 Recovery remains deferred, but first-phase operation semantics should avoid making later recovery
 or reconciliation impossible.
 
-### 6. Composition and authority
+### 5. Composition and authority
 
 Define how the approved configuration selects concrete implementations and how preflight proves
 that they can satisfy policy. Cover:
@@ -136,7 +118,7 @@ that they can satisfy policy. Cover:
 - clock and identifier generation; and
 - enforcement that implementer and reviewer sessions never receive delivery authority.
 
-### 7. Read models and observability
+### 6. Read models and observability
 
 Separate live and durable views:
 
@@ -147,7 +129,7 @@ Separate live and durable views:
 
 An event bus, replay model, and projection-backed recovery remain separate future decisions.
 
-### 8. Testing and conformance
+### 7. Testing and conformance
 
 Define the evidence required to trust the design:
 

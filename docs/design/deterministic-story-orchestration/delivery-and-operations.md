@@ -91,7 +91,8 @@ Resource retirement is separate:
 
 A cleanup failure does not reverse landing or block dependents. The landed story remains in
 `retiring`, cleanup retries independently, and its resources may continue consuming capacity until
-closure.
+closure. After closure, the runtime removes the full landed story state and retains only its compact
+identifier in the live landed-story index described by [Live state](live-state.md).
 
 ## Blocking semantics
 
