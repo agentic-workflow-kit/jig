@@ -1,11 +1,19 @@
 ---
 title: "Layer 1 — High-level architecture"
 status: active operational standard
+state: current
 purpose: Define and lock the architectural foundation without entering detailed contracts or implementation design.
 audience: Architecture owners, product and engineering leads, security, operations, and high-level reviewers.
 scope: System boundary, major responsibilities, trust, authority, lifecycle, persistence, concurrency, acceptance, recovery, and invariants.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ./README.md
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./00-project-definition.md
+  - ./02-detailed-architecture.md
+  - ./source-reference.md
 ---
 
 # Layer 1 — High-level architecture

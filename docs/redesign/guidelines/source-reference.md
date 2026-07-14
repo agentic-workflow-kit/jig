@@ -1,11 +1,16 @@
 ---
 title: "Architecture guidelines — source reference"
 status: active reference map
+state: current
 purpose: Route readers to extended rationale in the comprehensive source guide without making it mandatory reading.
 audience: Authors and reviewers who need deeper reasoning, research sources, expanded examples, or failure-mode analysis.
 scope: Background and traceability for the operational handbook.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./README.md
 ---
 
 # Source reference

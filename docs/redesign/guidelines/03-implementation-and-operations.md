@@ -1,11 +1,19 @@
 ---
 title: "Layer 3 — Implementation and operations"
 status: active operational standard
+state: current
 purpose: Map approved architecture into code, infrastructure, deployment, verification, and operational readiness.
 audience: Implementers, technical leads, platform engineers, operators, security engineers, and delivery reviewers.
 scope: Implementation and deployment design, transition planning when approved, verification, observability, and operations.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ./README.md
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./02-detailed-architecture.md
+  - ./04-current-state-and-maintenance.md
+  - ./source-reference.md
 ---
 
 # Layer 3 — Implementation and operations

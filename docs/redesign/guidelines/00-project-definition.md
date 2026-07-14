@@ -1,11 +1,18 @@
 ---
 title: "Layer 0 — Project definition"
 status: active operational standard
+state: current
 purpose: Define the problem, outcomes, scope, constraints, and decision ownership before architecture work.
 audience: Product owners, architects, engineering leads, and reviewers framing new work.
 scope: Project and product context; solution architecture is excluded.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ./README.md
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./01-high-level-architecture.md
+  - ./source-reference.md
 ---
 
 # Layer 0 — Project definition

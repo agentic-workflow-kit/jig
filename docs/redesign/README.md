@@ -45,6 +45,10 @@ decisions. The comprehensive
 preserves deeper rationale but is not required operational reading. Where generic guidance mentions
 migration, rollout, or implementation, this initiative's non-goals continue to apply.
 
+[`GOAL.md`](./GOAL.md) is this initiative's approved Layer 0 project definition. Stage 1
+corresponds to the handbook's Layer 1, and Stage 2 corresponds to Layer 2. Layers 3 and 4 remain
+outside this initiative's current scope.
+
 Whenever a new design conflicts with the current product contract, it must name the current
 promise, the proposed revision, why the revision is preferable, the changed guarantee or
 tradeoff, and the owner decision required.

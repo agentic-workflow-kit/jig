@@ -1,11 +1,19 @@
 ---
 title: "Layer 2 — Detailed architecture"
 status: active operational standard
+state: current
 purpose: Elaborate an approved high-level foundation into an internally coherent, decision-complete architecture.
 audience: Architects, implementers, security and operations specialists, contract owners, and detailed-design reviewers.
 scope: Components, states, contracts, data, failures, recovery, security, observability, and conformance; implementation planning is excluded.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ./README.md
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./01-high-level-architecture.md
+  - ./03-implementation-and-operations.md
+  - ./source-reference.md
 ---
 
 # Layer 2 — Detailed architecture

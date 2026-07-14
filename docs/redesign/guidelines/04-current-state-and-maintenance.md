@@ -1,11 +1,18 @@
 ---
 title: "Layer 4 — Current state and maintenance"
 status: active operational standard
+state: current
 purpose: Publish verified current architecture and keep it aligned with changing implementation and operations.
 audience: Architecture owners, maintainers, operators, reviewers, and people relying on current documentation.
 scope: Current-state publication, evidence links, ownership, versions, staleness detection, and change routing.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ./README.md
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./03-implementation-and-operations.md
+  - ./source-reference.md
 ---
 
 # Layer 4 — Current state and maintenance

@@ -92,20 +92,16 @@ useful ideas, but it is not the architecture to continue editing.
 
 At the time this handoff was prepared:
 
-| Fact                   | Verified value                                                                                              |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Worktree               | `/Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-deterministic-story-orchestration-proposal` |
-| Branch                 | `docs/deterministic-story-orchestration-proposal`                                                           |
-| `HEAD`                 | `d3266616ad2de472069a051c629e6791d9cf62eb`                                                                  |
-| Merge base with `main` | `521ae0846e788ef91979dd4c273687ab22e6137e`                                                                  |
-| Governing goal         | `docs/redesign/GOAL.md`                                                                                     |
-| Documentation method   | `docs/redesign/guidelines/README.md` plus `docs/redesign/guidelines/01-high-level-architecture.md`          |
-| Initiative state       | Stage 1 not started, approved, or locked                                                                    |
-| Verification command   | `corepack pnpm check`                                                                                       |
+| Fact                 | Verified value                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Worktree             | `/Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-deterministic-story-orchestration-proposal` |
+| Branch               | `docs/deterministic-story-orchestration-proposal`                                                           |
+| Governing goal       | `docs/redesign/GOAL.md`                                                                                     |
+| Documentation method | `docs/redesign/guidelines/README.md` plus `docs/redesign/guidelines/01-high-level-architecture.md`          |
+| Verification command | `corepack pnpm check`                                                                                       |
 
-The worktree intentionally contains uncommitted documentation changes that create and organize the
-`docs/redesign/` workspace. Reverify all facts in STEP 0; do not assume this snapshot is still
-current.
+Reverify the live repository state and all other current facts in STEP 0; do not treat this handoff
+as a repository-state snapshot.
 
 </context>
 

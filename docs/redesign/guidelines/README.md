@@ -1,11 +1,21 @@
 ---
 title: "Architecture design and documentation guidelines"
 status: active operational standard
+state: current
 purpose: Route authors and reviewers to the smallest complete guidance set for their active design layer.
 audience: Human and agent architecture authors, reviewers, and decision owners.
 scope: Generic software architecture design and documentation.
 owner: Architecture documentation owner.
 last_verified: 2026-07-14
+sources_of_truth:
+  - ../architecture-design-and-documentation-guide.md
+related:
+  - ./00-project-definition.md
+  - ./01-high-level-architecture.md
+  - ./02-detailed-architecture.md
+  - ./03-implementation-and-operations.md
+  - ./04-current-state-and-maintenance.md
+  - ./source-reference.md
 ---
 
 # Architecture design and documentation guidelines
