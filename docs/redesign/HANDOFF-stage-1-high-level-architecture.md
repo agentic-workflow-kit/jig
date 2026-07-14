@@ -14,10 +14,13 @@ Follow the closest `AGENTS.md` instructions. Use the `brainstorming` skill becau
 architecture design. Keep deciding separate from doing, surface conflicts and tradeoffs directly,
 and obtain explicit owner decisions rather than silently selecting material product changes.
 
-Use `docs/redesign/architecture-design-and-documentation-guide.md` as the required method for all
-new architecture artifacts. The guide governs documentation and modeling; `docs/redesign/GOAL.md`
-and explicit owner decisions govern architecture. The goal's non-goals override generic guide
-steps about implementation, migration, rollout, and delivery sequencing.
+Use `docs/redesign/guidelines/README.md` and
+`docs/redesign/guidelines/01-high-level-architecture.md` as the required method for this session.
+The guidelines index provides the shared contract and routing; the Layer 1 page is complete for
+high-level architecture. Do not read later-layer pages or the comprehensive source guide unless a
+specific unresolved question requires them. The guidelines govern documentation and modeling;
+`docs/redesign/GOAL.md` and explicit owner decisions govern architecture. The goal's non-goals
+override generic guidance about implementation, migration, rollout, and delivery sequencing.
 
 Your only objective in this session is Stage 1: define, obtain explicit owner approval for, and
 durably record the locked high-level architecture described by `docs/redesign/GOAL.md`. Do not
@@ -37,8 +40,8 @@ STEP 0 is a hard gate. Before proposing architecture or editing files:
 
 1. verify the worktree path, branch, `HEAD`, merge base, and working-tree status;
 2. read the closest repo instructions, `docs/redesign/README.md`,
-   `docs/redesign/GOAL.md`, and `docs/redesign/architecture-design-and-documentation-guide.md` in
-   full;
+   `docs/redesign/GOAL.md`, `docs/redesign/guidelines/README.md`, and
+   `docs/redesign/guidelines/01-high-level-architecture.md` in full;
 3. inventory the immutable proposal and both reviews without changing them;
 4. report the verified state, your understanding of the Stage 1 scope, and a bounded design and
    documentation plan;
@@ -50,7 +53,7 @@ runtime behavior as evidence and adversarial checks rather than as defaults. Pre
 alternatives and recommend one with explicit rationale. Work through owner decisions until the
 Stage 1 areas in the goal are coherent and complete.
 
-Apply the guide deliberately:
+Apply the Layer 1 guidelines deliberately:
 
 - define the audience, question, enabled decision, scope, abstraction level, state, and owner for
   every artifact before drafting it;
@@ -62,7 +65,7 @@ Apply the guide deliberately:
   decisions, and implementation reality separate;
 - label all Stage 1 material `proposed` until explicit owner approval, then record it as approved
   and locked without implying it is already implemented or current; and
-- use the guide's review checklists before requesting Stage 1 approval.
+- use the Layer 1 review and lock gate before requesting Stage 1 approval.
 
 For every conflict with the current product contract, use this structure:
 
@@ -93,10 +96,10 @@ At the time this handoff was prepared:
 | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Worktree               | `/Users/aryekogan/repos/agentic-workflow-kit/worktrees/jig/docs-deterministic-story-orchestration-proposal` |
 | Branch                 | `docs/deterministic-story-orchestration-proposal`                                                           |
-| `HEAD`                 | `83256f5e32efc879c7b01acc54cf4722d5650307`                                                                  |
+| `HEAD`                 | `d3266616ad2de472069a051c629e6791d9cf62eb`                                                                  |
 | Merge base with `main` | `521ae0846e788ef91979dd4c273687ab22e6137e`                                                                  |
 | Governing goal         | `docs/redesign/GOAL.md`                                                                                     |
-| Documentation method   | `docs/redesign/architecture-design-and-documentation-guide.md`                                              |
+| Documentation method   | `docs/redesign/guidelines/README.md` plus `docs/redesign/guidelines/01-high-level-architecture.md`          |
 | Initiative state       | Stage 1 not started, approved, or locked                                                                    |
 | Verification command   | `corepack pnpm check`                                                                                       |
 

@@ -8,9 +8,18 @@
 >
 > **Reviewed:** 2026-07-14
 
+> **Operational use:** This is the comprehensive source reference. Authors and reviewers should
+> start at the needs-routed [architecture guidelines handbook](./guidelines/README.md), then read
+> only the page for their active design layer. Use this source guide for deeper rationale, research
+> links, expanded examples, or a specific unresolved question; do not read it in full by default.
+
 ---
 
 ## How to use this guide
+
+For active work, first select a layer through the
+[architecture guidelines index](./guidelines/README.md). The routes below are optional deep-reading
+paths when the operational layer page does not answer a specific question.
 
 - **Starting a new project:** Read sections 2, 3, 5, and 11, then adapt the worked example in section 12.
 - **Reviewing existing documentation:** Use sections 6, 14, and 15 as a review rubric.
