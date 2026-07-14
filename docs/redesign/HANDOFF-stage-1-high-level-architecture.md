@@ -5,8 +5,8 @@ audience:
   - Jig owner
   - Stage 1 architecture author
 scope: Stage 1 high-level architecture under docs/redesign; Stage 2, implementation, migration, delivery sequencing, and unrelated repository documentation are excluded.
-state: current
-status: ready for use — Stage 1 not yet started
+state: historical
+status: closed and superseded — Stage 1 approved and locked at dce91c5359df37e378f1575282658a1fa3b04341
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-14
 sources_of_truth:
@@ -15,11 +15,30 @@ sources_of_truth:
   - ./guidelines/README.md
   - ./guidelines/01-high-level-architecture.md
 related:
+  - ./design/README.md
+  - ./design/decisions.md
+  - ./guidelines/02-detailed-architecture.md
   - ./deterministic-story-orchestration/README.md
   - ./reviews/README.md
 ---
 
 # Fresh-session prompt — Stage 1 high-level architecture
+
+## Historical closure notice
+
+**Stage 1 is complete and locked at commit `dce91c5359df37e378f1575282658a1fa3b04341`.
+This prompt must not be executed.** It is retained only as historical evidence of the orientation,
+scope, and stop gate used for Stage 1.
+
+Stage 2 must start from the locked [architecture](./design/README.md) and
+[decision record](./design/decisions.md), followed by the
+[guidelines index](./guidelines/README.md) and
+[Layer 2 — Detailed architecture](./guidelines/02-detailed-architecture.md). Its work remains
+subject to the current source boundary and owner decision gates.
+
+The historical prompt's `corepack pnpm check` instruction is superseded by the documentation-only
+verification contract in [`docs/redesign/AGENTS.md`](./AGENTS.md). For redesign-document changes,
+run only the relevant Markdown formatting and documentation-link checks.
 
 Use the following prompt in a new Codex session.
 

@@ -1,6 +1,6 @@
 ---
 title: "Jig redesign — initiative workspace"
-status: active — Layer 0 approved; Stage 1 high-level architecture not yet started
+status: active — Layer 0 approved; Stage 1 approved and locked; Stage 2 not started
 ---
 
 # Jig redesign
@@ -13,31 +13,38 @@ full-lifecycle architecture. The governing authority is the [initiative goal](./
 1. [`GOAL.md`](./GOAL.md) was approved by Arye Kogan (Jig owner) on 2026-07-14 as the initiative's
    Layer 0 project definition. It requires architecture approval in two locked stages: first the
    high-level architecture, then the decision-complete architecture.
-2. The standalone [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)
+2. The Stage 1 [high-level architecture](./design/README.md) and
+   [decision record](./design/decisions.md) were approved and locked on 2026-07-14 at commit
+   `dce91c5359df37e378f1575282658a1fa3b04341`.
+3. The standalone [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)
    proposal was created before the goal. Its internal `agreed`, `draft`, and `proposal` labels do
    not constitute approval under the new goal.
-3. Two independent reviews were then recorded under [`reviews/`](./reviews/): one by Claude Fable
-   and one by Codex.
-4. No findings from either review have been applied to the standalone proposal. The reviews have
-   not yet been compiled into a unified review.
-5. A generic, needs-routed architecture handbook now governs how each design layer is crafted and
-   reviewed without requiring every session to read guidance for other layers.
-6. The source and layer-routing contract has been refined for a clean restart. Stage 1 high-level
-   architecture work has not yet started, no Stage 1 decision is approved or locked, and the durable
-   `design/` artifact set does not yet exist.
+4. Two independent reviews under [`reviews/`](./reviews/) remain immutable and unapplied to the
+   standalone proposal. Stage 1 used them as adversarial evidence; they did not select the
+   architecture.
+5. The [architecture guidelines handbook](./guidelines/README.md) governs how each design layer is
+   crafted and reviewed without requiring every session to read guidance for other layers.
+6. Stage 2 has not started. Implementation, migration planning, delivery sequencing, and
+   current-state publication remain excluded from this initiative.
 
 ## Authority and precedence
 
 For this initiative, authority descends in this order:
 
 1. [`GOAL.md`](./GOAL.md) and explicit owner decisions;
-2. the future explicitly approved and locked Stage 1 high-level architecture;
+2. the explicitly approved and locked Stage 1 [high-level architecture](./design/README.md) and
+   [decision record](./design/decisions.md);
 3. the future explicitly approved Stage 2 decision-complete architecture.
 
 The standalone proposal is the primary source of redesign direction, and its reviews are
-adversarial checks. Neither is approved architecture. Repository product, design, ADR, delivery, and
-runtime artifacts outside `docs/redesign/` are not default initiative inputs and enter scope only by
-explicit owner direction.
+adversarial checks. Neither is approved architecture. For a specific Stage 2 decision or an
+owner-requested comparison, a named document under `docs/product/` may be consulted as non-binding
+Product Reference. It becomes governing only through an explicit owner import that records the
+exact promise or constraint, provenance, rationale, consequences, and affected decisions. Do not
+read product documents broadly or silently import their content. Repository design, ADR, delivery,
+runtime, package, source, and test artifacts outside `docs/redesign/` remain excluded as architecture
+inputs unless the owner explicitly expands scope for a named comparison, constraint, or verification
+question.
 
 The [architecture guidelines handbook](./guidelines/README.md) is the required method for crafting
 new redesign documents. Every session reads its index and only the active layer page. The handbook
@@ -60,66 +67,80 @@ revision, rationale, changed guarantee or tradeoff, and owner decision required.
 
 Keep authority, method, directional source material, and approval state distinct:
 
-| Role                       | Source                                                                           | How to use it                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Initiative authority       | [`GOAL.md`](./GOAL.md) and explicit owner decisions                              | Defines outcomes, scope, stage gates, source boundary, and what may be approved.                                   |
-| Crafting and review method | [`guidelines/README.md`](./guidelines/README.md) plus only the active layer page | Defines document context, model/view discipline, diagram rules, review gates, and approval semantics.              |
-| Primary redesign direction | [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)     | Supplies the design direction to re-express, test, refine, or reject in the correct layer; never edit it in place. |
-| Corrective evidence        | [`reviews/`](./reviews/)                                                         | Supplies contradictions, risks, and missing questions after the proposal has been read; does not choose fixes.     |
-| New canonical design       | `design/`                                                                        | Stable future home for layered design artifacts; stage and approval belong in metadata, not the path.              |
+| Role                       | Source                                                                                        | How to use it                                                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Initiative authority       | [`GOAL.md`](./GOAL.md) and explicit owner decisions                                           | Defines outcomes, scope, stage gates, source boundary, and what may be approved.                                                    |
+| Locked Stage 1 authority   | [Architecture](./design/README.md) and [decisions](./design/decisions.md)                     | Supplies the foundation and invariants Stage 2 must preserve; change only through an explicit reopen and renewed owner approval.    |
+| Crafting and review method | [`guidelines/README.md`](./guidelines/README.md) plus only the active layer page              | Defines document context, model/view discipline, diagram rules, review gates, and approval semantics.                               |
+| Primary redesign direction | [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)                  | Supplies direction to re-express, test, refine, or reject within the locked foundation; never edit it in place.                     |
+| Corrective evidence        | [`reviews/`](./reviews/)                                                                      | Supplies contradictions, risks, and missing questions; does not choose fixes or override locked decisions.                          |
+| Product Reference          | A named `docs/product/` document opened for a specific decision or owner-requested comparison | May inform discussion but remains non-binding unless the owner explicitly imports an exact promise or constraint with provenance.   |
+| New canonical design       | [`design/README.md`](./design/README.md) and [`design/decisions.md`](./design/decisions.md)   | Stable home for approved Stage 1 and future Stage 2 artifacts; layer and approval state belong in metadata, not the directory name. |
 
 Use the layers in order:
 
-| Initiative step   | Required reading and context                                                                                                       | Output and stop gate                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Approved Layer 0  | This README and [`GOAL.md`](./GOAL.md); reopen Layer 0 only by explicit owner decision.                                            | Approved project definition.                                                                                              |
-| Stage 1 / Layer 1 | Goal, guidelines index, Layer 1 page, complete standalone proposal, then both independent reviews.                                 | Proposed high-level artifacts under `design/`, followed by explicit owner approval and lock.                              |
-| Stage 2 / Layer 2 | Locked Stage 1 artifacts, guidelines index, Layer 2 page, and only the proposal/review slices relevant to the detailed decision.   | Decision-complete additions under the same `design/` folder, followed by final owner approval.                            |
-| Layers 3 and 4    | Not part of the current initiative. Enter only through a later explicit scope decision and the applicable guideline-layer reading. | No implementation, migration, delivery sequencing, current-state publication, or maintenance work in this initiative yet. |
+| Initiative step   | Required reading and context                                                                                                                                                                | Output and stop gate                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Approved Layer 0  | This README and [`GOAL.md`](./GOAL.md); reopen Layer 0 only by explicit owner decision.                                                                                                     | Approved project definition.                                                                                              |
+| Stage 1 / Layer 1 | Completed from the goal, Layer 1 method, complete standalone proposal, and both independent reviews.                                                                                        | Approved and locked architecture and decision record under `design/`; reopen only through explicit owner approval.        |
+| Stage 2 / Layer 2 | Locked [`design/`](./design/) artifacts, guidelines index, [Layer 2 page](./guidelines/02-detailed-architecture.md), and only the proposal/review slices relevant to the detailed decision. | Decision-complete additions under the same `design/` folder, followed by final owner approval.                            |
+| Layers 3 and 4    | Not part of the current initiative. Enter only through a later explicit scope decision and the applicable guideline-layer reading.                                                          | No implementation, migration, delivery sequencing, current-state publication, or maintenance work in this initiative yet. |
 
 ## Working rules
 
 - Keep architecture work inside `docs/redesign/` by default. Repository inspection needed to verify
   the checkout or run documentation gates does not authorize using outside product, design, ADR,
   delivery, runtime, or source artifacts as architecture inputs.
-- Start from the goal, then use the standalone proposal as the primary directional source and the
-  reviews as adversarial checks. Do not begin from unrelated repository documentation.
-- Follow the [architecture guidelines index](./guidelines/README.md) and the active layer page. For
-  Stage 1, read [Layer 1 — High-level architecture](./guidelines/01-high-level-architecture.md), not
-  the later-layer pages. Define the audience, question, decision, scope, level, state, and owner for
-  every artifact; maintain one coherent model; create selective views through progressive
-  disclosure; and keep structure, behavior, perspectives, decisions, and implementation evidence
-  distinct.
+- Start Stage 2 from the locked Stage 1 architecture and decision record plus the active guideline
+  page. Consult only the proposal and review slices relevant to the detailed decision being closed;
+  do not begin from unrelated repository documentation.
+- Follow the [architecture guidelines index](./guidelines/README.md) and only the active layer page.
+  Stage 2 uses [Layer 2 — Detailed architecture](./guidelines/02-detailed-architecture.md) and treats
+  the locked Stage 1 artifacts as its input contract. Define the audience, question, decision,
+  scope, level, state, and owner for every artifact; maintain one coherent model; create selective
+  views through progressive disclosure; and keep structure, behavior, perspectives, decisions, and
+  implementation evidence distinct.
 - Treat [`deterministic-story-orchestration/`](./deterministic-story-orchestration/) as immutable.
   It may be cited or mined for useful concepts, but it must not become the new design by continued
   editing.
 - Treat both files under [`reviews/`](./reviews/) as immutable, independent, point-in-time review
   records. Do not apply their fixes to the old proposal.
-- Recreate all new architecture in a new, connected redesign artifact set outside the immutable
-  proposal and review folders. Use the stable `design/` path; record Layer 1 or Layer 2 in artifact
-  metadata rather than in directory names. Reuse only decisions that survive reasoning against the
-  goal, the applicable guideline gate, and review evidence.
+- Create Stage 2 architecture as connected additions under the stable `design/` path outside the
+  immutable proposal and review folders. Record the active layer and approval state in artifact
+  metadata rather than directory names. Preserve every locked Stage 1 invariant unless the owner
+  explicitly reopens Stage 1 and renews approval after an impact statement.
 - Establish the canonical model, identities, questions, and owner decisions before drawing views.
   Every diagram follows the active layer's view rules, carries its own purpose and context, and
   selects from the shared model rather than inventing a parallel architecture.
 - Label every new artifact's state explicitly. Keep proposed, approved and locked, current,
   transitional, deprecated, and historical material distinguishable.
-- Complete and explicitly approve Stage 1 before beginning Stage 2. Once Stage 1 is approved, any
-  change to it requires an explicit reopen and renewed owner approval.
-- Do not begin implementation, migration planning, or delivery sequencing in this initiative.
+- Stage 1 is complete. Any change to a locked Stage 1 decision requires an explicit reopen, impact
+  statement, and renewed owner approval before Stage 2 continues on that basis.
+- Do not begin implementation, migration planning, delivery sequencing, or current-state
+  publication in this initiative.
 
 ## Workspace map
 
-| Path                                                                                                 | Purpose                                                                           | Status                               |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------ |
-| [`GOAL.md`](./GOAL.md)                                                                               | Governing initiative goal, approval model, completion criteria, and non-goals.    | approved Layer 0 authority           |
-| [`guidelines/`](./guidelines/)                                                                       | Needs-routed operational handbook; read the index and only the active layer page. | active documentation standard        |
-| [`architecture-design-and-documentation-guide.md`](./architecture-design-and-documentation-guide.md) | Comprehensive rationale, research basis, expanded examples, and source reference. | optional deep reference              |
-| [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)                         | Pre-goal standalone proposal.                                                     | immutable input                      |
-| [`reviews/`](./reviews/)                                                                             | Independent Claude Fable and Codex reviews of that proposal.                      | immutable inputs; findings unapplied |
-| `design/`                                                                                            | Stable future home of the new layered redesign.                                   | not created; Stage 1 pending         |
-| [`HANDOFF-stage-1-high-level-architecture.md`](./HANDOFF-stage-1-high-level-architecture.md)         | Cold-start prompt for the next design session.                                    | ready for use                        |
+| Path                                                                                                 | Purpose                                                                           | Status                                                     |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`GOAL.md`](./GOAL.md)                                                                               | Governing initiative goal, approval model, completion criteria, and non-goals.    | approved Layer 0 authority                                 |
+| [`guidelines/`](./guidelines/)                                                                       | Needs-routed operational handbook; read the index and only the active layer page. | active documentation standard                              |
+| [`architecture-design-and-documentation-guide.md`](./architecture-design-and-documentation-guide.md) | Comprehensive rationale, research basis, expanded examples, and source reference. | optional deep reference                                    |
+| [`deterministic-story-orchestration/`](./deterministic-story-orchestration/)                         | Pre-goal standalone proposal.                                                     | immutable input                                            |
+| [`reviews/`](./reviews/)                                                                             | Independent Claude Fable and Codex reviews of that proposal.                      | immutable evidence; unapplied to proposal; used in Stage 1 |
+| [`design/README.md`](./design/README.md)                                                             | Canonical high-level architecture and invariants.                                 | Stage 1 approved and locked                                |
+| [`design/decisions.md`](./design/decisions.md)                                                       | Canonical Stage 1 decisions, trade-offs, deferrals, and approval record.          | Stage 1 approved and locked                                |
+| [`HANDOFF-stage-1-high-level-architecture.md`](./HANDOFF-stage-1-high-level-architecture.md)         | Historical cold-start prompt for the completed Stage 1 work.                      | closed and superseded                                      |
 
-The next session should use the Stage 1 handoff, stay within the source boundary above, create the
-new durable architecture under `design/` only after the relevant owner decision gate, and stop after
-recording Stage 1 owner approval and the lock. Stage 2 starts only in a later session.
+## Next session — Stage 2
+
+Start from the locked [Stage 1 architecture](./design/README.md) and
+[decision record](./design/decisions.md), then read the
+[guidelines index](./guidelines/README.md) and
+[Layer 2 — Detailed architecture](./guidelines/02-detailed-architecture.md). Use only the proposal
+and review slices relevant to the detailed decision being closed. The historical Stage 1 handoff
+must not be executed.
+
+Stage 2 may refine the locked foundation but cannot change it without an explicit Stage 1 reopen,
+impact statement, and renewed owner approval. Implementation, migration planning, delivery
+sequencing, and current-state publication remain excluded.

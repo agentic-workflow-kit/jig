@@ -594,30 +594,11 @@ after every obligation is retired or explicitly handed off.
 
 ## Deliberate Stage 2 deferrals
 
-Stage 2 may decide the following mechanisms without changing the high-level foundation:
-
-- component, port, package, process, and deployment decomposition;
-- input, transition, event, operation, result, verdict, evidence, artifact, escalation, and
-  residual-obligation schemas;
-- exhaustive state machines, event and operation catalogs, and failure-code taxonomy;
-- exact retry, refresh, wait, timeout, timer, queue, reservation, and capacity algorithms;
-- ledger technology, conditional-commit interface, snapshots, projections, replication, backup,
-  compaction, migration, and disaster recovery;
-- controller, operation, lease, candidate, and effect-fence representation;
-- provider-specific idempotency, lookup, reconciliation, compensation, reconnection, and
-  replacement behavior;
-- evidence storage, integrity, redaction, encryption, access, size, retention, and archival;
-- reviewer protocol, finding representation, check-policy language, verification execution, and
-  remote-gate observation;
-- repository and forge operations, merge strategies, content-equivalence rules, and landing proof;
-- credential resolution, delegation enforcement, sandboxing, network boundaries, and adapter
-  conformance;
-- escalation interfaces, notifications, operator tooling, read models, metrics, exports, alerts,
-  and service objectives; and
-- verification and conformance suites proving the locked invariants.
-
-These deferrals decide how to realize the foundation. They do not defer authority, durable truth,
-acceptance, landing, failure containment, recovery, or liveness choices.
+The decision record's
+[consolidated deliberate Stage 2 deferrals](./decisions.md#consolidated-deliberate-stage-2-deferrals)
+are the single canonical, complete inventory. They decide how to realize this foundation; they do
+not defer or reopen authority, durable truth, acceptance, landing, failure containment, recovery,
+liveness, or any other locked invariant.
 
 ## Complete-foundation approval and lock
 
@@ -637,7 +618,7 @@ The complete foundation is **approved and locked**.
     handoff; and
   - constraints imposed by explicit adapter contracts and the locked authority boundary.
 - **Accepted Stage 2 deferrals:** The complete
-  [deliberate Stage 2 deferral list](#deliberate-stage-2-deferrals).
+  [consolidated deliberate Stage 2 deferral list](./decisions.md#consolidated-deliberate-stage-2-deferrals).
 - **Lock effect:** Stage 2 may refine mechanisms but cannot change a consolidated invariant without
   an explicit Stage 1 reopen, impact statement, and renewed owner approval.
 

@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Layer 0 project definition for the redesign initiative; architecture, implementation, migration, and delivery sequencing are excluded.
 state: approved
-status: approved — Layer 0 project definition; Stage 1 architecture not yet approved
+status: approved — Layer 0 project definition; Stage 1 approved and locked; Stage 2 not started
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-14
 approved_on: 2026-07-14
