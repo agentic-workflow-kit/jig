@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 is next and not yet authored
+status: active — Layer 0 approved with final exact-candidate recheck pending; Layer 1 is the next authorized active layer and begins only after that PASS
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-14
 sources_of_truth:
@@ -26,14 +26,16 @@ decisions, organized one reader-complete layer at a time.
 
 ## Current status
 
-Layer 0 — project definition — is next and has not yet been authored in the active design
-workspace. Layer 1 starts only after Layer 0 passes its exact review gate. This reset changes the
-organization and presentation, not Arye's explicit product or architecture decisions.
+Layer 0 — [project definition](./design/project-definition.md) — records approval after an initial
+content `PASS` and is pending the same reviewer's final exact-candidate recheck. Layer 1 is the next
+authorized active layer, with no Layer 1 artifacts authored yet, and may begin only after that final
+`PASS`. This reset changes the organization and presentation, not Arye's explicit product or
+architecture decisions.
 
 ## Navigation
 
 - [Guidelines](./guidelines/README.md) — current method; read the index and only the active layer page.
-- [Design workspace](./design/README.md) — the new canonical artifacts, beginning with Layer 0.
+- [Design workspace](./design/README.md) — the approved Layer 0 candidate and Layer 1 activation status.
 - [Raw provenance](./raw/README.md) — the complete pre-reset corpus and its source-role manifest.
 - [Comprehensive guide](./architecture-design-and-documentation-guide.md) — optional rationale and
   background for the method.

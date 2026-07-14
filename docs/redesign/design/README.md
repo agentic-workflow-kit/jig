@@ -7,7 +7,7 @@ audience:
   - Readers of the new redesign
 scope: New canonical redesign artifacts under this directory; historical evidence and later-layer detail are excluded.
 state: current
-status: active index — Layer 0 planned, not authored
+status: active index — Layer 0 approved with final exact-candidate recheck pending; Layer 1 is the next authorized active layer and begins only after that PASS
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-14
 sources_of_truth:
@@ -20,18 +20,20 @@ related:
 
 # Canonical design workspace
 
-This directory holds the new canonical redesign, authored and approved one layer at a time. It is
-currently empty apart from this index.
+This directory holds the new canonical redesign, authored and approved one layer at a time. Layer 0
+has an initial content `PASS`; its final metadata-bearing candidate is pending the same reviewer's
+exact-candidate recheck. No Layer 1 artifacts have been authored.
 
 ## Layer status
 
-| Layer                             | Canonical artifact         | Status                                    |
-| --------------------------------- | -------------------------- | ----------------------------------------- |
-| Layer 0 — project definition      | `project-definition.md`    | Next planned artifact; not yet authored   |
-| Layer 1 — high-level architecture | Future connected artifacts | Starts only after Layer 0 review approval |
+| Layer                             | Approved or future artifact                     | Status                                                                                     |
+| --------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Layer 0 — project definition      | [Project definition](./project-definition.md)   | Approved; final exact-candidate recheck pending before approval becomes effective          |
+| Layer 1 — high-level architecture | Future smallest complete connected artifact set | Next authorized active layer; no artifacts yet; begins only after the final Layer 0 `PASS` |
 
-Layer 0 will provide a complete project-level narrative without architecture detail. Layer 1 will
-use that approved definition as its governing input and will choose the smallest connected artifact
+The approved Layer 0 candidate provides a complete project-level narrative without architecture
+detail. After the same reviewer passes this exact metadata-bearing candidate, Layer 1 may begin,
+using the approved definition as its governing input and choosing the smallest connected artifact
 set required by the Layer 1 guideline.
 
 The [guidelines index](../guidelines/README.md) is the current method. The [raw provenance
