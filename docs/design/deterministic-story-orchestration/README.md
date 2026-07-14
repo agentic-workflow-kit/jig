@@ -49,6 +49,11 @@ dispatching operations through narrow interfaces.
 | 4     | [Story execution](story-execution.md)                   | Eligibility, implementation-review rounds, scheduling, target refresh, and the story state machine        |
 | 5     | [Delivery and operations](delivery-and-operations.md)   | Checkpointing, final verification, PR or merge flow, blocking, landing, cleanup, defaults, and extensions |
 
+Open conceptual work is tracked separately in
+[Next conceptual design decisions](next-design-decisions.md). That planning companion is not an
+agreed design layer until its individual decisions are resolved and moved into the documents
+above.
+
 ## Goals
 
 - Keep the orchestration core deterministic and small.
