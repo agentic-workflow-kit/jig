@@ -16,7 +16,7 @@ sources_of_truth:
   - Explicit owner decisions made on 2026-07-14
 related:
   - ./README.md
-  - ../guidelines/01-high-level-architecture.md
+  - ../../guidelines/01-high-level-architecture.md
   - ../deterministic-story-orchestration/README.md
   - ../reviews/README.md
 ---

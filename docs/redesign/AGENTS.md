@@ -1,96 +1,88 @@
-# AGENTS.md — Jig redesign workspace
+# AGENTS.md — Jig redesign documentation
 
 This is the closest working contract for `docs/redesign/` and everything below it. It inherits the
-repository-level `AGENTS.md` except where this file narrows the redesign initiative's source scope.
-Outside this directory, the repository-level instructions continue to govern unchanged.
+repository-level `AGENTS.md` except where this file narrows the redesign initiative's source scope,
+layer order, and review authority.
 
-## Authority and source boundary
+## Authority after the documentation reset
 
-For this initiative, authority descends in this order:
+Arye Kogan remains the product and architecture decision owner. The reset is editorial and
+organizational; it does not discard or reopen his prior explicit decisions.
 
-1. `GOAL.md` and explicit Jig owner decisions;
-2. the explicitly approved and locked Stage 1 high-level architecture;
-3. the explicitly approved Stage 2 decision-complete architecture.
+Immediately after the reset there is no active canonical Layer 0 or newly locked Layer 1. The new
+Layer 0 project definition becomes Layer 1's governing input only after its exact final candidate
+passes the Layer 0 review gate. The new Layer 1 foundation becomes approved and locked only after
+its exact final candidate passes the Layer 1 review gate.
 
-Keep authority, method, directional material, reference material, and evidence distinct:
+The owner-approved execution flow delegates each independent architect reviewer only to approve a
+faithful organization and re-expression of already-established intent. A reviewer cannot invent or
+materially change an outcome, scope boundary, quality requirement, decision owner, risk, guarantee,
+architecture decision, trade-off, negative consequence, or deliberate deferral. If faithful
+re-expression requires such a change, return `OWNER_DECISION_REQUIRED` and stop for Arye.
 
-- `GOAL.md` defines the approved initiative, scope, stage gates, and decision owner.
-- `guidelines/README.md` plus only the active layer page define how to craft, review, approve, and
-  lock architecture. They do not select the architecture.
-- `deterministic-story-orchestration/` is the immutable primary source of redesign direction. Its
-  internal `agreed`, `draft`, and `proposal` labels are not initiative approval.
-- `reviews/` contains immutable adversarial evidence. Review findings create questions and failure
-  scenarios; they are not automatic design decisions.
-- Repository files under `docs/product/` may be read without additional approval as reference for
-  the product idea: intended outcomes, audience, concepts, and product framing. For this redesign,
-  they are not governing contracts, do not outrank `GOAL.md` or explicit owner decisions, and must
-  not silently import the current product architecture or guarantees into the new design.
-- All other repository material outside `docs/redesign/` is excluded as architecture input by
-  default. This includes `docs/design/`, ADRs, delivery and archive records, runtime documentation,
-  packages, source, and tests. Read or use a named outside source only after the owner explicitly
-  expands scope for a comparison, constraint, or verification question.
+## Source roles and boundary
 
-Reading repository instructions, verifying the checkout and git state, or running repository
-documentation and validation commands does not expand the architecture source boundary.
+- `guidelines/README.md` plus only the active layer page defines the authoring and review method. It
+  selects no product or architecture decision.
+- `design/` contains the new active canonical artifacts, one approved layer at a time.
+- `raw/` contains historical evidence and provenance. Its former presentation, labels, approval
+  claims, plans, and handoffs are not current authority and must not be executed.
+- The former goal, source-role rules, and explicit project-level owner decisions are binding Layer 0
+  re-authoring inputs.
+- Former Decisions D1–D9, Invariants I1–I21, accepted negative consequences, deliberate deferrals,
+  and the artifact-shape decision are binding Layer 1 fidelity inputs at the correct altitude.
+- The archived standalone proposal is directional evidence. Archived reviews are adversarial
+  evidence. Neither selects a new decision.
 
-When product reference material differs from the redesign, label the comparison rather than
-silently reconciling it. Ask the owner before treating an outside product idea as a required promise
-or constraint. Record any imported promise using the conflict format required by `GOAL.md`.
+Repository material outside `docs/redesign/` is excluded as governing input unless Arye explicitly
+expands source scope for a named comparison, constraint, or verification question. Reading
+repository instructions, verifying git state, or running documentation checks does not expand this
+boundary.
 
-## Working order
+Do not edit historical files under `raw/` except for a relocation-only relative-link destination
+required to preserve its original target. Record every such repair in `raw/README.md`.
 
-Before proposing architecture or editing canonical design artifacts:
+## Layered authoring order
 
-1. Verify the worktree path, branch, `HEAD`, merge base, and working-tree status.
-2. Read this file and the repository-level `AGENTS.md`.
-3. Read `README.md` and `GOAL.md` in full.
+1. Verify the worktree, branch, `HEAD`, merge base, and status.
+2. Read the repository and redesign `AGENTS.md` files.
+3. Read the redesign and design indexes.
 4. Read `guidelines/README.md` and only the page for the active layer.
-5. For Stage 1, read the complete immutable standalone proposal in its index order, then read both
-   independent reviews.
-6. Use `HANDOFF-stage-1-high-level-architecture.md` for the Stage 1 orientation report, decision
-   plan, acknowledgement gate, crafting order, review gate, and stop point.
-7. Wait for the required owner acknowledgement or decision before creating or changing canonical
-   artifacts under `design/`.
+5. Read the approved earlier-layer artifact as the next layer's governing input contract; do not
+   reread earlier-layer guidance unless auditing or reopening that layer.
+6. Use the smallest connected artifact set that completely answers the active layer's questions.
+7. Apply the exact active-layer review gate and stop before the next layer until the gate passes.
 
-Keep deciding separate from doing. Present material alternatives and trade-offs before selecting a
-high-level architecture. Do not infer owner approval from document existence, prior proposal labels,
-review recommendations, or silence.
+Maintain one coherent model of identities, responsibilities, boundaries, relationships, ownership,
+lifecycle, and evidence. Use progressive disclosure: the layer's primary artifact must give its
+reader a complete connected narrative without requiring `raw/`; linked artifacts answer narrower
+deep-dive questions without redefining canonical facts. Keep facts, assumptions, proposals, owner
+decisions, approval state, and implementation evidence visibly distinct.
 
-## Artifact rules
+Every diagram must identify its question and view type, audience, purpose, scope and exclusions,
+state, owner, sources, and related views. Use one abstraction level, stable identities, directed
+verb labels, and a legend for colors, shapes, borders, line styles, and abbreviations. Meaning must
+not depend on color. Mermaid stays inline and uses the repository-required init theme block,
+colored subgraph regions, and category `classDef` styling.
 
-- Do not edit the standalone proposal or either independent review.
-- Create the new canonical architecture only under the stable `design/` path. Record the active
-  layer and approval state in artifact metadata, not in directory names.
-- Create the smallest connected artifact set that closes the active layer's decisions.
-- Maintain one canonical model of identities, responsibilities, boundaries, relationships,
-  ownership, lifecycle, and evidence. Views select from that model; they do not invent parallel
-  architectures.
-- Keep facts, product-reference observations, assumptions, proposals, explicit owner decisions, and
-  implementation evidence visibly distinct.
-- Follow the active guideline page's artifact, diagram, review, and approval contracts.
-- Keep every new Stage 1 artifact `proposed` until the complete foundation passes the Layer 1 review
-  gate and receives explicit owner approval.
-- After Stage 1 approval, record the approver, date, decision scope, negative consequences, and
-  deliberate Stage 2 deferrals; mark the foundation `approved and locked`; then stop before Stage 2.
-- Reopening a locked Stage 1 decision requires an explicit reopen, impact statement, and renewed
-  owner approval.
+Stop at the active layer. Do not smuggle later-layer components, ports, states, contracts,
+technology, implementation, migration, delivery sequencing, or current-state claims into an earlier
+artifact.
 
-## Scope and stop rules
+## Review and stop rules
 
-- Stage 1 defines and locks the high-level architectural foundation. Do not hide a material
-  high-level decision in a Stage 2 placeholder.
-- Stage 2 may refine the locked foundation but cannot change it without reopening Stage 1.
-- Implementation, migration planning, delivery sequencing, and current-state publication remain
-  outside this initiative.
-- Do not update unrelated repository documentation merely to make it agree with a proposal.
-- If a requested action would broaden the source boundary, change a locked decision, or enter a
-  later layer, stop and obtain explicit owner direction first.
+- Authors do not review their own work. Reviewers are independent and read-only.
+- A reviewer returns `PASS`, `CHANGES_REQUIRED`, or `OWNER_DECISION_REQUIRED` against the exact
+  active-layer gate.
+- `PASS` applies only to the exact final candidate, including approval metadata. Any post-PASS edit
+  requires reviewer recheck.
+- After at most three unsuccessful author/reviewer loops, stop for Arye with the unresolved
+  findings. The coordinator must not decide around the reviewer or proceed to the next layer.
+- After the Layer 1 commit, stop for Arye's review. Do not enter Layer 2, push, or open a PR.
 
 ## Verification
 
-Changes confined to `docs/redesign/` require documentation checks only. Run the relevant Markdown
-formatting and documentation-link checks and report the observed result. Do not run code-related
-lint, typecheck, build, package-boundary, test, or coverage checks, and do not run the full
-`corepack pnpm check` gate merely for redesign-document changes.
-
-Do not treat a green documentation check as architecture approval.
+Changes confined to `docs/redesign/` require documentation checks only. Run `git diff --check`,
+`corepack pnpm format:check`, and `corepack pnpm links:check`, plus the active layer's fidelity and
+review checks. Do not run code lint, typecheck, build, package-boundary, test, coverage, or the full
+repository gate. A green documentation check is not architecture approval.

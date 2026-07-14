@@ -16,10 +16,10 @@ sources_of_truth:
   - ./GOAL.md
   - ./design/README.md
   - ./design/decisions.md
-  - ./guidelines/README.md
-  - ./guidelines/02-detailed-architecture.md
+  - ../guidelines/README.md
+  - ../guidelines/02-detailed-architecture.md
 related:
-  - ./README.md
+  - ./CORPUS.md
   - ./deterministic-story-orchestration/README.md
   - ./deterministic-story-orchestration/next-design-decisions.md
   - ./reviews/README.md

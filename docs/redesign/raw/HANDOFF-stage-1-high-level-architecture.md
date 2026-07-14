@@ -11,13 +11,13 @@ owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-14
 sources_of_truth:
   - ./GOAL.md
-  - ./README.md
-  - ./guidelines/README.md
-  - ./guidelines/01-high-level-architecture.md
+  - ./CORPUS.md
+  - ../guidelines/README.md
+  - ../guidelines/01-high-level-architecture.md
 related:
   - ./design/README.md
   - ./design/decisions.md
-  - ./guidelines/02-detailed-architecture.md
+  - ../guidelines/02-detailed-architecture.md
   - ./deterministic-story-orchestration/README.md
   - ./reviews/README.md
 ---
@@ -32,12 +32,12 @@ scope, and stop gate used for Stage 1.
 
 Stage 2 must start from the locked [architecture](./design/README.md) and
 [decision record](./design/decisions.md), followed by the
-[guidelines index](./guidelines/README.md) and
-[Layer 2 — Detailed architecture](./guidelines/02-detailed-architecture.md). Its work remains
+[guidelines index](../guidelines/README.md) and
+[Layer 2 — Detailed architecture](../guidelines/02-detailed-architecture.md). Its work remains
 subject to the current source boundary and owner decision gates.
 
 The historical prompt's `corepack pnpm check` instruction is superseded by the documentation-only
-verification contract in [`docs/redesign/AGENTS.md`](./AGENTS.md). For redesign-document changes,
+verification contract in [`docs/redesign/AGENTS.md`](./AGENTS.historical.md). For redesign-document changes,
 run only the relevant Markdown formatting and documentation-link checks.
 
 Use the following prompt in a new Codex session.

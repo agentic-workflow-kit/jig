@@ -22,7 +22,7 @@ reviewer: Codex
 
 The reviewed target was the complete standalone proposal under
 [`docs/design/deterministic-story-orchestration/`](../deterministic-story-orchestration/)
-plus its index entry in [`docs/design/README.md`](../../design/README.md). The review treated the
+plus its index entry in [`docs/design/README.md`](../../../design/README.md). The review treated the
 proposal's explicit `not yet reconciled or adopted` status as meaningful: proposal-internal defects
 are distinguished below from conflicts that block adoption into the current Jig product and design
 contracts.
@@ -140,7 +140,7 @@ attribution, claimed outcome, integrity, and candidate association without inter
 observing command execution. The reviewer normally consumes that evidence without rerunning the
 checks, while final-verification mode `none` explicitly trusts the implementer's recorded evidence.
 
-Current [`MERGE-1`](../../product/guarantees.md#15-merge-on-evidence) defines automated checks as
+Current [`MERGE-1`](../../../product/guarantees.md#15-merge-on-evidence) defines automated checks as
 observed directly by Runner and never taken from the worker's word. ADR 0034 additionally requires
 self-reported, weak, or inconclusive acceptance evidence to route to Doorbell or stop.
 

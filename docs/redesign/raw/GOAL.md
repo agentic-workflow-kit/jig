@@ -15,9 +15,9 @@ amended_on: 2026-07-14
 sources_of_truth:
   - Explicit owner approval recorded in this document
 related:
-  - ./README.md
-  - ./guidelines/README.md
-  - ./guidelines/01-high-level-architecture.md
+  - ./CORPUS.md
+  - ../guidelines/README.md
+  - ../guidelines/01-high-level-architecture.md
 ---
 
 # Main goal: define and approve Jig's canonical full-lifecycle architecture
