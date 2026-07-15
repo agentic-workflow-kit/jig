@@ -16,6 +16,7 @@ sources_of_truth:
   - ../decisions/D5-state-authority-and-recovery.md
   - ../decisions/D8-failure-and-liveness.md
 related:
+  - ./story-delivery.md
   - ../context.md
   - ../perspectives/authority-and-trust.md
   - ../state-and-recovery.md
@@ -44,6 +45,61 @@ A preflight rejection is a durable Run-level non-delivery outcome, not `Complete
 interrupted Run does not resume from ambient process state; it resumes only from reconstructed and
 reconciled authority.
 
+### View V3a — Run phases
+
+- **Question:** Which phases can a Run be in, and which transitions connect them?
+- **View type:** Run phase state view; the diagram form of the Run lifecycle table above.
+- **Audience and purpose:** Every reader of this flow; see the Run's shape before the detailed
+  progression in V3.
+- **Scope and exclusions:** Run phases and named transitions only. Story detail, transition
+  machinery, and exhaustive substates are excluded.
+- **State:** Proposed. **Owner:** Arye Kogan.
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
+stateDiagram-v2
+    direction LR
+    state "Received" as Received
+    state "Preflighting" as Preflighting
+    state "Durable preflight rejection" as Rejected
+    state "Active" as Active
+    state "Parked" as Parked
+    state "Interrupted / Recovering" as Recovering
+    state "Settling" as Settling
+    state "Completed" as Completed
+    state "Durable named stop" as Stopped
+
+    [*] --> Received: envelope submitted
+    Received --> Preflighting: begins validation
+    Preflighting --> Rejected: invalid or insufficient envelope
+    Preflighting --> Active: freezes valid Run definition
+    Active --> Parked: durable named question for owner authority
+    Parked --> Active: valid scoped decision continues
+    Active --> Recovering: interruption or shared authority loss
+    Recovering --> Active: reconstructed and reconciled
+    Recovering --> Parked: unresolved scoped authority question
+    Recovering --> Stopped: trust or liveness assumption failure
+    Parked --> Stopped: explicit stop decision
+    Active --> Settling: no further business progress possible
+    Settling --> Completed: outcomes and obligations final or handed off
+    Rejected --> [*]
+    Stopped --> [*]
+    Completed --> [*]
+
+    classDef phase fill:#e8f1ff,stroke:#5a78a8,color:#172033
+    classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
+    classDef exception fill:#fce8e6,stroke:#a7615b,color:#172033
+    class Received,Preflighting,Active,Settling phase
+    class Completed,Rejected outcome
+    class Parked,Recovering,Stopped exception
+```
+
+**V3a legend:** Every node is a Run phase or durable Run outcome from the table above; labels on the
+directed transitions name their causes. Blue nodes are normal phases, green nodes are terminal
+durable outcomes, and red nodes are exceptional conditions (`Parked`, `Interrupted / Recovering`,
+and the durable named stop). Color is redundant with the phase names. The start and end markers are
+the standard state-diagram entry and terminal points.
+
 ## Story lifecycle
 
 | Story stage                  | Meaning and authority                                                                                                                                                                                            |
@@ -63,6 +119,66 @@ reconciled authority.
 These are high-level phases, not an exhaustive state machine. `Parked` and `Interrupted / Recovering`
 may suspend a Run or a Story without replacing the Story's underlying phase. Exact substates,
 transitions, event types, counters, and cancellation behavior belong to Layer 2.
+
+### View V3b — Story phases
+
+- **Question:** Which phases can a Story be in, and which transitions connect them?
+- **View type:** Story phase state view; the diagram form of the Story lifecycle table above.
+- **Audience and purpose:** Every reader of this flow; see one Story's shape before the detailed
+  progression in V3.
+- **Scope and exclusions:** Story phases, business outcomes, and Retirement only. Run-level
+  conditions (`Parked`, `Interrupted / Recovering`) suspend a Story without replacing its phase and
+  are shown in V3a and V3, not here.
+- **State:** Proposed. **Owner:** Arye Kogan.
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
+stateDiagram-v2
+    direction LR
+    state "Pending" as Pending
+    state "Eligible" as Eligible
+    state "Preparing" as Preparing
+    state "Implementing" as Implementing
+    state "Reviewing" as Reviewing
+    state "Accepted" as Accepted
+    state "Waiting for finalization" as Waiting
+    state "Finalizing" as Finalizing
+    state "Landed" as Landed
+    state "Directly Blocked" as Blocked
+    state "Not run — dependency blocked" as NotRun
+    state "Retiring" as Retiring
+    state "Closed" as Closed
+
+    [*] --> Pending: admitted in the frozen Run definition
+    Pending --> NotRun: reachable prerequisite directly Blocked
+    Pending --> Eligible: prerequisites Landed and capacity permits
+    Eligible --> Preparing: deterministic admission
+    Preparing --> Implementing: isolated resources and bounded assignment
+    Implementing --> Reviewing: committed exact Candidate submitted
+    Reviewing --> Implementing: changes required through bounded rework
+    Reviewing --> Accepted: valid exact-Candidate approval
+    Accepted --> Waiting: enters deterministic order without authority
+    Waiting --> Finalizing: acquires sole target-scoped authority
+    Finalizing --> Landed: authoritative target proof
+    Implementing --> Blocked: bounded failure
+    Reviewing --> Blocked: unapprovable or exhausted rework
+    Finalizing --> Blocked: reconciled failure
+    Landed --> Retiring: releases dependents first
+    Blocked --> Retiring: preservation-safe
+    Retiring --> Closed: obligations complete or handed off
+    NotRun --> Closed: Retirement already satisfied
+    Closed --> [*]
+
+    classDef phase fill:#fff7df,stroke:#a8781f,color:#172033
+    classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
+    class Pending,Eligible,Preparing,Implementing,Reviewing,Accepted,Waiting,Finalizing phase
+    class Landed,Blocked,NotRun,Retiring,Closed outcome
+```
+
+**V3b legend:** Every node is a Story phase, business outcome, or Retirement stage from the table
+above; labels on the directed transitions name their causes. Yellow nodes are working phases; green
+nodes are business outcomes and the Retirement path to `Closed`. Color is redundant with the phase
+names. The start and end markers are the standard state-diagram entry and terminal points.
 
 ## Business outcome and Retirement are orthogonal
 
@@ -91,6 +207,60 @@ Every accepted trigger follows one invariant sequence:
 An owner escalation obeys the same order: Jig records a bounded parked question, validates the
 responder and delegated scope, records the selected decision, and only then continues or stops.
 
+### View V3c — authoritative transition ordering
+
+- **Question:** What ordering makes every accepted trigger authoritative, and where does uncertainty
+  exit the normal path?
+- **View type:** Transition-machinery view; the diagram form of the invariant sequence above. V3
+  references this machinery as one collapsed step.
+- **Audience and purpose:** Architecture, engineering, and operations readers verifying
+  record-before-adopt/dispatch ordering.
+- **Scope and exclusions:** The single-transition cycle only. Run/Story phases, schemas, and storage
+  mechanics are excluded.
+- **State:** Proposed. **Owner:** Arye Kogan.
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
+flowchart LR
+    subgraph Transition["One authoritative transition"]
+        Validate["FLOW-VALIDATE<br/>1 · Validate trigger and authority<br/>[Decision step]"]
+        Decide["FLOW-DECIDE<br/>2 · Calculate deterministic decision<br/>[Decision step]"]
+        Record[("FLOW-RECORD<br/>3–4 · Commit ordered decision and intents<br/>[Durable authority]")]
+        Adopt["FLOW-ADOPT<br/>5 · Adopt projection and dispatch<br/>[Decision step]"]
+    end
+    subgraph Outside["Dispatch and reconciliation"]
+        Mechanisms["FLOW-MECHANISMS<br/>Authorized mechanisms and participants<br/>[Dispatch target]"]
+        Reconcile["FLOW-RECONCILE<br/>Reconciliation instead of blind retry<br/>[Recovery responsibility]"]
+    end
+
+    Validate -->|"1 · supplies ordered validated trigger to"| Decide
+    Decide -->|"2 · proposes transition and Operation intents to"| Record
+    Record -->|"3–4 · confirms exact durable commit before"| Adopt
+    Adopt -->|"5 · dispatches authorized work to"| Mechanisms
+    Mechanisms -->|"6–7 · returns attributable results as later ordered triggers to"| Validate
+    Record -.->|"uncertain acknowledgement enters"| Reconcile
+    Mechanisms -.->|"uncertain effect enters"| Reconcile
+    Reconcile -.->|"resolves before resubmitting to"| Validate
+
+    style Transition fill:#eef5ff,stroke:#7a96bd,color:#172033
+    style Outside fill:#f4f5f7,stroke:#7c8798,color:#172033
+    classDef decision fill:#fff1cf,stroke:#a8781f,color:#172033
+    classDef durable fill:#fff1cf,stroke:#a8781f,stroke-width:3px,color:#172033
+    classDef dispatch fill:#f1e9ff,stroke:#8061a8,color:#172033
+    classDef recovery fill:#fce8e6,stroke:#a7615b,stroke-dasharray:5 3,color:#172033
+    class Validate,Decide,Adopt decision
+    class Record durable
+    class Mechanisms dispatch
+    class Reconcile recovery
+```
+
+**V3c legend:** Rectangles are decision steps or the grouped dispatch target; the cylinder is the
+authoritative durable commit, marked with a thick border. The dashed-border node is the
+reconciliation responsibility. Numbered edge labels match the seven-step invariant sequence above,
+so the ordering does not rely on layout. Solid arrows are the normal cycle; dashed arrows are the
+uncertainty exits. `FLOW-RECONCILE` is the same reconciliation responsibility detailed in
+[state and recovery](../state-and-recovery.md).
+
 ## View V3 — Run/Story lifecycle and authoritative information flow
 
 - **Question:** How does a Run and each Story progress on the primary success path, where do
@@ -105,16 +275,18 @@ responder and delegated scope, records the selected decision, and only then cont
 - **Owner:** Arye Kogan.
 - **Sources:** D4, D5, D8; I4–I7, I15–I19; project brief QS1, QS5–QS9, and QS12.
 - **Related views:** [V1](../context.md) supplies the boundary;
-  [V2](../perspectives/authority-and-trust.md) supplies powers and fault scopes;
+  [V2](../perspectives/authority-and-trust.md) supplies powers and fault scopes; V3a/V3b above show
+  the Run and Story phases alone; V3c above expands the collapsed transition machinery;
   [V4](../state-and-recovery.md) expands the state, acceptance, concurrency, and finalization
-  relationships.
-- **Stable IDs:** `RUN-RECEIVED`, `RUN-PREFLIGHT`, `RUN-REJECTED`, `FLOW-VALIDATE`, `FLOW-DECIDE`,
-  `FLOW-RECORD`, `FLOW-ADOPT`, `STORY-WORK`, `STORY-REVIEW`, `STORY-ACCEPTED`, `STORY-WAIT`,
-  `STORY-FINALIZE`, `OUT-LANDED`, `OUT-BLOCKED`, `OUT-NOTRUN`, `STORY-RETIRE`, `STORY-CLOSED`,
-  `RUN-RECOVER`, `RUN-PARK`, `RUN-STOP`.
+  relationships; the [story delivery scenario](./story-delivery.md) plays one Story through this
+  flow in message order.
+- **Stable IDs:** `RUN-RECEIVED`, `RUN-PREFLIGHT`, `RUN-REJECTED`, `FLOW-TRANSITION`, `STORY-WORK`,
+  `STORY-REVIEW`, `STORY-ACCEPTED`, `STORY-WAIT`, `STORY-FINALIZE`, `OUT-LANDED`, `OUT-BLOCKED`,
+  `OUT-NOTRUN`, `STORY-RETIRE`, `STORY-CLOSED`, `RUN-RECOVER`, `RUN-PARK`, `RUN-STOP`.
 - **Relationship labels:** Solid arrows are normal authoritative progression. Dashed arrows are
-  rejection, failure, interruption, uncertainty, or assumption-loss branches. The numbered labels
-  on `FLOW-*` arrows make commit-before-adoption ordering non-visual and explicit.
+  rejection, failure, interruption, uncertainty, or assumption-loss branches. `FLOW-TRANSITION`
+  collapses the validate–decide–record–adopt machinery that V3c expands; every trigger entering it
+  is recorded durably before adoption or dispatch.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
@@ -123,10 +295,7 @@ flowchart LR
         Received["RUN-RECEIVED<br/>Received<br/>[Run phase]"]
         Preflight["RUN-PREFLIGHT<br/>Preflighting<br/>[Run phase]"]
         Rejected["RUN-REJECTED<br/>Durable preflight rejection<br/>[Run outcome]"]
-        Validate["FLOW-VALIDATE<br/>1 · Validate trigger and authority<br/>[Decision step]"]
-        Decide["FLOW-DECIDE<br/>2 · Calculate deterministic decision<br/>[Decision step]"]
-        Record[("FLOW-RECORD<br/>3–4 · Commit ordered decision and intents<br/>[Durable authority]")]
-        Adopt["FLOW-ADOPT<br/>5 · Adopt projection and dispatch<br/>[Decision step]"]
+        Transition[("FLOW-TRANSITION<br/>Authoritative transition<br/>validate · decide · record · adopt<br/>[Durable decision step]")]
     end
 
     subgraph Story["Primary Story progression"]
@@ -153,11 +322,8 @@ flowchart LR
 
     Received -->|"begins"| Preflight
     Preflight -.->|"invalid or insufficient envelope rejects before Story effects"| Rejected
-    Preflight -->|"freezes valid Run definition and submits trigger to"| Validate
-    Validate -->|"1 · supplies ordered validated trigger to"| Decide
-    Decide -->|"2 · proposes transition and Operation intents to"| Record
-    Record -->|"3–4 · confirms exact durable commit before"| Adopt
-    Adopt -->|"5 · dispatches authorized Story work to"| Work
+    Preflight -->|"freezes valid Run definition and submits trigger to"| Transition
+    Transition -->|"records durable decision and dispatches authorized Story work to"| Work
     Work -->|"submits committed exact Candidate to"| Review
     Review -->|"valid exact-Candidate approval permits"| Accepted
     Review -->|"changes required returns through bounded rework to"| Work
@@ -172,11 +338,11 @@ flowchart LR
     Finalize -.->|"reconciled failure may record"| Blocked
     Blocked -->|"begins preservation-safe"| Retire
     Blocked -->|"makes transitive dependents derive"| NotRun
-    Adopt -.->|"interruption or shared authority loss enters"| Recover
+    Transition -.->|"interruption or shared authority loss enters"| Recover
     Finalize -.->|"uncertain effect enters"| Recover
-    Recover -->|"reconstructs and reconciles before resubmitting to"| Validate
+    Recover -->|"reconstructs and reconciles before resubmitting to"| Transition
     Recover -.->|"unresolved scoped authority question enters"| Park
-    Park -->|"validated owner decision resubmits to"| Validate
+    Park -->|"validated owner decision resubmits to"| Transition
     Recover -.->|"trust or liveness assumption failure records"| Stop
     Park -.->|"explicit stop decision records"| Stop
 
@@ -185,30 +351,31 @@ flowchart LR
     style Outcomes fill:#edf8f0,stroke:#659574,color:#172033
     style Exceptions fill:#fcecea,stroke:#aa6b64,color:#172033
     classDef run fill:#e8f1ff,stroke:#5a78a8,color:#172033
-    classDef decision fill:#fff1cf,stroke:#a8781f,color:#172033
     classDef durable fill:#fff1cf,stroke:#a8781f,stroke-width:3px,color:#172033
     classDef story fill:#fff7df,stroke:#a8781f,color:#172033
     classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef exception fill:#fce8e6,stroke:#a7615b,stroke-dasharray:5 3,color:#172033
     class Received,Preflight run
-    class Validate,Decide,Adopt decision
-    class Record durable
+    class Transition durable
     class Work,Review,Accepted,Wait,Finalize story
     class Landed,Blocked,NotRun,Retire,Closed,Rejected outcome
     class Recover,Park,Stop exception
 ```
 
-**V3 legend:** Rectangles are phases, decision steps, or outcomes; the cylinder is the authoritative
-durable commit. Thick border marks the durable authority point. Dashed borders mark exceptional
-recovery, authority-wait, or stop states. Blue `RUN-*`/`FLOW-*` nodes cover Run intake and transition
-ordering, yellow `STORY-*` nodes cover Story progression, green `OUT-*` nodes and related rectangles
+**V3 legend:** Rectangles are phases or outcomes; the cylinder is the authoritative transition,
+which records durably before adopting or dispatching. Thick border marks that durable authority
+point. Dashed borders mark exceptional recovery, authority-wait, or stop states. Blue `RUN-*` nodes
+cover Run intake, the yellow cylinder is the collapsed `FLOW-TRANSITION` machinery (expanded in
+V3c), yellow `STORY-*` nodes cover Story progression, green `OUT-*` nodes and related rectangles
 cover outcomes/Retirement, and red nodes cover exceptional paths. Color is redundant because each
 node has a stable ID and bracketed type. Solid arrows are the normal path; dashed arrows are explicit
 rejection, failure, interruption, uncertainty, or assumption-loss branches. `RUN` means Run,
-`FLOW` authoritative transition step, `STORY` Story phase, and `OUT` business or derived outcome.
+`FLOW` authoritative transition, `STORY` Story phase, and `OUT` business or derived outcome.
 
 ## Where to go next
 
+- One Story played through this flow in message order:
+  [story delivery scenario](./story-delivery.md).
 - What makes the recorded decision durable and recoverable:
   [state and recovery](../state-and-recovery.md).
 - How Accepted work is ordered and finalized: [concurrency and
