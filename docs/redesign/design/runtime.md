@@ -32,22 +32,23 @@ named ports as the only crossings of the authority-and-proof boundary.
 
 ## Runtime units
 
-| ID              | Runtime unit              | Type         | Responsibility                                                                                                                                                                                 |
-| --------------- | ------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RT-OPERATOR`   | Operator interface        | Runtime unit | Accepts envelope submission and owner or operator commands, and presents durable explanations and outcomes; it holds no lifecycle authority.                                                   |
-| `RT-CONTROLLER` | Run controller            | Runtime unit | The single active Jig Control process for one Run: it validates, decides, records, dispatches, and reconciles under its controller generation.                                                 |
-| `RT-LEDGER`     | Run ledger store          | Data store   | Holds one Run's durable ordered Transition ledger and durable control facts; passive data at rest with no decision behavior.                                                                   |
-| `RT-EVIDENCE`   | Evidence artifact store   | Data store   | Holds immutable bounded evidence artifacts referenced by digest from the ledger; passive data at rest with no decision behavior.                                                               |
-| `RT-REGISTRY`   | Target-authority registry | Data store   | Holds the durable cross-Run target-authority registry keyed by canonical target identity (`ID-TARGET`); the one store shared by all Run controllers, and passive data at rest like the others. |
+| ID              | Runtime unit              | Type         | Responsibility                                                                                                                                                                                                                           |
+| --------------- | ------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RT-OPERATOR`   | Operator interface        | Runtime unit | Accepts envelope submission and owner or operator commands, and presents durable explanations and outcomes; it holds no lifecycle authority.                                                                                             |
+| `RT-CONTROLLER` | Run controller            | Runtime unit | The single active Jig Control process for one Run: it validates, decides, records, dispatches, and reconciles under its controller generation.                                                                                           |
+| `RT-LEDGER`     | Run ledger store          | Data store   | Holds one Run's durable ordered Transition ledger and durable control facts; passive data at rest with no decision behavior.                                                                                                             |
+| `RT-EVIDENCE`   | Evidence artifact store   | Data store   | Holds immutable bounded evidence artifacts referenced by digest from the ledger; passive data at rest with no decision behavior.                                                                                                         |
+| `RT-REGISTRY`   | Target-authority registry | Data store   | Holds the durable cross-Run target-authority registry keyed by canonical target identity (`ID-TARGET`); the one store shared by all Run controllers, and passive data at rest like the others.                                           |
+| `RT-WITNESS`    | Currency witness store    | Data store   | Holds the `LG-WITNESS` heads for the Run ledgers and the registry, on storage whose trust is independent of `RT-LEDGER` and its backups; where no independent witness is configured, autonomous restore is traded for a deliberate stop. |
 
 Rules the units must preserve:
 
 - `RT-CONTROLLER` is the only unit that exercises Jig Control's Authorize, Decide, Record, and
   Reconcile powers (I3). `RT-OPERATOR` proposes triggers and reads projections; it can never
   advance lifecycle state directly.
-- All three stores are passive. Authority lives in the recorded content and its ordering, not in
-  store behavior (I5); the storage technology below each store remains a replaceable external
-  mechanism (`X-STORE`) behind `PORT-LEDGER` and `PORT-ARTIFACT`.
+- Every store is passive. Authority lives in the recorded content and its ordering, not in store
+  behavior (I5); the storage technology below each store remains a replaceable external mechanism
+  (`X-STORE`) behind `PORT-LEDGER` and `PORT-ARTIFACT`.
 - Exactly one controller process is active per Run, enforced by the durable controller generation
   rather than by deployment convention (I6); a second controller instance is fenced, not merged.
 
@@ -58,17 +59,17 @@ semantic contract owned by Jig, not a transport: transports, encodings, and prov
 selected per configured mechanism in
 [mechanism and provider contracts](./mechanism-and-provider-contracts.md).
 
-| ID               | Port                   | Faces (V1)                                     | Carries                                                                                                                                                                           |
-| ---------------- | ---------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT-INTAKE`    | Envelope intake        | `X-ENVELOPE`                                   | Envelope submission in; durable intake acknowledgement and preflight outcome out.                                                                                                 |
-| `PORT-DECIDE`    | Owner decision         | `P-OWNER`                                      | Parked named questions out; validated scoped decisions in.                                                                                                                        |
-| `PORT-SESSION`   | Role session           | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments out; attributable results, self-reports, and verdicts in.                                                                                                |
-| `PORT-WORKSPACE` | Workspace effects      | `X-WORKSPACE`                                  | Authorized isolation and repository effects out; content, basis, cleanliness, and preservation facts in.                                                                          |
-| `PORT-VERIFY`    | Verification           | `X-VERIFY`                                     | Authorized exact-subject check requests out; check observations in.                                                                                                               |
-| `PORT-DELIVERY`  | Delivery and target    | `X-DELIVERY`                                   | Authorized publication and integration effects out; target, gate, effect-certainty, and landing facts in.                                                                         |
-| `PORT-LEDGER`    | Ledger commit and read | `X-STORE`                                      | Conditional ordered appends and verified reads of durable control records: the Run's ledger stream and, keyed by canonical target, the cross-Run target-authority registry lines. |
-| `PORT-ARTIFACT`  | Artifact persistence   | `X-STORE`                                      | Immutable evidence artifact writes and digest-verified reads.                                                                                                                     |
-| `PORT-PUBLISH`   | Read-only publication  | `X-CONSUMER`                                   | Durable outcomes, explanations, and obligations out; no control input.                                                                                                            |
+| ID               | Port                   | Faces (V1)                                     | Carries                                                                                                                                                                                                                                           |
+| ---------------- | ---------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT-INTAKE`    | Envelope intake        | `X-ENVELOPE`                                   | Envelope submission in; durable intake acknowledgement and preflight outcome out.                                                                                                                                                                 |
+| `PORT-DECIDE`    | Owner decision         | `P-OWNER`                                      | Parked named questions out; validated scoped decisions in.                                                                                                                                                                                        |
+| `PORT-SESSION`   | Role session           | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments out; attributable results, self-reports, and verdicts in.                                                                                                                                                                |
+| `PORT-WORKSPACE` | Workspace effects      | `X-WORKSPACE`                                  | Authorized isolation and repository effects out; content, basis, cleanliness, and preservation facts in.                                                                                                                                          |
+| `PORT-VERIFY`    | Verification           | `X-VERIFY`                                     | Authorized exact-subject check requests out; check observations in.                                                                                                                                                                               |
+| `PORT-DELIVERY`  | Delivery and target    | `X-DELIVERY`                                   | Authorized publication and integration effects out; target, gate, effect-certainty, and landing facts in.                                                                                                                                         |
+| `PORT-LEDGER`    | Ledger commit and read | `X-STORE`                                      | Conditional ordered appends and verified reads of durable control records: the Run's ledger stream, the cross-Run target-authority registry lines keyed by canonical target, and the currency-witness heads advanced before each acknowledgement. |
+| `PORT-ARTIFACT`  | Artifact persistence   | `X-STORE`                                      | Immutable evidence artifact writes and digest-verified reads.                                                                                                                                                                                     |
+| `PORT-PUBLISH`   | Read-only publication  | `X-CONSUMER`                                   | Durable outcomes, explanations, and obligations out; no control input.                                                                                                                                                                            |
 
 Port rules:
 
@@ -133,6 +134,7 @@ flowchart LR
         Ledger[("RT-LEDGER<br/>Run ledger store<br/>[Data store]")]
         Evidence[("RT-EVIDENCE<br/>Evidence artifact store<br/>[Data store]")]
         Registry[("RT-REGISTRY<br/>Target-authority registry<br/>[Data store, cross-Run]")]
+        Witness[("RT-WITNESS<br/>Currency witness store<br/>[Data store, independent trust]")]
     end
 
     Envelope -->|"submits envelope via PORT-INTAKE to"| Operator
@@ -145,10 +147,12 @@ flowchart LR
     Effectors -->|"attest observed facts and effect certainty to"| Controller
     Controller -->|"conditionally appends and reads via PORT-LEDGER"| Ledger
     Controller -->|"acquires and releases cross-Run target authority via PORT-LEDGER"| Registry
+    Controller -->|"advances and checks currency witness heads via PORT-LEDGER"| Witness
     Controller -->|"writes and reads immutable artifacts via PORT-ARTIFACT"| Evidence
     Ledger -->|"persists through storage contract on"| Storage
     Evidence -->|"persists through storage contract on"| Storage
     Registry -->|"persists through storage contract on"| Storage
+    Witness -->|"persists through independently trusted storage on"| Storage
     Operator -.->|"publishes durable views via PORT-PUBLISH to"| Consumer
 
     style Outside fill:#f3edff,stroke:#8a6eb0,color:#172033
@@ -164,7 +168,7 @@ flowchart LR
     class Owner person
     class Operator unit
     class Controller control
-    class Ledger,Evidence,Registry store
+    class Ledger,Evidence,Registry,Witness store
     class Session,Effectors,Storage mechanism
     class Consumer consumer
 ```
@@ -177,15 +181,19 @@ authority. Every crossing of the yellow region names its port in the edge label;
 unnamed crossings. Purple nodes are external mechanisms, blue the decision authority, and gray the
 consumer; color is redundant with the stable IDs and bracketed types. The grouped
 `X-WORKSPACE · X-VERIFY · X-DELIVERY` node keeps this view at one level; each mechanism keeps its
-own V1 identity and its own port. `RT-REGISTRY` is deliberately cross-Run: it is the one store
-shared by every Run controller, serializing finalization authority per canonical target (I12)
-through the same conditional-append contract as the Run ledger.
+own V1 identity and its own port. `RT-REGISTRY` is deliberately cross-Run: it is shared by
+every Run controller, serializing finalization authority per canonical target (I12) through the
+same conditional-append contract as the Run ledger. `RT-WITNESS` deliberately sits on storage of
+independent trust, because its purpose is to detect rollback of the other stores and their
+backups.
 
 ## Deployment shape
 
 The proposed deployment is **single-host, per-Run**: an operator host (workstation or job runner)
 executes `RT-OPERATOR` commands, each accepted Run gets one `RT-CONTROLLER` process on that host,
-and both stores are directories or volumes owned by that host's storage. Remote participants —
+and the ledger, evidence, and registry stores are directories or volumes owned by that host's
+storage, while the currency witness lives on separately configured storage of independent trust.
+Remote participants —
 forge targets, remote agent providers, the owner answering an escalation — remain remote services
 or people reached through the ports. A hosted or multi-tenant topology is a future deployment view,
 not a change to this logical decomposition (the guide separates logical architecture from
@@ -218,6 +226,9 @@ flowchart LR
             EvidenceD[("RT-EVIDENCE<br/>Artifact directory<br/>[Data at rest]")]
             RegistryD[("RT-REGISTRY<br/>Host-scoped target-authority registry<br/>[Data at rest]")]
         end
+        subgraph IndepStore["Independently trusted storage"]
+            WitnessD[("RT-WITNESS<br/>Currency witness heads<br/>[Data at rest, independent trust]")]
+        end
     end
 
     subgraph Remote["Remote services and people"]
@@ -230,6 +241,7 @@ flowchart LR
     ControllerP -->|"spawns and supervises scoped"| MechanismP
     ControllerP -->|"conditionally appends via PORT-LEDGER to"| LedgerD
     ControllerP -->|"acquires cross-Run target authority via PORT-LEDGER from"| RegistryD
+    ControllerP -->|"advances currency witness heads before acknowledgement via PORT-LEDGER to"| WitnessD
     ControllerP -->|"writes immutable artifacts via PORT-ARTIFACT to"| EvidenceD
     ControllerP -->|"authorizes remote effects via PORT-DELIVERY to"| Forge
     ControllerP -->|"hosts remote role sessions via PORT-SESSION on"| RemoteAgent
@@ -246,7 +258,8 @@ flowchart LR
     classDef person fill:#e8f1ff,stroke:#5a78a8,color:#172033
     class OperatorP,MechanismP process
     class ControllerP control
-    class LedgerD,EvidenceD,RegistryD rest
+    class LedgerD,EvidenceD,RegistryD,WitnessD rest
+    style IndepStore fill:#eef5ff,stroke:#5a78a8,color:#172033
     class Forge,RemoteAgent remote
     class OwnerR person
 ```
@@ -267,6 +280,7 @@ node to keep this view at one level; their contracts are identical to remote mec
 | Ledger authority, record before adopt/dispatch (I5) | `RT-LEDGER` behind `PORT-LEDGER`'s conditional-append contract; the transition engine is its only writer.                                                                                  |
 | Fencing and safe resume (I6)                        | Controller generation acquired through `PORT-LEDGER` before any dispatch; one controller process per Run.                                                                                  |
 | One target-scoped finalization authority (I12)      | Cross-Run arbitration through the shared `RT-REGISTRY` store behind `PORT-LEDGER`'s conditional-append contract; every Run controller contends on one authority line per canonical target. |
+| Fail-closed trust posture after rollback (I20)      | `LG-WITNESS` heads in `RT-WITNESS`, on storage whose trust is independent of the ledger and its backups, advanced before every acknowledgement.                                            |
 | Exact-subject validation at the boundary (I7)       | Every inbound port message passes `CP-MEDIATOR` validation (or, for `PORT-LEDGER`, the commit protocol's equivalent validation) before becoming a trigger.                                 |
 | Smallest-safe containment (I15)                     | Mechanism sessions are separate processes; their faults arrive as attested failures, not shared-memory failures.                                                                           |
 | No undeclared control path (D2, D3)                 | `PORT-PUBLISH` is read-only; every other crossing is a named, validated port.                                                                                                              |

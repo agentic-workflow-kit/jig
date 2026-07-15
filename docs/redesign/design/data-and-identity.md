@@ -38,19 +38,20 @@ path**. The rejected alternatives were flat opaque unique tokens (provenance wou
 mutable metadata that recovery cannot trust) and identities derived from names such as branches or
 titles (a rename would silently break exact binding).
 
-| ID kind        | Model identity          | Path pattern                                     | Collision-free scoping rule                                                                                                                                                                                                       |
-| -------------- | ----------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ID-RUN`       | Run identity            | `run-<sortable unique token>`                    | Minted once at intake acknowledgement; the token class is time-sortable and unique in the controlled run scope.                                                                                                                   |
-| `ID-STORY`     | Story identity          | `<run>/story/<plan story key>`                   | Plan story keys are frozen and unique in the approved plan; preflight rejects duplicates before any Story effect.                                                                                                                 |
-| `ID-TXN`       | Transition identity     | `<run>/txn/<position>/<gen>` plus record digest  | Position claim qualified by the proposing controller generation; valid only together with the record digest, so competing proposals at one head can never share an identity.                                                      |
-| `ID-OP`        | Operation identity      | `<txn>/op/<ordinal>`                             | Ordinal within the single authorizing Transition; it inherits the qualified Transition identity, and one semantic effect keeps one identity across redispatch.                                                                    |
-| `ID-CAND`      | Candidate identity      | `<story>/cand/<ordinal>` plus content digest     | Ordinal within the owning Story; the identity is only valid together with its exact content digest.                                                                                                                               |
-| `ID-GEN`       | Controller generation   | `<run>/gen/<ordinal>` plus instance token        | Claimed by conditional append of a generation-claim record carrying a unique controller instance token; the ordinal is valid only together with its recorded token, so racing restarts can never share a current generation (I6). |
-| `ID-PRINCIPAL` | Participant principal   | `principal/<configured participant key>`         | The stable configured identity of one human or agent participant; every role session binds to exactly one principal, and the binding survives session replacement.                                                                |
-| `ID-TARGET`    | Configured target       | `target/<canonical target key>`                  | Canonical and cross-Run: derived from the configured target's normalized locator, so two Runs naming the same target derive the same identity. Preflight freezes and validates it per Run.                                        |
-| `ID-AUTH`      | Finalization authority  | `<target>/auth/<ordinal>`                        | Monotonic per canonical target across all Runs, allocated from the target-authority registry below; exactly one ordinal is current for a target (I12).                                                                            |
-| `ID-EVSUBJ`    | Evidence subject        | URI embedding exactly one existing identity path | Names one Run, Story, Candidate, Operation, or target fact plus one claim name; never a free-form subject.                                                                                                                        |
-| `ID-PARK`      | Owner decision identity | `<run>/park/<ordinal>`                           | Monotonic per Run; binds the exact question, authorized responder scope, and the later selected action.                                                                                                                           |
+| ID kind        | Model identity          | Path pattern                                     | Collision-free scoping rule                                                                                                                                                                                                        |
+| -------------- | ----------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ID-RUN`       | Run identity            | `run-<sortable unique token>`                    | Minted once at intake acknowledgement; the token class is time-sortable and unique in the controlled run scope.                                                                                                                    |
+| `ID-STORY`     | Story identity          | `<run>/story/<plan story key>`                   | Plan story keys are frozen and unique in the approved plan; preflight rejects duplicates before any Story effect.                                                                                                                  |
+| `ID-TXN`       | Transition identity     | `<run>/txn/<position>/<gen>` plus record digest  | Position claim qualified by the proposing controller generation; valid only together with the record digest, so competing proposals at one head can never share an identity.                                                       |
+| `ID-OP`        | Operation identity      | `<txn>/op/<ordinal>`                             | Ordinal within the single authorizing Transition; it inherits the qualified Transition identity, and one semantic effect keeps one identity across redispatch.                                                                     |
+| `ID-CAND`      | Candidate identity      | `<story>/cand/<ordinal>` plus content digest     | Ordinal within the owning Story; the identity is only valid together with its exact content digest.                                                                                                                                |
+| `ID-GEN`       | Controller generation   | `<run>/gen/<ordinal>` plus instance token        | Claimed by conditional append of a generation-claim record carrying a unique controller instance token; the ordinal is valid only together with its recorded token, so racing restarts can never share a current generation (I6).  |
+| `ID-PRINCIPAL` | Participant principal   | `principal/<configured participant key>`         | The stable configured identity of one human or agent participant; every role session binds to exactly one principal, and the binding survives session replacement.                                                                 |
+| `ID-REGISTRY`  | Authority registry      | `registry/<declared registry key>`               | The one authoritative registry a frozen configuration declares for a canonical target; every authority grant and every landing's delivery metadata records its allocating registry identity.                                       |
+| `ID-TARGET`    | Configured target       | `target/<canonical target key>`                  | Canonical and cross-Run: derived from the configured target's normalized locator, so two Runs naming the same target derive the same identity. Preflight freezes and validates it per Run.                                         |
+| `ID-AUTH`      | Finalization authority  | `<target>/auth/<ordinal>`                        | Monotonic per canonical target across all Runs, allocated only by the target's one declared registry; the ordinal is valid only together with its allocating `ID-REGISTRY`, and exactly one ordinal is current for a target (I12). |
+| `ID-EVSUBJ`    | Evidence subject        | URI embedding exactly one existing identity path | Names one Run, Story, Candidate, Operation, or target fact plus one claim name; never a free-form subject.                                                                                                                         |
+| `ID-PARK`      | Owner decision identity | `<run>/park/<ordinal>`                           | Monotonic per Run; binds the exact question, authorized responder scope, and the later selected action.                                                                                                                            |
 
 Representation rules:
 
@@ -58,14 +59,20 @@ Representation rules:
   with the proposing controller generation and is valid only together with the record digest.
   Lost-acknowledgement readback therefore resolves "by stable identity and expected prior
   position" ([D5](./decisions/D5-state-authority-and-recovery.md),
-  [state and recovery](./state-and-recovery.md)) with a strict match rule: **confirmed committed**
-  only when position, proposing generation, and record digest all match. Confirmed absence has two
-  sub-cases: an **empty position** permits the Layer 1 same-identity retry, because the proposer's
-  generation is still current; an **occupied position** with a different generation or digest
-  proves a competing generation won, fences the proposer (I6), and resolves by adopting the
-  occupant and recomputing at the new head — a position-bound identity is never retried into an
-  occupied position ([persistence and projections](./persistence-and-projections.md) owns the full
-  rule). An identity match alone never proves commitment.
+  [state and recovery](./state-and-recovery.md)) with a strict match rule that stays inside the
+  locked three readback outcomes: this proposal is **confirmed committed** only when position,
+  proposing generation, and record digest all match; it is **confirmed absent** only when the
+  expected position is **empty**, which is exactly the locked same-identity retry case because the
+  proposer's generation is still current; and an untrustworthy read is **indeterminate**. A
+  position occupied by a **competing generation's** record is not this proposal's absence case —
+  it is the confirmed commit of that competing record: the occupant is adopted exactly once, the
+  superseded proposer is fenced (I6), and the current generation recomputes at the new head, so a
+  position-bound identity is never retried into an occupied position. A position occupied by a
+  **same-generation, different-digest** record is impossible under a correct single-writer
+  generation and is treated as corruption or generation duplication: fail closed to Recovery and,
+  unresolved, the trust-root stop (I20, `FC-TRUST`)
+  ([persistence and projections](./persistence-and-projections.md) owns the full rule). An
+  identity match alone never proves commitment.
 - **Ownership tokens arbitrate; they never decide.** The controller instance token inside a
   generation claim exists only to distinguish racing claimants at the conditional append; it is
   excluded from deterministic decision inputs (I4) and acts purely as a fence component.
@@ -76,10 +83,20 @@ Representation rules:
   (the authoritative cross-Run arbiter, satisfying the same commit-primitive contract as the Run
   ledger) and mirrors each acquisition and release into its own Run ledger for audit. Two Runs
   naming the same target therefore contend for one authority line instead of deriving independent
-  ones (QS4, I12, D6). A target that no configured registry can arbitrate — for example the same
-  remote target driven from uncoordinated deployments — is explicitly unarbitrated: preflight
-  fails such a Run closed rather than letting it finalize on an assumption
-  ([persistence and projections](./persistence-and-projections.md) owns the registry realization).
+  ones (QS4, I12, D6). The registry scope rule is checkable end to end: the frozen configuration
+  declares exactly one `ID-REGISTRY` per canonical target and preflight fails closed without one;
+  every authority grant carries its allocating registry identity in the fence; every landing
+  records that registry identity in its delivery metadata; and before its first target-changing
+  effect under a new grant, the finalizer verifies **registry lineage** — the registry identity
+  recorded by the most recent Jig-attributed integration on the target must match this grant's
+  registry, and a mismatch fences target effects and parks as an authority-scope conflict
+  (`FC-AUTHORITY`; [forge and landing](./forge-and-landing.md) owns the check). The named
+  residual, proposed for explicit owner acceptance at the Layer 2 gate: two independently
+  administered deployments declaring different registries for one target have no shared arbiter
+  before either has landed, so a simultaneous first finalization race is detected and parked by
+  lineage divergence afterwards rather than prevented — cross-deployment prevention requires
+  configuring one shared registry realization
+  ([persistence and projections](./persistence-and-projections.md) owns the realization).
 - **Identity strings never encode secrets.** Path segments carry only frozen envelope facts and
   controller-assigned ordinals or positions; credential or secret material is never a segment
   (project-brief QS10).

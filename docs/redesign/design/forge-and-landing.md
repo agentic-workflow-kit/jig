@@ -85,12 +85,21 @@ under history-rewriting strategies and falsely fails under equivalent rewrites.
 
 ## Landing-proof algorithm
 
-| Step         | Action                                                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LP-OBSERVE` | After effect certainty, request the authoritative post-effect target observation through `PORT-DELIVERY` (`OPC-DEL-OBSERVE`).                                                   |
-| `LP-RESOLVE` | Resolve the integration result the effect claims produced — the fast-forward head, merge commit, squash commit, or queue-produced commit — using the recorded correlation keys. |
-| `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted Candidate digest over its change set.                                            |
-| `LP-RECORD`  | Record `Landed` durably with the observed facts and proof evidence, then release dependent Stories immediately (I13, I18).                                                      |
+| Step         | Action                                                                                                                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LP-OBSERVE` | After effect certainty, request the authoritative post-effect target observation through `PORT-DELIVERY` (`OPC-DEL-OBSERVE`).                                                                                    |
+| `LP-RESOLVE` | Resolve the integration result the effect claims produced — the fast-forward head, merge commit, squash commit, or queue-produced commit — using the recorded correlation keys.                                  |
+| `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted Candidate digest over its change set.                                                                             |
+| `LP-RECORD`  | Record `Landed` durably with the observed facts, proof evidence, and the allocating registry identity (`ID-REGISTRY`) in the landing's delivery metadata, then release dependent Stories immediately (I13, I18). |
+
+**Registry lineage check:** before a grant's first target-changing effect, the finalizer's
+alignment observation also verifies registry lineage — the allocating registry identity recorded
+by the most recent Jig-attributed integration on the target (written there by `LP-RECORD`) must
+match this grant's declared registry (`ID-REGISTRY` in
+[data and identity](./data-and-identity.md)). A mismatch is an authority-scope conflict: target
+effects are fenced and the Story parks for the owner (`FC-AUTHORITY`). A target with no
+Jig-attributed lineage yet has nothing to check; the recorded residual for that first-touch case
+is stated with the registry scope rule in [data and identity](./data-and-identity.md).
 
 A missing, contradictory, or indeterminate observation at any step enters reconciliation and never
 releases dependencies (I13). Integration-request creation, passing gates, or a provider success

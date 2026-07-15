@@ -72,8 +72,11 @@ the realization shape.
   prefix passes chain verification, so currency needs its own independently trusted evidence.
   Together they give the I20 fail-closed rule a concrete trigger instead of a hope; where no
   witness is configured, restore and rollback-ambiguous restart fail closed rather than assume.
-- A per-Run append-only file log needs no service dependency, fits the single-host deployment
-  shape, and keeps the trusted persistence path small and auditable.
+- A per-Run append-only file log needs no service dependency for the ledger itself, fits the
+  single-host deployment shape, and keeps the trusted persistence path small and auditable. The
+  currency witness is the deliberate exception: its trust independence requires separately
+  configured storage (a different device, a path of independent trust, or a small remote
+  service), and where none is configured, autonomous restore is traded for a deliberate stop.
 
 ## Accepted negative consequence and trade-off
 

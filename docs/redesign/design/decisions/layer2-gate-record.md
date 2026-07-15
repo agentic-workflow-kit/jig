@@ -234,6 +234,37 @@ correction pass:
    recording the `PORT-LEDGER` commit primitive as a non-Operation validated equivalently by the
    transition engine and recovery reads under its `CB-STORE` binding.
 
+#### Owner recheck round 2 (2026-07-15, head `07c82b33`)
+
+Finding 4 (package digest) was verified and resolved. Findings 1, 2, 3, and 7 returned with
+contract-level demands, resolved by a third correction pass:
+
+1. **Registry scope made checkable end to end:** a new `ID-REGISTRY` identity is declared per
+   canonical target in frozen configuration and validated at preflight; every authority grant
+   carries its allocating registry in the fence; every landing records it in delivery metadata;
+   and the finalizer verifies registry lineage against the target's own recorded lineage before a
+   grant's first target-changing effect, parking on mismatch (`FC-AUTHORITY`). **Named residual
+   proposed for explicit owner acceptance:** independently administered deployments declaring
+   different registries for one target have no shared arbiter before either has landed; a
+   simultaneous first-finalization race is detected and parked by lineage divergence afterwards,
+   not prevented — prevention requires one shared registry realization.
+2. **Readback contract reconciled with the locked Layer 1 rule:** the occupied-position case is
+   classified as the confirmed commit of the competing record (adopt once, fence the proposer),
+   not as this proposal's absence, so the locked "confirmed absent retries the same identity and
+   content" rule holds without exception for its only case, the empty position. A
+   same-generation/different-digest occupant is classified as corruption or generation
+   duplication and fails closed (I20, `FC-TRUST`).
+3. **Witness made structural:** `RT-WITNESS` is a declared runtime unit on independently trusted
+   storage, reached through `PORT-LEDGER` (whose carries-row now names witness heads) under a
+   witness-line `CB-STORE` scope; `LG-WITNESS` advances durably after flush and **before**
+   `LG-ACK` returns; storage-provider duties and D11 carry the witness obligations, and D11's
+   no-service-dependency claim now names the witness as its deliberate exception.
+4. **Operation-vocabulary clauses made satisfiable for the ledger:** a recorded
+   ledger-primitive substitutions table maps every `MC-*` clause (identity echo, scope,
+   idempotency/lookup, reconciliation, compensation, reconnection) to its commit-primitive
+   equivalent; `CB-STORE` defines both scopes explicitly; V12 declares the ledger contract's
+   absence; D12 records the substitutions.
+
 Later reviews append here with the same structure: reviewer identity and independence, delegation
 bounds, verdict, blocking findings and dispositions, non-blocking notes, and the exact reviewed
 baseline.

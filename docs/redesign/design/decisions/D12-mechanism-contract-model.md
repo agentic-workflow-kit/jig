@@ -49,7 +49,11 @@ Use **capability-scoped, attested, conformance-gated mechanism contracts**:
   a different binding fails closed;
 - one recorded exception to mediator validation: the `PORT-LEDGER` commit primitive is not an
   Operation, so its `CB-STORE` binding is minted per commit or verified read by the transition
-  engine, which validates responses through the ledger contract's `LG-*` clauses — equivalent
+  engine, which validates responses through the ledger contract's `LG-*` clauses; the
+  Operation-vocabulary `MC-*` clauses bind its storage mechanism through the recorded
+  ledger-primitive substitutions (identity echo becomes the qualified Transition identity or
+  store-line key, lookup becomes strict positional readback, compensation is none on an
+  append-only store, reconnection is not applicable to stateless store calls) — equivalent
   validation in a different component, selected to avoid the circularity of mediating the act
   that records mediation's own authorizations; and
 - conformance gating: a provider becomes configurable behind a port only after its port's
