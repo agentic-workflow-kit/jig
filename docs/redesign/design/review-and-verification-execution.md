@@ -52,11 +52,13 @@ fails the assignment closed before dispatch (QS8); Jig never asks a reviewer to 
 incompletely identified subject.
 
 **The package digest (`RP-PACKAGE-DIGEST`)** makes the whole package the immutable review subject:
-one digest computed over all five elements — the Candidate content digest, the target basis
-digest, the evidence manifest digest, the findings-ledger state digest, and the delivery metadata
-digest. D7 binds acceptance to the reviewed evidence, findings state, and delivery metadata, not
-to content alone, so the digest that identifies the judged subject must cover them all: a change
-to any element changes the package digest even when the Candidate content is untouched.
+one digest computed over every package element — the Candidate content digest, the target basis
+digest, the frozen-requirements digest, the evidence manifest digest, the findings-ledger state
+digest, and the delivery metadata digest. D7 binds acceptance to the judged requirements,
+evidence, findings state, and delivery metadata, not to content alone, so the digest that
+identifies the judged subject must cover them all: a change to any element — including the frozen
+requirements a re-planned Run presents — changes the package digest even when the Candidate
+content is untouched.
 
 ## Verdict and finding representation
 
@@ -69,12 +71,12 @@ to any element changes the package digest even when the Candidate content is unt
 
 Rules the representation must preserve:
 
-| Rule                    | Statement                                                                                                                                                                                                                                                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact-package semantics | Any change to any package element — Candidate content, target basis (including a basis-only refresh), evidence manifest, findings state, or delivery metadata — changes `RP-PACKAGE-DIGEST`, invalidates every prior verdict, and re-enters full review with a fresh package; a verdict never transfers to a successor package (I7, D7). |
-| Blocking findings       | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                                                                                                                                            |
-| Rework return           | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority.                                                                                                                           |
-| Durable findings        | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                                                                                                                                                    |
+| Rule                    | Statement                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact-package semantics | Any change to any package element — Candidate content, target basis (including a basis-only refresh), frozen requirements, evidence manifest, findings state, or delivery metadata — changes `RP-PACKAGE-DIGEST`, invalidates every prior verdict, and re-enters full review with a fresh package; a verdict never transfers to a successor package (I7, D7). |
+| Blocking findings       | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                                                                                                                                                                 |
+| Rework return           | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority.                                                                                                                                                |
+| Durable findings        | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                                                                                                                                                                         |
 
 ## Reviewer independence enforcement (`RP-INDEPENDENCE`)
 
@@ -169,7 +171,7 @@ sequenceDiagram
     participant Impl as P-IMPLEMENTER implementer session
     participant Ver as X-VERIFY verification mechanism
 
-    Note over Ctl: CP-EVIDENCE assembles RP-PACKAGE and computes<br/>RP-PACKAGE-DIGEST over content, basis, evidence,<br/>findings state, and delivery metadata
+    Note over Ctl: CP-EVIDENCE assembles RP-PACKAGE and computes<br/>RP-PACKAGE-DIGEST over content, basis, requirements,<br/>evidence, findings state, and delivery metadata
     Ctl->>Rev: Assigns RP-PACKAGE for the exact package digest via PORT-SESSION
     Rev-->>Ctl: Returns attested RP-VERDICT bound to the exact RP-PACKAGE-DIGEST
     Note over Ctl: CP-MEDIATOR validates principal identity, role, and<br/>RP-INDEPENDENCE against the contributor principals.<br/>The transition engine validates the exact package digest<br/>and the findings ledger before any state advances

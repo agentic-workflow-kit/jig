@@ -52,13 +52,13 @@ and module structure inside the unit remains a D10 realization deferral.
 
 D3 fixed who owns each power; this table places each power inside the unit without redistributing it.
 
-| Power (V2)          | Owning component | Realization rule                                                                                        |
-| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
-| Authorize           | `CP-TRANSITION`  | Operation intents exist only inside a recorded Transition; `CP-SCHEDULER` and `CP-FINALIZER` propose.   |
-| Decide              | `CP-TRANSITION`  | `FLOW-DECIDE` is calculated deterministically from authoritative state and one ordered trigger (I4).    |
-| Record              | `CP-TRANSITION`  | `FLOW-RECORD` is the only conditional append path through `PORT-LEDGER` (I5).                           |
-| Reconcile           | `CP-RECOVERY`    | Reconciliation outcomes still enter durable truth only as triggers appended through `CP-TRANSITION`.    |
-| Boundary validation | `CP-MEDIATOR`    | `R-VALIDATE` at every port; `CP-TRANSITION` revalidates lifecycle position inside `FLOW-VALIDATE` (I7). |
+| Power (V2)          | Owning component | Realization rule                                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authorize           | `CP-TRANSITION`  | Operation intents exist only inside a recorded Transition; `CP-SCHEDULER` and `CP-FINALIZER` propose.                                                                                                                                                                              |
+| Decide              | `CP-TRANSITION`  | `FLOW-DECIDE` is calculated deterministically from authoritative state and one ordered trigger (I4).                                                                                                                                                                               |
+| Record              | `CP-TRANSITION`  | `FLOW-RECORD` is the only conditional append path through `PORT-LEDGER` (I5).                                                                                                                                                                                                      |
+| Reconcile           | `CP-RECOVERY`    | Reconciliation outcomes still enter durable truth only as triggers appended through `CP-TRANSITION`.                                                                                                                                                                               |
+| Boundary validation | `CP-MEDIATOR`    | `R-VALIDATE` at every mediated Operation port; the `PORT-LEDGER` commit primitive receives the equivalent validation inside `CP-TRANSITION`'s commit protocol and `CP-RECOVERY`'s verified reads; `CP-TRANSITION` also revalidates lifecycle position inside `FLOW-VALIDATE` (I7). |
 
 ## Interaction rules
 

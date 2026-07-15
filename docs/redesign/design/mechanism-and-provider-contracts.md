@@ -32,14 +32,22 @@ contract. The page consumes [D9](./decisions/D9-invariants-and-artifact-shape.md
 replacement) and 11 (credential resolution, delegation enforcement, sandboxing, network boundaries,
 capability binding, and mechanism conformance) under the proposed
 [D12](./decisions/D12-mechanism-contract-model.md) direction. The validating component is
-`CP-MEDIATOR` in the [control plane](./components/control-plane.md); the trust posture it enforces
-is the Layer 1 [authority-and-trust perspective](./perspectives/authority-and-trust.md) (V2,
+`CP-MEDIATOR` in the [control plane](./components/control-plane.md) for every mediated Operation
+port; the `PORT-LEDGER` commit primitive is the one recorded exception, validated equivalently
+inside the transition engine's commit protocol (below). The trust posture enforced either way is
+the Layer 1 [authority-and-trust perspective](./perspectives/authority-and-trust.md) (V2,
 `R-VALIDATE`).
 
 ## Common mechanism contract (`MC-*`)
 
-Every configured mechanism behind every port must satisfy every clause. A result that violates any
-clause is rejected at the boundary, creates no claimed fact, and authorizes no progress (I7).
+Every configured mechanism behind every port — including both storage ports — must satisfy every
+clause. A result that violates any clause is rejected at the boundary, creates no claimed fact,
+and authorizes no progress (I7). Where validation happens differs by port kind: mediated Operation
+ports (`PORT-SESSION`, `PORT-WORKSPACE`, `PORT-VERIFY`, `PORT-DELIVERY`, `PORT-ARTIFACT`) are
+validated by `CP-MEDIATOR`; the `PORT-LEDGER` commit primitive is not an Operation
+([persistence](./persistence-and-projections.md)), so its `CB-STORE` binding is minted per commit
+or verified read by `CP-TRANSITION` and `CP-RECOVERY`, which validate responses through the
+`LG-*` clauses — an equivalent, differently located validation, never a weaker one.
 
 | Clause          | Requirement                                                                                                                                                                                                                                                                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -70,8 +78,9 @@ one workspace path, one repository, or one target ref. Binding kinds follow the 
 | `CB-DELIVERY`  | `PORT-DELIVERY`               | One repository, one target ref, and one Candidate basis for publication or integration.                                                                                                                                                                                                                                                                                |
 | `CB-STORE`     | `PORT-LEDGER`/`PORT-ARTIFACT` | One Run's ledger positions (or one canonical target's registry line), or one named artifact write and its digest-verified reads. Artifact responses are validated by `CP-MEDIATOR`; ledger responses receive the equivalent identity, position, and digest validation inside the transition engine's commit protocol ([control plane](./components/control-plane.md)). |
 
-Delegation enforcement is symmetric: the controller (`CP-MEDIATOR`) mints the binding per
-authorized Operation at dispatch and validates it again on return. A result presented under a
+Delegation enforcement is symmetric: the minting component (`CP-MEDIATOR` for mediated Operation
+ports; the transition engine for the ledger commit primitive) mints the binding at dispatch and
+validates it again on return. A result presented under a
 different binding — or under no binding — fails closed and creates no fact (I7). A binding confers
 no standing authority: it is bound to the Operation identity and fence tuple, so it cannot be
 reused for a later Operation, a different subject, or a superseded controller generation.
@@ -127,7 +136,8 @@ assertion, and configuration cannot substitute a claim for the recorded pass.
 - **Audience and purpose:** Engineers and security reviewers; see where bindings are minted,
   where returns are validated, and where uncertainty exits before writing provider code.
 - **Scope and exclusions:** One Operation's mediation path. Port transports, schemas, retry
-  bounds, and provider internals are excluded.
+  bounds, and provider internals are excluded, as is the PORT-LEDGER commit primitive, which is
+  not an Operation and is validated inside the transition engine's commit protocol.
 - **State:** Proposed.
 - **Owner:** Arye Kogan.
 - **Sources:** D3, D9 categories 7 and 11, D10, D12; I3, I7, I15, I17; [V2](./perspectives/authority-and-trust.md);

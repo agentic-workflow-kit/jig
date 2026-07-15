@@ -59,9 +59,13 @@ Representation rules:
   Lost-acknowledgement readback therefore resolves "by stable identity and expected prior
   position" ([D5](./decisions/D5-state-authority-and-recovery.md),
   [state and recovery](./state-and-recovery.md)) with a strict match rule: **confirmed committed**
-  only when position, proposing generation, and record digest all match; a record at the expected
-  position with a different generation or digest confirms this proposal **absent** and fences the
-  proposer. An identity match alone never proves commitment.
+  only when position, proposing generation, and record digest all match. Confirmed absence has two
+  sub-cases: an **empty position** permits the Layer 1 same-identity retry, because the proposer's
+  generation is still current; an **occupied position** with a different generation or digest
+  proves a competing generation won, fences the proposer (I6), and resolves by adopting the
+  occupant and recomputing at the new head — a position-bound identity is never retried into an
+  occupied position ([persistence and projections](./persistence-and-projections.md) owns the full
+  rule). An identity match alone never proves commitment.
 - **Ownership tokens arbitrate; they never decide.** The controller instance token inside a
   generation claim exists only to distinguish racing claimants at the conditional append; it is
   excluded from deterministic decision inputs (I4) and acts purely as a fence component.
@@ -106,16 +110,16 @@ is performed by the transition engine's commit protocol itself
 
 ## Schema families
 
-| ID               | Schema family                            | Covers                                                                                                              |
-| ---------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `SCH-ENVELOPE`   | Execution Envelope                       | Approved plan, frozen policy, and validated configuration; frozen at preflight as the Run basis.                    |
-| `SCH-TRANSITION` | Transition record                        | Ordered validated trigger reference, deterministic decision, authorized Operation intents, expected prior position. |
-| `SCH-OPERATION`  | Operation record and result              | Intent, payload-basis digest, the recorded fence tuple, attested result or failure, and effect certainty.           |
-| `SCH-VERDICT`    | Reviewer verdict and finding             | Exact Candidate binding, reviewer attribution, findings with resolution state, approval or required changes.        |
-| `SCH-EVIDENCE`   | Evidence manifest and artifact reference | Evidence subject URI, producer attribution, completeness claim, and digest references into `RT-EVIDENCE`.           |
-| `SCH-ESCALATION` | Escalation and parked question           | The bounded named question, its authority scope, wake condition, and deadline class.                                |
-| `SCH-DECISION`   | Owner decision                           | Responder identity, validated delegated scope, the selected action, and continuation or stop.                       |
-| `SCH-OBLIGATION` | Residual Obligation                      | Affected resource or proof obligation, reason, preservation evidence, accountable owner, and residual status.       |
+| ID               | Schema family                            | Covers                                                                                                                                                                                                                                                   |
+| ---------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCH-ENVELOPE`   | Execution Envelope                       | Approved plan, frozen policy, and validated configuration; frozen at preflight as the Run basis.                                                                                                                                                         |
+| `SCH-TRANSITION` | Transition record                        | Ordered validated trigger reference, deterministic decision, authorized Operation intents, expected prior position.                                                                                                                                      |
+| `SCH-OPERATION`  | Operation record and result              | Intent, payload-basis digest, the recorded fence tuple, attested result or failure, and effect certainty.                                                                                                                                                |
+| `SCH-VERDICT`    | Reviewer verdict and finding             | Exact review-package binding (the `RP-PACKAGE-DIGEST` over content, basis, frozen requirements, evidence manifest, findings state, and delivery metadata), reviewer principal attribution, findings with resolution state, approval or required changes. |
+| `SCH-EVIDENCE`   | Evidence manifest and artifact reference | Evidence subject URI, producer attribution, completeness claim, and digest references into `RT-EVIDENCE`.                                                                                                                                                |
+| `SCH-ESCALATION` | Escalation and parked question           | The bounded named question, its authority scope, wake condition, and deadline class.                                                                                                                                                                     |
+| `SCH-DECISION`   | Owner decision                           | Responder identity, validated delegated scope, the selected action, and continuation or stop.                                                                                                                                                            |
+| `SCH-OBLIGATION` | Residual Obligation                      | Affected resource or proof obligation, reason, preservation evidence, accountable owner, and residual status.                                                                                                                                            |
 
 Schema style rules, uniform across the families:
 

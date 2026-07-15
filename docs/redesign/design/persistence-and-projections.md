@@ -60,13 +60,28 @@ An append therefore carries four facts: the qualified Transition identity (posit
 proposing controller generation, per [data and identity](./data-and-identity.md)), the expected
 prior `LG-POSITION`, the record's content digest, and the chained digest of the previous record.
 This is how the contract realizes D5's lost-acknowledgement resolution: when `LG-ACK` is lost,
-`CP-RECOVERY` re-reads the expected position and applies a strict match — **confirmed committed**
-only when position, proposing generation, and record digest all match (adopt exactly once);
-**confirmed absent** when the position is empty or holds a record with a different generation or
-digest (this proposal never committed; a differing occupant additionally fences the proposer); or
+`CP-RECOVERY` re-reads the expected position and applies a strict match with three outcomes —
+**confirmed committed** when position, proposing generation, and record digest all match (adopt
+exactly once); **confirmed absent** when the readback proves this proposal never committed; or
 **indeterminate** (the read itself cannot be trusted; halt advancement and enter Recovery). An
 identity match without a digest match is never treated as commitment, and no effect is ever
 dispatched from an indeterminate commit ([state and recovery](./state-and-recovery.md)).
+
+Confirmed absence has **two deliberately distinct sub-cases**, because the Transition identity is
+position-bound:
+
+- **Position empty:** the proposal never committed and the proposer's generation is still current.
+  This — and only this — is the Layer 1 same-identity retry case: the proposer retries the exact
+  same qualified Transition identity and content at the same position.
+- **Position occupied** by a record with a different generation or digest: the proposal never
+  committed and never can, because the occupant proves a competing generation won the position.
+  The proposer is fenced (I6) and must not retry — a position-bound identity cannot be retried
+  into an occupied position. The current generation adopts the committed occupant and recomputes
+  its next proposal at the new head, which is a new Transition identity, not a retry.
+
+The Layer 1 rule that confirmed absence retries "the same Transition identity and content"
+therefore applies exactly to the empty-position case, where the retrying proposer still holds
+current control authority; occupied-position absence resolves by fence-and-recompute instead.
 
 ## Record chaining and integrity
 
@@ -112,8 +127,10 @@ every Run the deployment hosts and satisfying the same commit-primitive clauses 
 (`LG-APPEND`, `LG-ACK`, `LG-READ`, `LG-CHAIN`, `LG-WITNESS` per registry). Authority acquisitions
 and releases (`ID-AUTH` ordinals) commit to the registry as the authoritative cross-Run
 arbitration record and are mirrored into the acquiring Run's ledger for audit; on conflict the
-conditional append serializes contenders exactly as it serializes competing Transitions. In the
-single-host reference realization the registry is a host-scoped directory beside the Run ledgers.
+conditional append serializes contenders exactly as it serializes competing Transitions. The
+registry is the content of the `RT-REGISTRY` unit in the [runtime architecture](./runtime.md),
+reached through `PORT-LEDGER`; in the single-host reference realization it is a host-scoped
+directory beside the Run ledgers.
 A target no configured registry can arbitrate is unarbitrated, and preflight rejects a Run that
 would need to finalize against it (QS4, I12).
 
@@ -141,8 +158,10 @@ a durable flush of the appended record.
 The contract, not the file format, is canonical. An embedded database or a hosted log service may
 replace the file log by passing the ledger conformance suite in
 [architecture conformance](./architecture-conformance.md), which exercises conditional-append
-rejection, durable acknowledgement, digest-verified reads, chain verification, and
-lost-acknowledgement resolution. Rejected alternatives for the authoritative realization are
+rejection, durable acknowledgement, digest-verified reads, chain verification,
+lost-acknowledgement resolution (both confirmed-absent sub-cases), and the `LG-WITNESS` clauses:
+witness trust independence, monotonicity, advance-before-acknowledgement, and rollback-restore
+detection. Rejected alternatives for the authoritative realization are
 recorded in [D11](./decisions/D11-ledger-realization.md).
 
 ## Compaction, retention, backup, and disaster recovery

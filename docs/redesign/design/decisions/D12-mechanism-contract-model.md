@@ -46,7 +46,12 @@ Use **capability-scoped, attested, conformance-gated mechanism contracts**:
   attestation — a mechanism attests weakness rather than claiming strength it lacks;
 - per-Operation capability bindings (`CB-*`) minted by the controller and validated on return,
   scoping each mechanism to subject, fence, operation class, and resource scope, so a result under
-  a different binding fails closed; and
+  a different binding fails closed;
+- one recorded exception to mediator validation: the `PORT-LEDGER` commit primitive is not an
+  Operation, so its `CB-STORE` binding is minted per commit or verified read by the transition
+  engine, which validates responses through the ledger contract's `LG-*` clauses — equivalent
+  validation in a different component, selected to avoid the circularity of mediating the act
+  that records mediation's own authorizations; and
 - conformance gating: a provider becomes configurable behind a port only after its port's
   conformance suite passes, and the pass is recorded evidence with suite version and subject
   digest, never trust by assertion.

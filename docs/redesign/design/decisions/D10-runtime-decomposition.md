@@ -37,8 +37,10 @@ category 1 deferrals without weakening the authority-and-proof boundary?
 
 Use a **modular single-authority runtime with named ports**:
 
-- four runtime units: a thin operator interface, one run controller process per Run, a passive
-  per-Run ledger store, and a passive immutable evidence artifact store;
+- five runtime units: a thin operator interface, one run controller process per Run, a passive
+  per-Run ledger store, a passive immutable evidence artifact store, and a passive host-shared
+  target-authority registry store — the one deliberate exception to Run isolation, required so
+  finalization authority is serialized per canonical target across Runs (I12) instead of per Run;
 - nine named ports as the only crossings of the authority boundary, with one port per V1 external
   relationship (`X-STORE` split into the conditional-append ledger contract and the immutable
   artifact contract);

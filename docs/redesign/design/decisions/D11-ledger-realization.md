@@ -43,14 +43,18 @@ reference realization**:
   writer per Run enforced by the durable controller generation; a conditional append carrying the
   Transition identity, the expected prior position, the record's content digest, and the chained
   previous-record digest; atomic commit at exactly the expected position or rejection with the
-  actual position; acknowledgement only after durable flush; and digest-verified ordered reads;
+  actual position; acknowledgement only after durable flush; digest-verified ordered reads; and
+  an independently trusted, monotonic currency witness (`LG-WITNESS`) advanced before each
+  acknowledgement, whose trust does not depend on the ledger or its backups;
 - records are hash-chained per Run, verified on recovery, and never rewritten in place — schema
   evolution is upcast-on-read;
 - snapshots and projections are verified, disposable accelerators rebuilt from the ledger, never
   competing authority; and
 - the reference realization is an append-only, segmented, fsync-on-acknowledge structured-record
   log per Run in `RT-LEDGER`'s directory; the contract, not the file format, is canonical, and a
-  replacement backend qualifies by passing the ledger conformance suite.
+  replacement backend qualifies by passing the ledger conformance suite, which gates every clause
+  above including witness independence, monotonicity, advance-before-acknowledgement, and
+  rollback-restore detection.
 
 The canonical contract, integrity, snapshot, compaction, backup, and disaster-recovery content is
 recorded in [persistence and projections](../persistence-and-projections.md); this decision selects
@@ -63,8 +67,11 @@ the realization shape.
   blind retry.
 - Keeps authority in recorded content and ordering (I5) rather than in backend behavior, matching
   D10's passive-store rule and keeping storage a replaceable conforming mechanism.
-- The hash chain makes rollback, fork, and tampering detectable, giving the I20 fail-closed rule a
-  concrete trigger instead of a hope.
+- The hash chain makes forks and tampering within the visible prefix detectable, and the
+  independent currency witness is what makes **rollback** detectable — a self-consistent earlier
+  prefix passes chain verification, so currency needs its own independently trusted evidence.
+  Together they give the I20 fail-closed rule a concrete trigger instead of a hope; where no
+  witness is configured, restore and rollback-ambiguous restart fail closed rather than assume.
 - A per-Run append-only file log needs no service dependency, fits the single-host deployment
   shape, and keeps the trusted persistence path small and auditable.
 

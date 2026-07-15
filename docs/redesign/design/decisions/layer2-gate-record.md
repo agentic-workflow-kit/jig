@@ -210,6 +210,30 @@ SHA-256 digests below are the durable identification of the exact reviewed conte
       exhausted bound records directly `Blocked`, and a pass advances inside `Finalizing`
       (lifecycle-catalogs, review-and-verification-execution).
 
+#### Owner recheck (2026-07-15, head `5fe5df62`)
+
+Arye rechecked all ten dispositions on the corrected head. Findings 5, 6, 8, 9, and 10 were
+verified and resolved. Findings 1, 2, 3, 4, and 7 returned with follow-ups, resolved by a second
+correction pass:
+
+1. The target-authority registry is now a declared runtime unit (`RT-REGISTRY`) with its port path
+   (`PORT-LEDGER`) in the runtime unit table, V6, V6a, and D10; the Run-isolation statement names
+   it as the one deliberate cross-Run exception (I12).
+2. The confirmed-absent contract distinguishes its two sub-cases explicitly: an empty position
+   permits the Layer 1 same-identity retry; an occupied position fences the proposer and resolves
+   by adopt-and-recompute — a position-bound identity is never retried into an occupied position
+   (persistence, data-and-identity).
+3. `LG-WITNESS` is part of D11's selected contract (with the chain/witness division of labor
+   corrected: the chain detects forks and tampering, the witness detects rollback) and is gated by
+   `CF-MECH-LEDGER`: independence, monotonicity, advance-before-acknowledgement, and
+   rollback-restore detection.
+4. `RP-PACKAGE-DIGEST` now includes the frozen-requirements digest, and `SCH-VERDICT` is
+   exact-package-bound; V14 and the exact-package rule enumerate all six elements.
+5. The universal mediator wording is amended on every governing surface — the control-plane power
+   table, the mechanism-contract preamble and delegation rule, the V12 scope, and D12 — each now
+   recording the `PORT-LEDGER` commit primitive as a non-Operation validated equivalently by the
+   transition engine and recovery reads under its `CB-STORE` binding.
+
 Later reviews append here with the same structure: reviewer identity and independence, delegation
 bounds, verdict, blocking findings and dispositions, non-blocking notes, and the exact reviewed
 baseline.
