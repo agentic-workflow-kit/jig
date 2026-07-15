@@ -1,6 +1,6 @@
 ---
-title: "Jig redesign — Layer 0 project definition"
-purpose: Define why the redesign exists, what project-level success requires, and what Layer 1 may decide after this exact definition passes review.
+title: "Project brief — Jig redesign"
+purpose: Define why the redesign exists, what project-level success requires, and what the high-level architecture may decide.
 audience:
   - Jig product and architecture owner
   - Product and engineering leads
@@ -9,38 +9,38 @@ audience:
   - Operators and delivery participants
 scope: Project-level problem, stakeholders, outcomes, capabilities, boundaries, quality scenarios, constraints, decision ownership, evidence roles, and Layer 1 questions; solution architecture, implementation, migration, delivery sequencing, and current-state claims are excluded.
 state: approved
-status: approved Layer 0 — final exact-candidate recheck pending; Layer 1 is the next authorized active layer and begins only after that PASS
+status: approved Layer 0 content, re-presented 2026-07-15 at this location without content change under the owner-directed structure revision; see the approval record below
 owner: Arye Kogan
-last_verified: 2026-07-14
+last_verified: 2026-07-15
 sources_of_truth:
   - ../AGENTS.md
-  - ../guidelines/README.md
-  - ../guidelines/00-project-definition.md
+  - ../architecture-design-and-documentation-guide.md
   - ../raw/GOAL.md
   - Explicit owner documentation-reset and delegated-review instruction, 2026-07-14
+  - Explicit owner structure-revision instruction, 2026-07-15
 related:
-  - ../README.md
   - ./README.md
+  - ./context.md
+  - ./decisions/README.md
+  - ../README.md
   - ../raw/README.md
   - ../raw/CORPUS.md
-  - ../raw/design/README.md
-  - ../raw/design/decisions.md
 ---
 
-# Jig redesign — Layer 0 project definition
+# Project brief — Jig redesign
 
 ## Document context
 
-| Context field             | Declaration                                                                                                                                                                                                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Active layer              | Layer 0 approval finalization; Layer 1 is the next authorized active layer after the final exact-candidate `PASS`.                                                                                                                                                                   |
-| Primary reader            | Arye Kogan; product, engineering, architecture, security, and operations leads; independent Layer 0 reviewers.                                                                                                                                                                       |
-| Enabled decision          | Whether the final metadata faithfully records the initial content `PASS`, making this exact candidate canonical and permitting Layer 1 to begin.                                                                                                                                     |
-| Prerequisite              | Arye's established initiative goal, source boundary, approval model, and project-level owner decisions, preserved through the 2026-07-14 documentation reset.                                                                                                                        |
-| Canonical fact ownership  | When the final exact-candidate `PASS` makes the recorded approval effective, this document owns the active project-level definition. Later approved artifacts own architecture choices. Historical material remains provenance rather than a competing definition.                   |
-| Complete explanation here | The problem, affected people, outcomes, success measures, capabilities, scope, non-goals, quality scenarios, constraints, accepted risks, assumptions, authority, source roles, and Layer 1 handoff.                                                                                 |
-| Deep-dive routing         | The [guidelines](../guidelines/README.md) own method; the [raw manifest](../raw/README.md) owns provenance; the [former goal](../raw/GOAL.md) preserves the primary owner-intent source; the [design index](./README.md) owns active layer status.                                   |
-| Explicit exclusions       | Internal runtime shapes, responsibility allocations, trust shapes, named lifecycle or state vocabulary, detailed contracts, operation and data shapes, coordination or persistence mechanisms, technology, implementation, migration, delivery sequencing, and current-state claims. |
+| Context field             | Declaration                                                                                                                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Abstraction level         | Project brief (Layer 0): why the initiative exists and what success requires. The high-level architecture pages in this directory answer how.                                                                                                                                         |
+| Primary reader            | Arye Kogan; product, engineering, architecture, security, and operations leads; independent reviewers.                                                                                                                                                                                |
+| Enabled decision          | Whether the project-level definition is complete and correct enough to govern the high-level architecture.                                                                                                                                                                            |
+| Prerequisite              | Arye's established initiative goal, source boundary, approval model, and project-level owner decisions, preserved through the 2026-07-14 documentation reset.                                                                                                                         |
+| Canonical fact ownership  | This document owns the active project-level definition. The approved architecture pages own architecture choices. Historical material remains provenance rather than a competing definition.                                                                                          |
+| Complete explanation here | The problem, affected people, outcomes, success measures, capabilities, scope, non-goals, quality scenarios, constraints, accepted risks, assumptions, authority, source roles, and Layer 1 handoff.                                                                                  |
+| Deep-dive routing         | The [architecture guide](../architecture-design-and-documentation-guide.md) owns method; the [raw manifest](../raw/README.md) owns provenance; the [former goal](../raw/GOAL.md) preserves the primary owner-intent source; the [design index](./README.md) owns active layer status. |
+| Explicit exclusions       | Internal runtime shapes, responsibility allocations, trust shapes, named lifecycle or state vocabulary, detailed contracts, operation and data shapes, coordination or persistence mechanisms, technology, implementation, migration, delivery sequencing, and current-state claims.  |
 
 This document is reader-complete for the project definition. Its raw links prove provenance; they
 are not required reading for understanding the initiative.
@@ -60,7 +60,7 @@ goal.
 
 The documentation reset removed the prior presentation from active authority so the project can be
 explained one reader-complete layer at a time. It did not discard or reopen Arye's established
-decisions. Layer 0 therefore has to preserve the full project intent without selecting the
+decisions. This brief therefore has to preserve the full project intent without selecting the
 architecture that later work must define.
 
 ## People and their concerns
@@ -124,17 +124,15 @@ realization.
 - **Question:** How do stakeholder concerns connect to project outcomes and required capabilities?
 - **View type:** Initiative landscape and outcome trace.
 - **Audience and purpose:** Owner, product, engineering, security, and operations leads validating
-  project completeness before Layer 1.
+  project completeness before architecture work.
 - **Scope and exclusions:** Project concerns, outcomes, and capabilities only; internal runtime
   shapes, allocation, mechanisms, and technology are excluded.
-- **State:** Approved Layer 0 candidate; final same-reviewer exact-candidate recheck pending
-  before the recorded approval is effective or Layer 1 begins.
+- **State:** Approved Layer 0 content.
 - **Owner:** Arye Kogan.
 - **Sources:** [Former owner-approved goal](../raw/GOAL.md), [active workspace
   contract](../AGENTS.md), and the narrowly audited historical [foundation](../raw/design/README.md)
   and [decision record](../raw/design/decisions.md).
-- **Related material:** [Layer 0 method](../guidelines/00-project-definition.md) and [design
-  index](./README.md).
+- **Related material:** [Design index](./README.md).
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
@@ -228,8 +226,8 @@ The initiative does not include:
   handoff as the desired end state or executable instruction;
 - selecting internal runtime shapes, allocation of responsibilities, trust relationships, named
   lifecycle vocabulary, detailed contracts, data shapes, coordination or persistence mechanisms,
-  technology, hosting, or operational tooling in Layer 0; or
-- authorizing Layer 1 before this exact candidate passes independent review.
+  technology, hosting, or operational tooling in the project brief; or
+- authorizing architecture work before this definition passes its review gate.
 
 ## Material quality scenarios
 
@@ -260,15 +258,15 @@ The initiative does not include:
 4. **Conflict disclosure:** any conflict with this definition, an explicit owner decision, or an
    imported promise must identify the governing statement, proposed revision, rationale, changed
    behavior or trade-off, and required owner decision.
-5. **Layer gates:** Layer 1 starts only after the exact Layer 0 candidate passes its review gate. A
+5. **Layer gates:** architecture work starts only after this definition passes its review gate. A
    locked later decision changes only through explicit reopen, impact statement, and renewed
    approval.
 6. **No manufactured facts:** an owner may authorize investigation, safe stop, or explicit handoff,
    but no decision can turn missing evidence into a factual claim that an uncertain effect or
    delivery occurred.
 7. **Secret exclusion:** credentials and secret values do not enter durable orchestration evidence.
-8. **Layer discipline:** the active layer must remain reader-complete without importing decisions
-   that belong to a later layer.
+8. **Layer discipline:** each artifact must remain reader-complete at its own abstraction level
+   without importing decisions that belong to a later, more detailed level.
 
 ## Accepted project burdens and risks
 
@@ -296,17 +294,18 @@ selecting how the architecture realizes them.
 - Arye Kogan remains the product and architecture decision owner.
 - The 2026-07-14 reset changes organization and presentation; it does not discard or reopen Arye's
   prior explicit decisions.
+- The 2026-07-15 structure revision reorganizes the design documentation by abstraction level and
+  view type following the [architecture guide](../architecture-design-and-documentation-guide.md);
+  it changes document boundaries and navigation, not any owner decision or approved content.
 - This artifact records an approved faithful re-expression after an initial content `PASS`. The
-  former Layer 0 approval label remains historical and is not the basis for this approval. Because
-  the approval metadata changes the exact candidate, the recorded approval and Layer 1 authorization
-  become effective only after the same reviewer passes this final candidate.
+  former Layer 0 approval label remains historical and is not the basis for this approval.
 - No repository product reference or external product promise or constraint was imported into the
-  former high-level architecture or this Layer 0 candidate.
+  former high-level architecture or this definition.
 - The former goal, source-role rules, and explicit project-level owner decisions are binding Layer 0
   fidelity inputs.
 - Former architecture selections, invariants, accepted architectural consequences, and deliberate
-  deferrals remain binding fidelity input for Layer 1 at their proper altitude, not content for this
-  document.
+  deferrals remain binding fidelity input for the high-level architecture at their proper altitude,
+  not content for this document.
 - Layer progression is not automatic, and a later layer may not silently change an approved or
   locked earlier decision.
 
@@ -352,10 +351,10 @@ to Arye and no later layer begins.
 | Role                            | Material                                                                                                                    | How it may be used                                                                                                                                                                       |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Active working authority        | [`../AGENTS.md`](../AGENTS.md)                                                                                              | Governs source scope, layer order, delegated review, and stop rules; preserves Arye's ownership.                                                                                         |
-| Architecture method             | [Guidelines index](../guidelines/README.md) and [Layer 0 page](../guidelines/00-project-definition.md)                      | Defines how this artifact is authored and reviewed; selects no project or architecture decision.                                                                                         |
+| Architecture method             | [Architecture guide](../architecture-design-and-documentation-guide.md)                                                     | Defines how artifacts are authored and reviewed; selects no project or architecture decision.                                                                                            |
 | Binding Layer 0 owner intent    | [Former goal](../raw/GOAL.md), explicit owner decisions, and the 2026-07-14 reset instruction                               | Defines project outcomes, scope, approval model, source boundary, and owner authority to re-express faithfully.                                                                          |
 | Historical provenance           | [Raw manifest](../raw/README.md) and [corpus index](../raw/CORPUS.md)                                                       | Proves file history and prior source roles; historical status and sequencing claims are not current authority.                                                                           |
-| New canonical home              | [`design/`](./README.md)                                                                                                    | Holds active artifacts one approved layer at a time; this document becomes canonical only after its exact review gate passes.                                                            |
+| New canonical home              | [`design/`](./README.md)                                                                                                    | Holds active artifacts one approved layer at a time; each document becomes canonical only after its exact review gate passes.                                                            |
 | Primary later-layer direction   | Historical standalone proposal identified by the raw manifest                                                               | Supplies architecture direction for later layers; it is immutable and is not approved architecture.                                                                                      |
 | Later-layer corrective evidence | Historical independent proposal reviews identified by the raw manifest                                                      | Exposes contradictions, risks, and missing questions; it neither selects fixes nor grants approval.                                                                                      |
 | Narrow Layer 0 audit evidence   | Historical [foundation](../raw/design/README.md) and [decision record](../raw/design/decisions.md)                          | Exposes project-level outcomes, burdens, risks, constraints, assumptions, source rules, and owner statements omitted from the former goal; all internal selections remain excluded here. |
@@ -367,7 +366,7 @@ turning repository material into design input.
 
 ## Layer 1 handoff
 
-After this exact candidate passes the Layer 0 gate, Layer 1 must answer:
+The high-level architecture must answer:
 
 1. What responsibilities and high-level boundaries are required to satisfy every capability and
    quality scenario?
@@ -384,19 +383,20 @@ After this exact candidate passes the Layer 0 gate, Layer 1 must answer:
    recorded assumptions?
 9. Which high-level invariants keep every later decision traceable to this project definition?
 
-Layer 0 intentionally does not answer those questions. It also excludes named internal runtime
-units, selected responsibility or trust allocations, canonical lifecycle/state vocabulary,
+The project brief intentionally does not answer those questions. It also excludes named internal
+runtime units, selected responsibility or trust allocations, canonical lifecycle/state vocabulary,
 detailed contracts, event or operation catalogs, data representations, persistence or scheduling
 mechanisms, verification realization, technology, hosting, implementation, migration, delivery
-sequencing, and current-state evidence. Those details cannot be treated as Layer 0 requirements.
+sequencing, and current-state evidence. Those details cannot be treated as project-brief
+requirements.
 
 ## Layer 0 approval record
 
-The independent reviewer returned an initial content `PASS` for the frozen baseline below. This
-metadata finalization records that result without changing the approved project-definition meaning.
-Because exact-candidate approval includes this metadata, the recorded approval is effective only
-when the same reviewer returns `PASS` for this final metadata-bearing candidate. Layer 1 is the next
-authorized active layer, but it must not begin before that final recheck passes.
+The independent reviewer returned an initial content `PASS` for the frozen baseline below, and the
+former metadata finalization recorded that result without changing the approved project-definition
+meaning. The 2026-07-15 owner structure revision relocated this content to `brief.md` without
+content change and superseded the then-pending exact-candidate metadata recheck; the content `PASS`
+baseline below remains the recorded review evidence.
 
 | Record field                              | Recorded value                                                                                                                      |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -409,8 +409,7 @@ authorized active layer, but it must not begin before that final recheck passes.
 | Fidelity verdict                          | All 159 dispositions accepted: 70 preserved, 42 reorganized, 47 omitted as later-layer detail, 0 owner decisions required           |
 | NQ10                                      | Resolved; confirmation releases dependent work without waiting for retirement or cleanup, which cannot reverse the confirmed result |
 | Material decision impact                  | None; no new material decision was introduced                                                                                       |
-| Final metadata-bearing candidate verdict  | Pending the same reviewer's exact-candidate recheck                                                                                 |
-| Layer 1 authorization                     | Next authorized active layer; becomes actionable only after that final `PASS`                                                       |
+| Structure revision, 2026-07-15            | Owner-directed relocation to `brief.md` under the view-based structure; content unchanged; the pending metadata recheck superseded  |
 
 ### Initial content reviewed baseline
 
@@ -425,5 +424,4 @@ authorized active layer, but it must not begin before that final recheck passes.
 The reviewer does not own product or architecture decisions. The delegated verdict confirms only
 that this document faithfully organizes and re-expresses Arye's established Layer 0 intent. The
 approval does not approve a Layer 1 architecture, implementation, migration, delivery sequence, or
-current-state claim. Any change after the final exact-candidate `PASS` requires re-review under the
-workspace rules.
+current-state claim.

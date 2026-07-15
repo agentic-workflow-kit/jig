@@ -1,56 +1,61 @@
 ---
 title: "Jig redesign — layered documentation workspace"
-purpose: Route readers through the active layered rewrite and distinguish current method, canonical design, and historical evidence.
+purpose: Route readers through the active redesign and distinguish current method, canonical design, and historical evidence.
 audience:
   - Jig owner
   - Architecture authors and reviewers
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; Layer 1 final candidate proposed and pending same-reviewer exact-candidate recheck; Layer 2 unauthorized
+status: active — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 unauthorized
 owner: Arye Kogan (Jig owner)
-last_verified: 2026-07-14
+last_verified: 2026-07-15
 sources_of_truth:
   - Explicit owner reset and layered-authoring instruction, 2026-07-14
-  - ./guidelines/README.md
+  - Explicit owner structure-revision instruction, 2026-07-15
+  - ./architecture-design-and-documentation-guide.md
 related:
   - ./design/README.md
   - ./raw/README.md
-  - ./architecture-design-and-documentation-guide.md
 ---
 
 # Jig redesign
 
 This is the active workspace for rebuilding Jig's redesign documentation from its established
-decisions, organized one reader-complete layer at a time.
+decisions. The design is organized by abstraction level and view type following the
+[architecture guide](./architecture-design-and-documentation-guide.md); approval still advances one
+layer gate at a time.
 
 ## Current status
 
-Layer 0 — [project definition](./design/project-definition.md) — is approved and governs the proposed
-Layer 1 [high-level architecture](./design/high-level-architecture.md) and
-[decision record](./design/high-level-decisions.md). The final metadata-bearing Layer 1 candidate is
-pending exact-candidate recheck by the same independent `gpt-5.6-sol`/`xhigh` reviewer. Under the
-owner-approved bounded delegation, that review may approve only faithful organization and
-re-expression of already-established intent; it cannot select or change architecture. Arye retains
-all material product and architecture decision ownership. A `PASS` makes the recorded Layer 1
-approval and lock effective without a separate owner-selection or metadata-edit step. Layer 2
-remains unauthorized and not started under this execution stop, including after a `PASS`; after the
-Layer 1 commit, work stops for Arye. This reset changes organization and presentation, not Arye's
-explicit product or architecture decisions.
+Layer 0 — the [project brief](./design/brief.md) — is approved and governs the proposed Layer 1
+high-level architecture. On 2026-07-15 Arye directed a structure revision: the former two-artifact
+Layer 1 candidate was split into a connected view-based document set (context, model, flows,
+perspectives, supporting views, invariants, and per-decision records) mapped in the
+[design index](./design/README.md). That instruction superseded the then-pending exact-candidate
+recheck of the two-artifact set; the re-presented candidate set requires a fresh independent review
+under the same owner-approved bounded delegation before the recorded Layer 1 approval and lock
+become effective. No owner decision, invariant, accepted consequence, or deferral changed.
+
+Arye retains all material product and architecture decision ownership. Layer 2 remains unauthorized
+and not started under this execution stop, including after a Layer 1 `PASS`; after the Layer 1
+commit, work stops for Arye.
 
 ## Navigation
 
-- [Guidelines](./guidelines/README.md) — current method; read the index and only the active layer page.
-- [Design workspace](./design/README.md) — approved Layer 0, the proposed final Layer 1 candidate and
-  conditional approval/lock record, and the Layer 2 stop gate.
+- [Design workspace](./design/README.md) — the canonical artifacts: project brief, model, views,
+  invariants, decision records, and the gate record.
+- [Comprehensive guide](./architecture-design-and-documentation-guide.md) — the method: layering,
+  what belongs at each level, and the diagram rules the design pages follow.
+- [Guidelines handbook](./guidelines/README.md) — the earlier stage-gate distillation of the guide;
+  scheduled for rewrite to the guide's abstraction-layer structure per the 2026-07-15 owner
+  instruction. Until then the source guide governs where they differ.
 - [Raw provenance](./raw/README.md) — the complete pre-reset corpus and its source-role manifest.
-- [Comprehensive guide](./architecture-design-and-documentation-guide.md) — optional rationale and
-  background for the method.
 
 ## Authority boundary
 
-The guidelines define how to author and review; they select no design. New approved artifacts under
-`design/` become canonical one layer at a time. The former proposal, reviews, goal, handoff,
+The method defines how to author and review; it selects no design. New approved artifacts under
+`design/` become canonical one layer gate at a time. The former proposal, reviews, goal, handoff,
 execution plan, and Stage 1 presentation are preserved under `raw/` as historical evidence.
 
 Archived presentation and status labels are not current authority. Prior explicit owner decisions

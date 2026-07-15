@@ -22,9 +22,13 @@ re-expression requires such a change, return `OWNER_DECISION_REQUIRED` and stop 
 
 ## Source roles and boundary
 
-- `guidelines/README.md` plus only the active layer page defines the authoring and review method. It
-  selects no product or architecture decision.
-- `design/` contains the new active canonical artifacts, one approved layer at a time.
+- `architecture-design-and-documentation-guide.md` defines the authoring and review method: the
+  design is organized by abstraction level and view type, per the explicit owner
+  structure-revision instruction of 2026-07-15. It selects no product or architecture decision.
+  The `guidelines/` handbook is the earlier stage-gate distillation and is scheduled for rewrite;
+  where they differ, the source guide governs.
+- `design/` contains the new active canonical artifacts, organized as a project brief, canonical
+  model, views, invariants, and decision records; approval advances one layer gate at a time.
 - `raw/` contains historical evidence and provenance. Its former presentation, labels, approval
   claims, plans, and handoffs are not current authority and must not be executed.
 - The former goal, source-role rules, and explicit project-level owner decisions are binding Layer 0
@@ -47,7 +51,8 @@ required to preserve its original target. Record every such repair in `raw/READM
 1. Verify the worktree, branch, `HEAD`, merge base, and status.
 2. Read the repository and redesign `AGENTS.md` files.
 3. Read the redesign and design indexes.
-4. Read `guidelines/README.md` and only the page for the active layer.
+4. Read the sections of `architecture-design-and-documentation-guide.md` that own the artifact type
+   being authored or reviewed (its level, its view type, and the diagram rules).
 5. Read the approved earlier-layer artifact as the next layer's governing input contract; do not
    reread earlier-layer guidance unless auditing or reopening that layer.
 6. Use the smallest connected artifact set that completely answers the active layer's questions.
