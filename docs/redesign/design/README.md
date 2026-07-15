@@ -7,12 +7,13 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 unauthorized
+status: active index — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction and gated by its own review
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ../architecture-design-and-documentation-guide.md
   - Explicit owner structure-revision instruction, 2026-07-15
+  - Explicit owner continuation instruction, 2026-07-15
 related:
   - ../README.md
   - ../raw/README.md
@@ -135,7 +136,7 @@ every node carries its stable ID and bracketed type.
 - **Reviewer of this candidate:** [Decision index](./decisions/README.md) →
   [Invariants](./invariants.md) →
   [Review and approval record](./decisions/review-and-approval-record.md).
-- **Future Layer 2 author (after authorization):** [Invariants](./invariants.md) →
+- **Layer 2 author:** [Invariants](./invariants.md) →
   [D9 Layer 2 boundary](./decisions/D9-invariants-and-artifact-shape.md).
 
 ## Document map
@@ -159,7 +160,7 @@ every node carries its stable ID and bracketed type.
 There is no runtime/container decomposition page yet by design: internal components, ports, and
 processes are deliberate Layer 2 deferrals (see
 [D9](./decisions/D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals)).
-When Layer 2 is authorized, its decomposition, deployment, and data views join this structure at
+As Layer 2 is authored, its decomposition, deployment, and data views join this structure at
 their own levels.
 
 ## Layer gate status
@@ -168,13 +169,15 @@ their own levels.
 | --------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                     |
 | Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Proposed; the prior two-artifact candidate's pending recheck was superseded by the structure revision; a fresh independent review is next |
-| Layer 2 — detailed architecture   | No artifact authorized                                                          | Unauthorized and not started under this execution stop; a Layer 1 `PASS` does not authorize Layer 2                                       |
+| Layer 2 — detailed architecture   | No artifact authored yet                                                        | Authoring authorized by the 2026-07-15 owner continuation instruction against the D9 deferrals; advances through its own layer gate       |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression
 of already-established intent; a `PASS` on the exact candidate set makes the recorded Layer 1
-approval and lock effective without a separate owner-selection step. After the Layer 1 commit, work
-stops for Arye; Layer 2 must not begin.
+approval and lock effective without a separate owner-selection step. Under the 2026-07-15 owner
+continuation instruction, work continues past the Layer 1 commit: the fresh independent review
+closes the Layer 1 gate, and Layer 2 authoring proceeds against the proposed candidate with D1–D9
+and I1–I21 as fixed inputs, stopping for Arye at each layer gate.
 
 The [raw provenance manifest](../raw/README.md) identifies binding decisions and historical
 evidence; it does not make the prior presentation canonical.

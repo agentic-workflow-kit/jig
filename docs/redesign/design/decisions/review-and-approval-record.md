@@ -8,11 +8,12 @@ scope: Question traceability, archive reconciliation, gate evidence, prior revie
 state: proposed
 status: gate record — prior exact-candidate recheck superseded by the 2026-07-15 owner structure revision; the re-presented candidate set requires a fresh independent review before the recorded approval and lock become effective
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ../brief.md
   - ../../AGENTS.md
   - Explicit owner structure-revision instruction, 2026-07-15
+  - Explicit owner continuation instruction, 2026-07-15
 related:
   - ./README.md
   - ../README.md
@@ -37,8 +38,17 @@ related:
   `OWNER_DECISION_REQUIRED`. A `PASS` confirms faithful organization and re-expression of the
   already-established decisions and makes the recorded Layer 1 approval and lock effective; it does
   not select or change architecture.
-- **Layer 2:** Unauthorized and not started under this execution stop, including after a Layer 1
-  `PASS`. After the Layer 1 commit, work stops for Arye.
+- **Owner continuation instruction (2026-07-15):** Arye explicitly directed the work to continue
+  past the previous post-Layer 1-commit stop point, in order: close the Layer 1 gate through the
+  fresh independent review; author Layer 2 within the
+  [D9 consolidated deferrals](./D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals),
+  treating D1–D9 and I1–I21 as fixed inputs; then rewrite the guidelines handbook as a generalized,
+  project-agnostic distillation of the architecture guide. This instruction authorizes authoring and
+  pushing on the redesign branch; it selects no architecture, transfers no decision ownership, and
+  does not merge. Layer 2 authoring may be prepared against the proposed Layer 1 candidate, but the
+  recorded Layer 1 approval and lock become effective only through this gate, and Layer 2 advances
+  through its own author, independent review, and owner gate. Work still stops for Arye at each
+  layer gate.
 
 ## Requirement and question traceability
 

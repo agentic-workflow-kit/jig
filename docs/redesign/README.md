@@ -7,12 +7,13 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 unauthorized
+status: active — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction and gated by its own review
 owner: Arye Kogan (Jig owner)
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - Explicit owner reset and layered-authoring instruction, 2026-07-14
   - Explicit owner structure-revision instruction, 2026-07-15
+  - Explicit owner continuation instruction, 2026-07-15
   - ./architecture-design-and-documentation-guide.md
 related:
   - ./design/README.md
@@ -37,9 +38,13 @@ recheck of the two-artifact set; the re-presented candidate set requires a fresh
 under the same owner-approved bounded delegation before the recorded Layer 1 approval and lock
 become effective. No owner decision, invariant, accepted consequence, or deferral changed.
 
-Arye retains all material product and architecture decision ownership. Layer 2 remains unauthorized
-and not started under this execution stop, including after a Layer 1 `PASS`; after the Layer 1
-commit, work stops for Arye.
+Arye retains all material product and architecture decision ownership. On 2026-07-15 he also
+directed the work to continue past the previous post-commit stop point: close the Layer 1 gate
+through the fresh independent review, author Layer 2 within D9's consolidated deferrals with D1–D9
+and I1–I21 as fixed inputs, then rewrite the guidelines handbook as a generalized handbook. Each
+layer still advances through its own author, independent review, and owner gate; work stops for
+Arye at each layer gate. The instruction is recorded in the
+[review and approval record](./design/decisions/review-and-approval-record.md).
 
 ## Navigation
 

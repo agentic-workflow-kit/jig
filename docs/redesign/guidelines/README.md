@@ -1,12 +1,12 @@
 ---
 title: "Architecture design and documentation guidelines"
-status: active operational standard
-state: current
+status: superseded as method authority — scheduled for a generalized rewrite per the 2026-07-15 owner continuation instruction; the source guide governs where they differ
+state: deprecated
 purpose: Route authors and reviewers to the smallest complete guidance set for their active design layer.
 audience: Human and agent architecture authors, reviewers, and decision owners.
 scope: Generic software architecture design and documentation.
 owner: Architecture documentation owner.
-last_verified: 2026-07-14
+last_verified: 2026-07-16
 sources_of_truth:
   - ../architecture-design-and-documentation-guide.md
 related:
@@ -19,6 +19,11 @@ related:
 ---
 
 # Architecture design and documentation guidelines
+
+> **Superseded:** This handbook is the earlier process-stage distillation and is scheduled to be
+> replaced by a generalized abstraction-layer handbook per the 2026-07-15 owner continuation
+> instruction. Where it differs from the
+> [source guide](../architecture-design-and-documentation-guide.md), the source guide governs.
 
 Use this handbook to design, explain, review, approve, and maintain software architecture without
 reading guidance for work that is not currently in scope.
