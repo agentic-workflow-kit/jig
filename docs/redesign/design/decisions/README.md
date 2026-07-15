@@ -44,8 +44,21 @@ selection, consequence, or deferral changed.
 | [D8](./D8-failure-and-liveness.md)             | Failure and liveness                   | Smallest-scope fail-closed containment with bounded Recovery and durable escalation.           |
 | [D9](./D9-invariants-and-artifact-shape.md)    | Invariants and Layer 2 boundary        | Consolidated I1–I21, explicit deferrals, and the connected view-based foundation set.          |
 
-All nine decisions are established owner selections. Their lock becomes effective through the
+All nine decisions are established owner selections; their lock became effective through the
 Layer 1 gate recorded in the [review and approval record](./review-and-approval-record.md).
+
+## Proposed Layer 2 decision records
+
+These records were authored on 2026-07-15 under the owner continuation instruction. They are
+proposed, not owner-approved: they advance through the
+[Layer 2 gate](./layer2-gate-record.md) — independent review, then the owner stop. This section is
+an additive index extension; no D1–D9 content changed.
+
+| ID                                       | Topic                           | Proposed direction                                                                          |
+| ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| [D10](./D10-runtime-decomposition.md)    | Runtime decomposition and ports | Modular single-authority runtime with named ports.                                          |
+| [D11](./D11-ledger-realization.md)       | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization. |
+| [D12](./D12-mechanism-contract-model.md) | Mechanism contract model        | Capability-scoped, attested, conformance-gated mechanism contracts.                         |
 
 ## Accepted final negative consequences
 

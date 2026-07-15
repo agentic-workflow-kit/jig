@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction
+status: active index — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 authored and proposed, pending its independent review and owner stop
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -135,8 +135,9 @@ every node carries its stable ID and bracketed type.
 - **Reviewer of this candidate:** [Decision index](./decisions/README.md) →
   [Invariants](./invariants.md) →
   [Review and approval record](./decisions/review-and-approval-record.md).
-- **Layer 2 author:** [Invariants](./invariants.md) →
-  [D9 Layer 2 boundary](./decisions/D9-invariants-and-artifact-shape.md).
+- **Layer 2 reader or author:** [Invariants](./invariants.md) →
+  [D9 Layer 2 boundary](./decisions/D9-invariants-and-artifact-shape.md) →
+  [Runtime architecture](./runtime.md) → [Layer 2 gate record](./decisions/layer2-gate-record.md).
 
 ## Document map
 
@@ -156,19 +157,38 @@ every node carries its stable ID and bracketed type.
 | [Decision records](./decisions/README.md)                               | Decisions (D1–D9)             | Why was each direction selected, what was rejected, and which burdens are accepted?              |
 | [Review and approval record](./decisions/review-and-approval-record.md) | Gate record                   | What was reviewed, what passed, and what remains before approval and lock become effective?      |
 
-There is no runtime/container decomposition page yet by design: internal components, ports, and
-processes are deliberate Layer 2 deferrals (see
-[D9](./decisions/D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals)).
-When Layer 2 is authorized, its decomposition, deployment, and data views join this structure at
-their own levels.
+### Layer 2 document map (proposed)
+
+The Layer 2 pages consume the
+[D9 consolidated deferrals](./decisions/D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals)
+one category at a time; the
+[Layer 2 gate record](./decisions/layer2-gate-record.md) owns the coverage traceability and gate
+state.
+
+| Page                                                                        | Level or view type               | Question it answers                                                                    |
+| --------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
+| [Runtime architecture](./runtime.md)                                        | Level 2 — runtime (V6, V6a)      | What runnable or stored units realize Jig, through which ports and processes?          |
+| [Control plane components](./components/control-plane.md)                   | Level 3 — component (V7)         | How is the run controller internally organized, and which component holds which power? |
+| [Data and identity](./data-and-identity.md)                                 | Data view (V8)                   | How are identities, fences, and schemas represented and bound?                         |
+| [Lifecycle catalogs](./lifecycle-catalogs.md)                               | State machines and catalogs (V9) | Which exhaustive states, events, Operations, and failure codes close the lifecycle?    |
+| [Scheduling and bounds](./scheduling-and-bounds.md)                         | Supporting view (V10)            | How are admission, reservations, waits, and budgets realized deterministically?        |
+| [Persistence and projections](./persistence-and-projections.md)             | Supporting view (V11)            | What contract makes the ledger durable, verifiable, and recoverable?                   |
+| [Mechanism and provider contracts](./mechanism-and-provider-contracts.md)   | Supporting view (V12)            | What must every configured mechanism satisfy before it can be trusted?                 |
+| [Evidence handling](./evidence-handling.md)                                 | Supporting view (V13)            | How is evidence stored, attributed, verified, redacted, and retained?                  |
+| [Review and verification execution](./review-and-verification-execution.md) | Protocol view (V14)              | How do the review protocol and policy-selected verification run in detail?             |
+| [Forge and landing](./forge-and-landing.md)                                 | Protocol view (V15)              | Which forge Operations, strategies, and equivalence rules prove landing?               |
+| [Operations and observability](./operations-and-observability.md)           | Supporting view (V16)            | How do escalation, read models, exports, and alerts surface durable truth?             |
+| [Architecture conformance](./architecture-conformance.md)                   | Contract (V17)                   | Which suites make the invariants executable for any realization?                       |
+| [D10–D12 decision records](./decisions/README.md)                           | Decisions (proposed)             | Why were the runtime, ledger, and mechanism-contract shapes selected, at what cost?    |
+| [Layer 2 gate record](./decisions/layer2-gate-record.md)                    | Gate record                      | What Layer 2 was authored and reviewed, and what remains before owner approval?        |
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                    |
-| --------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                     |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)           |
-| Layer 2 — detailed architecture   | See the document map as Layer 2 pages land                                      | Authoring authorized by the 2026-07-15 owner continuation instruction, against the proposed Layer 1 with D1–D9 and I1–I21 as fixed inputs |
+| Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                           |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record) |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record            | Authored 2026-07-15 and proposed; pending the Layer 2 independent review, then the owner stop (see the Layer 2 gate record)     |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression
