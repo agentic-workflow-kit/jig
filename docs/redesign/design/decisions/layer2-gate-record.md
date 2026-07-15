@@ -265,6 +265,34 @@ contract-level demands, resolved by a third correction pass:
    equivalent; `CB-STORE` defines both scopes explicitly; V12 declares the ledger contract's
    absence; D12 records the substitutions.
 
+#### Owner recheck round 3 (2026-07-15, head `c73b6b63`)
+
+Four findings returned with converging demands, resolved by a fourth correction pass:
+
+1. **First-touch race eliminated, residual withdrawn:** the round-3 proposal to accept a
+   first-touch serialization residual is withdrawn as improper — a Layer 2 acceptance cannot
+   waive locked I12/QS4 without a Layer 1 reopen. It is replaced by the **target lineage
+   anchor**: no target-changing effect is authorized until an anchor at the target itself names
+   the grant's `ID-REGISTRY`; when absent it is created by `OPC-DEL-ANCHOR`, an atomic
+   conditional-create the delivery mechanism must support and attest (`CF-MECH-DELIVERY` gates
+   it; preflight fails closed otherwise), so competing registries serialize on the target's own
+   atomicity and exactly one can win. The effect-fence tuple now carries `ID-REGISTRY` with
+   `ID-AUTH`, matching the prose.
+2. **Conformance surfaces track the corrected readback classification:** `CF-MECH-LEDGER` and
+   the persistence suite list now gate the five-way classification explicitly (own commit;
+   empty-position absence with same-identity retry; competing-generation commit with proposer
+   fencing and no retry; same-generation integrity failure failing closed; indeterminate),
+   replacing the stale "both confirmed-absent sub-cases" wording.
+3. **Witness in the authoritative dataflow:** V11 now shows the `RT-WITNESS` node, the
+   advance-witness-durably-then-acknowledge barrier on the commit path, and recovery's
+   chain-head-versus-witness currency comparison failing closed on rollback (I20).
+4. **One owner for the ledger primitive:** the transition engine's commit protocol is recorded
+   as the single ledger-primitive validator and `CB-STORE` binding minter, with `CP-RECOVERY`
+   reading through that facility (control plane, mechanism contract, D12); the substitutions
+   table now defines the ledger's binding-identity-and-fence substitute (store line, expected
+   position, proposing generation) and references only defined clauses (`MC-IDEMPOTENT`,
+   `MC-LOOKUP` — the undefined `MC-RECONCILE` reference is corrected).
+
 Later reviews append here with the same structure: reviewer identity and independence, delegation
 bounds, verdict, blocking findings and dispositions, non-blocking notes, and the exact reviewed
 baseline.

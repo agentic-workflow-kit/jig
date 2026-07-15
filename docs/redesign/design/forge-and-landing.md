@@ -41,13 +41,14 @@ owned by the Layer 2 event and Operation catalog under D9 category 3; this page 
 delivery semantics. Every dispatch carries the durable Operation identity, payload basis, and
 authority fence from [operation identity and fencing](./state-and-recovery.md).
 
-| ID                | Operation                | Effect class                 | Reconciliation lookup                                                                                                               |
-| ----------------- | ------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `OPC-DEL-PUBLISH` | Publish Candidate branch | Irreversible external effect | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                       |
-| `OPC-DEL-REQUEST` | Open integration request | Irreversible external effect | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged. |
-| `OPC-DEL-OBSERVE` | Observe gate state       | Observation                  | Re-observation by Operation identity; repeatable without external effect.                                                           |
-| `OPC-DEL-MERGE`   | Request merge            | Irreversible external effect | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.           |
-| `OPC-DEL-OBSERVE` | Observe target           | Observation                  | Re-observation by Operation identity; repeatable without external effect.                                                           |
+| ID                | Operation                    | Effect class                                            | Reconciliation lookup                                                                                                                                       |
+| ----------------- | ---------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPC-DEL-ANCHOR`  | Create target lineage anchor | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this registry is success, present with another registry is a lost race that parks, absent permits bounded retry. |
+| `OPC-DEL-PUBLISH` | Publish Candidate branch     | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                               |
+| `OPC-DEL-REQUEST` | Open integration request     | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                         |
+| `OPC-DEL-OBSERVE` | Observe gate state           | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                   |
+| `OPC-DEL-MERGE`   | Request merge                | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                   |
+| `OPC-DEL-OBSERVE` | Observe target               | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                   |
 
 `OPC-DEL-OBSERVE` appears in two rows deliberately: gate-state observation and target observation
 are two delivery uses of the one observation Operation class in the
@@ -92,14 +93,18 @@ under history-rewriting strategies and falsely fails under equivalent rewrites.
 | `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted Candidate digest over its change set.                                                                             |
 | `LP-RECORD`  | Record `Landed` durably with the observed facts, proof evidence, and the allocating registry identity (`ID-REGISTRY`) in the landing's delivery metadata, then release dependent Stories immediately (I13, I18). |
 
-**Registry lineage check:** before a grant's first target-changing effect, the finalizer's
-alignment observation also verifies registry lineage — the allocating registry identity recorded
-by the most recent Jig-attributed integration on the target (written there by `LP-RECORD`) must
-match this grant's declared registry (`ID-REGISTRY` in
-[data and identity](./data-and-identity.md)). A mismatch is an authority-scope conflict: target
-effects are fenced and the Story parks for the owner (`FC-AUTHORITY`). A target with no
-Jig-attributed lineage yet has nothing to check; the recorded residual for that first-touch case
-is stated with the registry scope rule in [data and identity](./data-and-identity.md).
+**Target lineage anchor and registry lineage check:** no target-changing effect is authorized
+until the target's **lineage anchor** names this grant's declared registry (`ID-REGISTRY` in
+[data and identity](./data-and-identity.md)). The anchor is a durable marker at the target itself
+carrying the governing registry identity. When absent, the finalizer creates it with
+`OPC-DEL-ANCHOR`, an **atomic conditional-create** the delivery mechanism must support and attest
+(for a git forge, a create-if-absent ref write gives the primitive natively): among racing
+registries exactly one creation succeeds, so first-touch serialization is inherited from the
+target's own atomicity rather than assumed, and I12/QS4 hold with no residual race. When present,
+the anchor's registry identity must match this grant's registry; a mismatch — or losing the
+creation race — is an authority-scope conflict that fences target effects and parks for the owner
+(`FC-AUTHORITY`). `LP-RECORD` additionally writes the allocating registry into each landing's
+delivery metadata, so lineage stays auditable in the landing history as well as at the anchor.
 
 A missing, contradictory, or indeterminate observation at any step enters reconciliation and never
 releases dependencies (I13). Integration-request creation, passing gates, or a provider success

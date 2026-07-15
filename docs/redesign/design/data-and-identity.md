@@ -86,17 +86,19 @@ Representation rules:
   ones (QS4, I12, D6). The registry scope rule is checkable end to end: the frozen configuration
   declares exactly one `ID-REGISTRY` per canonical target and preflight fails closed without one;
   every authority grant carries its allocating registry identity in the fence; every landing
-  records that registry identity in its delivery metadata; and before its first target-changing
-  effect under a new grant, the finalizer verifies **registry lineage** — the registry identity
-  recorded by the most recent Jig-attributed integration on the target must match this grant's
-  registry, and a mismatch fences target effects and parks as an authority-scope conflict
-  (`FC-AUTHORITY`; [forge and landing](./forge-and-landing.md) owns the check). The named
-  residual, proposed for explicit owner acceptance at the Layer 2 gate: two independently
-  administered deployments declaring different registries for one target have no shared arbiter
-  before either has landed, so a simultaneous first finalization race is detected and parked by
-  lineage divergence afterwards rather than prevented — cross-deployment prevention requires
-  configuring one shared registry realization
-  ([persistence and projections](./persistence-and-projections.md) owns the realization).
+  records that registry identity in its delivery metadata; and before any target-changing effect
+  under a grant, the finalizer verifies **registry lineage** against the **target lineage
+  anchor** — a durable marker at the target itself naming the governing `ID-REGISTRY`, created
+  when absent by an atomic conditional-create through `PORT-DELIVERY`
+  ([forge and landing](./forge-and-landing.md) owns the operation). The anchor is what closes the
+  first-touch race without waiving I12/QS4: the target is the one medium every deployment that
+  can change it necessarily shares, so its atomic conditional-create serializes competing
+  registries — exactly one claim can succeed, the loser observes the winner's registry and parks
+  (`FC-AUTHORITY`), and no target-changing effect is ever authorized before the anchor names this
+  grant's registry. A delivery mechanism must attest support for atomic conditional anchor
+  creation, and preflight fails closed a Run whose target's mechanism cannot
+  ([mechanism and provider contracts](./mechanism-and-provider-contracts.md)); serialization is
+  therefore never assumed, only inherited from a verified primitive.
 - **Identity strings never encode secrets.** Path segments carry only frozen envelope facts and
   controller-assigned ordinals or positions; credential or secret material is never a segment
   (project-brief QS10).
@@ -111,8 +113,8 @@ The effect fence deferred by D5 and D6 is an **explicit recorded tuple**, persis
 Operation intent and echoed by every result:
 
 1. the current controller generation (`ID-GEN`);
-2. the finalization-authority generation (`ID-AUTH`) where the Operation is target-scoped, omitted
-   otherwise;
+2. the finalization-authority generation (`ID-AUTH`) together with its allocating registry
+   identity (`ID-REGISTRY`) where the Operation is target-scoped, omitted otherwise;
 3. the exact Candidate content digest where the Operation is Candidate-sensitive;
 4. the target-basis digest the effect was computed against; and
 5. the capability binding reference under which the mechanism was authorized (defined in

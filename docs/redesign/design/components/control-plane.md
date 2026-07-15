@@ -45,7 +45,7 @@ and module structure inside the unit remains a D10 realization deferral.
 | `CP-MEDIATOR`   | Mechanism mediator             | The trust boundary inside the unit: dispatches authorized operations to mechanism ports and validates every inbound port message before it can become a trigger.      | `R-VALIDATE` (V2); I7.                                                                                    | `PORT-SESSION`, `PORT-WORKSPACE`, `PORT-VERIFY`, `PORT-DELIVERY`, `PORT-ARTIFACT`; inbound gate for every port except `PORT-LEDGER` (see below). |
 | `CP-EVIDENCE`   | Evidence binder                | Assembles evidence manifests, binds each artifact to its exact subject, persists immutable artifacts, and validates availability and integrity before decision use.   | `A-EVIDENCE` roles and the exact-subject binding of `A-CANDIDATE` (V4); I7.                               | `PORT-ARTIFACT` through `CP-MEDIATOR` (immutable writes; digest-verified reads).                                                                 |
 | `CP-ESCALATION` | Escalation and parking         | Owns durable parked named questions, validates the responder and delegated scope of each owner decision, and turns valid decisions into wake triggers.                | `RUN-PARK` (V3) and the owner-decision identity binding of the canonical model.                           | `PORT-DECIDE` (questions out; validated decisions in, behind `CP-MEDIATOR`).                                                                     |
-| `CP-RECOVERY`   | Recovery and reconciliation    | Acquires the controller generation, fences stale control, reconstructs canonical state from the ledger, and reconciles uncertain operations before dispatch resumes.  | `S-RECOVERY`, `FLOW-RECONCILE` (V4, V3c); I6, I17.                                                        | `PORT-LEDGER` (verified reads); reconciliation observations through `CP-MEDIATOR`.                                                               |
+| `CP-RECOVERY`   | Recovery and reconciliation    | Acquires the controller generation, fences stale control, reconstructs canonical state from the ledger, and reconciles uncertain operations before dispatch resumes.  | `S-RECOVERY`, `FLOW-RECONCILE` (V4, V3c); I6, I17.                                                        | `PORT-LEDGER` (verified reads through the transition engine's commit protocol); reconciliation observations through `CP-MEDIATOR`.               |
 | `CP-PROJECTION` | Projection and read models     | Maintains the live projection and derived read models recomputed from adopted durable facts; read-only, replaceable, and never independently authoritative.           | `S-PROJECTION`, `S-DERIVED` (V4).                                                                         | `PORT-PUBLISH` (read-only publication out).                                                                                                      |
 
 ## Power ownership realized
@@ -72,10 +72,11 @@ D3 fixed who owns each power; this table places each power inside the unit witho
 - `PORT-LEDGER` is the one deliberate exception, because its conditional append is the commit
   primitive that records Transitions and cannot itself be a mediated Operation
   ([persistence and projections](../persistence-and-projections.md)). Its equivalent validation is
-  built in where the port is used: `CP-TRANSITION`'s commit protocol validates identity, expected
-  position, and digests on every append acknowledgement, and `CP-RECOVERY`'s verified reads apply
-  `LG-READ`/`LG-CHAIN` verification — the same fail-closed posture under the same `CB-STORE`
-  binding, with a different validating component. This narrows the mediator claim of
+  built in where the port is used: the transition engine's commit protocol is the single
+  ledger-primitive validator and `CB-STORE` binding minter for appends and verified reads alike,
+  validating identity, expected position, and digests under the `LG-*` clauses; `CP-RECOVERY`
+  performs its verified reads through that same protocol facility rather than owning a second
+  validator. This narrows the mediator claim of
   [D12](../decisions/D12-mechanism-contract-model.md) explicitly rather than silently.
 - `CP-PROJECTION` is read-only and replaceable. Any component may read it; none may treat it as
   authority; losing it loses nothing durable.

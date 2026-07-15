@@ -48,14 +48,16 @@ Use **capability-scoped, attested, conformance-gated mechanism contracts**:
   scoping each mechanism to subject, fence, operation class, and resource scope, so a result under
   a different binding fails closed;
 - one recorded exception to mediator validation: the `PORT-LEDGER` commit primitive is not an
-  Operation, so its `CB-STORE` binding is minted per commit or verified read by the transition
-  engine, which validates responses through the ledger contract's `LG-*` clauses; the
-  Operation-vocabulary `MC-*` clauses bind its storage mechanism through the recorded
-  ledger-primitive substitutions (identity echo becomes the qualified Transition identity or
-  store-line key, lookup becomes strict positional readback, compensation is none on an
-  append-only store, reconnection is not applicable to stateless store calls) — equivalent
-  validation in a different component, selected to avoid the circularity of mediating the act
-  that records mediation's own authorizations; and
+  Operation, so its `CB-STORE` binding is minted and validated by exactly one owner — the
+  transition engine's commit protocol, through which `CP-RECOVERY` also performs its verified
+  reads — under the ledger contract's `LG-*` clauses; the Operation-vocabulary `MC-*` clauses
+  bind its storage mechanism through the recorded ledger-primitive substitutions (identity echo
+  becomes the qualified Transition identity or store-line key; the binding is bound to store
+  line, expected position, and proposing generation instead of an Operation identity and fence;
+  lookup becomes the strict positional readback and its five-way classification; compensation is
+  none on an append-only store; reconnection is not applicable to stateless store calls) —
+  equivalent validation in one differently located component, selected to avoid the circularity
+  of mediating the act that records mediation's own authorizations; and
 - conformance gating: a provider becomes configurable behind a port only after its port's
   conformance suite passes, and the pass is recorded evidence with suite version and subject
   digest, never trust by assertion.

@@ -167,10 +167,11 @@ a durable flush of the appended record.
 The contract, not the file format, is canonical. An embedded database or a hosted log service may
 replace the file log by passing the ledger conformance suite in
 [architecture conformance](./architecture-conformance.md), which exercises conditional-append
-rejection, durable acknowledgement, digest-verified reads, chain verification,
-lost-acknowledgement resolution (both confirmed-absent sub-cases), and the `LG-WITNESS` clauses:
-witness trust independence, monotonicity, advance-before-acknowledgement, and rollback-restore
-detection. Rejected alternatives for the authoritative realization are
+rejection, durable acknowledgement, digest-verified reads, chain verification, the full five-way
+readback classification (this proposal's commit; empty-position absence with same-identity retry;
+a competing generation's commit with proposer fencing and no retry; same-generation integrity
+failure failing closed; indeterminate), and the `LG-WITNESS` clauses: witness trust independence,
+monotonicity, advance-before-acknowledgement, and rollback-restore detection. Rejected alternatives for the authoritative realization are
 recorded in [D11](./decisions/D11-ledger-realization.md).
 
 ## Compaction, retention, backup, and disaster recovery
@@ -228,10 +229,16 @@ flowchart LR
         Snapshot["LG-SNAPSHOT<br/>Verified snapshot<br/>position + content digest<br/>[Disposable accelerator]"]
     end
 
+    subgraph Indep["RT-WITNESS independent trust"]
+        WitnessN[("LG-WITNESS head<br/>position + head digest<br/>[Currency witness]")]
+    end
+
     Transition -->|"submits LG-RECORD with Transition identity, expected LG-POSITION, and chained digests to"| Append
-    Append -->|"commits atomically and acknowledges only after durable flush into"| Ledger
+    Append -->|"commits atomically with durable flush into"| Ledger
+    Append -->|"advances the witness head durably after flush and only then returns LG-ACK"| WitnessN
     Append -.->|"rejects with actual position or loses acknowledgement, routing uncertainty to"| Recovery
     Recovery -->|"replays LG-CHAIN and re-reads the expected position by Transition identity from"| Ledger
+    Recovery -->|"compares the verified chain head for currency, failing closed on rollback (I20), against"| WitnessN
     Ledger -->|"rebuilds live projection and derived read models into"| Projection
     Projection -->|"emits position-stamped digest-verified snapshots into"| Snapshot
     Snapshot -.->|"accelerates reconstruction only while verification passes for"| Recovery
@@ -239,6 +246,7 @@ flowchart LR
     style Controller fill:#fff6dd,stroke:#b8903a,color:#172033
     style Port fill:#f3edff,stroke:#8a6eb0,color:#172033
     style Durable fill:#eef5ff,stroke:#7a96bd,color:#172033
+    style Indep fill:#eef5ff,stroke:#5a78a8,color:#172033
     classDef writer fill:#fff1cf,stroke:#a8781f,stroke-width:3px,color:#172033
     classDef component fill:#fff1cf,stroke:#a8781f,color:#172033
     classDef recovery fill:#fce8e6,stroke:#a7615b,stroke-dasharray:5 3,color:#172033
@@ -249,13 +257,17 @@ flowchart LR
     class Projection component
     class Recovery recovery
     class Append contract
-    class Ledger authority
+    class Ledger,WitnessN authority
     class Snapshot passive
 ```
 
-**V11 legend:** Rectangles are controller components or contract operations; the cylinder is
+**V11 legend:** Rectangles are controller components or contract operations; cylinders are
 durable data. The thick yellow border marks `CP-TRANSITION` as the sole writer to `PORT-LEDGER`;
-the thick blue border marks the chained record sequence as the sole durable authority. The dashed
+thick blue borders mark the chained record sequence (the sole durable authority) and the
+`LG-WITNESS` head in `RT-WITNESS`, whose trust is independent of the ledger and its backups. The
+acknowledgement barrier is explicit: the witness head advances durably after the record's flush
+and only then does `LG-ACK` return, and recovery compares the verified chain head against the
+witness, failing closed on rollback (I20). The dashed
 red border marks the recovery component; dashed lines carry uncertainty or conditionally trusted
 flows — the rejection/lost-acknowledgement path into `CP-RECOVERY` and the snapshot path honored
 only while verification passes. Solid lines are the authoritative commit and rebuild dataflow.
