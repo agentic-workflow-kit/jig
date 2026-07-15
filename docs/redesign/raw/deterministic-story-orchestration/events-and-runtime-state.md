@@ -1,0 +1,207 @@
+---
+title: "Deterministic story orchestration — events and runtime state"
+status: proposal — agreed design, not yet reconciled or adopted
+---
+
+# Events and runtime state
+
+This layer defines the first-phase relationship between the live orchestration state and the
+durable facts produced during a run. It deliberately does not select an event bus, require event
+sourcing, or define recovery. It consumes the immutable [input envelope](inputs.md) and supplies
+the event vocabulary used by the [orchestration runtime](orchestration.md). The separate
+[live-state layer](live-state.md) defines the entities, ownership, and retention rules inside the
+runtime's in-memory consistency boundary.
+
+## First-phase model
+
+The runtime holds the authoritative control state in memory while the process is alive. The event
+store persists immutable events only; it does not persist a current-state snapshot. The runtime
+does not query or replay stored events when making decisions.
+
+This means:
+
+- current run and story state exists only in the active runtime;
+- the event history is a durable control and audit trail, not the runtime state source;
+- a normally completed run ends with a durable `run.completed` event containing its outcome;
+- an interrupted run cannot resume in the first phase; and
+- replay, projection-backed state, snapshots, and reconstruction remain later extensions.
+
+Events may contain state names, counters, exact SHAs, and other decision context for inspection.
+That information does not make the event store an implicit replay mechanism in the first phase.
+
+## Trigger, transition, event, and operation
+
+The design keeps four concepts distinct:
+
+| Concept    | Meaning                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Trigger    | A typed external result, agent message, initialization request, or internal signal presented to the orchestration core. |
+| Transition | Atomic handling of one accepted trigger against the current in-memory state.                                            |
+| Event      | An immutable fact emitted by that transition.                                                                           |
+| Operation  | An external action requested by the transition through a narrow effect interface.                                       |
+
+One accepted trigger produces one transition. A transition may emit multiple events and request
+multiple operations. Outgoing operations are not themselves completed facts: their requested,
+succeeded, or failed outcomes are recorded as separate events. An operation result returns to the
+runtime as a later trigger. The draft [operation and result contracts](operations-and-results.md)
+define the closed request/result distinction and operation-event mapping.
+
+A malformed, stale, or otherwise invalid message does not change domain state. The runtime may
+still record a `message.rejected` event describing the rejected input.
+
+## Persistence ordering
+
+For every accepted transition, the runtime follows this order:
+
+1. Give the current in-memory state and typed trigger to the deterministic core.
+2. Calculate the next in-memory state, event drafts, and requested operations without mutating the
+   current state.
+3. Ask the trusted event recorder to append the transition's event batch atomically.
+4. Only after persistence succeeds, adopt the calculated next state in memory.
+5. Dispatch the requested operations through their effect interfaces.
+6. Return each typed operation result as a later trigger.
+
+If event persistence fails, the runtime does not advance state or dispatch the new operations.
+The store may maintain an internal append position, but ordering metadata is a storage concern and
+is not part of the common persisted-event contract.
+
+The persisted events do not need a common transition identifier. Atomic batch append is the
+persistence boundary for a transition; event-specific correlation such as an operation or message
+identifier belongs in the relevant payload.
+
+## Producer-owned facts and trusted envelopes
+
+The component that performs or judges something owns the facts it produces:
+
+- the implementer produces a candidate submission and its evidence;
+- the reviewer produces its verdict and findings;
+- workspace, verification, agent-session, and delivery implementations produce their operation
+  results; and
+- the orchestration core produces deterministic lifecycle decisions.
+
+Producers do not construct persisted envelopes. They return typed facts or results, from which the
+runtime creates an event draft:
+
+```text
+EventDraft<TPayload>
+- eventType
+- payload
+```
+
+The trusted recorder validates the draft and adds the common persistent envelope:
+
+```text
+PersistedRunEvent<TPayload>
+- eventId
+- eventType
+- schemaVersion
+- runId
+- producer
+- recordedAt
+- payload
+```
+
+The recorder controls these fields:
+
+- `eventId` is generated by the recorder;
+- `schemaVersion` comes from the registered contract for the event type;
+- `runId` comes from the recorder's scoped run context;
+- `producer` is derived from the trusted core, session, or effect-interface context; and
+- `recordedAt` is assigned by the recorder or store clock.
+
+An agent or provider cannot claim another producer, write into another run, spoof the recorded
+time, or select an incompatible schema version. In the first phase, the orchestration runtime is
+the only event submitter. The persisted `producer` still identifies the entity responsible for the
+fact rather than the runtime that submitted it.
+
+Story identifiers, session identifiers, operation identifiers, SHAs, pull-request identifiers,
+and other event-specific context live in typed payloads rather than the common envelope. A future
+producer may receive a recorder already scoped to its run and identity without changing the
+persisted-event contract.
+
+## Minimal first-phase event catalog
+
+The catalog is a closed, versioned union for the first-phase flow. Event names describe semantic
+facts. Exact payload schemas remain a later contract-design step.
+
+### Run lifecycle
+
+- `run.initialized`
+- `preflight.passed`
+- `preflight.failed`
+- `run.completed`
+- `run.interrupted`, only when the active runtime detects the interruption
+
+### Story lifecycle
+
+- `story.became-eligible`
+- `story.started`
+- `story.blocked`
+- `story.landed`
+
+### Implementation and review
+
+- `implementation.requested`
+- `candidate.submitted`
+- `review.requested`
+- `review.verdict-submitted`
+- `changes.requested`
+- `candidate.approved`
+- `target-refresh.required`
+
+Round numbers, exact SHAs, findings, and role/session identities belong in these events' typed
+payloads rather than in additional event types.
+
+### Operation lifecycle
+
+- `operation.requested`
+- `operation.succeeded`
+- `operation.failed`
+
+The payload identifies the operation kind, including worktree creation or cleanup, agent-session
+spawn or continuation, checkpoint push, final verification, delivery push, pull-request creation,
+remote-check observation, merge, landing confirmation, and session closure.
+
+### Invalid communication
+
+- `message.rejected`
+
+Accepted messages already produce their semantic event, such as `candidate.submitted` or
+`review.verdict-submitted`; the runtime does not add a duplicate generic `message.received` event.
+
+## Blocking and downstream outcomes
+
+Only a story that directly encounters a blocking condition emits `story.blocked`. Its transitive
+dependents do not emit synthetic block events and do not undergo separate block transitions. They
+remain pending and permanently ineligible because the live scheduler finds a blocked prerequisite.
+
+This is safe because a dependent cannot have started before its prerequisite lands. Independent
+stories continue and emit their own events normally. If another independent story encounters its
+own blocking condition, it emits its own `story.blocked` event.
+
+At normal completion, `run.completed` includes derived final outcomes:
+
+- the originating story is `blocked` with its direct reason;
+- downstream stories are `not-run: dependency-blocked` with the originating story as root cause;
+  and
+- independent stories retain their actual outcomes.
+
+The plan DAG plus the originating `story.blocked` event is the durable causal evidence. The first
+phase does not expand that one fact into an event per downstream story.
+
+## No event-transport commitment
+
+This model does not require an event bus. In the first phase, the trusted recorder appends directly
+to the event store before state advances or operations run. A later bus, observer, projection,
+exporter, or telemetry pipeline may consume the same persisted event contracts, but it cannot
+become an implicit control-state source without a separate design decision.
+
+## Deferred decisions
+
+- Exact payload schemas and producer-reference structure.
+- Concrete event-store implementation, indexing, retention, and internal ordering metadata.
+- Concrete artifact storage, encryption, archival, and physical-retention mechanics; the draft
+  [evidence boundary](evidence-and-artifacts.md) defines their conceptual contract.
+- Replay, projections, snapshots, recovery, and schema migration across resumable runs.
+- Event-bus, observer, export, and telemetry delivery semantics.
+- Direct producer submission beyond the runtime's first-phase single-submitter model.

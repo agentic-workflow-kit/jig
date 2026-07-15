@@ -15,6 +15,7 @@ work profile, and repo-policy floors.
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | [product/](./product/)   | **What and why** — audience, problem, promise, guarantees, boundaries. The contract design reconciles to.                 | target truth      |
 | [design/](./design/)     | **How** — engineering reference: schemas, protocol mechanics, provider contracts, storage, gates, ADRs.                   | target truth      |
+| [redesign/](./redesign/) | Active architecture initiative: governing goal, new staged design work, and immutable proposal and review inputs.         | active initiative |
 | [delivery/](./delivery/) | **In what order** — active delivery planning: phased tracks from the current implementation to the product/design target. | active planning   |
 | [archive/](./archive/)   | Historical delivery sequencing, repo-local planning, and point-in-time reviews. Not active operating docs.                | historical record |
 
