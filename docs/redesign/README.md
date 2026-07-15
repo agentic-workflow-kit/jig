@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 unauthorized
+status: active — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 proposed under the owner continuation instruction
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-15
 sources_of_truth:
@@ -28,18 +28,18 @@ layer gate at a time.
 
 ## Current status
 
-Layer 0 — the [project brief](./design/brief.md) — is approved and governs the proposed Layer 1
-high-level architecture. On 2026-07-15 Arye directed a structure revision: the former two-artifact
-Layer 1 candidate was split into a connected view-based document set (context, model, flows,
-perspectives, supporting views, invariants, and per-decision records) mapped in the
-[design index](./design/README.md). That instruction superseded the then-pending exact-candidate
-recheck of the two-artifact set; the re-presented candidate set requires a fresh independent review
-under the same owner-approved bounded delegation before the recorded Layer 1 approval and lock
-become effective. No owner decision, invariant, accepted consequence, or deferral changed.
+Layer 0 — the [project brief](./design/brief.md) — is approved. Layer 1 is approved and locked:
+after the 2026-07-15 owner structure revision split the former two-artifact candidate into the
+connected view-based document set mapped in the [design index](./design/README.md), a fresh
+independent review of the exact re-presented candidate set returned `PASS` the same day, making the
+recorded approval and lock effective (see the
+[review and approval record](./design/decisions/review-and-approval-record.md)). No owner decision,
+invariant, accepted consequence, or deferral changed.
 
-Arye retains all material product and architecture decision ownership. Layer 2 remains unauthorized
-and not started under this execution stop, including after a Layer 1 `PASS`; after the Layer 1
-commit, work stops for Arye.
+Arye retains all material product and architecture decision ownership. Under the explicit owner
+continuation instruction of 2026-07-15, Layer 2 is authored against the locked Layer 1 with D1–D9
+and I1–I21 as fixed inputs; it is proposed and advances through its own gate — author, independent
+review, then owner stop.
 
 ## Navigation
 
@@ -47,9 +47,9 @@ commit, work stops for Arye.
   invariants, decision records, and the gate record.
 - [Comprehensive guide](./architecture-design-and-documentation-guide.md) — the method: layering,
   what belongs at each level, and the diagram rules the design pages follow.
-- [Guidelines handbook](./guidelines/README.md) — the earlier stage-gate distillation of the guide;
-  scheduled for rewrite to the guide's abstraction-layer structure per the 2026-07-15 owner
-  instruction. Until then the source guide governs where they differ.
+- [Guidelines handbook](./guidelines/README.md) — the generalized operational handbook derived
+  from the guide (abstraction levels and view types as the organizing axis), rewritten 2026-07-15
+  per the owner continuation instruction; the source guide governs where they differ.
 - [Raw provenance](./raw/README.md) — the complete pre-reset corpus and its source-role manifest.
 
 ## Authority boundary

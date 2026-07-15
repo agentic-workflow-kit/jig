@@ -25,8 +25,9 @@ re-expression requires such a change, return `OWNER_DECISION_REQUIRED` and stop 
 - `architecture-design-and-documentation-guide.md` defines the authoring and review method: the
   design is organized by abstraction level and view type, per the explicit owner
   structure-revision instruction of 2026-07-15. It selects no product or architecture decision.
-  The `guidelines/` handbook is the earlier stage-gate distillation and is scheduled for rewrite;
-  where they differ, the source guide governs.
+  The `guidelines/` handbook is the generalized operational distillation of the guide, rewritten
+  on 2026-07-15 per the owner continuation instruction; where they differ, the source guide
+  governs.
 - `design/` contains the new active canonical artifacts, organized as a project brief, canonical
   model, views, invariants, and decision records; approval advances one layer gate at a time.
 - `raw/` contains historical evidence and provenance. Its former presentation, labels, approval
