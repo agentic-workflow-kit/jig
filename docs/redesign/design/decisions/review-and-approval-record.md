@@ -5,8 +5,8 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
 scope: Question traceability, archive reconciliation, gate evidence, prior review records, and the current approval state; decision content lives in the decision records and design pages.
-state: proposed
-status: gate record — prior exact-candidate recheck superseded by the 2026-07-15 owner structure revision; the re-presented candidate set requires a fresh independent review before the recorded approval and lock become effective
+state: current
+status: gate record — the fresh independent review of the re-presented candidate set returned PASS on 2026-07-15; the recorded Layer 1 approval and lock are effective
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -27,21 +27,23 @@ related:
   archived review references to outside product/design contracts remain non-governing evidence.
 - **Architecture owner:** Arye Kogan. He retains all material product and architecture decision
   ownership; the bounded review delegation transfers no architecture-selection or change authority.
-- **Current state:** Proposed. On 2026-07-15 Arye directed a structure revision: the former
-  two-artifact candidate was split into the connected view-based document set under
+- **Current state:** Approved and locked. On 2026-07-15 Arye directed a structure revision: the
+  former two-artifact candidate was split into the connected view-based document set under
   [`design/`](../README.md). That instruction superseded the then-pending same-reviewer
-  exact-candidate recheck of the two-artifact candidate, because the exact candidate no longer
-  exists in that form.
-- **Required next gate:** An independent reviewer must review the exact re-presented candidate set
-  under the same bounded editorial/fidelity delegation and return `PASS`, `CHANGES_REQUIRED`, or
-  `OWNER_DECISION_REQUIRED`. A `PASS` confirms faithful organization and re-expression of the
-  already-established decisions and makes the recorded Layer 1 approval and lock effective; it does
-  not select or change architecture.
+  exact-candidate recheck. The required fresh independent review of the exact re-presented
+  candidate set ran the same day and returned `PASS` (recorded below), which per the pre-recorded
+  G-R10 effect makes the recorded Layer 1 approval and lock effective without a separate
+  owner-selection step. The `PASS` approves faithful organization and re-expression only; it
+  selected and changed no architecture.
+- **Post-verdict record-keeping:** Recording the verdict in this gate record and refreshing the
+  [design index](../README.md) gate table are gate record-keeping over the unchanged reviewed
+  content; the reviewed baseline and hashes below identify the exact locked candidate. Individual
+  Layer 1 pages keep their reviewed frontmatter; this record owns current gate state. Any material
+  change to a locked page still requires an explicit Layer 1 reopen (I21).
 - **Layer 2:** Authoring authorized by the explicit owner continuation instruction of 2026-07-15,
-  recorded below. Layer 2 is prepared against the proposed Layer 1 candidate and must treat D1–D9
-  and I1–I21 as fixed inputs; the Layer 1 independent-review gate remains in force and must pass
-  before Layer 1 is treated as locked. Layer 2 advances through its own gate: author, independent
-  review, then owner stop.
+  recorded below, and now proceeding against the approved and locked Layer 1, with D1–D9 and
+  I1–I21 as fixed inputs. Layer 2 advances through its own gate: author, independent review, then
+  owner stop.
 
 ## Owner continuation authorization (2026-07-15)
 
@@ -147,7 +149,63 @@ the consolidated Layer 2 deferrals. The author verdict is therefore **no
 | G-R7 — product-contract conflicts have explicit owner decisions                              | No product promise was imported. Archived outside references remain non-governing under D1, so there is no conflict to decide.                                                                                                                                             | Explicitly none.                                                                  |
 | G-R8 — alternatives and negative consequences are visible                                    | Every D1–D9 record includes rejected alternatives and its negative consequence; all six final accepted burdens are consolidated in the [decision index](./README.md).                                                                                                      | Satisfied in the re-presented candidate.                                          |
 | G-R9 — no material high-level decision is hidden in Layer 2                                  | The thirteen deferral categories are paired with an explicit non-deferrable lock boundary and traced to I1–I21.                                                                                                                                                            | Satisfied in the re-presented candidate.                                          |
-| G-R10 — owner explicitly approves and durably records the lock; later change requires reopen | Arye's established decisions and the owner-approved delegation pre-record the exact effect: an independent reviewer's `PASS` on the exact re-presented candidate approves only faithful re-expression and activates the lock; later material change still requires reopen. | Pending the fresh independent review of the re-presented candidate set.           |
+| G-R10 — owner explicitly approves and durably records the lock; later change requires reopen | Arye's established decisions and the owner-approved delegation pre-record the exact effect: an independent reviewer's `PASS` on the exact re-presented candidate approves only faithful re-expression and activates the lock; later material change still requires reopen. | Satisfied — the 2026-07-15 fresh independent review returned `PASS` (see below).  |
+
+## Fresh independent review of the re-presented candidate set (2026-07-15)
+
+- **Reviewer:** Independent, read-only reviewer session (Claude Opus 4.8), distinct from the
+  candidate's authors; bounded editorial/fidelity delegation only.
+- **Verdict:** `PASS` on the exact re-presented candidate set — the complete connected 23-file
+  document set under `docs/redesign/design/` at the baseline below, including approval metadata.
+- **Effect:** Per G-R10, the recorded Layer 1 approval and lock are now effective. D1–D9 and
+  I1–I21 are locked; later material change requires an explicit reopen, impact statement, renewed
+  owner decision, and exact-candidate review.
+- **Fidelity evidence:** All 21 invariants byte-identical to the previously accepted two-artifact
+  candidate; all nine D-records compared against `raw/design/decisions.md` with selected
+  direction, rationale, accepted negative consequence, and rejected alternatives preserved; the
+  13 deferral categories and six accepted burdens verified against the raw record; every diagram
+  (system summary, V1–V5 including V3a–V3c, and the brief's landscape) inspected against the
+  guide's communication-contract and legend rules; no ID collisions; no premature approval claim;
+  no Layer 2 content smuggled into Layer 1 pages; `OWNER_DECISION_REQUIRED` findings: none.
+- **Non-blocking notes (no gate item failed):**
+  1. The `C#`/`CON#` driver labels cited by the invariants table are positional against the
+     brief's bare numbered capability and constraint lists; counts and mapping are exact. The
+     convention is inherited unchanged from the accepted two-artifact candidate.
+  2. The `F-` prefix names fault scopes in V2 and finalization/outcome nodes in V4; no identical
+     ID string carries two meanings, and each view's legend defines its own prefix.
+  3. The record cites the historical author working file `/tmp/jig-layer1-fidelity.md`, which is
+     explicitly non-canonical and no longer on disk.
+
+### Fresh review baseline
+
+Repository `HEAD` `056a39266773cce27dd2859b3fc8d8579db3e787`; merge base with `main`
+`521ae0846e788ef91979dd4c273687ab22e6137e`; working tree clean.
+
+| Reviewed file                                                           | SHA-256                                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `docs/redesign/design/README.md`                                        | `8208fdf5aea4636e6f218a45316f49aa24eb90a6f3dc2b2db3487650f8170003` |
+| `docs/redesign/design/acceptance-and-evidence.md`                       | `3af03ccf3807031d838c2c40dc34943b0b8f28bb7d7e7c6bf3094904489c6c94` |
+| `docs/redesign/design/brief.md`                                         | `a78fdacaabf248c4bef7dadea08824326137041c7d5e4e2b3f2c4369ee666ba4` |
+| `docs/redesign/design/concurrency-and-finalization.md`                  | `d017dd8a8a1df7892fcd85ffbdf27f9d3e2026acf45b0c709b647f4c114a3382` |
+| `docs/redesign/design/context.md`                                       | `5f202c5b90a32339fdcc836409b318a003b858e340687e0eb8b9503e1df9e3db` |
+| `docs/redesign/design/decisions/D1-source-scope.md`                     | `092ab5cb8852f63966c469eae90f13530a72bb0dec6114c8a84d35ebc041f2a5` |
+| `docs/redesign/design/decisions/D2-system-boundary.md`                  | `f73b05d02268a5447723a41a211315b39be9694df992f7ee9d79ad442dacddb3` |
+| `docs/redesign/design/decisions/D3-responsibilities-trust-authority.md` | `62a3691818547d5c039a9f787b7bd0f202288d9565c208c83d7420b4f100b9ce` |
+| `docs/redesign/design/decisions/D4-lifecycle-and-information-flow.md`   | `56562171c402a503b075f2b34a87ab71babf30f54f4747c451a5fc14e1dbb42d` |
+| `docs/redesign/design/decisions/D5-state-authority-and-recovery.md`     | `a786ec61b0cefef3260e46017a531b046e5b9317653444636ecae5179b9b54a0` |
+| `docs/redesign/design/decisions/D6-concurrency-and-finalization.md`     | `303f8b85349da72b500714eb6f67ffc198978c837c6c019d72c0dd6721647d0e` |
+| `docs/redesign/design/decisions/D7-acceptance-and-evidence.md`          | `84ebdc29c78e9fbbd6d3d5b1cfe34797c2fd5265eab807d2c8209e705d456d85` |
+| `docs/redesign/design/decisions/D8-failure-and-liveness.md`             | `c604f8e7298fdee4dfeb12c1b4d911c99fb1aa36d09096ee1cd69bcafc9c2013` |
+| `docs/redesign/design/decisions/D9-invariants-and-artifact-shape.md`    | `ea00a76a6cf196eaafcc7bf30b18fe1389216466b1bcedea5e79daecca907f4d` |
+| `docs/redesign/design/decisions/README.md`                              | `088d32297e1ffa0731e48170666b35180bafb4acc5e14f87f8b4aa56b2cda31d` |
+| `docs/redesign/design/decisions/review-and-approval-record.md`          | `0812e7a7035be32cb280b139f6643c4e39733415bbe2d96bfc8d0ac53e98670d` |
+| `docs/redesign/design/failure-and-liveness.md`                          | `e64cda69753b821898854f42fee714c8bf73fd7dc64c8466bb331784061459d7` |
+| `docs/redesign/design/flows/run-and-story-lifecycle.md`                 | `7a89da27c4944d591b6997d5b1ab8a91f39a0a93c23036009e9c183acc7b40dc` |
+| `docs/redesign/design/flows/story-delivery.md`                          | `b46cdbc3ac6f6be92e7a033769c8365c862c8e27a42a2eb71d97837bfe3a430d` |
+| `docs/redesign/design/invariants.md`                                    | `2cdc6bf0cb6480fef38d8374f16686c9816b9a8437ad1f69b76d7d4b21e4e658` |
+| `docs/redesign/design/model.md`                                         | `b89123560c26b4ca77c68f23992a30d83267dcd078f9bb25f0aa1c046e52542b` |
+| `docs/redesign/design/perspectives/authority-and-trust.md`              | `3bd0f7de399dcaa8bda8ca0b72ec9156aa497053f72ae9803dd5fa0dfd731a85` |
+| `docs/redesign/design/state-and-recovery.md`                            | `65b14b60cf9776ff2dd470c66ff4d1590265d4aca1599939d29c25ddabce2e2c` |
 
 ## Prior review history (historical)
 

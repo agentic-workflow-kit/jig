@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction
+status: active index — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -167,7 +167,7 @@ their own levels.
 | Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                     |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Proposed; the prior two-artifact candidate's pending recheck was superseded by the structure revision; a fresh independent review is next |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)           |
 | Layer 2 — detailed architecture   | See the document map as Layer 2 pages land                                      | Authoring authorized by the 2026-07-15 owner continuation instruction, against the proposed Layer 1 with D1–D9 and I1–I21 as fixed inputs |
 
 Arye retains all material product and architecture decision ownership. The bounded review
