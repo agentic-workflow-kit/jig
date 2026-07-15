@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 proposed under the owner continuation instruction
+status: active — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 authored and reviewed PASS, stopped for the owner decision
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-15
 sources_of_truth:

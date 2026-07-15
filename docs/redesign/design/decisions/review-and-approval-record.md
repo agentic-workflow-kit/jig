@@ -181,6 +181,13 @@ the consolidated Layer 2 deferrals. The author verdict is therefore **no
 Repository `HEAD` `056a39266773cce27dd2859b3fc8d8579db3e787`; merge base with `main`
 `521ae0846e788ef91979dd4c273687ab22e6137e`; working tree clean.
 
+Commit identifiers may not survive a squash-based landing, so the per-file SHA-256 digests below —
+not the commit hash — are the durable identification of the exact reviewed content. After the
+verdict, every reviewed file remains byte-identical to its digest except this gate record and the
+two navigation indexes (`design/README.md` and `decisions/README.md`), whose later changes are
+exactly the declared post-verdict record-keeping and additive Layer 2 navigation; their reviewed
+digests below identify the locked baseline content.
+
 | Reviewed file                                                           | SHA-256                                                            |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `docs/redesign/design/README.md`                                        | `8208fdf5aea4636e6f218a45316f49aa24eb90a6f3dc2b2db3487650f8170003` |
