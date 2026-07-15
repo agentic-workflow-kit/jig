@@ -37,8 +37,31 @@ related:
   `OWNER_DECISION_REQUIRED`. A `PASS` confirms faithful organization and re-expression of the
   already-established decisions and makes the recorded Layer 1 approval and lock effective; it does
   not select or change architecture.
-- **Layer 2:** Unauthorized and not started under this execution stop, including after a Layer 1
-  `PASS`. After the Layer 1 commit, work stops for Arye.
+- **Layer 2:** Authoring authorized by the explicit owner continuation instruction of 2026-07-15,
+  recorded below. Layer 2 is prepared against the proposed Layer 1 candidate and must treat D1–D9
+  and I1–I21 as fixed inputs; the Layer 1 independent-review gate remains in force and must pass
+  before Layer 1 is treated as locked. Layer 2 advances through its own gate: author, independent
+  review, then owner stop.
+
+## Owner continuation authorization (2026-07-15)
+
+On 2026-07-15 Arye Kogan, the product and architecture decision owner, explicitly directed the
+redesign work to continue past the previously recorded post-Layer 1 execution stop. The recorded
+instruction:
+
+1. keeps the Layer 1 fresh independent-review gate in force: it must run before the recorded
+   Layer 1 approval and lock become effective, and its verdict is recorded in this document;
+2. authorizes Layer 2 authoring, prepared against the proposed Layer 1 candidate, with D1–D9 and
+   I1–I21 as fixed inputs; a genuine conflict with a fixed input returns to Arye as
+   `OWNER_DECISION_REQUIRED` rather than being resolved in place;
+3. keeps the per-layer gate for Layer 2 — author, then independent review, then owner stop — so
+   Layer 2 approval remains Arye's; and
+4. directs a subsequent rewrite of the `guidelines/` handbook as generalized, project-agnostic
+   guidance derived from the source guide, with Jig used only as a marked worked example.
+
+This authorization replaces the former "do not enter Layer 2, push, or open a PR" execution stop;
+the redesign contract and the design index were updated in the same change. It alters no decision
+content: D1–D9, I1–I21, all accepted consequences, and the consolidated deferrals are unchanged.
 
 ## Requirement and question traceability
 

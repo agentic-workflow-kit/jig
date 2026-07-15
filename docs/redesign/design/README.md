@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 unauthorized
+status: active index — Layer 0 approved; the re-presented Layer 1 view set is proposed and pending a fresh independent review; Layer 2 authoring authorized by the 2026-07-15 owner continuation instruction
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -135,7 +135,7 @@ every node carries its stable ID and bracketed type.
 - **Reviewer of this candidate:** [Decision index](./decisions/README.md) →
   [Invariants](./invariants.md) →
   [Review and approval record](./decisions/review-and-approval-record.md).
-- **Future Layer 2 author (after authorization):** [Invariants](./invariants.md) →
+- **Layer 2 author:** [Invariants](./invariants.md) →
   [D9 Layer 2 boundary](./decisions/D9-invariants-and-artifact-shape.md).
 
 ## Document map
@@ -168,13 +168,15 @@ their own levels.
 | --------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                     |
 | Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Proposed; the prior two-artifact candidate's pending recheck was superseded by the structure revision; a fresh independent review is next |
-| Layer 2 — detailed architecture   | No artifact authorized                                                          | Unauthorized and not started under this execution stop; a Layer 1 `PASS` does not authorize Layer 2                                       |
+| Layer 2 — detailed architecture   | See the document map as Layer 2 pages land                                      | Authoring authorized by the 2026-07-15 owner continuation instruction, against the proposed Layer 1 with D1–D9 and I1–I21 as fixed inputs |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression
 of already-established intent; a `PASS` on the exact candidate set makes the recorded Layer 1
-approval and lock effective without a separate owner-selection step. After the Layer 1 commit, work
-stops for Arye; Layer 2 must not begin.
+approval and lock effective without a separate owner-selection step. By the explicit owner
+continuation instruction of 2026-07-15, Layer 2 is authored against the proposed Layer 1, treats
+D1–D9 and I1–I21 as fixed inputs, and stops for Arye at its own gate after author and independent
+review.
 
 The [raw provenance manifest](../raw/README.md) identifies binding decisions and historical
 evidence; it does not make the prior presentation canonical.

@@ -83,7 +83,12 @@ artifact.
   requires reviewer recheck.
 - After at most three unsuccessful author/reviewer loops, stop for Arye with the unresolved
   findings. The coordinator must not decide around the reviewer or proceed to the next layer.
-- After the Layer 1 commit, stop for Arye's review. Do not enter Layer 2, push, or open a PR.
+- By the explicit owner continuation instruction of 2026-07-15, recorded in the
+  [review and approval record](./design/decisions/review-and-approval-record.md), the former
+  post-Layer 1 execution stop is lifted: the Layer 1 independent-review gate still applies before
+  Layer 1 is treated as locked; Layer 2 may be authored against the proposed Layer 1 with D1–D9
+  and I1–I21 as fixed inputs; and Layer 2 advances through its own author, independent review,
+  and owner-stop gate. Owner decisions and invariants still change only by explicit owner decision.
 
 ## Verification
 
