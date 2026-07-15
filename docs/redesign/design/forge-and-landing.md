@@ -41,14 +41,14 @@ owned by the Layer 2 event and Operation catalog under D9 category 3; this page 
 delivery semantics. Every dispatch carries the durable Operation identity, payload basis, and
 authority fence from [operation identity and fencing](./state-and-recovery.md).
 
-| ID                | Operation                    | Effect class                                            | Reconciliation lookup                                                                                                                                       |
-| ----------------- | ---------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPC-DEL-ANCHOR`  | Create target lineage anchor | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this registry is success, present with another registry is a lost race that parks, absent permits bounded retry. |
-| `OPC-DEL-PUBLISH` | Publish Candidate branch     | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                               |
-| `OPC-DEL-REQUEST` | Open integration request     | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                         |
-| `OPC-DEL-OBSERVE` | Observe gate state           | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                   |
-| `OPC-DEL-MERGE`   | Request merge                | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                   |
-| `OPC-DEL-OBSERVE` | Observe target               | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                   |
+| ID                | Operation                    | Effect class                                            | Reconciliation lookup                                                                                                                                                                  |
+| ----------------- | ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPC-DEL-ANCHOR`  | Create target lineage anchor | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this realization-bound registry identity is success, present with another identity is a lost race that parks, absent permits bounded retry. |
+| `OPC-DEL-PUBLISH` | Publish Candidate branch     | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                                                          |
+| `OPC-DEL-REQUEST` | Open integration request     | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                                                    |
+| `OPC-DEL-OBSERVE` | Observe gate state           | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
+| `OPC-DEL-MERGE`   | Request merge                | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                                              |
+| `OPC-DEL-OBSERVE` | Observe target               | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
 
 `OPC-DEL-OBSERVE` appears in two rows deliberately: gate-state observation and target observation
 are two delivery uses of the one observation Operation class in the
@@ -93,10 +93,10 @@ under history-rewriting strategies and falsely fails under equivalent rewrites.
 | `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted Candidate digest over its change set.                                                                             |
 | `LP-RECORD`  | Record `Landed` durably with the observed facts, proof evidence, and the allocating registry identity (`ID-REGISTRY`) in the landing's delivery metadata, then release dependent Stories immediately (I13, I18). |
 
-**Target lineage anchor and registry lineage check:** no target-changing effect is authorized
-until the target's **lineage anchor** names this grant's declared registry (`ID-REGISTRY` in
+**Target lineage anchor and registry lineage check:** no Candidate-changing landing effect is authorized
+until the target's **lineage anchor** names this grant's allocating registry identity (`ID-REGISTRY` in
 [data and identity](./data-and-identity.md)). The anchor is a durable marker at the target itself
-carrying the governing registry identity. When absent, the finalizer creates it with
+carrying the governing realization-bound registry identity. When absent, the finalizer creates it with
 `OPC-DEL-ANCHOR`, an **atomic conditional-create** the delivery mechanism must support and attest
 (for a git forge, a create-if-absent ref write gives the primitive natively): among racing
 registries exactly one creation succeeds, so first-touch serialization is inherited from the
@@ -159,6 +159,20 @@ sequenceDiagram
     participant Tgt as Authoritative target
 
     Note over Ctl: CP-FINALIZER holds the sole target-scoped authority<br/>under its fence for this Story and Candidate basis
+    Ctl->>Del: Requests the target lineage anchor through PORT-DELIVERY
+    Del->>Tgt: Reads the lineage anchor
+    Del-->>Ctl: Attests absent or the realization-bound ID-REGISTRY
+    alt Anchor absent
+        Ctl->>Del: Authorizes OPC-DEL-ANCHOR under the registry-bound authority fence
+        Del->>Tgt: Atomically creates the anchor if absent
+        Del-->>Ctl: Reports effect certainty and the observed winning ID-REGISTRY
+        Note over Ctl: Reconciles an uncertain create by re-observation;<br/>continues only when the anchor names this grant's registry
+    else Anchor names another registry realization
+        Note over Ctl: Fences target effects and parks FC-AUTHORITY;<br/>no Candidate-changing landing effect follows
+    else Anchor names this registry realization
+        Note over Ctl: Registry lineage is confirmed
+    end
+    Note over Ctl,Del: The remaining path executes only after the anchor<br/>is confirmed to name this grant's ID-REGISTRY
     Ctl->>Del: Authorizes basis alignment and verification for the Accepted digest via PORT-DELIVERY
     Del->>Tgt: Reads the current target state
     Del-->>Ctl: Attests whether the target matches the recorded basis
@@ -183,9 +197,10 @@ sequenceDiagram
 `PORT-DELIVERY`, or the delivery mechanism acting on the authoritative target; dashed arrows are
 the attestations the mechanism returns. Notes over the controller mark durable authority,
 reconciliation, and recorded decisions; every recorded decision commits to the ledger before the
-next dispatch. The outer `alt` separates the unchanged-basis path from the moved-target refresh
-branch; the inner `alt` separates the certain effect from the uncertain effect that exits to
-reconciliation. `LP` means landing proof, `OPC` Operation catalog entry, `CP` controller
+next dispatch. The first `alt` establishes or checks the realization-bound registry anchor and
+stops the path on a conflicting registry; the next `alt` separates the unchanged-basis path from
+the moved-target refresh branch; the innermost `alt` separates the certain effect from the uncertain
+effect that exits to reconciliation. `LP` means landing proof, `OPC` Operation catalog entry, `CP` controller
 component, `RT` runtime unit, `X` external mechanism, and `D6` the concurrency decision record.
 There are no other abbreviations.
 

@@ -133,9 +133,12 @@ every Run the deployment hosts and satisfying the same commit-primitive clauses 
 and releases (`ID-AUTH` ordinals) commit to the registry as the authoritative cross-Run
 arbitration record and are mirrored into the acquiring Run's ledger for audit; on conflict the
 conditional append serializes contenders exactly as it serializes competing Transitions. Each
-canonical target's frozen configuration declares exactly one authoritative registry
-(`ID-REGISTRY`); the registry identity is recorded in every authority grant's fence and in every
-landing's delivery metadata, and the finalizer's registry lineage check
+canonical target's frozen configuration declares exactly one expected authoritative registry
+identity (`ID-REGISTRY`), derived from the provider-attested canonical realization descriptor
+defined in [data and identity](./data-and-identity.md). Preflight reads that attestation through
+`PORT-LEDGER` and rejects a missing or mismatched realization identity, so copied configuration
+labels cannot alias separate stores. The registry identity is recorded in every authority grant's
+fence and in every landing's delivery metadata, and the finalizer's registry lineage check
 ([forge and landing](./forge-and-landing.md)) verifies it against the target's own recorded
 lineage before a grant's first target-changing effect. The registry is the content of the
 `RT-REGISTRY` unit in the [runtime architecture](./runtime.md), reached through `PORT-LEDGER`; in
