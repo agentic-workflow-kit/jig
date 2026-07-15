@@ -51,33 +51,47 @@ A package element that is missing, integrity-failing, or bound to a different Ca
 fails the assignment closed before dispatch (QS8); Jig never asks a reviewer to judge an
 incompletely identified subject.
 
+**The package digest (`RP-PACKAGE-DIGEST`)** makes the whole package the immutable review subject:
+one digest computed over all five elements — the Candidate content digest, the target basis
+digest, the evidence manifest digest, the findings-ledger state digest, and the delivery metadata
+digest. D7 binds acceptance to the reviewed evidence, findings state, and delivery metadata, not
+to content alone, so the digest that identifies the judged subject must cover them all: a change
+to any element changes the package digest even when the Candidate content is untouched.
+
 ## Verdict and finding representation
 
 - **Verdict (`RP-VERDICT`):** exactly one of `approve` or `changes-required`, expressed over the
-  exact Candidate content digest and target basis digest from `RP-PACKAGE`, attested and
-  attributable to one validated reviewer session identity.
+  exact `RP-PACKAGE-DIGEST` from the assignment, attested and attributable to one validated
+  reviewer session bound to its participant principal (`ID-PRINCIPAL` in
+  [data and identity](./data-and-identity.md)).
 - **Finding (`RP-FINDING`):** a tuple of stable finding identity, subject anchor within the
   Candidate, severity class, requirement or risk trace, description, and resolution state.
 
 Rules the representation must preserve:
 
-| Rule                      | Statement                                                                                                                                                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact-candidate semantics | Any Candidate mutation invalidates all prior verdicts; a verdict never transfers to a successor Candidate (I7).                                                                                                |
-| Blocking findings         | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                  |
-| Rework return             | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority. |
-| Durable findings          | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                          |
+| Rule                    | Statement                                                                                                                                                                                                                                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact-package semantics | Any change to any package element — Candidate content, target basis (including a basis-only refresh), evidence manifest, findings state, or delivery metadata — changes `RP-PACKAGE-DIGEST`, invalidates every prior verdict, and re-enters full review with a fresh package; a verdict never transfers to a successor package (I7, D7). |
+| Blocking findings       | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                                                                                                                                            |
+| Rework return           | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority.                                                                                                                           |
+| Durable findings        | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                                                                                                                                                    |
 
 ## Reviewer independence enforcement (`RP-INDEPENDENCE`)
 
-The implementer and the reviewer are distinct validated session identities for the same Story. The
-controller rejects a verdict whose producer identity participated in producing the Candidate under
-judgment — as implementer, as rework author, or as a contributing session. Independence is
-validated **per Candidate**, not per Run: an identity that implemented one Candidate may review a
-different Story's Candidate, but never a Candidate its own sessions helped produce. The rejected
-alternative — trusting role labels asserted by the agent mechanism — was not selected because the
-mechanism holds no identity authority; identity and role are validated at the trust boundary
-(`R-VALIDATE` in the [authority and trust perspective](./perspectives/authority-and-trust.md)).
+Independence is tracked by **participant principal, not by session**. Every role session binds at
+open to exactly one stable principal (`ID-PRINCIPAL`), the binding is validated at the trust
+boundary and recorded durably, and it survives session reconnection and replacement (`MC-RECONNECT`
+in [mechanism and provider contracts](./mechanism-and-provider-contracts.md)), so a fresh session
+never launders a principal's history. The controller records the principal of every session that
+contributes to a Candidate — implementer, rework author, or any contributing session — and rejects
+a verdict whose reviewer principal appears in that contributor set, regardless of which session
+carries it. Independence is validated **per Candidate**, not per Run: a principal that implemented
+one Candidate may review a different Story's Candidate, but never a Candidate any of its own
+sessions helped produce. Two rejected alternatives: trusting role labels asserted by the agent
+mechanism (the mechanism holds no identity authority; identity, role, and principal are validated
+at `R-VALIDATE` in the [authority and trust perspective](./perspectives/authority-and-trust.md)),
+and session-level distinctness alone (distinct sessions do not prove distinct participants, so the
+same principal could implement, reconnect, and approve its own work).
 
 ## Policy language for checks (`RP-CHECKCLASS`)
 
@@ -100,9 +114,20 @@ effects into the policy document and defeat deterministic preflight validation.
 When the frozen policy posture is `deterministic`, the policy-selected final check set runs against
 a clean checkout of the exact Accepted Candidate — its digest-verified content and target basis —
 in an isolated workspace authorized through `PORT-WORKSPACE` and executed through `PORT-VERIFY`.
-Observations return as attestations: pass or fail plus observations and bounded evidence
-artifacts. A failed required check prevents delivery (D7). Verification never edits the Candidate;
-a check that mutates its checkout invalidates nothing because the durable Candidate digest is the
+Verification execution is **effect-free by enforced contract**, not by convention: the `CB-VERIFY`
+capability binding confines checks to a read-only view of the checkout, a writable scratch area
+that is discarded, and zero network egress by default
+([mechanism and provider contracts](./mechanism-and-provider-contracts.md)); this is what makes a
+lost check response safe to re-issue without effect reconciliation (I17). A check class that
+genuinely requires an external effect must declare it in configuration, and is then classified as
+an irreversible-effect Operation with identity lookup and certainty reconciliation instead of
+re-issue (see the [Operation catalog](./lifecycle-catalogs.md)) — never silently run as an
+"observation". Observations return as attestations: pass or fail plus observations and bounded
+evidence artifacts. A failed required check prevents delivery (D7) and returns the Story through
+bounded rework, releasing any held finalization authority; an exhausted rework bound records
+directly `Blocked` (I16; the transitions are cataloged in
+[lifecycle catalogs](./lifecycle-catalogs.md)). Verification never edits the Candidate; a check
+that mutates its scratch checkout invalidates nothing because the durable Candidate digest is the
 subject, and its observations are rejected as wrong-subject. With posture `none`, delivery
 proceeds from reviewer approval and reviewed implementer evidence, retaining the residual risk
 D7 explicitly accepts.
@@ -144,10 +169,10 @@ sequenceDiagram
     participant Impl as P-IMPLEMENTER implementer session
     participant Ver as X-VERIFY verification mechanism
 
-    Note over Ctl: CP-EVIDENCE assembles RP-PACKAGE bound to the exact<br/>Candidate digest and target basis digest
-    Ctl->>Rev: Assigns RP-PACKAGE for the exact Candidate via PORT-SESSION
-    Rev-->>Ctl: Returns attested RP-VERDICT bound to the exact Candidate digest
-    Note over Ctl: CP-MEDIATOR validates identity, role, and RP-INDEPENDENCE.<br/>The transition engine validates the exact digest and the<br/>findings ledger before any state advances
+    Note over Ctl: CP-EVIDENCE assembles RP-PACKAGE and computes<br/>RP-PACKAGE-DIGEST over content, basis, evidence,<br/>findings state, and delivery metadata
+    Ctl->>Rev: Assigns RP-PACKAGE for the exact package digest via PORT-SESSION
+    Rev-->>Ctl: Returns attested RP-VERDICT bound to the exact RP-PACKAGE-DIGEST
+    Note over Ctl: CP-MEDIATOR validates principal identity, role, and<br/>RP-INDEPENDENCE against the contributor principals.<br/>The transition engine validates the exact package digest<br/>and the findings ledger before any state advances
     alt Verdict approves the exact Candidate
         Note over Ctl: Records Accepted durably before any further dispatch
         alt Frozen policy posture is deterministic
@@ -160,7 +185,7 @@ sequenceDiagram
     else Verdict requires changes
         Note over Ctl: Records the attested RP-FINDING set and resolution states<br/>durably in the findings ledger
         Ctl->>Impl: Authorizes separately bounded rework under BND-REWORK
-        Note over Ctl: Any Candidate mutation invalidates all prior verdicts.<br/>The next review receives a fresh RP-PACKAGE
+        Note over Ctl: Any package-element change invalidates all prior verdicts.<br/>The next review receives a fresh RP-PACKAGE and digest
     end
 ```
 

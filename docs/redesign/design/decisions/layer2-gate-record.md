@@ -6,7 +6,7 @@ audience:
   - Independent architecture reviewers
 scope: The Layer 2 gate only; Layer 2 content lives in the design pages, and the Layer 1 gate lives in the Layer 1 review and approval record.
 state: proposed
-status: gate record — Layer 2 authored and independently reviewed PASS on 2026-07-15; stopped for Arye's explicit approval decision
+status: gate record — Layer 2 authored, independently reviewed PASS, then corrected for the ten blocking findings of Arye's 2026-07-15 PR review; the corrected candidate awaits recheck and the owner decision
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -36,9 +36,15 @@ related:
   reviewed Layer 1 digests of both files remain recorded in the
   [Layer 1 record](./review-and-approval-record.md), so the exact locked baseline stays
   verifiable. Any material change to locked content still requires a Layer 1 reopen (I21).
-- **Required next gate:** The owner stop. Layer 2 approval (and any lock) is an explicit decision
-  by Arye; the recorded `PASS` does not approve or lock anything by itself. The four non-blocking
-  reviewer notes below are before Arye together with the candidate.
+- **Owner review (2026-07-15, PR #84):** After the independent `PASS`, Arye reviewed the exact
+  head `4b68515786aaa4d73ba96118bb7a9eaa4a332c29` and returned **ten blocking findings** (recorded
+  below with dispositions). All ten were resolved by the corrections recorded below; per
+  exact-candidate semantics the earlier independent `PASS` applies only to its recorded baseline
+  and does not transfer to the corrected candidate.
+- **Required next gate:** Recheck of the corrected candidate — by Arye's own re-review of the
+  correction commit, or an independent recheck if Arye directs one — followed by the owner stop.
+  Layer 2 approval (and any lock) remains Arye's explicit decision. The four non-blocking
+  independent-review notes below also remain before Arye together with the candidate.
 - **Fixed-input result:** Authoring surfaced no conflict requiring `OWNER_DECISION_REQUIRED`;
   every page elaborates deferred mechanisms without changing an owner decision or invariant.
 
@@ -131,8 +137,9 @@ categories 8–10, and D8 failure mechanics into categories 3, 4, and 12.
      a modeling simplification of an internal derived step.
   4. `evidence-handling.md` names SHA-256 for artifact digests while sibling pages keep ledger
      digests generic; a specificity variance within category 8 ownership, not a contradiction.
-- **Effect:** The gate advances to the owner stop. This `PASS` confirms the candidate is ready for
-  Arye's decision; it approves and locks nothing.
+- **Effect:** The gate advanced to the owner stop. This `PASS` confirms faithfulness of the
+  candidate it examined; it approves and locks nothing, and it does not transfer to the corrected
+  candidate produced by the owner review below.
 
 #### Reviewed baseline
 
@@ -157,6 +164,51 @@ SHA-256 digests below are the durable identification of the exact reviewed conte
 | `docs/redesign/design/decisions/D10-runtime-decomposition.md`    | `9816b8a23714711d8c59304632329d24fdb3650983468f1714212c432dfc19fd` |
 | `docs/redesign/design/decisions/D11-ledger-realization.md`       | `04f16c754a5dff3539f236f1aa2a30362e59cf4363c01de5672c14bcb113646b` |
 | `docs/redesign/design/decisions/D12-mechanism-contract-model.md` | `d77e9b9b0e99e585bb2ae95bd70514d2f6783135c6c48868ed006a37e0f0feee` |
+
+### Owner review (2026-07-15, PR #84)
+
+- **Reviewer:** Arye Kogan, product and architecture decision owner; high-effort review of exact
+  head `4b68515786aaa4d73ba96118bb7a9eaa4a332c29` posted on pull request #84.
+- **Verdict:** Ten blocking findings; all confirmed and all resolved in the correction change set
+  recorded by the PR history. Dispositions:
+  1. **Target authority Run-scoped (QS4, I12):** `ID-TARGET` is now canonical and cross-Run, and
+     `ID-AUTH` ordinals are allocated from a shared durable target-authority registry; preflight
+     rejects Runs whose target no registry can arbitrate (data-and-identity, persistence, runtime).
+  2. **Transition/generation identity collisions:** `ID-TXN` is a position claim qualified by the
+     proposing generation and valid only with its record digest; `ID-GEN` claims carry a unique
+     instance token arbitrated by the conditional append; readback requires identity plus digest
+     match (data-and-identity, persistence).
+  3. **No rollback-currency proof:** new `LG-WITNESS` clause — an independently trusted monotonic
+     head witness advanced on every acknowledged append; restart and restore establish currency
+     against it or fail closed to externally governed recovery (persistence).
+  4. **Verdict bound to content digest only:** new `RP-PACKAGE-DIGEST` over content, basis,
+     evidence manifest, findings state, and delivery metadata; any element change — including a
+     basis-only refresh — invalidates the verdict and re-enters full review; the V9 refresh path
+     now always returns through review, retaining only finalization-authority ownership
+     (review-and-verification-execution, lifecycle-catalogs).
+  5. **Independence by session only:** new `ID-PRINCIPAL` participant identity bound to every
+     session with provenance across reconnection and replacement; a reviewer principal that
+     contributed to the Candidate in any session is rejected (data-and-identity,
+     review-and-verification-execution, mechanism-and-provider-contracts, lifecycle-catalogs).
+  6. **Arbitrary checks classed re-issue safe:** verification execution is effect-free by enforced
+     contract (`CB-VERIFY`: read-only subject, discarded scratch, zero egress by default); a check
+     class with declared external effects is classified irreversible with lookup and certainty
+     reconciliation (lifecycle-catalogs, review-and-verification-execution,
+     mechanism-and-provider-contracts).
+  7. **Mediator did not cover storage ports:** `PORT-ARTIFACT` now routes through `CP-MEDIATOR`;
+     `PORT-LEDGER` is an explicit, narrowly recorded exception whose equivalent validation lives
+     in the commit protocol and verified reads (control-plane, runtime,
+     mechanism-and-provider-contracts).
+  8. **Ledger append cataloged as an Operation (circular):** `PORT-LEDGER` rows removed from the
+     Operation catalog; the conditional append and verified read are the commit primitive with
+     their own unknown-acknowledgement recovery (lifecycle-catalogs, persistence).
+  9. **Authoritative-store timeouts Story-blocked:** new `BND-WAIT-LEDGER` class — exhaustion
+     halts dispatch and interrupts the Run into Recovery, never Story-blocks;
+     `BND-WAIT-MECHANISM` now names the mediated Operation ports only (scheduling-and-bounds).
+  10. **No transitions for deterministic-check failure:** V9 consumes `EV-CHECK-OBSERVATION`
+      explicitly — a failed policy-required check releases authority into bounded rework, an
+      exhausted bound records directly `Blocked`, and a pass advances inside `Finalizing`
+      (lifecycle-catalogs, review-and-verification-execution).
 
 Later reviews append here with the same structure: reviewer identity and independence, delegation
 bounds, verdict, blocking findings and dispositions, non-blocking notes, and the exact reviewed

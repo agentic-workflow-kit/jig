@@ -41,17 +41,17 @@ is the Layer 1 [authority-and-trust perspective](./perspectives/authority-and-tr
 Every configured mechanism behind every port must satisfy every clause. A result that violates any
 clause is rejected at the boundary, creates no claimed fact, and authorizes no progress (I7).
 
-| Clause          | Requirement                                                                                                                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MC-IDENTITY`   | Every attestation carries an attributable mechanism and provider identity; anonymous or ambiguously attributed results are rejected.                                                     |
-| `MC-ECHO`       | Every result echoes the exact request Operation identity and fence tuple it answers; a result that echoes nothing, or echoes a different Operation or fence, cannot advance state.       |
-| `MC-SCOPE`      | The mechanism acts only within the capability binding presented with the Operation; it must not touch subjects, resources, or operation classes outside that binding.                    |
-| `MC-ATTEST`     | Results are structured attestations that keep directly observed facts distinct from the provider's own success claims; a bare success claim is never itself an observed fact.            |
-| `MC-IDEMPOTENT` | An irreversible effect must be either idempotent under the Operation identity or discoverable by lookup under it, so a repeated dispatch cannot silently create a second effect.         |
-| `MC-LOOKUP`     | The mechanism exposes a reconciliation lookup interface answering "did effect X happen" by Operation identity or by a provider correlation key it returned.                              |
-| `MC-COMPENSATE` | Compensation happens only as new Jig-authorized Operations; a mechanism never reverses, retries, or cleans up an earlier effect autonomously.                                            |
-| `MC-RECONNECT`  | A session mechanism either resumes an interrupted session by its identity or replaces it with an attested loss report, so Jig — not the provider — decides rework.                       |
-| `MC-HONESTY`    | A mechanism attests its actual posture, including a weak posture, rather than claiming strength it lacks; an honest `weak` attestation is valid input, a false `strong` one is a breach. |
+| Clause          | Requirement                                                                                                                                                                                                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MC-IDENTITY`   | Every attestation carries an attributable mechanism and provider identity, and every role session additionally carries its participant principal (`ID-PRINCIPAL`) binding; anonymous or ambiguously attributed results are rejected.                                                                                                             |
+| `MC-ECHO`       | Every result echoes the exact request Operation identity and fence tuple it answers; a result that echoes nothing, or echoes a different Operation or fence, cannot advance state.                                                                                                                                                               |
+| `MC-SCOPE`      | The mechanism acts only within the capability binding presented with the Operation; it must not touch subjects, resources, or operation classes outside that binding.                                                                                                                                                                            |
+| `MC-ATTEST`     | Results are structured attestations that keep directly observed facts distinct from the provider's own success claims; a bare success claim is never itself an observed fact.                                                                                                                                                                    |
+| `MC-IDEMPOTENT` | An irreversible effect must be either idempotent under the Operation identity or discoverable by lookup under it, so a repeated dispatch cannot silently create a second effect.                                                                                                                                                                 |
+| `MC-LOOKUP`     | The mechanism exposes a reconciliation lookup interface answering "did effect X happen" by Operation identity or by a provider correlation key it returned.                                                                                                                                                                                      |
+| `MC-COMPENSATE` | Compensation happens only as new Jig-authorized Operations; a mechanism never reverses, retries, or cleans up an earlier effect autonomously.                                                                                                                                                                                                    |
+| `MC-RECONNECT`  | A session mechanism either resumes an interrupted session by its identity or replaces it with an attested loss report, so Jig — not the provider — decides rework. The replacement session binds to the same participant principal (`ID-PRINCIPAL`) with recorded provenance, so reconnection never launders a principal's contribution history. |
+| `MC-HONESTY`    | A mechanism attests its actual posture, including a weak posture, rather than claiming strength it lacks; an honest `weak` attestation is valid input, a false `strong` one is a breach.                                                                                                                                                         |
 
 A mechanism's output cannot widen its power or promote a success claim into an authoritative
 lifecycle fact; Jig validates every result and records its own durable truth (I3, I5).
@@ -62,13 +62,13 @@ Each authorized Operation carries exactly one capability binding: a per-Operatio
 the mechanism to a subject, a fence tuple, an operation class, and a resource scope — for example
 one workspace path, one repository, or one target ref. Binding kinds follow the effect ports:
 
-| Kind           | Port                          | Resource scope it binds                                                                     |
-| -------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `CB-SESSION`   | `PORT-SESSION`                | One role assignment, its bounded inputs, and one session on one configured agent mechanism. |
-| `CB-WORKSPACE` | `PORT-WORKSPACE`              | One workspace path and one repository at one declared basis.                                |
-| `CB-VERIFY`    | `PORT-VERIFY`                 | One exact evidence subject and the configured checks over that subject only.                |
-| `CB-DELIVERY`  | `PORT-DELIVERY`               | One repository, one target ref, and one Candidate basis for publication or integration.     |
-| `CB-STORE`     | `PORT-LEDGER`/`PORT-ARTIFACT` | One Run's ledger positions, or one named artifact write and its digest-verified reads.      |
+| Kind           | Port                          | Resource scope it binds                                                                                                                                                                                                                                                                                                                                                |
+| -------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CB-SESSION`   | `PORT-SESSION`                | One role assignment, its bounded inputs, and one session on one configured agent mechanism.                                                                                                                                                                                                                                                                            |
+| `CB-WORKSPACE` | `PORT-WORKSPACE`              | One workspace path and one repository at one declared basis.                                                                                                                                                                                                                                                                                                           |
+| `CB-VERIFY`    | `PORT-VERIFY`                 | One exact evidence subject and the configured checks over that subject only, executed effect-free by enforced contract: read-only subject view, discarded scratch area, zero network egress by default; a check class with a declared external-effect need is bound and reconciled as an irreversible-effect Operation instead.                                        |
+| `CB-DELIVERY`  | `PORT-DELIVERY`               | One repository, one target ref, and one Candidate basis for publication or integration.                                                                                                                                                                                                                                                                                |
+| `CB-STORE`     | `PORT-LEDGER`/`PORT-ARTIFACT` | One Run's ledger positions (or one canonical target's registry line), or one named artifact write and its digest-verified reads. Artifact responses are validated by `CP-MEDIATOR`; ledger responses receive the equivalent identity, position, and digest validation inside the transition engine's commit protocol ([control plane](./components/control-plane.md)). |
 
 Delegation enforcement is symmetric: the controller (`CP-MEDIATOR`) mints the binding per
 authorized Operation at dispatch and validates it again on return. A result presented under a
@@ -91,7 +91,9 @@ reused for a later Operation, a different subject, or a superseded controller ge
 
 Mechanism sessions run under least-privilege declared scopes: a filesystem allowlist derived from
 the workspace binding and a network allowlist derived from the configured provider's declared
-needs. The enforcement strength is itself attested at compose time — an honest `weak` or `strong`
+needs. Verification sessions are stricter still: `CB-VERIFY` defaults to zero network egress and a
+read-only subject view, because effect-freedom is what licenses re-issuing a lost check response
+without reconciliation (I17). The enforcement strength is itself attested at compose time — an honest `weak` or `strong`
 posture per `MC-HONESTY` — so frozen policy can require a minimum posture and a Run whose
 configured mechanisms cannot meet it fails closed before Story effects. Posture cannot be silently
 downgraded: configuration may exceed the policy minimum but never lower it, the same

@@ -75,8 +75,10 @@ Port rules:
   at Layer 2. `X-STORE` is reached through two ports because the ledger's conditional-append
   contract and the artifact store's immutable-blob contract are different proof obligations.
 - Every inbound message is validated at the port against identity, role, exact subject, lifecycle
-  position, fence, and capability before it can become a trigger (I7); the validating component is
-  `CP-MEDIATOR` in the [control plane](./components/control-plane.md).
+  position, fence, and capability before it can become a trigger (I7). The validating component is
+  `CP-MEDIATOR` in the [control plane](./components/control-plane.md) for every port except
+  `PORT-LEDGER`, whose commit primitive carries equivalent identity, position, and digest
+  validation inside the transition engine's commit protocol.
 - `PORT-PUBLISH` is one-directional by construction. A consumer that needs to influence a Run must
   enter through `PORT-INTAKE` or `PORT-DECIDE` as a first-class validated participant.
 
@@ -250,14 +252,14 @@ node to keep this view at one level; their contracts are identical to remote mec
 
 ## How the decomposition preserves the Layer 1 contract
 
-| Layer 1 obligation                                  | Where it lands at Layer 2                                                                                        |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Sole routine lifecycle authority (I3)               | Only `RT-CONTROLLER` decides; `RT-OPERATOR` proposes and reads; stores are passive.                              |
-| Ledger authority, record before adopt/dispatch (I5) | `RT-LEDGER` behind `PORT-LEDGER`'s conditional-append contract; the transition engine is its only writer.        |
-| Fencing and safe resume (I6)                        | Controller generation acquired through `PORT-LEDGER` before any dispatch; one controller process per Run.        |
-| Exact-subject validation at the boundary (I7)       | Every inbound port message passes `CP-MEDIATOR` validation before becoming a trigger.                            |
-| Smallest-safe containment (I15)                     | Mechanism sessions are separate processes; their faults arrive as attested failures, not shared-memory failures. |
-| No undeclared control path (D2, D3)                 | `PORT-PUBLISH` is read-only; every other crossing is a named, validated port.                                    |
+| Layer 1 obligation                                  | Where it lands at Layer 2                                                                                                                                  |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sole routine lifecycle authority (I3)               | Only `RT-CONTROLLER` decides; `RT-OPERATOR` proposes and reads; stores are passive.                                                                        |
+| Ledger authority, record before adopt/dispatch (I5) | `RT-LEDGER` behind `PORT-LEDGER`'s conditional-append contract; the transition engine is its only writer.                                                  |
+| Fencing and safe resume (I6)                        | Controller generation acquired through `PORT-LEDGER` before any dispatch; one controller process per Run.                                                  |
+| Exact-subject validation at the boundary (I7)       | Every inbound port message passes `CP-MEDIATOR` validation (or, for `PORT-LEDGER`, the commit protocol's equivalent validation) before becoming a trigger. |
+| Smallest-safe containment (I15)                     | Mechanism sessions are separate processes; their faults arrive as attested failures, not shared-memory failures.                                           |
+| No undeclared control path (D2, D3)                 | `PORT-PUBLISH` is read-only; every other crossing is a named, validated port.                                                                              |
 
 ## Where to go next
 

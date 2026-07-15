@@ -81,9 +81,11 @@ stateDiagram-v2
     Accepted --> Waiting: EV-SESSION-VERDICT, the accepting Transition assigns the C-ORDER wait position
     Waiting --> Finalizing: EV-WAKE-AUTHORITY, sole target authority acquired, new auth ordinal (I12)
     Finalizing --> Refreshing: EV-TARGET-FACT, target basis advanced, bounded refresh (D6)
-    Refreshing --> Finalizing: EV-WORKSPACE-FACT, aligned with Candidate digest unchanged, ownership retained
-    Refreshing --> Reviewing: EV-WORKSPACE-FACT, Candidate digest changed, renewed full review and atomic authority rebinding (D6)
+    Refreshing --> Reviewing: EV-WORKSPACE-FACT, aligned. Any basis change invalidates prior verdicts and re-enters full review, with atomic authority rebinding when the Candidate changed (D6, D7)
     Refreshing --> Blocked: refresh bound exhausted on the failing trigger (FC-BOUND)
+    Accepted --> Finalizing: EV-SESSION-VERDICT, re-approval while finalization authority is retained after a bounded refresh (D6, I12)
+    Finalizing --> Reworking: EV-CHECK-OBSERVATION, policy-required check failed, authority released, bounded rework (I9, D6)
+    Finalizing --> Blocked: EV-CHECK-OBSERVATION, required-check failure with rework bound exhausted (FC-BOUND)
     Finalizing --> Landed: EV-LANDING-OBSERVED, authoritative target proof
     Finalizing --> Blocked: EV-EFFECT-CERTAINTY or EV-RECOVERY-OBSERVATION, reconciled failure (FC-EFFECT, FC-MECHANISM)
     Landed --> Retiring: EV-LANDING-OBSERVED, same Transition releases dependents first (I13, I18)
@@ -111,10 +113,18 @@ stateDiagram-v2
 two Layer 2 substates this page adds (bounded rework iteration and bounded target refresh), and
 green nodes business outcomes and Retirement. Color is redundant with the state names. Each
 transition label names its durable trigger event type from the catalog below, the condition, and,
-for exhaustion paths, the failure-code class in parentheses. The note models the suspension
+for exhaustion paths, the failure-code class in parentheses. Every completed target refresh
+re-enters full review, because a basis change alone already changes the review package and
+invalidates prior verdicts (D7); what a bounded refresh may retain is the target finalization
+authority, so re-approval returns the Story directly from `Accepted` to `Finalizing` without
+re-entering the wait order. The note models the suspension
 overlay: Run-level `Parked` and `Interrupted / Recovering` suspend a Story without replacing its
-state, so they are deliberately not Story states here. `cand` and `auth` ordinals refer to the
-identity paths in [data and identity](./data-and-identity.md); `C-ORDER` is the Layer 1 total
+state, so they are deliberately not Story states here. A passing `EV-CHECK-OBSERVATION` under the
+`deterministic` posture advances work inside `Finalizing` toward delivery authorization without
+changing the Story state, which is why only its failure paths appear as transitions; a failed
+policy-required check releases finalization authority and returns through bounded rework, and an
+exhausted rework bound records directly `Blocked` (I9, I16). `cand` and `auth` ordinals refer to
+the identity paths in [data and identity](./data-and-identity.md); `C-ORDER` is the Layer 1 total
 comparator.
 
 ## Event catalog
@@ -122,24 +132,24 @@ comparator.
 Durable trigger event types. Every event is validated by `CP-MEDIATOR` at its port before it can
 become a trigger (I7); wake triggers are typed durable records, never bare timers.
 
-| ID                        | Source group              | Producer                              | Subject kind                | Validation it must pass                                                       |
-| ------------------------- | ------------------------- | ------------------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
-| `EV-ENVELOPE-SUBMITTED`   | Intake                    | `X-ENVELOPE` via `PORT-INTAKE`        | Run                         | `SCH-ENVELOPE` validity, authority, completeness, preflight feasibility.      |
-| `EV-SESSION-RESULT`       | Session results           | `X-AGENT` via `PORT-SESSION`          | Story, Candidate            | Session identity, role, exact subject, lifecycle position, fence.             |
-| `EV-SESSION-VERDICT`      | Session results           | `P-REVIEWER` via `PORT-SESSION`       | Candidate                   | Reviewer identity and authority, exact Candidate digest, findings state (I8). |
-| `EV-SESSION-FAULT`        | Session results           | `X-AGENT` via `PORT-SESSION`          | Story                       | Attribution, session identity, bound accounting.                              |
-| `EV-WORKSPACE-FACT`       | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story, Candidate, Operation | Subject binding, content and basis digests, fence.                            |
-| `EV-WORKSPACE-PRESERVED`  | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story                       | Preservation-proof completeness before any destruction (I19).                 |
-| `EV-CHECK-OBSERVATION`    | Verification observations | `X-VERIFY` via `PORT-VERIFY`          | Candidate                   | Exact-subject digest, policy-selected check set, fence (I9).                  |
-| `EV-TARGET-FACT`          | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Target fact                 | Target identity, basis digest, observation freshness.                         |
-| `EV-EFFECT-CERTAINTY`     | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Operation                   | Operation identity, fence, certainty classification.                          |
-| `EV-LANDING-OBSERVED`     | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Candidate, target fact      | Proof that the target contains the Accepted result under the frozen method.   |
-| `EV-OWNER-DECISION`       | Owner decisions           | `P-OWNER` via `PORT-DECIDE`           | Parked question             | Responder identity, delegated scope, exact question binding.                  |
-| `EV-WAKE-DEPENDENCY`      | Wake triggers             | `RT-CONTROLLER` durable wake          | Story                       | Derived only from recorded `Landed` or `Blocked` facts.                       |
-| `EV-WAKE-CAPACITY`        | Wake triggers             | `RT-CONTROLLER` durable wake          | Story                       | Derived from recorded capacity facts and `C-ORDER`.                           |
-| `EV-WAKE-AUTHORITY`       | Wake triggers             | `RT-CONTROLLER` durable wake          | Story, target               | Derived from recorded authority release and `C-ORDER`.                        |
-| `EV-WAKE-TIMER`           | Wake triggers             | `RT-CONTROLLER` durable wake          | Bounded wait                | Recorded wake condition and its deadline or budget class.                     |
-| `EV-RECOVERY-OBSERVATION` | Recovery observations     | `CP-RECOVERY` via the mechanism ports | Operation, Run              | Reconciliation provenance, fence, certainty classification.                   |
+| ID                        | Source group              | Producer                              | Subject kind                | Validation it must pass                                                                                                                               |
+| ------------------------- | ------------------------- | ------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EV-ENVELOPE-SUBMITTED`   | Intake                    | `X-ENVELOPE` via `PORT-INTAKE`        | Run                         | `SCH-ENVELOPE` validity, authority, completeness, preflight feasibility.                                                                              |
+| `EV-SESSION-RESULT`       | Session results           | `X-AGENT` via `PORT-SESSION`          | Story, Candidate            | Session identity, role, exact subject, lifecycle position, fence.                                                                                     |
+| `EV-SESSION-VERDICT`      | Session results           | `P-REVIEWER` via `PORT-SESSION`       | Candidate                   | Reviewer principal identity and authority, principal independence from every Candidate contributor, exact review-package digest, findings state (I8). |
+| `EV-SESSION-FAULT`        | Session results           | `X-AGENT` via `PORT-SESSION`          | Story                       | Attribution, session identity, bound accounting.                                                                                                      |
+| `EV-WORKSPACE-FACT`       | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story, Candidate, Operation | Subject binding, content and basis digests, fence.                                                                                                    |
+| `EV-WORKSPACE-PRESERVED`  | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story                       | Preservation-proof completeness before any destruction (I19).                                                                                         |
+| `EV-CHECK-OBSERVATION`    | Verification observations | `X-VERIFY` via `PORT-VERIFY`          | Candidate                   | Exact-subject digest, policy-selected check set, fence (I9).                                                                                          |
+| `EV-TARGET-FACT`          | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Target fact                 | Target identity, basis digest, observation freshness.                                                                                                 |
+| `EV-EFFECT-CERTAINTY`     | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Operation                   | Operation identity, fence, certainty classification.                                                                                                  |
+| `EV-LANDING-OBSERVED`     | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Candidate, target fact      | Proof that the target contains the Accepted result under the frozen method.                                                                           |
+| `EV-OWNER-DECISION`       | Owner decisions           | `P-OWNER` via `PORT-DECIDE`           | Parked question             | Responder identity, delegated scope, exact question binding.                                                                                          |
+| `EV-WAKE-DEPENDENCY`      | Wake triggers             | `RT-CONTROLLER` durable wake          | Story                       | Derived only from recorded `Landed` or `Blocked` facts.                                                                                               |
+| `EV-WAKE-CAPACITY`        | Wake triggers             | `RT-CONTROLLER` durable wake          | Story                       | Derived from recorded capacity facts and `C-ORDER`.                                                                                                   |
+| `EV-WAKE-AUTHORITY`       | Wake triggers             | `RT-CONTROLLER` durable wake          | Story, target               | Derived from recorded authority release and `C-ORDER`.                                                                                                |
+| `EV-WAKE-TIMER`           | Wake triggers             | `RT-CONTROLLER` durable wake          | Bounded wait                | Recorded wake condition and its deadline or budget class.                                                                                             |
+| `EV-RECOVERY-OBSERVATION` | Recovery observations     | `CP-RECOVERY` via the mechanism ports | Operation, Run              | Reconciliation provenance, fence, certainty classification.                                                                                           |
 
 ## Operation catalog
 
@@ -149,25 +159,31 @@ durable Operation identity before any repeat), and **certainty reconciliation** 
 resolve to confirmed present or confirmed absent, or park — no second semantic attempt before
 reconciliation, I17).
 
-| ID                    | Port             | Operation                                       | Effect class                               | Reconciliation obligation                                               |
-| --------------------- | ---------------- | ----------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
-| `OPC-SESSION-OPEN`    | `PORT-SESSION`   | Open a bounded role session                     | Irreversible effect (resource)             | Identity lookup, then adopt or retire the found session.                |
-| `OPC-SESSION-ASSIGN`  | `PORT-SESSION`   | Assign bounded role work                        | Irreversible effect                        | Certainty reconciliation.                                               |
-| `OPC-SESSION-COLLECT` | `PORT-SESSION`   | Collect attributable results and verdicts       | Reversible observation                     | Re-issue safe.                                                          |
-| `OPC-SESSION-CLOSE`   | `PORT-SESSION`   | Close a session                                 | Irreversible effect                        | Identity lookup; idempotent by session identity.                        |
-| `OPC-WS-PROVISION`    | `PORT-WORKSPACE` | Provision isolated workspace resources          | Irreversible effect (resource)             | Identity lookup.                                                        |
-| `OPC-WS-OBSERVE`      | `PORT-WORKSPACE` | Observe content, basis, cleanliness             | Reversible observation                     | Re-issue safe.                                                          |
-| `OPC-WS-PRESERVE`     | `PORT-WORKSPACE` | Preserve work and evidence                      | Irreversible effect                        | Identity lookup; required before any destruction (I19).                 |
-| `OPC-WS-RETIRE`       | `PORT-WORKSPACE` | Retire or hand off resources                    | Irreversible effect (destructive)          | Certainty reconciliation; never dispatched before preservation.         |
-| `OPC-VERIFY-EXECUTE`  | `PORT-VERIFY`    | Execute policy-selected checks on exact subject | Reversible observation                     | Re-issue safe within its bound class.                                   |
-| `OPC-DEL-PUBLISH`     | `PORT-DELIVERY`  | Publish Candidate content                       | Irreversible effect                        | Certainty reconciliation (I17).                                         |
-| `OPC-DEL-REQUEST`     | `PORT-DELIVERY`  | Open an integration request                     | Irreversible effect                        | Certainty reconciliation via identity lookup.                           |
-| `OPC-DEL-MERGE`       | `PORT-DELIVERY`  | Request target integration or merge             | Irreversible effect                        | Certainty reconciliation; indeterminate parks.                          |
-| `OPC-DEL-OBSERVE`     | `PORT-DELIVERY`  | Observe target, gates, and landing              | Reversible observation                     | Re-issue safe.                                                          |
-| `OPC-LEDGER-APPEND`   | `PORT-LEDGER`    | Conditional ordered append                      | Irreversible durable append                | Lost-acknowledgement resolution by identity and expected position (D5). |
-| `OPC-LEDGER-READ`     | `PORT-LEDGER`    | Verified read of durable records                | Reversible observation                     | Re-issue safe.                                                          |
-| `OPC-ART-PUT`         | `PORT-ARTIFACT`  | Put an immutable evidence artifact              | Irreversible effect (idempotent by digest) | Identity lookup by digest.                                              |
-| `OPC-ART-GET`         | `PORT-ARTIFACT`  | Digest-verified artifact read                   | Reversible observation                     | Re-issue safe.                                                          |
+| ID                    | Port             | Operation                                       | Effect class                               | Reconciliation obligation                                                                                                                                                                                               |
+| --------------------- | ---------------- | ----------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPC-SESSION-OPEN`    | `PORT-SESSION`   | Open a bounded role session                     | Irreversible effect (resource)             | Identity lookup, then adopt or retire the found session.                                                                                                                                                                |
+| `OPC-SESSION-ASSIGN`  | `PORT-SESSION`   | Assign bounded role work                        | Irreversible effect                        | Certainty reconciliation.                                                                                                                                                                                               |
+| `OPC-SESSION-COLLECT` | `PORT-SESSION`   | Collect attributable results and verdicts       | Reversible observation                     | Re-issue safe.                                                                                                                                                                                                          |
+| `OPC-SESSION-CLOSE`   | `PORT-SESSION`   | Close a session                                 | Irreversible effect                        | Identity lookup; idempotent by session identity.                                                                                                                                                                        |
+| `OPC-WS-PROVISION`    | `PORT-WORKSPACE` | Provision isolated workspace resources          | Irreversible effect (resource)             | Identity lookup.                                                                                                                                                                                                        |
+| `OPC-WS-OBSERVE`      | `PORT-WORKSPACE` | Observe content, basis, cleanliness             | Reversible observation                     | Re-issue safe.                                                                                                                                                                                                          |
+| `OPC-WS-PRESERVE`     | `PORT-WORKSPACE` | Preserve work and evidence                      | Irreversible effect                        | Identity lookup; required before any destruction (I19).                                                                                                                                                                 |
+| `OPC-WS-RETIRE`       | `PORT-WORKSPACE` | Retire or hand off resources                    | Irreversible effect (destructive)          | Certainty reconciliation; never dispatched before preservation.                                                                                                                                                         |
+| `OPC-VERIFY-EXECUTE`  | `PORT-VERIFY`    | Execute policy-selected checks on exact subject | Effect-free by enforced contract           | Re-issue safe only while the enforced effect-free execution contract holds; a check class declared to need external effects is instead classified irreversible with identity lookup and certainty reconciliation (I17). |
+| `OPC-DEL-PUBLISH`     | `PORT-DELIVERY`  | Publish Candidate content                       | Irreversible effect                        | Certainty reconciliation (I17).                                                                                                                                                                                         |
+| `OPC-DEL-REQUEST`     | `PORT-DELIVERY`  | Open an integration request                     | Irreversible effect                        | Certainty reconciliation via identity lookup.                                                                                                                                                                           |
+| `OPC-DEL-MERGE`       | `PORT-DELIVERY`  | Request target integration or merge             | Irreversible effect                        | Certainty reconciliation; indeterminate parks.                                                                                                                                                                          |
+| `OPC-DEL-OBSERVE`     | `PORT-DELIVERY`  | Observe target, gates, and landing              | Reversible observation                     | Re-issue safe.                                                                                                                                                                                                          |
+| `OPC-ART-PUT`         | `PORT-ARTIFACT`  | Put an immutable evidence artifact              | Irreversible effect (idempotent by digest) | Identity lookup by digest.                                                                                                                                                                                              |
+| `OPC-ART-GET`         | `PORT-ARTIFACT`  | Digest-verified artifact read                   | Reversible observation                     | Re-issue safe.                                                                                                                                                                                                          |
+
+`PORT-LEDGER` deliberately has **no rows in this catalog**. The conditional append and verified
+read are the **commit primitive** that records Transitions and their Operation intents; cataloging
+them as Operations would be circular, because an Operation intent exists only inside a recorded
+Transition (I5). The commit primitive's contract and its own unknown-acknowledgement recovery are
+owned by [persistence and projections](./persistence-and-projections.md), and its identity,
+position, and digest validation is performed by the transition engine's commit protocol rather
+than by `CP-MEDIATOR`.
 
 ## View V9a — Operation lifecycle
 
@@ -255,7 +271,7 @@ Containment scopes are the Layer 1 [failure and liveness](./failure-and-liveness
   [data and identity](./data-and-identity.md).
 - Provider-specific idempotency, lookup, and compensation (`MC-*`):
   [mechanism and provider contracts](./mechanism-and-provider-contracts.md).
-- Ledger realization behind `OPC-LEDGER-*` (`LG-*`):
+- The ledger commit primitive and its realization (`LG-*`):
   [persistence and projections](./persistence-and-projections.md).
 
 ## Where to go next

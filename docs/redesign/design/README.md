@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 approved; Layer 1 approved and locked via the 2026-07-15 fresh independent review PASS; Layer 2 authored and reviewed PASS, stopped for the owner decision
+status: active index — Layer 0 approved; Layer 1 approved and locked; Layer 2 corrected for the owner's ten-finding PR review and awaiting recheck and the owner decision
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -184,11 +184,11 @@ state.
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                |
-| --------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                 |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)       |
-| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record            | Authored and independently reviewed `PASS` on 2026-07-15; stopped for Arye's explicit approval decision (see the Layer 2 gate record) |
+| Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                                       |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)                                             |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record            | Authored, independently reviewed, then corrected for the owner's ten-finding PR review of 2026-07-15; awaiting recheck and the owner decision (see the Layer 2 gate record) |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression

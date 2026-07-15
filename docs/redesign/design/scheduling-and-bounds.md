@@ -87,16 +87,24 @@ completion condition, and deadline class (I16). Exhaustion actions come from the
 [D8](./decisions/D8-failure-and-liveness.md) set — retry, block, park, escalate, interrupt, stop,
 or Residual Obligation — never silent success or an unnamed indefinite wait.
 
-| ID                   | What it bounds                                          | Value source and default posture                                | Explicit exhaustion action                                         |
-| -------------------- | ------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `BND-REWORK`         | Review and rework loops per Story.                      | Policy; conservative default: few loops.                        | Block the Story; dependents derive `Not run — dependency blocked`. |
-| `BND-RETRY`          | Attempts per Operation class.                           | Policy per Operation class; conservative default: few attempts. | Block at the owning Story or Operation scope.                      |
-| `BND-REFRESH`        | Target refreshes while holding finalization authority.  | Policy; conservative default: few refreshes.                    | Park with escalation naming target instability.                    |
-| `BND-WAIT-DECISION`  | Owner-decision waits on parked questions.               | Policy deadline class; conservative default: long, renewable.   | Escalate again durably; the question stays parked, never dropped.  |
-| `BND-WAIT-MECHANISM` | Mechanism response deadlines on any port.               | Policy per port; conservative default: short.                   | Retry under `BND-RETRY`; then block.                               |
-| `BND-WAIT-TARGET`    | Target stability waits before and during finalization.  | Policy; conservative default: moderate.                         | Park with escalation; target effects stay fenced.                  |
-| `BND-RECOVERY`       | Reconciliation attempts for one uncertain effect (I17). | Policy; conservative default: few attempts.                     | Escalate; no second semantic attempt until reconciled.             |
-| `BND-RETIRE`         | Retirement attempts per obligation.                     | Policy; conservative default: few attempts.                     | Residual Obligation handed to the owner (I19).                     |
+| ID                   | What it bounds                                                                                                 | Value source and default posture                                | Explicit exhaustion action                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `BND-REWORK`         | Review and rework loops per Story.                                                                             | Policy; conservative default: few loops.                        | Block the Story; dependents derive `Not run — dependency blocked`.                                                |
+| `BND-RETRY`          | Attempts per Operation class.                                                                                  | Policy per Operation class; conservative default: few attempts. | Block at the owning Story or Operation scope.                                                                     |
+| `BND-REFRESH`        | Target refreshes while holding finalization authority.                                                         | Policy; conservative default: few refreshes.                    | Park with escalation naming target instability.                                                                   |
+| `BND-WAIT-DECISION`  | Owner-decision waits on parked questions.                                                                      | Policy deadline class; conservative default: long, renewable.   | Escalate again durably; the question stays parked, never dropped.                                                 |
+| `BND-WAIT-MECHANISM` | Mechanism response deadlines on the mediated Operation ports (session, workspace, verify, delivery, artifact). | Policy per port; conservative default: short.                   | Retry under `BND-RETRY`; then block at the owning Story or Operation scope.                                       |
+| `BND-WAIT-LEDGER`    | Authoritative-store waits: ledger and target-authority-registry commit acknowledgements and verified reads.    | Policy; conservative default: short.                            | Halt dispatch and interrupt the Run into Recovery; shared authority uncertainty is never Story-blocked (D8, I15). |
+| `BND-WAIT-TARGET`    | Target stability waits before and during finalization.                                                         | Policy; conservative default: moderate.                         | Park with escalation; target effects stay fenced.                                                                 |
+| `BND-RECOVERY`       | Reconciliation attempts for one uncertain effect (I17).                                                        | Policy; conservative default: few attempts.                     | Escalate; no second semantic attempt until reconciled.                                                            |
+| `BND-RETIRE`         | Retirement attempts per obligation.                                                                            | Policy; conservative default: few attempts.                     | Residual Obligation handed to the owner (I19).                                                                    |
+
+The mechanism/ledger split is deliberate: a timed-out or unknown outcome on a mediated Operation
+port is a Story- or Operation-scoped fault, but an unknown ledger or registry acknowledgement is
+uncertainty about shared durable authority itself. Continuing other Stories from an uncertain
+ledger would violate the containment ladder of
+[failure and liveness](./failure-and-liveness.md), so `BND-WAIT-LEDGER` exhaustion always halts
+dispatch and enters Run-scoped Recovery ([persistence and projections](./persistence-and-projections.md)).
 
 ## Timers and wake triggers
 

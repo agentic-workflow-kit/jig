@@ -38,26 +38,44 @@ path**. The rejected alternatives were flat opaque unique tokens (provenance wou
 mutable metadata that recovery cannot trust) and identities derived from names such as branches or
 titles (a rename would silently break exact binding).
 
-| ID kind     | Model identity          | Path pattern                                     | Collision-free scoping rule                                                                                       |
-| ----------- | ----------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `ID-RUN`    | Run identity            | `run-<sortable unique token>`                    | Minted once at intake acknowledgement; the token class is time-sortable and unique in the controlled run scope.   |
-| `ID-STORY`  | Story identity          | `<run>/story/<plan story key>`                   | Plan story keys are frozen and unique in the approved plan; preflight rejects duplicates before any Story effect. |
-| `ID-TXN`    | Transition identity     | `<run>/txn/<ledger position>`                    | The identity is the expected ledger position; two Transitions can never legally share it.                         |
-| `ID-OP`     | Operation identity      | `<txn>/op/<ordinal>`                             | Ordinal within the single authorizing Transition; one semantic effect keeps one identity across redispatch.       |
-| `ID-CAND`   | Candidate identity      | `<story>/cand/<ordinal>` plus content digest     | Ordinal within the owning Story; the identity is only valid together with its exact content digest.               |
-| `ID-GEN`    | Controller generation   | `<run>/gen/<ordinal>`                            | Monotonic per Run, acquired through `PORT-LEDGER` before any dispatch (I6).                                       |
-| `ID-TARGET` | Configured target       | `<run>/target/<configured target key>`           | Target keys are frozen and unique in the validated Run configuration.                                             |
-| `ID-AUTH`   | Finalization authority  | `<target>/auth/<ordinal>`                        | Monotonic per configured target; exactly one ordinal is current (I12).                                            |
-| `ID-EVSUBJ` | Evidence subject        | URI embedding exactly one existing identity path | Names one Run, Story, Candidate, Operation, or target fact plus one claim name; never a free-form subject.        |
-| `ID-PARK`   | Owner decision identity | `<run>/park/<ordinal>`                           | Monotonic per Run; binds the exact question, authorized responder scope, and the later selected action.           |
+| ID kind        | Model identity          | Path pattern                                     | Collision-free scoping rule                                                                                                                                                                                                       |
+| -------------- | ----------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ID-RUN`       | Run identity            | `run-<sortable unique token>`                    | Minted once at intake acknowledgement; the token class is time-sortable and unique in the controlled run scope.                                                                                                                   |
+| `ID-STORY`     | Story identity          | `<run>/story/<plan story key>`                   | Plan story keys are frozen and unique in the approved plan; preflight rejects duplicates before any Story effect.                                                                                                                 |
+| `ID-TXN`       | Transition identity     | `<run>/txn/<position>/<gen>` plus record digest  | Position claim qualified by the proposing controller generation; valid only together with the record digest, so competing proposals at one head can never share an identity.                                                      |
+| `ID-OP`        | Operation identity      | `<txn>/op/<ordinal>`                             | Ordinal within the single authorizing Transition; it inherits the qualified Transition identity, and one semantic effect keeps one identity across redispatch.                                                                    |
+| `ID-CAND`      | Candidate identity      | `<story>/cand/<ordinal>` plus content digest     | Ordinal within the owning Story; the identity is only valid together with its exact content digest.                                                                                                                               |
+| `ID-GEN`       | Controller generation   | `<run>/gen/<ordinal>` plus instance token        | Claimed by conditional append of a generation-claim record carrying a unique controller instance token; the ordinal is valid only together with its recorded token, so racing restarts can never share a current generation (I6). |
+| `ID-PRINCIPAL` | Participant principal   | `principal/<configured participant key>`         | The stable configured identity of one human or agent participant; every role session binds to exactly one principal, and the binding survives session replacement.                                                                |
+| `ID-TARGET`    | Configured target       | `target/<canonical target key>`                  | Canonical and cross-Run: derived from the configured target's normalized locator, so two Runs naming the same target derive the same identity. Preflight freezes and validates it per Run.                                        |
+| `ID-AUTH`      | Finalization authority  | `<target>/auth/<ordinal>`                        | Monotonic per canonical target across all Runs, allocated from the target-authority registry below; exactly one ordinal is current for a target (I12).                                                                            |
+| `ID-EVSUBJ`    | Evidence subject        | URI embedding exactly one existing identity path | Names one Run, Story, Candidate, Operation, or target fact plus one claim name; never a free-form subject.                                                                                                                        |
+| `ID-PARK`      | Owner decision identity | `<run>/park/<ordinal>`                           | Monotonic per Run; binds the exact question, authorized responder scope, and the later selected action.                                                                                                                           |
 
 Representation rules:
 
-- **Identity is position for Transitions.** `ID-TXN` makes the identity the expected prior-position
-  claim itself, which is exactly what lets a lost commit acknowledgement be resolved "by stable
-  identity and expected prior position" into confirmed committed, confirmed absent, or indeterminate
-  ([D5](./decisions/D5-state-authority-and-recovery.md),
-  [state and recovery](./state-and-recovery.md)).
+- **Transition identity is a qualified position claim.** `ID-TXN` combines the expected position
+  with the proposing controller generation and is valid only together with the record digest.
+  Lost-acknowledgement readback therefore resolves "by stable identity and expected prior
+  position" ([D5](./decisions/D5-state-authority-and-recovery.md),
+  [state and recovery](./state-and-recovery.md)) with a strict match rule: **confirmed committed**
+  only when position, proposing generation, and record digest all match; a record at the expected
+  position with a different generation or digest confirms this proposal **absent** and fences the
+  proposer. An identity match alone never proves commitment.
+- **Ownership tokens arbitrate; they never decide.** The controller instance token inside a
+  generation claim exists only to distinguish racing claimants at the conditional append; it is
+  excluded from deterministic decision inputs (I4) and acts purely as a fence component.
+- **Target identity and finalization authority are cross-Run.** `ID-TARGET` is canonical to the
+  target, not to a Run, and `ID-AUTH` ordinals are allocated from one durable, conditional-append
+  **target-authority registry** keyed by canonical target identity and shared by every Run the
+  deployment hosts. A controller acquires and releases finalization authority through the registry
+  (the authoritative cross-Run arbiter, satisfying the same commit-primitive contract as the Run
+  ledger) and mirrors each acquisition and release into its own Run ledger for audit. Two Runs
+  naming the same target therefore contend for one authority line instead of deriving independent
+  ones (QS4, I12, D6). A target that no configured registry can arbitrate — for example the same
+  remote target driven from uncoordinated deployments — is explicitly unarbitrated: preflight
+  fails such a Run closed rather than letting it finalize on an assumption
+  ([persistence and projections](./persistence-and-projections.md) owns the registry realization).
 - **Identity strings never encode secrets.** Path segments carry only frozen envelope facts and
   controller-assigned ordinals or positions; credential or secret material is never a segment
   (project-brief QS10).
@@ -82,7 +100,9 @@ Operation intent and echoed by every result:
 A result that does not carry the exact expected fence tuple fails closed and cannot advance state
 (I7); a stale pre-interruption dispatcher is thereby rejected by content, not by timing (I6). The
 fence is validated by `CP-MEDIATOR` at the port boundary before any trigger reaches the transition
-engine ([runtime](./runtime.md)).
+engine; for the ledger commit primitive, the equivalent identity, position, and digest validation
+is performed by the transition engine's commit protocol itself
+([control plane](./components/control-plane.md)).
 
 ## Schema families
 
@@ -137,8 +157,8 @@ migrate-by-rewrite, would destroy the audit property that recorded history is im
 flowchart LR
     subgraph RunScope["Run scope"]
         RunN["ID-RUN<br/>Run identity, run-…<br/>[Identity root]"]
-        GenN["ID-GEN<br/>Controller generation, run/gen/n<br/>[Control authority]"]
-        TxnN["ID-TXN<br/>Transition, run/txn/position<br/>[Ledger position]"]
+        GenN["ID-GEN<br/>Controller generation, run/gen/n plus token<br/>[Control authority]"]
+        TxnN["ID-TXN<br/>Transition, run/txn/position/gen plus digest<br/>[Qualified position claim]"]
         OpN["ID-OP<br/>Operation, txn/op/n<br/>[Authorized effect]"]
         ParkN["ID-PARK<br/>Owner decision, run/park/n<br/>[Escalation identity]"]
     end
@@ -146,9 +166,12 @@ flowchart LR
         StoryN["ID-STORY<br/>Story, run/story/key<br/>[Plan-scoped identity]"]
         CandN["ID-CAND<br/>Candidate, story/cand/n and digest<br/>[Exact content identity]"]
     end
-    subgraph TargetScope["Target scope"]
-        TargetN["ID-TARGET<br/>Configured target, run/target/key<br/>[Target identity]"]
-        AuthN["ID-AUTH<br/>Finalization authority, target/auth/n<br/>[Serialized authority]"]
+    subgraph ConfigScope["Configuration scope"]
+        PrincN(["ID-PRINCIPAL<br/>Participant principal, principal/key<br/>[Stable participant identity]"])
+    end
+    subgraph TargetScope["Target scope, cross-Run"]
+        TargetN["ID-TARGET<br/>Canonical target, target/key<br/>[Cross-Run target identity]"]
+        AuthN["ID-AUTH<br/>Finalization authority, target/auth/n<br/>[Registry-serialized authority]"]
     end
     subgraph Bindings["Recorded bindings"]
         FenceN["SCH-OPERATION fence<br/>Recorded fence tuple<br/>[Exact binding]"]
@@ -169,9 +192,11 @@ flowchart LR
     FenceN -->|"pins content digest of"| CandN
     FenceN -->|"pins basis digest of"| TargetN
     CandN -->|"binds evidence and verdicts through"| EvSubjN
+    PrincN -->|"is bound to every role session and verdict of"| CandN
 
     style RunScope fill:#eef5ff,stroke:#7a96bd,color:#172033
     style StoryScope fill:#fff6dd,stroke:#b8903a,color:#172033
+    style ConfigScope fill:#eef5ff,stroke:#7a96bd,color:#172033
     style TargetScope fill:#f3edff,stroke:#8a6eb0,color:#172033
     style Bindings fill:#edf8f0,stroke:#659574,color:#172033
     classDef identity fill:#e8f1ff,stroke:#5a78a8,color:#172033
@@ -180,24 +205,29 @@ flowchart LR
     classDef fence fill:#fff1cf,stroke:#a8781f,stroke-width:3px,color:#172033
     classDef subject fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef target fill:#f1e9ff,stroke:#8061a8,color:#172033
+    classDef person fill:#e8f1ff,stroke:#5a78a8,color:#172033
     class RunN,StoryN,ParkN,OpN identity
     class TxnN ledger
     class GenN,AuthN authority
     class FenceN fence
     class CandN,EvSubjN subject
     class TargetN target
+    class PrincN person
 ```
 
 **V8 legend:** Every rectangle is one identity kind from the table above, labeled with its `ID-*`
-kind, a compact form of its path pattern (`n` abbreviates an ordinal, `…` a unique token), and a
-bracketed role; the one exception is the fence node, which is the recorded tuple inside
-`SCH-OPERATION`, not an identity. Thick borders mark the two authoritative bindings: the Transition
-whose identity is its ledger position and the fence tuple that every result must match exactly.
-Yellow nodes are control or finalization authority, blue nodes plain identities, green nodes
-exact-subject bindings, and the purple node the configured target; regions group identities by
-owning scope. Color is redundant with IDs and types. All edges are solid directed containment,
-numbering, authorization, or binding relationships; no dashed style is used in this view. An
-`ID-EVSUBJ` URI names exactly one Run, Story, Candidate, Operation, or target fact.
+kind, a compact form of its path pattern (`n` abbreviates an ordinal, `…` a unique token, and
+`gen`/`token`/`digest` the qualifying components), and a bracketed role; the rounded rectangle is
+the participant principal, and the fence node is the recorded tuple inside `SCH-OPERATION`, not an
+identity. Thick borders mark the two authoritative bindings: the qualified Transition position
+claim and the fence tuple that every result must match exactly. Yellow nodes are control or
+finalization authority, blue nodes plain identities or the principal, green nodes exact-subject
+bindings, and the purple node the canonical cross-Run target; regions group identities by owning
+scope, and the target scope is deliberately outside the Run scope because its authority line is
+shared by all Runs through the target-authority registry. Color is redundant with IDs and types.
+All edges are solid directed containment, numbering, authorization, or binding relationships; no
+dashed style is used in this view. An `ID-EVSUBJ` URI names exactly one Run, Story, Candidate,
+Operation, or target fact.
 
 ## Exclusions — owned by sibling pages
 
