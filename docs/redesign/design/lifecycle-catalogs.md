@@ -98,10 +98,11 @@ stateDiagram-v2
     note right of Waiting
         Run Parked or Interrupted/Recovering (V3a) suspends any
         non-terminal Story state as an overlay without replacing it.
-        EV-OWNER-DECISION or EV-RECOVERY-OBSERVATION resumes the
-        same suspended state under a new controller generation.
-        EV-SESSION-HUMAN-REQUEST parks the Run until the exact
-        scoped answer is returned to the originating Agent session.
+        A Run-scoped EV-OWNER-DECISION or EV-RECOVERY-OBSERVATION
+        resumes the same suspended state under a new controller generation.
+        EV-SESSION-HUMAN-REQUEST instead creates a durable wait for
+        only the originating session and Story; independent Stories continue.
+        The exact scoped answer wakes that session through OPC-SESSION-RESPOND.
         EV-RULE-SURFACE-TOUCHED also parks the Run until the exact
         changed rule surface is re-approved and re-evidenced.
     end note

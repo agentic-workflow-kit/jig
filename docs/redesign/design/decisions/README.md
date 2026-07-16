@@ -5,9 +5,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Future architecture authors after authorization
-scope: Index and status of decisions D1–D13, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
+scope: Index and status of decisions D1–D14, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D9 locked; D10–D12 approved; D13 owner-approved as the product-readiness lock candidate, exact review pending
+status: active index — D1–D9 locked; D10–D12 approved; D13–D14 owner-approved as the product-readiness lock candidates, exact review pending
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
