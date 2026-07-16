@@ -181,10 +181,10 @@ re-planning, that would be a conflict with the frozen-envelope model and needs t
 
 ### Liveness (`LIVE`)
 
-| ID     | Carried by                                                                                                                                                                                                       | Classification |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| ID     | Carried by                                                                                                                                                                                                                           | Classification |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
 | LIVE-1 | **Partially carried.** Every wait is bounded and mechanism silence or overdue approval is detected, but no design element observes progress and idleness or classifies a worker as thinking, stuck, or dead as the product requires. | `gap`          |
-| LIVE-2 | Exhaustion actions are explicit — block, park, escalate — never silent spend; alerts derive from durable bound facts (I16).                                                                                      | `satisfied`    |
+| LIVE-2 | Exhaustion actions are explicit — block, park, escalate — never silent spend; alerts derive from durable bound facts (I16).                                                                                                          | `satisfied`    |
 
 LIVE-1 gap detail: bounded waits preserve the fail-closed outcome, but they do not carry the exact
 signal contract the product imports. Closing the gap requires a mechanism-facing liveness contract
@@ -211,12 +211,12 @@ Work Source fragment joins the CFG upstream cluster as bridge-artifact work.
 
 ### Trusting a driver (`DRIVE`)
 
-| ID      | Carried by                                                                                                                                                                                         | Classification |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| DRIVE-1 | **Partially carried.** Per-port suites with recorded real-provider evidence gate configurability, but the suite catalog does not require the product-promised adversarial probes. | `gap`          |
+| ID      | Carried by                                                                                                                                                                                                                                                                                      | Classification |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| DRIVE-1 | **Partially carried.** Per-port suites with recorded real-provider evidence gate configurability, but the suite catalog does not require the product-promised adversarial probes.                                                                                                               | `gap`          |
 | DRIVE-2 | **Partially carried.** Needs, scopes, posture, and configured providers are distributed across bindings, attestation, and the frozen envelope; no owner-approved authority manifest declares runtime, network, and credential authority or forces fresh approval when that declaration changes. | `gap`          |
-| DRIVE-3 | `MC-HONESTY`: an honest `weak` attestation is valid input, a false `strong` one is a breach; policy sets the minimum posture and an unmet minimum fails closed. | `satisfied`    |
-| DRIVE-4 | **Partially carried.** Suites are versioned and reusable against exact providers, but their reusable contract does not require adversarial-probe coverage for bundled and future drivers. | `gap`          |
+| DRIVE-3 | `MC-HONESTY`: an honest `weak` attestation is valid input, a false `strong` one is a breach; policy sets the minimum posture and an unmet minimum fails closed.                                                                                                                                 | `satisfied`    |
+| DRIVE-4 | **Partially carried.** Suites are versioned and reusable against exact providers, but their reusable contract does not require adversarial-probe coverage for bundled and future drivers.                                                                                                       | `gap`          |
 
 DRIVE-1/DRIVE-4 gap detail: generic rejection paths do not make adversarial probes a required,
 repeatable part of every port suite. Closing the gap requires named adversarial-probe obligations
@@ -229,14 +229,14 @@ that digest changes.
 
 ## Guarantee 5 — full observability
 
-| ID    | Carried by                                                                                                                                                                                                                  | Classification |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| SEE-1 | The durable authority enumeration covers decisions, authorizations, fences, evidence references, approvals, transitions, waits, escalations, outcomes, and obligations (I5; [state and recovery](./state-and-recovery.md)). | `satisfied`    |
-| SEE-2 | Records are structured durable facts; `OBS-*` read models and position-stamped exports over `PORT-PUBLISH` are the consumable surface.                                                                                      | `satisfied`    |
-| SEE-3 | The ledger facts and digest-verified evidence the decisions consumed are exactly what the owner inspects afterward; projections are derived, never a second story (I5, `EVR-*`, `OBS-EVIDENCE`).                            | `satisfied`    |
-| SEE-4 | Operator verbs answer from recorded Transitions — "why is this Story here" is the recorded decision trail — with no extra tooling required beyond the operator interface (`RT-OPERATOR`).                                   | `satisfied`    |
+| ID    | Carried by                                                                                                                                                                                                                                           | Classification |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| SEE-1 | The durable authority enumeration covers decisions, authorizations, fences, evidence references, approvals, transitions, waits, escalations, outcomes, and obligations (I5; [state and recovery](./state-and-recovery.md)).                          | `satisfied`    |
+| SEE-2 | Records are structured durable facts; `OBS-*` read models and position-stamped exports over `PORT-PUBLISH` are the consumable surface.                                                                                                               | `satisfied`    |
+| SEE-3 | The ledger facts and digest-verified evidence the decisions consumed are exactly what the owner inspects afterward; projections are derived, never a second story (I5, `EVR-*`, `OBS-EVIDENCE`).                                                     | `satisfied`    |
+| SEE-4 | Operator verbs answer from recorded Transitions — "why is this Story here" is the recorded decision trail — with no extra tooling required beyond the operator interface (`RT-OPERATOR`).                                                            | `satisfied`    |
 | SEE-5 | **Partially carried.** Separate Story, wait, obligation, and alert surfaces expose durable conditions, but no unified notice model guarantees that every parked, blocked, stale, or overdue condition has urgency and immediately available actions. | `gap`          |
-| SEE-6 | **Partially carried.** Exports are durable, redacted, and position-stamped, but no export contract makes a finished audit record write-once or immutable. | `gap`          |
+| SEE-6 | **Partially carried.** Exports are durable, redacted, and position-stamped, but no export contract makes a finished audit record write-once or immutable.                                                                                            | `gap`          |
 
 SEE-5 gap detail: closing the gap requires one derived notice model that covers every parked,
 blocked, stale, and overdue condition and supplies a deterministic urgency class plus the actions
@@ -269,9 +269,9 @@ in its note for the owner to correct if intended.
 | CFG-10  | Policy vocabulary for a fixed, deterministic escalation auto-grant category boundary; depends on GUARD-2's classifier for its always-human edge.                         |
 | LIVE-1  | A liveness-signal contract for progress, idleness, silence, and overdue approval, with deterministic thinking/stuck/dead classification and parking.                     |
 | DRIVE-1 | Required adversarial-probe obligations in every provider conformance suite.                                                                                              |
-| DRIVE-2 | A digest-bound provider authority manifest covering runtime, network, and credentials, with owner approval and fresh approval on change.                                |
+| DRIVE-2 | A digest-bound provider authority manifest covering runtime, network, and credentials, with owner approval and fresh approval on change.                                 |
 | DRIVE-4 | Reusable adversarial-probe coverage for bundled and future providers under the same conformance bar.                                                                     |
-| SEE-5   | A unified, actionable notice projection covering every parked, blocked, stale, and overdue condition with urgency and available actions.                                |
+| SEE-5   | A unified, actionable notice projection covering every parked, blocked, stale, and overdue condition with urgency and available actions.                                 |
 | SEE-6   | Immutable or content-addressed, write-once persistence semantics for finished audit exports.                                                                             |
 
 Each closure is a material Layer 2 change: renewed review and an explicit owner decision per the
