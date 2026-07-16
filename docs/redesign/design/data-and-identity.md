@@ -5,10 +5,10 @@ audience:
   - Engineers and architects implementing or reviewing the Layer 2 runtime
   - Arye Kogan, Jig product and architecture decision owner
 scope: Identity representation for every model identity kind, the recorded effect-fence tuple, and the durable schema families with their style and evolution rules; storage layout, projections, evidence integrity mechanics, and the event/Operation/failure catalogs are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./model.md
   - ./decisions/D5-state-authority-and-recovery.md
@@ -171,7 +171,7 @@ migrate-by-rewrite, would destroy the audit property that recorded history is im
   model has exactly one represented identity and fence path.
 - **Scope and exclusions:** Identity kinds, their scoping, and what they bind. Record layouts,
   ledger positions, storage, and lifecycle progression are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** [Canonical model](./model.md) identity table; D5, D6, D9 categories 2 and 6;
   I5–I7, I12, I17.

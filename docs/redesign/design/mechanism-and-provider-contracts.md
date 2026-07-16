@@ -6,10 +6,10 @@ audience:
   - Security and operations reviewers
   - Arye Kogan, Jig product and architecture decision owner
 scope: The common mechanism contract, capability bindings, credential and sandbox posture, and per-port provider duties; wire formats, token mechanics, transports, and per-provider sandbox implementations are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./runtime.md
   - ./perspectives/authority-and-trust.md
@@ -160,7 +160,7 @@ assertion, and configuration cannot substitute a claim for the recorded pass.
 - **Scope and exclusions:** One Operation's mediation path. Port transports, schemas, retry
   bounds, and provider internals are excluded, as is the PORT-LEDGER commit primitive, which is
   not an Operation and is validated inside the transition engine's commit protocol.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D3, D9 categories 7 and 11, D10, D12; I3, I7, I15, I17; [V2](./perspectives/authority-and-trust.md);
   [V6](./runtime.md).

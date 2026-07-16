@@ -7,9 +7,9 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; Layer 1 approved and locked; Layer 2 corrected for the owner's ten-finding PR review and awaiting recheck and the owner decision
+status: active — Layer 0 approved; Layer 1 approved and locked; Layer 2 approved (not locked) by the explicit owner decision of 2026-07-16
 owner: Arye Kogan (Jig owner)
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - Explicit owner reset and layered-authoring instruction, 2026-07-14
   - Explicit owner structure-revision instruction, 2026-07-15
@@ -36,10 +36,12 @@ recorded approval and lock effective (see the
 [review and approval record](./design/decisions/review-and-approval-record.md)). No owner decision,
 invariant, accepted consequence, or deferral changed.
 
-Arye retains all material product and architecture decision ownership. Under the explicit owner
-continuation instruction of 2026-07-15, Layer 2 is authored against the locked Layer 1 with D1–D9
-and I1–I21 as fixed inputs; it is proposed and advances through its own gate — author, independent
-review, then owner stop.
+Arye retains all material product and architecture decision ownership. Layer 2 was authored under
+the explicit owner continuation instruction of 2026-07-15 against the locked Layer 1, with D1–D9
+and I1–I21 as fixed inputs, and closed its gate on 2026-07-16: independent review, the owner's
+ten-finding PR review, four correction passes, a recorded verification recheck, and Arye's
+explicit approval — approved, not locked (see the
+[Layer 2 gate record](./design/decisions/layer2-gate-record.md)).
 
 ## Navigation
 

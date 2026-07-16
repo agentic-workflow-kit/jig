@@ -5,10 +5,10 @@ audience:
   - Engineers, architects, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: Level 2 runtime units, named ports, the process model, and the single-host deployment shape; component internals, schemas, algorithms, provider technology, and operational tooling are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./context.md
   - ./model.md
@@ -109,7 +109,7 @@ Port rules:
 - **Scope and exclusions:** Jig's runtime units, ports, and immediate external counterparts.
   Component internals, schemas, transports, and deployment topology are excluded (V6a owns
   topology).
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D2, D10; I2–I3, I5–I7; [system context V1](./context.md).
 - **Related views:** [V1](./context.md) owns the boundary; [V7](./components/control-plane.md)
@@ -208,7 +208,7 @@ deployment topology).
   placement, and remote seams.
 - **Scope and exclusions:** One materially distinct environment (single host). Replica counts,
   hosting products, network hardware, and provider topology are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D10; I6, I15.
 - **Related views:** [V6](#view-v6--runtime-decomposition) owns the logical decomposition;

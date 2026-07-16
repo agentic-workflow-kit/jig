@@ -5,10 +5,10 @@ audience:
   - Engineers, architects, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: Resource classes, the admission algorithm, bound and budget classes, timers and wake triggers, and fairness; provider-capacity mapping, authority APIs, and schema shapes are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./decisions/D6-concurrency-and-finalization.md
   - ./decisions/D8-failure-and-liveness.md
@@ -136,7 +136,7 @@ dynamic aging, weights, or lotteries, rejected for reintroducing arrival-order-s
   admitted and which exits exist, before reading component internals.
 - **Scope and exclusions:** Admission derivation, ordering, capacity, recording, and dispatch for
   one Run. Finalization-authority transfer, provider-capacity mapping, and schemas are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D6, D8; I4, I5, I10–I13, I16; [runtime V6](./runtime.md).
 - **Related views:** [V6](./runtime.md#view-v6--runtime-decomposition) places `RT-CONTROLLER`; V7

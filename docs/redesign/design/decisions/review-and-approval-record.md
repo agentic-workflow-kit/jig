@@ -41,9 +41,9 @@ related:
   Layer 1 pages keep their reviewed frontmatter; this record owns current gate state. Any material
   change to a locked page still requires an explicit Layer 1 reopen (I21).
 - **Layer 2:** Authoring authorized by the explicit owner continuation instruction of 2026-07-15,
-  recorded below, and now proceeding against the approved and locked Layer 1, with D1–D9 and
-  I1–I21 as fixed inputs. Layer 2 advances through its own gate: author, independent review, then
-  owner stop.
+  recorded below, against the approved and locked Layer 1, with D1–D9 and I1–I21 as fixed inputs.
+  Layer 2 completed its own gate and was approved — not locked — by the explicit owner decision of
+  2026-07-16; see the [Layer 2 gate record](./layer2-gate-record.md).
 
 ## Owner continuation authorization (2026-07-15)
 

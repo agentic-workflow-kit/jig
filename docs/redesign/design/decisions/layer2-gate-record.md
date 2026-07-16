@@ -5,10 +5,10 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
 scope: The Layer 2 gate only; Layer 2 content lives in the design pages, and the Layer 1 gate lives in the Layer 1 review and approval record.
-state: proposed
-status: gate record — Layer 2 authored, independently reviewed PASS, then corrected for the ten blocking findings of Arye's 2026-07-15 PR review; the corrected candidate awaits recheck and the owner decision
+state: current
+status: gate record — the corrected candidate passed the 2026-07-16 round-4 verification recheck, and Arye explicitly approved Layer 2 (approved, not locked) the same day
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./review-and-approval-record.md
   - ./D9-invariants-and-artifact-shape.md
@@ -27,9 +27,10 @@ related:
   [Layer 1 record](./review-and-approval-record.md#owner-continuation-authorization-2026-07-15),
   authorizes Layer 2 authoring against the approved and locked Layer 1, with D1–D9 and I1–I21 as
   fixed inputs.
-- **Current state:** Authored, proposed, and independently reviewed. The complete candidate set
-  below was authored on 2026-07-15; the independent review recorded below returned `PASS` the same
-  day. No locked Layer 1 decision, invariant, view, or model content was modified. Two locked
+- **Current state:** Approved, not locked. The complete candidate set below was authored on
+  2026-07-15; the independent review recorded below returned `PASS` the same day; Arye's PR #84
+  review findings were resolved through four correction passes; and the explicit owner decision of
+  2026-07-16 approved the corrected candidate without locking it. No locked Layer 1 decision, invariant, view, or model content was modified. Two locked
   navigation artifacts — the [design index](../README.md) and the [decision index](./README.md) —
   were extended with additive Layer 2 navigation (the Layer 2 document map, the gate-status row,
   and the D10–D12 section) under the Layer 1 record's post-verdict record-keeping rule; the
@@ -41,10 +42,11 @@ related:
   below with dispositions). All ten were resolved by the corrections recorded below; per
   exact-candidate semantics the earlier independent `PASS` applies only to its recorded baseline
   and does not transfer to the corrected candidate.
-- **Required next gate:** Recheck of the corrected candidate — by Arye's own re-review of the
-  correction commit, or an independent recheck if Arye directs one — followed by the owner stop.
-  Layer 2 approval (and any lock) remains Arye's explicit decision. The four non-blocking
-  independent-review notes below also remain before Arye together with the candidate.
+- **Gate closure (2026-07-16):** The fourth correction pass passed the verification recheck
+  recorded below, and Arye explicitly approved the Layer 2 candidate the same day — **approved,
+  not locked**. The four non-blocking independent-review notes were presented with the candidate
+  and accepted as non-blocking. The approval applies to the exact finalized candidate identified
+  by the digests in the round-4 record below.
 - **Fixed-input result:** Authoring surfaced no conflict requiring `OWNER_DECISION_REQUIRED`;
   every page elaborates deferred mechanisms without changing an owner decision or invariant.
 
@@ -298,12 +300,75 @@ Four findings returned with converging demands, resolved by a fourth correction 
    position, proposing generation) and references only defined clauses (`MC-IDEMPOTENT`,
    `MC-LOOKUP` — the undefined `MC-RECONCILE` reference is corrected).
 
+### Round-4 verification recheck and owner decision (2026-07-16)
+
+- **Verifier:** Coordinator session (Claude Fable 5), read-only verification only, not an author
+  of the round-4 corrections; bounded to confirming that the four round-3 dispositions are present
+  and coherent on the merged content, with no decision-selection authority.
+- **Scope and evidence:** The four round-3 correction dispositions were verified on the merged
+  `main` content (commit `931e699`, the squash landing of PR #84):
+  1. **Registry scope end to end:** `ID-REGISTRY` is derived from the storage mechanism's
+     provider-attested canonical realization descriptor (data-and-identity identity table and
+     `MC-IDENTITY`); the effect-fence tuple carries the registry identity for target-scoped
+     Operations; preflight opens and verifies the registry realization fail-closed (persistence);
+     and the target lineage anchor path — `OPC-DEL-ANCHOR` as an atomic conditional-create, lost
+     races parking `FC-AUTHORITY` — is present in the forge Operation set, the anchor rule, and
+     V15, gated by `CF-MECH-DELIVERY`.
+  2. **Five-way readback classification:** defined in persistence (own commit; empty-position
+     absence with same-identity retry; competing-generation commit with proposer fencing and no
+     retry; same-generation integrity failure failing closed; indeterminate) and gated with all
+     five cases enumerated in `CF-MECH-LEDGER`.
+  3. **Witness in the authoritative dataflow:** V11 shows the `RT-WITNESS` node, the
+     advance-witness-durably-then-acknowledge barrier on the commit path, and recovery's
+     chain-head-versus-witness currency comparison failing closed on rollback (I20); D11 records
+     the witness contract and its deliberate exception status.
+  4. **One owner for the ledger primitive:** the transition engine's commit protocol is recorded
+     as the single ledger-primitive validator and `CB-STORE` binding minter on the control-plane
+     power table and interaction rules, the mechanism-contract preamble and substitutions table,
+     and D12; the substitutions table defines the binding-identity-and-fence substitute (store
+     line, expected position, proposing generation) and references only defined clauses.
+- **Verdict:** All four dispositions verified present and coherent; no new finding.
+- **Owner decision:** On 2026-07-16 Arye Kogan explicitly approved the Layer 2 candidate —
+  **approved, not locked** — after reviewing this verification evidence, and accepted the four
+  non-blocking independent-review notes as non-blocking. Approval metadata on the fifteen
+  candidate files was finalized in the same change, matching the Layer 1 practice of finalizing
+  metadata as part of the gate record-keeping.
+- **Verified content versus approved bytes:** the recheck above verified the `931e699` bytes.
+  The digests below identify the finalized files, which differ from `931e699` only by the
+  approval-metadata edits made for this record-keeping: the frontmatter `state`, `status`, and
+  `last_verified` fields, the summary-view `State` line, and the D10–D12 inline status line. No
+  substantive content differs between the verified bytes and the approved baseline — a
+  `git diff` from `931e699` to the commit that landed this record, over the fifteen files,
+  reproduces exactly that metadata-only delta — so the approved candidate is the finalized byte
+  set identified by the digests, carrying the verified `931e699` substance unchanged.
+
+#### Approved candidate baseline (2026-07-16)
+
+| Approved file                                                    | SHA-256                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `docs/redesign/design/runtime.md`                                | `391c787dbc97e021c2891ab147d213d59458302a9327ba8f0928414b94563d14` |
+| `docs/redesign/design/components/control-plane.md`               | `91322946a6cb80b3bed6682b438a1e608727cf9b856d58507f1c39c528fa0648` |
+| `docs/redesign/design/data-and-identity.md`                      | `f724fdb41344982e3fe0f0aaab1f49557bb2df377bb0dab962eed9252bfe54bd` |
+| `docs/redesign/design/lifecycle-catalogs.md`                     | `ffc9b7e7b344cb6d95c5a7e0b2d160b8e9b6e4e67139b05bc89314928772d789` |
+| `docs/redesign/design/scheduling-and-bounds.md`                  | `048f9bb63389cc054c841dd8ab523e2b53f0141f7f4f7b794e1e092834a23178` |
+| `docs/redesign/design/persistence-and-projections.md`            | `ed9f010dfbde8cface6590a127a6acf7d858979dd09af43641024cc287e67f1f` |
+| `docs/redesign/design/mechanism-and-provider-contracts.md`       | `28848151e124c4fe576c111f906697116447370b5fe7e90e73dd02f171172340` |
+| `docs/redesign/design/evidence-handling.md`                      | `b93eaa38ea06c81bc639abf5a326c7c7ea097b3e96a0c9a1068edce2ead8827d` |
+| `docs/redesign/design/review-and-verification-execution.md`      | `455437ce2934bf4e1950bcfe4c597235029e309b1c6f99649a982a08a05dfa76` |
+| `docs/redesign/design/forge-and-landing.md`                      | `834f9fc4d8bdb5a4b688e7d816100a9ded5dc37eb39d49cb93548dfdf1e6315e` |
+| `docs/redesign/design/operations-and-observability.md`           | `7d86996f818547082e6d597d8bc5da3328e6666f5e764699b071d4658b70eca7` |
+| `docs/redesign/design/architecture-conformance.md`               | `0c3432b4e412a62d89ee48af3663e29573e6636d780f2f26e179260942b4aa31` |
+| `docs/redesign/design/decisions/D10-runtime-decomposition.md`    | `877b9930aac396ac8bdf06c2ec0769ffb25d5afe8d3cf7e5e5dd29a4c95af956` |
+| `docs/redesign/design/decisions/D11-ledger-realization.md`       | `fbe78a2d9accaa055ea250d390d6a16e89e69cdfaebc7704b263383175ae94f7` |
+| `docs/redesign/design/decisions/D12-mechanism-contract-model.md` | `03f3de85170d94ab19e6fc958057398bd3860b531180ee19c037b93d4e56931f` |
+
 Later reviews append here with the same structure: reviewer identity and independence, delegation
 bounds, verdict, blocking findings and dispositions, non-blocking notes, and the exact reviewed
 baseline.
 
 ## After the gate
 
-A Layer 2 `PASS` does not approve or lock Layer 2. The work then stops for Arye, whose explicit
-decision approves (and, if directed, locks) the Layer 2 candidate. Material change to D1–D9 or
-I1–I21 remains a Layer 1 reopen regardless of any Layer 2 state.
+Layer 2 is approved and deliberately **not locked**: it is the governing detailed architecture,
+and a later material Layer 2 change requires renewed review and an explicit owner decision, but
+not a formal reopen ceremony. Material change to D1–D9 or I1–I21 remains a Layer 1 reopen
+regardless of any Layer 2 state.

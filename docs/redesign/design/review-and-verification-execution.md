@@ -5,10 +5,10 @@ audience:
   - Engineering, security, and architecture readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: The Layer 2 review protocol, finding representation, check-policy language, verification execution, and remote-gate observation; acceptance authority itself, evidence storage and integrity mechanisms, scheduling bounds, and landing proof are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./decisions/D7-acceptance-and-evidence.md
@@ -156,7 +156,7 @@ treated as a passing gate. How gate states feed landing is owned by
   finalization ordering, capacity, session hosting, and provider transports are excluded;
   [V5](./flows/story-delivery.md) owns the coarse end-to-end scenario, and this view owns the
   protocol detail beneath its review segment.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D7, D9 category 9; I7–I9, I15; [acceptance and evidence](./acceptance-and-evidence.md).
 - **Related views:** [V5](./flows/story-delivery.md) is the coarse scenario;

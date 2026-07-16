@@ -6,10 +6,10 @@ audience:
   - Independent architecture reviewers
   - Engineers realizing the Layer 2 design
 scope: The D11 selection, rationale, accepted consequence, and rejected alternatives; the canonical persistence content is owned by the persistence-and-projections page.
-state: proposed
-status: proposed Layer 2 decision, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review and owner stop
+state: approved
+status: approved Layer 2 decision — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ../persistence-and-projections.md
   - ./D5-state-authority-and-recovery.md
@@ -23,7 +23,7 @@ related:
 
 # D11 — ledger realization
 
-- **Status:** Proposed Layer 2 selection; pending the Layer 2 gate and owner stop.
+- **Status:** Approved Layer 2 selection (not locked) — explicit owner decision of 2026-07-16; gate history in the Layer 2 gate record.
 - **Owner:** Arye Kogan.
 - **Related:** [Persistence and projections](../persistence-and-projections.md),
   [state and recovery](../state-and-recovery.md), [invariants I5–I6, I17, I20](../invariants.md).
