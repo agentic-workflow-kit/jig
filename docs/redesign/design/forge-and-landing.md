@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Repository and forge Operations, integration strategies, content equivalence, landing-proof steps, held and blocked integrations, and landing-path redaction; acceptance, review protocol, finalization ordering, reconciliation internals, and provider transports are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -41,14 +41,16 @@ owned by the Layer 2 event and Operation catalog under D9 category 3; this page 
 delivery semantics. Every dispatch carries the durable Operation identity, payload basis, and
 authority fence from [operation identity and fencing](./state-and-recovery.md).
 
-| ID                | Operation                    | Effect class                                            | Reconciliation lookup                                                                                                                                                                  |
-| ----------------- | ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPC-DEL-ANCHOR`  | Create target lineage anchor | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this realization-bound registry identity is success, present with another identity is a lost race that parks, absent permits bounded retry. |
-| `OPC-DEL-PUBLISH` | Publish Candidate branch     | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                                                          |
-| `OPC-DEL-REQUEST` | Open integration request     | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                                                    |
-| `OPC-DEL-OBSERVE` | Observe gate state           | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
-| `OPC-DEL-MERGE`   | Request merge                | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                                              |
-| `OPC-DEL-OBSERVE` | Observe target               | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
+| ID                | Operation                         | Effect class                                            | Reconciliation lookup                                                                                                                                                                  |
+| ----------------- | --------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPC-DEL-ANCHOR`  | Create target lineage anchor      | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this realization-bound registry identity is success, present with another identity is a lost race that parks, absent permits bounded retry. |
+| `OPC-DEL-PUBLISH` | Publish Candidate branch          | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                                                          |
+| `OPC-DEL-REQUEST` | Open integration request          | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                                                    |
+| `OPC-DEL-STATUS`  | Surface Jig integration status    | Irreversible external effect                            | Integration-request identity plus a stable Jig status context; repeated publication updates that context idempotently.                                                                 |
+| `OPC-DEL-COMMENT` | Surface the Jig explanation block | Irreversible external effect                            | Integration-request identity plus a stable Jig marker; lookup edits the existing explanation block instead of appending duplicates.                                                    |
+| `OPC-DEL-OBSERVE` | Observe gate state                | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
+| `OPC-DEL-MERGE`   | Request merge                     | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                                              |
+| `OPC-DEL-OBSERVE` | Observe target                    | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
 
 `OPC-DEL-OBSERVE` appears in two rows deliberately: gate-state observation and target observation
 are two delivery uses of the one observation Operation class in the
@@ -119,9 +121,18 @@ a **durable named wait**, not a spin loop: it records an accountable owner, a du
 a wake condition, under a wait budget class defined in
 [scheduling and bounds](./scheduling-and-bounds.md) with an explicit exhaustion action (I16).
 Replays after interruption **re-observe** the held integration through its correlation key rather
-than re-requesting the merge (I17). A blocked integration is surfaced as a durable fact in the
-ledger and through `PORT-PUBLISH`, never as a log line; its exhaustion action follows the
-[failure and liveness](./failure-and-liveness.md) posture.
+than re-requesting the merge (I17). When the Candidate is safely published and the delivery
+manifest permits request/status/comment effects, Jig opens or reuses the real integration request,
+sets its stable Jig status with `OPC-DEL-STATUS`, and creates or updates one redacted explanation
+block with `OPC-DEL-COMMENT`. The block names the failure reasons, evidence references, urgency,
+and available actions. These effects are idempotent by request and stable Jig marker.
+
+A surfacing failure never erases or downgrades the original `Blocked` fact. It creates a separate
+residual surfacing obligation and actionable notice, then follows bounded reconciliation under
+I17. If safe publication or the necessary delivery authority is absent, Jig records that fact and
+the same obligation rather than claiming forge-side surfacing succeeded. Thus block truth is
+always durable and, whenever the declared forge capability exists, visible on the real request —
+never only in a log or private read model.
 
 ## Landing-path redaction
 

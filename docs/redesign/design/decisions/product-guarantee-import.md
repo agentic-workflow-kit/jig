@@ -6,8 +6,8 @@ audience:
   - Independent architecture reviewers
   - Engineers reconciling the redesign with the product layer
 scope: The import decision itself — what is imported, from where, why, at what cost, and which decisions it touches; the per-guarantee mapping and classifications live in the reconciliation matrix.
-state: proposed
-status: records the explicit owner import decision of 2026-07-16; the recorded statement set and its consequences await owner confirmation on this record's review
+state: approved
+status: owner-confirmed import of 2026-07-16; maintained by the product-readiness reconciliation gate
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -72,9 +72,9 @@ Rationale:
 - The redesign was deliberately authored first-principles under D1, with no product material
   consulted or imported for the Layer 1 and Layer 2 candidates. That protected against anchoring;
   it also deferred the discovery of product/design divergence.
-- The owner's selected implementation strategy is incremental convergence of the existing packages
-  toward the approved redesign. Converging code toward a design that silently diverges from the
-  product promises would discover conflicts mid-delivery, at the highest cost.
+- The owner's selected implementation strategy is greenfield planning from the approved redesign,
+  with current source retained only as archived reference. Starting from a design that silently
+  diverges from the product promises would discover conflicts mid-delivery, at the highest cost.
 - Importing now, at the closed Layer 2 gate, makes the guarantees a governing checklist against a
   stable design baseline: every commitment is either carried by a named element, named as a gap,
   located upstream of the system boundary, or escalated to the owner.
@@ -87,9 +87,9 @@ Rationale:
    product statement. Silence is not reconciliation.
 2. **The matrix is the operative mapping.** The
    [reconciliation matrix](../product-guarantee-reconciliation.md) classifies all fifty-six
-   commitments. Its `gap` rows are obligated design work before the redesign can claim product
-   coverage; its `upstream` rows bound what the designed system alone can deliver and must be
-   assigned an owning layer by the planned bridge artifacts.
+   commitments. The product-readiness amendment carries every commitment except SEC-2; that one
+   deliberate `gap` remains obligated design work before the redesign can claim full product
+   coverage.
 3. **A maintenance obligation is accepted.** The matrix must be re-verified whenever either side
    changes materially: a product guarantee revision requires a fresh import decision, and a
    material Layer 2 change (which already requires renewed review under the
@@ -114,9 +114,11 @@ The fine-grained mapping is the matrix's job; at decision altitude the import to
 | D7          | MERGE-1, MERGE-3, EARN — acceptance, evidence categories, and policy-selected verification.       |
 | D9          | The invariant set the guarantees now cross-check; gap closure consumes its deferral categories.   |
 | D10, D12    | STACK, DRIVE, SEC-2, FENCE-3 — ports, mechanism contracts, attestation, sandboxing, conformance.  |
+| D13         | CFG-2/3/5/6/8 and STACK-2 — Envelope Builder ownership and the Work Source boundary.              |
 
 No imported commitment was found to contradict a locked decision or invariant; the matrix records
-zero `conflict` rows. The import therefore changes no D1–D12 content and reopens no gate.
+zero `conflict` rows. The readiness amendment adds D13 and elaborates Layer 2 without changing
+D1–D12 or reopening the locked Layer 1 gate.
 
 ## Accepted negative consequence and trade-off
 

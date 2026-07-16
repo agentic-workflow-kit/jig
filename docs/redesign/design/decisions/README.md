@@ -1,13 +1,13 @@
 ---
 title: "Decision records — index"
-purpose: Route readers to the owner-selected Layer 1 decisions, the accepted burdens they carry, and the review and approval record.
+purpose: Route readers to the owner-selected Layer 1, Layer 2, and product-readiness decisions, the accepted burdens they carry, and their review records.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
-  - Future Layer 2 architecture authors after authorization
-scope: Index and status of decisions D1–D9, the consolidated accepted burdens, and the review record; each decision's content lives in its own record.
+  - Future architecture authors after authorization
+scope: Index and status of decisions D1–D13, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D9 approved and locked through the Layer 1 gate; D10–D12 approved (not locked) by the explicit owner decision of 2026-07-16
+status: active index — D1–D9 locked; D10–D12 approved; D13 owner-approved as the product-readiness lock candidate, exact review pending
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -47,18 +47,19 @@ selection, consequence, or deferral changed.
 All nine decisions are established owner selections; their lock became effective through the
 Layer 1 gate recorded in the [review and approval record](./review-and-approval-record.md).
 
-## Approved Layer 2 decision records
+## Approved Layer 2 and readiness decision records
 
-These records were authored on 2026-07-15 under the owner continuation instruction and approved —
-not locked — by the explicit owner decision of 2026-07-16 after independent review, the owner's
-ten-finding PR review, four correction passes, and the round-4 verification recheck recorded in
-the [Layer 2 gate record](./layer2-gate-record.md). No D1–D9 content changed.
+D10–D12 were authored on 2026-07-15 and approved — not locked — by the explicit owner decision of
+2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 is
+the later owner-approved product-readiness amendment; its lock remains pending under the
+[product readiness gate](./product-readiness-gate-record.md). No D1–D9 content changed.
 
-| ID                                       | Topic                           | Approved direction                                                                          |
-| ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
-| [D10](./D10-runtime-decomposition.md)    | Runtime decomposition and ports | Modular single-authority runtime with named ports.                                          |
-| [D11](./D11-ledger-realization.md)       | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization. |
-| [D12](./D12-mechanism-contract-model.md) | Mechanism contract model        | Capability-scoped, attested, conformance-gated mechanism contracts.                         |
+| ID                                           | Topic                           | Approved direction                                                                                 |
+| -------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [D10](./D10-runtime-decomposition.md)        | Runtime decomposition and ports | Modular single-authority runtime with named ports.                                                 |
+| [D11](./D11-ledger-realization.md)           | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization.        |
+| [D12](./D12-mechanism-contract-model.md)     | Mechanism contract model        | Capability-scoped, attested, conformance-gated mechanism contracts.                                |
+| [D13](./D13-envelope-production-boundary.md) | Envelope production boundary    | Jig-owned configuration front end outside active-Run control authority; lock pending exact review. |
 
 ## Imported promises and constraints
 
@@ -70,7 +71,8 @@ One import exists:
 | [The five product guarantees](./product-guarantee-import.md) | All fifty-six ID-bearing commitments of `docs/product/guarantees.md`, digest-pinned. | 2026-07-16     |
 
 The [reconciliation matrix](../product-guarantee-reconciliation.md) maps every imported commitment
-to the redesign element that carries it and enumerates the open gaps.
+to the redesign element that carries it. SEC-2 is the sole open gap. The
+[product readiness gate](./product-readiness-gate-record.md) identifies the exact lock candidate.
 
 ## Accepted final negative consequences
 
@@ -96,3 +98,5 @@ they Layer 2 placeholders.
   [D9 consolidated deferrals](./D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals).
 - Review gates, archive-evidence dispositions, and approval state:
   [review and approval record](./review-and-approval-record.md).
+- The product-readiness amendment and SEC-2 exclusion:
+  [product readiness gate](./product-readiness-gate-record.md).

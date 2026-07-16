@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The exhaustive Story state machine, the Operation lifecycle, and the event, Operation, and failure-code catalogs; schemas, numeric budgets, retry algorithms, reviewer protocol steps, and provider mechanics are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -19,6 +19,7 @@ related:
   - ./data-and-identity.md
   - ./persistence-and-projections.md
   - ./runtime.md
+  - ./envelope-production.md
 ---
 
 # Lifecycle catalogs — exhaustive states, events, Operations, and failure codes
@@ -70,7 +71,7 @@ stateDiagram-v2
     Pending --> Eligible: EV-WAKE-DEPENDENCY, every prerequisite Landed
     Pending --> NotRun: EV-WAKE-DEPENDENCY, reachable direct root Blocked
     Eligible --> Preparing: EV-WAKE-CAPACITY, deterministic admission by C-ORDER
-    Preparing --> Implementing: EV-WORKSPACE-FACT, isolation and bounded assignment ready
+    Preparing --> Implementing: EV-SETUP-FACT and EV-WORKSPACE-FACT, fresh setup, isolation, and bounded assignment ready
     Preparing --> Blocked: EV-SESSION-FAULT or EV-WORKSPACE-FACT failure, bound exhausted (FC-MECHANISM, FC-BOUND)
     Implementing --> Reviewing: EV-SESSION-RESULT, committed exact Candidate, new cand ordinal
     Implementing --> Blocked: EV-SESSION-FAULT, implementation bound exhausted (FC-MECHANISM, FC-BOUND)
@@ -99,6 +100,8 @@ stateDiagram-v2
         non-terminal Story state as an overlay without replacing it.
         EV-OWNER-DECISION or EV-RECOVERY-OBSERVATION resumes the
         same suspended state under a new controller generation.
+        EV-RULE-SURFACE-TOUCHED also parks the Run until the exact
+        changed rule surface is re-approved and re-evidenced.
     end note
 
     classDef phase fill:#fff7df,stroke:#a8781f,color:#172033
@@ -139,7 +142,11 @@ become a trigger (I7); wake triggers are typed durable records, never bare timer
 | `EV-SESSION-VERDICT`      | Session results           | `P-REVIEWER` via `PORT-SESSION`       | Candidate                   | Reviewer principal identity and authority, principal independence from every Candidate contributor, exact review-package digest, findings state (I8). |
 | `EV-SESSION-FAULT`        | Session results           | `X-AGENT` via `PORT-SESSION`          | Story                       | Attribution, session identity, bound accounting.                                                                                                      |
 | `EV-WORKSPACE-FACT`       | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story, Candidate, Operation | Subject binding, content and basis digests, fence.                                                                                                    |
+| `EV-SETUP-FACT`           | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story, workspace            | Setup recipe digest, input digest, host fingerprint, receipt freshness, fence.                                                                        |
 | `EV-WORKSPACE-PRESERVED`  | Workspace facts           | `X-WORKSPACE` via `PORT-WORKSPACE`    | Story                       | Preservation-proof completeness before any destruction (I19).                                                                                         |
+| `EV-RULE-SURFACE-TOUCHED` | Candidate classification  | `CP-TRANSITION`                       | Candidate, rule surface     | Changed-path comparison against the frozen `SCH-RULE-SURFACE`; exact manifest and Candidate digests.                                                  |
+| `EV-AUTHORITY-CLASSIFIED` | Authority classification  | `CP-TRANSITION`                       | Requested action            | Deterministic manual/assisted classifier output, policy version, and exact action digest.                                                             |
+| `EV-LIVENESS-OBSERVED`    | Liveness observations     | `CP-MEDIATOR`                         | Session, wait               | Mechanism-observed heartbeat/progress fact, observation time, subject, fence, and applicable bound class.                                             |
 | `EV-CHECK-OBSERVATION`    | Verification observations | `X-VERIFY` via `PORT-VERIFY`          | Candidate                   | Exact-subject digest, policy-selected check set, fence (I9).                                                                                          |
 | `EV-TARGET-FACT`          | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Target fact                 | Target identity, basis digest, observation freshness.                                                                                                 |
 | `EV-EFFECT-CERTAINTY`     | Delivery facts            | `X-DELIVERY` via `PORT-DELIVERY`      | Operation                   | Operation identity, fence, certainty classification.                                                                                                  |
@@ -166,6 +173,7 @@ reconciliation, I17).
 | `OPC-SESSION-COLLECT` | `PORT-SESSION`   | Collect attributable results and verdicts       | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                          |
 | `OPC-SESSION-CLOSE`   | `PORT-SESSION`   | Close a session                                 | Irreversible effect                             | Identity lookup; idempotent by session identity.                                                                                                                                                                        |
 | `OPC-WS-PROVISION`    | `PORT-WORKSPACE` | Provision isolated workspace resources          | Irreversible effect (resource)                  | Identity lookup.                                                                                                                                                                                                        |
+| `OPC-WS-SETUP`        | `PORT-WORKSPACE` | Apply the frozen setup recipe when stale        | Irreversible workspace effect                   | Identity lookup by recipe/input/host fingerprint; an exact fresh receipt makes the Operation a no-op.                                                                                                                   |
 | `OPC-WS-OBSERVE`      | `PORT-WORKSPACE` | Observe content, basis, cleanliness             | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                          |
 | `OPC-WS-PRESERVE`     | `PORT-WORKSPACE` | Preserve work and evidence                      | Irreversible effect                             | Identity lookup; required before any destruction (I19).                                                                                                                                                                 |
 | `OPC-WS-RETIRE`       | `PORT-WORKSPACE` | Retire or hand off resources                    | Irreversible effect (destructive)               | Certainty reconciliation; never dispatched before preservation.                                                                                                                                                         |
@@ -173,9 +181,11 @@ reconciliation, I17).
 | `OPC-DEL-ANCHOR`      | `PORT-DELIVERY`  | Create the target lineage anchor                | Irreversible effect (atomic conditional-create) | Re-observation of the anchor: present with this grant's registry succeeds, present with another registry parks (FC-AUTHORITY), absent permits bounded retry.                                                            |
 | `OPC-DEL-PUBLISH`     | `PORT-DELIVERY`  | Publish Candidate content                       | Irreversible effect                             | Certainty reconciliation (I17).                                                                                                                                                                                         |
 | `OPC-DEL-REQUEST`     | `PORT-DELIVERY`  | Open an integration request                     | Irreversible effect                             | Certainty reconciliation via identity lookup.                                                                                                                                                                           |
+| `OPC-DEL-STATUS`      | `PORT-DELIVERY`  | Create or update the Jig status on a request    | Irreversible external effect                    | Identity lookup by request and stable Jig status context; updates are idempotent.                                                                                                                                       |
+| `OPC-DEL-COMMENT`     | `PORT-DELIVERY`  | Create or update the Jig explanation block      | Irreversible external effect                    | Identity lookup by request and stable Jig marker; edit the existing block rather than append duplicates.                                                                                                                |
 | `OPC-DEL-MERGE`       | `PORT-DELIVERY`  | Request target integration or merge             | Irreversible effect                             | Certainty reconciliation; indeterminate parks.                                                                                                                                                                          |
 | `OPC-DEL-OBSERVE`     | `PORT-DELIVERY`  | Observe target, gates, and landing              | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                          |
-| `OPC-ART-PUT`         | `PORT-ARTIFACT`  | Put an immutable evidence artifact              | Irreversible effect (idempotent by digest)      | Identity lookup by digest.                                                                                                                                                                                              |
+| `OPC-ART-PUT`         | `PORT-ARTIFACT`  | Put an immutable evidence or audit artifact     | Irreversible effect (idempotent by digest)      | Identity lookup by digest.                                                                                                                                                                                              |
 | `OPC-ART-GET`         | `PORT-ARTIFACT`  | Digest-verified artifact read                   | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                          |
 
 `PORT-LEDGER` deliberately has **no rows in this catalog**. The conditional append and verified
@@ -261,6 +271,8 @@ Containment scopes are the Layer 1 [failure and liveness](./failure-and-liveness
 | `FC-MECHANISM` | Mechanism fault or timeout                | Story or Operation                                       | Bounded retry, then directly `Blocked`.                      |
 | `FC-EFFECT`    | Effect uncertainty                        | Operation; Target/finalization when target-scoped        | Reconcile; indeterminate parks (I17).                        |
 | `FC-CAPACITY`  | Required capacity unavailable             | Run admission at preflight, or a bounded Story wait      | Preflight rejection, or bounded wait then park.              |
+| `FC-LIVENESS`  | Stuck, dead, or approval-overdue subject  | Session, Story, or parked wait                           | Park or escalate under the named liveness bound.             |
+| `FC-RULES`     | Frozen rule-governing surface was touched | Candidate and Run                                        | Park; invalidate acceptance and require exact re-approval.   |
 | `FC-BOUND`     | Bound exhausted                           | Story                                                    | The path's explicit exhaustion action: block, park, or stop. |
 | `FC-TRUST`     | Trust-root failure                        | Shared Run / trust root                                  | Durable named stop; externally governed recovery only (I20). |
 

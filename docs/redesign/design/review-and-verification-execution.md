@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The Layer 2 review protocol, finding representation, check-policy language, verification execution, and remote-gate observation; acceptance authority itself, evidence storage and integrity mechanisms, scheduling bounds, and landing proof are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -110,6 +110,23 @@ Configuration may **add** checks but never remove or weaken a policy-required on
 class with no valid binding fails preflight, not delivery time. The rejected alternative — an
 embedded scripting language in policy — was not selected because scripts would move judgment and
 effects into the policy document and defeat deterministic preflight validation.
+
+## Rule-governing surfaces and escalation posture
+
+Every envelope freezes a digest-bound `SCH-RULE-SURFACE` manifest covering the repository paths
+that govern policy, verification, integration, authority, or Jig configuration. Before review and
+again before delivery, `CP-TRANSITION` compares the Candidate's changed paths with that manifest.
+A touch is never ordinary implementation work: `EV-RULE-SURFACE-TOUCHED` parks the Run, records
+`FC-RULES`, invalidates the prior review package, verdict, acceptance, and evidence that depended
+on the previous rule surface, and requests owner approval of the exact replacement manifest plus
+fresh evidence and full review. Removing a path from the manifest is itself a rule-surface change.
+
+The envelope also freezes the manual/assisted authority classifier. Auto-grant is permitted only
+for an explicitly policy-declared action that is reversible, non-privileged, credential-free,
+non-delivery, non-destructive, and outside every rule-governing surface. Credential access,
+delivery, irreversible or destructive effects, rule changes, manifest changes, and unknown
+classes always require a human decision. The classifier and exact requested-action digest are
+recorded as `EV-AUTHORITY-CLASSIFIED`; providers cannot widen the result.
 
 ## Verification execution (`RP-VERIFY`)
 
