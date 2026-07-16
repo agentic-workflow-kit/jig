@@ -1,13 +1,13 @@
 ---
 title: "Product guarantee reconciliation — imported commitments to redesign elements"
-purpose: Map every imported product guarantee commitment to the redesign element that carries it, classify each mapping honestly, and enumerate the gaps and upstream items the redesign does not yet cover.
+purpose: Map every explicitly imported product guarantee commitment to the redesign element that carries it and classify each mapping honestly.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers reconciling the redesign with the product layer and planning gap closure
-scope: The guarantee-to-design traceability matrix and its findings; the import decision itself lives in the import record, and no approved design content is changed by this page.
-state: proposed
-status: authored 2026-07-16 against the approved (not locked) Layer 2 baseline; classifications await owner confirmation on this page's review
+scope: The guarantee-to-design traceability matrix and its findings; the original import and the explicit 2026-07-16 product correction and re-import live in the import record.
+state: approved
+status: owner-approved complete readiness candidate of 2026-07-16; exact-candidate review and lock pending
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -27,277 +27,227 @@ This page is the reconciliation matrix required by the
 [import record](./decisions/product-guarantee-import.md): every imported commitment from
 [`docs/product/guarantees.md`](../../product/guarantees.md) (at the import's provenance digest)
 maps to the redesign element that carries it, with an honest classification. It is a
-**traceability artifact, not a view**: it changes nothing in the approved design, and closing a
-`gap` row later is a material Layer 2 change that follows the renewed-review rule of the
+**traceability artifact, not a view**. It traces the owner-approved readiness amendment, including
+the explicit correction and re-import of the provider-permission commitments, and closes every
+previously recorded gap and upstream ownership question. The exact amendment candidate still
+follows the renewed-review rule of the
 [Layer 2 gate record](./decisions/layer2-gate-record.md).
 
 ## Classification vocabulary
 
-| Classification | Meaning                                                                                                                                                                       |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `satisfied`    | A named redesign element carries the commitment as stated.                                                                                                                    |
-| `note`         | Carried in substance; the note records a vocabulary mapping or a bounded residual the owner should know when reading either side.                                             |
-| `gap`          | Inside the designed system boundary, but no element carries it yet; closing it is design work under the renewed-review rule.                                                  |
-| `upstream`     | The commitment lands outside `SYS-JIG` as bounded by [D2](./decisions/D2-system-boundary.md) — typically in envelope production — so a bridge artifact must assign its owner. |
-| `conflict`     | The commitment contradicts an approved design element; surfaces as `OWNER_DECISION_REQUIRED`.                                                                                 |
+| Classification | Meaning                                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `satisfied`    | A named redesign element carries the commitment as stated.                                                                                |
+| `note`         | Carried in substance; the note records a vocabulary mapping or a bounded residual the owner should know when reading either side.         |
+| `gap`          | Inside the designed system boundary, but no element carries it yet; closing it is design work under the renewed-review rule.              |
+| `upstream`     | The commitment lands outside `SYS-JIG` as bounded by [D2](./decisions/D2-system-boundary.md) and still lacks a named product-layer owner. |
+| `conflict`     | The commitment contradicts an approved design element; surfaces as `OWNER_DECISION_REQUIRED`.                                             |
 
-**Result: zero `conflict` rows.** Nothing imported contradicts a locked decision, an invariant, or
-approved Layer 2 content. The findings that need attention are the eleven `gap` rows and the
-`upstream` cluster, summarized [after the matrix](#findings).
+**Result: 54 `satisfied` rows, two explanatory `note` rows, and zero `gap`, `upstream`, or
+`conflict` rows.** Nothing imported contradicts a locked decision or invariant. Every commitment
+is carried by the readiness amendment summarized [after the matrix](#findings).
 
 ## Guarantee 1 — control and trust
 
 ### The fence (`FENCE`)
 
-| ID      | Carried by                                                                                                                                                                                                                                                                     | Classification |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
-| FENCE-1 | Every effect is a Jig-authorized Operation under a per-Operation capability binding; an unbound or out-of-binding result fails closed and creates no fact (I3, I7; `CB-*` and `CP-MEDIATOR` in [mechanism contracts](./mechanism-and-provider-contracts.md), V2 `R-VALIDATE`). | `satisfied`    |
-| FENCE-2 | Bindings confer no standing authority and cannot be reused across Operations or generations; changing policy or authority scope is on the explicit owner-required list in [failure and liveness](./failure-and-liveness.md), and the envelope is frozen per Run.               | `satisfied`    |
-| FENCE-3 | Credentials resolve per configured mechanism and live only in controller and mechanism process memory; role sessions receive bounded inputs under `CB-SESSION`, never privileged credentials; privileged effects run only as finalizer-authorized delivery Operations.         | `satisfied`    |
+| ID      | Carried by                                                                                                                                                                                                                                                                                                   | Classification |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| FENCE-1 | Jig-authorized Operations remain capability-bound. Inside an Agent session, D14 and `MC-PERMISSION` make the selected provider-native permission posture authoritative: provider-internal allow, auto-review, and rejection stay inside the session; only a request that needs a human crosses the Doorbell. | `satisfied`    |
+| FENCE-2 | The exact provider permission posture is frozen in the envelope and bound to the session. Provider-internal decisions do not change it; human answers bind the exact request, and changing posture requires a newly approved envelope rather than ambient or standing authority.                             | `satisfied`    |
+| FENCE-3 | Credentials resolve per configured mechanism and live only in controller and mechanism process memory; role sessions receive bounded inputs under `CB-SESSION`, never privileged credentials; privileged effects run only as finalizer-authorized delivery Operations.                                       | `satisfied`    |
 
 ### Earned trust (`EARN`)
 
-| ID     | Carried by                                                                                                                                                                                                                                                                                      | Classification |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| EARN-1 | `CF-GATE-PROVIDER` in [architecture conformance](./architecture-conformance.md): a provider is configurable only after a recorded pass of its port suite against that exact provider; posture is additionally attested at compose time and an unmet policy minimum fails closed before effects. | `note`         |
-| EARN-2 | Conformance evidence is exact-subject (I7): a changed provider re-gates; an honest `weak` posture is valid input and the response to insufficient proof is fail-closed preflight or a parked owner decision — the product's "more human checkpoints", not a weakened gate.                      | `note`         |
+| ID     | Carried by                                                                                                                                                                                                                                                                                                    | Classification |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| EARN-1 | `CF-GATE-PROVIDER` in [architecture conformance](./architecture-conformance.md): a reusable pass binds the exact provider build, suite and probe versions, authority-manifest digest, and environment; every Run also requires fresh compose-time capability proof, and policy may impose a maximum pass age. | `satisfied`    |
+| EARN-2 | Conformance evidence is exact-subject (I7): a changed provider re-gates; an honest `weak` posture is valid input and the response to insufficient proof is fail-closed preflight or a parked owner decision — the product's "more human checkpoints", not a weakened gate.                                    | `note`         |
 
-Notes: proof freshness in the redesign is subject-based (a changed provider or suite re-gates),
-not time-based — a recorded pass has no expiry class. If the product's "fresh" intends time-bound
-staleness, that is a small vocabulary delta to settle when conformance suites are realized.
+Proof freshness has two layers: an exact-subject reusable conformance pass and a fresh per-Run
+compose-time capability proof. A changed build, suite, probe set, manifest, or environment re-gates;
+frozen policy may additionally expire an otherwise exact reusable pass by age.
 
 ### Anti-gaming (`GUARD`)
 
-| ID      | Carried by                                                                                                                                                                                                                         | Classification |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| GUARD-1 | The Execution Envelope — plan, policy, configuration — is frozen per Run; configuration and providers may add or exceed but never remove, weaken, or silently change policy-required elements (I9 and its rule pattern).           | `satisfied`    |
-| GUARD-2 | **Not carried.** No redesign element classifies a Candidate's changed surfaces as policy-, verification-, or integration-governing, and nothing pauses completion for owner re-approval plus fresh evidence when they are touched. | `gap`          |
+| ID      | Carried by                                                                                                                                                                                                                                                                   | Classification |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| GUARD-1 | The Execution Envelope — plan, policy, configuration — is frozen per Run; configuration and providers may add or exceed but never remove, weaken, or silently change policy-required elements (I9 and its rule pattern).                                                     | `satisfied`    |
+| GUARD-2 | `SCH-RULE-SURFACE` freezes policy-, verification-, integration-, authority-, and configuration-governing paths. `EV-RULE-SURFACE-TOUCHED` parks the Run, invalidates acceptance and dependent evidence, and requires exact owner re-approval plus fresh evidence and review. | `satisfied`    |
 
-GUARD-2 gap detail: the machinery it needs composes cleanly with approved content — a preflight- or
-review-time classification of rule-governing paths, a lifecycle event that parks completion, and an
-owner decision — but none of it is designed. This is the anti-gaming floor CFG-1 also references,
-so the gap has two dependents.
+The rule-surface manifest is itself governing: changing, renaming, or removing one of its entries
+takes the same parked re-approval path, so a Candidate cannot evade the classifier by editing it.
 
 ### The doorbell (`DOOR`)
 
-| ID     | Carried by                                                                                                                                                                                                               | Classification |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
-| DOOR-1 | Automatic fail-closed behavior for invalid or insufficient input, authority, evidence, or proof; ambiguity parks a named question rather than guessing ([failure and liveness](./failure-and-liveness.md), I15).         | `satisfied`    |
-| DOOR-2 | A parked question is a durable ledger record with wake condition and bound; `BND-WAIT-DECISION` exhaustion re-escalates and never drops it; wake triggers are reconstructed on Recovery (I6, I16).                       | `satisfied`    |
-| DOOR-3 | An owner decision identity binds the exact question, authorized responder, and scope; `CP-ESCALATION` validates responder identity and recorded delegation scope; a decision cannot manufacture facts or landing claims. | `satisfied`    |
+| ID     | Carried by                                                                                                                                                                                                                                       | Classification |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| DOOR-1 | Invalid or insufficient Jig inputs fail closed. When the Agent provider says a permission or question needs a human, `EV-SESSION-HUMAN-REQUEST` parks the exact request instead of Jig guessing or duplicating the provider's permission review. | `satisfied`    |
+| DOOR-2 | A Jig or provider-originated human request is a durable `ID-PARK` ledger record with originating session, wake condition, and `BND-WAIT-DECISION`; exhaustion re-escalates and Recovery reconstructs the wait.                                   | `satisfied`    |
+| DOOR-3 | A human answer binds the exact request, authorized responder, and scope. `CP-ESCALATION` validates it and `OPC-SESSION-RESPOND` returns it to the originating provider session; Jig does not convert it into wider authority.                    | `satisfied`    |
 
 ### Merge-on-evidence (`MERGE`)
 
-| ID      | Carried by                                                                                                                                                                                                                                                                                                                                   | Classification |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| MERGE-1 | Reviewer-principal acceptance of the exact package (I8, `RP-PACKAGE-DIGEST`); principal-level independence rejects self-review across sessions (`RP-INDEPENDENCE`, `ID-PRINCIPAL`); a bare success claim is never an observed fact (`MC-ATTEST`).                                                                                            | `satisfied`    |
-| MERGE-2 | Publication and integration are delivery Operations authorized only by `CP-FINALIZER` under its fence through `PORT-DELIVERY`; implementer and reviewer are structurally excluded from delivery (V1/V2 limits).                                                                                                                              | `satisfied`    |
-| MERGE-3 | Frozen policy declares required check classes and the final-verification posture; an unbound required class fails preflight; configuration may add checks but never weaken (I9, `RP-CHECKCLASS`, D7).                                                                                                                                        | `satisfied`    |
-| MERGE-4 | Product "done" and "merged" map to the distinct durable states `Accepted` and `Landed`; a held integration is a durable named wait (`LP-HELD`) that does not erase acceptance; only confirmed landing releases dependencies (I13).                                                                                                           | `note`         |
-| MERGE-5 | **Partially carried.** A blocked integration is a durable ledger fact surfaced through read models and `PORT-PUBLISH` — never a log line — but the product-required forge-side surfacing (a real pull request carrying the failure reasons in a comment, with status posted to the PR) has no designed delivery Operation or surfacing rule. | `gap`          |
+| ID      | Carried by                                                                                                                                                                                                                                                                                                        | Classification |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| MERGE-1 | Reviewer-principal acceptance of the exact package (I8, `RP-PACKAGE-DIGEST`); principal-level independence rejects self-review across sessions (`RP-INDEPENDENCE`, `ID-PRINCIPAL`); a bare success claim is never an observed fact (`MC-ATTEST`).                                                                 | `satisfied`    |
+| MERGE-2 | Publication and integration are delivery Operations authorized only by `CP-FINALIZER` under its fence through `PORT-DELIVERY`; implementer and reviewer are structurally excluded from delivery (V1/V2 limits).                                                                                                   | `satisfied`    |
+| MERGE-3 | Frozen policy declares required check classes and the final-verification posture; an unbound required class fails preflight; configuration may add checks but never weaken (I9, `RP-CHECKCLASS`, D7).                                                                                                             | `satisfied`    |
+| MERGE-4 | Product "done" and "merged" map to the distinct durable states `Accepted` and `Landed`; a held integration is a durable named wait (`LP-HELD`) that does not erase acceptance; only confirmed landing releases dependencies (I13).                                                                                | `note`         |
+| MERGE-5 | [Forge and landing](./forge-and-landing.md) defines idempotent `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`: when a safe branch and authority exist, Jig opens or reuses the real request and surfaces redacted reasons, urgency, and actions; failure preserves `Blocked` and creates a residual surfacing obligation. | `satisfied`    |
 
-MERGE-5 gap detail: closing it needs an explanation-publication delivery Operation class (the
-Operation catalog's delivery set has no post-comment/post-status entry) and a rule selecting the
-forge as a block-surfacing channel when a safe branch and push permission exist. The current
-implementation already ships blocked-PR surfacing, so realizing the redesign without this row is a
-product regression, not just a missing feature.
+Forge surfacing is an effect with its own identity, reconciliation, and failure outcome; it never
+becomes a second source of block truth and never erases the underlying failure.
 
 ### Security (`SEC`)
 
-| ID    | Carried by                                                                                                                                                                                                                                                                | Classification |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| SEC-1 | Source redaction plus controller-side secret scanning and quarantine (`EVR-REDACT`, `EVR-SCAN`, `EVR-QUARANTINE`); credential secrecy rules; landing-path redaction; export redaction (QS10 end to end).                                                                  | `satisfied`    |
-| SEC-2 | Sessions run under least-privilege filesystem and network allowlists; `CB-VERIFY` defaults to zero egress; enforcement strength is attested at compose time (`MC-HONESTY`), policy can require a minimum posture, and an unmet minimum fails closed before Story effects. | `note`         |
-| SEC-3 | As FENCE-3 for forge credentials: the delivery mechanism holds them, the finalizer authorizes the effect, and role sessions never see them.                                                                                                                               | `satisfied`    |
+| ID    | Carried by                                                                                                                                                                                                                                                                                            | Classification |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| SEC-1 | Source redaction plus controller-side secret scanning and quarantine (`EVR-REDACT`, `EVR-SCAN`, `EVR-QUARANTINE`); credential secrecy rules; landing-path redaction; export redaction (QS10 end to end).                                                                                              | `satisfied`    |
+| SEC-2 | D14 and `MC-PERMISSION` carry the revised commitment: the owner selects an exact provider-native execution posture, the envelope freezes it, the provider enforces it, and preflight rejects a provider that cannot realize it. Full-access posture is visible and is never described as confinement. | `satisfied`    |
+| SEC-3 | As FENCE-3 for forge credentials: the delivery mechanism holds them, the finalizer authorizes the effect, and role sessions never see them.                                                                                                                                                           | `satisfied`    |
 
-SEC-2 note: the product's "the confinement is proven" is realized as attested posture gated by
-per-port conformance with recorded real-provider evidence — the agent never attests its own
-confinement, so "not the agent's word" holds — but the proof strength is bounded by the host
-mechanism's honesty clause and the adversarial depth of `CF-MECH-*` content. An independent
-runtime egress witness is not designed. This residual should be weighed when conformance suites
-are realized (see DRIVE-1's note).
+The owner explicitly replaced SEC-2's earlier universal no-phone-home/proven-confinement statement
+before this re-import. The selected contract trusts the Agent provider's own execution and
+permission boundary; Jig records the selected posture and verifies compatible session realization,
+but does not independently prove that the provider or host itself cannot communicate externally.
 
 ## Guarantee 2 — configuration ownership
 
-| ID     | Carried by                                                                                                                                                                                                                                | Classification |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| CFG-1  | Frozen policy supplies verification posture, required check classes, capacity maxima and progress reserve, bound and budget classes, mechanism posture minima, non-gating classes, and retention classes; changing policy is owner-gated. | `note`         |
-| CFG-2  | **Not first-class.** The envelope's "configuration" is the nearest slot, and the safety split is echoed by configuration-cannot-weaken-policy — but the work profile as a named, freely tunable artifact does not exist in the redesign.  | `gap`          |
-| CFG-3  | Per-track configuration and repo-policy floor composition happen before `PORT-INTAKE`: the redesign receives one already-composed frozen policy and never sees tracks or floors.                                                          | `upstream`     |
-| CFG-4  | `CP-SCHEDULER` derives admission deterministically from durable facts, the plan's ordering facts, and declared capacity — the actual is computed, never hand-set (I4, I10, I11).                                                          | `satisfied`    |
-| CFG-5  | Guided intent-to-configuration setup has no home inside `SYS-JIG`; it is an envelope-production and product-surface concern.                                                                                                              | `upstream`     |
-| CFG-6  | Presets with reasoning: same locus as CFG-5.                                                                                                                                                                                              | `upstream`     |
-| CFG-7  | Structured durable records, derived read models, position-stamped redacted exports over `PORT-PUBLISH`, and conformance-gated provider seams; influence re-enters only through `PORT-INTAKE`/`PORT-DECIDE` as a validated participant.    | `satisfied`    |
-| CFG-8  | Prompt-strategy maturity is agent-mechanism and work-profile content; the redesign deliberately does not reach below the session port into prompting.                                                                                     | `upstream`     |
-| CFG-9  | Staleness-aware setup ("run setup only when the workspace is stale") is not among the designed workspace-mechanism duties; it is a small realization-level behavior of the workspace provider.                                            | `gap`          |
-| CFG-10 | **Not carried.** Escalation always parks for the owner or a recorded delegate; there is no policy vocabulary for a fixed, deterministic auto-grant category boundary (the assisted posture).                                              | `gap`          |
+| ID     | Carried by                                                                                                                                                                                                                                                             | Classification |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| CFG-1  | Frozen policy supplies verification posture, required check classes, anti-gaming rule surfaces, provider-permission floors, capacity maxima and reserve, bounds, mechanism minima, non-gating classes, and retention; changing it is owner-gated.                      | `satisfied`    |
+| CFG-2  | `SCH-WORK-PROFILE` is the named, digest-bound tunable artifact in the envelope. It owns agent/prompt/work preferences while frozen policy owns safety floors; profile composition cannot weaken policy.                                                                | `satisfied`    |
+| CFG-3  | The [Envelope Builder](./envelope-production.md) owns named tracks and composes their policy with repository floors before owner approval and `PORT-INTAKE`.                                                                                                           | `satisfied`    |
+| CFG-4  | `CP-SCHEDULER` derives admission deterministically from durable facts, the plan's ordering facts, and declared capacity — the actual is computed, never hand-set (I4, I10, I11).                                                                                       | `satisfied`    |
+| CFG-5  | `EP-GUIDANCE` in [envelope production](./envelope-production.md) converts owner intent into an inspectable proposal and never submits it without exact-digest approval.                                                                                                | `satisfied`    |
+| CFG-6  | Envelope Builder presets are named, versioned starting points whose proposal shows their reasoning and complete expansion before approval.                                                                                                                             | `satisfied`    |
+| CFG-7  | Structured durable records, derived read models, position-stamped redacted exports over `PORT-PUBLISH`, and conformance-gated provider seams; influence re-enters only through `PORT-INTAKE`/`PORT-DECIDE` as a validated participant.                                 | `satisfied`    |
+| CFG-8  | Prompt strategy is explicit, versioned work-profile content composed by Envelope Builder and executed only through the bounded session mechanism; it has no authority to weaken policy.                                                                                | `satisfied`    |
+| CFG-9  | `SCH-SETUP-RECEIPT` keys freshness by setup-recipe digest, input digest, and host fingerprint; `OPC-WS-SETUP` executes only when that exact receipt is absent or stale.                                                                                                | `satisfied`    |
+| CFG-10 | The owner selects a provider-native manual/assisted posture. The provider performs any built-in auto-review and keeps allow/reject outcomes internal; requests needing a human use the Doorbell. Jig has no parallel classifier or middleman responder in this design. | `satisfied`    |
 
-CFG-1 note: two declared policy elements have no redesign vocabulary yet — escalation postures
-(the CFG-10 gap) and the anti-gaming floor (the GUARD-2 gap). CFG-10 gap detail: a frozen-policy
-category rule that pre-answers low-risk escalations is deterministic and consistent with D3/I4 —
-frozen policy deciding is not a model deciding, so the product's "never adjudicated by a model"
-boundary is preservable — but the category classifier, its fixed boundary, and its policy
-representation are undesigned, and its "rule-governing files always go to a human" edge depends on
-GUARD-2's classifier.
-
-Upstream cluster: the CFG family is where the product's promise surface extends furthest beyond
-[D2](./decisions/D2-system-boundary.md)'s authority-and-proof boundary. The redesign deliberately
-receives an already-approved envelope from `X-ENVELOPE`; configuration ownership, guidance,
-presets, tracks, and floors live in whatever produces that envelope. That layer exists as product
-promise and (partially) as current implementation, but no redesign-era artifact owns it — the
-planned bridge artifacts must name its owner explicitly.
+CFG-1's anti-gaming and escalation floors are now first-class through the frozen rule-surface
+manifest and provider-permission posture. Configuration ownership, guidance, presets, tracks, floors,
+work-profile authoring, and Work Source intake belong to Envelope Builder: part of the Jig product
+but outside `SYS-JIG` runtime control authority. The owner approves the exact composed digest before
+submission, preserving the frozen-envelope boundary.
 
 ## Guarantee 3 — resilience
 
 ### Interruption resume (`RESUME`)
 
-| ID       | Carried by                                                                                                                                                                                                                                           | Classification |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| RESUME-1 | Record-before-adopt/dispatch into the durable ordered ledger (I5); durable authority classification in [state and recovery](./state-and-recovery.md).                                                                                                | `satisfied`    |
-| RESUME-2 | Recovery fences stale control, reconstructs from the ledger, and resumes from durable truth; admission and wake triggers are replayable/reconstructable (I4, I6).                                                                                    | `satisfied`    |
-| RESUME-3 | One durable Operation identity per semantic effect; reconciliation before any second semantic attempt (I17); the five-way readback classification and `LG-WITNESS` currency make duplicates and rollback detectable.                                 | `satisfied`    |
-| RESUME-4 | Indeterminate outcomes halt into Recovery or park with a named reason; every stop is a durable, named, inspectable state (I15, I16, I20).                                                                                                            | `satisfied`    |
-| RESUME-5 | Recovery revalidates authorities before dispatch resumes; exact-subject and fence binding fail closed on any changed basis (I7); a moved target or changed package element re-enters full review; registry lineage is checked before target effects. | `note`         |
+| ID       | Carried by                                                                                                                                                                                                                                                                      | Classification |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| RESUME-1 | Record-before-adopt/dispatch into the durable ordered ledger (I5); durable authority classification in [state and recovery](./state-and-recovery.md).                                                                                                                           | `satisfied`    |
+| RESUME-2 | Recovery fences stale control, reconstructs from the ledger, and resumes from durable truth; admission and wake triggers are replayable/reconstructable (I4, I6).                                                                                                               | `satisfied`    |
+| RESUME-3 | One durable Operation identity per semantic effect; reconciliation before any second semantic attempt (I17); the five-way readback classification and `LG-WITNESS` currency make duplicates and rollback detectable.                                                            | `satisfied`    |
+| RESUME-4 | Indeterminate outcomes halt into Recovery or park with a named reason; every stop is a durable, named, inspectable state (I15, I16, I20).                                                                                                                                       | `satisfied`    |
+| RESUME-5 | `RC-RESUME-INTEGRITY` compares the frozen envelope, provider build/manifest/environment proof, rule surfaces, target basis, and fences before dispatch; any safety-relevant change invalidates dependent approval/evidence and parks for exact re-approval plus fresh evidence. | `satisfied`    |
 
-RESUME-5 note: the product states one general rule ("safety-relevant assumptions changed while
-stopped → re-approval and fresh evidence"); the redesign realizes it piecewise through digest,
-fence, lineage, and package-element checks. The piecewise checks appear to cover the safety-relevant
-assumption classes; no single named "resume integrity" rule exists to cite.
+The named resume-integrity rule unifies the digest, fence, lineage, environment, and package checks
+under one fail-closed Recovery decision; a provider's assertion that nothing changed is not input.
 
 ### Failure isolation (`ISO`)
 
 | ID    | Carried by                                                                                                                                                                                                                              | Classification |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | ISO-1 | Eligibility requires all prerequisites confirmed `Landed` and no durable direct blocker (I13, I14); a blocked Story's dependents derive `Not run — dependency blocked` while independent work continues (I15).                          | `satisfied`    |
-| ISO-2 | Posture is expressed through frozen policy: bounds, budgets, non-gating classes, and exhaustion actions lean prevention or throughput.                                                                                                  | `note`         |
+| ISO-2 | Posture is expressed through frozen policy: bounds, budgets, non-gating classes, and exhaustion actions lean prevention or throughput. Replanning always creates a successor envelope and Run; it never mutates the active Run.         | `satisfied`    |
 | ISO-3 | Blocks are durable facts carrying the complete canonically ordered direct-root set (I14), visible on `OBS-STORY-BOARD` and in exports.                                                                                                  | `satisfied`    |
 | ISO-4 | One isolated workspace per active Story (`RC-ISOLATION`, `CB-WORKSPACE` pinning path, repository, and basis); admission commits its reservation Transition before any resource is touched; Operation identity prevents double dispatch. | `satisfied`    |
 
-ISO-2 note: the product's "quarantine and re-plan" reads two ways. Within a Run the envelope is
-frozen — there is no in-run re-planning; the redesign's own review protocol contemplates a
-_re-planned Run_ presenting new frozen requirements, so re-planning produces a new envelope
-upstream. The matrix classifies against that reading; if the product intends live in-run
-re-planning, that would be a conflict with the frozen-envelope model and needs the owner.
+ISO-2's "quarantine and re-plan" has one explicit meaning: preserve and park the affected work,
+then use Envelope Builder to produce an owner-approved successor Run linked to its predecessor.
+The original Run remains immutable and auditable.
 
 ### Liveness (`LIVE`)
 
-| ID     | Carried by                                                                                                                                                                                                                           | Classification |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
-| LIVE-1 | **Partially carried.** Every wait is bounded and mechanism silence or overdue approval is detected, but no design element observes progress and idleness or classifies a worker as thinking, stuck, or dead as the product requires. | `gap`          |
-| LIVE-2 | Exhaustion actions are explicit — block, park, escalate — never silent spend; alerts derive from durable bound facts (I16).                                                                                                          | `satisfied`    |
+| ID     | Carried by                                                                                                                                                                                                                                                                  | Classification |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| LIVE-1 | `SCH-LIVENESS`, `EV-LIVENESS-OBSERVED`, `BND-IDLE`, and `BND-SILENCE` turn subject-bound progress, heartbeat, termination, repetition, and human-input-wait facts into deterministic thinking/stuck/dead/input-overdue classifications and explicit park/escalate outcomes. | `satisfied`    |
+| LIVE-2 | Exhaustion actions are explicit — block, park, escalate — never silent spend; alerts derive from durable bound facts (I16).                                                                                                                                                 | `satisfied`    |
 
-LIVE-1 gap detail: bounded waits preserve the fail-closed outcome, but they do not carry the exact
-signal contract the product imports. Closing the gap requires a mechanism-facing liveness contract
-for progress, idleness, silence, and overdue approval, plus a deterministic classification that
-parks stuck or dead work instead of relying only on a fixed timeout.
+Message volume and provider self-classification do not count as progress; the controller derives
+the classification from validated mechanism observations and frozen bound classes.
 
 ## Guarantee 4 — stack portability
 
 ### Seams (`STACK`)
 
-| ID      | Carried by                                                                                                                                                                                                                                                                      | Classification |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| STACK-1 | The `MC-*` contract and conformance gating make control, evidence, and recovery provider-independent; the boundary follows authority and proof, not packaging.                                                                                                                  | `satisfied`    |
-| STACK-2 | Agent ↔ `PORT-SESSION`; Execution Host ↔ `PORT-WORKSPACE` plus the session sandbox posture; Forge ↔ `PORT-DELIVERY`. **Work Source has no port**: the envelope arrives already approved from `X-ENVELOPE`, so work-source swappability lives upstream, unowned by the redesign. | `note`         |
-| STACK-3 | The agent mechanism is configured and swappable behind `PORT-SESSION`; the "work-profile choice" framing inherits the CFG-2 gap.                                                                                                                                                | `note`         |
-| STACK-4 | `CF-GATE-PROVIDER` plus compose-time posture attestation; an unproven capability never becomes configurable or silently trusted.                                                                                                                                                | `satisfied`    |
-| STACK-5 | Seams are ports crossed only under capability bindings and authority fences; credentials stay with the mechanism that needs them.                                                                                                                                               | `satisfied`    |
-| STACK-6 | The boundary rule states it directly: a provider bundled with Jig still remains outside the decision-authority boundary; I2/I3 are enforced structurally and per-port suites apply to any provider equally.                                                                     | `satisfied`    |
-| STACK-7 | Any exact provider that passes its port's `CF-MECH-*` suite becomes configurable — custom providers are in scope by construction.                                                                                                                                               | `satisfied`    |
+| ID      | Carried by                                                                                                                                                                                                                                                  | Classification |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| STACK-1 | The `MC-*` contract and conformance gating make control, evidence, and recovery provider-independent; the boundary follows authority and proof, not packaging.                                                                                              | `satisfied`    |
+| STACK-2 | Work Source ↔ Envelope Builder `PORT-SOURCE`; Agent ↔ `PORT-SESSION`, including provider human requests and bound answers; Execution Host ↔ `PORT-WORKSPACE`; Forge ↔ `PORT-DELIVERY`. Each seam has identity, manifest, freshness, and conformance duties. | `satisfied`    |
+| STACK-3 | The agent mechanism is configured and swappable behind `PORT-SESSION`; owner choice is recorded in the named `SCH-WORK-PROFILE` and provider-authority manifest.                                                                                            | `satisfied`    |
+| STACK-4 | `CF-GATE-PROVIDER` plus compose-time posture attestation; an unproven capability never becomes configurable or silently trusted.                                                                                                                            | `satisfied`    |
+| STACK-5 | Seams are ports crossed only under capability bindings and authority fences; credentials stay with the mechanism that needs them.                                                                                                                           | `satisfied`    |
+| STACK-6 | The boundary rule states it directly: a provider bundled with Jig still remains outside the decision-authority boundary; I2/I3 are enforced structurally and per-port suites apply to any provider equally.                                                 | `satisfied`    |
+| STACK-7 | Any exact provider that passes its port's `CF-MECH-*` suite becomes configurable — custom providers are in scope by construction.                                                                                                                           | `satisfied`    |
 
-STACK-2 note: the redesign decomposes to five mechanism ports plus storage rather than the
-product's four seams; the mapping above preserves independent swappability for three of them. The
-Work Source fragment joins the CFG upstream cluster as bridge-artifact work.
+`PORT-SOURCE` belongs to the product-layer Envelope Builder rather than active-Run control. This
+keeps Work Source swappable without granting it lifecycle or effect authority.
 
 ### Trusting a driver (`DRIVE`)
 
-| ID      | Carried by                                                                                                                                                                                                                                                                                      | Classification |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| DRIVE-1 | **Partially carried.** Per-port suites with recorded real-provider evidence gate configurability, but the suite catalog does not require the product-promised adversarial probes.                                                                                                               | `gap`          |
-| DRIVE-2 | **Partially carried.** Needs, scopes, posture, and configured providers are distributed across bindings, attestation, and the frozen envelope; no owner-approved authority manifest declares runtime, network, and credential authority or forces fresh approval when that declaration changes. | `gap`          |
-| DRIVE-3 | `MC-HONESTY`: an honest `weak` attestation is valid input, a false `strong` one is a breach; policy sets the minimum posture and an unmet minimum fails closed.                                                                                                                                 | `satisfied`    |
-| DRIVE-4 | **Partially carried.** Suites are versioned and reusable against exact providers, but their reusable contract does not require adversarial-probe coverage for bundled and future drivers.                                                                                                       | `gap`          |
+| ID      | Carried by                                                                                                                                                                                                                            | Classification |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| DRIVE-1 | Every `CF-MECH-*` suite must execute the reusable shared adversarial-probe library plus port-specific hostile cases; a provider-specific waiver cannot open the gate.                                                                 | `satisfied`    |
+| DRIVE-2 | `SCH-PROVIDER-AUTHORITY` is digest-bound and owner-approved, declaring supported native permission modes, runtime, filesystem, network, credential, and effect authority; any digest change requires a fresh pass and owner approval. | `satisfied`    |
+| DRIVE-3 | `MC-HONESTY`: the provider must report whether it can realize the exact selected posture and human-request loop; a mismatch or unsupported posture fails preflight rather than being relabeled as equivalent protection.              | `satisfied`    |
+| DRIVE-4 | Bundled and future providers are gated by the same versioned reusable conformance and adversarial-probe contracts against their exact build, manifest, and environment.                                                               | `satisfied`    |
 
-DRIVE-1/DRIVE-4 gap detail: generic rejection paths do not make adversarial probes a required,
-repeatable part of every port suite. Closing the gap requires named adversarial-probe obligations
-in the conformance catalog and gated evidence for both bundled and future providers.
-
-DRIVE-2 gap detail: closing the gap requires a digest-identified provider authority manifest that
-declares runtime, network, and credential authority, records explicit owner approval, binds the
-approved digest into configuration and conformance evidence, and requires fresh approval whenever
-that digest changes.
+Provider trust is therefore earned for an exact subject and explicit authority declaration, not
+inherited from bundling, a provider name, or a previous build.
 
 ## Guarantee 5 — full observability
 
-| ID    | Carried by                                                                                                                                                                                                                                           | Classification |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| SEE-1 | The durable authority enumeration covers decisions, authorizations, fences, evidence references, approvals, transitions, waits, escalations, outcomes, and obligations (I5; [state and recovery](./state-and-recovery.md)).                          | `satisfied`    |
-| SEE-2 | Records are structured durable facts; `OBS-*` read models and position-stamped exports over `PORT-PUBLISH` are the consumable surface.                                                                                                               | `satisfied`    |
-| SEE-3 | The ledger facts and digest-verified evidence the decisions consumed are exactly what the owner inspects afterward; projections are derived, never a second story (I5, `EVR-*`, `OBS-EVIDENCE`).                                                     | `satisfied`    |
-| SEE-4 | Operator verbs answer from recorded Transitions — "why is this Story here" is the recorded decision trail — with no extra tooling required beyond the operator interface (`RT-OPERATOR`).                                                            | `satisfied`    |
-| SEE-5 | **Partially carried.** Separate Story, wait, obligation, and alert surfaces expose durable conditions, but no unified notice model guarantees that every parked, blocked, stale, or overdue condition has urgency and immediately available actions. | `gap`          |
-| SEE-6 | **Partially carried.** Exports are durable, redacted, and position-stamped, but no export contract makes a finished audit record write-once or immutable.                                                                                            | `gap`          |
+| ID    | Carried by                                                                                                                                                                                                                                                                            | Classification |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| SEE-1 | Jig's durable authority enumeration covers Jig-governed decisions, authorizations, fences, evidence references, transitions, waits, escalations, outcomes, obligations, and every provider request/answer that crosses the Doorbell. Provider-internal review remains provider-local. | `satisfied`    |
+| SEE-2 | Records are structured durable facts; `OBS-*` read models and position-stamped exports over `PORT-PUBLISH` are the consumable surface.                                                                                                                                                | `satisfied`    |
+| SEE-3 | The ledger facts and digest-verified evidence the decisions consumed are exactly what the owner inspects afterward; projections are derived, never a second story (I5, `EVR-*`, `OBS-EVIDENCE`).                                                                                      | `satisfied`    |
+| SEE-4 | Operator verbs answer from recorded Transitions — "why is this Story here" is the recorded decision trail — with no extra tooling required beyond the operator interface (`RT-OPERATOR`).                                                                                             | `satisfied`    |
+| SEE-5 | `SCH-NOTICE` and `OBS-NOTICES` form one complete projection: every parked, blocked, stale, overdue, uncertain, or residual condition has a stable identity, deterministic urgency, accountable owner, and currently valid actions.                                                    | `satisfied`    |
+| SEE-6 | Terminal `SCH-AUDIT-EXPORT` bytes are canonical, redacted, content-addressed by `ID-EXPORT`, and create-once through immutable artifact storage; recovery can verify or complete the identical write but never overwrite it.                                                          | `satisfied`    |
 
-SEE-5 gap detail: closing the gap requires one derived notice model that covers every parked,
-blocked, stale, and overdue condition and supplies a deterministic urgency class plus the actions
-available at that point. Separate projections that a realization could compose do not require the
-product-promised queue.
-
-SEE-6 gap detail: closing the gap requires immutable or content-addressed export identity and
-write-once persistence semantics for the finished audit record. A durable snapshot alone can still
-be replaced or overwritten and therefore does not carry the exact product promise.
+Notice acknowledgement changes presentation only; the underlying durable condition must resolve.
+The terminal export includes the final ledger position and immutable store receipt, and a digest
+mismatch remains an explicit integrity obligation.
 
 ## Findings
 
 ### Conflicts — none
 
 No imported commitment contradicts a locked decision, an invariant, or approved Layer 2 content.
-No row carries `OWNER_DECISION_REQUIRED`. The nearest candidates were examined and resolved as
-follows: GUARD-2, MERGE-5, and CFG-10 are absences, not contradictions — each composes with the
-approved design; SEC-2 is carried with a named proof-strength residual; ISO-2 is compatible under
-the re-planning-produces-a-new-envelope reading, with the alternative reading explicitly flagged
-in its note for the owner to correct if intended.
+No row carries `OWNER_DECISION_REQUIRED`. Every prior gap composes with the approved foundation and
+is closed by this amendment; ISO-2 uses the owner-selected successor-Run semantics; and the owner
+explicitly corrected and re-imported SEC-2, FENCE-1/2, DOOR-1/2/3, CFG-10, DRIVE-3, and SEE-1
+before D14 carried the revised provider-permission boundary.
 
-### Gaps — design work inside the boundary (11)
+### Open design work — none
 
-| Gap     | What closing it needs                                                                                                                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GUARD-2 | A rule-governing-surface classification, a completion-pause lifecycle event, and an owner re-approval path with fresh evidence.                                          |
-| MERGE-5 | A block-explanation publication Operation class on `PORT-DELIVERY` and a rule selecting the forge as the surfacing channel when a safe branch and push permission exist. |
-| CFG-2   | The work profile as a named envelope artifact with the policy/profile safety split made first-class.                                                                     |
-| CFG-9   | A staleness-aware setup duty on the workspace provider (small; realization-level).                                                                                       |
-| CFG-10  | Policy vocabulary for a fixed, deterministic escalation auto-grant category boundary; depends on GUARD-2's classifier for its always-human edge.                         |
-| LIVE-1  | A liveness-signal contract for progress, idleness, silence, and overdue approval, with deterministic thinking/stuck/dead classification and parking.                     |
-| DRIVE-1 | Required adversarial-probe obligations in every provider conformance suite.                                                                                              |
-| DRIVE-2 | A digest-bound provider authority manifest covering runtime, network, and credentials, with owner approval and fresh approval on change.                                 |
-| DRIVE-4 | Reusable adversarial-probe coverage for bundled and future providers under the same conformance bar.                                                                     |
-| SEE-5   | A unified, actionable notice projection covering every parked, blocked, stale, and overdue condition with urgency and available actions.                                 |
-| SEE-6   | Immutable or content-addressed, write-once persistence semantics for finished audit exports.                                                                             |
+No imported product commitment remains a design `gap`. The provider-native trust boundary is an
+accepted limitation, not an unproven hostile-provider security claim. A Jig-side middleman agent
+that could answer or approve some provider requests is intentionally deferred and would require a
+new explicit authority design; it is not needed to satisfy the current imported commitments.
 
-Each closure is a material Layer 2 change: renewed review and an explicit owner decision per the
-[Layer 2 gate record](./decisions/layer2-gate-record.md), and the GUARD-2/MERGE-5 rows note where
-the change lands. Until closed, the redesign does not fully cover the imported guarantee set.
+### Upstream ownership — closed
 
-### Upstream — needs an owning layer (4 full, 2 fragments)
+D13 and [Envelope production](./envelope-production.md) assign the former upstream cluster to the
+Jig product's Envelope Builder while keeping it outside `SYS-JIG` active-Run authority. No
+commitment remains classified `upstream`.
 
-CFG-3, CFG-5, CFG-6, CFG-8 in full, plus the work-profile authoring side of CFG-2 and the Work
-Source seam fragment of STACK-2. All live in envelope production — the layer between the product's
-promise surface and `PORT-INTAKE` that no redesign-era artifact owns. The planned bridge artifacts
-(envelope schema versus the archived execution-plan contract, packaging versus `RT-*` units) must
-assign this layer an owner; until then these commitments are carried only by the current
-implementation.
+### Other realization residuals — none
 
-### Residuals worth re-checking at realization (2)
-
-- SEC-2: proof strength of confinement rests on attested posture plus conformance depth; no
-  independent runtime egress witness is designed.
-- EARN-1: conformance passes have no time-based freshness class; confirm subject-based re-gating
-  matches product intent.
+EARN-1 freshness, ISO-2 replanning semantics, the provider-permission boundary, and every
+previously listed in-boundary gap now have an explicit contract and conformance path. Ordinary
+implementation choices remain, but no product commitment awaits a design decision.
 
 ## Where to go next
 
 - The import decision this matrix serves:
   [imported promise — the five product guarantees](./decisions/product-guarantee-import.md).
 - The exact imported statements: [`docs/product/guarantees.md`](../../product/guarantees.md).
-- The gate rule any gap closure follows:
-  [Layer 2 gate record](./decisions/layer2-gate-record.md).
+- The exact complete readiness candidate:
+  [Product readiness gate record](./decisions/product-readiness-gate-record.md).

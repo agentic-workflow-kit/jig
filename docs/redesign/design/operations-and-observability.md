@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks, read models, metrics, exports, alerts, and service objectives; escalation and obligation schemas, ledger realization, failure codes, and evidence storage are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -34,21 +34,26 @@ nothing here decides.
 
 ## Escalation interface
 
-A parked question is a durable record, not a message: it carries its identity, the exact question,
-the required decision scope, the authorized responder, the wake condition, and its bound
-([failure and liveness](./failure-and-liveness.md)). It surfaces through the operator interface
-and through notification channels, but notifications are non-authoritative mirrors: only a
-validated decision entering through `PORT-DECIDE` changes anything (D3). Decision intake validates
-responder identity and the recorded delegation scope in `CP-ESCALATION` before the decision can
-become a trigger; replying on a notification channel was rejected as a decision path because a
-mirror cannot satisfy port validation (I7).
+A parked request is a durable record, not a message. It may originate from Jig's lifecycle or from
+an Agent provider that requires a human permission or answer. It carries its identity, origin,
+exact question or requested scope, originating session where applicable, authorized responder,
+wake condition, and bound ([failure and liveness](./failure-and-liveness.md)). Provider-internal
+allowed, automatically reviewed, or rejected runtime requests never enter this interface.
+
+The parked request surfaces through the operator interface and notification channels, but
+notifications are non-authoritative mirrors: only a validated answer entering through
+`PORT-DECIDE` changes anything (D3). Answer intake validates responder identity, exact request
+binding, and recorded delegation scope in `CP-ESCALATION`. For an Agent-provider request, Jig then
+returns the scoped answer to the originating session through `PORT-SESSION`; the provider enforces
+the permission or consumes the answer. Replying on an unvalidated notification channel remains
+rejected because a mirror cannot satisfy port validation (I7).
 
 ## Operator tooling
 
 Generic operator commands are thin verbs over durable records and read models, run by
 `RT-OPERATOR` as short-lived processes with no lifecycle authority ([runtime](./runtime.md)):
 
-- **submit** an envelope, **decide** a parked question, **acknowledge** a notice, and **stop** a
+- **submit** an envelope, **answer** a parked request, **acknowledge** a notice, and **stop** a
   Run — each becomes a validated trigger proposed to the controller, never a direct state change;
 - **inspect**, **watch**, and **explain** — each answers from recorded Transitions and evidence;
   "why is this Story here" is the recorded decision trail, never live controller memory; and
@@ -62,22 +67,37 @@ of truth against the ledger (I5).
 Every observation surface is a derived projection rebuilt from the ledger by `CP-PROJECTION`
 (`S-DERIVED` in [state and recovery](./state-and-recovery.md)); none is authoritative.
 
-| ID                | Surface           | Answers                                                                                                         |
-| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| `OBS-RUN-STATUS`  | Run status        | The Run's phase, gate state, and headline outcome so far.                                                       |
-| `OBS-STORY-BOARD` | Story board       | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14). |
-| `OBS-CAPACITY`    | Capacity          | Resource-class usage against declared capacity and what is waiting for admission (I10).                         |
-| `OBS-WAITS`       | Waits             | Every live wait with its owner, reason, deadline, and exhaustion action — the I16 facts made visible.           |
-| `OBS-OBLIGATIONS` | Obligations       | Residual Obligations, their accountable owners, and their completion or handoff status (I19).                   |
-| `OBS-EVIDENCE`    | Evidence coverage | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.          |
+| ID                | Surface            | Answers                                                                                                            |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                          |
+| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).    |
+| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                            |
+| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.    |
+| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, and their completion or handoff status (I19).                      |
+| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.             |
+| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions. |
+
+### Unified actionable notices
+
+`OBS-NOTICES` is the complete projection of `SCH-NOTICE`: every live parked question, direct or
+derived block, stale setup or conformance proof, overdue approval, uncertain effect, and residual
+obligation produces one stable `ID-NOTICE`. Its urgency is a deterministic function of condition
+class, bound state, and impact; its actions are the currently authorized commands derived from the
+same ledger position. A notice cannot invent authority, omit a live condition, or offer an action
+whose preconditions are false. Acknowledgement changes presentation only; resolution requires the
+underlying durable condition to close.
 
 ## Exports and downstream publication
 
-An export is a durable, redacted snapshot of one or more read models stamped with the ledger
-position it reflects, published through `PORT-PUBLISH`. Consumers get explainable outcomes,
-obligations, and provenance — never control access; influence requires entering through
-`PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)). Export
-redaction follows the rules in [evidence handling](./evidence-handling.md).
+A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
+position it reflects, published through `PORT-PUBLISH`. At terminal settlement, `CP-PROJECTION`
+also materializes exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes containing
+the final ledger position, outcomes, notices, evidence manifest references, obligations, and
+provenance. Its content digest is `ID-EXPORT`; `OPC-ART-PUT` creates it once in immutable storage,
+and a repeat may only verify or recover the identical digest — never overwrite it. Consumers get
+explainable outcomes, obligations, and provenance, never control access; influence requires
+entering through `PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)).
+Export redaction follows the rules in [evidence handling](./evidence-handling.md).
 
 ## Alerts and service objectives
 

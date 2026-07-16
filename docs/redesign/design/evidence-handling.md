@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Evidence storage, attribution, integrity, redaction, encryption, access, size, retention, and archival; evidence and verdict schemas, reviewer protocol, verification execution, ledger realization, and operator read models are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: owner-approved complete product-readiness candidate of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -92,6 +92,16 @@ location-addressed mutable evidence (identity would not survive relocation or pr
   digest (`EVR-DIGEST`), identity and verifiability survive relocation.
 - **`EVR-DISPOSE`:** destructive disposal is an explicit, owner-authorized retirement action with a
   durable record; it is never a side effect of cleanup, compaction, or storage convenience.
+
+## Terminal audit export
+
+The finished audit export uses the same immutable artifact path but is not decision evidence. Its
+canonical redacted bytes include the terminal ledger position and `SCH-AUDIT-EXPORT` manifest;
+their SHA-256 digest is `ID-EXPORT`. `OPC-ART-PUT` is create-once by that digest: recovery may
+verify an identical artifact or complete an absent write, but no path may replace existing bytes.
+The ledger records the digest, size, terminal position, redaction-policy version, and immutable
+store receipt. An unreadable or digest-mismatched export is an integrity failure and remains an
+explicit residual obligation; the system never silently regenerates different terminal bytes.
 
 ### View V13 — evidence dataflow
 

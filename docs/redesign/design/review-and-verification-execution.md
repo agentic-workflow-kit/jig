@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The Layer 2 review protocol, finding representation, check-policy language, verification execution, and remote-gate observation; acceptance authority itself, evidence storage and integrity mechanisms, scheduling bounds, and landing proof are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -110,6 +110,27 @@ Configuration may **add** checks but never remove or weaken a policy-required on
 class with no valid binding fails preflight, not delivery time. The rejected alternative — an
 embedded scripting language in policy — was not selected because scripts would move judgment and
 effects into the policy document and defeat deterministic preflight validation.
+
+## Rule-governing surfaces and provider permission posture
+
+Every envelope freezes a digest-bound `SCH-RULE-SURFACE` manifest covering the repository paths
+that govern policy, verification, integration, authority, or Jig configuration. Before review and
+again before delivery, `CP-TRANSITION` compares the Candidate's changed paths with that manifest.
+A touch is never ordinary implementation work: `EV-RULE-SURFACE-TOUCHED` parks the Run, records
+`FC-RULES`, invalidates the prior review package, verdict, acceptance, and evidence that depended
+on the previous rule surface, and requests owner approval of the exact replacement manifest plus
+fresh evidence and full review. Removing a path from the manifest is itself a rule-surface change.
+
+The envelope also freezes the Agent provider's exact native permission posture. Worker runtime
+actions allowed, automatically reviewed, or rejected by that posture remain internal to the Agent
+session. If the provider requires a human permission or the agent requires a human answer, it emits
+an exact session-bound request through `PORT-SESSION`; Jig parks it at the Doorbell and returns the
+scoped answer to that session. Jig does not classify the worker action, and the answer cannot change
+the frozen provider posture or authorize a Jig delivery Operation.
+
+This provider permission loop does not weaken rule-surface protection. A Candidate that touches a
+governing surface still triggers the Jig-owned durable event and exact owner re-approval path above,
+regardless of whether the provider allowed the file edit inside its session.
 
 ## Verification execution (`RP-VERIFY`)
 

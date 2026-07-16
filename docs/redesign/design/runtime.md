@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Level 2 runtime units, named ports, the process model, and the single-host deployment shape; component internals, schemas, algorithms, provider technology, and operational tooling are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -14,7 +14,9 @@ sources_of_truth:
   - ./model.md
   - ./decisions/D2-system-boundary.md
   - ./decisions/D10-runtime-decomposition.md
+  - ./decisions/D13-envelope-production-boundary.md
 related:
+  - ./envelope-production.md
   - ./components/control-plane.md
   - ./data-and-identity.md
   - ./persistence-and-projections.md
@@ -30,6 +32,13 @@ deferral of port and process decomposition. The decomposition rule follows
 deterministic controller process per Run, passive durable stores, a thin operator interface, and
 named ports as the only crossings of the authority-and-proof boundary.
 
+The Jig product also ships the bounded Envelope Builder described in
+[envelope production](./envelope-production.md). It realizes V1's `X-ENVELOPE` outside
+`SYS-JIG`'s decision-authority boundary and reaches Work Source providers through `PORT-SOURCE`.
+It is deliberately not a seventh D10 runtime unit: it authors and submits immutable input, while
+the six units below realize the trusted Run authority core. Sharing an executable or installation
+with `RT-OPERATOR` cannot move the builder inside the authority boundary.
+
 ## Runtime units
 
 | ID              | Runtime unit              | Type         | Responsibility                                                                                                                                                                                                                           |
@@ -37,7 +46,7 @@ named ports as the only crossings of the authority-and-proof boundary.
 | `RT-OPERATOR`   | Operator interface        | Runtime unit | Accepts envelope submission and owner or operator commands, and presents durable explanations and outcomes; it holds no lifecycle authority.                                                                                             |
 | `RT-CONTROLLER` | Run controller            | Runtime unit | The single active Jig Control process for one Run: it validates, decides, records, dispatches, and reconciles under its controller generation.                                                                                           |
 | `RT-LEDGER`     | Run ledger store          | Data store   | Holds one Run's durable ordered Transition ledger and durable control facts; passive data at rest with no decision behavior.                                                                                                             |
-| `RT-EVIDENCE`   | Evidence artifact store   | Data store   | Holds immutable bounded evidence artifacts referenced by digest from the ledger; passive data at rest with no decision behavior.                                                                                                         |
+| `RT-EVIDENCE`   | Immutable artifact store  | Data store   | Holds bounded evidence artifacts and terminal audit exports referenced by digest from the ledger; passive data at rest with no decision behavior.                                                                                        |
 | `RT-REGISTRY`   | Target-authority registry | Data store   | Holds the durable cross-Run target-authority registry keyed by canonical target identity (`ID-TARGET`); the one store shared by all Run controllers, and passive data at rest like the others.                                           |
 | `RT-WITNESS`    | Currency witness store    | Data store   | Holds the `LG-WITNESS` heads for the Run ledgers and the registry, on storage whose trust is independent of `RT-LEDGER` and its backups; where no independent witness is configured, autonomous restore is traded for a deliberate stop. |
 
@@ -61,15 +70,15 @@ selected per configured mechanism in
 
 | ID               | Port                   | Faces (V1)                                     | Carries                                                                                                                                                                                                                                           |
 | ---------------- | ---------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT-INTAKE`    | Envelope intake        | `X-ENVELOPE`                                   | Envelope submission in; durable intake acknowledgement and preflight outcome out.                                                                                                                                                                 |
-| `PORT-DECIDE`    | Owner decision         | `P-OWNER`                                      | Parked named questions out; validated scoped decisions in.                                                                                                                                                                                        |
-| `PORT-SESSION`   | Role session           | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments out; attributable results, self-reports, and verdicts in.                                                                                                                                                                |
+| `PORT-INTAKE`    | Envelope intake        | `X-ENVELOPE`                                   | Digest-bound envelope submission in — plan, composed policy and repo floors, work profile, setup declaration, provider-authority approvals, configuration, and owner approval; durable intake acknowledgement and preflight outcome out.          |
+| `PORT-DECIDE`    | Human decision         | `P-OWNER`                                      | Parked Jig questions and Agent-provider human-needed permissions/questions out; validated scoped answers in.                                                                                                                                      |
+| `PORT-SESSION`   | Role session           | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments and scoped Doorbell answers out; attributable results, self-reports, verdicts, liveness, and human-needed provider requests in.                                                                                          |
 | `PORT-WORKSPACE` | Workspace effects      | `X-WORKSPACE`                                  | Authorized isolation and repository effects out; content, basis, cleanliness, and preservation facts in.                                                                                                                                          |
 | `PORT-VERIFY`    | Verification           | `X-VERIFY`                                     | Authorized exact-subject check requests out; check observations in.                                                                                                                                                                               |
 | `PORT-DELIVERY`  | Delivery and target    | `X-DELIVERY`                                   | Authorized publication and integration effects out; target, gate, effect-certainty, and landing facts in.                                                                                                                                         |
 | `PORT-LEDGER`    | Ledger commit and read | `X-STORE`                                      | Conditional ordered appends and verified reads of durable control records: the Run's ledger stream, the cross-Run target-authority registry lines keyed by canonical target, and the currency-witness heads advanced before each acknowledgement. |
-| `PORT-ARTIFACT`  | Artifact persistence   | `X-STORE`                                      | Immutable evidence artifact writes and digest-verified reads.                                                                                                                                                                                     |
-| `PORT-PUBLISH`   | Read-only publication  | `X-CONSUMER`                                   | Durable outcomes, explanations, and obligations out; no control input.                                                                                                                                                                            |
+| `PORT-ARTIFACT`  | Artifact persistence   | `X-STORE`                                      | Immutable evidence and terminal audit-export artifact writes, plus digest-verified reads.                                                                                                                                                         |
+| `PORT-PUBLISH`   | Read-only publication  | `X-CONSUMER`                                   | Durable outcomes, explanations, actionable notices, immutable audit-export references, and obligations out; no control input.                                                                                                                     |
 
 Port rules:
 
@@ -83,10 +92,15 @@ Port rules:
   validation inside the transition engine's commit protocol.
 - `PORT-PUBLISH` is one-directional by construction. A consumer that needs to influence a Run must
   enter through `PORT-INTAKE` or `PORT-DECIDE` as a first-class validated participant.
+- `PORT-SOURCE` is not a tenth crossing of `SYS-JIG`: it belongs to `X-ENVELOPE`'s bounded product
+  front end. Candidate work can reach `PORT-INTAKE` only after validation, composition, and owner
+  approval produce a new immutable envelope.
 
 ## Process model
 
-- `RT-OPERATOR` runs as a short-lived process per command (submit, inspect, decide, stop, export).
+- `RT-OPERATOR` runs as a short-lived process per command (configure, submit, inspect, decide,
+  stop, export). A realization may host the Envelope Builder in the same executable, but the
+  builder still has only proposal authority and remains outside the controller's trust boundary.
   It communicates with a live controller only through durable records and validated port triggers,
   never through shared memory, so an absent or crashed operator process cannot corrupt control
   state.

@@ -372,3 +372,13 @@ Layer 2 is approved and deliberately **not locked**: it is the governing detaile
 and a later material Layer 2 change requires renewed review and an explicit owner decision, but
 not a formal reopen ceremony. Material change to D1–D9 or I1–I21 remains a Layer 1 reopen
 regardless of any Layer 2 state.
+
+## Product-readiness amendment (2026-07-16)
+
+The imported product guarantees triggered a material Layer 2 amendment without reopening the
+locked Layer 1 inputs. D13, V18, and the amended contracts are governed by the separate
+[product readiness gate record](./product-readiness-gate-record.md). Its owner selections close
+every initial reconciliation gap and upstream ownership question, including the explicit product
+correction and D14 provider-permission boundary. The baseline above remains the approved Layer 2
+history; the complete amendment becomes locked only after independent `PASS` on its exact
+candidate.

@@ -74,11 +74,12 @@ The decomposition nests cleanly:
 Three roles carry Jig's control boundary, and the difference between them is what makes delegation
 safe:
 
-- The **worker** is the contained coding agent — the thing that reads a story, writes code, and
-  runs requested checks. It is the **Agent** seam, executing inside the **Execution Host** seam.
-  The worker is _contained_: it never holds privileged credentials and cannot push, open a PR,
-  merge, choose or weaken acceptance level, decide evidence sufficiency, review itself as
-  sufficient proof, or widen its own authority.
+- The **worker** is the coding agent — the thing that reads a story, writes code, and runs
+  requested checks. It is the **Agent** seam, executing inside the **Execution Host** seam under
+  the exact provider permission posture selected before launch. The provider and Execution Host
+  enforce that runtime posture. The worker never holds privileged forge credentials and cannot
+  push, open a PR, merge, choose or weaken acceptance level, decide evidence sufficiency, review
+  itself as sufficient proof, or change its own posture.
 - The **verifier/reviewer** is the independent acceptance lane the product model lets
   owner-controlled policy and configuration select before launch. It may be a human, agent, or
   deterministic checker; it assesses evidence, diff, or output and emits a verdict for Jig to
@@ -91,6 +92,13 @@ safe:
   invokes providers. The runner is **Jig-core, not a seam**: the four swappable seams (guarantee 4)
   are Agent, Execution Host, Forge, and Work Source; the runner is the fixed part that governs
   them. It is not a code-review engine, forge API implementation, or worker implementation.
+
+The Agent provider owns runtime permission handling inside each session. It may allow an action,
+review it automatically, or reject it without creating a Jig decision. When the provider requires
+a human permission or answer, it emits a request through the Agent seam. Jig durably parks that
+request at the same **Doorbell** used for its own owner questions, returns the scoped answer to the
+originating session, and lets the provider enforce or consume it. Jig does not add an automatic
+middleman responder in v1.
 
 This split is the spine of guarantee 1 — the thing that writes code is not the thing that reviews
 it as sufficient proof or ships it (FENCE-3, MERGE-1, MERGE-2, SEC-3).
@@ -252,26 +260,26 @@ resume from their last safe checkpoint"]
 One-line definitions of the product terms used across these pages. Each links to its fuller
 treatment.
 
-| Term                    | Meaning                                                                                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Track**               | One independent line of work — its own plan, policy, and work profile — running in parallel with other tracks in the same repo. See [Tracks](#tracks--parallel-independent-work).         |
-| **Execution plan**      | Jig's one hard input: a set of stories with their dependencies and done conditions, one per track. See [the execution plan](./jig.md#the-execution-plan--jigs-one-input).                 |
-| **Story**               | The unit of work Jig runs and lands: one reviewable change with its own done conditions. Design calls it a _work item_. See [Stories](#stories--the-unit-of-work).                        |
-| **Config**              | Owner-controlled run/repo wiring: provider selection, track setup, work profile, and operating posture chosen before launch.                                                              |
-| **Policy**              | The per-track safety contract — gating posture, merge spectrum, acceptance strength, required reviews, approvals, anti-gaming floor. Changing it is itself governed (guarantee 2, CFG-1). |
-| **Work profile**        | The per-track realization — model, effort, prompt strategy, role realization. Freely tunable; it cannot lower the safety floor (CFG-2).                                                   |
-| **Repo-level floors**   | A repo-scoped policy artifact setting minimums every track inherits and can tighten but not weaken (CFG-3).                                                                               |
-| **Runner**              | Jig's fixed, trusted core: orchestrates lifecycle, enforces policy, consumes evidence/verdicts, records decisions, and invokes providers after gates pass. Not a seam.                    |
-| **Worker**              | The contained implementer: reads a story, writes code, runs requested checks, and reports evidence. Holds no credentials and cannot ship, self-review, or lower policy.                   |
-| **Verifier / reviewer** | Independent acceptance lane that assesses evidence, diff, or output and emits a verdict; it cannot land work, hold forge credentials, redefine policy, or create transitions directly.    |
-| **Fence**               | Runtime authorization: approves, denies, or routes worker requests before execution.                                                                                                      |
-| **Seam**                | One of four swappable integration boundaries — Agent, Execution Host, Forge, Work Source (guarantee 4, STACK-2).                                                                          |
-| **Provider / driver**   | An implementation behind a seam. _Provider_ is the product term; the guarantee detail says _driver_ for a concrete trusted implementation.                                                |
-| **Forge provider**      | Deterministic adapter behind the Forge seam for Runner-invoked push, PR/status/comment, merge, idempotency, and API translation.                                                          |
-| **Execution host**      | The seam that contains the worker and proves the isolation/no-phone-home posture policy relies on.                                                                                        |
-| **Work source**         | The seam that supplies candidate work and provenance; it never bypasses plan validation.                                                                                                  |
-| **Doorbell**            | The escalation point where a run parks for an owner decision — approve, reject, override, or hand off (guarantee 1, DOOR-1).                                                              |
-| **Records**             | Durable evidence trail for governed decisions, evidence, acceptance verdicts, stops, and outcomes.                                                                                        |
-| **Conformance**         | The repeatable proof — capability, containment, declared authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                                 |
-| **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                              |
-| **done vs landed**      | _done_ = evidence met, merge pending; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                                       |
+| Term                    | Meaning                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Track**               | One independent line of work — its own plan, policy, and work profile — running in parallel with other tracks in the same repo. See [Tracks](#tracks--parallel-independent-work).                                  |
+| **Execution plan**      | Jig's one hard input: a set of stories with their dependencies and done conditions, one per track. See [the execution plan](./jig.md#the-execution-plan--jigs-one-input).                                          |
+| **Story**               | The unit of work Jig runs and lands: one reviewable change with its own done conditions. Design calls it a _work item_. See [Stories](#stories--the-unit-of-work).                                                 |
+| **Config**              | Owner-controlled run/repo wiring: provider selection, track setup, work profile, and operating posture chosen before launch.                                                                                       |
+| **Policy**              | The per-track safety contract — gating posture, merge spectrum, acceptance strength, required reviews, approvals, anti-gaming floor. Changing it is itself governed (guarantee 2, CFG-1).                          |
+| **Work profile**        | The per-track realization — model, effort, prompt strategy, role realization. Freely tunable; it cannot lower the safety floor (CFG-2).                                                                            |
+| **Repo-level floors**   | A repo-scoped policy artifact setting minimums every track inherits and can tighten but not weaken (CFG-3).                                                                                                        |
+| **Runner**              | Jig's fixed, trusted core: orchestrates lifecycle, enforces policy, consumes evidence/verdicts, records decisions, and invokes providers after gates pass. Not a seam.                                             |
+| **Worker**              | The implementer running under its provider's selected permission posture: reads a story, writes code, runs checks, and reports evidence. Holds no forge credentials and cannot ship, self-review, or lower policy. |
+| **Verifier / reviewer** | Independent acceptance lane that assesses evidence, diff, or output and emits a verdict; it cannot land work, hold forge credentials, redefine policy, or create transitions directly.                             |
+| **Fence**               | Provider-enforced worker runtime permissions plus Jig-enforced lifecycle and delivery authorization; neither side silently widens the other's boundary.                                                            |
+| **Seam**                | One of four swappable integration boundaries — Agent, Execution Host, Forge, Work Source (guarantee 4, STACK-2).                                                                                                   |
+| **Provider / driver**   | An implementation behind a seam. _Provider_ is the product term; the guarantee detail says _driver_ for a concrete trusted implementation.                                                                         |
+| **Forge provider**      | Deterministic adapter behind the Forge seam for Runner-invoked push, PR/status/comment, merge, idempotency, and API translation.                                                                                   |
+| **Execution host**      | The seam in which the Agent provider enforces the selected worker permission posture; Jig trusts rather than independently proves that enforcement.                                                                |
+| **Work source**         | The seam that supplies candidate work and provenance; it never bypasses plan validation.                                                                                                                           |
+| **Doorbell**            | The durable human-interaction point for Jig-owned decisions and Agent-provider permissions or questions that require a person.                                                                                     |
+| **Records**             | Durable evidence trail for Jig-governed decisions, human Doorbell interactions, evidence, acceptance verdicts, stops, and outcomes; provider-internal review stays provider-local.                                 |
+| **Conformance**         | The repeatable proof — protocol behavior, declared posture and authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                                                    |
+| **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                                                       |
+| **done vs landed**      | _done_ = evidence met, merge pending; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                                                                |

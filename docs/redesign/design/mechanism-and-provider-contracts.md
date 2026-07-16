@@ -5,9 +5,9 @@ audience:
   - Engineers realizing or configuring mechanism providers
   - Security and operations reviewers
   - Arye Kogan, Jig product and architecture decision owner
-scope: The common mechanism contract, capability bindings, credential and sandbox posture, and per-port provider duties; wire formats, token mechanics, transports, and per-provider sandbox implementations are excluded.
+scope: The common mechanism contract, provider authority manifests, capability bindings, credential and provider-permission posture, per-port provider duties, and proof freshness; wire formats, token mechanics, transports, and per-provider sandbox implementations are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -17,6 +17,7 @@ sources_of_truth:
   - ./decisions/D9-invariants-and-artifact-shape.md
   - ./decisions/D12-mechanism-contract-model.md
 related:
+  - ./envelope-production.md
   - ./components/control-plane.md
   - ./architecture-conformance.md
   - ./data-and-identity.md
@@ -27,7 +28,9 @@ related:
 
 Every external mechanism from the [runtime port table](./runtime.md) — `X-AGENT`, `X-WORKSPACE`,
 `X-VERIFY`, `X-DELIVERY`, and `X-STORE` — is reached only through its named port and only under this
-contract. The page consumes [D9](./decisions/D9-invariants-and-artifact-shape.md) categories 7
+contract. The Work Source provider behind the Envelope Builder's `PORT-SOURCE` follows the same
+identity, manifest, attestation, freshness, and conformance clauses without receiving active-Run
+authority. The page consumes [D9](./decisions/D9-invariants-and-artifact-shape.md) categories 7
 (provider-specific idempotency, lookup, reconciliation, compensation, reconnection, and session
 replacement) and 11 (credential resolution, delegation enforcement, sandboxing, network boundaries,
 capability binding, and mechanism conformance) under the proposed
@@ -61,6 +64,9 @@ the `LG-*` clauses — an equivalent, differently located validation, never a we
 | `MC-COMPENSATE` | Compensation happens only as new Jig-authorized Operations; a mechanism never reverses, retries, or cleans up an earlier effect autonomously.                                                                                                                                                                                                                                                                                                                                        |
 | `MC-RECONNECT`  | A session mechanism either resumes an interrupted session by its identity or replaces it with an attested loss report, so Jig — not the provider — decides rework. The replacement session binds to the same participant principal (`ID-PRINCIPAL`) with recorded provenance, so reconnection never launders a principal's contribution history.                                                                                                                                     |
 | `MC-HONESTY`    | A mechanism attests its actual posture, including a weak posture, rather than claiming strength it lacks; an honest `weak` attestation is valid input, a false `strong` one is a breach.                                                                                                                                                                                                                                                                                             |
+| `MC-AUTHORITY`  | The provider acts only within its exact owner-approved `SCH-PROVIDER-AUTHORITY` manifest. Runtime, filesystem, network, credential, subprocess, or external-service authority absent from the manifest is unavailable; a changed manifest is a new unapproved subject.                                                                                                                                                                                                               |
+| `MC-LIVENESS`   | Session and long-running mechanisms expose attributable heartbeat, qualifying-progress, silence, termination, and approval-wait observations for deterministic classification; a provider's bare "healthy" claim is not itself a fact.                                                                                                                                                                                                                                               |
+| `MC-PERMISSION` | An Agent provider launches the session under the exact owner-selected native permission posture bound in the envelope and never changes it at the worker's request. Actions allowed, automatically reviewed, or rejected inside that posture remain provider-internal. Only a permission or question that requires a human is emitted as a session-bound request; the provider later enforces or consumes the exact Doorbell answer.                                                 |
 
 A mechanism's output cannot widen its power or promote a success claim into an authoritative
 lifecycle fact; Jig validates every result and records its own durable truth (I3, I5).
@@ -73,10 +79,10 @@ one workspace path, one repository, or one target ref. Binding kinds follow the 
 
 | Kind           | Port                          | Resource scope it binds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CB-SESSION`   | `PORT-SESSION`                | One role assignment, its bounded inputs, and one session on one configured agent mechanism.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `CB-WORKSPACE` | `PORT-WORKSPACE`              | One workspace path and one repository at one declared basis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `CB-SESSION`   | `PORT-SESSION`                | One role assignment, its bounded inputs, one session on one configured Agent provider, its exact native permission-posture reference, and only the authority allowed by that provider's approved manifest. A response binding additionally names one durable human-needed request and the exact scoped Doorbell answer returned to it.                                                                                                                                                                                                                                      |
+| `CB-WORKSPACE` | `PORT-WORKSPACE`              | One workspace path and one repository at one declared basis. A setup binding additionally pins the recipe digest, freshness-input digest, and separately approved setup effects.                                                                                                                                                                                                                                                                                                                                                                                            |
 | `CB-VERIFY`    | `PORT-VERIFY`                 | One exact evidence subject and the configured checks over that subject only, executed effect-free by enforced contract: read-only subject view, discarded scratch area, zero network egress by default; a check class with a declared external-effect need is bound and reconciled as an irreversible-effect Operation instead.                                                                                                                                                                                                                                             |
-| `CB-DELIVERY`  | `PORT-DELIVERY`               | One repository, one target ref, and one Candidate basis for publication or integration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `CB-DELIVERY`  | `PORT-DELIVERY`               | One repository, one target ref, and one Candidate basis for publication or integration; a surfacing binding further pins one integration request, stable Jig status context, stable comment marker, and redacted explanation digest.                                                                                                                                                                                                                                                                                                                                        |
 | `CB-STORE`     | `PORT-LEDGER`/`PORT-ARTIFACT` | For `PORT-ARTIFACT`: one named artifact write and its digest-verified reads, minted per Operation and validated by `CP-MEDIATOR`. For the `PORT-LEDGER` commit primitive: one Run's ledger positions, one realization-bound `ID-REGISTRY` and canonical target's registry line, or the corresponding witness heads, minted per commit or verified read by the transition engine's commit protocol — the single ledger-primitive validator, which recovery uses for its reads — with the Operation-bound clause vocabulary satisfied through the ledger substitutions below. |
 
 Delegation enforcement is symmetric: the minting component (`CP-MEDIATOR` for mediated Operation
@@ -85,6 +91,9 @@ validates it again on return. A result presented under a
 different binding — or under no binding — fails closed and creates no fact (I7). A binding confers
 no standing authority: it is bound to the Operation identity and fence tuple, so it cannot be
 reused for a later Operation, a different subject, or a superseded controller generation.
+Every binding is a narrowing of the provider's approved authority manifest, never an extension of
+it. `CP-MEDIATOR` rejects dispatch outside `ID-MANIFEST` and rejects a return that echoes a
+different manifest identity than the recorded fence.
 
 ### Ledger-primitive substitutions
 
@@ -107,6 +116,22 @@ ledger-primitive validator and binding minter, and `CP-RECOVERY` performs its ve
 through that same protocol facility rather than through a second validator. Everything else is
 validated by `CP-MEDIATOR`.
 
+## Provider authority manifests
+
+Every selected provider carries one `SCH-PROVIDER-AUTHORITY` manifest whose digest is approved by
+the owner and identified as `ID-MANIFEST`. The declaration is exhaustive and deny-by-default
+across runtime and subprocess classes, filesystem roots and access modes, network destinations and
+protocols, credential key names and their resolving process, external systems/effect classes, and
+the native permission postures the provider supports. For an Agent provider, the envelope selects
+one exact native posture reference and records its declared filesystem, command, approval-review,
+and network semantics. That selection narrows the manifest; it never extends it.
+
+The manifest is part of envelope composition, conformance subject identity, every relevant
+capability fence, and compose-time attestation. A byte change, provider-build change, or changed
+authority endpoint invalidates the approval and conformance qualification before any Story effect;
+the provider cannot ask an active Run to accept wider authority. The Work Source provider follows
+the same rule in the Envelope Builder even though it holds no active-Run capability binding.
+
 ## Credential resolution and secrecy
 
 - Credentials resolve from the environment at process start, per configured mechanism;
@@ -118,37 +143,61 @@ validated by `CP-MEDIATOR`.
 - Durable records reference credentials only by configuration key name, so attribution and proof
   survive without exposure.
 
-## Sandboxing and network boundaries
+## Provider permission and network boundaries
 
-Mechanism sessions run under least-privilege declared scopes: a filesystem allowlist derived from
-the workspace binding and a network allowlist derived from the configured provider's declared
-needs. Verification sessions are stricter still: `CB-VERIFY` defaults to zero network egress and a
-read-only subject view, because effect-freedom is what licenses re-issuing a lost check response
-without reconciliation (I17). The enforcement strength is itself attested at compose time — an honest `weak` or `strong`
-posture per `MC-HONESTY` — so frozen policy can require a minimum posture and a Run whose
-configured mechanisms cannot meet it fails closed before Story effects. Posture cannot be silently
-downgraded: configuration may exceed the policy minimum but never lower it, the same
-configuration-cannot-weaken-policy rule pattern as I9.
+Agent sessions run under the exact provider-native permission posture frozen in the envelope. The
+Agent provider and its Execution Host enforce that posture, including its filesystem, command,
+approval-review, and network semantics. Jig verifies that the configured provider accepted the
+selected posture reference and that the selection is unchanged across resume; it does not
+intercept individual worker actions or independently prove the provider's sandbox or egress
+implementation. Policy and repo floors may reject a declared posture before launch, but cannot
+silently rewrite it after launch.
+
+Provider-internal permission outcomes remain inside the session. An allowed or automatically
+approved action executes under the provider posture; a rejected action does not execute. Only a
+permission or question the provider marks `human-required` crosses `PORT-SESSION`. Jig durably
+parks that exact request at the Doorbell and returns the scoped answer to the originating session;
+the provider, not Jig, enforces or consumes it. Provider auto-review is therefore not a Jig
+Operation or lifecycle decision.
+
+Verification sessions remain stricter because they are Jig-authorized verification mechanisms,
+not worker-runtime actions: `CB-VERIFY` defaults to zero network egress and a read-only subject
+view. Effect-freedom licenses re-issuing a lost check response without reconciliation (I17).
 
 ## Provider-specific realization duties
 
 What the category 7 duties mean per port family; each duty is exercised by that port's conformance
 suite before a provider becomes configurable.
 
-| Port family                             | Idempotency and lookup                                                                                                                                                                                                                                                                                                                                             | Reconciliation and compensation                                                                                                     | Reconnection and replacement                                                                                                                           |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Session (`PORT-SESSION`)                | Assignment delivery is idempotent under the Operation identity; an existing session is discoverable by that identity.                                                                                                                                                                                                                                              | An abandoned or duplicate session is settled only by a new authorized Operation; the provider never re-runs work on its own.        | Resume the same session by identity where supported; otherwise attest the loss so Jig decides rework (`MC-RECONNECT`).                                 |
-| Workspace (`PORT-WORKSPACE`)            | Isolation and repository effects are idempotent under the Operation identity; workspace, branch, and basis are queryable.                                                                                                                                                                                                                                          | Content, basis, and cleanliness facts answer reconciliation; cleanup and preservation run only as new authorized Operations.        | A lost workspace process is replaced against the durable workspace; the binding pins the path and basis the replacement may use.                       |
-| Verification (`PORT-VERIFY`)            | Checks are observations, repeatable on the exact subject; a prior observation is retrievable by Operation identity.                                                                                                                                                                                                                                                | Uncertainty is resolved by re-observing the exact subject; there is no effect to compensate.                                        | A lost check execution is replaced by a new authorized Operation over the same exact subject.                                                          |
-| Delivery (`PORT-DELIVERY`)              | Publication and integration effects are idempotent under the Operation identity or discoverable by a provider correlation key; the target lineage anchor is created by an atomic conditional-create the provider must support and attest, and a provider that cannot fails preflight for finalizing Runs.                                                          | An uncertain irreversible effect is looked up before any second semantic attempt (I17); reversal only as new authorized Operations. | Connection loss never re-fires an effect; the replacement dispatch must first reconcile the earlier Operation's certainty.                             |
-| Storage (`PORT-LEDGER`/`PORT-ARTIFACT`) | Conditional appends are decided by expected position; an unknown commit acknowledgement is resolved by reading the position. Registry storage attests the canonical realization descriptor used to derive `ID-REGISTRY`, and a mismatch fails preflight. Witness lines advance durably before append acknowledgement and are readable independently of the ledger. | Digest-verified reads answer whether a record or artifact exists; repair or migration only as new authorized Operations.            | A storage reconnection replays no writes; the append condition, content digests, and witness heads make duplicate application and rollback detectable. |
+| Port family                             | Idempotency and lookup                                                                                                                                                                                                                                                                                                                                             | Reconciliation and compensation                                                                                                                                                                              | Reconnection and replacement                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session (`PORT-SESSION`)                | Assignment and Doorbell-answer delivery are idempotent under the Operation identity; an existing session and human-needed request are discoverable by their identities. The selected provider-native permission posture is fixed for the session.                                                                                                                  | An abandoned or duplicate session is settled only by a new authorized Operation; a Doorbell answer binds one request and cannot widen the session posture.                                                   | Resume the same session and pending human-needed request by identity where supported; otherwise attest the loss so Jig decides rework (`MC-RECONNECT`).       |
+| Workspace (`PORT-WORKSPACE`)            | Isolation and repository effects are idempotent under the Operation identity; workspace, branch, basis, setup recipe, and freshness receipt are queryable. Setup executes only when the declared recipe/input/host fingerprint is stale.                                                                                                                           | Content, basis, cleanliness, and setup-receipt facts answer reconciliation; setup, cleanup, and preservation run only as new authorized Operations.                                                          | A lost workspace process is replaced against the durable workspace; the binding pins the path, basis, recipe, and manifest authority the replacement may use. |
+| Verification (`PORT-VERIFY`)            | Checks are observations, repeatable on the exact subject; a prior observation is retrievable by Operation identity.                                                                                                                                                                                                                                                | Uncertainty is resolved by re-observing the exact subject; there is no effect to compensate.                                                                                                                 | A lost check execution is replaced by a new authorized Operation over the same exact subject.                                                                 |
+| Delivery (`PORT-DELIVERY`)              | Publication and integration effects are idempotent under the Operation identity or discoverable by a provider correlation key; request status and explanation blocks update by stable context/marker; the target lineage anchor is an attested atomic conditional-create, and a provider lacking it fails preflight for finalizing Runs.                           | An uncertain irreversible effect is looked up before any second semantic attempt (I17); surfacing failure preserves `Blocked` and becomes a residual obligation; reversal only as new authorized Operations. | Connection loss never re-fires an effect; the replacement dispatch must first reconcile the earlier Operation's certainty.                                    |
+| Storage (`PORT-LEDGER`/`PORT-ARTIFACT`) | Conditional appends are decided by expected position; an unknown commit acknowledgement is resolved by reading the position. Registry storage attests the canonical realization descriptor used to derive `ID-REGISTRY`, and a mismatch fails preflight. Witness lines advance durably before append acknowledgement and are readable independently of the ledger. | Digest-verified reads answer whether a record or artifact exists; repair or migration only as new authorized Operations.                                                                                     | A storage reconnection replays no writes; the append condition, content digests, and witness heads make duplicate application and rollback detectable.        |
+| Work Source (`PORT-SOURCE`)             | Candidate identity, source revision/cursor, and provenance are repeatably discoverable; refreshing the same candidate key cannot silently substitute new content.                                                                                                                                                                                                  | A changed source fact creates a new candidate and envelope proposal; a source never compensates by mutating an approved envelope.                                                                            | Reconnection resumes from the recorded source cursor or reports loss; no source session reaches active-Run state.                                             |
 
 ## Conformance gating
 
 A provider becomes configurable behind a port only after passing that port's conformance suite in
 the [architecture conformance catalog](./architecture-conformance.md). A conformance claim is
-recorded evidence — the suite version and the exact subject digest of what passed — not trust by
-assertion, and configuration cannot substitute a claim for the recorded pass.
+recorded evidence — the suite and adversarial-probe versions and the exact subject digest of what
+passed — not trust by assertion, and configuration cannot substitute a claim for the recorded pass.
+
+Proof freshness has two layers. Reusable conformance remains valid only for the exact provider
+build, suite version, authority-manifest digest, and declared environment class. Every Run also
+requires a positive compose-time capability proof bound to that Run's provider, manifest,
+environment, requested capability, and policy minimum. Any changed subject invalidates the proof;
+policy may additionally set a maximum evidence age for environment-sensitive capabilities. A
+missing, stale, or negative proof reduces autonomy only where the product guarantee remains
+preserved; otherwise preflight fails closed.
+
+For Agent providers, conformance proves the protocol Jig depends on: stable posture selection,
+unchanged posture identity, attributable liveness, resumable human-needed requests, exact answer
+binding, and the absence of undeclared Jig control paths. It does not claim to prove that an
+arbitrary provider has no hidden sandbox defect or phone-home path; D14 makes the provider and
+Execution Host the trusted runtime-permission boundary.
 
 ## View V12 — capability-scoped mechanism mediation
 

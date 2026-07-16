@@ -141,24 +141,31 @@ see **[the five guarantees in detail](./guarantees.md)**.
 
 Jig's product promise depends on keeping these roles separate:
 
-| Role                  | Product boundary                                                                                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Config**            | Owner-controlled run/repo wiring: which track, work profile, providers, and operating posture are selected before launch.                                                                   |
-| **Policy**            | Owner-controlled safety and acceptance contract: gating posture, acceptance strength, escalation, reviews, and merge conditions. Fixed at launch for the run.                               |
-| **Plan**              | The approved execution plan and Jig's hard input boundary: stories, dependencies, and done conditions.                                                                                      |
-| **Runner**            | Jig's trusted orchestrator: owns lifecycle, policy enforcement, evidence consumption, Doorbell escalation, records append, and provider invocation. It is not a code reviewer or forge API. |
-| **Worker**            | The contained implementer: edits code, runs requested checks, and reports results/evidence. It does not hold forge credentials, land work, choose acceptance strength, or review itself.    |
-| **Verifier/reviewer** | The independent acceptance lane: human, agent, or deterministic checker that assesses evidence, diff, or output and emits a verdict for Runner/policy to consume.                           |
-| **Fence**             | Runtime authorization: approves, denies, or routes worker requests before they execute.                                                                                                     |
-| **Doorbell**          | Owner escalation for ambiguous, risky, or unproven decisions; grants remain narrow and recorded.                                                                                            |
-| **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it under policy.       |
-| **Execution host**    | The environment containing the worker and proving the isolation/no-phone-home posture policy relies on.                                                                                     |
-| **Work source**       | Supplies candidate work and provenance, but never bypasses plan validation.                                                                                                                 |
-| **Records**           | Durable evidence trail for governed decisions, evidence, verdicts, stops, and outcomes.                                                                                                     |
+| Role                  | Product boundary                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**            | Owner-controlled run/repo wiring: which track, work profile, providers, and operating posture are selected before launch.                                                                                                               |
+| **Policy**            | Owner-controlled safety and acceptance contract: gating posture, acceptance strength, escalation, reviews, and merge conditions. Fixed at launch for the run.                                                                           |
+| **Plan**              | The approved execution plan and Jig's hard input boundary: stories, dependencies, and done conditions.                                                                                                                                  |
+| **Runner**            | Jig's trusted orchestrator: owns lifecycle, Jig policy enforcement, evidence consumption, durable Doorbell routing, records append, and provider invocation. It does not reimplement provider runtime permissions.                      |
+| **Worker**            | The implementer running under its provider's selected permission posture: edits code, runs requested checks, and reports results/evidence. It does not hold forge credentials, land work, choose acceptance strength, or review itself. |
+| **Verifier/reviewer** | The independent acceptance lane: human, agent, or deterministic checker that assesses evidence, diff, or output and emits a verdict for Runner/policy to consume.                                                                       |
+| **Fence**             | The split authorization boundary: the Agent provider enforces worker runtime permissions; Jig authorizes its own lifecycle and delivery Operations.                                                                                     |
+| **Doorbell**          | One durable path for Jig-owned escalations and Agent-provider permissions or questions that require a human; grants remain narrow and recorded.                                                                                         |
+| **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it under policy.                                                   |
+| **Execution host**    | The environment in which the Agent provider enforces the owner-selected worker permission posture. Jig trusts, rather than independently proves, that enforcement.                                                                      |
+| **Work source**       | Supplies candidate work and provenance, but never bypasses plan validation.                                                                                                                                                             |
+| **Records**           | Durable evidence trail for governed decisions, evidence, verdicts, stops, and outcomes.                                                                                                                                                 |
 
 This is why Jig is not "an agent that codes." Jig is the harness around a worker: the worker
 produces work, the verifier/reviewer assesses it, the runner enforces policy and lifecycle, the
 forge provider performs deterministic external operations, and the owner owns risk decisions.
+
+The Agent provider owns the worker session's permission loop. Actions already allowed by the
+selected posture run; the provider may evaluate approval requests internally and approve or reject
+them. Only a request that the provider says needs a human — either a permission or a question —
+crosses the Agent seam into Jig. Jig parks it durably at the Doorbell, returns the human's scoped
+answer to the same session, and leaves enforcement or answer consumption to the provider. A
+provider-internal approval or rejection is not a Jig lifecycle decision.
 
 ### Acceptance before landing
 
@@ -187,10 +194,11 @@ that support.
 ### Enforce vs. Guide
 
 Most of the suite guides: it gives templates, presets, product practices, and planning
-discipline the owner can adapt. Jig enforces only the floors that make delegation safe:
-authorization before action, policy that cannot be quietly weakened, runner-owned irreversible
-actions, implemented acceptance gates before landing when policy requires them, and evidence before
-landing work. The owner still chooses the policy posture and the strength of the gates.
+discipline the owner can adapt. The Agent provider enforces worker runtime permissions; Jig
+enforces the floors it owns: a frozen provider-posture selection, policy that cannot be quietly
+weakened, runner-owned irreversible delivery actions, implemented acceptance gates before landing
+when policy requires them, and evidence before landing work. The owner still chooses the provider
+and policy postures and the strength of the gates.
 
 ## How you use Jig
 
@@ -200,15 +208,16 @@ each making one of the five guarantees concrete.
 
 ## Product Boundaries
 
-Jig owns execution under policy: orchestration, authorization, escalation, evidence consumption,
-implemented acceptance verdict consumption, recovery, provider invocation, stack seams, and run
-visibility. The supporting products can help produce better product definitions, designs, and
-execution plans, but Jig does not require them. The learning loop is between-runs improvement, not
-part of Jig's per-run hot path.
+Jig owns execution under policy: orchestration, lifecycle and delivery authorization, durable
+human escalation, evidence consumption, implemented acceptance verdict consumption, recovery,
+provider invocation, stack seams, and run visibility. The Agent provider owns the worker session's
+runtime permission enforcement and internal automatic review. The supporting products can help
+produce better product definitions, designs, and execution plans, but Jig does not require them.
+The learning loop is between-runs improvement, not part of Jig's per-run hot path.
 
 Design owns the implementation details behind these promises: event schema shape, protocol
-mechanics, provider contracts, exact policy classifiers, setup prompts, configuration file shape,
-storage strategy, and delivery gates. Planning owns delivery-level acceptance criteria and phase
+mechanics, provider contracts, posture binding, setup prompts, configuration file shape, storage
+strategy, and delivery gates. Planning owns delivery-level acceptance criteria and phase
 sequencing. Product keeps the outcome-level commitments and the IDs in
 [the five guarantees](./guarantees.md).
 
@@ -247,9 +256,9 @@ internal-only or becomes a public package is still open.
 
 Jig is honest about its edges. These are deliberate non-goals or deferrals, not gaps:
 
-- **No model decides for you.** No LLM adjudicates approvals; risky or unallowlisted requests
-  always go to a human. Low-risk auto-grants in assisted mode follow a fixed, predictable rule
-  (CFG-10), never a model.
+- **No Jig-side middleman responder yet.** A provider may use its own automatic reviewer inside
+  the Agent session. Once that provider requires a human permission or answer, Jig routes it to the
+  owner through the Doorbell; Jig does not insert another agent to answer it in v1.
 - **Local-first.** Jig runs against a local execution host now. Remote hosts are a ready seam
   with no shipped driver yet — don't expect remote execution today.
 - **Operator-initiated.** A run starts because you start it; webhook and scheduler triggers come
@@ -258,9 +267,9 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - **The full agent-driven real run is still bounded evidence.** EVRUN-partial proved a real
   work-source, Forge, and records-integrity path with a scripted agent leg. The later EVRUN-full
   combined smoke proves a real GitHub Issues, Codex app-server, real-host, GitHub Forge `open-pr`,
-  and records-integrity path against the disposable target repo. Remote execution, strong
-  no-phone-home behavior, held-merge/idempotency, Windows behavior, and every transport edge remain
-  unproven.
+  and records-integrity path against the disposable target repo. Remote execution, the redesigned
+  provider-permission/Doorbell flow, held-merge/idempotency, Windows behavior, and every transport
+  edge remain unproven.
 - **No silent legacy coping.** Jig refuses configuration it doesn't understand, with guidance,
   rather than guessing at an outdated format.
 

@@ -7,7 +7,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The conformance suite catalog, its execution posture, and its gated outcomes; suite implementations, test frameworks, and provider technology selection are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -31,24 +31,37 @@ a suite may not be weakened to admit a realization (the gate-integrity posture o
 
 ## Suite catalog (`CF-*`)
 
-| Suite              | What it exercises                                                                                                        | Invariants |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `CF-DETERMINISM`   | Replaying the same ledger and ordered validated triggers reproduces identical decisions and Operation intents.           | I4         |
-| `CF-ORDERING`      | No live-state adoption and no effect dispatch happen before the corresponding ledger commit is confirmed.                | I5         |
-| `CF-FENCE`         | Results and dispatches under a stale controller generation or stale finalization-authority fence are rejected.           | I6, I12    |
-| `CF-BINDING`       | Wrong-subject, wrong-basis, and wrong-fence results cannot advance state; every mismatch fails closed.                   | I7         |
-| `CF-ACCEPTANCE`    | Acceptance requires a valid reviewer verdict on the exact Candidate plus Jig validation, never Jig re-judgment.          | I8         |
-| `CF-POLICY`        | Configuration and providers cannot lower or silently change the policy-selected final verification.                      | I9         |
-| `CF-CAPACITY`      | Admission by scarce resource class always preserves the progress reserve for admitted work.                              | I10        |
-| `CF-ORDER`         | Admission, finalization, and attribution tie-breaks follow the immutable comparator under permuted arrival order.        | I11        |
-| `CF-RELEASE`       | Only confirmed landing releases dependents; approval, publication, checks, integration response, or cleanup do not.      | I13        |
-| `CF-BLOCKERS`      | Multi-root dependency outcomes carry the complete canonically ordered reachable direct-root blocker set.                 | I14        |
-| `CF-CONTAINMENT`   | Faults land at the smallest safe scope — Story, target, Run — and insufficiency always fails closed.                     | I15        |
-| `CF-BOUNDS`        | Every retry, rework, refresh, wait, Recovery, and Retirement path is bounded and reaches its explicit exhaustion action. | I16        |
-| `CF-DOUBLE-EFFECT` | No second semantic effect is attempted before the earlier uncertain effect is known absent or reconciled.                | I17        |
-| `CF-SEPARATION`    | Cleanup and Retirement can neither reverse a recorded landing nor delay dependency release.                              | I18        |
-| `CF-PRESERVATION`  | Work and evidence are preserved before resource destruction; unresolved Retirement becomes a Residual Obligation.        | I19        |
-| `CF-TRUST-STOP`    | After authoritative-store or decision-authority compromise the realization fails closed with an explicit named stop.     | I20        |
+| Suite              | What it exercises                                                                                                                                               | Invariants      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `CF-DETERMINISM`   | Replaying the same ledger and ordered validated triggers reproduces identical decisions and Operation intents.                                                  | I4              |
+| `CF-ORDERING`      | No live-state adoption and no effect dispatch happen before the corresponding ledger commit is confirmed.                                                       | I5              |
+| `CF-FENCE`         | Results and dispatches under a stale controller generation or stale finalization-authority fence are rejected.                                                  | I6, I12         |
+| `CF-BINDING`       | Wrong-subject, wrong-basis, and wrong-fence results cannot advance state; every mismatch fails closed.                                                          | I7              |
+| `CF-ACCEPTANCE`    | Acceptance requires a valid reviewer verdict on the exact Candidate plus Jig validation, never Jig re-judgment.                                                 | I8              |
+| `CF-POLICY`        | Configuration and providers cannot lower or silently change the policy-selected final verification.                                                             | I9              |
+| `CF-CAPACITY`      | Admission by scarce resource class always preserves the progress reserve for admitted work.                                                                     | I10             |
+| `CF-ORDER`         | Admission, finalization, and attribution tie-breaks follow the immutable comparator under permuted arrival order.                                               | I11             |
+| `CF-RELEASE`       | Only confirmed landing releases dependents; approval, publication, checks, integration response, or cleanup do not.                                             | I13             |
+| `CF-BLOCKERS`      | Multi-root dependency outcomes carry the complete canonically ordered reachable direct-root blocker set.                                                        | I14             |
+| `CF-CONTAINMENT`   | Faults land at the smallest safe scope — Story, target, Run — and insufficiency always fails closed.                                                            | I15             |
+| `CF-BOUNDS`        | Every retry, rework, refresh, wait, Recovery, and Retirement path is bounded and reaches its explicit exhaustion action.                                        | I16             |
+| `CF-DOUBLE-EFFECT` | No second semantic effect is attempted before the earlier uncertain effect is known absent or reconciled.                                                       | I17             |
+| `CF-SEPARATION`    | Cleanup and Retirement can neither reverse a recorded landing nor delay dependency release.                                                                     | I18             |
+| `CF-PRESERVATION`  | Work and evidence are preserved before resource destruction; unresolved Retirement becomes a Residual Obligation.                                               | I19             |
+| `CF-TRUST-STOP`    | After authoritative-store or decision-authority compromise the realization fails closed with an explicit named stop.                                            | I20             |
+| `CF-RULE-SURFACE`  | Adversarial Candidates that alter, rename, or remove governing paths park and invalidate prior acceptance until exact re-approval and fresh evidence.           | I7, I8, I9, I15 |
+| `CF-LIVENESS`      | Boundary cases for progress, idle, silence, repetition, and approval deadlines derive deterministic thinking/stuck/dead/overdue outcomes.                       | I4, I16         |
+| `CF-NOTICE-EXPORT` | Every parked, blocked, stale, overdue, and residual condition projects an actionable notice; terminal exports are redacted, create-once, and digest-verifiable. | I16, I19        |
+
+The imported guarantees add required product-readiness suites without changing I1–I21:
+
+| Suite                    | What it exercises                                                                                                                                                                                                                                                                                                  | Closes                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `CF-ENVELOPE`            | Floor-preserving track composition, visible preset expansion, work-profile/policy separation, exact owner approval, Work Source provenance, and successor-Run-only replanning.                                                                                                                                     | CFG-2/3/5/6/8, ISO-2, STACK-2        |
+| `CF-PROVIDER-PERMISSION` | The exact Agent-provider posture is frozen and accepted at launch; provider-internal allow/review/reject outcomes create no Jig decision; only attributable human-needed permissions/questions park at the Doorbell, and each scoped answer returns to the same session without widening posture or Jig authority. | FENCE-1/2, DOOR-1/2/3, SEC-2, CFG-10 |
+| `CF-SETUP-FRESHNESS`     | Exact recipe/input/host receipts suppress setup; any relevant mismatch or stale receipt authorizes one reconciled setup effect and emits a fresh receipt.                                                                                                                                                          | CFG-9                                |
+| `CF-PROVIDER-AUTHORITY`  | Bindings can only narrow an exhaustive approved manifest; build, manifest, environment, proof-age, and approval changes close the provider gate until requalified.                                                                                                                                                 | EARN-1, DRIVE-2                      |
+| `CF-BLOCK-SURFACING`     | A real integration request receives one idempotent status/comment block when authorized; surfacing failure preserves `Blocked` and creates a notice and residual obligation.                                                                                                                                       | MERGE-5                              |
 
 Per-port mechanism suites verify the `MC-*` clauses and the port family duties of the
 [mechanism and provider contracts](./mechanism-and-provider-contracts.md) against a concrete
@@ -58,10 +71,19 @@ provider:
 | ------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CF-MECH-LEDGER`    | `PORT-LEDGER`    | Registry-realization identity attestation and mismatch rejection; conditional-append rejection; durable acknowledgement; the five-way readback classification (own commit adopted once; empty-position absence retried with the same identity; a competing generation's occupant adopted with the proposer fenced and never retried; same-generation/different-digest failing closed as integrity loss; indeterminate halting); and `LG-WITNESS` currency: independent trust, monotonicity, advance-before-acknowledgement, and rollback-restore detection. |
 | `CF-MECH-ARTIFACT`  | `PORT-ARTIFACT`  | Immutable writes and digest-verified reads.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `CF-MECH-SESSION`   | `PORT-SESSION`   | Assignment idempotency, session lookup, resume or attested loss.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `CF-MECH-WORKSPACE` | `PORT-WORKSPACE` | Effect idempotency, basis and cleanliness facts, preservation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `CF-MECH-SESSION`   | `PORT-SESSION`   | Assignment idempotency, session lookup, exact native permission-posture acceptance and stability, provider-internal outcome isolation, attributable human-needed request emission, scoped Doorbell-answer binding, and resume or attested loss with any pending request preserved.                                                                                                                                                                                                                                                                          |
+| `CF-MECH-WORKSPACE` | `PORT-WORKSPACE` | Effect idempotency, basis and cleanliness facts, setup receipt/freshness behavior, preservation.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `CF-MECH-SOURCE`    | `PORT-SOURCE`    | Stable source identity, provenance, bounded retrieval, duplicate normalization, and deterministic candidate ordering before envelope approval.                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `CF-MECH-VERIFY`    | `PORT-VERIFY`    | Exact-subject observation, repeatability, result retrieval.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `CF-MECH-DELIVERY`  | `PORT-DELIVERY`  | Effect idempotency or lookup, certainty reporting, no auto-replay, and atomic conditional creation of the target lineage anchor.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `CF-MECH-DELIVERY`  | `PORT-DELIVERY`  | Effect idempotency or lookup, certainty reporting, no auto-replay, atomic conditional creation of the target lineage anchor, and idempotent request/status/comment block surfacing with failure preservation.                                                                                                                                                                                                                                                                                                                                               |
+
+Every `CF-MECH-*` suite contains reusable adversarial probes, not only happy-path examples. At a
+minimum the shared probe library exercises forged identities and attestations, scope widening,
+stale fences, duplicate and late results, timeout and reconnect ambiguity, declared-posture
+mismatch or undeclared credential use, and retry-after-uncertain-effect behavior; port-specific
+suites add hostile basis, setup, anchor, publication, and redaction cases. Bundled and future
+providers pass the same suite and probe versions. A provider-specific waiver cannot make a
+provider configurable.
 
 Governance invariants are covered without a runtime suite: I1 and I21 are verified by the layer
 gates and the review record itself, and I2 and I3 are enforced structurally by the D10 port model —
@@ -73,14 +95,27 @@ participant power widens through output.
 - Suites run against a realization's port contracts. Control-plane suites use scripted or fake
   mechanisms so every replay is deterministic; mechanism suites additionally require recorded
   real-provider evidence for the concrete provider being gated.
-- A conformance result is recorded evidence carrying the exact suite version and the subject
-  digest of what passed — the exact-subject discipline of I7 applies to conformance evidence too.
-  A claim without its recorded pass gates nothing.
+- A conformance result is recorded evidence carrying the exact provider build digest, suite and
+  adversarial-probe versions, provider-authority manifest digest, and relevant environment
+  fingerprint — the exact-subject discipline of I7 applies to conformance evidence too. A claim
+  without that exact recorded pass gates nothing.
+- Every Run receives a fresh compose-time capability proof binding the configured provider to its
+  approved manifest and current realization. Frozen policy may additionally set a maximum age for
+  reusable conformance evidence. A manifest/build/environment mismatch or expired pass closes the
+  gate until the exact subject passes again; changing authority also requires fresh owner approval.
 - `CF-GATE-REALIZATION` — a realization is accepted only when every invariant suite above passes
   at its recorded version against that exact realization.
 - `CF-GATE-PROVIDER` — a provider becomes configurable behind a port only when that port's
   `CF-MECH-*` suite passes against that exact provider, per the
   [conformance gating rule](./mechanism-and-provider-contracts.md).
+- `CF-GATE-PRODUCT` — an implementation cannot claim the imported commitments closed by this
+  amendment until every product-readiness suite above passes against the exact realization and
+  selected providers.
+
+`CF-PROVIDER-PERMISSION` closes the revised SEC-2 by proving the Jig/provider protocol and exact
+posture selection that Jig governs. It does not independently certify the provider's sandbox or
+establish that an arbitrary provider contains no undisclosed phone-home path. D14 deliberately
+places that enforcement inside the trusted Agent-provider and Execution Host boundary.
 
 ## View V17 — invariants to suites to gated outcomes
 

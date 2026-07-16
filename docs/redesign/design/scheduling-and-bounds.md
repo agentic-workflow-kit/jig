@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Resource classes, the admission algorithm, bound and budget classes, timers and wake triggers, and fairness; provider-capacity mapping, authority APIs, and schema shapes are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -92,10 +92,12 @@ or Residual Obligation — never silent success or an unnamed indefinite wait.
 | `BND-REWORK`         | Review and rework loops per Story.                                                                             | Policy; conservative default: few loops.                        | Block the Story; dependents derive `Not run — dependency blocked`.                                                |
 | `BND-RETRY`          | Attempts per Operation class.                                                                                  | Policy per Operation class; conservative default: few attempts. | Block at the owning Story or Operation scope.                                                                     |
 | `BND-REFRESH`        | Target refreshes while holding finalization authority.                                                         | Policy; conservative default: few refreshes.                    | Park with escalation naming target instability.                                                                   |
-| `BND-WAIT-DECISION`  | Owner-decision waits on parked questions.                                                                      | Policy deadline class; conservative default: long, renewable.   | Escalate again durably; the question stays parked, never dropped.                                                 |
+| `BND-WAIT-DECISION`  | Human-answer waits on parked Jig questions or Agent-provider permissions/questions.                            | Policy deadline class; conservative default: long, renewable.   | Escalate again durably; the exact request stays parked, never dropped.                                            |
 | `BND-WAIT-MECHANISM` | Mechanism response deadlines on the mediated Operation ports (session, workspace, verify, delivery, artifact). | Policy per port; conservative default: short.                   | Retry under `BND-RETRY`; then block at the owning Story or Operation scope.                                       |
 | `BND-WAIT-LEDGER`    | Authoritative-store waits: ledger and target-authority-registry commit acknowledgements and verified reads.    | Policy; conservative default: short.                            | Halt dispatch and interrupt the Run into Recovery; shared authority uncertainty is never Story-blocked (D8, I15). |
 | `BND-WAIT-TARGET`    | Target stability waits before and during finalization.                                                         | Policy; conservative default: moderate.                         | Park with escalation; target effects stay fenced.                                                                 |
+| `BND-IDLE`           | Time since a session's last qualifying progress observation while it remains responsive.                       | Policy per role; conservative default: moderate.                | Classify `stuck`, park the Story, and preserve the workspace.                                                     |
+| `BND-SILENCE`        | Time since the last valid heartbeat or response from an assigned session.                                      | Policy per mechanism; conservative default: short.              | Classify `dead`, reconcile the session, then park or replace within the retry bound.                              |
 | `BND-RECOVERY`       | Reconciliation attempts for one uncertain effect (I17).                                                        | Policy; conservative default: few attempts.                     | Escalate; no second semantic attempt until reconciled.                                                            |
 | `BND-RETIRE`         | Retirement attempts per obligation.                                                                            | Policy; conservative default: few attempts.                     | Residual Obligation handed to the owner (I19).                                                                    |
 
@@ -105,6 +107,23 @@ uncertainty about shared durable authority itself. Continuing other Stories from
 ledger would violate the containment ladder of
 [failure and liveness](./failure-and-liveness.md), so `BND-WAIT-LEDGER` exhaustion always halts
 dispatch and enters Run-scoped Recovery ([persistence and projections](./persistence-and-projections.md)).
+
+### Deterministic liveness classification
+
+`SCH-LIVENESS` observations are mechanism facts, not provider judgments. From those facts and the
+named bounds, the controller derives exactly one applicable condition:
+
+- **thinking** — the session is responsive and has recorded qualifying progress within `BND-IDLE`;
+- **stuck** — the session remains responsive but has no qualifying progress after `BND-IDLE`, or
+  repeats the same bounded progress state without advancing it;
+- **dead** — the mechanism reports termination or no valid heartbeat arrives within `BND-SILENCE`;
+- **human input overdue** — a durable Jig or Agent-provider request remains unanswered after
+  `BND-WAIT-DECISION`.
+
+Qualifying progress is a durable subject-bound change such as a new Candidate, evidence item,
+completed check, or explicitly enumerated checkpoint; message volume and provider self-reports do
+not count. Stuck and dead classifications record `FC-LIVENESS`, preserve work, and park or escalate
+under the table's exhaustion action. Human-input-overdue re-escalates without dropping the request.
 
 ## Timers and wake triggers
 
