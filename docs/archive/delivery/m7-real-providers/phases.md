@@ -41,8 +41,8 @@ JSON Schema, provider manifests, package exports, or package decomposition — t
 contract-owner-owned. One design-owned exception is now exercised for Phase 6: the **substrate
 manifest** (the immutable, hashed, approved argv/creds/egress tuple whose runtime validation closes
 the substrate-escalation stop) is authorized **at design altitude by
-[ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (extending
-[ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 8), and stays a
+[ADR 0022](../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7** (extending
+[ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 8), and stays a
 non-normative fixture with no schema freeze. Building it per ADR 0022 is therefore design-owned work,
 not a delivery-planning invention or a boundary violation; this track only **references** it. Two
 regression anchors ride every phase below as evidence, never as their own phase: the Phase-0..4 record
@@ -88,7 +88,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
   workspaces without corrupting each other's tree, and the same task cannot be launched twice.
 - **Resume attestation persist/recover (Residual A):** the launch-captured `CapabilityAttestation` is
   persisted alongside the launch binding and recovered on resume, parallel to the Phase-4 binding
-  mechanism ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3). Today resume
+  mechanism ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3). Today resume
   reconstructs a _constant_ reference-host attestation — safe only because the reference host does not
   drift; a real driver that can drift or self-widen requires true persist-and-recover so resumed work
   is adjudicated against the capability attested at launch, never a fresher permissive re-derivation.
@@ -101,7 +101,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
   [`DRIVE-1`](../../../product/guarantees.md#41-trusting-a-driver),
   [`STACK-2`](../../../product/guarantees.md#4-stack-portability)–
   [`STACK-3`](../../../product/guarantees.md#4-stack-portability),
-  [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decisions 2–3.
+  [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decisions 2–3.
 - **P6-AC-2** — A real execution host attests `provenIsolationStrength` from an exercised confinement
   check; a host reporting `strong` with an absent, stale, or overstated proof records the failure
   token and does **not** unlock the autonomy `strong` would grant — only fresh, positive proof does.
@@ -127,7 +127,7 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
   [`RESUME-2`](../../../product/guarantees.md#31-interruption-resume),
   [`GUARD-1`](../../../product/guarantees.md#13-anti-gaming),
   [`EARN-2`](../../../product/guarantees.md#12-earned-trust--capability-attestation),
-  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3.
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3.
 - **P6-AC-6** — Secrets surfaced by a real agent or host (credentials, tokens, environment) are
   scanned and redacted in records the moment real credentials first enter play; a redaction ambiguity
   becomes an operator-visible diagnosable stop rather than a silent leak. Traces:
@@ -165,11 +165,11 @@ attesting `weak` isolation (reduced autonomy, still useful), then 6b hardens to 
 
 - [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts),
   [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts)
-- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md),
-  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3
-- [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
-- [`../../design/core/authorization.md`](../../../design/core/authorization.md),
-  [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
+- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md),
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3
+- [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
+- [`../../design/core/authorization.md`](../../design/core/authorization.md),
+  [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
 - Wave 5 red-team:
   [`w5-s1`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md)
 
@@ -261,9 +261,9 @@ the `AgentPort` never gains a landing path.
 **Relevant references:**
 
 - [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (`LandingRequest`, `ForgePort`)
-- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6
-- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
-  [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
+- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6
+- [`../../design/core/orchestration.md`](../../design/core/orchestration.md),
+  [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
 
 **Explicit non-goals:**
 
@@ -297,11 +297,11 @@ came from.
 
 - **P8-AC-1** — A real importer produces candidates that reach runtime scheduling **only** after
   `PlanValidator`; a candidate that fails validation is rejected or held and never scheduled. Traces:
-  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md), INV-007, ADR 0021
+  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md), INV-007, ADR 0021
   decision 7.
 - **P8-AC-2** — An attempt to route a work-source candidate to scheduling bypassing `PlanValidator`
   fails closed and is recorded. Traces:
-  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md),
+  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md),
   [`STACK-4`](../../../product/guarantees.md#4-stack-portability)–
   [`STACK-5`](../../../product/guarantees.md#4-stack-portability), ADR 0021 decision 7.
 - **P8-AC-3** — A candidate's provenance names its real origin (source and identifier) rather than
@@ -328,8 +328,8 @@ came from.
 **Relevant references:**
 
 - [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) (`WorkSourcePort`, `CandidateWorkItem`)
-- [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
-- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7
+- [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
+- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7
 
 **Explicit non-goals:**
 
@@ -352,7 +352,7 @@ Phase-0..4 goldens stay a regression anchor through this phase, and integrity li
 not inside it. Sequenced **after** Phase 6 because
 the real trust anchor arrives with real providers: tamper-evidence over a chain only real drivers can
 meaningfully corrupt is worth more once those drivers exist
-([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md), integrity deferred
+([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md), integrity deferred
 post-Phase-5).
 
 **Requirements:**
@@ -366,7 +366,7 @@ post-Phase-5).
 - The active `resume-blocked-missing-approval` path: a safety-relevant change to the approved plan's
   basis while a run is stopped requires fresh approval and evidence before resume proceeds — the
   Phase-4 named seam
-  ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md)) becomes an active trigger.
+  ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md)) becomes an active trigger.
 - Integrity checks are diagnosable stops, not silent failures: a broken chain or a missing
   re-approval surfaces at inspect and refuses resume with a named reason.
 
@@ -378,13 +378,13 @@ post-Phase-5).
   and surfaced at inspect, and resume refuses on a broken chain with a named reason. Traces:
   [`GUARD-1`](../../../product/guarantees.md#13-anti-gaming),
   [`SEE-4`](../../../product/guarantees.md#5-full-observability),
-  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-2** — A safety-relevant change to the approved plan's basis while stopped triggers
   `resume-blocked-missing-approval`; resume refuses until fresh approval and evidence are recorded,
   and the re-approval decision is narrow and durable. Traces:
   [`RESUME-5`](../../../product/guarantees.md#31-interruption-resume),
   [`GUARD-2`](../../../product/guarantees.md#13-anti-gaming),
-  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-3** — Integrity and re-approval failures are operator-visible diagnosable stops with named
   reasons, never silent; records stay safe to keep and export. Traces:
   [`LIVE-2`](../../../product/guarantees.md#33-liveness--noticing-a-stuck-run),
@@ -412,11 +412,11 @@ post-Phase-5).
 
 **Relevant references:**
 
-- [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) (integrity deferred
+- [ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) (integrity deferred
   post-Phase-5; the `resume-blocked-missing-approval` named seam)
-- [`../../design/core/records.md`](../../../design/core/records.md),
-  [`../../design/core/authorization.md`](../../../design/core/authorization.md),
-  [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md)
+- [`../../design/core/records.md`](../../design/core/records.md),
+  [`../../design/core/authorization.md`](../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md)
 
 **Explicit non-goals:**
 

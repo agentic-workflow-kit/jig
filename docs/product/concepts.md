@@ -55,7 +55,7 @@ in a repo.
 A **story** is the unit of work Jig executes and lands: one reviewable change with its own
 done conditions. An [execution plan](./jig.md#the-execution-plan--jigs-one-input) is a set of
 stories. (The engineering design uses the neutral term _work item_ —
-[ADR 0012](../design/decisions/0012-neutral-unit-term-work-item.md); at product altitude they
+[ADR 0012](../archive/design/decisions/0012-neutral-unit-term-work-item.md); at product altitude they
 are the same thing — the unit Jig schedules, runs, and lands.)
 
 Stories declare **dependencies** on one another. Jig keeps a story ineligible until its

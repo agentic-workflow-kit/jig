@@ -19,7 +19,7 @@ The records layer holds everything an export needs: the append-only event log, s
 integrity sidecar, per-event redaction posture, and pure projections. What is missing is the
 export itself: no export action exists, and the design deliberately deferred the export file
 encoding and the surface for handling replay drift (stop token vs. notice vs. export denial —
-[`records.md`](../../../design/core/records.md) names both as undecided). `SEE-6` is the only
+[`records.md`](../../../archive/design/core/records.md) names both as undecided). `SEE-6` is the only
 guarantee-5 commitment with no implementation trace at all.
 
 ## What To Do
@@ -46,7 +46,7 @@ guarantee-5 commitment with no implementation trace at all.
   [use-cases](../../../product/use-cases.md) "reconstructing a run after the fact."
 - `SEC-1` — secrets stay out of exports; export is the highest-risk leak surface because it is
   designed to leave the machine.
-- [`design/core/records.md`](../../../design/core/records.md) — export posture per record,
+- [`design/core/records.md`](../../../archive/design/core/records.md) — export posture per record,
   fail-closed on unknown posture; the deferred decisions this phase forces.
 
 ## Technical Requirements
@@ -71,11 +71,11 @@ guarantee-5 commitment with no implementation trace at all.
 ## Reference Files
 
 - [`product/guarantees.md`](../../../product/guarantees.md) `SEE-6`, `SEC-1`
-- [`design/core/records.md`](../../../design/core/records.md) (export posture, deferred
-  decisions), [`design/domain/runtime-and-observation.md`](../../../design/domain/runtime-and-observation.md)
-- [Observability-records contract v0](../../../design/contracts/observability-records-contract-v0.md)
+- [`design/core/records.md`](../../../archive/design/core/records.md) (export posture, deferred
+  decisions), [`design/domain/runtime-and-observation.md`](../../../archive/design/domain/runtime-and-observation.md)
+- [Observability-records contract v0](../../../archive/design/contracts/observability-records-contract-v0.md)
   (export file format listed as deferred)
-- [ADR 0032](../../../design/decisions/0032-export-audit-records.md) (settled P10 export
+- [ADR 0032](../../../archive/design/decisions/0032-export-audit-records.md) (settled P10 export
   encoding, audit-event location, and drift handling)
 - Source: `src/records.ts`, `src/integrity.ts`, `src/redaction.ts`, `src/projection.ts`
 - Tests: records/integrity/redaction unit tests

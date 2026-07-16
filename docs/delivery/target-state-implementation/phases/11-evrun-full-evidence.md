@@ -37,7 +37,7 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
   real workload and record the observed confinement behavior.
 - Capture multi-run idempotency: re-run/resume against the already-landed effect and record the
   no-op recognition and exact-head safety behavior.
-- Commit dated evidence records under `docs/design/evidence/` per the evidence convention:
+- Commit dated evidence records under `docs/archive/design/evidence/` per the evidence convention:
   exact versions (Codex CLI, macOS, gh), content hashes for captured transcripts, redaction
   statement, required `Limitations` section (hosted/remote, Windows, and anything observed but
   not proven stay named), and citations to the guarantee/AC IDs the evidence supports.
@@ -51,7 +51,7 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 ## Why
 
 - Attempts the EVRUN-full gate named in
-  [`evidence/README.md`](../../../design/evidence/README.md#evrun-evidence-boundary) and echoed
+  [`evidence/README.md`](../../../archive/design/evidence/README.md#evrun-evidence-boundary) and echoed
   in [`product/jig.md`](../../../product/jig.md#what-jig-isnt-yet).
 - A successful capture would prove `SEC-2` (no-phone-home proven, not asserted), `RESUME-3` (no
   double effect against real systems), and `MERGE-2`/`FENCE-3` observations on a real path.
@@ -75,11 +75,11 @@ gated on this evidence path. This phase is the proof step: it converts "implemen
 
 ## Reference Files
 
-- [`design/evidence/README.md`](../../../design/evidence/README.md) and the
-  [EVRUN-partial record](../../../design/evidence/2026-07-04-evrun-partial-smoke.md) (pattern
+- [`design/evidence/README.md`](../../../archive/design/evidence/README.md) and the
+  [EVRUN-partial record](../../../archive/design/evidence/2026-07-04-evrun-partial-smoke.md) (pattern
   and boundary)
-- [Conventions §6 — evidence records](../../../design/conventions.md#6-evidence-appendix-convention-committed-records-are-inputs-to-decisions-not-authority)
-- [ADR 0028](../../../design/decisions/0028-codex-app-server-transport.md) (what the transport
+- [Conventions §6 — evidence records](../../../archive/design/conventions.md#6-evidence-appendix-convention-committed-records-are-inputs-to-decisions-not-authority)
+- [ADR 0028](../../../archive/design/decisions/0028-codex-app-server-transport.md) (what the transport
   evidence must and must not claim)
 - Source/tests: `tests/smoke/evrun-partial.smoke.test.ts`, P03/P04 outputs,
   `src/integrity.ts`, `src/redaction.ts`
@@ -100,11 +100,11 @@ record honest current state after the #70 merge and the later 2026-07-06 follow-
 do not lower the bar for the stronger probes.
 
 1. A committed, dated EVRUN-full evidence record (or record set) exists under
-   `docs/design/evidence/`, indexed, convention-complete (versions, hashes, Limitations,
+   `docs/archive/design/evidence/`, indexed, convention-complete (versions, hashes, Limitations,
    redaction statement, ID citations).
    **Current disposition: met for the combined smoke record.**
-   `docs/design/evidence/2026-07-06-evrun-full-smoke.md` records the successful combined path.
-   `docs/design/evidence/2026-07-06-evrun-full-capture-attempt.md` remains as provenance for the
+   `docs/archive/design/evidence/2026-07-06-evrun-full-smoke.md` records the successful combined path.
+   `docs/archive/design/evidence/2026-07-06-evrun-full-capture-attempt.md` remains as provenance for the
    earlier blocked attempt.
 2. The record demonstrates: real Codex editing through the owned app-server transport; real,
    exercised confinement with honest strength; an adversarial no-phone-home observation; and

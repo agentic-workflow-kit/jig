@@ -45,9 +45,9 @@ These archived delivery roadmaps derived from:
 - product commitments in [`../../product/jig.md`](../../product/jig.md),
   [`../../product/guarantees.md`](../../product/guarantees.md), and
   [`../../product/concepts.md`](../../product/concepts.md);
-- design status and contracts in [`../../design/README.md`](../../design/README.md),
-  [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md),
+- design status and contracts in [`../../design/README.md`](../design/README.md),
+  [`../../design/contracts/execution-plan-contract-v0.md`](../design/contracts/execution-plan-contract-v0.md),
   and
-  [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md);
+  [`../../design/contracts/observability-records-contract-v0.md`](../design/contracts/observability-records-contract-v0.md);
 - Wave 5 red-team output and Wave 6 implementation phasing under
   [`../planning/design-track/waves/`](../planning/design-track/waves/).

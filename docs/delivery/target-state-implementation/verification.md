@@ -85,7 +85,7 @@ byte-level compatibility surface for the observability-records v0 contract.
 
 - The provider conformance suite is the executable bar for the four seams. After P02 it lives in
   `jig-testkit` and `jig-sdk` must not import it (ADR 0027, decision 3).
-- Verdicts follow [ADR 0026](../../design/decisions/0026-conformance-self-report-only.md): a
+- Verdicts follow [ADR 0026](../../archive/design/decisions/0026-conformance-self-report-only.md): a
   `self-report-only` basis is a warning/failure, never an alternate pass. Reviewers of provider
   phases (P03, P04, P05) check that no acceptance criterion is satisfied by a subject's own
   claim where independent observation is required.
@@ -93,7 +93,7 @@ byte-level compatibility surface for the observability-records v0 contract.
   comes from the smoke lane plus committed evidence records (below). Phase acceptance criteria
   must not cite conformance green as proof of real confinement, credential withholding, egress
   behavior, or forge/source effects.
-- Per [ADR 0026](../../design/decisions/0026-conformance-self-report-only.md)'s corollary,
+- Per [ADR 0026](../../archive/design/decisions/0026-conformance-self-report-only.md)'s corollary,
   smoke-lane assertions must not be satisfiable by a fail-closed refusal — reviewers check that
   the asserted outcome is the observed success, not the result envelope.
 - The forbidden-method sweep (no push/PR/merge/credential path on `AgentPort`) must pass in
@@ -102,7 +102,7 @@ byte-level compatibility surface for the observability-records v0 contract.
 ## Evidence records and the EVRUN gates
 
 - Committed evidence records follow the
-  [evidence appendix convention](../../design/conventions.md#6-evidence-appendix-convention-committed-records-are-inputs-to-decisions-not-authority):
+  [evidence appendix convention](../../archive/design/conventions.md#6-evidence-appendix-convention-committed-records-are-inputs-to-decisions-not-authority):
   dated filename and header, exact external tool versions, content hashes for captured
   transcripts, a required `Limitations` section, an explicit redaction statement, and citations
   to the guarantee/invariant/ADR IDs the evidence supports.
@@ -222,7 +222,7 @@ The track is delivered when all of the following hold, with evidence:
 1. Every phase P01–P14 is merged with its acceptance criteria checked off in review.
 2. `pnpm check` is green on `main` with the P02 package layout and boundary enforcement in the
    gate.
-3. EVRUN-full combined-smoke evidence is committed under `docs/design/evidence/` and indexed, with
+3. EVRUN-full combined-smoke evidence is committed under `docs/archive/design/evidence/` and indexed, with
    limitations honestly stated and remaining no-phone-home/idempotency gates either evidenced or
    explicitly deferred.
 4. The P14 guarantee-coverage audit maps every product ID in

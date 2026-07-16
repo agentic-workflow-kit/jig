@@ -75,10 +75,10 @@ plumbing style.
 
 ## Reference Files
 
-- [Realization roadmap — Phases 7 and 8](../../../design/contracts/provider-realization-roadmap.md#phase-7-realization-adr-0023),
-  ADR 0023 and ADR 0024 (`docs/design/decisions/0023-*.md`, `0024-*.md`)
+- [Realization roadmap — Phases 7 and 8](../../../archive/design/contracts/provider-realization-roadmap.md#phase-7-realization-adr-0023),
+  ADR 0023 and ADR 0024 (`docs/archive/design/decisions/0023-*.md`, `0024-*.md`)
 - [`product/guarantees.md`](../../../product/guarantees.md) — `MERGE-1..5`, `SEC-1/3`
-- [EVRUN-partial record](../../../design/evidence/2026-07-04-evrun-partial-smoke.md) — the
+- [EVRUN-partial record](../../../archive/design/evidence/2026-07-04-evrun-partial-smoke.md) — the
   claimed/not-claimed boundary
 - Source: `src/providers/real/forge.ts`, `src/providers/real/work-source.ts`, `src/intake.ts`,
   `src/harness.ts` (blocked handling), `src/records.ts`, `src/redaction.ts`

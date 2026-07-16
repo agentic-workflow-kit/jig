@@ -22,7 +22,7 @@ reviewer: Codex
 
 The reviewed target was the complete standalone proposal under
 [`docs/design/deterministic-story-orchestration/`](../deterministic-story-orchestration/)
-plus its index entry in [`docs/design/README.md`](../../../design/README.md). The review treated the
+plus its index entry in [`docs/design/README.md`](../../../archive/design/README.md). The review treated the
 proposal's explicit `not yet reconciled or adopted` status as meaningful: proposal-internal defects
 are distinguished below from conflicts that block adoption into the current Jig product and design
 contracts.

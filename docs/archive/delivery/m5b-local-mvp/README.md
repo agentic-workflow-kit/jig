@@ -52,11 +52,11 @@ provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
 ## Preserved Gates
 
 - Execution-plan and observability-records contracts remain v0 and unfrozen:
-  [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md)
+  [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md)
   and
-  [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md).
+  [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md).
 - Work-source provenance must not bypass
-  [`PlanValidator`](../../../design/core/plan-intake.md).
+  [`PlanValidator`](../../design/core/plan-intake.md).
 - Local records remain the evidence surface; summaries and inspect views must derive from the run
   record, not a parallel narrative.
 - Provider claims, host isolation reports, and SEC-2 posture must remain provider-supplied but
@@ -78,14 +78,14 @@ provider manifests, remote hosts, Forge, GitHub, and Learning-loop integration.
 - Product: [`../../product/jig.md`](../../../product/jig.md),
   [`../../product/guarantees.md`](../../../product/guarantees.md), and
   [`../../product/concepts.md`](../../../product/concepts.md).
-- Design: [`../../design/README.md`](../../../design/README.md),
-  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md),
-  [`../../design/core/records.md`](../../../design/core/records.md),
-  [`../../design/core/authorization.md`](../../../design/core/authorization.md),
-  [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md),
-  [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
-  [`../../design/contracts/driving.md`](../../../design/contracts/driving.md), and
-  [`../../design/contracts/providers.md`](../../../design/contracts/providers.md).
+- Design: [`../../design/README.md`](../../design/README.md),
+  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md),
+  [`../../design/core/records.md`](../../design/core/records.md),
+  [`../../design/core/authorization.md`](../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md),
+  [`../../design/core/orchestration.md`](../../design/core/orchestration.md),
+  [`../../design/contracts/driving.md`](../../design/contracts/driving.md), and
+  [`../../design/contracts/providers.md`](../../design/contracts/providers.md).
 - Planning: [`../../planning/design-track/waves/wave-6-implementation-phasing/`](../../planning/design-track/waves/wave-6-implementation-phasing/)
   and
   [`../../planning/design-track/waves/wave-5-red-team/outputs/`](../../planning/design-track/waves/wave-5-red-team/outputs/).

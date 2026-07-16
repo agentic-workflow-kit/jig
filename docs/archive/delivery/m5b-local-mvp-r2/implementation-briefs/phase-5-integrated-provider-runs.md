@@ -15,7 +15,7 @@ input to the Fence, and a reusable conformance suite — proven with **reference
 drivers. Every acceptance criterion is a contract test that an invariant holds.
 
 The design is closed in
-[ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md). This brief is
+[ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md). This brief is
 implementation-ready **against that ADR**: it does not re-decide the port shapes, the composition root,
 the capability-attestation gate, the isolation catalog, the forge/work-source seams, or the conformance
 suite — it implements them. Where a detail is genuinely design-owned rather than a local implementation
@@ -39,20 +39,20 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 5 section and P5-AC-1..5. These IDs are
   the binding delivery target.
-- [ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md) — the eight
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) — the eight
   settlements this brief implements (scope, the four ports, composition root, capability attestation,
   isolation catalog, forge seam, work-source seam, manifest + conformance suite).
-- [`../../../design/contracts/providers.md`](../../../../design/contracts/providers.md) — the four seams'
+- [`../../../design/contracts/providers.md`](../../../design/contracts/providers.md) — the four seams'
   owns/implements/must-not contract and the "Phase 5 realization (ADR 0021)" section.
-- [`../../../design/core/authorization.md`](../../../../design/core/authorization.md) — the Fence
+- [`../../../design/core/authorization.md`](../../../design/core/authorization.md) — the Fence
   decision rules, the capability-attestation gate, and its Phase 5 realization note (the attestation
   input; category-is-not-sufficiency).
-- [`../../../design/core/plan-intake.md`](../../../../design/core/plan-intake.md) — the Category-3
+- [`../../../design/core/plan-intake.md`](../../../design/core/plan-intake.md) — the Category-3
   capability-proof model and freshness/staleness discipline; the `PlanValidator` boundary work-source
   candidates cross.
-- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — the runner-owned
+- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — the runner-owned
   `done → landed` boundary and its Phase 5 realization note (the `ForgePort` invocation).
-- [`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md) — the composition root as the
+- [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md) — the composition root as the
   sole importer of provider implementations, and its Phase 5 realization note.
 - Wave 5 red-team
   ([`w5-s1` routed-findings](../../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md))

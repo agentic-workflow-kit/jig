@@ -50,7 +50,7 @@ no-phone-home among its unproven gaps.
 - `DRIVE-3`, `SEC-2`, `EARN-1/2` — honest, proven containment is what unlocks autonomy;
   `STACK-4` — capabilities attested, not assumed.
 - ADR 0022 (Phase 6b) and the
-  [realization roadmap](../../../design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022) —
+  [realization roadmap](../../../archive/design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022) —
   this is the unfinished half of Phase 6.
 - ADR 0026 — the conformance `self-report-only` basis exists precisely to catch the current
   stub's shape; this phase makes the real path classifiable as proven.
@@ -73,12 +73,12 @@ no-phone-home among its unproven gaps.
 
 ## Reference Files
 
-- [Realization roadmap — Phase 6](../../../design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022)
-  and ADR 0022 (`docs/design/decisions/0022-phase-6-real-driver-integration.md`)
-- [Security model](../../../design/security-model.md) (no-phone-home, substrate manifest vs
+- [Realization roadmap — Phase 6](../../../archive/design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022)
+  and ADR 0022 (`docs/archive/design/decisions/0022-phase-6-real-driver-integration.md`)
+- [Security model](../../../archive/design/security-model.md) (no-phone-home, substrate manifest vs
   attestation, credential ownership)
-- [`core/authorization.md`](../../../design/core/authorization.md) (capability-attestation gate)
-- [ADR 0026](../../../design/decisions/0026-conformance-self-report-only.md)
+- [`core/authorization.md`](../../../archive/design/core/authorization.md) (capability-attestation gate)
+- [ADR 0026](../../../archive/design/decisions/0026-conformance-self-report-only.md)
 - Source: `src/providers/real/host.ts`, `src/providers/real/confinement.ts`,
   `src/substrate.ts`, `src/clock.ts`, `src/authorization.ts`, `src/bootstrap.ts`,
   `src/workspace.ts`

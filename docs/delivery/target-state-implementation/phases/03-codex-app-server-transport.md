@@ -70,11 +70,11 @@ evidence probe at `tools/n1a/codex-app-server-probe.mjs`, outside `src/`.
 
 ## Reference Files
 
-- [ADR 0028](../../../design/decisions/0028-codex-app-server-transport.md)
-- N1a evidence records under [`design/evidence/`](../../../design/evidence/README.md)
+- [ADR 0028](../../../archive/design/decisions/0028-codex-app-server-transport.md)
+- N1a evidence records under [`design/evidence/`](../../../archive/design/evidence/README.md)
   (`2026-07-04-n1a-*`), including the deferred probes note (P13/P14)
-- [Providers contract](../../../design/contracts/providers.md) (Agent seam),
-  [realization roadmap — Phase 6](../../../design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022)
+- [Providers contract](../../../archive/design/contracts/providers.md) (Agent seam),
+  [realization roadmap — Phase 6](../../../archive/design/contracts/provider-realization-roadmap.md#phase-6-realization-adr-0022)
 - Source: `src/providers/real/agent.ts`, `src/bootstrap.ts`, `src/driver-selection.ts`,
   `src/redaction.ts`; probe reference: `tools/n1a/codex-app-server-probe.mjs`
 - Tests: `tests/hermetic/no-real-effects.setup.ts`, agent unit tests, conformance lane

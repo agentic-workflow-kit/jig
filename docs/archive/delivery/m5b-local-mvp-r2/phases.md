@@ -17,7 +17,7 @@ the golden fixtures actually assert, and the CLI fails closed — so Phase 3 bui
 that hold. Provenance: the post-Phase-2 review
 ([`../../reviews/2026-07-02-post-phase-2-repo-review.md`](../../reviews/2026-07-02-post-phase-2-repo-review.md),
 MF2, MF3, MF5, S1, S2, S5, S6) and
-[ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md).
+[ADR 0017](../../design/decisions/0017-records-seam-reconciliation.md).
 
 **Goal:** Implement ADR 0017's five reconciliations in the engine and records, close the
 evidence gate, and land the contained safety fixes — behavior-visible by design, allowed
@@ -49,7 +49,7 @@ because the records contract is v0 and unfrozen and the mapping is recorded.
   and diagnostics; regression tests cover `result: null` and
   `outcome: "success"` + `result: "failed"`. Traces:
   [`MERGE-1`](../../../product/guarantees.md#15-merge-on-evidence), the `started → done` guard
-  in [`orchestration.md`](../../../design/core/orchestration.md), ADR 0017 decision 3.
+  in [`orchestration.md`](../../design/core/orchestration.md), ADR 0017 decision 3.
 - **PR-AC-2** — `run.json` carries a run id distinct from the plan id (the unique
   run-directory suffix) plus an `attempt` field; two runs of the same plan are
   distinguishable by record content alone. Traces: the records contract's "Run Identity and
@@ -65,7 +65,7 @@ because the records contract is v0 and unfrozen and the mapping is recorded.
   [`ISO-3`](../../../product/guarantees.md#32-work-level-failure-isolation).
 - **PR-AC-5** — Dry-run evidence events use `evidence.modeled`; `evidence.observed` is
   reserved for genuinely observed evidence. Traces: ADR 0017 decision 4, OBS-002 in
-  [`runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md).
+  [`runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md).
 - **PR-AC-6** — A golden-record integration test runs the CLI and asserts the full event
   sequence and `run.json` shape against regenerated goldens (success, multi-item success,
   dependent-blocked), timestamps normalized; a golden that no test reads may not exist.
@@ -82,7 +82,7 @@ because the records contract is v0 and unfrozen and the mapping is recorded.
   the worker-privilege regression test exists (worker surface exposes no push/PR/merge
   capability). Traces: review S6,
   [`FENCE-3`](../../../product/guarantees.md#11-the-fence--runtime-authorization), INV-002 in
-  [`runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md).
+  [`runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md).
 - **PR-AC-11** — The fixtures README's pre-toolchain prose is updated without breaking the
   `delivery:check` gate (it asserts required snippets from that file verbatim). Traces:
   review doc-fallout caution.
@@ -106,10 +106,10 @@ because the records contract is v0 and unfrozen and the mapping is recorded.
 **Relevant references:**
 
 - [`../../reviews/2026-07-02-post-phase-2-repo-review.md`](../../reviews/2026-07-02-post-phase-2-repo-review.md)
-- [ADR 0017](../../../design/decisions/0017-records-seam-reconciliation.md)
-- [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
-- [`../../design/core/orchestration.md`](../../../design/core/orchestration.md)
-- [`../../design/core/records.md`](../../../design/core/records.md)
+- [ADR 0017](../../design/decisions/0017-records-seam-reconciliation.md)
+- [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md)
+- [`../../design/core/orchestration.md`](../../design/core/orchestration.md)
+- [`../../design/core/records.md`](../../design/core/records.md)
 
 **Explicit non-goals:**
 
@@ -123,25 +123,25 @@ local agent work through policy that actually grants, denies, or routes requests
 trusting the worker's narrative.
 
 **Goal:** Replace the Phase 1–2 boolean policy gate with the per-request fence
-([ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md) names the boolean as
+([ADR 0018](../../design/decisions/0018-policy-gate-simplification.md) names the boolean as
 scaffolding), add plan preview, and make authorization decisions durable records.
 
 **Requirements:**
 
 - `jig preview <plan>`: validate, bind config/policy, and report what would run — allocating
   no run identity, workspace, or side effects (the `previewed` edge state in
-  [`bootstrap.md`](../../../design/core/bootstrap.md)).
+  [`bootstrap.md`](../../design/core/bootstrap.md)).
 - Per-request fence: the scripted worker declares requests; the fence adjudicates each
   against the fixed category boundary (CFG-10, assisted posture per
-  [ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md)), emitting
+  [ADR 0002](../../design/decisions/0002-policy-posture-assisted.md)), emitting
   `authorization.requested` → `granted`/`denied`/`routed`.
 - Denied requests fail closed and block the item; routed requests park the item for a
   minimal local approval prompt; grants are narrow and tied to the immediate request.
 - Runner-owned actions recorded as `runner-action.skipped-on-dry-run` at landing (INV-008b).
 - The adjusted four-story canonical triad fixture from
-  [ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md) becomes the golden
+  [ADR 0019](../../design/decisions/0019-phase-3-local-governance-scope.md) becomes the golden
   integration test, evidencing the full triad
-  ([ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md)).
+  ([ADR 0008](../../design/decisions/0008-s004-denied-in-canonical-fixture.md)).
 - Rule-governing change attempts route to the owner (GUARD-2).
 
 **Acceptance criteria:**
@@ -149,7 +149,7 @@ scaffolding), add plan preview, and make authorization decisions durable records
 - **P3-AC-1** — `jig preview <plan>` reports the bound plan/policy and would-run story set,
   creates no run directory or records, and emits/renders the `previewed` posture; a
   subsequent `jig run` is unaffected by whether a preview happened. Traces: org-M5
-  "validates and previews", [`bootstrap.md`](../../../design/core/bootstrap.md),
+  "validates and previews", [`bootstrap.md`](../../design/core/bootstrap.md),
   [`SEE-1`](../../../product/guarantees.md#5-full-observability).
 - **P3-AC-2** — A declared, low-risk request is granted and recorded
   (`authorization.requested` → `authorization.granted` with basis). Traces:
@@ -168,7 +168,7 @@ scaffolding), add plan preview, and make authorization decisions durable records
   terminal with an unattended-park reason. Traces: INV-008, OBS-002, ADR 0008, ADR 0019.
 - **P3-AC-6** — No model adjudicates the authority boundary; the classifier is the fixed
   category boundary. Traces: ADR 0002, review of
-  [`authorization.md`](../../../design/core/authorization.md).
+  [`authorization.md`](../../design/core/authorization.md).
 
 **Evidence/tests:**
 
@@ -188,12 +188,12 @@ scaffolding), add plan preview, and make authorization decisions durable records
 
 **Relevant references:**
 
-- [`../../design/core/authorization.md`](../../../design/core/authorization.md)
-- [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md)
-- [`../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md) (§15, INV-008, OBS-002)
-- [ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md),
-  [ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md),
-  [ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md)
+- [`../../design/core/authorization.md`](../../design/core/authorization.md)
+- [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md)
+- [`../../design/notes/runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md) (§15, INV-008, OBS-002)
+- [ADR 0002](../../design/decisions/0002-policy-posture-assisted.md),
+  [ADR 0008](../../design/decisions/0008-s004-denied-in-canonical-fixture.md),
+  [ADR 0018](../../design/decisions/0018-policy-gate-simplification.md)
 - Archived r1 Phase 3 section:
   [`../m5b-local-mvp/phases.md`](../m5b-local-mvp/phases.md)
 
@@ -216,7 +216,7 @@ event log.
 
 - `jig inspect` reconstructs state by replaying `events.jsonl` (projections), so a crashed
   run without a finalized `run.json` is still inspectable (INV-006/ENF-003 in
-  [`runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md); review "later
+  [`runtime-design-m5a.md`](../../design/notes/runtime-design-m5a.md); review "later
   hardening").
 - Resume honors ADR 0017 decision 2: a failure-halted `run.stopped` is a resumable
   checkpoint like any other stop.
@@ -233,7 +233,7 @@ event log.
   before resuming. Traces: [`RESUME-5`](../../../product/guarantees.md#31-interruption-resume),
   [`GUARD-2`](../../../product/guarantees.md#13-anti-gaming).
   - _Phase 4 local realization
-    ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md)):_ satisfied by
+    ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md)):_ satisfied by
     preserving **launch-policy immutability across resume** — bootstrap persists the resolved launch
     **policy snapshot** (alongside the plan snapshot) and resume adjudicates resumed work from that
     snapshot, never a permissive stub, so the rules cannot silently loosen. `resume-blocked-missing-approval`
@@ -260,7 +260,7 @@ workspace-continuity test, replay-inspect test — named per AC ID; `corepack pn
 no redaction-erased stop evidence; no continuity claims over changed workspaces).
 
 **Relevant references:** archived r1 Phase 4 section and its design/red-team citations;
-[`../../design/core/records.md`](../../../design/core/records.md).
+[`../../design/core/records.md`](../../design/core/records.md).
 
 **Explicit non-goals:** remote-host recovery, cross-provider resume, full compliance export,
 Learning-loop analysis, GitHub/Forge recovery behavior.
@@ -268,7 +268,7 @@ Learning-loop analysis, GitHub/Forge recovery behavior.
 ## Phase 5 — Integrated Provider Runs
 
 Re-scoped for r2 after Phase 4 and settled by
-[ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md). The archived r1 Phase 5
+[ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md). The archived r1 Phase 5
 bundled the four seams, real drivers, Forge/GitHub, work-source, and hardening into one phase; this
 section carries only what the P5 acceptance criteria require and splits the rest into named later
 phases (below). The r1 intent is preserved: provider conformance gates before provider autonomy; the
@@ -336,7 +336,7 @@ dry-run only; the default wiring reproduces the Phase 0–4 dry-run and its gold
 - **P5-AC-5** — Work-source tests route imported candidates through plan intake: a candidate is
   admitted only via a validated plan and is rejected or held otherwise; source input never reaches
   runtime scheduling without `PlanValidator`. Traces:
-  [`plan-intake.md`](../../../design/core/plan-intake.md), INV-007, ADR 0021 decision 7.
+  [`plan-intake.md`](../../design/core/plan-intake.md), INV-007, ADR 0021 decision 7.
 
 **Evidence/tests:**
 
@@ -363,12 +363,12 @@ dry-run only; the default wiring reproduces the Phase 0–4 dry-run and its gold
 
 **Relevant references:**
 
-- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md)
-- [`../../design/contracts/providers.md`](../../../design/contracts/providers.md)
-- [`../../design/core/authorization.md`](../../../design/core/authorization.md),
-  [`../../design/core/bootstrap.md`](../../../design/core/bootstrap.md),
-  [`../../design/core/orchestration.md`](../../../design/core/orchestration.md),
-  [`../../design/core/plan-intake.md`](../../../design/core/plan-intake.md)
+- [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md)
+- [`../../design/contracts/providers.md`](../../design/contracts/providers.md)
+- [`../../design/core/authorization.md`](../../design/core/authorization.md),
+  [`../../design/core/bootstrap.md`](../../design/core/bootstrap.md),
+  [`../../design/core/orchestration.md`](../../design/core/orchestration.md),
+  [`../../design/core/plan-intake.md`](../../design/core/plan-intake.md)
 - Wave 5 red-team:
   [`w5-s1`](../../planning/design-track/waves/wave-5-red-team/outputs/w5-s1-authority-and-provider-red-team/routed-findings.md);
   Wave 6 triage:

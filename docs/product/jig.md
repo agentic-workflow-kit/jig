@@ -302,5 +302,6 @@ Jig is honest about its edges. These are deliberate non-goals or deferrals, not 
 - [How you use Jig](./use-cases.md) — worked scenarios for each guarantee.
 - [Product concepts](./concepts.md) — tracks, stories, runner/worker/verifier authority, SDK
   boundaries, providers, and conformance.
-- [Engineering design](../design/) — the implementation reference for how these product
-  commitments are satisfied.
+- [Engineering design](../redesign/design/README.md) — the approved architecture for how these
+  product commitments are satisfied; the pre-redesign implementation reference is archived at
+  [docs/archive/design](../archive/design/README.md).

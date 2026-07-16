@@ -26,6 +26,6 @@ records the conflict; it does not adjudicate it.
 
 ## Related
 
-- [Jig — design](../../design/README.md) — the design layer this track deepened.
+- [Jig — design](../design/README.md) — the design layer this track deepened.
 - [Jig — the execution engine](../../product/jig.md) — the product commitments design and planning
   reconcile to.

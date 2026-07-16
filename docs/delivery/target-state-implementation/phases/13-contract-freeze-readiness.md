@@ -69,11 +69,11 @@ consumer, which is why the owner decides and this phase only prepares.
 
 ## Reference Files
 
-- [Execution-plan contract v0](../../../design/contracts/execution-plan-contract-v0.md) and
-  [observability-records contract v0](../../../design/contracts/observability-records-contract-v0.md)
+- [Execution-plan contract v0](../../../archive/design/contracts/execution-plan-contract-v0.md) and
+  [observability-records contract v0](../../../archive/design/contracts/observability-records-contract-v0.md)
   (including their Deferred sections and the two delivery-owned restrictions)
-- [ADR 0028](../../../design/decisions/0028-codex-app-server-transport.md) (T14 gate);
-  [ADR 0026](../../../design/decisions/0026-conformance-self-report-only.md) (verdict
+- [ADR 0028](../../../archive/design/decisions/0028-codex-app-server-transport.md) (T14 gate);
+  [ADR 0026](../../../archive/design/decisions/0026-conformance-self-report-only.md) (verdict
   vocabulary constraints)
 - P11's evidence records; the golden files under `tests/fixtures/m5b-local-mvp/`
 - Source of truth for shipped shapes: `packages/jig-sdk/src/plan-validator.ts`,

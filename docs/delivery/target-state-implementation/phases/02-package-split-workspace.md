@@ -40,7 +40,7 @@ already `composite: true` and project-reference-capable.
 - Keep the root package as the private coordination shell owning repo scripts, formatting,
   aggregate checks (`pnpm check` fans out but checks no less), and the delivery-foundation
   check.
-- Update `AGENTS.md`, root `README.md`, and `docs/design/README.md`'s "current runtime remains
+- Update `AGENTS.md`, root `README.md`, and `docs/archive/design/README.md`'s "current runtime remains
   one private package" status line to describe the new layout truthfully.
 
 ## Why
@@ -69,10 +69,10 @@ already `composite: true` and project-reference-capable.
 
 ## Reference Files
 
-- [ADR 0027](../../../design/decisions/0027-packaging-sdk-boundary.md) (all five decisions)
-- [ADR 0026](../../../design/decisions/0026-conformance-self-report-only.md) (why testkit is
+- [ADR 0027](../../../archive/design/decisions/0027-packaging-sdk-boundary.md) (all five decisions)
+- [ADR 0026](../../../archive/design/decisions/0026-conformance-self-report-only.md) (why testkit is
   not a production dependency)
-- [Driving contract — SDK package reconciliation](../../../design/contracts/driving.md#sdk-package-reconciliation)
+- [Driving contract — SDK package reconciliation](../../../archive/design/contracts/driving.md#sdk-package-reconciliation)
 - Source: entire `src/` tree, `bin/jig.js`, `pnpm-workspace.yaml`, `tsconfig.base.json`,
   `tsconfig.json`, `vitest.config.ts`, `.github/workflows/check.yml`
 - Tests: all lanes; `tests/hermetic/no-real-effects.setup.ts`

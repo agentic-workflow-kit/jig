@@ -13,22 +13,27 @@ downstream consumers.
 
 ## Ground truth — read what your task touches
 
-Altitude: `docs/product/` owns _what & why_; `docs/design/` owns _how_. Product is the contract
-design reconciles to; where they conflict, name it rather than silently resolving. Historical
-delivery, planning, and review records live under `docs/archive/`; treat them as provenance, not
-current implementation instructions.
+Altitude: `docs/product/` owns _what & why_; `docs/redesign/design/` owns _how_ — the approved
+layered architecture (Layer 0 brief; Layer 1 locked; Layer 2 approved, not locked). Product is
+the contract design reconciles to; where they conflict, name it rather than silently resolving.
+The pre-redesign engineering reference is archived at `docs/archive/design/` and remains the
+citation target for the v0 data contracts, the ADR log, and committed evidence records until
+those seams are reconciled into the redesign. Historical delivery, planning, and review records
+live under `docs/archive/`; treat archive content as provenance, not current implementation
+instructions.
 
-| Task                                                  | Read                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Intent, audience, the five guarantees, boundaries     | `docs/product/jig.md` (hub)                                                    |
-| Guarantees in ID detail / scenarios / concepts        | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md`                    |
-| How a promise is met (contracts, state tables, seams) | `docs/design/` (live; start at its README and the ADR log)                     |
-| Active delivery phasing toward the target state       | `docs/delivery/` (start at its README)                                         |
-| Historical delivery sequencing and phase ladders      | `docs/archive/delivery/`                                                       |
-| Historical design-work sequencing                     | `docs/archive/planning/design-track/`                                          |
-| Point-in-time repo reviews and their findings         | `docs/archive/reviews/`                                                        |
-| The engine source and its tests                       | `packages/*/src`, `packages/*/tests`, `tests/` (fixtures at `tests/fixtures/`) |
-| Local agent runbooks                                  | `skills/`                                                                      |
+| Task                                                       | Read                                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Intent, audience, the five guarantees, boundaries          | `docs/product/jig.md` (hub)                                                    |
+| Guarantees in ID detail / scenarios / concepts             | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md`                    |
+| How a promise is met (model, views, invariants, decisions) | `docs/redesign/design/` (live; start at its README and the gate records)       |
+| v0 data contracts, ADR log, committed evidence records     | `docs/archive/design/` (archived reference; still cited by delivery phases)    |
+| Active delivery phasing toward the target state            | `docs/delivery/` (start at its README)                                         |
+| Historical delivery sequencing and phase ladders           | `docs/archive/delivery/`                                                       |
+| Historical design-work sequencing                          | `docs/archive/planning/design-track/`                                          |
+| Point-in-time repo reviews and their findings              | `docs/archive/reviews/`                                                        |
+| The engine source and its tests                            | `packages/*/src`, `packages/*/tests`, `tests/` (fixtures at `tests/fixtures/`) |
+| Local agent runbooks                                       | `skills/`                                                                      |
 
 ## Status
 

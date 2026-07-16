@@ -13,9 +13,9 @@ status: completed history
 Phase 5 pinned and merged the four provider ports, the composition root, and the driver conformance
 suite as **exercised jig-internal seams** proven with **reference adapters** (commit `f59a479`); Phase 6
 promoted the **agent** and **execution-host** seams to real drivers
-([ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md)); Phase 7 promoted the
+([ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md)); Phase 7 promoted the
 **Forge** seam to a real Forge/GitHub adapter
-([ADR 0023](../../../../design/decisions/0023-phase-7-real-forge-landing.md)). Phase 8 promotes the **Work
+([ADR 0023](../../../design/decisions/0023-phase-7-real-forge-landing.md)). Phase 8 promotes the **Work
 source** seam from the reference adapter to **real importer(s)** behind the same, unchanged
 `WorkSourcePort.candidates()`: the phase in which candidate work first arrives from a **real external
 source** (an issue tracker or other system) rather than being seeded from the operator-supplied plan.
@@ -24,7 +24,7 @@ Two properties are the whole point: **every candidate crosses `PlanValidator` be
 where a candidate came from. Every acceptance criterion is a test citing its AC ID.
 
 The design is closed in
-[ADR 0024](../../../../design/decisions/0024-phase-8-real-work-source.md). This brief is
+[ADR 0024](../../../design/decisions/0024-phase-8-real-work-source.md). This brief is
 implementation-ready **against that ADR**: it does not re-decide the 8a/8b split, the intake-chokepoint
 location property, the provenance-shape widening, or the no-freeze provenance encoding — it implements
 them. Where a detail is genuinely design- or contract-owner-owned rather than a local implementation
@@ -67,26 +67,26 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 8 section and P8-AC-1..3. These IDs are
   the binding delivery target, with their guarantee traces.
-- [ADR 0024](../../../../design/decisions/0024-phase-8-real-work-source.md) — the five settlements this
+- [ADR 0024](../../../design/decisions/0024-phase-8-real-work-source.md) — the five settlements this
   brief implements (the real importer + opt-in driver name, the single structural intake chokepoint, the
   origin-bearing provenance widening, the 8a/8b split + AC assignment, and the two regression anchors).
 - [`../repo-plan-m7.md`](../repo-plan-m7.md) — the open questions routed to design (open question 2: if
   richer work-source provenance forces any observability-records field change, that is a contract change
   routed to M1 — **it does not**, per ADR 0024 Decision 3; do not re-open).
-- [ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7 (the
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 7 (the
   work-source seam: candidates cross plan intake; the port is not a scheduler and not an authorization
   channel; the `w4-s8`/`w4-s2` stop condition) — the carry-forward Phase 8 realizes structurally.
-- [`../../../design/core/plan-intake.md`](../../../../design/core/plan-intake.md) — the `PlanValidator`
+- [`../../../design/core/plan-intake.md`](../../../design/core/plan-intake.md) — the `PlanValidator`
   validate-once boundary, INV-007, the `No second scheduling input` invariant candidate, and the
   "Phase 8 realization (ADR 0024)" note (the seed-vs-candidate chokepoint).
-- [`../../../design/contracts/providers.md`](../../../../design/contracts/providers.md) — the Work-source
+- [`../../../design/contracts/providers.md`](../../../design/contracts/providers.md) — the Work-source
   seam's owns/implements/must-not contract, the `work-source-never-bypasses-plan` candidate invariant,
   and the "Phase 8 realization (ADR 0024)" section.
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md)
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
   — the **"v0 Not Frozen"** posture and the `run.drivers.workSource` driver-identity field
   (`"work-source:local-plan"`) that already carries the origin. Real candidate origin rides this existing
   field / an additive event basis — **do not mint a new field or event family, do not freeze.**
-- [`../../../design/notes/prior-art-workflow-kit.md`](../../../../design/notes/prior-art-workflow-kit.md)
+- [`../../../design/notes/prior-art-workflow-kit.md`](../../../design/notes/prior-art-workflow-kit.md)
   (the "dry-run is greenfield" finding: the prototype's Work-Source candidate-count lookup never entered
   the run-lifecycle machine; lessons 5–6 the two-authorities boundary) — the re-derived (never ported)
   recipe. **Keep jig's `PlanValidator` crossing — the improvement the prototype lacked; do not regress
@@ -333,11 +333,11 @@ closed on:
 
 - **P8-AC-1** — A real importer produces candidates that reach runtime scheduling **only** after
   `PlanValidator`; a candidate that fails validation is rejected or held and never scheduled. **8a**,
-  Slices 1–2. Traces: [`../../../../design/core/plan-intake.md`](../../../../design/core/plan-intake.md), INV-007,
+  Slices 1–2. Traces: [`../../../../design/core/plan-intake.md`](../../../design/core/plan-intake.md), INV-007,
   ADR 0021 decision 7.
 - **P8-AC-2** — An attempt to route a work-source candidate to scheduling bypassing `PlanValidator`
   fails closed and is recorded. **8a**, Slice 3. Traces:
-  [`../../../../design/core/plan-intake.md`](../../../../design/core/plan-intake.md),
+  [`../../../../design/core/plan-intake.md`](../../../design/core/plan-intake.md),
   [`STACK-4`](../../../../product/guarantees.md#4-stack-portability)–
   [`STACK-5`](../../../../product/guarantees.md#4-stack-portability), ADR 0021 decision 7.
 - **P8-AC-3** — A candidate's provenance names its real origin (source and identifier) rather than the

@@ -9,8 +9,8 @@ status: active
 
 Phases 1–2 gated a run on a single policy boolean (`allowLocalDryRun`), recorded as a named,
 deliberate walking-skeleton simplification in
-[ADR 0018](../../../../design/decisions/0018-policy-gate-simplification.md) — not the fence
-[ADR 0002](../../../../design/decisions/0002-policy-posture-assisted.md) requires. This phase
+[ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md) — not the fence
+[ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md) requires. This phase
 replaces the boolean with the per-request fence: the scripted worker declares requests, the
 Fence adjudicates each against the fixed CFG-10 category boundary, and the run emits durable
 `authorization.*` records for every decision instead of a single run-level allow/deny. It also
@@ -25,13 +25,13 @@ before editing Phase 3 runtime behavior.
 
 Read, in order: [`../phases.md`](../phases.md) (Phase 3 section, authoritative AC list),
 [`../README.md`](../README.md) (org-M5 map — this phase closes the fence and preview exit
-criteria), [ADR 0018](../../../../design/decisions/0018-policy-gate-simplification.md),
-[ADR 0002](../../../../design/decisions/0002-policy-posture-assisted.md),
-[ADR 0008](../../../../design/decisions/0008-s004-denied-in-canonical-fixture.md),
-[ADR 0019](../../../../design/decisions/0019-phase-3-local-governance-scope.md),
-[`../../../design/core/authorization.md`](../../../../design/core/authorization.md),
-[`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md), and §15 of
-[`../../../design/notes/runtime-design-m5a.md`](../../../../design/notes/runtime-design-m5a.md).
+criteria), [ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md),
+[ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md),
+[ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md),
+[ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md),
+[`../../../design/core/authorization.md`](../../../design/core/authorization.md),
+[`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md), and §15 of
+[`../../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md).
 Also read the [Phase R brief](./phase-r-remediation.md) for the records shape this phase
 extends.
 
@@ -45,22 +45,22 @@ design per this phase's stop conditions.
 - [`../phases.md`](../phases.md) — Phase 3 requirements and P3-AC-1..6.
 - [`../README.md`](../README.md) — org-M5 exit-criteria map (this phase closes the preview and
   fence-triad rows), terminology guard.
-- [`../../../design/core/authorization.md`](../../../../design/core/authorization.md) — the Fence
+- [`../../../design/core/authorization.md`](../../../design/core/authorization.md) — the Fence
   classifier, the fixed CFG-10 category boundary, the Fence decision rules (four-step order),
   the Doorbell escalation model, GUARD-2's enforcement leg.
-- [`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md) — the `preview` vs.
+- [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md) — the `preview` vs.
   `start` boundary (Preview walks load → validate → bind → emit `run.previewed`; it does not
   allocate a run identity, workspace, or provider wiring — see "Preview vs Start Boundary").
-- [ADR 0002](../../../../design/decisions/0002-policy-posture-assisted.md) — assisted posture,
+- [ADR 0002](../../../design/decisions/0002-policy-posture-assisted.md) — assisted posture,
   CFG-10 fixed category boundary is the accepted minimum policy posture.
-- [ADR 0018](../../../../design/decisions/0018-policy-gate-simplification.md) — names the boolean
+- [ADR 0018](../../../design/decisions/0018-policy-gate-simplification.md) — names the boolean
   gate as scaffolding this phase replaces.
-- [ADR 0008](../../../../design/decisions/0008-s004-denied-in-canonical-fixture.md) — the canonical
+- [ADR 0008](../../../design/decisions/0008-s004-denied-in-canonical-fixture.md) — the canonical
   fixture must evidence a `denied` outcome, not just `granted`/`routed`.
-- [ADR 0019](../../../../design/decisions/0019-phase-3-local-governance-scope.md) — Phase 3 closes
+- [ADR 0019](../../../design/decisions/0019-phase-3-local-governance-scope.md) — Phase 3 closes
   the local preview, request-category, Doorbell, owner-decision vocabulary, and adjusted
   canonical-triad decisions.
-- [`../../../design/notes/runtime-design-m5a.md`](../../../../design/notes/runtime-design-m5a.md)
+- [`../../../design/notes/runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md)
   §15 — the canonical five-story dry-run trace this phase's golden integration test asserts.
 - [Phase R brief](./phase-r-remediation.md) — the records shape (`binding` block, `actor`,
   `run.stopped` reason/checkpoint/`unstarted`) this phase's events extend.
@@ -216,7 +216,7 @@ pending the decision).
 golden run-record fixture, new integration test (e.g.
 `tests/canonical-triad.int.test.ts`).
 
-Read [`runtime-design-m5a.md`](../../../../design/notes/runtime-design-m5a.md) §15 in full before
+Read [`runtime-design-m5a.md`](../../../design/notes/runtime-design-m5a.md) §15 in full before
 building this — the story table, the eligibility note, and the illustrative record excerpt are
 all load-bearing for what this test must assert.
 
