@@ -50,16 +50,17 @@ Layer 1 gate recorded in the [review and approval record](./review-and-approval-
 ## Approved Layer 2 and readiness decision records
 
 D10–D12 were authored on 2026-07-15 and approved — not locked — by the explicit owner decision of
-2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 is
-the later owner-approved product-readiness amendment; its lock remains pending under the
+2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 and
+D14 are the later owner-approved product-readiness amendments; their lock remains pending under the
 [product readiness gate](./product-readiness-gate-record.md). No D1–D9 content changed.
 
-| ID                                           | Topic                           | Approved direction                                                                                 |
-| -------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [D10](./D10-runtime-decomposition.md)        | Runtime decomposition and ports | Modular single-authority runtime with named ports.                                                 |
-| [D11](./D11-ledger-realization.md)           | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization.        |
-| [D12](./D12-mechanism-contract-model.md)     | Mechanism contract model        | Capability-scoped, attested, conformance-gated mechanism contracts.                                |
-| [D13](./D13-envelope-production-boundary.md) | Envelope production boundary    | Jig-owned configuration front end outside active-Run control authority; lock pending exact review. |
+| ID                                                 | Topic                              | Approved direction                                                                                             |
+| -------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [D10](./D10-runtime-decomposition.md)              | Runtime decomposition and ports    | Modular single-authority runtime with named ports.                                                             |
+| [D11](./D11-ledger-realization.md)                 | Ledger realization                 | Storage-agnostic conditional-append contract with a single-host file reference realization.                    |
+| [D12](./D12-mechanism-contract-model.md)           | Mechanism contract model           | Capability-scoped, attested, conformance-gated mechanism contracts.                                            |
+| [D13](./D13-envelope-production-boundary.md)       | Envelope production boundary       | Jig-owned configuration front end outside active-Run control authority; lock pending exact review.             |
+| [D14](./D14-agent-provider-permission-boundary.md) | Agent-provider permission boundary | Provider-native runtime permission enforcement with human-needed requests routed through the durable Doorbell. |
 
 ## Imported promises and constraints
 
@@ -71,7 +72,8 @@ One import exists:
 | [The five product guarantees](./product-guarantee-import.md) | All fifty-six ID-bearing commitments of `docs/product/guarantees.md`, digest-pinned. | 2026-07-16     |
 
 The [reconciliation matrix](../product-guarantee-reconciliation.md) maps every imported commitment
-to the redesign element that carries it. SEC-2 is the sole open gap. The
+to the redesign element that carries it. The 2026-07-16 explicit product correction and D14 close
+the former SEC-2 gap and replace the duplicated Jig-side assisted-authority classifier. The
 [product readiness gate](./product-readiness-gate-record.md) identifies the exact lock candidate.
 
 ## Accepted final negative consequences
@@ -98,5 +100,5 @@ they Layer 2 placeholders.
   [D9 consolidated deferrals](./D9-invariants-and-artifact-shape.md#consolidated-deliberate-layer-2-deferrals).
 - Review gates, archive-evidence dispositions, and approval state:
   [review and approval record](./review-and-approval-record.md).
-- The product-readiness amendment and SEC-2 exclusion:
+- The complete product-readiness amendment:
   [product readiness gate](./product-readiness-gate-record.md).

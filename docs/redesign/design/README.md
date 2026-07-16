@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 and Layer 1 locked; Layer 2 baseline approved; product-readiness lock candidate approved except SEC-2, exact review pending
+status: active index — Layer 0 and Layer 1 locked; Layer 2 baseline approved; complete product-readiness lock candidate owner-approved, exact review pending
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -165,44 +165,45 @@ one category at a time; the
 [Layer 2 gate record](./decisions/layer2-gate-record.md) owns the coverage traceability and gate
 state.
 
-| Page                                                                        | Level or view type                    | Question it answers                                                                    |
-| --------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
-| [Envelope production](./envelope-production.md)                             | Product boundary view (V18)           | How do tracks, setup, work profiles, and Work Source become one approved envelope?     |
-| [Runtime architecture](./runtime.md)                                        | Level 2 — runtime (V6, V6a)           | What runnable or stored units realize Jig, through which ports and processes?          |
-| [Control plane components](./components/control-plane.md)                   | Level 3 — component (V7)              | How is the run controller internally organized, and which component holds which power? |
-| [Data and identity](./data-and-identity.md)                                 | Data view (V8)                        | How are identities, fences, and schemas represented and bound?                         |
-| [Lifecycle catalogs](./lifecycle-catalogs.md)                               | State machines and catalogs (V9, V9a) | Which exhaustive states, events, Operations, and failure codes close the lifecycle?    |
-| [Scheduling and bounds](./scheduling-and-bounds.md)                         | Supporting view (V10)                 | How are admission, reservations, waits, and budgets realized deterministically?        |
-| [Persistence and projections](./persistence-and-projections.md)             | Supporting view (V11)                 | What contract makes the ledger durable, verifiable, and recoverable?                   |
-| [Mechanism and provider contracts](./mechanism-and-provider-contracts.md)   | Supporting view (V12)                 | What must every configured mechanism satisfy before it can be trusted?                 |
-| [Evidence handling](./evidence-handling.md)                                 | Supporting view (V13)                 | How is evidence stored, attributed, verified, redacted, and retained?                  |
-| [Review and verification execution](./review-and-verification-execution.md) | Protocol view (V14)                   | How do the review protocol and policy-selected verification run in detail?             |
-| [Forge and landing](./forge-and-landing.md)                                 | Protocol view (V15)                   | Which forge Operations, strategies, and equivalence rules prove landing?               |
-| [Operations and observability](./operations-and-observability.md)           | Supporting view (V16)                 | How do escalation, read models, exports, and alerts surface durable truth?             |
-| [Architecture conformance](./architecture-conformance.md)                   | Contract (V17)                        | Which suites make the invariants executable for any realization?                       |
-| [D10–D13 decision records](./decisions/README.md)                           | Decisions and readiness amendment     | Why were the runtime, ledger, mechanism, and envelope-boundary shapes selected?        |
-| [Layer 2 gate record](./decisions/layer2-gate-record.md)                    | Gate record                           | How Layer 2 was authored, reviewed, corrected, and approved, and what its gate covers? |
-| [Product readiness gate](./decisions/product-readiness-gate-record.md)      | Gate record                           | What closes every imported commitment except SEC-2, and when does that lock activate?  |
+| Page                                                                        | Level or view type                    | Question it answers                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [Envelope production](./envelope-production.md)                             | Product boundary view (V18)           | How do tracks, setup, work profiles, and Work Source become one approved envelope?          |
+| [Runtime architecture](./runtime.md)                                        | Level 2 — runtime (V6, V6a)           | What runnable or stored units realize Jig, through which ports and processes?               |
+| [Control plane components](./components/control-plane.md)                   | Level 3 — component (V7)              | How is the run controller internally organized, and which component holds which power?      |
+| [Data and identity](./data-and-identity.md)                                 | Data view (V8)                        | How are identities, fences, and schemas represented and bound?                              |
+| [Lifecycle catalogs](./lifecycle-catalogs.md)                               | State machines and catalogs (V9, V9a) | Which exhaustive states, events, Operations, and failure codes close the lifecycle?         |
+| [Scheduling and bounds](./scheduling-and-bounds.md)                         | Supporting view (V10)                 | How are admission, reservations, waits, and budgets realized deterministically?             |
+| [Persistence and projections](./persistence-and-projections.md)             | Supporting view (V11)                 | What contract makes the ledger durable, verifiable, and recoverable?                        |
+| [Mechanism and provider contracts](./mechanism-and-provider-contracts.md)   | Supporting view (V12)                 | What must every configured mechanism satisfy before it can be trusted?                      |
+| [Evidence handling](./evidence-handling.md)                                 | Supporting view (V13)                 | How is evidence stored, attributed, verified, redacted, and retained?                       |
+| [Review and verification execution](./review-and-verification-execution.md) | Protocol view (V14)                   | How do the review protocol and policy-selected verification run in detail?                  |
+| [Forge and landing](./forge-and-landing.md)                                 | Protocol view (V15)                   | Which forge Operations, strategies, and equivalence rules prove landing?                    |
+| [Operations and observability](./operations-and-observability.md)           | Supporting view (V16)                 | How do escalation, read models, exports, and alerts surface durable truth?                  |
+| [Architecture conformance](./architecture-conformance.md)                   | Contract (V17)                        | Which suites make the invariants executable for any realization?                            |
+| [D10–D14 decision records](./decisions/README.md)                           | Decisions and readiness amendments    | Why were the runtime, ledger, mechanism, envelope, and provider-permission shapes selected? |
+| [Layer 2 gate record](./decisions/layer2-gate-record.md)                    | Gate record                           | How Layer 2 was authored, reviewed, corrected, and approved, and what its gate covers?      |
+| [Product readiness gate](./decisions/product-readiness-gate-record.md)      | Gate record                           | What closes every imported commitment, and when does that lock activate?                    |
 
 ### Reconciliation artifacts
 
 The explicit owner decision of 2026-07-16 imported the five product guarantees into the redesign
-under D1's import mechanism. These artifacts record the import, its traceability, and the
-owner-approved amendment that leaves SEC-2 as the sole open commitment.
+under D1's import mechanism. These artifacts record the original import, the explicit
+provider-permission correction to SEC-2 and its related FENCE, DOOR, CFG, DRIVE, and SEE
+commitments, and the complete owner-approved readiness amendment.
 
-| Page                                                                      | Level or view type      | Question it answers                                                                     |
-| ------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| [Product guarantee import](./decisions/product-guarantee-import.md)       | Imported promise record | What was imported from the product layer, from where, why, and at what accepted cost?   |
-| [Product guarantee reconciliation](./product-guarantee-reconciliation.md) | Traceability matrix     | Which redesign element carries each imported commitment, and why is SEC-2 the only gap? |
+| Page                                                                      | Level or view type      | Question it answers                                                                    |
+| ------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |
+| [Product guarantee import](./decisions/product-guarantee-import.md)       | Imported promise record | What was imported from the product layer, from where, why, and at what accepted cost?  |
+| [Product guarantee reconciliation](./product-guarantee-reconciliation.md) | Traceability matrix     | Which redesign element carries each imported commitment after the explicit correction? |
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                        |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)                              |
-| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record            | Approved, not locked — the corrected candidate passed the 2026-07-16 round-4 verification recheck and Arye's explicit approval (see the Layer 2 gate record) |
-| Product readiness amendment       | D13, V18, amended Layer 2 contracts, reconciliation, and readiness gate         | Owner-approved lock candidate except SEC-2; deterministic checks and exact independent review required before lock activation; PR remains unmerged           |
+| Layer gate                        | Canonical or proposed artifacts                                                                 | Status                                                                                                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                        |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants                 | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)                              |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                            | Approved, not locked — the corrected candidate passed the 2026-07-16 round-4 verification recheck and Arye's explicit approval (see the Layer 2 gate record) |
+| Product readiness amendment       | D13–D14, V18, amended Layer 2 contracts, product correction, reconciliation, and readiness gate | Complete owner-approved lock candidate; deterministic checks and exact independent review required before lock activation; PR remains unmerged               |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression

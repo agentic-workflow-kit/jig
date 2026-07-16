@@ -378,6 +378,7 @@ regardless of any Layer 2 state.
 The imported product guarantees triggered a material Layer 2 amendment without reopening the
 locked Layer 1 inputs. D13, V18, and the amended contracts are governed by the separate
 [product readiness gate record](./product-readiness-gate-record.md). Its owner selections close
-every initial reconciliation gap and upstream ownership question except SEC-2. The baseline above
-remains the approved Layer 2 history; the amendment becomes locked only after independent `PASS`
-on its exact candidate. SEC-2 is explicitly excluded and cannot close by implication.
+every initial reconciliation gap and upstream ownership question, including the explicit product
+correction and D14 provider-permission boundary. The baseline above remains the approved Layer 2
+history; the complete amendment becomes locked only after independent `PASS` on its exact
+candidate.

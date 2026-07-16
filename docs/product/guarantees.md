@@ -30,17 +30,22 @@ spine, and where Jig fits in the suite, start at
 ## 1. Control & trust
 
 **Intended behavior.** Jig is a delivery harness, not a coding agent with shipping authority. The
-agent is a contained worker. It can request work, produce code, run requested checks, and report
-progress/evidence, but it cannot expand its own authority, decide evidence sufficiency, choose or
-weaken acceptance level, review itself as sufficient proof, or land changes by self-report. Jig is
-responsible for keeping the authority boundary real.
+agent is a worker running under an owner-selected permission posture enforced by its Agent provider
+and Execution Host. It can request work, produce code, run requested checks, and report
+progress/evidence, but it cannot change that posture, decide evidence sufficiency, choose or weaken
+acceptance level, review itself as sufficient proof, or land changes by self-report. Jig is
+responsible for keeping its lifecycle and delivery authority boundary real without duplicating the
+provider's runtime permission engine.
 
 ### 1.1 The fence — runtime authorization
 
-- **FENCE-1.** Every worker request is authorized before it executes. If the request is not
-  declared and approved, it fails closed.
-- **FENCE-2.** Widening permission requires owner re-approval. The worker cannot negotiate a
-  broader runtime grant for itself mid-run.
+- **FENCE-1.** Every worker runtime action is governed by the exact provider permission posture
+  selected before launch. The provider may allow it, evaluate it through its own automatic review,
+  reject it, or require a human answer; Jig does not create a second per-action authorization
+  engine.
+- **FENCE-2.** The worker cannot change or silently widen its provider permission posture. A
+  provider-internal approval exercises the posture the owner selected; changing that posture is a
+  new owner-controlled configuration decision.
 - **FENCE-3.** The worker never holds privileged credentials. The runner performs privileged
   actions on the worker's behalf, under policy and evidence gates.
 
@@ -61,8 +66,9 @@ responsible for keeping the authority boundary real.
 
 ### 1.4 The doorbell — approval and escalation
 
-- **DOOR-1.** Ambiguous, risky, or unproven action routes to the owner. The default when Jig
-  cannot justify autonomy is a closed door, not a guess.
+- **DOOR-1.** A Jig lifecycle decision that requires judgment, or an Agent-provider permission or
+  question that requires a human, routes to the owner through the same Doorbell. Provider-internal
+  approvals and rejections do not become Doorbell traffic.
 - **DOOR-2.** Escalations are durable. The run parks at the decision point and resumes when the
   owner decides, even after interruption.
 - **DOOR-3.** Human grants are narrow. Approval is scoped to the need in front of the run, not
@@ -94,19 +100,33 @@ and how much of each, a story needs before it may land.
   dashboard. When it cannot safely do that, the block is still recorded for you. Jig respects
   merge queues and branch-protection rules.
 
-### 1.6 Security — no leaks, no phone-home
+###### ~~1.6 Security — no leaks, no phone-home~~
+
+_Retired heading retained as a compatibility anchor for superseded delivery records._
+
+### 1.6 Security — no leaks and an explicit provider posture
 
 - **SEC-1.** Secrets stay out of the run. Credentials and sensitive values are kept out of
   records, logs, artifacts, and exports, so the trail you keep is safe to keep.
-- **SEC-2.** The worker cannot phone home. Outbound network access is confined, and the
-  confinement is proven — Jig does not take the agent's word that it stayed put.
+- **SEC-2. Provider-enforced execution posture.** Each worker session runs under the exact
+  owner-selected permission posture supported by its Agent provider, including its filesystem,
+  command, approval, and network posture. The provider and its Execution Host enforce that posture;
+  Jig freezes and records the selection and never silently widens it. Jig trusts that provider
+  boundary and does not independently prove confinement or a universal no-phone-home property.
 - **SEC-3.** The worker never holds your forge credentials. The runner performs the privileged
   action; the thing writing code is never the thing holding the keys.
 
-**Honest edge.** Jig protects the shape of trust; the substance of each gate is still the
-owner's responsibility. A weak review, empty verification command, or vague plan remains weak.
-Jig makes that weakness visible instead of pretending it is proof; missing or inconclusive
-acceptance means less autonomy or an inspectable stop, not a weaker guarantee.
+The owner explicitly replaced SEC-2's former 2026-07-07 no-phone-home/proven-confinement wording on
+2026-07-16. That stronger promise made Jig responsible for independently proving a provider's
+sandbox and egress enforcement. The current commitment instead makes the selected provider posture
+and its trust boundary explicit. A full-access posture is therefore visible owner intent, not a
+false confinement claim.
+
+**Honest edge.** Jig protects the shape of trust; the provider enforces the worker's runtime
+permissions, and the owner remains responsible for choosing and trusting that provider and posture.
+A weak review, empty verification command, or vague plan remains weak. Jig makes that weakness
+visible instead of pretending it is proof; missing or inconclusive acceptance means less autonomy
+or an inspectable stop, not a weaker guarantee.
 
 ## 2. Configuration ownership
 
@@ -139,24 +159,25 @@ how the work gets done. Jig derives live behavior from those choices and the pla
 - **CFG-9. Setup runs only when needed.** You declare a setup command — installing dependencies,
   say — and Jig runs it only when the workspace is stale, skipping it when the tree is already
   fresh.
-- **CFG-10. You set how much it asks.** A manual posture sends every escalation to you; an
-  assisted posture auto-grants low-risk actions and reserves the risky ones. The boundary is by
-  category and fixed: reversible, non-privileged actions that do not touch rule-governing files
-  may auto-grant, while anything touching credentials, push or merge, rule-governing files, or
-  otherwise irreversible effects always goes to a human. The exact classifier is design's; the
-  category boundary is the product promise — predictable, and never adjudicated by a model
-  (LLM-decided autonomy is deferred; see [what Jig isn't (yet)](./jig.md#what-jig-isnt-yet)).
+- **CFG-10. You choose the provider permission posture.** The owner selects the Agent provider's
+  native permission and approval mode before launch. In a manual posture the provider routes the
+  requests that need approval to the human; in a provider-assisted posture its own automatic
+  reviewer may approve or reject requests internally and surfaces only those that require a human.
+  Jig neither reclassifies those requests nor auto-answers them. Human-needed permissions and
+  questions use the durable Doorbell. A future Jig-side middleman responder is deliberately
+  deferred.
 
 How much Jig asks you is a dial you set (CFG-10), not a fixed personality:
 
 ```mermaid
 flowchart LR
-    M["Manual<br/>you decide every escalation"] --> A["Assisted<br/>low-risk auto-granted,<br/>risky ones come to you"]
-    A -.-> X["Auto / LLM-adjudicated<br/>deferred — not in v1"]
+    M["Manual provider posture<br/>human handles approval requests"] --> A["Provider-assisted posture<br/>provider reviews internally;<br/>human-needed requests surface"]
+    A -.-> X["Jig-side middleman responder<br/>deferred — not in v1"]
 ```
 
-Today the dial runs from manual to assisted; no model decides for you. The auto end is a
-deliberate deferral, not a hidden default.
+Today the dial selects provider-native behavior. The provider may include its own automatic
+reviewer; Jig does not add another reviewer between that provider and the human Doorbell. A future
+Jig-side responder is a deliberate deferral, not a hidden default.
 
 **Honest edge.** Presets are starting points, not a guarantee of fit. Ignoring guidance may be
 valid, but it trades away legibility and traceability. Jig will not pretend those tradeoffs do
@@ -240,9 +261,10 @@ the control, evidence, and recovery boundaries.
 - **DRIVE-2. Nothing escalates silently.** A provider authority manifest declares what it may do —
   which runtimes, what network, which credentials — and you approve that manifest. A change to it
   requires fresh approval.
-- **DRIVE-3. Containment is reported honestly.** An execution host reports how strong its
-  isolation actually is, and stronger-isolation powers unlock only when it is genuinely strong
-  enough.
+- **DRIVE-3. Provider posture is reported honestly.** An Agent provider declares the exact native
+  permission postures it supports and their filesystem, command, approval, and network semantics.
+  An unsupported or mismatched selected posture fails preflight; Jig does not translate one
+  provider's mode into a stronger or supposedly equivalent security claim.
 - **DRIVE-4. Conformance is reusable.** The proof used to trust a driver is not a one-off
   internal assertion. Jig maintains a repeatable conformance surface for bundled and future
   drivers, including adversarial probes, so the same product bar can be applied before a driver
@@ -255,12 +277,14 @@ them remains a separate open product and distribution question.
 
 ## 5. Full observability
 
-**Intended behavior.** Jig makes a run reconstructible. The owner can see what was requested,
-authorized, gated, approved, blocked, landed, or stopped without relying on the worker's
-memory or narrative.
+**Intended behavior.** Jig makes what it governs reconstructible. The owner can see Jig lifecycle
+decisions and human Doorbell interactions — what was requested, authorized, gated, approved,
+blocked, landed, or stopped — without relying on the worker's memory or narrative. Provider-internal
+permission review remains part of the provider session rather than Jig's authoritative history.
 
-- **SEE-1. Full run visibility.** Decisions, authorizations, gates, evidence, approvals, state
-  transitions, and outcomes are captured well enough to reconstruct what happened and why.
+- **SEE-1. Full governed-run visibility.** Jig decisions, authorizations, gates, evidence,
+  Doorbell requests and answers, state transitions, and outcomes are captured well enough to
+  reconstruct what Jig governed and why.
 - **SEE-2. Structured and machine-readable by design.** The records are a product surface that
   owners and suite-level tools can consume.
 - **SEE-3. The records are the evidence.** The evidence Jig uses to decide is the evidence the
@@ -274,9 +298,9 @@ memory or narrative.
 - **SEE-6. Take the record with you.** A finished run exports as a write-once,
   redacted-by-default audit record you can archive or hand to compliance outside Jig.
 
-**Honest edge.** Jig shows everything it governs. It does not read the agent's mind and it does
-not turn evidence into judgment automatically. The owner or learning loop still interprets the
-records.
+**Honest edge.** Jig shows everything it governs. It does not reproduce provider-internal
+auto-review decisions, read the agent's mind, or turn evidence into judgment automatically. The
+owner or learning loop still interprets the records.
 
 ## Related
 

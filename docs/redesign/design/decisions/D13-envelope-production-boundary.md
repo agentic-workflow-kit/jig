@@ -7,7 +7,7 @@ audience:
   - Engineers planning the greenfield Jig realization
 scope: The envelope-production boundary, its authority limits, accepted cost, and rejected alternatives; the canonical behavior lives in the envelope-production view.
 state: approved
-status: owner-approved direction of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
+status: owner-approved direction of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:

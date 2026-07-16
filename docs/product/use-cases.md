@@ -22,6 +22,11 @@ evidence** — never on the agent's say-so. One story tries to change a file tha
 rules; Jig **pauses it and asks you**, rather than quietly merging. Another fails its checks; Jig
 **blocks it and records why**, without holding up the independent stories.
 
+Inside each Agent session, the provider applies the permission mode you selected. Its own automatic
+review may approve or reject a runtime request without involving Jig. If the provider needs a
+human permission or the agent needs a clarifying answer, the request appears at the same durable
+Doorbell as Jig's lifecycle questions and resumes the originating session after you answer.
+
 By morning: nine landed with evidence you can replay, two waiting on a decision only you should
 make, one blocked with a reason. **You spent your judgment on the two decisions that mattered —
 not on babysitting twelve runs.**
@@ -54,11 +59,12 @@ A new track is riskier than your others — it touches auth and billing — and 
 more cautiously without hand-tuning fifty knobs. In setup, Jig asks how you want to work and maps
 your answer to a starting **policy** (the safety contract: gating posture, required reviews, the
 anti-gaming floor) and a **work profile** (how the work gets done: model, effort, prompt
-strategy). You dial the policy toward manual — every escalation comes to you — and leave the work
-profile free to tune for cost and speed later. The two never blur: raising the model's effort
-can't loosen a gate, and the repo-level floors you set once hold under every track no matter how a
-track's own policy is tuned. **You expressed intent once, in owner terms — and the safety
-contract stayed separate from the performance dial.**
+strategy). You select the Agent provider's manual permission posture, so provider requests that
+need approval come to you rather than its automatic reviewer, and leave the work profile free to
+tune for cost and speed later. The provider posture, policy, and work profile never blur: raising
+the model's effort cannot loosen a gate, and the repo-level floors you set once hold under every
+track no matter how a track's own policy is tuned. **You expressed intent once, in owner terms —
+and the safety contract stayed separate from the performance dial.**
 
 ## A safe resume after interruption
 
@@ -80,17 +86,20 @@ your own in-house agent. You change the agent in that track's work profile; the 
 gates, and the evidence bar stay exactly as they were. Before the new agent earns any autonomy,
 Jig makes it **prove** the capabilities it claims; until it does, you get more checkpoints, not
 weaker guarantees. The same proof bar applies to a bundled agent driver and a future extracted
-driver; first-party convenience does not create hidden trust. **You change who does the work
-without renegotiating what "safe" means.**
+driver. The exact permission posture is provider-native and owner-selected, and Jig trusts the
+provider to enforce it rather than pretending every provider has an identical sandbox. **You
+change who does the work without giving the worker authority to change how it is governed.**
 
 ## Reconstructing a run after the fact
 
 _Shows guarantee 5 — see everything._
 
 A story landed last night and someone asks why — what evidence justified the merge, who approved
-it, what the worker was and wasn't allowed to do. You don't reconstruct it from memory or a chat
-transcript. You open the run's records and read the decision itself: the request, the
-authorization, the gates it passed, the evidence that met policy, the approval and who made it.
+it, which provider posture was selected, and which human Doorbell answers affected the Run. You
+don't reconstruct it from memory or a chat transcript. You open the run's records and read the
+decision itself: the selected posture, human requests and answers, the gates it passed, the
+evidence that met policy, the approval and who made it. Provider-internal automatic reviews remain
+in the provider session rather than being rewritten as Jig decisions.
 The records Jig **used** to decide are the same records you **inspect** — there is no second
 story that can drift from what actually happened. When you need to hand it on, the finished run
 exports as a write-once, redacted-by-default audit record you can archive or give to compliance.

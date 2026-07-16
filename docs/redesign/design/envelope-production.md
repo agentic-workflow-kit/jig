@@ -8,7 +8,7 @@ audience:
   - Architecture and security reviewers
 scope: Envelope Builder responsibilities, input composition, policy/work-profile separation, guided setup, presets, Work Source, and successor-Run re-planning; active-Run lifecycle, provider transport, and setup-command execution are excluded.
 state: approved
-status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -37,18 +37,18 @@ its own proposal on the owner's behalf, or mutate an accepted Run.
 
 ## Envelope Builder responsibilities (`EP-*`)
 
-| ID             | Responsibility                                                                                                           | Authority limit                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE`; validate candidate identity, provenance, and declared plan shape. | Candidate work is unapproved input. It cannot bypass plan validation or create a Run.                                         |
-| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.          | One envelope carries exactly one track.                                                                                       |
-| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.            | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                         |
-| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, and role realization.         | A work profile may change cost or behavior but cannot lower policy, authority, evidence, confinement, or review requirements. |
-| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence.                | A missing, changed, stale, or insufficient approval keeps the envelope unlaunchable.                                          |
-| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                    | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                       |
-| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                          | Guidance is never authority and never becomes a hidden default.                                                               |
-| `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                           | Any input change creates a new proposal and digest.                                                                           |
-| `EP-APPROVE`   | Present the exact proposal to the owner and bind the recorded approval to its digest and scope.                          | Only the owner or an authorized configuration delegate may approve; the builder never self-approves.                          |
-| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE` and retain the intake acknowledgement.                          | Submission cannot modify the envelope or imply preflight success.                                                             |
+| ID             | Responsibility                                                                                                                                                                                       | Authority limit                                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE`; validate candidate identity, provenance, and declared plan shape.                                                                             | Candidate work is unapproved input. It cannot bypass plan validation or create a Run.                                                     |
+| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                      | One envelope carries exactly one track.                                                                                                   |
+| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                        | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                     |
+| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, and role realization.                                                                                     | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements. |
+| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; for the Agent provider, select one exact native permission posture and declared semantics. | A missing, changed, stale, insufficient, or policy-incompatible posture keeps the envelope unlaunchable.                                  |
+| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                   |
+| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                           |
+| `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                                                                                                       | Any input change creates a new proposal and digest.                                                                                       |
+| `EP-APPROVE`   | Present the exact proposal to the owner and bind the recorded approval to its digest and scope.                                                                                                      | Only the owner or an authorized configuration delegate may approve; the builder never self-approves.                                      |
+| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE` and retain the intake acknowledgement.                                                                                                      | Submission cannot modify the envelope or imply preflight success.                                                                         |
 
 ## Canonical input composition
 
@@ -57,8 +57,9 @@ The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 1. track identity and the exact approved execution-plan digest;
 2. repo-policy-floor digest, track-policy digest, and their deterministic composition report;
 3. the named work-profile digest and every referenced prompt/role artifact digest;
-4. provider identities, capability requirements, approved authority-manifest digests, and the
-   qualifying conformance-evidence references;
+4. provider identities, capability requirements, approved authority-manifest digests, the exact
+   Agent-provider native permission-posture reference and declared semantics, and qualifying
+   conformance-evidence references;
 5. target, integration strategy, capacity, storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and
 7. owner approval identity, scope, and proposal digest.

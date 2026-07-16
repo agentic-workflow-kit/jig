@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks, read models, metrics, exports, alerts, and service objectives; escalation and obligation schemas, ledger realization, failure codes, and evidence storage are excluded.
 state: approved
-status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -34,21 +34,26 @@ nothing here decides.
 
 ## Escalation interface
 
-A parked question is a durable record, not a message: it carries its identity, the exact question,
-the required decision scope, the authorized responder, the wake condition, and its bound
-([failure and liveness](./failure-and-liveness.md)). It surfaces through the operator interface
-and through notification channels, but notifications are non-authoritative mirrors: only a
-validated decision entering through `PORT-DECIDE` changes anything (D3). Decision intake validates
-responder identity and the recorded delegation scope in `CP-ESCALATION` before the decision can
-become a trigger; replying on a notification channel was rejected as a decision path because a
-mirror cannot satisfy port validation (I7).
+A parked request is a durable record, not a message. It may originate from Jig's lifecycle or from
+an Agent provider that requires a human permission or answer. It carries its identity, origin,
+exact question or requested scope, originating session where applicable, authorized responder,
+wake condition, and bound ([failure and liveness](./failure-and-liveness.md)). Provider-internal
+allowed, automatically reviewed, or rejected runtime requests never enter this interface.
+
+The parked request surfaces through the operator interface and notification channels, but
+notifications are non-authoritative mirrors: only a validated answer entering through
+`PORT-DECIDE` changes anything (D3). Answer intake validates responder identity, exact request
+binding, and recorded delegation scope in `CP-ESCALATION`. For an Agent-provider request, Jig then
+returns the scoped answer to the originating session through `PORT-SESSION`; the provider enforces
+the permission or consumes the answer. Replying on an unvalidated notification channel remains
+rejected because a mirror cannot satisfy port validation (I7).
 
 ## Operator tooling
 
 Generic operator commands are thin verbs over durable records and read models, run by
 `RT-OPERATOR` as short-lived processes with no lifecycle authority ([runtime](./runtime.md)):
 
-- **submit** an envelope, **decide** a parked question, **acknowledge** a notice, and **stop** a
+- **submit** an envelope, **answer** a parked request, **acknowledge** a notice, and **stop** a
   Run — each becomes a validated trigger proposed to the controller, never a direct state change;
 - **inspect**, **watch**, and **explain** — each answers from recorded Transitions and evidence;
   "why is this Story here" is the recorded decision trail, never live controller memory; and
@@ -67,7 +72,7 @@ Every observation surface is a derived projection rebuilt from the ledger by `CP
 | `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                          |
 | `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).    |
 | `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                            |
-| `OBS-WAITS`       | Waits              | Every live wait with its owner, reason, deadline, and exhaustion action — the I16 facts made visible.              |
+| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.    |
 | `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, and their completion or handoff status (I19).                      |
 | `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.             |
 | `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions. |

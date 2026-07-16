@@ -7,7 +7,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The conformance suite catalog, its execution posture, and its gated outcomes; suite implementations, test frameworks, and provider technology selection are excluded.
 state: approved
-status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
+status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -55,13 +55,13 @@ a suite may not be weakened to admit a realization (the gate-integrity posture o
 
 The imported guarantees add required product-readiness suites without changing I1–I21:
 
-| Suite                   | What it exercises                                                                                                                                                                | Closes                        |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `CF-ENVELOPE`           | Floor-preserving track composition, visible preset expansion, work-profile/policy separation, exact owner approval, Work Source provenance, and successor-Run-only replanning.   | CFG-2/3/5/6/8, ISO-2, STACK-2 |
-| `CF-ASSISTED-AUTHORITY` | Boundary partitions prove only reversible, non-privileged, credential-free, non-delivery, non-destructive, non-rule actions auto-grant; unknowns always require human authority. | CFG-10                        |
-| `CF-SETUP-FRESHNESS`    | Exact recipe/input/host receipts suppress setup; any relevant mismatch or stale receipt authorizes one reconciled setup effect and emits a fresh receipt.                        | CFG-9                         |
-| `CF-PROVIDER-AUTHORITY` | Bindings can only narrow an exhaustive approved manifest; build, manifest, environment, proof-age, and approval changes close the provider gate until requalified.               | EARN-1, DRIVE-2               |
-| `CF-BLOCK-SURFACING`    | A real integration request receives one idempotent status/comment block when authorized; surfacing failure preserves `Blocked` and creates a notice and residual obligation.     | MERGE-5                       |
+| Suite                    | What it exercises                                                                                                                                                                                                                                                                                                  | Closes                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `CF-ENVELOPE`            | Floor-preserving track composition, visible preset expansion, work-profile/policy separation, exact owner approval, Work Source provenance, and successor-Run-only replanning.                                                                                                                                     | CFG-2/3/5/6/8, ISO-2, STACK-2        |
+| `CF-PROVIDER-PERMISSION` | The exact Agent-provider posture is frozen and accepted at launch; provider-internal allow/review/reject outcomes create no Jig decision; only attributable human-needed permissions/questions park at the Doorbell, and each scoped answer returns to the same session without widening posture or Jig authority. | FENCE-1/2, DOOR-1/2/3, SEC-2, CFG-10 |
+| `CF-SETUP-FRESHNESS`     | Exact recipe/input/host receipts suppress setup; any relevant mismatch or stale receipt authorizes one reconciled setup effect and emits a fresh receipt.                                                                                                                                                          | CFG-9                                |
+| `CF-PROVIDER-AUTHORITY`  | Bindings can only narrow an exhaustive approved manifest; build, manifest, environment, proof-age, and approval changes close the provider gate until requalified.                                                                                                                                                 | EARN-1, DRIVE-2                      |
+| `CF-BLOCK-SURFACING`     | A real integration request receives one idempotent status/comment block when authorized; surfacing failure preserves `Blocked` and creates a notice and residual obligation.                                                                                                                                       | MERGE-5                              |
 
 Per-port mechanism suites verify the `MC-*` clauses and the port family duties of the
 [mechanism and provider contracts](./mechanism-and-provider-contracts.md) against a concrete
@@ -71,7 +71,7 @@ provider:
 | ------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CF-MECH-LEDGER`    | `PORT-LEDGER`    | Registry-realization identity attestation and mismatch rejection; conditional-append rejection; durable acknowledgement; the five-way readback classification (own commit adopted once; empty-position absence retried with the same identity; a competing generation's occupant adopted with the proposer fenced and never retried; same-generation/different-digest failing closed as integrity loss; indeterminate halting); and `LG-WITNESS` currency: independent trust, monotonicity, advance-before-acknowledgement, and rollback-restore detection. |
 | `CF-MECH-ARTIFACT`  | `PORT-ARTIFACT`  | Immutable writes and digest-verified reads.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `CF-MECH-SESSION`   | `PORT-SESSION`   | Assignment idempotency, session lookup, resume or attested loss.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `CF-MECH-SESSION`   | `PORT-SESSION`   | Assignment idempotency, session lookup, exact native permission-posture acceptance and stability, provider-internal outcome isolation, attributable human-needed request emission, scoped Doorbell-answer binding, and resume or attested loss with any pending request preserved.                                                                                                                                                                                                                                                                          |
 | `CF-MECH-WORKSPACE` | `PORT-WORKSPACE` | Effect idempotency, basis and cleanliness facts, setup receipt/freshness behavior, preservation.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `CF-MECH-SOURCE`    | `PORT-SOURCE`    | Stable source identity, provenance, bounded retrieval, duplicate normalization, and deterministic candidate ordering before envelope approval.                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `CF-MECH-VERIFY`    | `PORT-VERIFY`    | Exact-subject observation, repeatability, result retrieval.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -79,10 +79,11 @@ provider:
 
 Every `CF-MECH-*` suite contains reusable adversarial probes, not only happy-path examples. At a
 minimum the shared probe library exercises forged identities and attestations, scope widening,
-stale fences, duplicate and late results, timeout and reconnect ambiguity, unauthorized egress or
-credential use, and retry-after-uncertain-effect behavior; port-specific suites add hostile basis,
-setup, anchor, publication, and redaction cases. Bundled and future providers pass the same suite
-and probe versions. A provider-specific waiver cannot make a provider configurable.
+stale fences, duplicate and late results, timeout and reconnect ambiguity, declared-posture
+mismatch or undeclared credential use, and retry-after-uncertain-effect behavior; port-specific
+suites add hostile basis, setup, anchor, publication, and redaction cases. Bundled and future
+providers pass the same suite and probe versions. A provider-specific waiver cannot make a
+provider configurable.
 
 Governance invariants are covered without a runtime suite: I1 and I21 are verified by the layer
 gates and the review record itself, and I2 and I3 are enforced structurally by the D10 port model —
@@ -111,10 +112,10 @@ participant power widens through output.
   amendment until every product-readiness suite above passes against the exact realization and
   selected providers.
 
-The security promise `SEC-2` remains deliberately open. These suites can prove declared sandbox
-and egress controls and catch tested violations; they cannot establish that an arbitrary provider
-contains no undisclosed phone-home path. No conformance result may be presented as closing that
-stronger claim.
+`CF-PROVIDER-PERMISSION` closes the revised SEC-2 by proving the Jig/provider protocol and exact
+posture selection that Jig governs. It does not independently certify the provider's sandbox or
+establish that an arbitrary provider contains no undisclosed phone-home path. D14 deliberately
+places that enforcement inside the trusted Agent-provider and Execution Host boundary.
 
 ## View V17 — invariants to suites to gated outcomes
 

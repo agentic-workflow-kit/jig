@@ -6,7 +6,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Evidence storage, attribution, integrity, redaction, encryption, access, size, retention, and archival; evidence and verdict schemas, reviewer protocol, verification execution, ledger realization, and operator read models are excluded.
 state: approved
-status: owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review; SEC-2 excluded
+status: owner-approved complete product-readiness candidate of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
