@@ -23,12 +23,12 @@ Read these before editing:
 - [`../../../product/jig.md`](../../../../product/jig.md) — Jig product promise and local MVP context.
 - [`../../../product/guarantees.md`](../../../../product/guarantees.md) — product guarantees this phase must not weaken.
 - [`../../../product/concepts.md`](../../../../product/concepts.md) — runner/worker boundary and product language.
-- [`../../../design/core/plan-intake.md`](../../../../design/core/plan-intake.md) — `PlanValidator` boundary and reject-unknown-format posture.
-- [`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md) — preview/start binding and launch sequencing constraints.
-- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — run/work-item lifecycle and scripted dry-run path constraints.
-- [`../../../design/core/records.md`](../../../../design/core/records.md) — records-as-evidence posture.
-- [`../../../design/contracts/driving.md`](../../../../design/contracts/driving.md) — operator/control entry point seam.
-- [`../../../design/contracts/providers.md`](../../../../design/contracts/providers.md) — provider seam boundaries and scripted-worker stub distinction.
+- [`../../../design/core/plan-intake.md`](../../../design/core/plan-intake.md) — `PlanValidator` boundary and reject-unknown-format posture.
+- [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md) — preview/start binding and launch sequencing constraints.
+- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — run/work-item lifecycle and scripted dry-run path constraints.
+- [`../../../design/core/records.md`](../../../design/core/records.md) — records-as-evidence posture.
+- [`../../../design/contracts/driving.md`](../../../design/contracts/driving.md) — operator/control entry point seam.
+- [`../../../design/contracts/providers.md`](../../../design/contracts/providers.md) — provider seam boundaries and scripted-worker stub distinction.
 - [`../../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md`](../../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md) — Phase 5 local scripted-worker dry-run proof surface and stop conditions.
 
 ## This phase owns

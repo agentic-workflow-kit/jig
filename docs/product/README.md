@@ -11,7 +11,8 @@ product intent — _who Jig serves, what job it does, what it promises, and wher
 boundaries are_ — and is the contract the design and delivery layers reconcile to.
 
 Product owns **what and why**. Design owns **how** those promises are implemented and
-verified (see [`docs/design/`](../design/)).
+verified — the live design layer is [`docs/redesign/design/`](../redesign/design/README.md);
+the pre-redesign reference is archived at [`docs/archive/design/`](../archive/design/README.md).
 
 ## Pages
 

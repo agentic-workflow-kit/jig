@@ -52,8 +52,8 @@ and that ask-why answers from the run's own record.
 - `SEE-1`, `SEE-4`, `SEE-5`; `LIVE-1`, `LIVE-2`
   ([guarantee 5](../../../product/guarantees.md#5-full-observability),
   [guarantee 3](../../../product/guarantees.md#3-resilience--never-lose-work-resume-safely)).
-- [`design/domain/runtime-and-observation.md`](../../../design/domain/runtime-and-observation.md)
-  — Run, Evidence, Notice entities; [`design/core/records.md`](../../../design/core/records.md)
+- [`design/domain/runtime-and-observation.md`](../../../archive/design/domain/runtime-and-observation.md)
+  — Run, Evidence, Notice entities; [`design/core/records.md`](../../../archive/design/core/records.md)
   — pure projections rule.
 - The driving contract names watch and ask-why as deliberate actions.
 
@@ -75,10 +75,10 @@ and that ask-why answers from the run's own record.
 
 - [`product/guarantees.md`](../../../product/guarantees.md) §3 (LIVE), §5 (SEE);
   [`product/use-cases.md`](../../../product/use-cases.md) (doorbell and overnight scenarios)
-- [`design/core/records.md`](../../../design/core/records.md),
-  [`design/core/orchestration.md`](../../../design/core/orchestration.md),
-  [`design/domain/runtime-and-observation.md`](../../../design/domain/runtime-and-observation.md)
-- [Driving contract](../../../design/contracts/driving.md)
+- [`design/core/records.md`](../../../archive/design/core/records.md),
+  [`design/core/orchestration.md`](../../../archive/design/core/orchestration.md),
+  [`design/domain/runtime-and-observation.md`](../../../archive/design/domain/runtime-and-observation.md)
+- [Driving contract](../../../archive/design/contracts/driving.md)
 - Source: `src/projection.ts`, `src/records.ts`, `src/harness.ts` (unattended-park handling),
   `src/cli.ts`
 - Tests: projection unit tests, `tests/records-golden.int.test.ts`
@@ -128,7 +128,7 @@ and that ask-why answers from the run's own record.
 
 - The notice vocabulary forces a position on the open evidence-gate-failure modeling question
   (distinct outcome vs. `started → blocked` cause,
-  [`orchestration.md`](../../../design/core/orchestration.md)) — present what the record says
+  [`orchestration.md`](../../../archive/design/core/orchestration.md)) — present what the record says
   today; route the modeling question to design instead of hardening it through UI vocabulary.
 - LIVE-2's escalate/park consequence needs a transition the closed tables do not draw — design
   decision, not a local addition.

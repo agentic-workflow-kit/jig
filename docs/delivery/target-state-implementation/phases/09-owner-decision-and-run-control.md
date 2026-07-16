@@ -74,8 +74,8 @@ be decided and then resumed/continued. `stop` similarly exists as a lifecycle st
 - [`product/guarantees.md`](../../../product/guarantees.md) `DOOR-1..3`, `RESUME-1..5`;
   [`product/use-cases.md`](../../../product/use-cases.md) (doorbell scenario, safe resume
   scenario)
-- [`design/core/authorization.md`](../../../design/core/authorization.md) (doorbell,
-  owner-decision flow), [`design/core/orchestration.md`](../../../design/core/orchestration.md)
+- [`design/core/authorization.md`](../../../archive/design/core/authorization.md) (doorbell,
+  owner-decision flow), [`design/core/orchestration.md`](../../../archive/design/core/orchestration.md)
   (run lifecycle: `started → stopped`, resume), [driving
   contract](../../../design/contracts/driving.md) (decide via the operator boundary)
 - Source: `packages/jig-cli/src/cli.ts` (`createOwnerDecisionSource`),
@@ -123,7 +123,7 @@ be decided and then resumed/continued. `stop` similarly exists as a lifecycle st
 ## Stop Or Escalate If
 
 - The decide vocabulary needs a narrower owner-override subtype than approve/reject/override —
-  an open question in [`authorization.md`](../../../design/core/authorization.md); route to
+  an open question in [`authorization.md`](../../../archive/design/core/authorization.md); route to
   design rather than extending the vocabulary locally.
 - Clean stop requires a transition the closed tables do not draw (for example, stopping during
   landing) — design decision.

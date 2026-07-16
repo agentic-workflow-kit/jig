@@ -22,14 +22,14 @@ policy posture, and recordability allow.
 The execution plan owns scope. It must already carry the story set, dependencies, work boundaries,
 done and evidence requirements, authority expectations, policy/work-profile/repo-floor references,
 constraints, and compatibility posture described by
-`docs/design/contracts/execution-plan-contract-v0.md`. This skill may reject, bind, schedule, stop,
+`docs/archive/design/contracts/execution-plan-contract-v0.md`. This skill may reject, bind, schedule, stop,
 or report. It must not invent stories, revise dependencies, weaken policy, add acceptance criteria,
 choose done evidence, reinterpret out-of-scope surfaces, or convert missing plan facts into runtime
 decisions.
 
 Records are the evidence. Every governed decision, authorization, stop, evidence observation,
 review outcome, and runner-owned action must be recordable under
-`docs/design/contracts/observability-records-contract-v0.md` before it is treated as true. A
+`docs/archive/design/contracts/observability-records-contract-v0.md` before it is treated as true. A
 separate narrative, chat summary, checklist, or worker report never overrides the recordable
 evidence packet.
 
@@ -75,10 +75,10 @@ started.
 
 1. Confirm repo instructions and source-of-truth docs were read for the touched surface:
    `AGENTS.md`, `docs/product/jig.md`, `docs/product/guarantees.md`,
-   `docs/product/concepts.md`, `docs/design/README.md`,
-   `docs/design/contracts/execution-plan-contract-v0.md`,
-   `docs/design/contracts/observability-records-contract-v0.md`,
-   `docs/design/core/orchestration.md`, and `docs/design/core/records.md`.
+   `docs/product/concepts.md`, `docs/archive/design/README.md`,
+   `docs/archive/design/contracts/execution-plan-contract-v0.md`,
+   `docs/archive/design/contracts/observability-records-contract-v0.md`,
+   `docs/archive/design/core/orchestration.md`, and `docs/archive/design/core/records.md`.
 2. Verify the plan is approved by the owner or owning planning step. If approval is absent,
    stop as `plan-not-approved`.
 3. Verify the plan carries the v0 required properties:
@@ -135,7 +135,7 @@ before continuing.
 ## Runner and Worker Boundary
 
 Preserve the product authority boundary from `docs/product/concepts.md` and
-`docs/design/core/orchestration.md`.
+`docs/archive/design/core/orchestration.md`.
 
 - The worker may read, edit, run non-privileged checks, produce a diff, produce evidence, and report
   blockers only inside the authorized story boundary.

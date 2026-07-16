@@ -16,10 +16,10 @@ planned. Phase statuses live in the phase table below and in each phase doc's fr
 This track documented the path from the historical baseline at PR #53 — a single private package
 with a fixture-backed CLI centered on `jig preview`, `jig run`, `jig inspect`, and `jig resume` —
 to the current multi-package private workspace and the remaining target-state gaps described by
-[`docs/product/`](../../product/README.md) and [`docs/design/`](../../design/README.md). Phases
+[`docs/product/`](../../product/README.md) and [`docs/archive/design/`](../../archive/design/README.md). Phases
 P01-P12 have already landed the package split of
-[ADR 0027](../../design/decisions/0027-packaging-sdk-boundary.md), the private Codex app-server
-transport of [ADR 0028](../../design/decisions/0028-codex-app-server-transport.md), the private
+[ADR 0027](../../archive/design/decisions/0027-packaging-sdk-boundary.md), the private Codex app-server
+transport of [ADR 0028](../../archive/design/decisions/0028-codex-app-server-transport.md), the private
 MCP adapter, execution-host proof work, and the owner-facing setup / observation / decision /
 export surfaces. What remains is the honest closure work: EVRUN-full evidence, contract-freeze
 readiness, and the final audit/docs posture.
@@ -76,7 +76,7 @@ Verified against the repo after Phase 02 workspace split:
   terminal runs. `packages/jig-mcp` exposes the settled operator-control verbs as a private stdio
   MCP adapter.
 - **Evidence**: EVRUN-partial is committed
-  ([evidence index](../../design/evidence/README.md)) — one real
+  ([evidence index](../../archive/design/evidence/README.md)) — one real
   work-source → forge → records-integrity run with a **scripted** agent leg. P11 also records the
   earlier blocked EVRUN-full attempt, the later combined real Codex / real-host / real GitHub
   `open-pr` smoke, and the follow-up held-merge / resume idempotency smokes. Strong
@@ -87,13 +87,13 @@ Verified against the repo after Phase 02 workspace split:
 - **Packages** (ADR 0027): `@agentic-workflow-kit/jig-sdk`, `jig-cli`, and `jig-testkit` as
   private workspace packages with the ADR's dependency matrix enforced; the root package stays a
   private coordination shell; no publish or stability promise is created.
-- **Driving** ([driving contract](../../design/contracts/driving.md)): CLI, MCP, and SDK
+- **Driving** ([driving contract](../../archive/design/contracts/driving.md)): CLI, MCP, and SDK
   adapters as thin realizations of one operator-control port carrying start, preview, watch,
   inspect, ask-why, notice acknowledge, notice snooze, decide, stop, and export — one action,
   one control-plane call, SDK/operator-owned records. Resume remains on the SDK recovery surface,
   not the operator-control port.
-- **Providers** ([providers contract](../../design/contracts/providers.md),
-  [realization roadmap](../../design/contracts/provider-realization-roadmap.md)): a real Codex
+- **Providers** ([providers contract](../../archive/design/contracts/providers.md),
+  [realization roadmap](../../archive/design/contracts/provider-realization-roadmap.md)): a real Codex
   agent behind `AgentPort` over the owned stdio app-server (ADR 0028), an execution host with
   exercised, honestly-reported confinement proof, and completed Forge/Work-source behavior
   including blocked-PR surfacing (`MERGE-5`).
@@ -136,7 +136,7 @@ Out of scope for the whole track, with the owning source:
   ([`jig.md`](../../product/jig.md#what-jig-isnt-yet)).
 - **Windows/Git Bash support for the owned app-server path** — gated on evidence probe
   `N1A-P14`, which requires a Windows host
-  ([evidence index](../../design/evidence/README.md#n1a-deferred-probes)); the transport phase
+  ([evidence index](../../archive/design/evidence/README.md#n1a-deferred-probes)); the transport phase
   fails closed on Windows instead.
 - **Rewriting product or design docs.** Phases cite them; conflicts route back to the owning
   layer.
@@ -348,21 +348,21 @@ conflicts rather than resolving them):
 
 - **`MERGE-5` has real-effect evidence.** The product guarantees blocked-PR surfacing. Surfacing is
   reachable from normal runner wiring, the success-path real Forge `open-pr` smoke was rerun on the
-  current checkout (`docs/design/evidence/2026-07-06-p05-real-forge-smoke-rerun.md`), and the
+  current checkout (`docs/archive/design/evidence/2026-07-06-p05-real-forge-smoke-rerun.md`), and the
   follow-up held-merge smoke observed a protected-branch `done-not-landed` outcome plus readable
   PR/status/comment block surfacing
-  (`docs/design/evidence/2026-07-06-p05-held-merge-smoke.md`). Earlier partial records remain
+  (`docs/archive/design/evidence/2026-07-06-p05-held-merge-smoke.md`). Earlier partial records remain
   provenance for the previous gap, not the current claim.
 - **GUARD-2 pause shape is an open design question** (distinct sub-state vs. reusing `parked`,
-  raised in [`plan-intake.md`](../../design/core/plan-intake.md#open-questions);
-  [`authorization.md`](../../design/core/authorization.md) explicitly declines to invent a new
+  raised in [`plan-intake.md`](../../archive/design/core/plan-intake.md#open-questions);
+  [`authorization.md`](../../archive/design/core/authorization.md) explicitly declines to invent a new
   lifecycle state and defers the pause point to orchestration). P06 must stop and route this
   before minting any new lifecycle state — the orchestration transition tables are closed.
 - **Evidence-gate-failure modeling** is flagged in
-  [`orchestration.md`](../../design/core/orchestration.md) as "a modeling decision, not a
+  [`orchestration.md`](../../archive/design/core/orchestration.md) as "a modeling decision, not a
   source-settled rule". P08's notice vocabulary must not silently harden it.
 - **Export encoding and replay-drift handling** are settled by
-  [ADR 0032](../../design/decisions/0032-export-audit-records.md): local JSON artifacts,
+  [ADR 0032](../../archive/design/decisions/0032-export-audit-records.md): local JSON artifacts,
   export-audit sidecar events outside finalized run logs, and fail-closed denial on drift.
 - **Owner-facing setup, notices, and export placement are settled for MCP.** ADR 0029 keeps setup
   as configuration rather than an operator-control verb; ADR 0030 places notice acknowledge/snooze
@@ -373,7 +373,7 @@ conflicts rather than resolving them):
 - **MCP adapter package placement** is settled by ADR 0033: MCP lives in a private `jig-mcp`
   adapter package that depends on `jig-sdk` and carries no publish or stability promise.
 - **ADR `applied` status does not mean implemented** — the
-  [decision index](../../design/decisions/README.md) warns about this itself. This track's
+  [decision index](../../archive/design/decisions/README.md) warns about this itself. This track's
   baseline was mapped from source and tests, not from ADR statuses.
 
 ## Reference map
@@ -381,13 +381,13 @@ conflicts rather than resolving them):
 | Area                                          | Read                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Product commitments (IDs)                     | [`product/jig.md`](../../product/jig.md), [`product/guarantees.md`](../../product/guarantees.md), [`product/concepts.md`](../../product/concepts.md), [`product/use-cases.md`](../../product/use-cases.md)                                                                                                                                   |
-| Driving boundary                              | [`design/contracts/driving.md`](../../design/contracts/driving.md)                                                                                                                                                                                                                                                                           |
-| Data contracts (v0)                           | [`design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md), [`design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md)                                                                                                             |
-| Provider seams                                | [`design/contracts/providers.md`](../../design/contracts/providers.md), [`design/contracts/provider-realization-roadmap.md`](../../design/contracts/provider-realization-roadmap.md)                                                                                                                                                         |
-| Core lifecycle                                | [`design/core/`](../../design/core/README.md) (bootstrap, plan-intake, orchestration, authorization, records)                                                                                                                                                                                                                                |
-| Domain model                                  | [`design/domain/configuration-and-work.md`](../../design/domain/configuration-and-work.md), [`design/domain/runtime-and-observation.md`](../../design/domain/runtime-and-observation.md)                                                                                                                                                     |
-| Security view                                 | [`design/security-model.md`](../../design/security-model.md)                                                                                                                                                                                                                                                                                 |
-| Packaging / transport / conformance decisions | [ADR 0027](../../design/decisions/0027-packaging-sdk-boundary.md), [ADR 0028](../../design/decisions/0028-codex-app-server-transport.md), [ADR 0026](../../design/decisions/0026-conformance-self-report-only.md)                                                                                                                            |
-| Evidence gates                                | [`design/evidence/README.md`](../../design/evidence/README.md)                                                                                                                                                                                                                                                                               |
+| Driving boundary                              | [`design/contracts/driving.md`](../../archive/design/contracts/driving.md)                                                                                                                                                                                                                                                                   |
+| Data contracts (v0)                           | [`design/contracts/execution-plan-contract-v0.md`](../../archive/design/contracts/execution-plan-contract-v0.md), [`design/contracts/observability-records-contract-v0.md`](../../archive/design/contracts/observability-records-contract-v0.md)                                                                                             |
+| Provider seams                                | [`design/contracts/providers.md`](../../archive/design/contracts/providers.md), [`design/contracts/provider-realization-roadmap.md`](../../archive/design/contracts/provider-realization-roadmap.md)                                                                                                                                         |
+| Core lifecycle                                | [`design/core/`](../../archive/design/core/README.md) (bootstrap, plan-intake, orchestration, authorization, records)                                                                                                                                                                                                                        |
+| Domain model                                  | [`design/domain/configuration-and-work.md`](../../archive/design/domain/configuration-and-work.md), [`design/domain/runtime-and-observation.md`](../../archive/design/domain/runtime-and-observation.md)                                                                                                                                     |
+| Security view                                 | [`design/security-model.md`](../../archive/design/security-model.md)                                                                                                                                                                                                                                                                         |
+| Packaging / transport / conformance decisions | [ADR 0027](../../archive/design/decisions/0027-packaging-sdk-boundary.md), [ADR 0028](../../archive/design/decisions/0028-codex-app-server-transport.md), [ADR 0026](../../archive/design/decisions/0026-conformance-self-report-only.md)                                                                                                    |
+| Evidence gates                                | [`design/evidence/README.md`](../../archive/design/evidence/README.md)                                                                                                                                                                                                                                                                       |
 | Current implementation                        | `packages/jig-sdk/src/` (ports, bootstrap, harness, authorization, records, projection, resume, providers), `packages/jig-cli/src/`, `packages/jig-mcp/src/`, `packages/jig-testkit/src/`, `tests/` (unit, integration, conformance, smoke, hermetic guard, `tests/fixtures/m5b-local-mvp/`), `scripts/`, `package.json`, `vitest.config.ts` |
 | Historical provenance                         | [`docs/archive/delivery/`](../../archive/delivery/README.md) (M5b, M7 tracks — provenance only)                                                                                                                                                                                                                                              |

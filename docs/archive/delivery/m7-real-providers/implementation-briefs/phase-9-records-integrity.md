@@ -11,9 +11,9 @@ status: completed history
 ## Context and goal
 
 Phases 6–8 made the four provider seams real — the agent and execution-host drivers
-([ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md)), the Forge seam
-([ADR 0023](../../../../design/decisions/0023-phase-7-real-forge-landing.md)), and the work-source seam
-([ADR 0024](../../../../design/decisions/0024-phase-8-real-work-source.md)). Phase 9 is the final M7 phase:
+([ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md)), the Forge seam
+([ADR 0023](../../../design/decisions/0023-phase-7-real-forge-landing.md)), and the work-source seam
+([ADR 0024](../../../design/decisions/0024-phase-8-real-work-source.md)). Phase 9 is the final M7 phase:
 it makes the durable run evidence **tamper-evident** and activates the `resume-blocked-missing-approval`
 re-approval path that Phase 4 named and wired as a seam with **no active trigger**. Two properties are
 the whole point: **an out-of-band edit to a record or snapshot is detectable at inspect and refuses
@@ -21,7 +21,7 @@ resume** (P9-AC-1), and **a safety-relevant change to an approved plan's basis w
 blocks resume until fresh owner re-approval** (P9-AC-2), both as **diagnosable stops with named reasons,
 never silent** (P9-AC-3). Every acceptance criterion is a test citing its AC ID.
 
-The design is closed in [ADR 0025](../../../../design/decisions/0025-phase-9-records-integrity.md). This
+The design is closed in [ADR 0025](../../../design/decisions/0025-phase-9-records-integrity.md). This
 brief is implementation-ready **against that ADR**: it does not re-decide the integrity primitive
 (HMAC-now vs digest-first), the sidecar surface, the tamper-vs-changed-basis split, the driver-binding
 home, or the 9a/9b split — it implements them. Where a detail is genuinely design- or contract-owner-
@@ -66,12 +66,12 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 9 section and P9-AC-1..3. These IDs are the
   binding delivery target, with their guarantee traces (GUARD-1/2, SEE-4, RESUME-5, LIVE-2, SEC-1).
-- [ADR 0025](../../../../design/decisions/0025-phase-9-records-integrity.md) — the five settlements this brief
+- [ADR 0025](../../../design/decisions/0025-phase-9-records-integrity.md) — the five settlements this brief
   implements (the sidecar HMAC primitive, the active `resume-blocked-missing-approval` with the tamper-vs-
   changed-basis split, the diagnosable named stops, the additive launch-header driver binding, the 9a/9b
   split) **and its Contract-Impact-Gate section** — the byte-identity and no-freeze constraints this brief
   must honor.
-- [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md) — §1 (authoritative launch
+- [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) — §1 (authoritative launch
   header), §3 (durable plan/policy snapshots + binding-verify-only-never-rebind), §6 (workspace
   fingerprint), §8 (live `resume-blocked-*` preflight diagnostics are not projected events), §9 (the
   resume-integrity gate + `resume-blocked-missing-approval` seam with no active trigger), and the "Record
@@ -79,15 +79,15 @@ Read, in order:
 - [`../repo-plan-m7.md`](../repo-plan-m7.md) — the "must not decide" list and open question 3 (does
   tamper-evidence need a records-contract digest field? — **it does not**, per ADR 0025 Gate Q5; the
   v0-freeze checkpoint is T14, not this phase; do not re-open).
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md)
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
   — the **"v0 Not Frozen"** posture, the "launch binding must be recoverable from the durable event log"
   line, and the existing commitment that records "show when safety-relevant assumptions changed while the
   run was stopped and why re-approval or fresh evidence was required" (lines 173–174). Integrity rides a
   **new sidecar** and re-approval rides the **existing owner-decision family** — **do not mint a new field
   or event family, do not freeze.**
-- [`../../../design/core/records.md`](../../../../design/core/records.md),
-  [`../../../design/core/authorization.md`](../../../../design/core/authorization.md),
-  [`../../../design/core/bootstrap.md`](../../../../design/core/bootstrap.md) — the "Phase 9 realization
+- [`../../../design/core/records.md`](../../../design/core/records.md),
+  [`../../../design/core/authorization.md`](../../../design/core/authorization.md),
+  [`../../../design/core/bootstrap.md`](../../../design/core/bootstrap.md) — the "Phase 9 realization
   (ADR 0025)" notes (the sidecar seam; the active re-approval trigger + CFG-10; the launch-header integrity
   and driver-selection binding).
 - [Phase 8 brief](phase-8-real-work-source.md) — the delivered opt-in-driver, additive-record, byte-
@@ -292,13 +292,13 @@ Extend `src/conformance/` + broken/adversarial fixtures so the suite still fails
   surfaced at inspect, and resume refuses on a broken chain with a named reason. **9a**, Slices 1–2.
   Traces: [`GUARD-1`](../../../../product/guarantees.md#13-anti-gaming),
   [`SEE-4`](../../../../product/guarantees.md#5-full-observability),
-  [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-2** — A safety-relevant change to the approved plan's basis while stopped triggers
   `resume-blocked-missing-approval`; resume refuses until fresh approval and evidence are recorded, and the
   re-approval decision is narrow and durable. **9b**, Slice 3. Traces:
   [`RESUME-5`](../../../../product/guarantees.md#31-interruption-resume),
   [`GUARD-2`](../../../../product/guarantees.md#13-anti-gaming),
-  [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md).
+  [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md).
 - **P9-AC-3** — Integrity and re-approval failures are operator-visible diagnosable stops with named
   reasons, never silent; records stay safe to keep and export. **9a + 9b**, Slice 4. Traces:
   [`LIVE-2`](../../../../product/guarantees.md#33-liveness--noticing-a-stuck-run),

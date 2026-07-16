@@ -15,7 +15,7 @@ status: completed history
 Phase 5 pinned and merged the four provider ports, the composition root, and the driver conformance
 suite as **exercised jig-internal seams** proven with **reference adapters** (commit `f59a479`); Phase
 6 promoted the **agent** and **execution-host** seams to **real drivers**
-([ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md)). Phase 7 promotes the
+([ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md)). Phase 7 promotes the
 **Forge** seam from the modeled, `skipped-on-dry-run` reference adapter to a **real Forge/GitHub
 adapter** behind the same, runner-invoked `ForgePort.land()`: the first phase in which `done → landed`
 performs a **real effect** — a real push, PR, or merge on GitHub — with real-effect idempotency.
@@ -23,7 +23,7 @@ Landing stays runner-owned: `land()` is invoked only by the runner at `done → 
 `AgentPort` never gains a landing path. Every acceptance criterion is a test citing its AC ID.
 
 The design is closed in
-[ADR 0023](../../../../design/decisions/0023-phase-7-real-forge-landing.md). This brief is
+[ADR 0023](../../../design/decisions/0023-phase-7-real-forge-landing.md). This brief is
 implementation-ready **against that ADR**: it does not re-decide the 7a/7b split, the `action` union
 (Residual B), the idempotency-from-records mechanism, the PR-side block-surfacing decomposition, or the
 landing-path redaction — it implements them. Where a detail is genuinely design- or contract-owner-owned
@@ -50,31 +50,31 @@ Read, in order:
 
 - [`../phases.md`](../phases.md) — the **authoritative** Phase 7 section and P7-AC-1..5. These IDs are
   the binding delivery target, with their guarantee traces.
-- [ADR 0023](../../../../design/decisions/0023-phase-7-real-forge-landing.md) — the six settlements this
+- [ADR 0023](../../../design/decisions/0023-phase-7-real-forge-landing.md) — the six settlements this
   brief implements (the 7a/7b split + AC assignment, the real Forge adapter, the `action` union, real-
   effect idempotency from the records, the PR-side block-surfacing as a distinct runner-invoked act, and
   the landing-path redaction).
 - [`../repo-plan-m7.md`](../repo-plan-m7.md) — the open questions routed to design (open question 2,
   Residual B `LandingRequest.action` union; **resolved** by ADR 0023 Decision 2; do not re-open — and
   the freeze caveat: if it forces an observability-records field, route back to the contract owner).
-- [ADR 0021](../../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6 (the modeled
+- [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md) decision 6 (the modeled
   runner-invoked Forge seam, the `skipped-on-dry-run` posture, the MERGE-5 block-surfacing modeling, and
-  idempotency as a seam contract) and [ADR 0020](../../../../design/decisions/0020-phase-4-reliable-local-runs.md)
+  idempotency as a seam contract) and [ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md)
   §5 (the no-double-effect recognition from the replayed log) and §7 (redaction posture) — the
   carry-forwards Phase 7 extends.
-- [ADR 0022](../../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 8 — the Phase-6
+- [ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 8 — the Phase-6
   redaction activation (`src/redaction.ts`) this brief extends to the landing path (P7-AC-4 is an
   extension, not a new mechanism).
-- [`../../../design/contracts/providers.md`](../../../../design/contracts/providers.md) — the Forge seam's
+- [`../../../design/contracts/providers.md`](../../../design/contracts/providers.md) — the Forge seam's
   owns/implements/must-not contract and the "Phase 7 realization (ADR 0023)" section.
-- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — the runner-owned
+- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — the runner-owned
   `done → landed` two-authority split and the "Phase 7 realization" note (real landing, idempotency, PR
   surfacing distinct from `land()`).
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md)
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md)
   — the runner-action families the record **already** names ("pushed, opened PR, posted status, posted
   comment, merged, skipped repeated effect on resume"); real landing maps onto these — **do not mint a
   new event family**.
-- [`../../../design/notes/prior-art-workflow-kit.md`](../../../../design/notes/prior-art-workflow-kit.md)
+- [`../../../design/notes/prior-art-workflow-kit.md`](../../../design/notes/prior-art-workflow-kit.md)
   lessons 5 and 9–10 — the re-derived (never ported) recipe for runner-does-push landing and the
   exact-head / honesty-probe discipline behind the idempotency safety property.
 - [Phase 6 brief](phase-6-real-drivers.md) — the delivered real-driver, redaction, and golden-fixture

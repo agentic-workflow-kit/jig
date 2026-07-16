@@ -54,7 +54,7 @@ floors artifacts, and setup-command configuration to instantiate.
   ([guarantee 2](../../../product/guarantees.md#2-configuration-ownership)).
 - Product requires a setup surface, while the driving contract's current action vocabulary does
   not include setup; this phase routes that design placement before implementation
-  ([driving contract](../../../design/contracts/driving.md)).
+  ([driving contract](../../../archive/design/contracts/driving.md)).
 - Makes the P06 artifacts adoptable: without templates, only fixture-literate users can
   configure Jig.
 
@@ -75,8 +75,8 @@ floors artifacts, and setup-command configuration to instantiate.
 
 - [`product/jig.md` — Driving a run](../../../product/jig.md#driving-a-run);
   [`product/guarantees.md`](../../../product/guarantees.md) `CFG-5/6/8/9`
-- [Driving contract](../../../design/contracts/driving.md)
-- [`design/domain/configuration-and-work.md`](../../../design/domain/configuration-and-work.md)
+- [Driving contract](../../../archive/design/contracts/driving.md)
+- [`design/domain/configuration-and-work.md`](../../../archive/design/domain/configuration-and-work.md)
 - Source: `src/cli.ts` (adapter pattern from P01), P06's validation modules
 - Prior art for owner-facing refusals: `src/loaders.ts` error style
 

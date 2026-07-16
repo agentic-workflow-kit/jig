@@ -17,9 +17,9 @@ Read these before editing:
 
 - [`../README.md`](../README.md) — M5b local MVP delivery roadmap and terminology guard.
 - [`../phases.md`](../phases.md) — Phase 0 roadmap details.
-- [`../../../design/README.md`](../../../../design/README.md) — current design status.
-- [`../../../design/contracts/execution-plan-contract-v0.md`](../../../../design/contracts/execution-plan-contract-v0.md) — v0 execution-plan contract posture.
-- [`../../../design/contracts/observability-records-contract-v0.md`](../../../../design/contracts/observability-records-contract-v0.md) — v0 run-record contract posture.
+- [`../../../design/README.md`](../../../design/README.md) — current design status.
+- [`../../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md) — v0 execution-plan contract posture.
+- [`../../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md) — v0 run-record contract posture.
 - [`../../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md`](../../../planning/design-track/waves/wave-6-implementation-phasing/implementation-phasing.md) — proof-surface handoff and contract-unfrozen guardrails.
 
 ## This phase owns

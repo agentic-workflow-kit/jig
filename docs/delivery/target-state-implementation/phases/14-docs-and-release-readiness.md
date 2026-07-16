@@ -33,7 +33,7 @@ posture restated or deliberately changed, never ambiguous.
   audit table in this track's directory.
 - **Docs truth-up:** root `README.md` (status badge, Status section, CLI surface,
   documentation table), `AGENTS.md` (status, commands, ground-truth table), `docs/README.md`
-  (delivery row), `docs/design/README.md` status lines ("pre-split", "pre-session-observable"
+  (delivery row), `docs/archive/design/README.md` status lines ("pre-split", "pre-session-observable"
   are false by now), `package.json` descriptions, `skills/README.md` surface list, and this
   track's own README/phase statuses.
 - **Release posture record:** restate the packaging posture as shipped — three private
@@ -69,7 +69,7 @@ posture restated or deliberately changed, never ambiguous.
 ## Reference Files
 
 - [`product/jig.md`](../../../product/jig.md), [`product/guarantees.md`](../../../product/guarantees.md)
-- Root `README.md`, `AGENTS.md`, `docs/README.md`, `docs/design/README.md`,
+- Root `README.md`, `AGENTS.md`, `docs/README.md`, `docs/archive/design/README.md`,
   `docs/archive/README.md` (archive convention), `package.json`, `skills/README.md`
 - [`verification.md`](../verification.md); every phase doc in this track; P11/P13 outcome
   records

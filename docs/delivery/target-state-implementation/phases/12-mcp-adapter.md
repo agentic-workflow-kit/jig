@@ -45,7 +45,7 @@ verb. Resume stays out because it is on the SDK recovery surface, not the operat
   your own software" ([`jig.md` — Driving a run](../../../product/jig.md#driving-a-run));
   boundary: "a future MCP surface next"
   ([Product Boundaries](../../../product/jig.md#product-boundaries)).
-- [Driving contract](../../../design/contracts/driving.md) — MCP as a thin realization of the
+- [Driving contract](../../../archive/design/contracts/driving.md) — MCP as a thin realization of the
   operator-control port; adapter-drift risk is named there and this phase is where it becomes
   real.
 - ADR 0027 — MCP as the SDK's expected second consumer, proving the boundary is consumable.
@@ -66,9 +66,9 @@ verb. Resume stays out because it is on the SDK recovery surface, not the operat
 
 ## Reference Files
 
-- [Driving contract](../../../design/contracts/driving.md);
+- [Driving contract](../../../archive/design/contracts/driving.md);
   [`product/jig.md`](../../../product/jig.md) (Driving a run; Product Boundaries)
-- [ADR 0027](../../../design/decisions/0027-packaging-sdk-boundary.md)
+- [ADR 0027](../../../archive/design/decisions/0027-packaging-sdk-boundary.md)
 - Source: P01's entry module and port; P02's `jig-cli` adapter as the sibling pattern
 - [`product/concepts.md`](../../../product/concepts.md) (SDK/providers/conformance concepts)
 

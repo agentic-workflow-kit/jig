@@ -56,7 +56,7 @@ instead of inventing one mid-move.
 - `CFG-7` — the SDK is the extension/programmatic seam; the product boundary says consumers use
   the SDK instead of reaching into internals ([`jig.md`](../../../product/jig.md#product-boundaries)).
 - `SURF-001` / `ENF-001` — one operator entry surface; the edge holds no run logic and imports
-  no provider contracts ([driving contract](../../../design/contracts/driving.md)).
+  no provider contracts ([driving contract](../../../archive/design/contracts/driving.md)).
 - ADR 0027 decisions 2 and 4 — SDK boundary owns storage/ports/factory; factory shape builds on
   `composeReferenceRun`.
 - Unblocks P02 (the split moves this surface) and gives P08–P10 and P12 the port they extend.
@@ -75,9 +75,9 @@ instead of inventing one mid-move.
 
 ## Reference Files
 
-- [ADR 0027](../../../design/decisions/0027-packaging-sdk-boundary.md) (decisions 2, 4, 5)
-- [Driving contract](../../../design/contracts/driving.md)
-- [`core/bootstrap.md`](../../../design/core/bootstrap.md) (launch sequence, preview-vs-start
+- [ADR 0027](../../../archive/design/decisions/0027-packaging-sdk-boundary.md) (decisions 2, 4, 5)
+- [Driving contract](../../../archive/design/contracts/driving.md)
+- [`core/bootstrap.md`](../../../archive/design/core/bootstrap.md) (launch sequence, preview-vs-start
   boundary)
 - Source: `src/cli.ts`, `src/bootstrap.ts`, `src/ports.ts`, `src/harness.ts`,
   `src/plan-validator.ts`, `src/intake.ts`, `src/projection.ts`, `src/resume.ts`, `bin/jig.js`

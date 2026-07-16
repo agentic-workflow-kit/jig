@@ -34,12 +34,12 @@ debt.
 
 - **This repo consumes:**
   - The execution-plan and observability-records v0 contract **shapes** (owned by M1; cited, not
-    re-decided) — [`../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md),
-    [`../../design/contracts/observability-records-contract-v0.md`](../../../design/contracts/observability-records-contract-v0.md).
+    re-decided) — [`../../design/contracts/execution-plan-contract-v0.md`](../../design/contracts/execution-plan-contract-v0.md),
+    [`../../design/contracts/observability-records-contract-v0.md`](../../design/contracts/observability-records-contract-v0.md).
   - The P5-pinned ports, composition root, capability-attestation gate, and driver conformance suite,
     merged at commit `f59a479` ([`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts),
     [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts),
-    [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md)).
+    [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md)).
   - jig's product guarantees as fixed inputs (STACK / DRIVE / SEC / MERGE / ISO / RESUME / EARN /
     GUARD in [`../../product/guarantees.md`](../../../product/guarantees.md)) — no new PRD is stood up;
     M7 is not a new-layer milestone.

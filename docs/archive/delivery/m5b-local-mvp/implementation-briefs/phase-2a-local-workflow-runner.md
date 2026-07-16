@@ -17,8 +17,8 @@ Read these before editing:
 
 - [`../README.md`](../README.md) — M5b roadmap and milestones.
 - [`../phases.md`](../phases.md) — Phase 2A requirements.
-- [`../../../design/core/orchestration.md`](../../../../design/core/orchestration.md) — run/work-item lifecycle.
-- [`../../../design/contracts/execution-plan-contract-v0.md`](../../../../design/contracts/execution-plan-contract-v0.md) — execution-plan shape.
+- [`../../../design/core/orchestration.md`](../../../design/core/orchestration.md) — run/work-item lifecycle.
+- [`../../../design/contracts/execution-plan-contract-v0.md`](../../../design/contracts/execution-plan-contract-v0.md) — execution-plan shape.
 - [Phase 1 brief](./phase-1-local-plan-runner.md) — Phase 1 baseline.
 
 ## This phase owns

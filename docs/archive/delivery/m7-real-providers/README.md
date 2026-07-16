@@ -94,7 +94,7 @@ stops, and non-goals for each phase live in [`phases.md`](./phases.md). The
   `CapabilityAttestation` is **not** persisted across resume; resume reconstructs a _constant_
   reference-host attestation — safe only because the reference host does not drift. A real driver
   that can drift or self-widen needs true persist-and-recover, parallel to the Phase-4 binding
-  mechanism ([ADR 0020](../../../design/decisions/0020-phase-4-reliable-local-runs.md) §3), so resumed
+  mechanism ([ADR 0020](../../design/decisions/0020-phase-4-reliable-local-runs.md) §3), so resumed
   work is adjudicated against the launch-attested capability. It is an explicit P6 acceptance
   criterion (P6-AC-5).
 - **Residual B — the `LandingRequest.action` union (Phase 7).**
@@ -117,7 +117,7 @@ does not invent product or design facts. Per the delivery Planning Rules
   [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts) and
   [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts) as fixed inputs, not redesigned. The one
   provider manifest in scope — the Phase-6 **substrate manifest** — is introduced by the **design**
-  layer ([ADR 0022](../../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7), a
+  layer ([ADR 0022](../../design/decisions/0022-phase-6-real-driver-integration.md) Decision 7), a
   non-normative fixture with no schema freeze; this track only references it, which keeps the
   delivery-planning rule intact.
 - `docs/design/**` is referenced, never edited from here.
@@ -133,13 +133,13 @@ does not invent product or design facts. Per the delivery Planning Rules
   not decide, and the open questions routed back to the org roadmap).
 - Org milestone: `.github/MILESTONES.md`, "M7: Real Provider Integration".
 - EVRUN-partial evidence:
-  [`../../design/evidence/2026-07-04-evrun-partial-smoke.md`](../../../design/evidence/2026-07-04-evrun-partial-smoke.md).
+  [`../../design/evidence/2026-07-04-evrun-partial-smoke.md`](../../design/evidence/2026-07-04-evrun-partial-smoke.md).
 - Predecessor track: [`../m5b-local-mvp-r2/`](../m5b-local-mvp-r2/README.md) — the live local-MVP
   track whose provider tail this track replaces.
 - Merged P5 seams: [`../../../../packages/jig-sdk/src/ports.ts`](../../../../packages/jig-sdk/src/ports.ts),
   [`../../../../packages/jig-sdk/src/bootstrap.ts`](../../../../packages/jig-sdk/src/bootstrap.ts) (commit `f59a479`);
-  [ADR 0021](../../../design/decisions/0021-phase-5-integrated-provider-runs.md).
+  [ADR 0021](../../design/decisions/0021-phase-5-integrated-provider-runs.md).
 - Product: [`../../product/jig.md`](../../../product/jig.md),
   [`../../product/guarantees.md`](../../../product/guarantees.md).
-- Design: [`../../design/README.md`](../../../design/README.md),
-  [`../../design/contracts/providers.md`](../../../design/contracts/providers.md).
+- Design: [`../../design/README.md`](../../design/README.md),
+  [`../../design/contracts/providers.md`](../../design/contracts/providers.md).

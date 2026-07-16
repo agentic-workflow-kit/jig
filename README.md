@@ -136,18 +136,16 @@ ID-bearing guarantee detail in [`docs/product/guarantees.md`](docs/product/guara
 
 ## Documentation
 
-| Doc                                                                | What it covers                                                                              |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [docs/product/README.md](docs/product/README.md)                   | Product front door: audience, promise, guarantees, scenarios, concepts, and boundaries.     |
-| [docs/product/jig.md](docs/product/jig.md)                         | Product hub: the core job, workflow, and what Jig is not yet.                               |
-| [docs/product/guarantees.md](docs/product/guarantees.md)           | The five guarantees in ID-bearing detail.                                                   |
-| [docs/design/README.md](docs/design/README.md)                     | Engineering design front door: contracts, core, providers, ADRs, and evidence records.      |
-| [docs/design/contracts/README.md](docs/design/contracts/README.md) | Boundary map for driving, data, and provider contracts.                                     |
-| [docs/design/decisions/README.md](docs/design/decisions/README.md) | Living ADR index. ADRs are preserved as active design history.                              |
-| [docs/design/evidence/README.md](docs/design/evidence/README.md)   | Committed evidence records that inform ADRs and contract decisions.                         |
-| [docs/delivery/README.md](docs/delivery/README.md)                 | Active delivery planning: the phased track from current state to the product/design target. |
-| [docs/archive/README.md](docs/archive/README.md)                   | Historical delivery, planning, and review records. Not active implementation instructions.  |
-| [skills/](skills/)                                                 | Local agent runbooks; composition guidance, not runtime or CLI surfaces.                    |
+| Doc                                                              | What it covers                                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [docs/product/README.md](docs/product/README.md)                 | Product front door: audience, promise, guarantees, scenarios, concepts, and boundaries.                          |
+| [docs/product/jig.md](docs/product/jig.md)                       | Product hub: the core job, workflow, and what Jig is not yet.                                                    |
+| [docs/product/guarantees.md](docs/product/guarantees.md)         | The five guarantees in ID-bearing detail.                                                                        |
+| [docs/redesign/design/README.md](docs/redesign/design/README.md) | Live design layer: the approved layered architecture — brief, model, views, invariants, and decision records.    |
+| [docs/archive/design/README.md](docs/archive/design/README.md)   | Archived pre-redesign engineering reference: v0 contracts, core and provider design, ADRs, and evidence records. |
+| [docs/delivery/README.md](docs/delivery/README.md)               | Active delivery planning: the phased track from current state to the product/design target.                      |
+| [docs/archive/README.md](docs/archive/README.md)                 | Historical delivery, planning, and review records. Not active implementation instructions.                       |
+| [skills/](skills/)                                               | Local agent runbooks; composition guidance, not runtime or CLI surfaces.                                         |
 
 ## Relationship To The Suite
 

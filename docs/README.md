@@ -6,18 +6,18 @@ status: active index
 # Jig — documentation
 
 Jig owns its full artifact chain in this repo. Documentation is organized by **altitude**:
-product owns intent and promises; design owns the engineering target for satisfying them. Historical
-planning, delivery, and review records are preserved under `archive/` for provenance. The current
-runtime binds owner configuration at launch from four artifacts where configured: plan, policy,
-work profile, and repo-policy floors.
+product owns intent and promises; the redesign's design layer owns the engineering target for
+satisfying them. The pre-redesign design reference and historical planning, delivery, and review
+records are preserved under `archive/` for provenance. The current runtime binds owner
+configuration at launch from four artifacts where configured: plan, policy, work profile, and
+repo-policy floors.
 
-| Area                     | Owns                                                                                                                      | Status            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| [product/](./product/)   | **What and why** — audience, problem, promise, guarantees, boundaries. The contract design reconciles to.                 | target truth      |
-| [design/](./design/)     | **How** — engineering reference: schemas, protocol mechanics, provider contracts, storage, gates, ADRs.                   | target truth      |
-| [redesign/](./redesign/) | Active architecture initiative: governing goal, new staged design work, and immutable proposal and review inputs.         | active initiative |
-| [delivery/](./delivery/) | **In what order** — active delivery planning: phased tracks from the current implementation to the product/design target. | active planning   |
-| [archive/](./archive/)   | Historical delivery sequencing, repo-local planning, and point-in-time reviews. Not active operating docs.                | historical record |
+| Area                     | Owns                                                                                                                                                                                         | Status            |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| [product/](./product/)   | **What and why** — audience, problem, promise, guarantees, boundaries. The contract design reconciles to.                                                                                    | target truth      |
+| [redesign/](./redesign/) | **How** — the live design layer: the approved layered architecture (brief, model, views, invariants, decisions), its method, and immutable proposal and review inputs.                       | target truth      |
+| [delivery/](./delivery/) | **In what order** — active delivery planning: phased tracks from the current implementation to the product/design target.                                                                    | active planning   |
+| [archive/](./archive/)   | Historical record: the pre-redesign design reference ([archive/design/](./archive/design/)), delivery sequencing, repo-local planning, and point-in-time reviews. Not active operating docs. | historical record |
 
 Suite-level framing (how Jig relates to the other products in the lifecycle) lives at the
 [organization profile](https://github.com/agentic-workflow-kit), not here. This repo stays
@@ -30,8 +30,8 @@ the success-path real Forge `open-pr`, protected-branch held merge, commit-statu
 block-surfacing, and resume idempotency smokes have been captured on the current checkout;
 phase-table PR-number status updates still live in delivery docs.
 
-Preserve active design history in place:
+The pre-redesign ADR log and evidence records remain citation targets from their archived home:
 
-- [design/decisions/](./design/decisions/) — living ADR index.
-- [design/evidence/](./design/evidence/) — committed evidence records that inform ADRs and contract
-  decisions.
+- [archive/design/decisions/](./archive/design/decisions/) — ADR index (archived 2026-07-16).
+- [archive/design/evidence/](./archive/design/evidence/) — committed evidence records that inform
+  ADRs and contract decisions (archived 2026-07-16).

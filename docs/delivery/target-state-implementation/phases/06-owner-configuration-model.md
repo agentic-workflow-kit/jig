@@ -58,7 +58,7 @@ unrecognized configuration to refuse with guidance.
 - `ISO-2` — block resolution is policy-determined
   ([guarantee 3](../../../product/guarantees.md#3-resilience--never-lose-work-resume-safely));
   no phase owned this dimension before, and it is not implemented anywhere in `src/`.
-- [Domain model — configuration and work](../../../design/domain/configuration-and-work.md) —
+- [Domain model — configuration and work](../../../archive/design/domain/configuration-and-work.md) —
   the entity split this phase realizes.
 - Prerequisite for P07: setup templates need work-profile and floors artifacts to exist.
 
@@ -79,9 +79,9 @@ unrecognized configuration to refuse with guidance.
 ## Reference Files
 
 - [`product/guarantees.md`](../../../product/guarantees.md) §1–2
-- [`design/domain/configuration-and-work.md`](../../../design/domain/configuration-and-work.md)
-- [`design/core/plan-intake.md`](../../../design/core/plan-intake.md) (policy model, GUARD-2
-  rule declaration), [`design/core/authorization.md`](../../../design/core/authorization.md)
+- [`design/domain/configuration-and-work.md`](../../../archive/design/domain/configuration-and-work.md)
+- [`design/core/plan-intake.md`](../../../archive/design/core/plan-intake.md) (policy model, GUARD-2
+  rule declaration), [`design/core/authorization.md`](../../../archive/design/core/authorization.md)
   (fence decision order, GUARD-2 enforcement leg)
 - Source: `src/loaders.ts`, `src/types.ts`, `src/authorization.ts`, `src/harness.ts`,
   `src/records.ts` (snapshots)
@@ -132,7 +132,7 @@ unrecognized configuration to refuse with guidance.
 - GUARD-2's pause needs a distinct lifecycle sub-state rather than the existing
   `parked`/routed-decision machinery — the orchestration transition tables are closed and the
   sub-state question is an open design question in
-  [`plan-intake.md`](../../../design/core/plan-intake.md#open-questions) (authorization.md
+  [`plan-intake.md`](../../../archive/design/core/plan-intake.md#open-questions) (authorization.md
   explicitly declines to invent a new lifecycle state); route it to design before minting a
   state.
 - `ISO-2`'s throughput-side follow-up checks touch an open product question (which follow-up
