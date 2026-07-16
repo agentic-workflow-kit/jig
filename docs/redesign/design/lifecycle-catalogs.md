@@ -5,10 +5,10 @@ audience:
   - Engineers and architects implementing or reviewing the Layer 2 runtime
   - Arye Kogan, Jig product and architecture decision owner
 scope: The exhaustive Story state machine, the Operation lifecycle, and the event, Operation, and failure-code catalogs; schemas, numeric budgets, retry algorithms, reviewer protocol steps, and provider mechanics are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./flows/run-and-story-lifecycle.md
   - ./decisions/D6-concurrency-and-finalization.md
@@ -38,7 +38,7 @@ deferred. All content is proposed Layer 2 selection, not implementation reality.
   that every path is bounded and every trigger validated.
 - **Scope and exclusions:** Story states, rework and refresh substates, and exhaustion transitions.
   Run phases stay in V3a; numeric bounds and timers are policy-supplied classes, not states.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** V3b; D6, D8, D9 category 3; I8, I12, I15–I17;
   [failure and liveness](./failure-and-liveness.md).
@@ -195,7 +195,7 @@ than by `CP-MEDIATOR`.
   second semantic attempt precedes reconciliation.
 - **Scope and exclusions:** One Operation's states only. Provider-specific lookup and compensation
   mechanics are excluded (D9 category 7).
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D5, D8; I5, I15, I17; [state and recovery](./state-and-recovery.md).
 - **Related views:** [V9](#view-v9--exhaustive-story-state-machine) owns the Story states that

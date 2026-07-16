@@ -5,10 +5,10 @@ audience:
   - Engineers, architects, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: Evidence storage, attribution, integrity, redaction, encryption, access, size, retention, and archival; evidence and verdict schemas, reviewer protocol, verification execution, ledger realization, and operator read models are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./state-and-recovery.md
@@ -103,7 +103,7 @@ location-addressed mutable evidence (identity would not survive relocation or pr
 - **Scope and exclusions:** The dataflow from producers through redaction and validation into the
   durable stores and out to readers. Evidence schemas, reviewer protocol, storage backends, and
   operator read-model composition are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D7, D9 category 8; I7, I15, I19; QS10;
   [acceptance and evidence](./acceptance-and-evidence.md); [runtime V6](./runtime.md).

@@ -6,10 +6,10 @@ audience:
   - Independent architecture reviewers
   - Arye Kogan, Jig product and architecture decision owner
 scope: The conformance suite catalog, its execution posture, and its gated outcomes; suite implementations, test frameworks, and provider technology selection are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./invariants.md
   - ./decisions/D9-invariants-and-artifact-shape.md
@@ -91,7 +91,7 @@ participant power widens through output.
   the evidence that a realization or provider honors it.
 - **Scope and exclusions:** Invariant groups, suite groups, and gated outcomes only. Individual
   test cases, frameworks, and schedules are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D9 category 13, D12; [I1–I21](./invariants.md); [V12](./mechanism-and-provider-contracts.md).
 - **Related views:** [V6](./runtime.md) names the ports the mechanism suites exercise;

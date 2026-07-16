@@ -5,10 +5,10 @@ audience:
   - Engineers, architects, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: The PORT-LEDGER conditional-append contract, record chaining and integrity, snapshots and projections, the single-host reference realization, and compaction, retention, backup, and disaster recovery; record schemas, identity representation, evidence-artifact storage, and provider-specific reconciliation are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./state-and-recovery.md
   - ./runtime.md
@@ -206,7 +206,7 @@ recorded in [D11](./decisions/D11-ledger-realization.md).
 - **Scope and exclusions:** The commit and read dataflow between the controller components and
   `RT-LEDGER`. Record schemas, file formats, backup tooling, and evidence artifacts
   (`PORT-ARTIFACT`) are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D5, D11; I5–I6, I17, I20; [state and recovery](./state-and-recovery.md);
   [runtime V6](./runtime.md).

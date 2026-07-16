@@ -6,10 +6,10 @@ audience:
   - Independent architecture reviewers
   - Future Layer 2 architecture authors after authorization
 scope: Index and status of decisions D1–D9, the consolidated accepted burdens, and the review record; each decision's content lives in its own record.
-state: proposed
-status: proposed index, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+state: current
+status: active index — D1–D9 approved and locked through the Layer 1 gate; D10–D12 approved (not locked) by the explicit owner decision of 2026-07-16
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -47,14 +47,14 @@ selection, consequence, or deferral changed.
 All nine decisions are established owner selections; their lock became effective through the
 Layer 1 gate recorded in the [review and approval record](./review-and-approval-record.md).
 
-## Proposed Layer 2 decision records
+## Approved Layer 2 decision records
 
-These records were authored on 2026-07-15 under the owner continuation instruction. They are
-proposed, not owner-approved: they advance through the
-[Layer 2 gate](./layer2-gate-record.md) — independent review, then the owner stop. This section is
-an additive index extension; no D1–D9 content changed.
+These records were authored on 2026-07-15 under the owner continuation instruction and approved —
+not locked — by the explicit owner decision of 2026-07-16 after independent review, the owner's
+ten-finding PR review, four correction passes, and the round-4 verification recheck recorded in
+the [Layer 2 gate record](./layer2-gate-record.md). No D1–D9 content changed.
 
-| ID                                       | Topic                           | Proposed direction                                                                          |
+| ID                                       | Topic                           | Approved direction                                                                          |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
 | [D10](./D10-runtime-decomposition.md)    | Runtime decomposition and ports | Modular single-authority runtime with named ports.                                          |
 | [D11](./D11-ledger-realization.md)       | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization. |

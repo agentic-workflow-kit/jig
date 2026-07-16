@@ -5,10 +5,10 @@ audience:
   - Engineering, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: Repository and forge Operations, integration strategies, content equivalence, landing-proof steps, held and blocked integrations, and landing-path redaction; acceptance, review protocol, finalization ordering, reconciliation internals, and provider transports are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./concurrency-and-finalization.md
@@ -143,7 +143,7 @@ Credentials reach the delivery mechanism through the capability bindings of
   order, capacity, Retirement, and provider transports are excluded;
   [V5](./flows/story-delivery.md) owns the coarse scenario and
   [V14](./review-and-verification-execution.md) owns the protocol before finalization.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D6, D7, D9 category 10; I12–I13, I16–I18;
   [acceptance and evidence](./acceptance-and-evidence.md).

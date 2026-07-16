@@ -5,10 +5,10 @@ audience:
   - Operations, engineering, security, and architecture readers
   - Arye Kogan, Jig product and architecture decision owner
 scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks, read models, metrics, exports, alerts, and service objectives; escalation and obligation schemas, ledger realization, failure codes, and evidence storage are excluded.
-state: proposed
-status: proposed Layer 2 content, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review
+state: approved
+status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ./failure-and-liveness.md
   - ./state-and-recovery.md
@@ -106,7 +106,7 @@ recorded obligation is out of contract: cleanup cannot reverse landing or delay 
   are derived, which paths are mirrors, and where the one validated decision path enters.
 - **Scope and exclusions:** Read-model derivation, export publication, and the escalation loop;
   schemas, notification transports, alert products, and controller internals are excluded.
-- **State:** Proposed.
+- **State:** Approved (not locked).
 - **Owner:** Arye Kogan.
 - **Sources:** D3, D8, D9 category 12; I3, I5, I16, I19; [runtime V6](./runtime.md);
   [state and recovery V4](./state-and-recovery.md).

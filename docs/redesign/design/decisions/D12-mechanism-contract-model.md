@@ -6,10 +6,10 @@ audience:
   - Independent architecture reviewers
   - Engineers realizing the Layer 2 design
 scope: The D12 selection, rationale, accepted consequence, and rejected alternatives; the canonical contract content is owned by the mechanism-and-provider-contracts page.
-state: proposed
-status: proposed Layer 2 decision, authored 2026-07-15 under the owner continuation instruction; pending the Layer 2 independent review and owner stop
+state: approved
+status: approved Layer 2 decision — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-16
 sources_of_truth:
   - ../mechanism-and-provider-contracts.md
   - ../architecture-conformance.md
@@ -23,7 +23,7 @@ related:
 
 # D12 — mechanism contract model
 
-- **Status:** Proposed Layer 2 selection; pending the Layer 2 gate and owner stop.
+- **Status:** Approved Layer 2 selection (not locked) — explicit owner decision of 2026-07-16; gate history in the Layer 2 gate record.
 - **Owner:** Arye Kogan.
 - **Related:** [Mechanism and provider contracts](../mechanism-and-provider-contracts.md),
   [architecture conformance](../architecture-conformance.md),
