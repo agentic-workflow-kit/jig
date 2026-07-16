@@ -182,6 +182,17 @@ state.
 | [D10–D12 decision records](./decisions/README.md)                           | Decisions (approved, not locked)      | Why were the runtime, ledger, and mechanism-contract shapes selected, at what cost?    |
 | [Layer 2 gate record](./decisions/layer2-gate-record.md)                    | Gate record                           | How Layer 2 was authored, reviewed, corrected, and approved, and what its gate covers? |
 
+### Reconciliation artifacts
+
+The explicit owner decision of 2026-07-16 imported the five product guarantees into the redesign
+under D1's import mechanism. These artifacts record the import and its traceability; they change
+no approved design content.
+
+| Page                                                                      | Level or view type      | Question it answers                                                                        |
+| ------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| [Product guarantee import](./decisions/product-guarantee-import.md)       | Imported promise record | What was imported from the product layer, from where, why, and at what accepted cost?      |
+| [Product guarantee reconciliation](./product-guarantee-reconciliation.md) | Traceability matrix     | Which redesign element carries each imported commitment, and what remains gap or upstream? |
+
 ## Layer gate status
 
 | Layer gate                        | Canonical or proposed artifacts                                                 | Status                                                                                                                                                       |

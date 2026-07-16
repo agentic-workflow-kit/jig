@@ -60,6 +60,18 @@ the [Layer 2 gate record](./layer2-gate-record.md). No D1–D9 content changed.
 | [D11](./D11-ledger-realization.md)       | Ledger realization              | Storage-agnostic conditional-append contract with a single-host file reference realization. |
 | [D12](./D12-mechanism-contract-model.md) | Mechanism contract model        | Capability-scoped, attested, conformance-gated mechanism contracts.                         |
 
+## Imported promises and constraints
+
+Under D1's import mechanism, an explicit owner import makes an exact external statement governing.
+One import exists:
+
+| Import record                                                | Imported statement                                                                   | Owner decision |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------- |
+| [The five product guarantees](./product-guarantee-import.md) | All fifty-six ID-bearing commitments of `docs/product/guarantees.md`, digest-pinned. | 2026-07-16     |
+
+The [reconciliation matrix](../product-guarantee-reconciliation.md) maps every imported commitment
+to the redesign element that carries it and enumerates the open gaps.
+
 ## Accepted final negative consequences
 
 Arye's established approval record explicitly accepted all six burdens; the re-presented candidate
