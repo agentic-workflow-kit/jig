@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — Layer 0 approved; Layer 1 approved and locked; Layer 2 approved (not locked) by the explicit owner decision of 2026-07-16
+status: active — final readiness review failed on 2026-07-17; owner-approved documentation remediation in progress; product-readiness lock inactive pending renewed independent review after merge
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-16
 sources_of_truth:
@@ -28,20 +28,24 @@ layer gate at a time.
 
 ## Current status
 
-Layer 0 — the [project brief](./design/brief.md) — is approved. Layer 1 is approved and locked:
+Layer 0 — the [project brief](./design/brief.md) — is approved. Layer 1 was approved and locked:
 after the 2026-07-15 owner structure revision split the former two-artifact candidate into the
 connected view-based document set mapped in the [design index](./design/README.md), a fresh
 independent review of the exact re-presented candidate set returned `PASS` the same day, making the
-recorded approval and lock effective (see the
+recorded approval and lock effective at that baseline (see the
 [review and approval record](./design/decisions/review-and-approval-record.md)). No owner decision,
 invariant, accepted consequence, or deferral changed.
 
 Arye retains all material product and architecture decision ownership. Layer 2 was authored under
-the explicit owner continuation instruction of 2026-07-15 against the locked Layer 1, with D1–D9
+the explicit owner continuation instruction of 2026-07-15 against the then-locked Layer 1, with D1–D9
 and I1–I21 as fixed inputs, and closed its gate on 2026-07-16: independent review, the owner's
 ten-finding PR review, four correction passes, a recorded verification recheck, and Arye's
 explicit approval — approved, not locked (see the
-[Layer 2 gate record](./design/decisions/layer2-gate-record.md)).
+[Layer 2 gate record](./design/decisions/layer2-gate-record.md)). The final readiness review on
+2026-07-17 subsequently returned 13 blocking/delegation/traceability findings. Arye explicitly
+authorized their named documentation corrections, including the necessary bounded Layer 1 reopen;
+the product-readiness lock is inactive until a renewed independent exact-candidate review passes
+after the remediation merges.
 
 ## Navigation
 

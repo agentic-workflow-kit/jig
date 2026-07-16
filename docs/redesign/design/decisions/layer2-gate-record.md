@@ -193,10 +193,10 @@ SHA-256 digests below are the durable identification of the exact reviewed conte
      contributed to the Candidate in any session is rejected (data-and-identity,
      review-and-verification-execution, mechanism-and-provider-contracts, lifecycle-catalogs).
   6. **Arbitrary checks classed re-issue safe:** verification execution is effect-free by enforced
-     contract (`CB-VERIFY`: read-only subject, discarded scratch, zero egress by default); a check
-     class with declared external effects is classified irreversible with lookup and certainty
-     reconciliation (lifecycle-catalogs, review-and-verification-execution,
-     mechanism-and-provider-contracts).
+     contract (`CB-VERIFY`: read-only subject, discarded scratch, zero egress). The former proposal
+     to classify a verification check with external effects as irreversible is superseded by the
+     2026-07-17 F9 prohibition: such a check is outside `PORT-VERIFY` and requires a separately
+     authorized workspace/delivery Operation or a future decision.
   7. **Mediator did not cover storage ports:** `PORT-ARTIFACT` now routes through `CP-MEDIATOR`;
      `PORT-LEDGER` is an explicit, narrowly recorded exception whose equivalent validation lives
      in the commit protocol and verified reads (control-plane, runtime,
@@ -273,7 +273,8 @@ Four findings returned with converging demands, resolved by a fourth correction 
 
 1. **First-touch race eliminated, residual withdrawn:** the round-3 proposal to accept a
    first-touch serialization residual is withdrawn as improper — a Layer 2 acceptance cannot
-   waive locked I12/QS4 without a Layer 1 reopen. It is replaced by the **target lineage
+   waive locked I12/QS4 without a Layer 1 reopen. This superseded proposal never became an active
+   contract and is replaced by the **target lineage
    anchor**: no Candidate-changing landing effect is authorized until an anchor at the target
    itself names the grant's realization-bound `ID-REGISTRY`. That identity is derived from a
    provider-attested canonical registry descriptor rather than a declared label, so copied

@@ -38,12 +38,15 @@ paths; it does not define new structural facts.
 | **Active**                   | Derive eligibility, admit work within resource-class capacity, coordinate Story lifecycles, and serialize target finalization.     | Continue while business progress is possible; park or interrupt only at the smallest safe scope.                                               |
 | **Parked**                   | A durable named Run- or Story-scoped question awaits Arye or a recorded delegate.                                                  | A valid scoped decision deterministically continues, blocks, or stops; unaffected work continues only when shared authority is not implicated. |
 | **Interrupted / Recovering** | Fence stale control, verify and reconstruct durable state, reconcile operations, authorities, target facts, and uncertain effects. | Resume, park, block, or stop only after authoritative state is trustworthy.                                                                    |
+| **Suspended**                | A validated operator stop durably pauses dispatch while preserving every unfinished Story's underlying state.                      | Resume through a new controller generation and `RC-RESUME-INTEGRITY`, park changed assumptions for exact re-approval, or stop terminally.      |
 | **Settling**                 | No Story can make further business progress; final outcomes and Retirement obligations are being resolved.                         | Complete after all outcomes and obligations are final or explicitly handed off.                                                                |
 | **Completed**                | Every Story has a final business outcome and every Retirement obligation is complete or an owner-accepted Residual Obligation.     | Terminal durable Run result.                                                                                                                   |
+| **Stopped**                  | Trust/liveness assumptions failed or an explicit terminal-stop decision ended the Run.                                             | Terminal durable non-delivery outcome; projects as product `ended`, never resumable `stopped`.                                                 |
 
 A preflight rejection is a durable Run-level non-delivery outcome, not `Completed` delivery. An
 interrupted Run does not resume from ambient process state; it resumes only from reconstructed and
-reconciled authority.
+reconciled authority. Product-visible **stopped** projects only to design `Suspended`; design
+`Stopped` projects separately as product-visible **ended**.
 
 ### View V3a — Run phases
 
@@ -65,6 +68,7 @@ stateDiagram-v2
     state "Active" as Active
     state "Parked" as Parked
     state "Interrupted / Recovering" as Recovering
+    state "Suspended" as Suspended
     state "Settling" as Settling
     state "Completed" as Completed
     state "Durable named stop" as Stopped
@@ -79,7 +83,11 @@ stateDiagram-v2
     Recovering --> Active: reconstructed and reconciled
     Recovering --> Parked: unresolved scoped authority question
     Recovering --> Stopped: trust or liveness assumption failure
-    Parked --> Stopped: explicit stop decision
+    Active --> Suspended: EV-RUN-SUSPEND-DECISION
+    Parked --> Suspended: EV-RUN-SUSPEND-DECISION
+    Suspended --> Active: EV-RUN-RESUME-DECISION, new generation and RC-RESUME-INTEGRITY pass
+    Suspended --> Parked: resume integrity requires exact re-approval
+    Suspended --> Stopped: EV-RUN-TERMINAL-STOP-DECISION
     Active --> Settling: no further business progress possible
     Settling --> Completed: outcomes and obligations final or handed off
     Rejected --> [*]
@@ -89,7 +97,7 @@ stateDiagram-v2
     classDef phase fill:#e8f1ff,stroke:#5a78a8,color:#172033
     classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef exception fill:#fce8e6,stroke:#a7615b,color:#172033
-    class Received,Preflighting,Active,Settling phase
+    class Received,Preflighting,Active,Settling,Suspended phase
     class Completed,Rejected outcome
     class Parked,Recovering,Stopped exception
 ```
@@ -97,8 +105,9 @@ stateDiagram-v2
 **V3a legend:** Every node is a Run phase or durable Run outcome from the table above; labels on the
 directed transitions name their causes. Blue nodes are normal phases, green nodes are terminal
 durable outcomes, and red nodes are exceptional conditions (`Parked`, `Interrupted / Recovering`,
-and the durable named stop). Color is redundant with the phase names. The start and end markers are
-the standard state-diagram entry and terminal points.
+and the terminal stop). `Suspended` is durable and resumable but dispatch-free; its blue phase
+styling distinguishes it from terminal red `Stopped`. Color is redundant with the phase names. The
+start and end markers are the standard state-diagram entry and terminal points.
 
 ## Story lifecycle
 
@@ -112,13 +121,14 @@ the standard state-diagram entry and terminal points.
 | **Accepted**                 | Jig durably records valid reviewer approval after identity, authority, exact binding, evidence availability/integrity, findings, and lifecycle validation.                                                       |
 | **Waiting for finalization** | Wait in deterministic order without target finalization authority and without repeated target mutation.                                                                                                          |
 | **Finalizing**               | Hold the sole target-scoped authority; align to target, renew review after Candidate-changing refresh, perform policy-selected final verification, authorize delivery, reconcile uncertainty, and prove landing. |
-| **Business outcome**         | Record `Landed`, directly `Blocked`, or derive `Not run — dependency blocked`.                                                                                                                                   |
+| **Business outcome**         | Record `Landed`, directly `Blocked`, owner-decided `Rejected`, or derive `Not run — dependency blocked`.                                                                                                         |
 | **Retiring**                 | Settle or fence pending operations, release authority, preserve work/evidence, close sessions, and safely retire or hand off resources.                                                                          |
 | **Closed**                   | Both business outcome and Retirement obligations are final.                                                                                                                                                      |
 
-These are high-level phases, not an exhaustive state machine. `Parked` and `Interrupted / Recovering`
-may suspend a Run or a Story without replacing the Story's underlying phase. Exact substates,
-transitions, event types, counters, and cancellation behavior belong to Layer 2.
+These are high-level phases, not an exhaustive state machine. `Parked`, `Suspended`, and
+`Interrupted / Recovering` may suspend a Run or a Story without replacing the Story's underlying
+phase. No Story transition fires while the Run is `Suspended`. Exact substates, transitions, event
+types, counters, and cancellation behavior belong to Layer 2.
 
 ### View V3b — Story phases
 
@@ -145,12 +155,13 @@ stateDiagram-v2
     state "Finalizing" as Finalizing
     state "Landed" as Landed
     state "Directly Blocked" as Blocked
+    state "Rejected by owner" as StoryRejected
     state "Not run — dependency blocked" as NotRun
     state "Retiring" as Retiring
     state "Closed" as Closed
 
     [*] --> Pending: admitted in the frozen Run definition
-    Pending --> NotRun: reachable prerequisite directly Blocked
+    Pending --> NotRun: reachable prerequisite directly Blocked or Rejected
     Pending --> Eligible: prerequisites Landed and capacity permits
     Eligible --> Preparing: deterministic admission
     Preparing --> Implementing: isolated resources and bounded assignment
@@ -163,8 +174,15 @@ stateDiagram-v2
     Implementing --> Blocked: bounded failure
     Reviewing --> Blocked: unapprovable or exhausted rework
     Finalizing --> Blocked: reconciled failure
+    Preparing --> StoryRejected: owner declines an exact Story-bound parked request
+    Implementing --> StoryRejected: owner declines an exact Story-bound parked request
+    Reviewing --> StoryRejected: owner declines an exact Story-bound parked request
+    Accepted --> StoryRejected: owner declines an exact Story-bound parked request
+    Waiting --> StoryRejected: owner declines an exact Story-bound parked request
+    Finalizing --> StoryRejected: owner declines an exact Story-bound parked request and releases authority
     Landed --> Retiring: releases dependents first
     Blocked --> Retiring: preservation-safe
+    StoryRejected --> Retiring: preservation-safe
     Retiring --> Closed: obligations complete or handed off
     NotRun --> Closed: Retirement already satisfied
     Closed --> [*]
@@ -172,7 +190,7 @@ stateDiagram-v2
     classDef phase fill:#fff7df,stroke:#a8781f,color:#172033
     classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
     class Pending,Eligible,Preparing,Implementing,Reviewing,Accepted,Waiting,Finalizing phase
-    class Landed,Blocked,NotRun,Retiring,Closed outcome
+    class Landed,Blocked,StoryRejected,NotRun,Retiring,Closed outcome
 ```
 
 **V3b legend:** Every node is a Story phase, business outcome, or Retirement stage from the table
@@ -186,6 +204,7 @@ names. The start and end markers are the standard state-diagram entry and termin
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `Landed`                       | Dependents become eligible immediately after authoritative proof. Cleanup cannot reverse the outcome. | Release finalization authority, settle operations, preserve evidence, close sessions, and retire or hand off resources.   |
 | Directly `Blocked`             | Transitive dependents become ineligible immediately; independent work may continue.                   | Reconcile uncertainty, preserve work/evidence, apply governing preservation policy, release authority, and retire safely. |
+| `Rejected`                     | Transitive dependents become ineligible immediately from the recorded owner decision.                 | Release any authority, preserve work/evidence, close sessions, and retire or hand off resources safely.                   |
 | `Not run — dependency blocked` | Report the complete canonically ordered set of reachable direct blocker roots.                        | No Story resources were allocated, so Retirement is already satisfied.                                                    |
 
 ## Authoritative transition ordering
@@ -282,7 +301,8 @@ uncertainty exits. `FLOW-RECONCILE` is the same reconciliation responsibility de
   flow in message order.
 - **Stable IDs:** `RUN-RECEIVED`, `RUN-PREFLIGHT`, `RUN-REJECTED`, `FLOW-TRANSITION`, `STORY-WORK`,
   `STORY-REVIEW`, `STORY-ACCEPTED`, `STORY-WAIT`, `STORY-FINALIZE`, `OUT-LANDED`, `OUT-BLOCKED`,
-  `OUT-NOTRUN`, `STORY-RETIRE`, `STORY-CLOSED`, `RUN-RECOVER`, `RUN-PARK`, `RUN-STOP`.
+  `OUT-REJECTED`, `OUT-NOTRUN`, `STORY-RETIRE`, `STORY-CLOSED`, `RUN-RECOVER`, `RUN-PARK`,
+  `RUN-SUSPEND`, `RUN-STOP`.
 - **Relationship labels:** Solid arrows are normal authoritative progression. Dashed arrows are
   rejection, failure, interruption, uncertainty, or assumption-loss branches. `FLOW-TRANSITION`
   collapses the validate–decide–record–adopt machinery that V3c expands; every trigger entering it
@@ -309,6 +329,7 @@ flowchart LR
     subgraph Outcomes["Business outcome and Retirement"]
         Landed["OUT-LANDED<br/>Landed<br/>[Business outcome]"]
         Blocked["OUT-BLOCKED<br/>Directly Blocked<br/>[Business outcome]"]
+        StoryRejected["OUT-REJECTED<br/>Rejected by owner<br/>[Business outcome]"]
         NotRun["OUT-NOTRUN<br/>Not run — dependency blocked<br/>[Derived outcome]"]
         Retire["STORY-RETIRE<br/>Retiring<br/>[Obligation phase]"]
         Closed["STORY-CLOSED<br/>Closed<br/>[Story terminal]"]
@@ -317,6 +338,7 @@ flowchart LR
     subgraph Exceptions["Owned rejection, failure, interruption, and uncertainty"]
         Recover["RUN-RECOVER<br/>Interrupted / Recovering<br/>[Recovery phase]"]
         Park["RUN-PARK<br/>Parked named question<br/>[Authority wait]"]
+        Suspend["RUN-SUSPEND<br/>Suspended<br/>[Resumable Run phase]"]
         Stop["RUN-STOP<br/>Durable named stop<br/>[Run outcome]"]
     end
 
@@ -336,15 +358,23 @@ flowchart LR
     Work -.->|"bounded failure may record"| Blocked
     Review -.->|"unapprovable or exhausted rework may record"| Blocked
     Finalize -.->|"reconciled failure may record"| Blocked
+    Work -.->|"exact Story-bound owner decline may record"| StoryRejected
+    Review -.->|"exact Story-bound owner decline may record"| StoryRejected
+    Finalize -.->|"exact Story-bound owner decline releases authority and records"| StoryRejected
     Blocked -->|"begins preservation-safe"| Retire
+    StoryRejected -->|"begins preservation-safe"| Retire
     Blocked -->|"makes transitive dependents derive"| NotRun
+    StoryRejected -->|"makes transitive dependents derive"| NotRun
     Transition -.->|"interruption or shared authority loss enters"| Recover
     Finalize -.->|"uncertain effect enters"| Recover
     Recover -->|"reconstructs and reconciles before resubmitting to"| Transition
     Recover -.->|"unresolved scoped authority question enters"| Park
     Park -->|"validated owner decision resubmits to"| Transition
+    Transition -.->|"validated operator stop records"| Suspend
+    Suspend -->|"new generation and resume-integrity pass resubmit to"| Transition
+    Suspend -.->|"changed safety basis parks for exact re-approval at"| Park
+    Suspend -.->|"explicit terminal-stop decision records"| Stop
     Recover -.->|"trust or liveness assumption failure records"| Stop
-    Park -.->|"explicit stop decision records"| Stop
 
     style Intake fill:#eef5ff,stroke:#7a96bd,color:#172033
     style Story fill:#fff6dd,stroke:#b8903a,color:#172033
@@ -358,8 +388,8 @@ flowchart LR
     class Received,Preflight run
     class Transition durable
     class Work,Review,Accepted,Wait,Finalize story
-    class Landed,Blocked,NotRun,Retire,Closed,Rejected outcome
-    class Recover,Park,Stop exception
+    class Landed,Blocked,StoryRejected,NotRun,Retire,Closed,Rejected outcome
+    class Recover,Park,Suspend,Stop exception
 ```
 
 **V3 legend:** Rectangles are phases or outcomes; the cylinder is the authoritative transition,

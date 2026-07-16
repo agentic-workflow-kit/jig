@@ -5,11 +5,11 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Future architecture authors after authorization
-scope: Index and status of decisions D1–D14, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
+scope: Index and status of decisions D1–D15, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D9 locked; D10–D12 approved; D13–D14 owner-approved as the product-readiness lock candidates, exact review pending
+status: active index — D1–D9 locked baseline with explicit F1/F2 amendment pending renewed review; D10–D15 owner-approved
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -47,12 +47,14 @@ selection, consequence, or deferral changed.
 All nine decisions are established owner selections; their lock became effective through the
 Layer 1 gate recorded in the [review and approval record](./review-and-approval-record.md).
 
-## Approved Layer 2 and readiness decision records
+## Approved Layer 2, readiness, and remediation decision records
 
 D10–D12 were authored on 2026-07-15 and approved — not locked — by the explicit owner decision of
 2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 and
-D14 are the later owner-approved product-readiness amendments; their lock remains pending under the
-[product readiness gate](./product-readiness-gate-record.md). No D1–D9 content changed.
+D14 are the later owner-approved product-readiness amendments. D15 is the 2026-07-17
+readiness-remediation decision for pre-acceptance review publication. The same remediation
+explicitly reopens only the D4/D6/D8 and I14 lifecycle consequences named by F1/F2; renewed review
+is required under the [product readiness gate](./product-readiness-gate-record.md).
 
 | ID                                                 | Topic                              | Approved direction                                                                                             |
 | -------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -61,6 +63,7 @@ D14 are the later owner-approved product-readiness amendments; their lock remain
 | [D12](./D12-mechanism-contract-model.md)           | Mechanism contract model           | Capability-scoped, attested, conformance-gated mechanism contracts.                                            |
 | [D13](./D13-envelope-production-boundary.md)       | Envelope production boundary       | Jig-owned configuration front end outside active-Run control authority; lock pending exact review.             |
 | [D14](./D14-agent-provider-permission-boundary.md) | Agent-provider permission boundary | Provider-native runtime permission enforcement with human-needed requests routed through the durable Doorbell. |
+| [D15](./D15-pre-acceptance-review-publication.md)  | Pre-acceptance review publication  | Candidate-fenced draft review publication without finalization or landing authority.                           |
 
 ## Imported promises and constraints
 

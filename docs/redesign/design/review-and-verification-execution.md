@@ -12,6 +12,7 @@ last_verified: 2026-07-16
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./decisions/D7-acceptance-and-evidence.md
+  - ./decisions/D15-pre-acceptance-review-publication.md
   - ./decisions/D9-invariants-and-artifact-shape.md
   - ./runtime.md
 related:
@@ -32,6 +33,11 @@ remains the full-package acceptance principal (I8), and frozen policy still sele
 verification `deterministic` or `none` (I9). Protocol messages cross `PORT-SESSION`,
 `PORT-VERIFY`, and `PORT-DELIVERY` as defined in the [runtime architecture](./runtime.md), and are
 validated by `CP-MEDIATOR` in the [control plane](./components/control-plane.md).
+
+When a review mode needs a forge venue, [D15](./decisions/D15-pre-acceptance-review-publication.md)
+authorizes the exact Candidate branch and a draft, non-mergeable request before reviewer assignment.
+The observed stable request metadata joins `RP-PACKAGE` delivery metadata; publication is not
+acceptance and grants no finalization authority.
 
 ## Review assignment package (`RP-PACKAGE`)
 
@@ -100,16 +106,20 @@ same principal could implement, reconnect, and approve its own work).
 The check policy is **declarative; it contains no scripting**. The frozen policy names required
 check classes with expected evidence kinds and the final-verification posture:
 
-| Policy element       | Declares                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Required check class | A named class such as `build`, `test`, `lint`, or a custom named check, with the evidence kind each must return. |
-| Verification posture | Exactly one of `deterministic` or `none` for final verification (D7).                                            |
+| Policy element       | Declares                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Required check class | A named effect-free class such as `build`, `test`, `lint`, or a custom named check, with the evidence kind each must return. |
+| Verification posture | Exactly one of `deterministic` or `none` for final verification (D7).                                                        |
 
 Configuration binds each policy-named check class to concrete configured commands or providers.
 Configuration may **add** checks but never remove or weaken a policy-required one (I9); a required
 class with no valid binding fails preflight, not delivery time. The rejected alternative — an
 embedded scripting language in policy — was not selected because scripts would move judgment and
 effects into the policy document and defeat deterministic preflight validation.
+
+`RP-CHECKCLASS` can name only checks realizable effect-free through `PORT-VERIFY`. An external-effect
+need is not a verification binding; it must be separately modeled under `PORT-WORKSPACE` or
+`PORT-DELIVERY`, or deferred to a future D-record.
 
 ## Rule-governing surfaces and provider permission posture
 
@@ -124,9 +134,10 @@ fresh evidence and full review. Removing a path from the manifest is itself a ru
 The envelope also freezes the Agent provider's exact native permission posture. Worker runtime
 actions allowed, automatically reviewed, or rejected by that posture remain internal to the Agent
 session. If the provider requires a human permission or the agent requires a human answer, it emits
-an exact session-bound request through `PORT-SESSION`; Jig parks it at the Doorbell and returns the
-scoped answer to that session. Jig does not classify the worker action, and the answer cannot change
-the frozen provider posture or authorize a Jig delivery Operation.
+an exact request through `PORT-SESSION`; Jig parks it at the Doorbell and returns the scoped answer
+by `ID-PARK` to the session currently bound to the originating principal and assignment, including a
+provenance-linked replacement after attested loss. Jig does not classify the worker action, and the
+answer cannot change the frozen provider posture or authorize a Jig delivery Operation.
 
 This provider permission loop does not weaken rule-surface protection. A Candidate that touches a
 governing surface still triggers the Jig-owned durable event and exact owner re-approval path above,
@@ -142,10 +153,10 @@ capability binding confines checks to a read-only view of the checkout, a writab
 that is discarded, and zero network egress by default
 ([mechanism and provider contracts](./mechanism-and-provider-contracts.md)); this is what makes a
 lost check response safe to re-issue without effect reconciliation (I17). A check class that
-genuinely requires an external effect must declare it in configuration, and is then classified as
-an irreversible-effect Operation with identity lookup and certainty reconciliation instead of
-re-issue (see the [Operation catalog](./lifecycle-catalogs.md)) — never silently run as an
-"observation". Observations return as attestations: pass or fail plus observations and bounded
+genuinely requires an external effect is outside `PORT-VERIFY`. It must instead be modeled as a
+separately authorized workspace or delivery Operation under that port's own authority, or deferred
+to a future D-record — never silently run as an "observation". Observations return as attestations:
+pass or fail plus bounded
 evidence artifacts. A failed required check prevents delivery (D7) and returns the Story through
 bounded rework, releasing any held finalization authority; an exhausted rework bound records
 directly `Blocked` (I16; the transitions are cataloged in
@@ -191,7 +202,13 @@ sequenceDiagram
     participant Rev as P-REVIEWER reviewer session
     participant Impl as P-IMPLEMENTER implementer session
     participant Ver as X-VERIFY verification mechanism
+    participant Del as X-DELIVERY delivery mechanism
 
+    opt Review mode requires a forge venue
+        Ctl->>Del: Authorizes OPC-REV-PUBLISH/REQUEST under CB-REVIEW-PUBLICATION
+        Del-->>Ctl: Attests exact review ref and draft, non-mergeable request identity
+        Note over Ctl: Records request metadata in RP-PACKAGE delivery metadata;<br/>no ID-AUTH, acceptance, target mutation, or landing
+    end
     Note over Ctl: CP-EVIDENCE assembles RP-PACKAGE and computes<br/>RP-PACKAGE-DIGEST over content, basis, requirements,<br/>evidence, findings state, and delivery metadata
     Ctl->>Rev: Assigns RP-PACKAGE for the exact package digest via PORT-SESSION
     Rev-->>Ctl: Returns attested RP-VERDICT bound to the exact RP-PACKAGE-DIGEST

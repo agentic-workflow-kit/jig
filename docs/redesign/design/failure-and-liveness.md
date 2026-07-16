@@ -67,9 +67,13 @@ handoff; it cannot turn missing evidence into a factual effect or landing claim.
 ## Finite-scope liveness guarantee and assumptions
 
 For a finite frozen Run, Jig guarantees that no accepted scope remains in an unnamed or unbounded
-wait. Every Story eventually reaches `Landed`, directly `Blocked`, or derived
+wait. Every Story eventually reaches `Landed`, directly `Blocked`, owner-decided `Rejected`, or derived
 `Not run — dependency blocked`; every Retirement obligation eventually completes or becomes an
 explicit owner-accepted Residual Obligation.
+
+An operator-controlled `Suspended` Run is deliberately outside this autonomous progress claim. It
+is a named durable condition with no dispatch, not an unbounded retry or wait; resume re-enters the
+integrity/recovery path, and an explicit terminal decision enters `Stopped`.
 
 The guarantee assumes:
 

@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — Layer 0 and Layer 1 locked; Layer 2 baseline approved; complete product-readiness lock candidate owner-approved, exact review pending
+status: active index — final readiness review failed on 2026-07-17; owner-approved remediation candidate in progress; product-readiness lock inactive
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -154,7 +154,7 @@ every node carries its stable ID and bracketed type.
 | [Concurrency and finalization](./concurrency-and-finalization.md)       | Supporting view               | How is concurrent work admitted deterministically and target change serialized?                  |
 | [Failure and liveness](./failure-and-liveness.md)                       | Supporting view               | How are failures contained, waits bounded, liveness guaranteed, and work retired safely?         |
 | [Invariants](./invariants.md)                                           | Contract                      | Which rules must every later design preserve, and where does each come from?                     |
-| [Decision records](./decisions/README.md)                               | Decisions (D1–D9)             | Why was each direction selected, what was rejected, and which burdens are accepted?              |
+| [Decision records](./decisions/README.md)                               | Decisions (D1–D15)            | Why was each direction selected, what was rejected, and which burdens are accepted?              |
 | [Review and approval record](./decisions/review-and-approval-record.md) | Gate record                   | What was reviewed, what passed, and what remains before approval and lock become effective?      |
 
 ### Layer 2 document map (approved, not locked)
@@ -187,9 +187,10 @@ state.
 ### Reconciliation artifacts
 
 The explicit owner decision of 2026-07-16 imported the five product guarantees into the redesign
-under D1's import mechanism. These artifacts record the original import, the explicit
+under D1's import mechanism. These artifacts record the original import, the 2026-07-16 explicit
 provider-permission correction to SEC-2 and its related FENCE, DOOR, CFG, DRIVE, and SEE
-commitments, and the complete owner-approved readiness amendment.
+commitments, the 2026-07-17 acceptance-lane correction and re-import, and the complete
+owner-approved readiness amendment.
 
 | Page                                                                      | Level or view type      | Question it answers                                                                    |
 | ------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |
@@ -198,12 +199,12 @@ commitments, and the complete owner-approved readiness amendment.
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                                 | Status                                                                                                                                                       |
-| --------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                                     | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                        |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants                 | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)                              |
-| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                            | Approved, not locked — the corrected candidate passed the 2026-07-16 round-4 verification recheck and Arye's explicit approval (see the Layer 2 gate record) |
-| Product readiness amendment       | D13–D14, V18, amended Layer 2 contracts, product correction, reconciliation, and readiness gate | Complete owner-approved lock candidate; deterministic checks and exact independent review required before lock activation; PR remains unmerged               |
+| Layer gate                        | Canonical or proposed artifacts                                                         | Status                                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                             | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                        |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants         | Approved and locked; the 2026-07-15 fresh independent review of the exact candidate set returned `PASS` (see the review record)                              |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                    | Approved, not locked — the corrected candidate passed the 2026-07-16 round-4 verification recheck and Arye's explicit approval (see the Layer 2 gate record) |
+| Product readiness amendment       | D13–D15, V18, amended contracts, product correction, reconciliation, and readiness gate | Final readiness review failed on 2026-07-17; owner-approved remediation in progress; lock inactive pending post-merge independent review                     |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression

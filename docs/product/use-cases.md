@@ -25,7 +25,9 @@ rules; Jig **pauses it and asks you**, rather than quietly merging. Another fail
 Inside each Agent session, the provider applies the permission mode you selected. Its own automatic
 review may approve or reject a runtime request without involving Jig. If the provider needs a
 human permission or the agent needs a clarifying answer, the request appears at the same durable
-Doorbell as Jig's lifecycle questions and resumes the originating session after you answer.
+Doorbell as Jig's lifecycle questions. Your answer follows that request to the session currently
+bound to the same principal and assignment — the resumed original session when possible, otherwise
+a provenance-linked replacement or an explicit cancel-and-reissue when context cannot be restored.
 
 By morning: nine landed with evidence you can replay, two waiting on a decision only you should
 make, one blocked with a reason. **You spent your judgment on the two decisions that mattered —

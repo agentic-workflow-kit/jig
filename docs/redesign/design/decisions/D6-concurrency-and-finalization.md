@@ -47,8 +47,13 @@ authority**:
   authority rebinding after Candidate mutation;
 - release authority for ordinary implementation rework;
 - release dependencies only after confirmed landing;
-- preserve the complete canonically ordered set of reachable direct blocker roots; and
+- preserve the complete canonically ordered set of reachable direct non-delivery roots — directly
+  `Blocked` or `Rejected`; and
 - make finite-run scheduling starvation-resistant under the recorded liveness assumptions.
+
+An operator suspension fences and releases any held target-scoped finalization authority while
+preserving the underlying Story phase. Resume must reacquire and rebind authority before any
+target-changing dispatch, so a deliberately suspended Run cannot starve other Runs.
 
 ## Rationale and benefits
 

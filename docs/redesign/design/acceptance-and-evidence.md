@@ -56,6 +56,10 @@ Configuration and providers may satisfy or exceed policy but cannot lower or sil
 failed required verification prevents delivery. Candidate mutation or changed delivery metadata
 invalidates acceptance; a Candidate-changing target refresh requires a new full review.
 
+Verification is effect-free by enforced contract in this generation. A check requiring an external
+effect is outside `PORT-VERIFY` and must be modeled as a separately authorized workspace or delivery
+Operation under that port's authority, or deferred to a future decision.
+
 ## Evidence roles
 
 | Evidence source                | Contribution                                                                                                            | Limit                                                                                |
