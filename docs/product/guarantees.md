@@ -78,9 +78,10 @@ provider's runtime permission engine.
 
 **What counts as evidence.** At product altitude, evidence falls into three categories: (a)
 **automated checks** — tests, builds, linters, and gates the runner observes directly, never
-taken from the worker's word; (b) **review / acceptance** — a verdict or evidence assessment from
-the independent lane policy requires, such as a mechanical evidence check, structured independent
-review, real code review, owner review, or specialist/security/contracts review; and (c)
+taken from the worker's word; (b) **review / acceptance** — a full-package verdict from the
+policy-selected reviewer principal, through structured independent review, real code review, owner
+review, or specialist/security/contracts review; mechanical checks remain category (a) and the
+`deterministic` final-verification posture; and (c)
 **capability proof** — fresh attestation that a driver can safely perform what is being trusted
 (see [earned trust](#12-earned-trust--capability-attestation)). Policy decides which categories,
 and how much of each, a story needs before it may land.

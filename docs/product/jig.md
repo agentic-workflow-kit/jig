@@ -88,7 +88,8 @@ move — not a free-form conversation with an agent.
   differently, or **hand off** the decision to someone else.
 - **Stop** a run into a durable, resumable suspension, **resume** it through the same integrity
   checks used after an interruption, and **acknowledge or snooze** a notice so your queue reflects
-  what you've already seen. A separate explicit terminal-stop decision ends the Run permanently.
+  what you've already seen. A separate explicit terminal-stop decision projects the Run as
+  **ended** and ends it permanently.
 
 You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
 software.

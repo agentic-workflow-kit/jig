@@ -41,12 +41,12 @@ paths; it does not define new structural facts.
 | **Suspended**                | A validated operator stop durably pauses dispatch while preserving every unfinished Story's underlying state.                      | Resume through a new controller generation and `RC-RESUME-INTEGRITY`, park changed assumptions for exact re-approval, or stop terminally.      |
 | **Settling**                 | No Story can make further business progress; final outcomes and Retirement obligations are being resolved.                         | Complete after all outcomes and obligations are final or explicitly handed off.                                                                |
 | **Completed**                | Every Story has a final business outcome and every Retirement obligation is complete or an owner-accepted Residual Obligation.     | Terminal durable Run result.                                                                                                                   |
-| **Stopped**                  | Trust/liveness assumptions failed or an explicit terminal-stop decision ended the Run.                                             | Terminal durable non-delivery outcome; never the product's resumable `stopped` projection.                                                     |
+| **Stopped**                  | Trust/liveness assumptions failed or an explicit terminal-stop decision ended the Run.                                             | Terminal durable non-delivery outcome; projects as product `ended`, never resumable `stopped`.                                                 |
 
 A preflight rejection is a durable Run-level non-delivery outcome, not `Completed` delivery. An
 interrupted Run does not resume from ambient process state; it resumes only from reconstructed and
-reconciled authority. Product-visible **stopped** projects to design `Suspended`; design `Stopped`
-is separately terminal.
+reconciled authority. Product-visible **stopped** projects only to design `Suspended`; design
+`Stopped` projects separately as product-visible **ended**.
 
 ### View V3a — Run phases
 

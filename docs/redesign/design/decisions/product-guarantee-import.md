@@ -1,20 +1,20 @@
 ---
 title: "Imported promise — the five product guarantees"
-purpose: Record the explicit owner import and 2026-07-16 re-import of the five product guarantees into the redesign under D1's import mechanism, with provenance, rationale, consequences, and affected decisions.
+purpose: Record the explicit owner import and the 2026-07-16 and 2026-07-17 corrections and re-imports of the five product guarantees under D1's import mechanism, with provenance, rationale, consequences, and affected decisions.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers reconciling the redesign with the product layer
 scope: The import decision itself — what is imported, from where, why, at what cost, and which decisions it touches; the per-guarantee mapping and classifications live in the reconciliation matrix.
 state: approved
-status: owner-confirmed import and explicit product-correction re-import of 2026-07-16; final readiness review failed on 2026-07-17 and the imported commitments remain inputs to the remediation candidate
+status: owner-confirmed import and explicit product-correction re-imports of 2026-07-16 and 2026-07-17; the current acceptance-lane correction is part of the remediation candidate
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./D1-source-scope.md
   - ./D14-agent-provider-permission-boundary.md
   - ../../../product/guarantees.md
-  - Explicit owner reconciliation decision, 2026-07-16
+  - Explicit owner reconciliation decisions, 2026-07-16 and 2026-07-17
 related:
   - ./README.md
   - ../product-guarantee-reconciliation.md
@@ -23,8 +23,8 @@ related:
 
 # Imported promise — the five product guarantees
 
-- **Status:** Owner-decided import and explicit re-import after product correction (2026-07-16);
-  recorded here per the D1 import mechanism.
+- **Status:** Owner-decided import and explicit re-imports after product corrections (2026-07-16
+  and 2026-07-17); recorded here per the D1 import mechanism.
 - **Owner:** Arye Kogan.
 - **Related:** [D1 — source scope](./D1-source-scope.md),
   [reconciliation matrix](../product-guarantee-reconciliation.md).
@@ -50,9 +50,16 @@ byte content durably. The product's "Honest edge" paragraphs are imported togeth
 families: they bound what each guarantee promises and are part of the imported statement, not
 commentary around it.
 
-## Current provenance — explicit product correction and re-import
+## Current provenance — acceptance-lane correction and re-import
 
-On 2026-07-16 Arye Kogan explicitly replaced the earlier overreaching no-phone-home contract with
+On 2026-07-17 Arye Kogan explicitly corrected evidence category (b) in
+`docs/product/guarantees.md`: review/acceptance evidence is a full-package verdict from the
+policy-selected reviewer principal, while mechanical checks remain category (a) automated checks
+and the `deterministic` final-verification posture. No numbered guarantee-ID statement changed.
+This correction closes the residual F3 lane language in the imported source and is explicitly
+re-imported at the current digest below.
+
+The prior 2026-07-16 correction replaced the earlier overreaching no-phone-home contract with
 the provider-native permission boundary now stated by SEC-2. The same explicit correction also
 revised FENCE-1/2, DOOR-1/2/3, CFG-10, DRIVE-3, and SEE-1 so the product consistently says:
 
@@ -65,17 +72,26 @@ revised FENCE-1/2, DOOR-1/2/3, CFG-10, DRIVE-3, and SEE-1 so the product consist
   communicate externally; and
 - a future Jig-side middleman responder is deferred and carries no authority in this candidate.
 
-That correction is a material product change, so it does not flow through the original import
-silently. The owner explicitly re-imported all fifty-six commitments at the candidate provenance
-below. The source-file digest is the durable content pin; the independent exact-candidate review
-records the PR head commit to which the import and design mapping attach.
+Both corrections are material product changes, so neither flows through the original import
+silently. The owner explicitly re-imported all fifty-six commitments at each provenance point. The
+source-file digest is the durable content pin; the independent exact-candidate review records the
+PR head commit to which the current import and design mapping attach.
 
-| Field     | Value                                                                                                                 |
-| --------- | --------------------------------------------------------------------------------------------------------------------- |
-| Source    | `docs/product/guarantees.md` in this repository                                                                       |
-| Candidate | Merged PR #88 baseline `d5c785ce582d010b84274041c7826f4fb7130472`; corrections governed by the current readiness gate |
-| SHA-256   | `8900437a51d156c7e4f918336331e24c41c87715537eca4a0b27d4c1d91c9a8e`                                                    |
-| Re-import | Explicit owner decision, 2026-07-16                                                                                   |
+| Field     | Value                                                                               |
+| --------- | ----------------------------------------------------------------------------------- |
+| Source    | `docs/product/guarantees.md` in this repository                                     |
+| Candidate | PR #89 remediation candidate; exact reviewed head is recorded by the readiness gate |
+| SHA-256   | `dca17de7f0134f3e6749a84a9c95eab0f827a4ded7317ed4788cc32b10c74ba2`                  |
+| Re-import | Explicit owner decision, 2026-07-17                                                 |
+
+## Prior product-correction provenance — preserved history
+
+| Field     | Value                                                                  |
+| --------- | ---------------------------------------------------------------------- |
+| Source    | `docs/product/guarantees.md` in this repository                        |
+| Candidate | Merged PR #88 baseline `d5c785ce582d010b84274041c7826f4fb7130472`      |
+| SHA-256   | `8900437a51d156c7e4f918336331e24c41c87715537eca4a0b27d4c1d91c9a8e`     |
+| Re-import | Explicit provider-permission correction and owner decision, 2026-07-16 |
 
 ## Original import provenance — preserved history
 

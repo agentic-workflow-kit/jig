@@ -187,9 +187,10 @@ state.
 ### Reconciliation artifacts
 
 The explicit owner decision of 2026-07-16 imported the five product guarantees into the redesign
-under D1's import mechanism. These artifacts record the original import, the explicit
+under D1's import mechanism. These artifacts record the original import, the 2026-07-16 explicit
 provider-permission correction to SEC-2 and its related FENCE, DOOR, CFG, DRIVE, and SEE
-commitments, and the complete owner-approved readiness amendment.
+commitments, the 2026-07-17 acceptance-lane correction and re-import, and the complete
+owner-approved readiness amendment.
 
 | Page                                                                      | Level or view type      | Question it answers                                                                    |
 | ------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |

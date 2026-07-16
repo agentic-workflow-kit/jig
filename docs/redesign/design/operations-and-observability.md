@@ -56,7 +56,8 @@ Generic operator commands are thin verbs over durable records and read models, r
 authority ([runtime](./runtime.md)):
 
 - **submit** an envelope; **answer**, **override**, or **hand off** a parked request; **stop** a Run
-  into `Suspended`, **resume** it, or explicitly stop it terminally; and **acknowledge** or
+  into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
+  **acknowledge** or
   **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
   a direct state change;
 - **inspect**, **watch**, and **explain** — each answers from recorded Transitions and evidence;

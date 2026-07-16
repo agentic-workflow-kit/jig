@@ -39,21 +39,21 @@ named product and design contracts, including explicit reopen of affected previo
 1 text. They do not authorize unrelated Layer 1 changes, implementation, archive, greenfield
 planning, merge, or self-certification of readiness.
 
-| Finding | Owner-approved resolution carried by this candidate                                                                                                                        |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1      | Add durable resumable `Suspended`; keep `Stopped` terminal.                                                                                                                |
-| F2      | Add terminal Story `Rejected`, tighten product `done`, and publish one canonical projection.                                                                               |
-| F3      | Preserve D7 reviewer-principal acceptance; treat deterministic verification as additional, not an acceptance lane.                                                         |
-| F4      | Add D15 and review-scoped, non-landing publication Operations.                                                                                                             |
-| F5      | Key intake by envelope digest and give Work Source explicit request/result identity and bounded failure.                                                                   |
-| F6      | Redispatch with the same Operation identity and basis under a freshly recorded current fence.                                                                              |
-| F7      | Bind Doorbell answers to durable `ID-PARK` and principal, including replacement or cancel-and-reissue lineage.                                                             |
-| F8      | Represent recorded per-Run delegation with `ID-GRANT` and `SCH-DELEGATION-GRANT` without changing D3's scope; keep the pre-existing D3/brief scope conflict owner-visible. |
-| F9      | Prohibit side-effectful `PORT-VERIFY` checks in this generation.                                                                                                           |
-| F10     | Give all eleven `BND-*` classes numeric or duration defaults and allowed ranges.                                                                                           |
-| F11     | Extend reconciliation from the 56 imported guarantee IDs to every normative commitment in the four product documents.                                                      |
-| F12     | Add private first-party `PORT-CONSUMER` with no controller, store, or mechanism bypass.                                                                                    |
-| F13     | Add grant-aware Run-control and notice-action events through `PORT-DECIDE` and trace every remaining operator action.                                                      |
+| Finding | Owner-approved resolution carried by this candidate                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1      | Add durable resumable `Suspended`; keep `Stopped` terminal.                                                                                                                              |
+| F2      | Add terminal Story `Rejected`, tighten product `done`, and publish one canonical projection.                                                                                             |
+| F3      | Preserve D7 reviewer-principal acceptance; treat deterministic verification as additional, not an acceptance lane.                                                                       |
+| F4      | Add D15 and review-scoped, non-landing publication Operations.                                                                                                                           |
+| F5      | Key intake by envelope digest and give Work Source explicit request/result identity and bounded failure.                                                                                 |
+| F6      | Redispatch with the same Operation identity and basis under a freshly recorded current fence.                                                                                            |
+| F7      | Bind Doorbell answers to durable `ID-PARK` and principal, including replacement or cancel-and-reissue lineage.                                                                           |
+| F8      | Represent bounded per-Run operational delegation with `ID-GRANT` and `SCH-DELEGATION-GRANT`; reserve product/architecture imports or approval, gate verdicts, and layer reopens to Arye. |
+| F9      | Prohibit side-effectful `PORT-VERIFY` checks in this generation.                                                                                                                         |
+| F10     | Give all eleven `BND-*` classes numeric or duration defaults and allowed ranges.                                                                                                         |
+| F11     | Extend reconciliation from the 56 imported guarantee IDs to every normative commitment in the four product documents.                                                                    |
+| F12     | Add private first-party `PORT-CONSUMER` with no controller, store, or mechanism bypass.                                                                                                  |
+| F13     | Add grant-aware Run-control and notice-action events through `PORT-DECIDE` and trace every remaining operator action.                                                                    |
 
 ## Exact remediation candidate
 
@@ -64,8 +64,8 @@ invalidates the verdict.
 
 The candidate intentionally includes D4, D6, D8, I14, their dependent Layer 1 views, and the Layer
 1 review record only where the approved F1, F2, F4, F6, and F13 resolutions require propagation.
-D3's existing scope is unchanged while F8 makes grants representable. This is the explicit
-owner-authorized reopen trail; the prior `PR-R5` requirement that
+D3's bytes are unchanged while the recorded 2026-07-17 owner interpretation makes F8's grants
+operational-only. This is the explicit owner-authorized reopen trail; the prior `PR-R5` requirement that
 all D1–D9 bytes remain unchanged is therefore superseded for this remediation only.
 
 ## Renewed gate requirements
@@ -89,15 +89,16 @@ must be rerun on the exact merged commit; only its recorded `PASS` activates the
 lock. Any blocking finding keeps the lock inactive, and any correction creates a new exact
 candidate.
 
-### Owner-visible F8 authority-scope contradiction
+### Recorded F8 authority resolution (2026-07-17)
 
-F8's grant identity, schema, validation, event, and conformance cases are implemented without
-selecting a new authority scope. Locked D3 permits Arye or a recorded delegate to decide imports,
-approvals, stops, and reopens within recorded scope, while the locked brief and historical review
-record reserve product/architecture decisions to Arye and describe delegation as bounded
-operational authority. The remediation prompt did not select which locked statement controls.
-Per its escalation rule, this candidate does not silently narrow or widen that authority; a renewed
-review must return `OWNER_DECISION_REQUIRED` on F8 until Arye resolves the contradiction.
+Arye Kogan resolved the prior D3/brief ambiguity: delegation grants are operational-only. They may
+carry bounded decide/answer, Run stop/resume, notice, and similar operational classes within exact
+recorded scope. Product/architecture imports or approval, gate verdicts, and layer reopens are
+non-delegable and reserved to Arye. `SCH-DELEGATION-GRANT` cannot represent those classes,
+issuance validation rejects them as `FC-AUTHORITY`, and `CF-DELEGATION` proves the rejection
+adversarially. This is a recorded interpretation of unchanged D3 bytes, not a new delegated Layer 1
+change. With F8 resolved, `PR-R7`'s renewed independent `PASS` is the sole remaining lock-activation
+verdict.
 
 ## Verification record
 

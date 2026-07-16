@@ -196,8 +196,10 @@ acts on are these.
 A **story** ends in one terminal outcome, or sits in the one transient waiting state:
 
 - **landed** — merged, on evidence that satisfied policy;
-- **done** — the policy-required final verification has passed and only landing remains pending.
-  Branch protection, a merge queue, or a conflict can hold a done story (see guarantee 1, MERGE-4);
+- **done** — the frozen policy's final-verification requirement is satisfied — required
+  `deterministic` verification has passed, or the posture is `none` — and only landing remains
+  pending. Branch protection, a merge queue, or a conflict can hold a done story (see guarantee 1,
+  MERGE-4);
 - **rejected** — the owner declined the story at the doorbell. Terminal and on the record; it is
   not resumed. (Distinct from _blocked_ — Jig finding the work cannot proceed — and from
   _stopped_, which pauses the whole run rather than ending a story.);
@@ -208,7 +210,8 @@ A **story** ends in one terminal outcome, or sits in the one transient waiting s
 **stopped** is the product-visible name for a **run**-level resumable suspension, not a story
 outcome. Unfinished stories keep their current states, no Story transition fires during the
 suspension, and resume reacquires controller authority and repeats the interruption integrity
-checks before dispatch. Design's separate terminal `Stopped` outcome never resumes.
+checks before dispatch. Design's separate terminal `Stopped` outcome projects as product-visible
+**ended** and never resumes.
 
 ```mermaid
 %%{init: {
@@ -289,4 +292,5 @@ treatment.
 | **Conformance**         | The repeatable proof — protocol behavior, declared posture and authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                                                    |
 | **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                                                       |
 | **done vs landed**      | _done_ = policy-required final verification passed and only landing remains; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                         |
-| **stopped**             | Product-visible resumable Run suspension, realized by design `Suspended`; design's terminal `Stopped` is a separate non-resumable outcome.                                                                         |
+| **stopped**             | Product-visible resumable Run suspension, realized only by design `Suspended`.                                                                                                                                     |
+| **ended**               | Product-visible terminal Run non-delivery outcome, realized by design `Stopped`; it never resumes.                                                                                                                 |

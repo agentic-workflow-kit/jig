@@ -37,8 +37,10 @@ related:
   selected and changed no architecture.
 - **2026-07-17 bounded reopen:** The final readiness review failed on 13 findings. Arye explicitly
   authorized the named F1, F2, F4, F6, and F13 corrections where they propagate through D4, D6,
-  D8, I14, and dependent Layer 1 views. D3's existing delegation scope is preserved. All other
-  Layer 1 decisions remain locked; the
+  D8, I14, and dependent Layer 1 views. On 2026-07-17 Arye also recorded the controlling
+  interpretation of D3's delegation language: grants are operational-only; product/architecture
+  imports or approval, gate verdicts, and layer reopens are non-delegable. D3 bytes remain
+  unchanged. All other Layer 1 decisions remain locked; the
   revised exact candidate requires renewed independent review under the product-readiness gate.
 - **Post-verdict record-keeping:** Recording the verdict in this gate record and refreshing the
   [design index](../README.md) gate table are gate record-keeping over the unchanged reviewed

@@ -59,7 +59,7 @@ own vocabulary.
 | **Landed**              | The durable business outcome recorded only after the authoritative target is observed to contain the Accepted result.                                                             |
 | **Rejected**            | The durable Story business outcome after an authorized owner decision declines an exact Story-bound parked request; dependents treat it as a direct non-delivery root.            |
 | **Suspended**           | A durable, resumable Run phase entered by validated operator stop; dispatch ceases while every unfinished Story keeps its underlying state.                                       |
-| **Stopped**             | A terminal Run non-delivery outcome after trust/liveness failure or an explicit terminal-stop decision; never the product-visible resumable `stopped` projection.                 |
+| **Stopped**             | A terminal Run non-delivery outcome after trust/liveness failure or an explicit terminal-stop decision; projects as product-visible `ended`, never resumable `stopped`.           |
 | **Retirement**          | Settlement, fencing, preservation, cleanup, release, or explicit handoff of resources and proof obligations after a business outcome.                                             |
 | **Residual Obligation** | A durable, owner-assigned Retirement or proof obligation that could not be completed automatically.                                                                               |
 
