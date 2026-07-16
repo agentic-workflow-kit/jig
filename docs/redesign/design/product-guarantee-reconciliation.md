@@ -42,7 +42,7 @@ maps to the redesign element that carries it, with an honest classification. It 
 | `conflict`     | The commitment contradicts an approved design element; surfaces as `OWNER_DECISION_REQUIRED`.                                                                                 |
 
 **Result: zero `conflict` rows.** Nothing imported contradicts a locked decision, an invariant, or
-approved Layer 2 content. The findings that need attention are the five `gap` rows and the
+approved Layer 2 content. The findings that need attention are the eleven `gap` rows and the
 `upstream` cluster, summarized [after the matrix](#findings).
 
 ## Guarantee 1 — control and trust
@@ -183,14 +183,13 @@ re-planning, that would be a conflict with the frozen-envelope model and needs t
 
 | ID     | Carried by                                                                                                                                                                                                       | Classification |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| LIVE-1 | Every wait is typed with a deadline class and accountable owner (`BND-WAIT-*`); overdue approvals are `BND-WAIT-DECISION`; mechanism silence is `BND-WAIT-MECHANISM`; all live waits are visible on `OBS-WAITS`. | `note`         |
+| LIVE-1 | **Partially carried.** Every wait is bounded and mechanism silence or overdue approval is detected, but no design element observes progress and idleness or classifies a worker as thinking, stuck, or dead as the product requires. | `gap`          |
 | LIVE-2 | Exhaustion actions are explicit — block, park, escalate — never silent spend; alerts derive from durable bound facts (I16).                                                                                      | `satisfied`    |
 
-LIVE-1 note: the product's thinking/stuck/dead distinction via progress, idleness, and silence
-signals is collapsed at this altitude into deadline classes — a hung worker is detected by bound
-exhaustion, not by activity monitoring. In-session activity signals are a provider/realization
-detail the design leaves open; the outcome promise (a stuck run is detected and parked, never
-waited on forever) is carried.
+LIVE-1 gap detail: bounded waits preserve the fail-closed outcome, but they do not carry the exact
+signal contract the product imports. Closing the gap requires a mechanism-facing liveness contract
+for progress, idleness, silence, and overdue approval, plus a deterministic classification that
+parks stuck or dead work instead of relying only on a fixed timeout.
 
 ## Guarantee 4 — stack portability
 
@@ -214,18 +213,19 @@ Work Source fragment joins the CFG upstream cluster as bridge-artifact work.
 
 | ID      | Carried by                                                                                                                                                                                         | Classification |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| DRIVE-1 | Per-port conformance suites with recorded real-provider evidence gate configurability (`CF-MECH-*`, `CF-GATE-PROVIDER`).                                                                           | `note`         |
-| DRIVE-2 | Providers declare needs and scopes (network allowlist derivation, declared scopes); posture is attested; the configuration that names them is part of the owner-approved, per-Run-frozen envelope. | `note`         |
-| DRIVE-3 | `MC-HONESTY`: an honest `weak` attestation is valid input, a false `strong` one is a breach; policy sets the minimum posture and an unmet minimum fails closed.                                    | `satisfied`    |
-| DRIVE-4 | Suites are versioned, recorded evidence applied per exact provider — the same bar for bundled and future drivers by construction.                                                                  | `satisfied`    |
+| DRIVE-1 | **Partially carried.** Per-port suites with recorded real-provider evidence gate configurability, but the suite catalog does not require the product-promised adversarial probes. | `gap`          |
+| DRIVE-2 | **Partially carried.** Needs, scopes, posture, and configured providers are distributed across bindings, attestation, and the frozen envelope; no owner-approved authority manifest declares runtime, network, and credential authority or forces fresh approval when that declaration changes. | `gap`          |
+| DRIVE-3 | `MC-HONESTY`: an honest `weak` attestation is valid input, a false `strong` one is a breach; policy sets the minimum posture and an unmet minimum fails closed. | `satisfied`    |
+| DRIVE-4 | **Partially carried.** Suites are versioned and reusable against exact providers, but their reusable contract does not require adversarial-probe coverage for bundled and future drivers. | `gap`          |
 
-DRIVE-1 note: the product explicitly requires adversarial probes; the suite catalog tests contract
-clauses including rejection paths but does not name adversarial content as a suite requirement —
-carry that requirement into suite realization. DRIVE-2 note: a first-class "provider authority
-manifest" as a named, owner-approved artifact with change-requires-fresh-approval does not exist;
-its substance is distributed across declared scopes, attestation, and envelope approval. Whether
-that distribution satisfies the product's manifest framing is a vocabulary question to settle in
-the bridge work, not a contradiction.
+DRIVE-1/DRIVE-4 gap detail: generic rejection paths do not make adversarial probes a required,
+repeatable part of every port suite. Closing the gap requires named adversarial-probe obligations
+in the conformance catalog and gated evidence for both bundled and future providers.
+
+DRIVE-2 gap detail: closing the gap requires a digest-identified provider authority manifest that
+declares runtime, network, and credential authority, records explicit owner approval, binds the
+approved digest into configuration and conformance evidence, and requires fresh approval whenever
+that digest changes.
 
 ## Guarantee 5 — full observability
 
@@ -235,12 +235,17 @@ the bridge work, not a contradiction.
 | SEE-2 | Records are structured durable facts; `OBS-*` read models and position-stamped exports over `PORT-PUBLISH` are the consumable surface.                                                                                      | `satisfied`    |
 | SEE-3 | The ledger facts and digest-verified evidence the decisions consumed are exactly what the owner inspects afterward; projections are derived, never a second story (I5, `EVR-*`, `OBS-EVIDENCE`).                            | `satisfied`    |
 | SEE-4 | Operator verbs answer from recorded Transitions — "why is this Story here" is the recorded decision trail — with no extra tooling required beyond the operator interface (`RT-OPERATOR`).                                   | `satisfied`    |
-| SEE-5 | Parked questions carry question, urgency bound, responder, and wake condition; `OBS-WAITS` and `OBS-OBLIGATIONS` list every live decision-needing condition; alerts trace to durable facts.                                 | `note`         |
-| SEE-6 | An export is a durable, redacted snapshot stamped with the ledger position it reflects, published through `PORT-PUBLISH` under the evidence redaction rules.                                                                | `satisfied`    |
+| SEE-5 | **Partially carried.** Separate Story, wait, obligation, and alert surfaces expose durable conditions, but no unified notice model guarantees that every parked, blocked, stale, or overdue condition has urgency and immediately available actions. | `gap`          |
+| SEE-6 | **Partially carried.** Exports are durable, redacted, and position-stamped, but no export contract makes a finished audit record write-once or immutable. | `gap`          |
 
-SEE-5 note: the substance of the triaged attention queue exists across parked questions, waits,
-obligations, and alerts; a single unified notice queue with urgency classes and per-notice actions
-is a read-model composition the design permits but does not yet name.
+SEE-5 gap detail: closing the gap requires one derived notice model that covers every parked,
+blocked, stale, and overdue condition and supplies a deterministic urgency class plus the actions
+available at that point. Separate projections that a realization could compose do not require the
+product-promised queue.
+
+SEE-6 gap detail: closing the gap requires immutable or content-addressed export identity and
+write-once persistence semantics for the finished audit record. A durable snapshot alone can still
+be replaced or overwritten and therefore does not carry the exact product promise.
 
 ## Findings
 
@@ -253,7 +258,7 @@ approved design; SEC-2 is carried with a named proof-strength residual; ISO-2 is
 the re-planning-produces-a-new-envelope reading, with the alternative reading explicitly flagged
 in its note for the owner to correct if intended.
 
-### Gaps — design work inside the boundary (5)
+### Gaps — design work inside the boundary (11)
 
 | Gap     | What closing it needs                                                                                                                                                    |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -262,6 +267,12 @@ in its note for the owner to correct if intended.
 | CFG-2   | The work profile as a named envelope artifact with the policy/profile safety split made first-class.                                                                     |
 | CFG-9   | A staleness-aware setup duty on the workspace provider (small; realization-level).                                                                                       |
 | CFG-10  | Policy vocabulary for a fixed, deterministic escalation auto-grant category boundary; depends on GUARD-2's classifier for its always-human edge.                         |
+| LIVE-1  | A liveness-signal contract for progress, idleness, silence, and overdue approval, with deterministic thinking/stuck/dead classification and parking.                     |
+| DRIVE-1 | Required adversarial-probe obligations in every provider conformance suite.                                                                                              |
+| DRIVE-2 | A digest-bound provider authority manifest covering runtime, network, and credentials, with owner approval and fresh approval on change.                                |
+| DRIVE-4 | Reusable adversarial-probe coverage for bundled and future providers under the same conformance bar.                                                                     |
+| SEE-5   | A unified, actionable notice projection covering every parked, blocked, stale, and overdue condition with urgency and available actions.                                |
+| SEE-6   | Immutable or content-addressed, write-once persistence semantics for finished audit exports.                                                                             |
 
 Each closure is a material Layer 2 change: renewed review and an explicit owner decision per the
 [Layer 2 gate record](./decisions/layer2-gate-record.md), and the GUARD-2/MERGE-5 rows note where
@@ -276,11 +287,10 @@ promise surface and `PORT-INTAKE` that no redesign-era artifact owns. The planne
 assign this layer an owner; until then these commitments are carried only by the current
 implementation.
 
-### Residuals worth re-checking at realization (3)
+### Residuals worth re-checking at realization (2)
 
 - SEC-2: proof strength of confinement rests on attested posture plus conformance depth; no
   independent runtime egress witness is designed.
-- DRIVE-1: adversarial probes are a product requirement to carry into conformance-suite content.
 - EARN-1: conformance passes have no time-based freshness class; confirm subject-based re-gating
   matches product intent.
 
