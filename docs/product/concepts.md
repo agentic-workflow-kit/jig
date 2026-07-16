@@ -80,25 +80,28 @@ safe:
   enforce that runtime posture. The worker never holds privileged forge credentials and cannot
   push, open a PR, merge, choose or weaken acceptance level, decide evidence sufficiency, review
   itself as sufficient proof, or change its own posture.
-- The **verifier/reviewer** is the independent acceptance lane the product model lets
-  owner-controlled policy and configuration select before launch. It may be a human, agent, or
-  deterministic checker; it assesses evidence, diff, or output and emits a verdict for Jig to
-  consume when that lane is implemented for the selected policy. It does not land work, hold
-  privileged forge credentials, redefine policy, or create lifecycle transitions directly.
+- The **verifier/reviewer** is the reviewer principal selected before launch: a human, the owner, a
+  specialist, or an agent reviewer. It judges the complete exact Candidate package and emits the
+  acceptance verdict. Deterministic checks are a separate post-acceptance verification posture,
+  never a reviewer principal or reviewer-less acceptance lane. The reviewer does not land work,
+  hold privileged forge credentials, redefine policy, or create lifecycle transitions directly.
 - The **runner** is Jig's own trusted component. It holds privileged authority — credentials, and
   the power to push, open PRs, and merge — and performs those irreversible actions on the worker's
-  behalf, only under policy, evidence, and acceptance gates. It orchestrates lifecycle, enforces
-  policy, consumes evidence/verdicts, escalates through the Doorbell, records decisions, and
-  invokes providers. The runner is **Jig-core, not a seam**: the four swappable seams (guarantee 4)
-  are Agent, Execution Host, Forge, and Work Source; the runner is the fixed part that governs
-  them. It is not a code-review engine, forge API implementation, or worker implementation.
+  behalf only under each Operation's lifecycle gate. Review-scoped publication may precede
+  acceptance; merge and landing never do. It orchestrates lifecycle, enforces policy, consumes
+  evidence/verdicts, escalates through the Doorbell, records decisions, and invokes providers. The
+  runner is **Jig-core, not a seam**: the four swappable seams (guarantee 4) are Agent, Execution
+  Host, Forge, and Work Source; the runner is the fixed part that governs them. It is not a
+  code-review engine, forge API implementation, or worker implementation.
 
 The Agent provider owns runtime permission handling inside each session. It may allow an action,
 review it automatically, or reject it without creating a Jig decision. When the provider requires
 a human permission or answer, it emits a request through the Agent seam. Jig durably parks that
-request at the same **Doorbell** used for its own owner questions, returns the scoped answer to the
-originating session, and lets the provider enforce or consume it. Jig does not add an automatic
-middleman responder in v1.
+request at the same **Doorbell** used for its own owner questions, then returns the scoped answer by
+durable request identity to the session currently bound to the originating principal and
+assignment. The same session is reused where supported; attested loss rebinds a provenance-linked
+replacement or explicitly cancels and reissues an unrestorable request. Jig does not add an
+automatic middleman responder in v1.
 
 This split is the spine of guarantee 1 — the thing that writes code is not the thing that reviews
 it as sufficient proof or ships it (FENCE-3, MERGE-1, MERGE-2, SEC-3).
@@ -122,8 +125,8 @@ flowchart TB
 reads a story, writes code, runs checks
 no credentials; cannot push, PR, or merge`")
   verifier("`**Verifier / reviewer**
-independent acceptance lane
-emits verdict; cannot land`")
+reviewer principal over full package
+emits acceptance verdict; cannot land`")
 
   subgraph core["Jig core — fixed, trusted"]
     runner("`**Runner**
@@ -140,8 +143,8 @@ invokes providers after gates`")
   end
 
   worker -->|"runs as the Agent, inside the Execution Host"| agent
-  runner -.->|"target acceptance lane"| verifier
-  verifier -->|"verdict / evidence assessment"| runner
+  runner -.->|"assigns exact package for review to"| verifier
+  verifier -->|"returns acceptance verdict to"| runner
   runner -->|"governs, under gates"| agent
   runner --> host
   runner --> forge
@@ -174,8 +177,9 @@ through the same declared authority and conformance proof at the boundary.
 A **Forge provider** is deterministic adapter capability behind the Forge seam. It performs external
 forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation
 only when the Runner invokes it under the policy gate for that operation. Opening or updating a PR
-may be how a configured review lane gets evidence; merge/landing remains gated on the required
-acceptance verdict. Forge is not another agent and does not decide what should happen.
+may create the draft, non-mergeable venue a configured review mode needs; that venue is not
+acceptance, and merge/landing remains gated on the required acceptance verdict. Forge is not
+another agent and does not decide what should happen.
 
 The **conformance surface** is the repeatable proof behind that trust. It gives Jig and provider
 authors a shared way to check capability, containment, declared authority, and adversarial cases.
@@ -192,8 +196,8 @@ acts on are these.
 A **story** ends in one terminal outcome, or sits in the one transient waiting state:
 
 - **landed** — merged, on evidence that satisfied policy;
-- **done** — evidence is met, but the merge is still pending. Branch protection, a merge queue,
-  or a conflict can hold a done story (see guarantee 1, MERGE-4);
+- **done** — the policy-required final verification has passed and only landing remains pending.
+  Branch protection, a merge queue, or a conflict can hold a done story (see guarantee 1, MERGE-4);
 - **rejected** — the owner declined the story at the doorbell. Terminal and on the record; it is
   not resumed. (Distinct from _blocked_ — Jig finding the work cannot proceed — and from
   _stopped_, which pauses the whole run rather than ending a story.);
@@ -201,9 +205,10 @@ A **story** ends in one terminal outcome, or sits in the one transient waiting s
 - **parked** _(transient)_ — waiting on an owner decision, such as an approval at the doorbell. A
   parked story resumes when the owner approves, or becomes _rejected_ if they decline.
 
-**stopped** is a **run**-level state, not a story outcome: the whole run was halted cleanly.
-Stories that had not yet reached a terminal outcome stay where they were and resume from their
-last safe checkpoint when the run restarts (see guarantee 3).
+**stopped** is the product-visible name for a **run**-level resumable suspension, not a story
+outcome. Unfinished stories keep their current states, no Story transition fires during the
+suspension, and resume reacquires controller authority and repeats the interruption integrity
+checks before dispatch. Design's separate terminal `Stopped` outcome never resumes.
 
 ```mermaid
 %%{init: {
@@ -224,7 +229,8 @@ flowchart TB
   parked{{"**parked** _(transient)_
 waiting on an owner decision"}}
   done("**done**
-evidence met, merge pending")
+final verification passed,
+only landing pending")
   landed("**landed**
 merged on evidence")
   blocked("**blocked**
@@ -240,9 +246,9 @@ owner declined at the doorbell")
   done -->|"mergeable now"| landed
   done -.->|"held: branch protection, merge queue, or conflict"| done
 
-  stopped["**stopped** — a run-level state, not a story outcome
-the whole run halts cleanly; unfinished stories
-resume from their last safe checkpoint"]
+  stopped["**stopped** — product-visible resumable Run suspension
+unfinished stories keep their states; resume reacquires
+authority and repeats integrity checks"]
 
   classDef good fill:#e3f6f0,stroke:#007a62,stroke-width:2px,color:#003f34,rx:12,ry:12;
   classDef wait fill:#eeeeff,stroke:#5549d8,stroke-width:2px,color:#29226f,rx:12,ry:12;
@@ -271,7 +277,7 @@ treatment.
 | **Repo-level floors**   | A repo-scoped policy artifact setting minimums every track inherits and can tighten but not weaken (CFG-3).                                                                                                        |
 | **Runner**              | Jig's fixed, trusted core: orchestrates lifecycle, enforces policy, consumes evidence/verdicts, records decisions, and invokes providers after gates pass. Not a seam.                                             |
 | **Worker**              | The implementer running under its provider's selected permission posture: reads a story, writes code, runs checks, and reports evidence. Holds no forge credentials and cannot ship, self-review, or lower policy. |
-| **Verifier / reviewer** | Independent acceptance lane that assesses evidence, diff, or output and emits a verdict; it cannot land work, hold forge credentials, redefine policy, or create transitions directly.                             |
+| **Verifier / reviewer** | Reviewer principal — human, owner, specialist, or agent — that judges the complete exact Candidate package and emits the acceptance verdict; deterministic verification is separate.                               |
 | **Fence**               | Provider-enforced worker runtime permissions plus Jig-enforced lifecycle and delivery authorization; neither side silently widens the other's boundary.                                                            |
 | **Seam**                | One of four swappable integration boundaries — Agent, Execution Host, Forge, Work Source (guarantee 4, STACK-2).                                                                                                   |
 | **Provider / driver**   | An implementation behind a seam. _Provider_ is the product term; the guarantee detail says _driver_ for a concrete trusted implementation.                                                                         |
@@ -282,4 +288,5 @@ treatment.
 | **Records**             | Durable evidence trail for Jig-governed decisions, human Doorbell interactions, evidence, acceptance verdicts, stops, and outcomes; provider-internal review stays provider-local.                                 |
 | **Conformance**         | The repeatable proof — protocol behavior, declared posture and authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                                                    |
 | **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                                                       |
-| **done vs landed**      | _done_ = evidence met, merge pending; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                                                                |
+| **done vs landed**      | _done_ = policy-required final verification passed and only landing remains; _landed_ = merged on evidence. Separate milestones (MERGE-4).                                                                         |
+| **stopped**             | Product-visible resumable Run suspension, realized by design `Suspended`; design's terminal `Stopped` is a separate non-resumable outcome.                                                                         |

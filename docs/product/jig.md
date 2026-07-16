@@ -53,7 +53,7 @@ Jig starts where planning ends:
 flowchart TD
     A["You provide:<br/>approved plan + policy"] --> B["Jig runs the ready work<br/>in parallel, up to your limit"]
     B --> C{"Each story:<br/>evidence meets policy?"}
-    C -->|Yes| D["Done<br/>evidence met"]
+    C -->|Yes| D["Done<br/>final verification passed"]
     C -->|Needs your call| E["Parked<br/>waiting on your decision"]
     C -->|Can't proceed| F["Blocked<br/>with a logged reason"]
     D --> H{"Mergeable now?"}
@@ -86,8 +86,9 @@ move — not a free-form conversation with an agent.
   answers from the run's own record — an attributable answer, not a log you decode.
 - **Decide** when a run pulls you in: approve, reject, **override** a call you'd make
   differently, or **hand off** the decision to someone else.
-- **Stop** a run cleanly so it can be resumed later, and **acknowledge or snooze** a notice so
-  your queue reflects what you've already seen.
+- **Stop** a run into a durable, resumable suspension, **resume** it through the same integrity
+  checks used after an interruption, and **acknowledge or snooze** a notice so your queue reflects
+  what you've already seen. A separate explicit terminal-stop decision ends the Run permanently.
 
 You run Jig from a terminal, drive it as a tool from your own agent, or embed it in your own
 software.
@@ -148,7 +149,7 @@ Jig's product promise depends on keeping these roles separate:
 | **Plan**              | The approved execution plan and Jig's hard input boundary: stories, dependencies, and done conditions.                                                                                                                                  |
 | **Runner**            | Jig's trusted orchestrator: owns lifecycle, Jig policy enforcement, evidence consumption, durable Doorbell routing, records append, and provider invocation. It does not reimplement provider runtime permissions.                      |
 | **Worker**            | The implementer running under its provider's selected permission posture: edits code, runs requested checks, and reports results/evidence. It does not hold forge credentials, land work, choose acceptance strength, or review itself. |
-| **Verifier/reviewer** | The independent acceptance lane: human, agent, or deterministic checker that assesses evidence, diff, or output and emits a verdict for Runner/policy to consume.                                                                       |
+| **Verifier/reviewer** | The reviewer principal — a human, the owner, a specialist, or an agent reviewer — that judges the complete exact Candidate package and emits the acceptance verdict. Deterministic verification is a separate post-acceptance posture.  |
 | **Fence**             | The split authorization boundary: the Agent provider enforces worker runtime permissions; Jig authorizes its own lifecycle and delivery Operations.                                                                                     |
 | **Doorbell**          | One durable path for Jig-owned escalations and Agent-provider permissions or questions that require a human; grants remain narrow and recorded.                                                                                         |
 | **Forge provider**    | Deterministic adapter capability for external forge operations such as push, PR/status/comment, merge, idempotency handling, and API translation when Runner invokes it under policy.                                                   |
@@ -163,33 +164,39 @@ forge provider performs deterministic external operations, and the owner owns ri
 The Agent provider owns the worker session's permission loop. Actions already allowed by the
 selected posture run; the provider may evaluate approval requests internally and approve or reject
 them. Only a request that the provider says needs a human — either a permission or a question —
-crosses the Agent seam into Jig. Jig parks it durably at the Doorbell, returns the human's scoped
-answer to the same session, and leaves enforcement or answer consumption to the provider. A
-provider-internal approval or rejection is not a Jig lifecycle decision.
+crosses the Agent seam into Jig. Jig parks it durably at the Doorbell and returns the human's
+scoped answer to the session currently bound to the originating principal and assignment. This is
+the same session when resumable; after attested loss it is a provenance-linked replacement, or the
+request is explicitly cancelled and reissued when context cannot be restored. Enforcement or
+answer consumption remains with the provider. A provider-internal approval or rejection is not a
+Jig lifecycle decision.
 
 ### Acceptance before landing
 
-Verification before merge/landing is a configurable acceptance/review lane selected by the owner's
-policy and configuration before launch. Some review modes, especially ordinary code review, may
-require Runner to push a branch or open/update a PR so the review can happen or blocked work can be
-surfaced safely. Those forge operations are still runner-invoked and policy-governed, but they are
-not acceptance. At product altitude, the lane can be as simple or as strong as the policy requires:
+Acceptance before merge or landing uses **reviewer-principal full-package judgment**. The owner's
+frozen policy selects the reviewer before launch; the reviewer principal may be a human, the owner,
+a specialist, or an agent reviewer. A valid approval of the exact Candidate and complete delivery
+package is the acceptance gate. Jig validates reviewer identity and authority, independence,
+exact-package binding, required evidence availability and integrity, findings state, and lifecycle
+position; it does not replace or independently rejudge the reviewer's full-package judgment.
 
-- a mechanical evidence check over recorded commands and outputs;
-- structured independent review of the diff and evidence;
-- real code review in the owner's normal review flow;
-- explicit owner review;
-- specialist review, such as security, contracts, data, or platform review.
+Some review modes, especially ordinary code review, require Runner to publish the exact Candidate
+branch or open or update a draft, non-mergeable integration request before acceptance so review can
+happen or blocked work can be surfaced safely. Those review-scoped forge Operations remain
+runner-invoked, policy-governed, exact-Candidate-bound, and separate from acceptance. They cannot
+merge, land work, touch the target lineage anchor, or acquire finalization authority.
 
-In the product model, the lane emits a verdict or evidence assessment. It does not land work, hold
-privileged forge credentials, redefine policy, select weaker acceptance, or create lifecycle
-transitions directly. Runner consumes the verdict, records it, and enforces policy when the lane is
-implemented for the selected policy. If proof is missing, stale, self-reported, weak, or
-inconclusive, Jig routes to the Doorbell or stops according to policy; it does not lower the bar.
+Frozen policy independently selects final verification as `deterministic` or `none`.
+`deterministic` is the mechanical final-verification posture: configured checks run against the
+exact Accepted Candidate in addition to reviewer acceptance. It is not a standalone acceptance
+lane. With `none`, reviewer approval and the reviewed implementer evidence may proceed toward
+delivery with D7's accepted residual risk. Configuration and providers cannot lower or silently
+change the selected posture.
 
-This section names the product model and target boundary. Runtime/config/policy support for richer
-acceptance lanes is implementation follow-up unless current design or code has separately proven
-that support.
+Missing, stale, self-reported, weak, or inconclusive required proof fails closed according to
+policy; Jig never lowers the bar. Broader acceptance-lane taxonomies, including any future
+reviewer-less acceptance mode, are future-work non-commitments and require a new owner decision
+before becoming product behavior.
 
 ### Enforce vs. Guide
 

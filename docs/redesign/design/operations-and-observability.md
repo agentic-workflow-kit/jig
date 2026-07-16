@@ -36,25 +36,29 @@ nothing here decides.
 
 A parked request is a durable record, not a message. It may originate from Jig's lifecycle or from
 an Agent provider that requires a human permission or answer. It carries its identity, origin,
-exact question or requested scope, originating session where applicable, authorized responder,
-wake condition, and bound ([failure and liveness](./failure-and-liveness.md)). Provider-internal
+exact question or requested scope, originating principal/assignment and session provenance where
+applicable, authorized responder/current grant, wake condition, and bound
+([failure and liveness](./failure-and-liveness.md)). Provider-internal
 allowed, automatically reviewed, or rejected runtime requests never enter this interface.
 
 The parked request surfaces through the operator interface and notification channels, but
 notifications are non-authoritative mirrors: only a validated answer entering through
 `PORT-DECIDE` changes anything (D3). Answer intake validates responder identity, exact request
-binding, and recorded delegation scope in `CP-ESCALATION`. For an Agent-provider request, Jig then
-returns the scoped answer to the originating session through `PORT-SESSION`; the provider enforces
-the permission or consumes the answer. Replying on an unvalidated notification channel remains
-rejected because a mirror cannot satisfy port validation (I7).
+binding, and current `ID-GRANT` in `CP-ESCALATION`. For an Agent-provider request, Jig returns the
+scoped answer by `ID-PARK` to the session currently bound to the originating principal/assignment;
+same-session resume, provenance-linked replacement, or cancel-and-reissue is explicit. The provider
+enforces or consumes the answer. Replying on an unvalidated notification channel remains rejected.
 
 ## Operator tooling
 
 Generic operator commands are thin verbs over durable records and read models, run by
-`RT-OPERATOR` as short-lived processes with no lifecycle authority ([runtime](./runtime.md)):
+`RT-OPERATOR` through the private `PORT-CONSUMER` facade as short-lived processes with no lifecycle
+authority ([runtime](./runtime.md)):
 
-- **submit** an envelope, **answer** a parked request, **acknowledge** a notice, and **stop** a
-  Run — each becomes a validated trigger proposed to the controller, never a direct state change;
+- **submit** an envelope; **answer**, **override**, or **hand off** a parked request; **stop** a Run
+  into `Suspended`, **resume** it, or explicitly stop it terminally; and **acknowledge** or
+  **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
+  a direct state change;
 - **inspect**, **watch**, and **explain** — each answers from recorded Transitions and evidence;
   "why is this Story here" is the recorded decision trail, never live controller memory; and
 - **export** — a durable, redacted snapshot of read models (below).
@@ -84,8 +88,9 @@ derived block, stale setup or conformance proof, overdue approval, uncertain eff
 obligation produces one stable `ID-NOTICE`. Its urgency is a deterministic function of condition
 class, bound state, and impact; its actions are the currently authorized commands derived from the
 same ledger position. A notice cannot invent authority, omit a live condition, or offer an action
-whose preconditions are false. Acknowledgement changes presentation only; resolution requires the
-underlying durable condition to close.
+whose preconditions are false. `EV-NOTICE-ACKNOWLEDGED` changes presentation only;
+`EV-NOTICE-SNOOZED` records an explicit wake condition that `EV-WAKE-TIMER` later satisfies.
+Neither resolves the underlying durable condition.
 
 ## Exports and downstream publication
 
@@ -149,7 +154,7 @@ flowchart LR
         Export["Redacted export snapshot<br/>carries its ledger position<br/>[Durable export]"]
     end
     subgraph Outside["Operators, owner, and consumers"]
-        Operator["RT-OPERATOR<br/>submit · inspect · watch · explain<br/>acknowledge · decide · stop · export<br/>[Runtime unit]"]
+        Operator["RT-OPERATOR<br/>submit · inspect · watch · explain<br/>decide · suspend/resume · ack/snooze · export<br/>[Runtime unit]"]
         Notify["Notification channels and alerts<br/>[Non-authoritative mirror]"]
         Owner(["P-OWNER<br/>Arye or recorded delegate<br/>[Decision authority]"])
         Consumer["X-CONSUMER<br/>Read-only consumers<br/>[External consumer]"]

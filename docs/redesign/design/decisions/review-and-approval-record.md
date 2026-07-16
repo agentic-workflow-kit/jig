@@ -6,7 +6,7 @@ audience:
   - Independent architecture reviewers
 scope: Question traceability, archive reconciliation, gate evidence, prior review records, and the current approval state; decision content lives in the decision records and design pages.
 state: current
-status: gate record — the fresh independent review of the re-presented candidate set returned PASS on 2026-07-15; the recorded Layer 1 approval and lock are effective
+status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; the owner explicitly reopened only the F1/F2/F4/F6/F13-affected contracts on 2026-07-17 for readiness remediation
 owner: Arye Kogan
 last_verified: 2026-07-15
 sources_of_truth:
@@ -35,6 +35,11 @@ related:
   G-R10 effect makes the recorded Layer 1 approval and lock effective without a separate
   owner-selection step. The `PASS` approves faithful organization and re-expression only; it
   selected and changed no architecture.
+- **2026-07-17 bounded reopen:** The final readiness review failed on 13 findings. Arye explicitly
+  authorized the named F1, F2, F4, F6, and F13 corrections where they propagate through D4, D6,
+  D8, I14, and dependent Layer 1 views. D3's existing delegation scope is preserved. All other
+  Layer 1 decisions remain locked; the
+  revised exact candidate requires renewed independent review under the product-readiness gate.
 - **Post-verdict record-keeping:** Recording the verdict in this gate record and refreshing the
   [design index](../README.md) gate table are gate record-keeping over the unchanged reviewed
   content; the reviewed baseline and hashes below identify the exact locked candidate. Individual

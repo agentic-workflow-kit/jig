@@ -7,7 +7,7 @@ audience:
   - Engineers reconciling the redesign with the product layer
 scope: The import decision itself — what is imported, from where, why, at what cost, and which decisions it touches; the per-guarantee mapping and classifications live in the reconciliation matrix.
 state: approved
-status: owner-confirmed import and explicit product-correction re-import of 2026-07-16; exact-candidate review pending
+status: owner-confirmed import and explicit product-correction re-import of 2026-07-16; final readiness review failed on 2026-07-17 and the imported commitments remain inputs to the remediation candidate
 owner: Arye Kogan
 last_verified: 2026-07-16
 sources_of_truth:
@@ -58,8 +58,9 @@ revised FENCE-1/2, DOOR-1/2/3, CFG-10, DRIVE-3, and SEE-1 so the product consist
 
 - the owner selects an Agent provider's native execution and permission posture;
 - the Agent provider, not Jig, performs built-in allow, auto-review, and rejection;
-- only a request that needs a human crosses Jig's durable Doorbell, and the exact answer returns to
-  the originating provider session;
+- only a request that needs a human crosses Jig's durable Doorbell, and the exact answer follows
+  durable request identity to the current same-principal session, with replacement or
+  cancel-and-reissue lineage after attested loss;
 - Jig does not independently reclassify the action or claim to prove the provider/host cannot
   communicate externally; and
 - a future Jig-side middleman responder is deferred and carries no authority in this candidate.
@@ -69,12 +70,12 @@ silently. The owner explicitly re-imported all fifty-six commitments at the cand
 below. The source-file digest is the durable content pin; the independent exact-candidate review
 records the PR head commit to which the import and design mapping attach.
 
-| Field     | Value                                                                |
-| --------- | -------------------------------------------------------------------- |
-| Source    | `docs/product/guarantees.md` in this repository                      |
-| Candidate | PR #88 exact candidate; reviewed head recorded by the readiness gate |
-| SHA-256   | `8900437a51d156c7e4f918336331e24c41c87715537eca4a0b27d4c1d91c9a8e`   |
-| Re-import | Explicit owner decision, 2026-07-16                                  |
+| Field     | Value                                                                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------- |
+| Source    | `docs/product/guarantees.md` in this repository                                                                       |
+| Candidate | Merged PR #88 baseline `d5c785ce582d010b84274041c7826f4fb7130472`; corrections governed by the current readiness gate |
+| SHA-256   | `8900437a51d156c7e4f918336331e24c41c87715537eca4a0b27d4c1d91c9a8e`                                                    |
+| Re-import | Explicit owner decision, 2026-07-16                                                                                   |
 
 ## Original import provenance — preserved history
 

@@ -25,11 +25,11 @@ related:
 
 ## State classification
 
-| Classification                         | Canonical contents                                                                                                                                                                                                                                                                                                                           | Authority rule                                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Durable authority**                  | Run identity and frozen envelope; ordered Transition decisions; stable Operation identities and effect certainty; Story business and Retirement states; Candidates, reviews, acceptance, evidence references, target bases, fences, bounds, waits, landing proof, owner decisions, escalations, Residual Obligations, and terminal outcomes. | The ordered ledger is the sole control truth.                                                       |
-| **Transient mechanism or cache state** | In-memory projections and indexes; prepared but unrecorded requests; queues and capacity calculations; live provider clients/process handles; local timers; UI/read-model caches; temporary access material; unaccepted observations.                                                                                                        | Replaceable and never independently authoritative.                                                  |
-| **Derived and recomputable state**     | Eligibility, dependency-blocked outcomes, total ordering, capacity use, summaries, read-only projections, metrics, and compact completed-Story indexes.                                                                                                                                                                                      | Recompute from durable authority and frozen definition; do not maintain as competing mutable truth. |
+| Classification                         | Canonical contents                                                                                                                                                                                                                                                                                                                                                                                                        | Authority rule                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Durable authority**                  | Run identity and frozen envelope; ordered Transition decisions; stable Operation identities, per-dispatch reauthorizations, and effect certainty; Run suspension/terminal-stop state; Story business and Retirement states; Candidates, reviews, acceptance, evidence references, target bases, fences, bounds, waits, landing proof, owner decisions, notices, escalations, Residual Obligations, and terminal outcomes. | The ordered ledger is the sole control truth.                                                       |
+| **Transient mechanism or cache state** | In-memory projections and indexes; prepared but unrecorded requests; queues and capacity calculations; live provider clients/process handles; local timers; UI/read-model caches; temporary access material; unaccepted observations.                                                                                                                                                                                     | Replaceable and never independently authoritative.                                                  |
+| **Derived and recomputable state**     | Eligibility, dependency-blocked outcomes, total ordering, capacity use, summaries, read-only projections, metrics, and compact completed-Story indexes.                                                                                                                                                                                                                                                                   | Recompute from durable authority and frozen definition; do not maintain as competing mutable truth. |
 
 An opaque external resource identity is durable when recovery needs it; a live provider object is not.
 Credentials and secret values never enter durable authority or durable evidence.
@@ -51,18 +51,27 @@ Jig never dispatches an effect from an indeterminate control commit.
 ## Operation identity and fencing
 
 - One semantic effect has one durable Operation identity.
-- Duplicate-safe redispatch retains the same identity, payload basis, and authority fence.
+- Duplicate-safe redispatch retains the same identity and payload basis under a newly recorded
+  reauthorization. Its fence refreshes the current `ID-GEN` and, when target authority was
+  reacquired, `ID-AUTH` plus `ID-REGISTRY`; audit records which generation dispatched each attempt.
 - A new linked semantic attempt is allowed only after the earlier effect is reconciled.
-- Candidate-sensitive work binds the Story, Candidate, target basis, and current finalization
-  authority.
+- Candidate-sensitive work binds the Story, Candidate, and target basis. Review publication binds
+  its dedicated `CB-REVIEW-PUBLICATION` without finalization authority; target-changing work also
+  binds the current finalization authority.
 - A durable controller generation rejects stale pre-interruption dispatchers.
-- Stale, duplicate, mismatched, late, or wrong-fence results never advance state.
+- Retaining a stale fence on redispatch is exactly `FC-FENCE`, not a legal retry; stale, duplicate,
+  mismatched, late, or wrong-fence results never advance state.
 
 ## Reconstruction and reconciliation
 
 After interruption, Jig acquires a new controller generation, verifies the ledger, reconstructs
 canonical state, enumerates pending and uncertain Operations, reconciles external state, records the
 observations, revalidates authorities, and only then resumes.
+
+A deliberate operator `Suspended` Run uses the same machinery on resume: suspension stops dispatch,
+fences/releases target authority without changing any Story state, and resume acquires a new
+controller generation before running `RC-RESUME-INTEGRITY`. A safety-relevant difference parks for
+exact re-approval; only an unchanged, reconciled basis returns the underlying Stories to dispatch.
 
 No irreversible effect is blindly replayed:
 

@@ -62,6 +62,10 @@ sequenceDiagram
     Jig->>Impl: Assigns bounded implementation for one admitted Story
     Impl-->>Jig: Proposes committed exact Candidate, self-report, and evidence
     Note over Jig: Validates identity, role, exact subject, and evidence.<br/>Records the durable transition before any dispatch.
+    opt Review mode requires a forge venue
+        Jig->>Del: Publishes the exact Candidate and opens/updates a draft non-mergeable request under D15
+        Del-->>Jig: Attests the stable review ref and request metadata; no finalization authority exists
+    end
     Jig->>Rev: Assigns the exact Candidate and complete delivery package
     alt Reviewer approves the exact Candidate
         Rev-->>Jig: Attests full-package approval verdict

@@ -48,7 +48,7 @@ escalation**:
   silent success or indefinite waiting;
 - uncertain irreversible effects reconcile under the same Operation identity before another
   semantic attempt;
-- Landed and Blocked outcomes continue through safe Retirement; and
+- Landed, Blocked, and Rejected outcomes continue through safe Retirement; and
 - unresolved Retirement requires preservation evidence, accountable ownership, and explicit residual
   handoff.
 
@@ -57,6 +57,10 @@ responsive or timing-out mechanisms, a target stable long enough for bounded fin
 responsive owner authority, every Story reaches a final business outcome and every Retirement
 obligation closes or is explicitly handed off. Without those assumptions, Jig guarantees a durable
 named stop, not successful delivery.
+
+Deliberate operator `Suspended` is outside that autonomous finite-run progress claim: it is a
+durable owner-controlled condition with no dispatch, not a retry or unnamed wait. Resume re-enters
+the recovery integrity path; terminal `Stopped` remains the fail-closed non-delivery outcome.
 
 ## Rationale and benefits
 

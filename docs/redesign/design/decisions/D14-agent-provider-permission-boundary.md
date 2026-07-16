@@ -58,12 +58,16 @@ delegating a Jig lifecycle decision to it.
    session. Jig neither reclassifies them nor writes them as Jig lifecycle decisions. The Agent
    provider and its Execution Host are the trusted enforcement boundary; Jig does not independently
    prove a universal no-phone-home property.
-3. **Human-needed requests use the Doorbell.** When the provider requires a human permission or
-   the agent requires a human answer, it emits an attributable, session-bound request through
-   `PORT-SESSION`. Jig validates and durably parks the request, presents it through the existing
-   Doorbell, receives the scoped answer through `PORT-DECIDE`, and returns that answer to the same
-   session through `PORT-SESSION`. The provider enforces a permission answer or consumes a question
-   answer; Jig does not perform the requested worker action.
+3. **Human-needed requests use the Doorbell and answers follow durable request identity.** When the
+   provider requires a human permission or the agent requires a human answer, it emits an
+   attributable request through `PORT-SESSION`. Jig validates and durably parks it as `ID-PARK`,
+   presents it through the Doorbell, receives the scoped answer through `PORT-DECIDE`, and returns
+   that answer to the session currently bound to the originating `ID-PRINCIPAL` and assignment. The
+   same resumable session is used where supported. After attested loss, a provenance-linked
+   replacement binds the same principal; if the requesting context cannot be restored, Jig closes
+   the original request with a named reason and issues a lineage-linked successor. No request is
+   silently dropped. The provider enforces or consumes the answer; Jig does not perform the worker
+   action.
 4. **Provider-internal outcomes do not leak into Jig authority.** An internal approval is not a
    Jig authorization, an internal rejection is not a Story rejection, and neither can create a
    transition, evidence-sufficiency claim, acceptance verdict, or delivery authority. Only a
@@ -101,8 +105,9 @@ standing authority, or authorize a Jig delivery Operation.
   ledger. Jig records the selected posture and every human Doorbell request and answer it governs.
 - A session waiting for a human becomes a durable, attributable wait that survives interruption and
   participates in the existing liveness bounds.
-- Providers without a stable posture reference or a resumable human-request protocol cannot offer
-  that posture in a conforming Jig configuration.
+- Providers without a stable posture reference or a conforming request protocol cannot offer that
+  posture. The protocol may resume the same session or attest loss and support same-principal
+  replacement/cancel-and-reissue; it may never silently discard the request.
 
 ## Alternatives not selected
 

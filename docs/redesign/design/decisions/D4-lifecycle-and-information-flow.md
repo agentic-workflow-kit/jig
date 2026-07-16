@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D4 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical lifecycle content is owned by the lifecycle flow page.
 state: proposed
-status: established owner decision, re-presented 2026-07-15; lock pending the Layer 1 gate
+status: locked baseline explicitly amended by owner decisions F1/F2 on 2026-07-17; renewed review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -36,16 +36,23 @@ interruption, Recovery, escalation, and terminal completion?
 Use a **recoverable hierarchical lifecycle with separate business-outcome and Retirement
 dimensions**.
 
-The Run progresses through Received, Preflighting, Active, optional Parked or
-Interrupted/Recovering conditions, Settling, and Completed. A Story progresses through Pending,
-Eligible, Preparing, Implementing, Reviewing, Accepted, Waiting for finalization, Finalizing,
-business outcome, Retiring, and Closed.
+The Run progresses through Received, Preflighting, Active, optional Parked,
+Interrupted/Recovering, or operator-controlled `Suspended` conditions, Settling, and Completed. A
+resumable operator stop enters `Suspended`; the separate terminal `Stopped` outcome is entered only
+after trust/liveness failure or an explicit terminal-stop decision. A Story progresses through
+Pending, Eligible, Preparing, Implementing, Reviewing, Accepted, Waiting for finalization,
+Finalizing, business outcome, Retiring, and Closed.
 
-Business outcomes are `Landed`, directly `Blocked`, and derived
-`Not run — dependency blocked`. Landing immediately releases dependents; direct blocking immediately
-makes transitive dependents ineligible while independent work may continue. Retirement follows both
-Landed and Blocked. A Story closes only when outcome and obligations are final; a Run completes only
-when every outcome is final and every obligation completes or has an owner-accepted residual handoff.
+Business outcomes are `Landed`, directly `Blocked`, owner-decided `Rejected`, and derived
+`Not run — dependency blocked`. Landing immediately releases dependents; direct blocking or
+rejection immediately makes transitive dependents ineligible while independent work may continue.
+Retirement follows Landed, Blocked, and Rejected. A Story closes only when outcome and obligations
+are final; a Run completes only when every outcome is final and every obligation completes or has an
+owner-accepted residual handoff.
+
+The 2026-07-17 owner-approved readiness remediation explicitly reopens this locked decision only to
+add the resumable/terminal Run distinction and the `Rejected` Story outcome. The recovery,
+outcome/Retirement separation, and record-before-dispatch direction remain unchanged.
 
 Accepted transitions and authorized Operation intents are recorded durably before live adoption or
 dispatch. External results and owner decisions return as later validated triggers.

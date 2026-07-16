@@ -30,13 +30,32 @@ and forge Operations, merge strategies, content-equivalence rules, and landing-p
 It realizes the Layer 1 landing-proof rule of
 [acceptance and evidence](./acceptance-and-evidence.md) and the serialized finalization of
 [concurrency and finalization](./concurrency-and-finalization.md): every message crosses
-`PORT-DELIVERY` from the [runtime architecture](./runtime.md) under the single target-scoped
-authority `CP-FINALIZER` and its fence. Nothing here re-decides D6 or D7; only confirmed landing
-releases dependencies (I13).
+`PORT-DELIVERY` from the [runtime architecture](./runtime.md). Two disjoint authority scopes use
+that port: D15 review publication is authorized directly by a recorded Story-lifecycle Transition,
+while every target-changing `OPC-DEL-*` remains under the single target-scoped `CP-FINALIZER` and
+its fence. Nothing here re-decides D6 or D7; only confirmed landing releases dependencies (I13).
 
-## Repository and forge Operation set
+## Review-publication Operation set
 
-A landing uses these delivery-port Operations. Their canonical catalog identities (`OPC-*`) are
+During `Reviewing`, or when a Transition records and safely surfaces an existing exact Candidate as
+`Blocked`, the transition engine may authorize these Operations under
+`CB-REVIEW-PUBLICATION`. They carry the current controller generation, Candidate digest and basis,
+dedicated review ref, draft request identity/markers, and provider manifest, but no `ID-AUTH`.
+
+| ID                | Operation                                 | Reconciliation lookup                                                                   |
+| ----------------- | ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `OPC-REV-PUBLISH` | Publish exact Candidate to a review ref   | Operation identity, exact review ref, and Candidate digest.                             |
+| `OPC-REV-REQUEST` | Open/update draft non-mergeable request   | Stable Jig request marker plus source/target refs; confirm draft/non-mergeable posture. |
+| `OPC-REV-STATUS`  | Create/update Jig review status           | Request identity plus stable Jig status context.                                        |
+| `OPC-REV-COMMENT` | Create/update redacted review explanation | Request identity plus stable Jig marker; edit the existing block rather than append.    |
+
+These Operations cannot acquire/retain finalization authority, create or touch the target lineage
+anchor, mutate the target ref, request merge, declare landing, or invoke an `OPC-DEL-*` class.
+Publication is neither acceptance nor landing and cannot release dependencies.
+
+## Finalization and landing Operation set
+
+A landing uses these finalizer-authorized delivery-port Operations. Their canonical catalog identities (`OPC-*`) are
 owned by the Layer 2 event and Operation catalog under D9 category 3; this page binds their
 delivery semantics. Every dispatch carries the durable Operation identity, payload basis, and
 authority fence from [operation identity and fencing](./state-and-recovery.md).
@@ -121,11 +140,11 @@ a **durable named wait**, not a spin loop: it records an accountable owner, a du
 a wake condition, under a wait budget class defined in
 [scheduling and bounds](./scheduling-and-bounds.md) with an explicit exhaustion action (I16).
 Replays after interruption **re-observe** the held integration through its correlation key rather
-than re-requesting the merge (I17). When the Candidate is safely published and the delivery
-manifest permits request/status/comment effects, Jig opens or reuses the real integration request,
-sets its stable Jig status with `OPC-DEL-STATUS`, and creates or updates one redacted explanation
-block with `OPC-DEL-COMMENT`. The block names the failure reasons, evidence references, urgency,
-and available actions. These effects are idempotent by request and stable Jig marker.
+than re-requesting the merge (I17). For a post-acceptance held integration, Jig uses the
+finalizer-authorized `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`. For a `Blocked` Story that never reached
+acceptance/finalization, a recorded Transition may instead use the D15 `OPC-REV-*` set against an
+existing exact Candidate and draft request. Both paths use stable status context and comment
+markers; neither can rewrite the recorded business outcome.
 
 A surfacing failure never erases or downgrades the original `Blocked` fact. It creates a separate
 residual surfacing obligation and actionable notice, then follows bounded reconciliation under

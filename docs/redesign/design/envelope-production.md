@@ -37,18 +37,18 @@ its own proposal on the owner's behalf, or mutate an accepted Run.
 
 ## Envelope Builder responsibilities (`EP-*`)
 
-| ID             | Responsibility                                                                                                                                                                                       | Authority limit                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE`; validate candidate identity, provenance, and declared plan shape.                                                                             | Candidate work is unapproved input. It cannot bypass plan validation or create a Run.                                                     |
-| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                      | One envelope carries exactly one track.                                                                                                   |
-| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                        | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                     |
-| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, and role realization.                                                                                     | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements. |
-| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; for the Agent provider, select one exact native permission posture and declared semantics. | A missing, changed, stale, insufficient, or policy-incompatible posture keeps the envelope unlaunchable.                                  |
-| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                   |
-| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                           |
-| `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                                                                                                       | Any input change creates a new proposal and digest.                                                                                       |
-| `EP-APPROVE`   | Present the exact proposal to the owner and bind the recorded approval to its digest and scope.                                                                                                      | Only the owner or an authorized configuration delegate may approve; the builder never self-approves.                                      |
-| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE` and retain the intake acknowledgement.                                                                                                      | Submission cannot modify the envelope or imply preflight success.                                                                         |
+| ID             | Responsibility                                                                                                                                                                                       | Authority limit                                                                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE` under `ID-SOURCE-REQ`; validate the revision/cursor-bound result identity, content digest, provenance, and plan shape.                         | Candidate work is unapproved input. Retry is bounded; changed content creates a new candidate and cannot bypass validation or create a Run.    |
+| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                      | One envelope carries exactly one track.                                                                                                        |
+| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                        | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                          |
+| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, and role realization.                                                                                     | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements.      |
+| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; for the Agent provider, select one exact native permission posture and declared semantics. | A missing, changed, stale, insufficient, or policy-incompatible posture keeps the envelope unlaunchable.                                       |
+| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                        |
+| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                                |
+| `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                                                                                                       | Any input change creates a new proposal and digest.                                                                                            |
+| `EP-APPROVE`   | Present the exact proposal to the owner and bind the recorded approval to its digest and scope.                                                                                                      | Only the owner or an authorized configuration delegate may approve; the builder never self-approves.                                           |
+| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE`, using its composition digest as submission identity, and retain or recover `SCH-INTAKE-ACK`.                                               | Same-digest resubmission returns the existing acknowledgement/`ID-RUN`; a different digest is new. Submission never implies preflight success. |
 
 ## Canonical input composition
 
@@ -68,6 +68,14 @@ There is no ambient fallback. An omitted required artifact, unknown version, unv
 provenance, floor violation, changed authority manifest, or unbound reference makes the proposal
 invalid. `PORT-INTAKE` independently validates the submitted envelope and freezes its digest; it
 does not trust the builder's success claim.
+
+### Intake idempotency
+
+`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest. The first submission binds
+one immutable acknowledgement and `ID-RUN`; a duplicate returns that exact value, and a lost
+acknowledgement is recovered by digest lookup. Only a different composition digest is a new
+submission. The submitter can therefore retry after ambiguity without forking two Runs from one
+approval.
 
 ## Policy and work profile
 
@@ -100,8 +108,12 @@ provider intuition is not configuration provenance.
 the active Run authority core. A conforming Work Source:
 
 - returns candidate work with stable source identity and provenance;
-- declares the source revision or cursor on which the candidate is based;
-- supports repeatable lookup so refresh cannot silently substitute different work;
+- accepts one stable `ID-SOURCE-REQ` over the normalized request basis and returns
+  `SCH-SOURCE-EXCHANGE` with stable item key, revision/cursor, content digest, and attestation;
+- supports repeatable lookup of that exact result identity, so refresh cannot silently substitute
+  different work;
+- retries within `BND-RETRY`; exhaustion fails the envelope-production request before any Run or
+  Story exists;
 - passes the same identity, authority-manifest, conformance, and adversarial-probe bar as other
   providers; and
 - has no path to `PORT-INTAKE`, `CP-TRANSITION`, the ledger, or delivery Operations except through
@@ -109,6 +121,8 @@ the active Run authority core. A conforming Work Source:
 
 The hard input boundary remains an approved plan. A Work Source makes plan candidates easier to
 obtain; it does not convert an issue, ticket, or provider assertion directly into executable work.
+A refresh that returns a changed revision or content digest creates a new source result, candidate,
+and envelope proposal. It never mutates an earlier candidate or approved envelope.
 
 ## Re-planning and successor Runs
 

@@ -38,7 +38,7 @@ Every later design must preserve this exact set:
 | I11 | Admission, finalization, and blocker-attribution ties use the immutable total comparator.                                                                                          |
 | I12 | Exactly one Story owns target-scoped finalization authority; waiting Stories hold no authority.                                                                                    |
 | I13 | Only confirmed landing releases dependencies; approval, publication, checks, integration request/response, or cleanup does not.                                                    |
-| I14 | Direct blockers remain durable facts, and multi-root dependency outcomes preserve the complete canonically ordered reachable direct-root set.                                      |
+| I14 | Direct non-delivery roots (`Blocked` or `Rejected`) remain durable facts, and multi-root dependency outcomes preserve the complete canonically ordered reachable direct-root set.  |
 | I15 | Failures remain at the smallest safe scope and fail closed whenever authority or proof is insufficient.                                                                            |
 | I16 | Every retry, rework, refresh, wait, Recovery, and Retirement path is bounded and has an explicit exhaustion action.                                                                |
 | I17 | A second semantic effect is forbidden until the earlier effect is known absent or reconciled.                                                                                      |
@@ -68,7 +68,7 @@ a second definition.
 | I11 — immutable total comparator                          | D6          | O2, O4; QS1, QS4                | Cannot break ties by collection, arrival, or mechanism order.                             |
 | I12 — one target-scoped finalization authority            | D6          | O4; C7; QS4                     | Cannot authorize concurrent target-changing finalization.                                 |
 | I13 — confirmed landing releases dependencies             | D4, D6, D7  | O4; C8; QS4                     | Cannot release on approval, publication, checks, integration response, or cleanup.        |
-| I14 — complete canonical direct-blocker roots             | D4, D6      | O2, O8; QS1, QS6                | Cannot discard roots or choose attribution by arrival order.                              |
+| I14 — complete canonical direct non-delivery roots        | D4, D6      | O2, O8; QS1, QS6                | Cannot discard Blocked/Rejected roots or choose attribution by arrival order.             |
 | I15 — smallest-safe fail-closed scope                     | D3, D8      | O5, O7; C9; QS6, QS8, QS11      | Cannot widen isolated failure gratuitously or continue with insufficient authority/proof. |
 | I16 — bounded paths and exhaustion                        | D8          | O5; C10; QS7, QS12              | Cannot create an unnamed or indefinite retry, wait, Recovery, or Retirement path.         |
 | I17 — no second semantic effect before reconciliation     | D5, D8      | O6; C11; QS5                    | Cannot blind-retry an uncertain irreversible effect.                                      |

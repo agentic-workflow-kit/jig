@@ -60,11 +60,13 @@ by a later higher-priority Story.
 - A bounded target refresh may retain Story ownership; Candidate-changing refresh requires renewed
   full review and atomic authority rebinding.
 - Ordinary implementation rework releases authority and returns through acceptance.
-- Landing, reconciled block, explicit stop, or Recovery-driven transfer releases authority.
+- Landing, reconciled block, owner rejection, Run suspension/terminal stop, or Recovery-driven
+  transfer releases authority. Suspension preserves the Story phase but cannot retain the grant.
 - Recovery reconstructs and reconciles authority and target state before resuming or reassigning.
 
-Only confirmed landing releases dependencies. Direct blockers remain durable facts. A Story blocked
-by multiple paths reports the complete, canonically ordered set of reachable direct blocker roots.
+Only confirmed landing releases dependencies. Direct `Blocked` and `Rejected` non-delivery roots
+remain durable facts. A dependent Story reports the complete, canonically ordered set of reachable
+direct roots across both kinds.
 
 ## Where to go next
 
