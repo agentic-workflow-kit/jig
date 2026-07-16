@@ -332,8 +332,15 @@ Four findings returned with converging demands, resolved by a fourth correction 
   **approved, not locked** — after reviewing this verification evidence, and accepted the four
   non-blocking independent-review notes as non-blocking. Approval metadata on the fifteen
   candidate files was finalized in the same change, matching the Layer 1 practice of finalizing
-  metadata as part of the gate record-keeping; the digests below identify the exact approved
-  candidate.
+  metadata as part of the gate record-keeping.
+- **Verified content versus approved bytes:** the recheck above verified the `931e699` bytes.
+  The digests below identify the finalized files, which differ from `931e699` only by the
+  approval-metadata edits made for this record-keeping: the frontmatter `state`, `status`, and
+  `last_verified` fields, the summary-view `State` line, and the D10–D12 inline status line. No
+  substantive content differs between the verified bytes and the approved baseline — a
+  `git diff` from `931e699` to the commit that landed this record, over the fifteen files,
+  reproduces exactly that metadata-only delta — so the approved candidate is the finalized byte
+  set identified by the digests, carrying the verified `931e699` substance unchanged.
 
 #### Approved candidate baseline (2026-07-16)
 
