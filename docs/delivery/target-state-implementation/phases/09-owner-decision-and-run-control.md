@@ -77,7 +77,7 @@ be decided and then resumed/continued. `stop` similarly exists as a lifecycle st
 - [`design/core/authorization.md`](../../../archive/design/core/authorization.md) (doorbell,
   owner-decision flow), [`design/core/orchestration.md`](../../../archive/design/core/orchestration.md)
   (run lifecycle: `started → stopped`, resume), [driving
-  contract](../../../design/contracts/driving.md) (decide via the operator boundary)
+  contract](../../../archive/design/contracts/driving.md) (decide via the operator boundary)
 - Source: `packages/jig-cli/src/cli.ts` (`createOwnerDecisionSource`),
   `packages/jig-sdk/src/harness.ts`, `packages/jig-sdk/src/resume.ts`,
   `packages/jig-sdk/src/projection.ts`, `packages/jig-sdk/src/records.ts`

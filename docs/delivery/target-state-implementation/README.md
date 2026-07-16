@@ -124,7 +124,7 @@ Out of scope for the whole track, with the owning source:
   ([`jig.md` — What Jig isn't (yet)](../../product/jig.md#what-jig-isnt-yet)).
 - **Webhook/scheduler triggers** — driving stays operator-initiated
   ([`jig.md`](../../product/jig.md#what-jig-isnt-yet); [driving contract — risks and
-  deferred](../../design/contracts/driving.md#risks-and-deferred-decisions)).
+  deferred](../../archive/design/contracts/driving.md#risks-and-deferred-decisions)).
 - **Hosted multi-tenant service** — "a tool you run, not a service you buy"
   ([`jig.md`](../../product/jig.md#what-jig-isnt-yet)).
 - **Third-party provider ecosystem distribution** (registry, discovery, install UX, public
