@@ -37,23 +37,27 @@ its own proposal on the owner's behalf, or mutate an accepted Run.
 
 ## Envelope Builder responsibilities (`EP-*`)
 
-| ID             | Responsibility                                                                                                                                                                                       | Authority limit                                                                                                                                |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE` under `ID-SOURCE-REQ`; validate the revision/cursor-bound result identity, content digest, provenance, and plan shape.                         | Candidate work is unapproved input. Retry is bounded; changed content creates a new candidate and cannot bypass validation or create a Run.    |
-| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                      | One envelope carries exactly one track.                                                                                                        |
-| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                        | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                          |
-| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, role realization, and any exhaustive qualifying-checkpoint list.                                          | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements.      |
-| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; for the Agent provider, select one exact native permission posture and declared semantics. | A missing, changed, stale, insufficient, or policy-incompatible posture keeps the envelope unlaunchable.                                       |
-| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                        |
-| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                                |
-| `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                                                                                                       | Any input change creates a new proposal and digest.                                                                                            |
-| `EP-PREVIEW`   | Run the identical composition and preflight-validation path and produce a read-only report of what would run, composed policy, bounds, capacity feasibility, and failures.                           | Preview mints no `ID-RUN`, appends no ledger or `LG-INTAKE` record, dispatches nothing, and creates no submission-time preflight entitlement.  |
-| `EP-APPROVE`   | Present the exact proposal to Arye and bind his recorded approval to its digest and scope.                                                                                                           | Pre-Run envelope/configuration approval is reserved to Arye in v1; the builder never self-approves and no pre-Run grant identity exists.       |
-| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE`, using its composition digest as submission identity, and retain or recover `SCH-INTAKE-ACK`.                                               | Same-digest resubmission returns the existing acknowledgement/`ID-RUN`; a different digest is new. Submission never implies preflight success. |
+| ID             | Responsibility                                                                                                                                                                                                                                                                                                         | Authority limit                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE` under `ID-SOURCE-REQ`; validate the revision/cursor-bound result identity, content digest, provenance, and plan shape.                                                                                                                                           | Candidate work is unapproved input. Retry is bounded; changed content creates a new candidate and cannot bypass validation or create a Run.                                              |
+| `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                                                                                                                                        | One envelope carries exactly one track.                                                                                                                                                  |
+| `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                                                                                                                                          | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                                                                    |
+| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, role realization, and any exhaustive qualifying-checkpoint list. A qualifying checkpoint is expressible only as a cataloged mechanism-produced durable event matching its declared fact kind, never as session self-report. | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements. An unexpressible checkpoint entry is rejected. |
+| `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; acquire the provider's `SCH-CAPABILITY-PROOF` through that provider's own configured mechanism-port exchange; for the Agent provider, select one exact native permission posture and declared semantics.     | A missing, changed, stale, insufficient, negative, or policy-incompatible posture or capability proof keeps the envelope unlaunchable.                                                   |
+| `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                                                                                                                                  | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                                                                  |
+| `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                                                                                                                                        | Guidance is never authority and never becomes a hidden default.                                                                                                                          |
+| `EP-COMPOSE`   | Produce the canonical composition report and proposal digest over every resolved input except the approval record.                                                                                                                                                                                                     | Any input change creates a new proposal and proposal digest.                                                                                                                             |
+| `EP-PREVIEW`   | Run the identical composition and preflight-validation path and produce a read-only report of what would run, composed policy, bounds, capacity feasibility, and failures.                                                                                                                                             | Preview mints no `ID-RUN`, appends no ledger or `LG-INTAKE` record, dispatches nothing, and creates no submission-time preflight entitlement.                                            |
+| `EP-APPROVE`   | Present the exact proposal to Arye and bind his recorded approval to its proposal digest and scope.                                                                                                                                                                                                                    | Pre-Run envelope/configuration approval is reserved to Arye in v1; the builder never self-approves and no pre-Run grant identity exists.                                                 |
+| `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE`, using its composition digest as submission identity, and retain or recover `SCH-INTAKE-ACK`.                                                                                                                                                                 | Same-digest resubmission returns the existing acknowledgement/`ID-RUN`; a different digest is new. Submission never implies preflight success.                                           |
 
 ## Canonical input composition
 
-The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
+The builder freezes two digests in one versioned `SCH-ENVELOPE`. The **proposal digest** covers
+composition items 1–6 and 8 below: every resolved input except the approval record. `EP-APPROVE`
+then binds Arye's recorded approval to that proposal digest and its scope. The **composition digest**
+covers the proposal digest plus that owner-approval record; it is the sole submission identity at
+`PORT-INTAKE`.
 
 1. track identity, exact `SCH-PLAN` content, and its approved plan digest;
 2. repo-policy-floor digest, track-policy digest, policy-selected integration mode, and their
@@ -65,15 +69,16 @@ The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 5. target, per-class capacity/reserve and per-Story path-to-safe-point demand composition,
    storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and
-7. owner approval identity, scope, and proposal digest; and
+7. the owner-approval record, binding owner identity, scope, and proposal digest; and
 8. `successorLineage`: explicitly `absent` for a genesis envelope, or the predecessor `ID-RUN`,
    predecessor envelope composition digest, durable re-plan reason, affected Story/root-blocker
    set, and predecessor-quarantine-cut position and digest for a successor.
 
 There is no ambient fallback. An omitted required artifact, unknown version, unverifiable
-provenance, floor violation, changed authority manifest, unbound reference, or inconsistent lineage
-makes the proposal invalid. `PORT-INTAKE` independently validates the submitted envelope and
-freezes its digest; it does not trust the builder's success claim.
+provenance, floor violation, changed authority manifest, unbound reference, inconsistent lineage, or
+missing, stale, negative, or mismatched capability proof makes the proposal invalid. `PORT-INTAKE`
+independently validates the submitted envelope, including capability-proof freshness and subject
+binding, and freezes both digests; it does not trust the builder's success claim.
 
 ### Plan validation
 
@@ -84,6 +89,8 @@ proposal authority, `EP-COMPOSE` validates before approval that:
 - every dependency edge names existing stable Story keys, with no dangling Story reference;
 - every per-Story done condition is well formed and references a check class present in the exact
   frozen policy; and
+- every Story carries its approved requirements and acceptance-criteria content as part of the
+  design-owned, non-delegable `SCH-PLAN` content; and
 - every Story declares path-to-safe-point demand for each scarce resource class it uses (default
   one), every configurable class reserve is within one through capacity minus one, and preflight
   proves demand plus reserve feasible for every admissible path; and
@@ -91,7 +98,8 @@ proposal authority, `EP-COMPOSE` validates before approval that:
 
 Any failure makes the proposal invalid and fails preflight closed. Engineering may select the wire
 encoding and serialization, but it may not change these fields or validation rules. The envelope
-freezes the approved plan digest, binding the validated `SCH-PLAN` content to the Run basis.
+freezes the approved plan digest, binding the validated `SCH-PLAN` content — including every
+Story's requirements and acceptance criteria — to the Run basis.
 
 ### Effect-free preview
 
@@ -106,18 +114,23 @@ failure.
 Preview mints no `ID-RUN`, appends nothing to `LG-INTAKE` or any ledger, dispatches no Operation,
 and changes no external state. A successful preview is not submission-time preflight success: the
 world, source revision, provider proof, capacity, target, or policy-floor basis may change between
-preview and start, and `PORT-INTAKE` independently validates the later approved envelope.
+preview and start, and `PORT-INTAKE` independently validates the later approved envelope. A lost
+capability proof is immutable recorded evidence referenced from the proposal; recovery re-acquires
+it through the same provider mechanism-port exchange under `BND-RETRY`, never by treating the
+missing proof as a successful prior result.
 
 ### Intake idempotency
 
-`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest. Preflight validates
+`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest, its sole submission
+identity. Preflight validates
 lineage consistency before that create/read: a successor names an existing predecessor
 acknowledgement and `ID-RUN`, carries a non-empty re-plan reason, and provides a
 predecessor-quarantine cut. A verified read of the predecessor's durable record at that position
 must match the cut digest and prove every named affected Story/root-blocker is preserved-and-parked
 or terminal; otherwise intake fails closed. A genesis envelope carries the explicit `absent` value
 and no predecessor fields. The composition digest covers these lineage bytes. Any mismatch fails
-closed. The first
+closed. One predecessor quarantine cut binds at most one accepted successor: a second successor
+submission naming an already-consumed cut fails intake closed. The first
 submission binds one immutable acknowledgement and `ID-RUN`; a duplicate returns that exact value,
 and a lost acknowledgement is recovered by digest lookup. Only a different composition digest is a
 new submission. The submitter can therefore retry after ambiguity without forking two Runs from one
@@ -185,7 +198,7 @@ request re-planning, but the result is a **successor envelope** and a **successo
 - the predecessor Run and envelope identities;
 - the durable reason and affected Story/root-blocker set;
 - the new plan, policy, work profile, and evidence bases; and
-- a fresh owner approval over the successor composition digest; and
+- a fresh owner approval over the successor proposal digest; and
 - the lineage bytes that distinguish its predecessor identity, reason, and affected work from every
   otherwise identical successor proposal.
 
@@ -217,7 +230,7 @@ flowchart LR
     end
     subgraph FrontEnd["Jig product front end, outside Run authority"]
         Builder["EP-BUILDER<br/>Validate · compose · explain<br/>[Envelope Builder]"]
-        Proposal["SCH-ENVELOPE<br/>Exact proposal and composition digest<br/>[Immutable proposal]"]
+        Proposal["SCH-ENVELOPE<br/>Exact proposal and composition digests<br/>[Immutable proposal]"]
     end
     subgraph Core["SYS-JIG authority-and-proof boundary"]
         Intake["PORT-INTAKE<br/>Independent validation and freeze<br/>[Core port]"]
@@ -227,7 +240,7 @@ flowchart LR
     Source -->|"supplies candidate work and provenance through PORT-SOURCE to"| Builder
     Builder -->|"produces exact"| Proposal
     Proposal -->|"presents for approval to"| Owner
-    Owner -->|"approves the exact composition digest of"| Proposal
+    Owner -->|"approves the exact proposal digest of"| Proposal
     Proposal -->|"submits only after approval through"| Intake
     Intake -->|"freezes a valid envelope for"| Controller
 

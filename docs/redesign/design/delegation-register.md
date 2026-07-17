@@ -1,0 +1,47 @@
+---
+title: "Delegation register — implementation seams closed by recorded constraints"
+purpose: Record every design seam deliberately delegated to engineering or configuration, its binding constraints, and why it preserves the guarantees.
+audience:
+  - Independent product-readiness reviewers
+  - Engineers and configuration owners
+  - Arye Kogan, Jig product and architecture decision owner
+scope: Delegated implementation and configuration seams; architecture selection and unconstrained implementation changes are excluded.
+state: current
+status: owner-approved round-6 remediation register; additions, removals, and widening require an owner decision
+owner: Arye Kogan
+last_verified: 2026-07-17
+sources_of_truth:
+  - ./architecture-conformance.md
+  - ./scheduling-and-bounds.md
+  - ../guidelines/readiness-closure-rubric.md
+---
+
+# Delegation register — implementation seams closed by recorded constraints
+
+## Purpose
+
+Records every seam deliberately delegated to engineering or configuration, with its owner, the
+design constraints that bound it, and why delegation preserves the guarantees. A gate reviewer
+must treat a registered seam as closed: absence of design-level detail inside a registered seam is
+not a blocker. Adding, widening, or removing an entry is an owner decision.
+
+## Entries
+
+| ID    | Delegated seam                                                                       | Owner at implementation time | Binding design constraints                                                                                                                                                                                                                     | Why safe to delegate                                                                                                                |
+| ----- | ------------------------------------------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| DR-1  | Wire encodings and serialization of every `SCH-*` family                             | Engineering                  | Field semantics, validation rules, versioning, and unknown-field rejection are design-owned and unchanged by encoding.                                                                                                                         | Byte layout cannot alter validated meaning; ports validate at the boundary.                                                         |
+| DR-2  | Package layout below the fixed runtime-unit boundaries                               | Engineering                  | `RT-*` unit responsibilities and the single-controller rule (I3, I6) are fixed.                                                                                                                                                                | Layout cannot move authority across the boundary.                                                                                   |
+| DR-3  | Internal algorithms behind deterministic contracts                                   | Engineering                  | Same-ledger replay must produce identical decisions (I4); comparator and selector definitions are design-owned.                                                                                                                                | Determinism is testable at the contract, not the algorithm.                                                                         |
+| DR-4  | Port transports and provider protocols                                               | Engineering + configuration  | Port semantic contracts are design-owned; every provider passes its port's `CF-MECH-*` suite before configurability.                                                                                                                           | Conformance gating, not transport choice, carries the guarantee.                                                                    |
+| DR-5  | Concrete provider implementations after qualification                                | Configuration                | Manifest approval, posture enforcement, and conformance/compose-time proof rules are design-owned.                                                                                                                                             | A provider only becomes reachable through recorded qualification.                                                                   |
+| DR-6  | Physical storage techniques for `RT-LEDGER`/`RT-EVIDENCE`/`RT-REGISTRY`/`RT-WITNESS` | Engineering                  | `LG-*` contract obligations, witness independence, and registry realization identity are design-owned.                                                                                                                                         | The commit/read/witness contracts are storage-agnostic and conformance-tested.                                                      |
+| DR-7  | UI and presentation details of `PORT-CONSUMER`/`PORT-PUBLISH` surfaces               | Engineering                  | Command/read semantics, principal binding, and no-control-input rules are design-owned.                                                                                                                                                        | Presentation cannot mint events or authority.                                                                                       |
+| DR-8  | Test-harness selection for conformance suites                                        | Engineering                  | Suite content, versions, adversarial probes, and recorded-evidence requirements are design-owned.                                                                                                                                              | The suite defines the proof; the harness only executes it.                                                                          |
+| DR-9  | Numeric bound and reserve tuning within declared ranges                              | Configuration/policy         | `BND-*`/`RC-*` class ranges, defaults, and exhaustion actions are design-owned; out-of-range fails preflight.                                                                                                                                  | Tuning inside a validated range cannot create an unbounded wait.                                                                    |
+| DR-10 | Mapping provider real limits into declared `RC-*` hard capacity                      | Owner/configuration          | Configuration declares hard capacity; policy may only narrow; preflight proves demand+reserve feasibility. Providers are not required to attest limits.                                                                                        | Misdeclaration surfaces as bounded mechanism faults under `BND-WAIT-MECHANISM`/`BND-RETRY`, never as silent overrun of a guarantee. |
+| DR-11 | The allowed non-gating Operation vocabulary beyond the design-owned forbidden set    | Policy (owner-frozen)        | Design owns the forbidden set (nothing on the acceptance, evidence-integrity, authority, landing, or preservation path may be non-gating), the default (no Operation is non-gating unless named), and preflight validation of unknown classes. | With the forbidden set and fail-closed default design-owned, policy can only relax cosmetic classes.                                |
+| DR-12 | Work-source and notice delivery channel implementations                              | Engineering + configuration  | `PORT-SOURCE` exchange identity/validation and notice content/urgency derivation are design-owned.                                                                                                                                             | Channels carry validated records; they cannot alter them.                                                                           |
+
+Entries DR-10 and DR-11 close round-6 delegation gaps. DR-1 through DR-9 and DR-12 record the
+standing legitimate planning choices already acknowledged in gate review, now as one normative
+artifact instead of per-review prose.

@@ -34,6 +34,10 @@ numeric budgets — realizing [concurrency and finalization](./concurrency-and-f
 Each class realizes one high-level capacity class named by
 [D6](./decisions/D6-concurrency-and-finalization.md): configuration declares hard available
 capacity; frozen policy may only narrow it, resolving the effective maximum to the lower value.
+Translating provider real limits into that declared hard capacity is an owner/configuration
+responsibility: providers are not required to attest their limits. A misdeclaration surfaces as a
+bounded mechanism fault under `BND-WAIT-MECHANISM`/`BND-RETRY`, never as a silent guarantee
+overrun; see [DR-10](./delegation-register.md#entries).
 
 | ID               | Resource class                | What consumes one unit                                                | Hard capacity declared by                   | Policy may lower it to                              |
 | ---------------- | ----------------------------- | --------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------- |
@@ -77,17 +81,19 @@ the same ledger produce the same admissions (I4):
 3. **Capacity check with progress reserve:** admit greedily in that order while every admitted
    Story keeps a progress path to its next mandatory safe point under remaining capacity (I10); a
    reserve-breaking Story is skipped as a derived wait and later Stories are still considered.
-4. **Record before touch:** each admission is recorded as a Transition whose operation intents are
-   the durable **reservations** against the consumed `RC-*` classes; no workspace, session, turn,
-   or delivery resource is touched before that Transition commits (I5).
+4. **Record before touch:** each admission is recorded as a Transition containing durable
+   **reservation facts** against the consumed `RC-*` classes; reservations are not Operation
+   intents, are never dispatched or port-crossing, and no workspace, session, turn, or delivery
+   resource is touched before that Transition commits (I5).
 5. **Constrained preference:** while any class is constrained, `CP-SCHEDULER` prefers advancing or
    retiring already-admitted work over admitting new Stories (D6); freed reservations are released
    by the Transition that records the advance or Retirement.
 
 Queues are **derived state**, rebuilt from the ledger by `CP-PROJECTION`, never authoritative;
-reservations are **durable facts**, the admission Transition's operation intents, reconciled like
-any Operation on Recovery. No admitted Story or current finalization-authority holder is preempted
-by a later higher-priority Story — preemption trades determinism for utilization D6 declined.
+reservations are **durable Transition facts**. Recovery re-derives reservation state by ledger
+replay (I4), so they have no external effect and nothing to reconcile. No admitted Story or current
+finalization-authority holder is preempted by a later higher-priority Story — preemption trades
+determinism for utilization D6 declined.
 
 ## Bound and budget classes (`BND-*`)
 
@@ -141,7 +147,10 @@ named bounds, the controller derives exactly one applicable condition:
 Qualifying progress is exactly one durable subject-bound committed fact: a new Candidate through
 `EV-SESSION-RESULT`, adopted evidence through `EV-ARTIFACT-FACT`, a completed check through
 `EV-CHECK-OBSERVATION`, or a checkpoint explicitly enumerated in the frozen, digest-bound
-`SCH-WORK-PROFILE`. Message volume, token counts, and provider self-reports never qualify. Stuck and dead classifications record `FC-LIVENESS` and preserve work. `Stuck` parks;
+`SCH-WORK-PROFILE`. A checkpoint qualifies only when a cataloged mechanism-produced durable event
+matching its declared fact kind satisfies it; session self-report never satisfies a checkpoint.
+Message volume, token counts, and provider self-reports never qualify. Stuck and dead
+classifications record `FC-LIVENESS` and preserve work. `Stuck` parks;
 `dead` follows the fixed `BND-SILENCE` replacement guard and otherwise parks.
 Human-input-overdue re-escalates without dropping the request.
 
@@ -187,7 +196,7 @@ dynamic aging, weights, or lotteries, rejected for reintroducing arrival-order-s
 flowchart LR
     subgraph Durable["Durable authority"]
         Ledger[("RT-LEDGER<br/>Durable facts: landings, blockers, reservations<br/>[Authoritative store]")]
-        Admit["CP-TRANSITION<br/>Admission Transition with reservation intents<br/>[Authoritative record]"]
+        Admit["CP-TRANSITION<br/>Admission Transition with reservation facts<br/>[Authoritative record]"]
     end
 
     subgraph Pipeline["CP-SCHEDULER: derived, rebuilt from the ledger"]

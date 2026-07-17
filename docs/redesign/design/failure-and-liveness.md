@@ -49,8 +49,18 @@ Every retry, rework, target refresh, wait, Recovery attempt, and Retirement path
 
 Durable waits create typed wake triggers; transient timers carry no decision authority. Exhaustion
 becomes an explicit retry, block, park, escalation, interruption, terminal-stop decision, or
-Residual Obligation, never silent success or an unnamed indefinite wait. A best-effort Operation may fail without blocking
-only when frozen policy classifies it as non-gating and Jig records the failure durably.
+Residual Obligation, never silent success or an unnamed indefinite wait.
+
+### Non-gating Operation policy closure
+
+A best-effort Operation may fail without park or block only when frozen policy explicitly names it
+as non-gating and Jig commits a durable failure fact. No Operation is non-gating by default. The
+design-owned forbidden set is every Operation on the acceptance, evidence-integrity, authority,
+landing, or preservation path; policy cannot classify any member of that set as non-gating.
+Preflight validates every named non-gating class against the Operation catalog and this forbidden
+set: an unknown name or a forbidden classification rejects the envelope closed. The accepted
+policy vocabulary beyond that forbidden set is deliberately delegated under
+[DR-11](./delegation-register.md#entries).
 
 ## Automatic fail-closed behavior and owner authority
 

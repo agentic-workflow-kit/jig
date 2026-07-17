@@ -7,9 +7,9 @@ audience:
   - Engineers planning the greenfield Jig realization
 scope: The envelope-production boundary, its authority limits, accepted cost, and rejected alternatives; the canonical behavior lives in the envelope-production view.
 state: approved
-status: owner-approved direction of 2026-07-16; lock pending exact-candidate review
+status: owner-approved direction of 2026-07-16, amended by explicit bounded reopen of 2026-07-17; lock pending exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ../envelope-production.md
   - ./D2-system-boundary.md
@@ -49,9 +49,16 @@ Ship a bounded **Envelope Builder** as part of the Jig product while keeping it 
   Execution Envelope;
 - it supplies versioned presets and guidance with reasons, but a preset is only authored input and
   confers no authority;
-- an owner approves the exact composition digest before the envelope may cross `PORT-INTAKE`; and
+- an owner approves the exact proposal digest before the envelope may cross `PORT-INTAKE`; the
+  composition digest binds that approval to the proposal digest and becomes the sole submission
+  identity; and
 - after intake, neither the builder nor a Work Source can mutate the frozen Run. Re-planning creates
   a successor envelope and successor Run with recorded lineage, never an in-place Run mutation.
+
+The bounded 2026-07-17 reopen changes only this approval identity: the proposal digest covers the
+resolved composition inputs, while the composition digest covers that proposal digest plus the
+owner-approval record. It adds no port, authority, runtime unit, event, Operation, Run phase, or
+Story state.
 
 The builder may share a command-line process with `RT-OPERATOR` or run separately; that packaging
 choice cannot give it lifecycle, evidence-sufficiency, finalization, landing, or ledger-write power.

@@ -108,7 +108,10 @@ unexpired audit requirement overrides the elapsed window and forbids disposal un
   digest (`EVR-DIGEST`), identity and verifiability survive relocation.
 - **`EVR-DISPOSE`:** destructive disposal is the explicit owner-authorized `OPC-ART-DISPOSE`
   retirement action. Its `EV-ARTIFACT-FACT` is digest-verified disposal evidence; it is never a
-  side effect of cleanup, compaction, or storage convenience.
+  side effect of cleanup, compaction, or storage convenience. Before dispatch, a verified
+  deployment-scoped reference guard must prove that no other non-disposed Run's recorded evidence
+  manifest or export manifest references the digest. Any live foreign reference fails disposal
+  closed and names the owning Runs in the failure reason.
 
 ## Terminal audit export
 
