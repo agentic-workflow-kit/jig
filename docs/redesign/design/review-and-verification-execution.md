@@ -131,6 +131,11 @@ class with no valid binding fails preflight, not delivery time. The rejected alt
 embedded scripting language in policy — was not selected because scripts would move judgment and
 effects into the policy document and defeat deterministic preflight validation.
 
+Frozen policy must explicitly declare its required check-class set. An explicitly empty set is a
+legal declaration only when that frozen policy's verification posture and acceptance rules remain
+satisfiable; omission of the declaration fails preflight closed. Unknown or unbound classes retain
+the rejection rules above.
+
 `RP-CHECKCLASS` can name only checks realizable effect-free through `PORT-VERIFY`. An external-effect
 need is not a verification binding; it must be separately modeled under `PORT-WORKSPACE` or
 `PORT-DELIVERY`, or deferred to a future D-record.

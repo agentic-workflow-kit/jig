@@ -7,7 +7,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Readiness-gate closure criteria and review procedure; architecture selection and implementation verification are excluded.
 state: current
-status: owner-approved round-6 remediation standard; applies to future product-readiness reviews
+status: owner-approved round-6 remediation standard, amended by owner ruling on 2026-07-17; applies to future product-readiness reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -42,7 +42,7 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 
 ### R2 — Schema closure
 
-- R2.1 Every `SCH-*` field names a producer and at least one consumer or validator.
+- R2.1 Every `SCH-*` family names its producer(s) and at least one consumer or validator; a field-level producer is named only where one family's fields have different producers.
 - R2.2 Every artifact another contract freezes, binds, or hashes has a named carrier schema.
 - R2.3 Every identity is deterministically mintable from stated inputs, and no digest covers a
   record that must itself reference that digest (no self-referential binding).
@@ -83,9 +83,11 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 
 ### R7 — Policy-surface closure
 
-- R7.1 Every policy-selectable classification (non-gating classes, check classes, integration
-  modes) has a validation rule, a design-owned forbidden set where safety-relevant, and a default;
-  an unknown or forbidden value fails preflight closed.
+- R7.1 Every policy-selectable classification — the non-gating Operation classes, required check
+  classes, integration modes, and final-verification posture; this list is exhaustive — has a
+  validation rule, a design-owned forbidden set where safety-relevant, and a default; a required
+  explicit selection whose omission fails preflight closed satisfies the default requirement. An
+  unknown or forbidden value fails preflight closed.
 
 ## Out of rubric by definition
 

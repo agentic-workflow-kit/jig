@@ -103,7 +103,10 @@ behavior, safe autonomous resume, or trustworthy terminal outcomes. `FC-TRUST` f
 dispatch and adoption and surfaces the operator-visible stop condition without claiming an
 authoritative ledger record. A `Stopped` record follows only when a witnessed verified-currency
 append basis remains, or later through externally governed recovery; until then the terminal
-disposition is externally owned.
+disposition is externally owned. This unwitnessable `FC-TRUST` halt has no Jig audit export, and
+Jig promises none for the path. Any export-equivalent record is produced by the externally
+governed recovery under its own authority, using Jig's surfaced stop condition and the surviving
+ledger bytes as its material.
 
 ## View V4 — state, recovery, acceptance, concurrency, and finalization
 

@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — sixth remediation candidate"
-purpose: Record the prior remediation history, the sixth independent readiness review's findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
+title: "Product readiness gate — seventh remediation candidate"
+purpose: Record the prior remediation history, the seventh independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The sixth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The seventh independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: sixth independent readiness review returned FAIL with 6 blocker groups, 2 delegation gaps, and 2 traceability gaps; owner-approved remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
+status: sixth remediation merged; seventh independent review, first under closure rubric v1, returned FAIL with 12 blockers, 1 rubric-amendment proposal, and 1 editorial item; owner-approved remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -27,7 +27,7 @@ related:
   - ../delegation-register.md
 ---
 
-# Product readiness gate — sixth remediation candidate
+# Product readiness gate — seventh remediation candidate
 
 ## Current gate state
 
@@ -254,3 +254,47 @@ correction creates a new exact candidate.
 The earlier verification and review results remain historical evidence for their exact baselines.
 They do not cover this remediation candidate. The pull request carries deterministic author checks
 and a B1–E6 acceptance record; the independent post-merge verdict remains deliberately absent.
+
+## Seventh independent review — remediation in progress
+
+The first independent review under [readiness closure rubric v1](../../guidelines/readiness-closure-rubric.md)
+ran in Mode 1 (report-only) on 2026-07-17 and returned **FAIL** with 12 blockers, one
+rubric-amendment proposal, and one editorial item. The review found these items; the coordinating
+review verified them against the exact candidate. **Arye Kogan authorized** every ruling, the
+round-scoped addition budget, and the rubric amendment. No review authorized a design change.
+This seventh remediation candidate does not certify the gate; readiness lock remains inactive
+until two consecutive independent `PASS` reviews assess the same exact merged commit.
+
+### Seventh-review finding-to-resolution record
+
+| Item | Finding or record                                                                                    | Candidate resolution                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | V9a edges were not bound to cataloged durable facts.                                                 | Bind every projection edge to its committing Transition, Operation, port fact, certainty/recovery fact, or suspend/stop/replacement Transition. |
+| 2    | Six session/workspace Operations lacked an authorizing Transition mapping.                           | Map each existing Operation to the existing Story/Run Transition whose recorded intent dispatches it.                                           |
+| 3    | Schema-family producers were not named consistently.                                                 | Add family-level producers, with field-level splits only where a family's fields have different producers.                                      |
+| 4    | Digest-bound presets and prompt/role artifacts lacked a canonical carrier.                           | Add the budgeted immutable, digest-verified `SCH-CONFIG-ARTIFACT` carrier through `PORT-ARTIFACT`.                                              |
+| 5    | Record and acknowledgement hash domains, and `ID-RUN` derivation, were underdefined.                 | State digest-free hash domains and derive the Run token from the intake create position plus the envelope-composition digest prefix.            |
+| 6    | Some finalization-authority-release edges lacked the reconciliation prerequisite.                    | Apply the retained-but-fenced prerequisite or a structural no-effect proof to every such edge.                                                  |
+| 7    | Capacity waiting lacked a bound class.                                                               | Add the budgeted `BND-WAIT-CAPACITY` class with its owner, wake, range, exhaustion, and no-renewal rule.                                        |
+| 8    | `Suspended` lacked a durable release trigger after its final fenced Operation reconciled.            | Add the existing-fact-triggered, phase-preserving reconciliation Transition and its dispatch-free duty rule.                                    |
+| 9    | Rejected intake and unwitnessable `FC-TRUST` halt lacked explicit no-settlement/export dispositions. | State their no-export rules and make terminal-settlement position the audit-export precondition.                                                |
+| 10   | Six compound product-commitment proof routes were incomplete.                                        | Widen the named proof routes with their required independence, separation, governance, control, recovery, and capacity elements.                |
+| 11   | Three policy classifications relied on an implicit default.                                          | Require explicit, fail-closed frozen-policy selection and add the corresponding `CF-POLICY` oracle.                                             |
+| 12   | R2.1 and R7.1 needed owner-ruled closure-rubric wording.                                             | Record the authorized two-clause amendment, including explicit selection as the permitted default substitute.                                   |
+| 13   | The design and, where still stale, decisions indexes described the sixth candidate as pending.       | Refresh the current-state status lines without changing a decision record.                                                                      |
+| 14   | This gate record lacked the round-7 provenance, rulings, and closure account.                        | Append this report-only review record, resolution table, budget, and amendment reference.                                                       |
+
+### Owner rulings and round-7 addition budget
+
+| Ruling | Arye Kogan authorization                                                                                                                                                                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OD-A` | R2.1 uses family-level producer naming; a field-level producer is required only where one family's fields differ.                                                                                                                                                                |
+| `OD-B` | Add only `SCH-CONFIG-ARTIFACT` for canonical preset and prompt/role artifact content.                                                                                                                                                                                            |
+| `OD-C` | A required explicit selection whose omission fails preflight closed substitutes for a default for the named policy classifications.                                                                                                                                              |
+| `OD-D` | Amend only R2.1 and R7.1 under rubric procedure point 7.                                                                                                                                                                                                                         |
+| `OD-E` | Use only one new schema family, one new bound class, and lifecycle edges between existing states triggered by existing events; add zero events, Operations, ports, runtime units, Run phases, Story states, failure codes, principals, conformance suites, or global components. |
+
+The amendment is recorded in [readiness closure rubric v1](../../guidelines/readiness-closure-rubric.md)
+under procedure point 7. The budget permits `SCH-CONFIG-ARTIFACT`, `BND-WAIT-CAPACITY`, and the
+specified existing-event lifecycle edges only; all other additions remain prohibited for this
+round.
