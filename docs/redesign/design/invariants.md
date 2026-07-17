@@ -7,9 +7,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Canonical wording of I1–I21 and their decision and driver traceability; the decision rationale itself lives in the decision records.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline; no semantic change in the 2026-07-17 readiness-remediation candidate
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ./brief.md
   - ./decisions/README.md
