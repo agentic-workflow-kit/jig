@@ -232,7 +232,7 @@ their design names in diagnostic views and do not acquire a second product outco
 | `blocked`               | Story `Blocked`                                                                          | A terminal inability to proceed and its ordered direct-root blocker set are recorded.                                                                                                         |
 | `parked`                | A non-terminal Story with a live Story-bound `ID-PARK`, or a Story held by Run `Parked`  | The projection names the pending request/wake condition; the underlying Story state remains inspectable.                                                                                      |
 | `stopped`               | Run `Suspended`                                                                          | A validated operator suspend decision durably fences dispatch; Story states do not change and resume requires a new generation plus `RC-RESUME-INTEGRITY`.                                    |
-| `ended`                 | Run `Stopped`                                                                            | Trust/liveness assumption failure or an explicit terminal-stop decision ended the Run; no resume transition exists.                                                                           |
+| `ended`                 | Run `Stopped`                                                                            | `FC-TRUST` trust-root failure, including a liveness-assumption breach that destroys the trust root, or an explicit terminal-stop decision ended the Run; no resume transition exists.         |
 
 ## Product-commitment coverage beyond the 56 IDs
 
@@ -241,9 +241,10 @@ The inventory below normalizes every normative commitment in `docs/product/READM
 Repeated prose is mapped once to its authoritative carrier; examples point to the same row rather
 than creating a second contract.
 
-The proof-route column below is part of the inventory: each row names exactly one route. A
-`CF-*` route requires its recorded exact-subject pass; a `Governance` route requires the cited
-immutable decision or gate record to hold. No route is an implementation-readiness certification.
+The proof-route column below is part of the inventory: each row names the minimal set of elements
+that jointly covers its complete commitment. Every `CF-*` element requires its recorded
+exact-subject pass; every `Governance` element requires the cited immutable decision or gate record
+to hold. No route is an implementation-readiness certification.
 
 | Commitment                                                                                                                                                                              | Product source                                  | Carrying design element                                                                                                                                                                   | Classification |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
@@ -292,52 +293,52 @@ immutable decision or gate record to hold. No route is an implementation-readine
 | `PC-USE-6` — after-the-fact reconstruction and write-once redacted export use recorded truth                                                                                            | `use-cases.md` reconstructing a run             | `PORT-CONSUMER` → `PORT-PUBLISH`; `SCH-AUDIT-EXPORT`/`ID-EXPORT` cover through terminal settlement; `OPC-ART-GET` retrieves digest-verified bytes                                         | `satisfied`    |
 | `PC-USE-7` — changing a rule-governing surface parks for narrow owner judgment and then resumes or rejects durably                                                                      | `use-cases.md` rule-change Doorbell scenario    | Normalizes to `GUARD-2`; `SCH-RULE-SURFACE`, `EV-RULE-SURFACE-TOUCHED`, `ID-PARK`, and exact owner decision/re-evidence                                                                   | `satisfied`    |
 
-| Commitment      | Proof route                                                 |
-| --------------- | ----------------------------------------------------------- |
-| `PC-README-1`   | Governance: D1 source scope and Layer 1/2 gate records hold |
-| `PC-README-2`   | Governance: D2/D13 boundary records hold                    |
-| `PC-README-3`   | `CF-ENVELOPE` pass                                          |
-| `PC-JIG-1`      | `CF-RUN-CONTROL` pass                                       |
-| `PC-JIG-2`      | `CF-ENVELOPE` pass                                          |
-| `PC-JIG-3`      | `CF-CONSUMER` pass                                          |
-| `PC-JIG-4`      | `CF-OBSERVABILITY` pass                                     |
-| `PC-JIG-5`      | `CF-OPERATOR-ACTIONS` pass                                  |
-| `PC-JIG-6`      | `CF-OPERATOR-ACTIONS` pass                                  |
-| `PC-JIG-7`      | `CF-ENVELOPE` pass                                          |
-| `PC-JIG-8`      | `CF-BINDING` pass                                           |
-| `PC-JIG-9`      | `CF-MECH-SESSION` pass                                      |
-| `PC-JIG-10`     | `CF-ACCEPTANCE` pass                                        |
-| `PC-JIG-11`     | `CF-REVIEW-PUBLICATION` pass                                |
-| `PC-JIG-12`     | `CF-POLICY` pass                                            |
-| `PC-JIG-13`     | Governance: D2/D13 boundary records hold                    |
-| `PC-JIG-14`     | `CF-CONSUMER` pass                                          |
-| `PC-JIG-15`     | `CF-GATE-PROVIDER` pass                                     |
-| `PC-JIG-16`     | `CF-GATE-PROVIDER` pass                                     |
-| `PC-JIG-17`     | Governance: D14 exclusions hold                             |
-| `PC-JIG-18`     | `CF-MECH-WORKSPACE` pass                                    |
-| `PC-JIG-19`     | `CF-CONSUMER` pass                                          |
-| `PC-JIG-20`     | Governance: D2/D10 boundary records hold                    |
-| `PC-JIG-21`     | `CF-GATE-PROVIDER` pass                                     |
-| `PC-JIG-22`     | `CF-ENVELOPE` pass                                          |
-| `PC-JIG-23`     | `CF-RUN-CONTROL` pass                                       |
-| `PC-JIG-24`     | Governance: D2/D13 and D7 records hold                      |
-| `PC-JIG-25`     | `CF-CONTAINMENT` pass                                       |
-| `PC-CONCEPTS-1` | `CF-POLICY` pass                                            |
-| `PC-CONCEPTS-2` | `CF-BLOCKERS` pass                                          |
-| `PC-CONCEPTS-3` | `CF-BINDING` pass                                           |
-| `PC-CONCEPTS-4` | `CF-CONSUMER` pass                                          |
-| `PC-CONCEPTS-5` | `CF-GATE-PROVIDER` pass                                     |
-| `PC-CONCEPTS-6` | `CF-REVIEW-PUBLICATION` pass                                |
-| `PC-CONCEPTS-7` | `CF-RUN-CONTROL` pass                                       |
-| `PC-CONCEPTS-8` | `CF-RUN-CONTROL` pass                                       |
-| `PC-CONCEPTS-9` | `CF-ENVELOPE` pass                                          |
-| `PC-USE-1`      | `CF-BOUNDS` pass                                            |
-| `PC-USE-2`      | `CF-PROVIDER-PERMISSION` pass                               |
-| `PC-USE-3`      | `CF-POLICY` pass                                            |
-| `PC-USE-4`      | `CF-FENCE` pass                                             |
-| `PC-USE-5`      | `CF-GATE-PROVIDER` pass                                     |
-| `PC-USE-6`      | `CF-NOTICE-EXPORT` pass                                     |
-| `PC-USE-7`      | `CF-RULE-SURFACE` pass                                      |
+| Commitment      | Proof route                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `PC-README-1`   | Governance: D1 source scope and Layer 1/2 gate records hold                                |
+| `PC-README-2`   | Governance: D2/D13 boundary records hold                                                   |
+| `PC-README-3`   | `CF-ENVELOPE` pass + Governance: D2/D13 boundary records hold                              |
+| `PC-JIG-1`      | `CF-RUN-CONTROL` pass + `CF-OBSERVABILITY` pass                                            |
+| `PC-JIG-2`      | `CF-ENVELOPE` pass                                                                         |
+| `PC-JIG-3`      | `CF-CONSUMER` pass                                                                         |
+| `PC-JIG-4`      | `CF-OBSERVABILITY` pass                                                                    |
+| `PC-JIG-5`      | `CF-OPERATOR-ACTIONS` pass                                                                 |
+| `PC-JIG-6`      | `CF-OPERATOR-ACTIONS` pass                                                                 |
+| `PC-JIG-7`      | `CF-ENVELOPE` pass                                                                         |
+| `PC-JIG-8`      | `CF-BINDING` pass + `CF-PROVIDER-AUTHORITY` pass                                           |
+| `PC-JIG-9`      | `CF-MECH-SESSION` pass                                                                     |
+| `PC-JIG-10`     | `CF-ACCEPTANCE` pass + `CF-POLICY` pass                                                    |
+| `PC-JIG-11`     | `CF-REVIEW-PUBLICATION` pass                                                               |
+| `PC-JIG-12`     | `CF-POLICY` pass + `CF-PROVIDER-AUTHORITY` pass                                            |
+| `PC-JIG-13`     | Governance: D2/D13 boundary records hold                                                   |
+| `PC-JIG-14`     | `CF-CONSUMER` pass + Governance: D2/D13 boundary records hold                              |
+| `PC-JIG-15`     | `CF-GATE-PROVIDER` pass + Governance: D10/D12 mechanism records hold                       |
+| `PC-JIG-16`     | `CF-GATE-PROVIDER` pass + Governance: D10 package deferral holds                           |
+| `PC-JIG-17`     | Governance: D10 private-facade and D14 middleman-exclusion records hold                    |
+| `PC-JIG-18`     | `CF-MECH-WORKSPACE` pass + Governance: gate-record `B2` resolution and D14 exclusions hold |
+| `PC-JIG-19`     | `CF-CONSUMER` pass + Governance: D10/D13 boundary records hold                             |
+| `PC-JIG-20`     | Governance: gate-record `B2` resolution and D10 runtime-boundary records hold              |
+| `PC-JIG-21`     | `CF-GATE-PROVIDER` pass + Governance: gate-record unproven-edge inventory holds            |
+| `PC-JIG-22`     | `CF-ENVELOPE` pass, including actionable legacy-guidance clause                            |
+| `PC-JIG-23`     | `CF-ENVELOPE` pass + `CF-RUN-CONTROL` pass + `CF-BOUNDS` pass                              |
+| `PC-JIG-24`     | Governance: D2/D13 and D7 records hold                                                     |
+| `PC-JIG-25`     | `CF-CONTAINMENT` pass + `CF-OBSERVABILITY` pass + Governance: D1/D2 records hold           |
+| `PC-CONCEPTS-1` | `CF-ENVELOPE` pass + `CF-POLICY` pass                                                      |
+| `PC-CONCEPTS-2` | `CF-BLOCKERS` pass + `CF-RELEASE` pass                                                     |
+| `PC-CONCEPTS-3` | `CF-BINDING` pass + `CF-PROVIDER-AUTHORITY` pass                                           |
+| `PC-CONCEPTS-4` | `CF-CONSUMER` pass + Governance: D2/D13 boundary records hold                              |
+| `PC-CONCEPTS-5` | `CF-GATE-PROVIDER` pass                                                                    |
+| `PC-CONCEPTS-6` | `CF-REVIEW-PUBLICATION` pass                                                               |
+| `PC-CONCEPTS-7` | `CF-RUN-CONTROL` pass + `CF-OBSERVABILITY` pass                                            |
+| `PC-CONCEPTS-8` | `CF-RUN-CONTROL` pass                                                                      |
+| `PC-CONCEPTS-9` | `CF-ENVELOPE` pass                                                                         |
+| `PC-USE-1`      | `CF-BOUNDS` pass + `CF-CAPACITY` pass + `CF-MECH-WORKSPACE` pass + `CF-OBSERVABILITY` pass |
+| `PC-USE-2`      | `CF-PROVIDER-PERMISSION` pass                                                              |
+| `PC-USE-3`      | `CF-POLICY` pass + `CF-PROVIDER-AUTHORITY` pass                                            |
+| `PC-USE-4`      | `CF-FENCE` pass + `CF-RUN-CONTROL` pass                                                    |
+| `PC-USE-5`      | `CF-GATE-PROVIDER` pass                                                                    |
+| `PC-USE-6`      | `CF-OBSERVABILITY` pass + `CF-NOTICE-EXPORT` pass                                          |
+| `PC-USE-7`      | `CF-RULE-SURFACE` pass + `CF-OPERATOR-ACTIONS` pass                                        |
 
 ## Findings
 

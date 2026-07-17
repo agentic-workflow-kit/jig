@@ -101,8 +101,9 @@ attempts/cycles including the first attempt where applicable; durations are per 
 
 Every wait records its accountable owner, durable reason, wake or completion condition, and
 deadline class (I16). Exhaustion actions come from the fixed
-[D8](./decisions/D8-failure-and-liveness.md) set — retry, block, park, escalate, interrupt, stop,
-or Residual Obligation — never silent success or an unnamed indefinite wait.
+[D8](./decisions/D8-failure-and-liveness.md) set — retry, block, park, escalate, interrupt,
+explicit terminal-stop decision, or Residual Obligation — never silent success or an unnamed
+indefinite wait.
 
 | ID                   | What it bounds                                                                                        | Numeric default and allowed range  | Renewal or reset rule                                                 | Explicit exhaustion action                                                                                        |
 | -------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -199,7 +200,7 @@ flowchart LR
         Admitted["STORY-*<br/>Admitted work in flight<br/>[Admitted Stories]"]
     end
 
-    Exhaust["BND-*<br/>Explicit exhaustion actions<br/>retry, block, park, escalate, interrupt, stop, residual<br/>[Bounded exit]"]
+    Exhaust["BND-*<br/>Explicit exhaustion actions<br/>retry, block, park, escalate, interrupt, terminal decision, residual<br/>[Bounded exit]"]
 
     Ledger -->|"supplies facts on every relevant change to"| Elig
     Elig -->|"passes the eligible set to"| Order

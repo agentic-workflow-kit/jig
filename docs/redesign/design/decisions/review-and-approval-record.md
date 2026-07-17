@@ -6,7 +6,7 @@ audience:
   - Independent architecture reviewers
 scope: Question traceability, archive reconciliation, gate evidence, prior review records, and the current approval state; decision content lives in the decision records and design pages.
 state: current
-status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; bounded 2026-07-17 reopens cover the recorded F1/F2/F4/F6/F13 corrections and the D3/D7/D10 amendments
+status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; bounded 2026-07-17 reopens cover the recorded F1/F2/F4/F6/F13 corrections, D3/D7/D10 amendments, and the D4/D8 round-4 amendments
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -44,8 +44,12 @@ related:
   recorded `PORT-CONSUMER` as a private facade with no authority crossing of its own. He explicitly
   reopened D7 for the single acceptance clause that now requires absence of unresolved **blocking**
   findings, aligning its canonical bytes with the B15 rule while leaving severity classification to
-  reviewer judgment. All other Layer 1 decisions remain locked; the revised exact candidate requires
-  renewed independent review under the product-readiness gate.
+  reviewer judgment. After the fourth independent readiness review's terminal-liveness finding, Arye
+  Kogan authorized second bounded reopens of D4 and D8 only: D4 narrows its terminal-failure prose
+  to the fixed `FC-TRUST` selector, and D8
+  clarifies the failure taxonomy's park/block/terminal stopping-point interpretation. All other Layer
+  1 decisions remain locked; the revised exact candidate requires renewed independent review under
+  the product-readiness gate.
 - **Post-verdict record-keeping:** Recording the verdict in this gate record and refreshing the
   [design index](../README.md) gate table are gate record-keeping over the unchanged reviewed
   content; the reviewed baseline and hashes below identify the exact locked candidate. Individual

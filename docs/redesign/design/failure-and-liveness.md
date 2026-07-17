@@ -48,8 +48,8 @@ Every retry, rework, target refresh, wait, Recovery attempt, and Retirement path
 - an explicit exhaustion action.
 
 Durable waits create typed wake triggers; transient timers carry no decision authority. Exhaustion
-becomes an explicit retry, block, park, escalation, interruption, stop, or Residual Obligation,
-never silent success or an unnamed indefinite wait. A best-effort Operation may fail without blocking
+becomes an explicit retry, block, park, escalation, interruption, terminal-stop decision, or
+Residual Obligation, never silent success or an unnamed indefinite wait. A best-effort Operation may fail without blocking
 only when frozen policy classifies it as non-gating and Jig records the failure durably.
 
 ## Automatic fail-closed behavior and owner authority
@@ -85,8 +85,9 @@ The guarantee assumes:
 5. the target eventually remains stable long enough for bounded finalization; and
 6. Arye or an explicitly recorded delegate eventually answers escalations.
 
-If an assumption fails, Jig guarantees a durable named stop condition and explicit loss of guarantee,
-not successful delivery or autonomous completion.
+If an assumption fails, Jig guarantees a durable named stopping point — a park, a block, or a
+terminal stop under the failure taxonomy's fixed selectors — and explicit loss of guarantee, not
+successful delivery or autonomous completion.
 
 ## Retirement and Residual Obligations
 

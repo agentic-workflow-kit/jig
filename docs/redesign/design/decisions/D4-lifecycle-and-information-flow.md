@@ -7,7 +7,7 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D4 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical lifecycle content is owned by the lifecycle flow page.
 state: proposed
-status: locked baseline explicitly amended by owner decisions F1/F2 on 2026-07-17; renewed review pending
+status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation then round-4 terminal-liveness remediation; renewed exact-candidate review pending
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -39,7 +39,8 @@ dimensions**.
 The Run progresses through Received, Preflighting, Active, optional Parked,
 Interrupted/Recovering, or operator-controlled `Suspended` conditions, Settling, and Completed. A
 resumable operator stop enters `Suspended`; the separate terminal `Stopped` outcome is entered only
-after trust/liveness failure or an explicit terminal-stop decision. A Story progresses through
+after trust-root failure (`FC-TRUST`, including a liveness-assumption breach that destroys the trust
+root) or an explicit terminal-stop decision. A Story progresses through
 Pending, Eligible, Preparing, Implementing, Reviewing, Accepted, Waiting for finalization,
 Finalizing, business outcome, Retiring, and Closed.
 
@@ -50,9 +51,10 @@ Retirement follows Landed, Blocked, and Rejected. A Story closes only when outco
 are final; a Run completes only when every outcome is final and every obligation completes or has an
 owner-accepted residual handoff.
 
-The 2026-07-17 owner-approved readiness remediation explicitly reopens this locked decision only to
-add the resumable/terminal Run distinction and the `Rejected` Story outcome. The recovery,
-outcome/Retirement separation, and record-before-dispatch direction remain unchanged.
+The first 2026-07-17 owner-approved readiness remediation reopened this locked decision only to add
+the resumable/terminal Run distinction and the `Rejected` Story outcome. The second, bounded
+round-4 reopen narrows the terminal-failure wording to the already-fixed `FC-TRUST` selector. The
+recovery, outcome/Retirement separation, and record-before-dispatch direction remain unchanged.
 
 Accepted transitions and authorized Operation intents are recorded durably before live adoption or
 dispatch. External results and owner decisions return as later validated triggers.
