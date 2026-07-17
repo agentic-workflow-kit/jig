@@ -161,17 +161,19 @@ authority in this candidate. `ID-GRANT` remains per-Run and operational-only.
 
 Presets are immutable, versioned proposal inputs with a human-readable rationale, suitable-use
 conditions, and explicit trade-offs. Each is a `SCH-CONFIG-ARTIFACT`: its canonical content,
-artifact kind `preset`, version, required rationale, and content digest are stored immutably and
-read digest-verified through `PORT-ARTIFACT`. Applying one records its identifier and digest,
+artifact kind `preset`, version, required rationale, and content digest are stored immutably.
+`CP-INTAKE` performs the authoritative digest-verified read through its `CP-MEDIATOR`-validated
+`PORT-ARTIFACT` exchange before acknowledging an envelope. Applying one records its identifier and digest,
 expands it into ordinary visible policy/profile/configuration fields, and lets the owner inspect and
 override those fields. The expanded values, not the preset name, are authoritative.
 
 Prompt strategies are versioned work-profile references. Dynamic, templated, and stable role
 prompts are all legal when their `SCH-CONFIG-ARTIFACT` carrier records their exact content, or for
 a generated prompt its exact generator identity and version, with kind `prompt-strategy` or
-`role-prompt`, version, and content digest. The Envelope Builder resolves every work-profile prompt
-reference and recorded preset identifier/digest to that immutable carrier through `PORT-ARTIFACT`;
-a missing carrier or digest mismatch fails envelope validation closed. Hidden provider intuition is
+`role-prompt`, version, and content digest. The Envelope Builder carries every work-profile prompt
+reference and recorded preset identifier/digest into the envelope; `CP-INTAKE` resolves it through
+the `CP-MEDIATOR`-validated `PORT-ARTIFACT` exchange before acknowledgement. A missing carrier or
+digest mismatch fails envelope validation closed. Hidden provider intuition is
 not configuration provenance.
 
 ## Work Source seam (`PORT-SOURCE`)
