@@ -56,10 +56,11 @@ by a later higher-priority Story.
 - Accepted Stories wait in deterministic order without authority under `BND-WAIT-CAPACITY`; their
   `SCH-REGISTRY-RECORD` waiter preserves the continuous-starvation start, and they do not repeatedly
   refresh or mutate the target.
-- The authority fence binds Story, controller generation, Candidate, target basis, and authority
-  generation.
-- A bounded target refresh may retain Story ownership; Candidate-changing refresh requires renewed
-  full review and atomic authority rebinding.
+- The authority fence binds Story, controller generation, `ID-CAND`, the target-basis digest from
+  its `SCH-CANDIDATE` record, and authority generation.
+- A bounded target refresh may retain Story ownership; a Candidate-changing refresh requires a
+  newly minted `ID-CAND`, renewed full review of its `SCH-CANDIDATE` record, and atomic authority
+  rebinding to that carrier.
 - Ordinary implementation rework releases authority and returns through acceptance.
 - Landing, reconciled block, owner rejection, terminal stop, or Recovery-driven transfer releases
   authority only after the authority-release prerequisite. Suspension preserves the Story phase and

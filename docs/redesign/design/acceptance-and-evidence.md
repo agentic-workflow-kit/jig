@@ -33,9 +33,11 @@ The reviewer owns full-package judgment of:
 - findings and unresolved issues; and
 - delivery metadata accuracy and completeness.
 
-A valid reviewer approval of the exact Candidate is the acceptance gate and permits finalization.
-Jig validates reviewer identity and authority, exact Candidate and lifecycle binding, required
-evidence availability and integrity, absence of unresolved **blocking** findings, and current lifecycle position.
+A valid reviewer approval of the exact `SCH-CANDIDATE` record at `ID-CAND` is the acceptance gate
+and permits finalization. Jig validates reviewer identity and authority, the carrier's exact
+content binding, target-basis digest, bounded delivery metadata, and evidence-manifest linkage,
+the Candidate's lifecycle binding, required evidence availability and integrity, absence of
+unresolved **blocking** findings, and current lifecycle position.
 Jig then durably records `Accepted` without independently rejudging the reviewer's sufficiency
 assessment.
 
@@ -48,15 +50,16 @@ verification is `none`; it is not an omitted decision.
 
 The frozen policy must explicitly select exactly one high-level posture:
 
-- **`deterministic`:** run the configured final check set against the exact Accepted Candidate before
-  delivery; or
+- **`deterministic`:** run the configured final check set against the exact Accepted
+  `SCH-CANDIDATE` at `ID-CAND` before delivery; or
 - **`none`:** proceed from reviewer approval and the reviewed implementer evidence.
 
 Omission of this selection fails preflight closed; no default posture exists.
 
 Configuration and providers may satisfy or exceed policy but cannot lower or silently change it. A
-failed required verification prevents delivery. Candidate mutation or changed delivery metadata
-invalidates acceptance; a Candidate-changing target refresh requires a new full review.
+failed required verification prevents delivery. A change to a reviewed `SCH-CANDIDATE` content,
+target-basis, or bounded delivery-metadata component invalidates acceptance; a
+Candidate-changing target refresh creates and reviews a new carrier at its new `ID-CAND`.
 
 Verification is effect-free by enforced contract in this generation. A check requiring an external
 effect is outside `PORT-VERIFY` and must be modeled as a separately authorized workspace or delivery
@@ -64,19 +67,21 @@ Operation under that port's authority, or deferred to a future decision.
 
 ## Evidence roles
 
-| Evidence source                | Contribution                                                                                                            | Limit                                                                                |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Implementer                    | Candidate, summary, changed scope, self-report, assigned-check evidence, and supporting artifacts.                      | Cannot judge its own sufficiency or authorize lifecycle/delivery.                    |
-| Reviewer                       | Full-package judgment and exact-Candidate verdict.                                                                      | Cannot perform delivery or attest future target/effect facts.                        |
-| Repository/workspace mechanism | Exact content, branch, target basis, cleanliness, and preservation observations.                                        | Cannot judge acceptance.                                                             |
-| Verification mechanism         | Policy-selected exact-Candidate check observations.                                                                     | Cannot choose checks or judge whole-package sufficiency.                             |
-| Delivery mechanism             | Remote identity, gate state, effect certainty, and landing observations.                                                | Cannot declare lifecycle completion.                                                 |
-| Jig trusted envelope           | Run scope, producer attribution, correlation, recorded time, subject association, completeness, and integrity metadata. | Does not make the underlying claim true merely because it is well formed or durable. |
+| Evidence source                | Contribution                                                                                                                                     | Limit                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Implementer                    | Committed-content observation for the Candidate carrier, summary, changed scope, self-report, assigned-check evidence, and supporting artifacts. | Cannot judge its own sufficiency or authorize lifecycle/delivery.                    |
+| Reviewer                       | Full-package judgment and an exact-`ID-CAND` verdict over the carrier-bound package.                                                             | Cannot perform delivery or attest future target/effect facts.                        |
+| Repository/workspace mechanism | Exact content, branch, target basis, cleanliness, and preservation observations.                                                                 | Cannot judge acceptance.                                                             |
+| Verification mechanism         | Policy-selected checks over the exact carrier-bound Candidate.                                                                                   | Cannot choose checks or judge whole-package sufficiency.                             |
+| Delivery mechanism             | Remote identity, gate state, effect certainty, and landing observations.                                                                         | Cannot declare lifecycle completion.                                                 |
+| Jig trusted envelope           | Run scope, producer attribution, correlation, recorded time, subject association, completeness, and integrity metadata.                          | Does not make the underlying claim true merely because it is well formed or durable. |
 
 Large or provider-shaped evidence remains in immutable, bounded supporting artifacts. The ledger
 keeps bounded decision facts, manifest completeness, digests, and references. Evidence required by a
-decision must be available, authorized, exact-subject-bound, and integrity-valid. Candidate, target
-basis, or delivery-metadata mutation invalidates current use of prior acceptance and evidence.
+decision must be available, authorized, exact-subject-bound, and integrity-valid. The Candidate
+subject, target basis, delivery metadata, and evidence-manifest linkage resolve to
+`SCH-CANDIDATE` at `ID-CAND`; changing any reviewed component invalidates current use of prior
+acceptance and evidence.
 
 ## Landing proof
 

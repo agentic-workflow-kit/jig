@@ -7,7 +7,7 @@ audience:
   - Future architecture authors after authorization
 scope: Index and status of decisions D1–D15, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D5 and D7–D15 remain byte-locked; prior bounded reopens are historical, and the eighth remediation narrowly reopens only D6's suspension-release sentence
+status: active index — D1–D15 remain byte-locked; prior bounded reopens are historical; the current readiness verdict and authorized remediation are recorded in product-readiness-gate-record.md
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:

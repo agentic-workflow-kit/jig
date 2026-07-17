@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — ninth readiness review failed with 6 blockers on 2026-07-17; owner-approved documentation remediation in progress; product-readiness lock inactive pending two consecutive independent exact-candidate PASS reviews after merge
+status: active — canonical redesign and product-readiness amendment history are durable; the current readiness verdict and authorized remediation are recorded in design/decisions/product-readiness-gate-record.md; the product-readiness lock activates only after two consecutive independent exact-candidate PASS reviews of the same merged commit
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-17
 sources_of_truth:

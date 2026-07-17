@@ -47,18 +47,18 @@ verdict over anything else is invalid (I7).
 
 | Package element     | Content                                                                                                                       |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Exact Candidate     | The Candidate content digest and its recorded target basis digest; nothing mutable or symbolic.                               |
+| Exact Candidate     | `SCH-CANDIDATE`'s `candidateContentDigest` and recorded target-basis digest; nothing mutable or symbolic.                     |
 | Frozen requirements | The Story's approved requirements and acceptance criteria drawn from the approved `SCH-PLAN` content frozen in the Run basis. |
-| Evidence manifest   | The complete manifest of digest-verified evidence artifacts bound to this Candidate.                                          |
+| Evidence manifest   | The complete evidence manifest linked by this `SCH-CANDIDATE` and bound to this Candidate.                                    |
 | Findings ledger     | Every prior finding for this Story with its current resolution state (see `RP-FINDING`).                                      |
-| Delivery metadata   | The Candidate's delivery metadata as proposed for acceptance judgment.                                                        |
+| Delivery metadata   | This `SCH-CANDIDATE`'s bounded delivery metadata as proposed for acceptance judgment.                                         |
 
-A package element that is missing, integrity-failing, or bound to a different Candidate digest
+A package element that is missing, integrity-failing, or bound to a different `SCH-CANDIDATE` digest
 fails the assignment closed before dispatch (QS8); Jig never asks a reviewer to judge an
 incompletely identified subject.
 
 **The package digest (`RP-PACKAGE-DIGEST`)** makes the whole package the immutable review subject:
-one digest computed over every package element — the Candidate content digest, the target basis
+one digest computed over every package element — the `SCH-CANDIDATE` content digest, the target basis
 digest, the frozen-requirements digest, the evidence manifest digest, the findings-ledger state
 digest, and the delivery metadata digest. D7 binds acceptance to the judged requirements,
 evidence, findings state, and delivery metadata, not to content alone, so the digest that
@@ -91,12 +91,12 @@ on the successor, never by rewriting history.
 
 Rules the representation must preserve:
 
-| Rule                    | Statement                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact-package semantics | Any change to any package element — Candidate content, target basis (including a basis-only refresh), frozen requirements, evidence manifest, findings state, or delivery metadata — changes `RP-PACKAGE-DIGEST`, invalidates every prior verdict, and re-enters full review with a fresh package; a verdict never transfers to a successor package (I7, D7). |
-| Blocking findings       | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                                                                                                                                                                 |
-| Rework return           | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority.                                                                                                                                                |
-| Durable findings        | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                                                                                                                                                                         |
+| Rule                    | Statement                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact-package semantics | Any change to any `SCH-CANDIDATE` content, target basis (including a basis-only refresh), evidence-manifest linkage, or delivery metadata — or to frozen requirements or findings state — changes `RP-PACKAGE-DIGEST`, invalidates every prior verdict, and re-enters full review with a fresh package; a verdict never transfers to a successor package (I7, D7). |
+| Blocking findings       | Unresolved blocking findings prevent acceptance. Jig validates finding presence and resolution state; it does not re-judge severity — severity classification remains reviewer judgment (I8).                                                                                                                                                                      |
+| Rework return           | A `changes-required` verdict returns the Story through a separately bounded rework loop, `BND-REWORK` in [scheduling and bounds](./scheduling-and-bounds.md); rework releases any held finalization authority.                                                                                                                                                     |
+| Durable findings        | Findings and their resolution states are durable control facts in the ledger, not session-local notes; they survive interruption and appear in the next `RP-PACKAGE`.                                                                                                                                                                                              |
 
 ## Reviewer independence enforcement (`RP-INDEPENDENCE`)
 
@@ -144,14 +144,14 @@ need is not a verification binding; it must be separately modeled under `PORT-WO
 
 Every envelope freezes a digest-bound `SCH-RULE-SURFACE` manifest covering the repository paths
 that govern policy, verification, integration, authority, or Jig configuration. Before review and
-again before delivery, `CP-TRANSITION` compares the Candidate's changed paths with that manifest.
+again before delivery, `CP-TRANSITION` compares `SCH-CANDIDATE`'s ordered changed paths with that manifest.
 A touch is never ordinary implementation work: `EV-RULE-SURFACE-TOUCHED` parks the Run, records
 `FC-RULES`, invalidates the prior review package, verdict, acceptance, and evidence that depended
 on the previous rule surface, and requests owner approval of the exact replacement manifest plus
 fresh evidence and full review. The exact `EV-OWNER-DECISION` closing that invalidating park takes
 every affected `Accepted`, `Waiting`, or `Finalizing` Story through its cataloged invalidation
 transition to `Reviewing`; it releases held finalization authority and creates a fresh
-`RP-PACKAGE` even if Candidate bytes did not change. Removing a path from the manifest is itself a
+`RP-PACKAGE` even if `SCH-CANDIDATE` bytes did not change. Removing a path from the manifest is itself a
 rule-surface change.
 
 The envelope also freezes the Agent provider's exact native permission posture. Worker runtime
@@ -169,7 +169,7 @@ regardless of whether the provider allowed the file edit inside its session.
 ## Verification execution (`RP-VERIFY`)
 
 When the frozen policy posture is `deterministic`, the policy-selected final check set runs against
-a clean checkout of the exact Accepted Candidate — its digest-verified content and target basis —
+a clean checkout of the exact Accepted `SCH-CANDIDATE` — its digest-verified content and target basis —
 in an isolated workspace authorized through `PORT-WORKSPACE` and executed through `PORT-VERIFY`.
 Verification execution is **effect-free by enforced contract**, not by convention: the `CB-VERIFY`
 capability binding confines checks to a read-only view of the checkout, a writable scratch area
@@ -185,7 +185,7 @@ evidence artifacts. A failed required check prevents delivery (D7) and returns t
 bounded rework, releasing any held finalization authority; an exhausted rework bound records
 directly `Blocked` (I16; the transitions are cataloged in
 [lifecycle catalogs](./lifecycle-catalogs.md)). Verification never edits the Candidate; a check
-that mutates its scratch checkout invalidates nothing because the durable Candidate digest is the
+that mutates its scratch checkout invalidates nothing because the durable `SCH-CANDIDATE` digest is the
 subject, and its observations are rejected as wrong-subject. With posture `none`, delivery
 proceeds from reviewer approval and reviewed implementer evidence, retaining the residual risk
 D7 explicitly accepts.

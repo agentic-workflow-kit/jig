@@ -142,7 +142,8 @@ settlement, `CP-PROJECTION` derives the exact terminal cut and export material; 
 assembles the canonical redacted bytes and manifest; and `CP-TRANSITION` adopts exactly one
 `SCH-AUDIT-EXPORT` only after the create-once artifact fact commits. The export covers
 the ledger's first position through the **terminal-settlement position**, the business-final cut,
-and containing outcomes, notices, evidence manifest references, obligations, and
+and containing outcomes, every committed `ID-CAND` with its canonical `SCH-CANDIDATE` binding
+values, notices, evidence manifest references, obligations, and
 provenance. `ID-EXPORT` includes the Run, terminal-settlement position, exact covered range, schema,
 redacted bytes, manifest, and their content digest; the digest is one identity input, not the whole
 identity or a mutable path. `OPC-ART-PUT` creates or verifies those exact bytes and registers the
