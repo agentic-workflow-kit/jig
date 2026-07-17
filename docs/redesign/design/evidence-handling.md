@@ -102,6 +102,52 @@ The **owner-reviewable default** retention window is 90 days after Run settlemen
 select seven days through seven years by evidence kind. An open obligation, preservation duty, or
 unexpired audit requirement overrides the elapsed window and forbids disposal until it closes.
 
+### Exhaustive shared-namespace reference guard
+
+All content addressed through `RT-EVIDENCE` shares one deployment-wide digest namespace. The
+following eleven holder classes are the exhaustive set that can carry an address-bearing reference
+into that namespace:
+
+| Holder class                               | Address-bearing content                                                                                              | Live-reference and protection rule                                                                                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCH-EVIDENCE`                             | Manifest artifact references                                                                                         | Live while the depending Run, decision, obligation, preservation duty, or retention period is live.                                                                        |
+| `SCH-AUDIT-EXPORT`                         | The export artifact and its transitive manifest references                                                           | Live while the export's audit-retention basis is live; every transitive artifact reference is pinned with the export.                                                      |
+| `SCH-ENVELOPE`                             | Configuration, preset, work-profile prompt, capability-proof, conformance-evidence, and other explicit artifact refs | Configuration and work-profile prompt refs are monotonically non-disposable; remaining refs stay live for the envelope/Run retention basis.                                |
+| `SCH-WORK-PROFILE`                         | Versioned prompt-strategy and role-prompt artifact refs                                                              | Every pre-Run prompt reference is monotonically non-disposable.                                                                                                            |
+| `SCH-CONFIG-ARTIFACT`                      | Its content-addressed configuration bytes                                                                            | The configuration carrier's digest is monotonically non-disposable once recorded or referenced.                                                                            |
+| `SCH-INTAKE-ACK`                           | Configuration-attempt records, attempt handles, and terminal acknowledgement binding                                 | All pre-Run intake-attempt material is monotonically non-disposable, including rejected and exhausted chains.                                                              |
+| `SCH-CAPABILITY-PROOF`                     | Capability-attempt records and proof-basis/evidence refs                                                             | All capability-proof attempt and proof material is monotonically non-disposable, including negative, timed-out, and exhausted attempts.                                    |
+| `EV-ARTIFACT-FACT`                         | A returned artifact digest awaiting adoption                                                                         | A temporary pin exists before event adoption and transfers to the adopting durable holder; rejection releases it. A disposal receipt for its own target is not a live pin. |
+| `SCH-VERDICT` and its exact review package | Review-package, evidence-manifest, finding-resolution, and delivery-metadata artifact refs                           | Live while the verdict, any finding, or the Run's review-retention basis depends on the package or its transitive refs.                                                    |
+| `SCH-DECISION` and `EV-OWNER-DECISION`     | Exact artifact subjects and decision-evidence refs                                                                   | Live while the recorded decision depends on those bytes. The exact owner authorization whose sole subject is disposal of that digest is not a blocking self-reference.     |
+| `SCH-OBLIGATION`                           | Preservation, handoff, completion, and resolution-evidence refs                                                      | Live while status is `open` or `accepted-handoff`, and after `resolved` until its recorded retention basis closes.                                                         |
+
+These eleven rows, and no other schema or event fields, create shared-namespace liveness. Other
+digest fields are comparison or derivation bases rather than artifact addresses unless a row above
+also carries an explicit artifact reference. In particular, `SCH-EVENT` payload digests,
+`SCH-OPERATION` payload-basis digests, and `SCH-SOURCE-EXCHANGE` content digests do not address
+`RT-EVIDENCE` by themselves.
+
+`PORT-ARTIFACT` maintains the authoritative deployment-wide reverse-reference/pin lookup:
+`digest -> (holder class, owning Run or pre-Run key, durable anchor, liveness basis)[]`. A pin is
+registered and durably acknowledged before the referencing attempt, event, Transition, or other
+record may be adopted. Pin registration and disposal are linearized atomically: an accepted pin
+causes concurrent disposal to fail closed, while a disposal that linearizes first rejects a new
+pin and therefore prevents adoption of the reference. A scan after adoption is not a substitute
+for this ordering.
+
+Pin registration or release has no standalone mutation path. It is an atomic subordinate clause
+of the existing action that creates or retires the durable holder: `LG-PREFLIGHT-ATTEMPT` for the
+two pre-Run attempt families, `LG-INTAKE` for terminal acknowledgement and frozen-envelope
+adoption, the `PORT-LEDGER` Transition commit protocol for later typed-holder adoption, and the
+already cataloged `OPC-ART-PUT` or `OPC-ART-DISPOSE` for artifact creation or retirement. Thus
+every durable pin change remains inside an existing commit-primitive-class contract or Operation;
+the reverse lookup exposes no fourth durable-mutation class.
+
+Because `EVR-DIGEST` deduplicates byte-identical content, protection is computed per digest, not
+per logical holder. A monotonically non-disposable reference from any row gives that strongest
+protection to the shared digest even when another holder would otherwise be eligible for disposal.
+
 - **`EVR-RETAIN`:** an artifact is preserved at least until its Run completes and every depending
   obligation closes (I19); afterwards, policy retention classes govern each evidence kind.
 - **`EVR-ARCHIVE`:** archival relocates artifacts with digests unchanged; because identity is the
@@ -109,9 +155,11 @@ unexpired audit requirement overrides the elapsed window and forbids disposal un
 - **`EVR-DISPOSE`:** destructive disposal is the explicit owner-authorized `OPC-ART-DISPOSE`
   retirement action. Its `EV-ARTIFACT-FACT` is digest-verified disposal evidence; it is never a
   side effect of cleanup, compaction, or storage convenience. Before dispatch, a verified
-  deployment-scoped reference guard must prove that no other non-disposed Run's recorded evidence
-  manifest or export manifest references the digest. Any live foreign reference fails disposal
-  closed and names the owning Runs in the failure reason.
+  deployment-scoped reference guard must prove through the authoritative reverse lookup that no
+  live pin from any of the eleven exhaustive holder classes references the digest and that no
+  monotonically non-disposable reference has ever protected it. Any live reference fails disposal
+  closed and names the owning Runs or pre-Run keys and durable anchors in the failure reason; the
+  exact owner decision authorizing that same disposal is the sole non-blocking self-reference.
 
 ## Terminal audit export
 

@@ -32,8 +32,10 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 
 - R1.1 Every `EV-*` event names exactly one producer, its ingress port or internal deriver, its
   subject kind, and its validation basis.
-- R1.2 Every trigger consumed by a cataloged lifecycle transition is a cataloged event, and every
-  cataloged event that advances lifecycle state appears as a trigger in at least one transition.
+- R1.2 Every trigger consumed by a cataloged lifecycle or administrative Transition is a cataloged
+  event. Every cataloged event names at least one consuming Transition or an explicit named
+  non-Transition consumer; every event that advances lifecycle state appears as a trigger on at
+  least one state-changing Transition.
 - R1.3 Every `OPC-*` Operation names its port, effect class, reconciliation obligation, and at
   least one authorizing transition; every externally effectful act crosses a cataloged Operation
   or the commit primitive.

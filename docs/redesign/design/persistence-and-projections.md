@@ -46,16 +46,21 @@ recorded Transition and the commit primitive is what records Transitions; treati
 Operation would be circular. Its unknown-acknowledgement recovery is defined here, not in the
 Operation reconciliation rules.
 
-| ID            | Contract element             | Obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LG-RECORD`   | Ledger record                | One durable control record carrying its Transition identity, its own content digest, and the chained digest of the previous record. Its content digest is staged from canonical record bytes with the embedded `ID-TXN` record-digest component and the record's own digest field excluded; the digest is then attached to the identity and record.                                                                                                                              |
-| `LG-POSITION` | Ledger position              | The strictly increasing per-Run ordinal at which one record is committed; positions are never reused, skipped, or reassigned.                                                                                                                                                                                                                                                                                                                                                    |
-| `LG-APPEND`   | Conditional append           | Commits one `LG-RECORD` atomically at exactly the expected prior position plus one, or rejects with the actual current position; no partial or reordered commit.                                                                                                                                                                                                                                                                                                                 |
-| `LG-ACK`      | Durable acknowledgement      | Acknowledges an append only after the record is durably flushed; an acknowledgement is a durability promise, not a buffering report.                                                                                                                                                                                                                                                                                                                                             |
-| `LG-READ`     | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                                                                                                                                    |
-| `LG-CHAIN`    | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                                                                                                                                     |
-| `LG-WITNESS`  | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head; it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement, including an intake acknowledgement, implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups. |
-| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` `terminal-ack` variant and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key. The pre-ack configuration-read attempt variants live behind `PORT-ARTIFACT` and grant no intake authority.               |
+For a complete durable-mutation inventory, the table also names the one non-authoritative pre-Run
+durability primitive. It is carried by the existing mechanism exchanges named below, not by
+`PORT-LEDGER`, and it never becomes a second durable authority.
+
+| ID                     | Contract element             | Obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LG-RECORD`            | Ledger record                | One durable control record carrying its Transition identity, its own content digest, and the chained digest of the previous record. Its content digest is staged from canonical record bytes with the embedded `ID-TXN` record-digest component and the record's own digest field excluded; the digest is then attached to the identity and record.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `LG-POSITION`          | Ledger position              | The strictly increasing per-Run ordinal at which one record is committed; positions are never reused, skipped, or reassigned.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `LG-APPEND`            | Conditional append           | Commits one `LG-RECORD` atomically at exactly the expected prior position plus one, or rejects with the actual current position; no partial or reordered commit.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `LG-ACK`               | Durable acknowledgement      | Acknowledges an append only after the record is durably flushed; an acknowledgement is a durability promise, not a buffering report.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `LG-READ`              | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `LG-CHAIN`             | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `LG-WITNESS`           | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head; it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement, including an intake acknowledgement, implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups.                                                                                                                                                                                                                                                                                                       |
+| `LG-PREFLIGHT-ATTEMPT` | Pre-Run attempt evidence     | The shared deployment-scoped conditional-create/readback primitive for the two durable pre-Run attempt families: configuration-artifact reads and provider capability-proof exchanges. Each exchange-attempt key derives separate deterministic start and result variant keys; the first conditional-creates immutable start bytes before request, and the second conditional-creates immutable result bytes only after validated completion. Readback returns those exact bytes. Same-variant-key byte-equivalent replay returns the existing value; a byte mismatch, missed deadline rule, missing or invalid predecessor, or digest/integrity failure fails closed. It creates no event, Operation, Run, authority, Transition, or dispatch and is never a second ledger authority. |
+| `LG-INTAKE`            | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` `terminal-ack` variant. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key. Only after the create assigns its intake position does an accepted acknowledgement derive `ID-RUN` and bind that identity to the stable acknowledgement tuple. Pre-ack attempt evidence uses `LG-PREFLIGHT-ATTEMPT` and grants no intake authority.                                                                                                                                                                                         |
 
 An append therefore carries four facts: the qualified Transition identity (position claim plus
 proposing controller generation, per [data and identity](./data-and-identity.md)), the expected
@@ -67,18 +72,25 @@ lost, `CP-RECOVERY` re-reads the expected position and classifies what it finds:
 `LG-INTAKE` uses the same configured ledger mechanism and durable conditional-create proof but is
 not a Run Transition stream: it exists before the per-Run controller or Run ledger. `CP-INTAKE`
 runs in the short-lived `RT-OPERATOR` process and is its sole caller through `PORT-LEDGER`; its
-only Jig-authority write is the `SCH-INTAKE-ACK` `terminal-ack` conditional-create. Before it, each
-configuration read uses a deterministic `(composition digest, artifact subject, expected digest,
-attempt ordinal)` request key. Through `PORT-ARTIFACT`, the mechanism conditionally creates or
-replays an immutable `config-read-attempt-start` variant before the read and an immutable
-`config-read-attempt-result` variant when a validated response/failure exists. A new ordinal's start
-must reference the prior start/result and prove either its terminal result or its recorded deadline
-elapsed; loss or crash therefore re-queries the same key and cannot reset consumption. `CP-INTAKE`
-reconstructs the ordered variant chain and embeds every handle, bound consumption, and exhaustion
-result in the accepted or rejected `terminal-ack`. Missing, rolled-back, or unverifiable attempt
-evidence fails closed. The attempt variants are durable mechanism evidence, not intake authority;
-the terminal acknowledgement remains
-the **single intake commit point**. Its intake-index head is covered by `LG-WITNESS` under the same
+only Jig-authority write is the `SCH-INTAKE-ACK` `terminal-ack` conditional-create.
+
+Before that commit, `LG-PREFLIGHT-ATTEMPT` is the single durable mutation primitive shared by both
+pre-Run attempt families. A configuration read uses the deterministic `(composition digest,
+artifact subject, expected digest, attempt ordinal)` key through `PORT-ARTIFACT`; a capability
+proof uses its deterministic provider/build/manifest/environment/capability/basis/ordinal
+exchange-attempt key inside the provider's existing configured mechanism-port exchange. Each
+exchange-attempt key derives separate start and result variant keys. The caller conditionally
+creates or reads back immutable start bytes at the first before making the request and immutable
+result bytes at the second only after a validated result, failure, or deadline fact. Exact
+same-variant-key bytes replay; different bytes at that key, a new ordinal without a valid prior
+result or elapsed recorded deadline, a bad predecessor, or an unverifiable digest fails closed.
+Loss or crash therefore re-queries the same key and cannot reset consumption. `CP-INTAKE`
+reconstructs its ordered configuration-read chain; `EP-PROVIDERS` reconstructs its provider-proof
+chain. The terminal intake acknowledgement binds the applicable handles, digests, bound
+consumption, and exhaustion result. These records are durable mechanism evidence, not intake or
+provider authority: they create no event, Operation, Run, Transition, grant, dispatch, or second
+ledger head. The terminal acknowledgement remains the **single intake commit point**. Its
+intake-index head is covered by `LG-WITNESS` under the same
 flush-before-witness-before-acknowledgement rule as a Run-ledger append. Run-ledger creation,
 controller spawn, and deployment indexes or projections happen only after an **accepted**
 acknowledgement exists and are derived, idempotent consequences that recovery recreates from it. A
@@ -86,21 +98,36 @@ rejected acknowledgement is terminal preflight and derives nothing but its own p
 can return the immutable acknowledgement but can never advance lifecycle state or write a second
 intake authority.
 
-An accepted acknowledgement is self-contained: it embeds the canonical frozen `SCH-ENVELOPE`
-bytes plus the complete Run-ledger genesis/rebuild basis. The composition and acknowledgement
-digests bind those bytes. Recovery therefore recreates an absent or incomplete Run ledger from
-the acknowledgement alone and never consults mutable configuration, a projection, or an
-uncommitted submission buffer.
+The acknowledgement digest domain is staged before `LG-INTAKE` assigns a position. First,
+`CP-INTAKE` computes `acknowledgementContentDigest` over canonical terminal content containing the
+composition digest; every applicable preflight-attempt handle and digest plus bound consumption;
+the accepted/rejected disposition and reason; the proposal digest and exact owner approval; and,
+for an accepted acknowledgement, the canonical frozen `SCH-ENVELOPE` bytes plus complete
+Run-ledger genesis/rebuild basis. That digest domain excludes its own digest field, `ID-RUN`, the
+as-yet-unassigned `LG-INTAKE` position, and every create/readback/witness proof or handle derived
+from the create. The conditional-create then assigns the position. After durable create/readback
+and witness verification, the stable acknowledgement tuple is exactly `(compositionDigest,
+intakeCreatePosition, acknowledgementContentDigest)`; an accepted acknowledgement derives
+`ID-RUN` only then, using the canonical post-position derivation in
+[data and identity](./data-and-identity.md), and binds the result to that tuple, while a rejected
+acknowledgement derives no Run identity. Create, lookup, and witness proofs bind to the tuple but do
+not enter the pre-create content digest.
+Same-key recovery returns the existing tuple and its derived fields; it never writes a second
+acknowledgement.
+
+An accepted acknowledgement is therefore self-contained and recovery recreates an absent or
+incomplete Run ledger from the acknowledgement alone, never consulting mutable configuration, a
+projection, or an uncommitted submission buffer.
 
 The crash classification around that point is exhaustive:
 
-| Observation after recovery                                                 | Required result                                                                                                                                                                                                                                                                                                          |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No terminal acknowledgement exists                                         | No `ID-RUN` is adopted. Reconstruct configuration-read consumption from deterministic `SCH-INTAKE-ACK` start/result variants; resume the same ordinal/deadline or advance only from a proved terminal/deadline predecessor. Missing or unverifiable evidence fails intake closed rather than resetting a consumed bound. |
-| Accepted acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement.                                                                                                                         |
-| Rejected acknowledgement exists and the Run ledger is absent               | This is the correct terminal preflight state. Recreate neither a Run ledger nor controller.                                                                                                                                                                                                                              |
-| Acknowledgement and Run ledger exist                                       | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                                                                                                                                        |
-| An index/projection exists without an acknowledgement                      | Discard and rebuild it; the index is never authoritative.                                                                                                                                                                                                                                                                |
+| Observation after recovery                                                 | Required result                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No terminal acknowledgement exists                                         | No `ID-RUN` is adopted. Reconstruct configuration-read consumption from deterministic `SCH-INTAKE-ACK` start/result variants carried by `LG-PREFLIGHT-ATTEMPT`; resume the same ordinal/deadline or advance only from a proved terminal/deadline predecessor. Missing or unverifiable evidence fails intake closed rather than resetting a consumed bound. |
+| Accepted acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement.                                                                                                                                                           |
+| Rejected acknowledgement exists and the Run ledger is absent               | This is the correct terminal preflight state. Recreate neither a Run ledger nor controller.                                                                                                                                                                                                                                                                |
+| Acknowledgement and Run ledger exist                                       | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                                                                                                                                                                          |
+| An index/projection exists without an acknowledgement                      | Discard and rebuild it; the index is never authoritative.                                                                                                                                                                                                                                                                                                  |
 
 Thus every crash before the conditional-create is the first row and every crash after it is one of
 the remaining rows; there is no interval in which Run-ledger or index existence decides whether
@@ -247,6 +274,11 @@ The registry protocol is the total-order arbiter selected by D6; there is no glo
   records and 30 seconds–one hour. Correctness never depends on cadence because every snapshot is
   verifiable and disposable.
 
+Writing a verified snapshot is internal physical-storage maintenance subordinate to this existing
+ledger/projection contract. It is not an additional semantic durable mutation and cannot create or
+alter authority, lifecycle state, an Operation, or a Run fact; a failed or discarded write merely
+forgoes the disposable accelerator and replay falls back to the ledger.
+
 ## Reference realization and portability
 
 The proposed single-host reference realization is an **append-only, segmented,
@@ -266,6 +298,13 @@ monotonicity, advance-before-acknowledgement, and rollback-restore detection. Re
 recorded in [D11](./decisions/D11-ledger-realization.md).
 
 ## Compaction, retention, backup, and disaster recovery
+
+Moving a sealed segment to archival storage and creating a position-consistent backup copy are
+likewise internal physical-storage maintenance subordinate to the existing ledger, retention, and
+disaster-recovery contracts below. Together with the snapshot write classified above, these are the
+snapshot/archive/backup physical-maintenance classes classified here: none is a new semantic
+durable mutation, Transition, Operation, authority grant, or dispatch, and none may rewrite ledger
+truth or make lifecycle progress.
 
 - **Compaction** is snapshot plus archived immutable segments: a verified `LG-SNAPSHOT` is written,
   and the segments it summarizes are moved to archival storage intact. Compaction never rewrites,

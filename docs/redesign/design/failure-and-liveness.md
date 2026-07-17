@@ -72,8 +72,11 @@ Arye is required to change policy or authority scope, revise a gate, import a go
 approve a product or architecture direction, or reopen a layer. A recorded delegate may only make
 the bounded operational decisions named by the exact current per-Run `ID-GRANT`, such as answering
 a parked operational question, Run stop/resume, notice action, Residual Obligation handling, or
-approved cleanup within that scope. An owner decision may authorize investigation, safe stop, or
-residual handoff; it cannot turn missing evidence into a factual effect or landing claim.
+approved cleanup within that scope. Delegated Residual Obligation handling is limited to
+evidence-backed resolution under the exact current grant; only Arye may accept the exact handoff
+itself. An owner decision may
+authorize investigation, safe stop, or that exact residual handoff; it cannot turn missing evidence
+into a factual effect or landing claim.
 
 ## Finite-scope liveness guarantee and assumptions
 
@@ -81,6 +84,8 @@ For a finite frozen Run, Jig guarantees that no accepted scope remains in an unn
 wait. Every Story eventually reaches `Landed`, directly `Blocked`, owner-decided `Rejected`, or derived
 `Not run — dependency blocked`; every Retirement obligation eventually completes or becomes an
 explicit owner-accepted Residual Obligation.
+The precise settlement substitute is status `accepted-handoff`; an `open` obligation does not
+satisfy the duty.
 
 An operator-controlled `Suspended` Run is deliberately outside this autonomous progress claim. It
 is a named durable condition with no dispatch, not an unbounded retry or wait; resume re-enters the
@@ -93,7 +98,8 @@ The guarantee assumes:
 3. required configured resource capacity eventually becomes available;
 4. participating mechanisms respond or reach a bounded timeout;
 5. the target eventually remains stable long enough for bounded finalization; and
-6. Arye or an explicitly recorded delegate eventually answers escalations.
+6. Arye eventually answers owner-only handoff decisions, and Arye or an explicitly recorded
+   delegate eventually answers other in-scope escalations.
 
 If an assumption fails, Jig guarantees a durable named stopping point — a park, a block, or a
 terminal stop under the failure taxonomy's fixed selectors — and explicit loss of guarantee, not
@@ -105,10 +111,19 @@ Retirement settles or fences pending Operations, preserves committed work and ev
 required preservation behavior, releases finalization authority, closes sessions, and safely removes
 or hands off resources. Destructive cleanup is never evidence of business success.
 
-When automatic Retirement cannot complete, Jig records a Residual Obligation that identifies the
-affected resource or proof obligation, reason, preservation and safety evidence, accountable owner,
-accepted handoff decision, and completion or residual status. A Run completes only after every
-obligation is retired or explicitly handed off.
+When an automatic Retirement, preservation, surfacing, or export duty cannot complete, Jig mints a
+Residual Obligation in `open` status with the affected resource or proof obligation, originating
+position and reason, preservation and safety evidence, accountable owner, and exact completion
+criteria. `open` cannot satisfy settlement. Only an exact `EV-OWNER-DECISION` from Arye over that
+live identity may advance it to `accepted-handoff`, and that is the sole status that may substitute
+for the incomplete duty at settlement. If the automatic duty instead completes before handoff, an
+exact `EV-OBLIGATION-RESOLVED` with validated completion criteria and digest-verified evidence may
+advance `open` directly to terminal `resolved`, proving completion. The same event may advance an
+`accepted-handoff` obligation to `resolved` before or after terminal settlement while retaining the
+handoff provenance. Neither resolution path may revise Story state, business outcome, authority, or
+dependency facts; post-terminal resolution also cannot revise Run phase or the business-final cut.
+Exact replay returns the existing transition and appends nothing, and no later status append is
+legal after `resolved`.
 
 ## Where to go next
 

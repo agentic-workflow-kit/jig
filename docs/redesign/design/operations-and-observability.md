@@ -49,6 +49,12 @@ scoped answer by `ID-PARK` to the session currently bound to the originating pri
 same-session resume, provenance-linked replacement, or cancel-and-reissue is explicit. The provider
 enforces or consumes the answer. Replying on an unvalidated notification channel remains rejected.
 
+`CP-ESCALATION` validates `EV-DELEGATION-GRANT` before proposing its cataloged
+control-administrative Transition. Once `CP-TRANSITION` durably records that Transition, the exact
+current `ID-GRANT` is available to validate later answers and decisions. The Transition changes the
+grant binding only; it does not advance Run, Story, or obligation lifecycle state or authorize an
+Operation.
+
 ## Operator tooling
 
 Generic operator commands are thin verbs over durable records and read models, run by
@@ -99,7 +105,10 @@ class, bound state, and impact; its actions are the currently authorized command
 same ledger position. A notice cannot invent authority, omit a live condition, or offer an action
 whose preconditions are false. `EV-NOTICE-ACKNOWLEDGED` changes presentation only;
 `EV-NOTICE-SNOOZED` records an explicit wake condition that `EV-WAKE-TIMER` later satisfies.
-Neither resolves the underlying durable condition.
+Each of those three events triggers its cataloged control-administrative Transition;
+`CP-PROJECTION` updates notice presentation and wake eligibility from the resulting durable facts.
+None resolves the underlying durable condition, advances Run, Story, or obligation lifecycle state,
+or authorizes an Operation.
 
 Owner-reviewable notice-delivery defaults:
 
