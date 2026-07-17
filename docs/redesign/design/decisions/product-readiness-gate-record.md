@@ -30,21 +30,6 @@ related:
 
 # Product readiness gate — tenth remediation candidate
 
-## Current gate state
-
-The ninth remediation merged as baseline
-`d13abaa434f6ff7ddcf8ac7216307e2f97db7f1c`, tree
-`350adf6f8a28b45dd166fbd62d027a161a010d3a`. Its 66-path normative subject has round-8-v1
-manifest digest `3be389556cb8f4e88310473b697e4efab315a8e40cfe93158f915a43dc0f1631`. A fresh independent
-readiness review of that exact subject on 2026-07-17 returned **FAIL** with two connected
-in-rubric blockers, R2.2 and R2.3. The product-readiness lock therefore remains **inactive**.
-
-Arye Kogan authorized the bounded tenth-remediation resolutions recorded below. That instruction
-does not authorize implementation inspection, archive work, greenfield planning, merge, or
-self-certification of readiness. Author checks and the pre-PR independent assessment establish
-review readiness only; two consecutive independent post-merge `PASS` reviews of the same exact
-commit remain required.
-
 ## Historical sixth independent review and remediation
 
 A fresh independent empty-repository readiness review of the round-6 baseline on 2026-07-17
