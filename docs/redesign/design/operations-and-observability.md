@@ -67,7 +67,8 @@ authority ([runtime](./runtime.md)):
   scoped owner or in-grant delegated selection of a different offered choice at an exact parked
   request or Story-bound decision point, recorded through `EV-OWNER-DECISION` under its existing
   guards), or
-  **hand off** a parked request; **stop** a Run
+  **hand off** a parked request; Arye may **accept handoff** of an exact live `open` Residual
+  Obligation before or after terminal settlement; **stop** a Run
   into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
   **acknowledge** or
   **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
@@ -156,8 +157,10 @@ Residual Obligations drive manual cleanup. Each obligation names the affected re
 reason, the preservation evidence, the accountable owner, and the completion criteria
 ([failure and liveness](./failure-and-liveness.md)). A runbook execution completes by recording
 the obligation's resolution through the operator interface as
-`EV-OBLIGATION-RESOLVED` — the validated event and its evidence close the obligation, not the shell
-history. Destructive cleanup outside an authorized retirement or a
+`EV-OBLIGATION-RESOLVED` from either `open` or `accepted-handoff`, before or after terminal
+settlement — the validated event and its evidence close the obligation, not the shell history. A
+post-terminal audit-export failure therefore has both an owner-only handoff exit and a completion
+exit without revising settled facts. Destructive cleanup outside an authorized retirement or a
 recorded obligation is out of contract: cleanup cannot reverse landing or delay dependency release
 (I18), and work and evidence are preserved before any destruction (I19).
 

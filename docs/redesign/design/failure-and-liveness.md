@@ -114,14 +114,16 @@ or hands off resources. Destructive cleanup is never evidence of business succes
 When an automatic Retirement, preservation, surfacing, or export duty cannot complete, Jig mints a
 Residual Obligation in `open` status with the affected resource or proof obligation, originating
 position and reason, preservation and safety evidence, accountable owner, and exact completion
-criteria. `open` cannot satisfy settlement. Only an exact `EV-OWNER-DECISION` from Arye over that
-live identity may advance it to `accepted-handoff`, and that is the sole status that may substitute
-for the incomplete duty at settlement. If the automatic duty instead completes before handoff, an
-exact `EV-OBLIGATION-RESOLVED` with validated completion criteria and digest-verified evidence may
-advance `open` directly to terminal `resolved`, proving completion. The same event may advance an
-`accepted-handoff` obligation to `resolved` before or after terminal settlement while retaining the
-handoff provenance. Neither resolution path may revise Story state, business outcome, authority, or
-dependency facts; post-terminal resolution also cannot revise Run phase or the business-final cut.
+criteria. This includes an audit-export failure recorded after the terminal-settlement cut. `open`
+cannot satisfy settlement. Only an exact `EV-OWNER-DECISION` from Arye over that live identity may
+advance it to `accepted-handoff`, and that is the sole status that may substitute for the incomplete
+duty at settlement. If the automatic duty instead completes before handoff, an exact
+`EV-OBLIGATION-RESOLVED` with validated completion criteria and digest-verified evidence may advance
+`open` directly to terminal `resolved`, proving completion. The same event may advance an
+`accepted-handoff` obligation to `resolved`. All three edges remain legal after terminal settlement
+as administrative Transitions, so a post-terminal export obligation cannot strand in `open`; they
+retain any handoff provenance and cannot revise Run phase, Story state, business-final cut, outcome,
+authority, or dependency facts.
 Exact replay returns the existing transition and appends nothing, and no later status append is
 legal after `resolved`.
 
