@@ -405,15 +405,6 @@ candidate remains review-readiness work with no lock effect.
 
 ### Owner directions and round-9 addition budget
 
-### Iteration-5 administrative closure
-
-Iteration 5 records the bounded wording repair for R1.3/D12 and R1.4/R5.3 across their existing
-replicas: artifact pins are mediated only by existing artifact Operations, and an exhausted open
-obligation that blocks settlement has the named no-settlement disposition. This administrative
-record adds no identifier, event, schema, state, phase, principal, port, or decision-record change;
-D1–D15 and the product bytes remain frozen. It is not a readiness verdict, self-certification, or
-lock activation.
-
 The owner-directed shape of this remediation is:
 
 1. treat both durable pre-Run attempt families as one commit-primitive-class protocol, optionally
@@ -434,6 +425,15 @@ adds zero events, Operations, ports, runtime units, control-plane components, Ru
 states, failure codes, bound classes, conformance suites, principals, schema families, or other
 identifier families. D1–D15 remain byte-locked. New rows and clauses within existing families do
 not widen that budget.
+
+### Iteration-5 administrative closure
+
+Iteration 5 records the bounded wording repair for R1.3/D12 and R1.4/R5.3 across their existing
+replicas: artifact pins are mediated only by existing artifact Operations, and an exhausted open
+obligation that blocks settlement has the named no-settlement disposition. This administrative
+record adds no identifier, event, schema, state, phase, principal, port, or decision-record change;
+D1–D15 and the product bytes remain frozen. It is not a readiness verdict, self-certification, or
+lock activation.
 
 ### R1.2 owner-ruled amendment
 
