@@ -8,7 +8,7 @@ scope: Evidence storage, attribution, integrity, redaction, encryption, access, 
 state: approved
 status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./state-and-recovery.md
@@ -204,10 +204,12 @@ byte-disposal atomic, while retirement always commits before it authorizes relea
 - **`EVR-RETAIN`:** protected configuration/intake objects are retained without disposal or move.
   A disposable evidence artifact is preserved at least until its Run completes and every depending
   obligation closes (I19); afterwards, policy retention classes govern each evidence kind. When an
-  exact holder's liveness or retention basis ends during the cataloged Story `Retiring` self-loop or
-  after terminal settlement, the derived `EV-WAKE-SETTLEMENT` holder-retirement Transition records
-  `release-pin` intent; dispatch occurs only after that retirement commits, and uncertainty retains
-  the pin. No other pre-terminal position consumes this holder wake.
+  exact holder's liveness or retention basis ends during the cataloged Story `Retiring` self-loop,
+  the terminal `Stopped` Settlement-overlay self-loop, or after terminal settlement, the derived
+  `EV-WAKE-SETTLEMENT` holder-retirement Transition records `release-pin` intent; dispatch occurs
+  only after that retirement commits, and uncertainty retains the pin. The `Stopped` carrier binds
+  the preserved Story snapshot and exact `ID-SETTLEMENT`; no other position consumes this holder
+  wake.
 - **`EVR-ARCHIVE`:** archival applies only to disposable evidence and relocates it within the same
   approved disposable resource scope with digests unchanged; because identity is the digest
   (`EVR-DIGEST`), identity and verifiability survive relocation. Protected objects never move.

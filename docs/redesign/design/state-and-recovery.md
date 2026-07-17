@@ -8,7 +8,7 @@ scope: State classification, durable ordering and uncertain acknowledgement, ope
 state: proposed
 status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./brief.md
   - ./model.md
@@ -25,11 +25,11 @@ related:
 
 ## State classification
 
-| Classification                         | Canonical contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Authority rule                                                                                                                                                         |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Durable authority**                  | Run identity and frozen envelope; ordered Transition decisions; stable Operation identities, per-dispatch reauthorizations, and effect certainty; Run suspension/terminal-stop state; Story business and Retirement states; `SCH-CANDIDATE` records at `ID-CAND`, reviews, acceptance, protected configuration/intake references, disposable evidence references and their authoritative six-class deployment-wide reverse-reference pins, target bases, fences, bounds, waits, landing proof, owner decisions, notices, escalations, Residual Obligations, and terminal outcomes. | The ordered ledger is the sole control truth; holder-class context routing and the disposable pin lookup are subordinate safety guards, never competing control truth. |
-| **Transient mechanism or cache state** | In-memory projections and indexes; prepared but unrecorded requests; queues and capacity calculations; live provider clients/process handles; local timers; UI/read-model caches; temporary access material; unaccepted observations.                                                                                                                                                                                                                                                                                                                                              | Replaceable and never independently authoritative.                                                                                                                     |
-| **Derived and recomputable state**     | Eligibility, dependency-blocked outcomes, total ordering, capacity use, summaries, read-only projections, metrics, and compact completed-Story indexes.                                                                                                                                                                                                                                                                                                                                                                                                                            | Recompute from durable authority and frozen definition; do not maintain as competing mutable truth.                                                                    |
+| Classification                         | Canonical contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Authority rule                                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Durable authority**                  | Run identity and frozen envelope; ordered Transition decisions; stable Operation identities, per-dispatch reauthorizations, and effect certainty; Run suspension/terminal-stop state; Story business and Retirement states; terminal-stop `SCH-SETTLEMENT` overlay and duty progress; `SCH-CANDIDATE` records at `ID-CAND`, reviews, acceptance, protected configuration/intake references, disposable evidence references and their authoritative six-class deployment-wide reverse-reference pins, target bases, fences, bounds, waits, landing proof, owner decisions, notices, escalations, Residual Obligations, and terminal outcomes. | The ordered ledger is the sole control truth; holder-class context routing and the disposable pin lookup are subordinate safety guards, never competing control truth. |
+| **Transient mechanism or cache state** | In-memory projections and indexes; prepared but unrecorded requests; queues and capacity calculations; live provider clients/process handles; local timers; UI/read-model caches; temporary access material; unaccepted observations.                                                                                                                                                                                                                                                                                                                                                                                                        | Replaceable and never independently authoritative.                                                                                                                     |
+| **Derived and recomputable state**     | Eligibility, dependency-blocked outcomes, total ordering, capacity use, summaries, read-only projections, metrics, and compact completed-Story indexes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Recompute from durable authority and frozen definition; do not maintain as competing mutable truth.                                                                    |
 
 An opaque external resource identity is durable when recovery needs it; a live provider object is not.
 Credentials and secret values never enter durable authority or durable evidence.
@@ -98,12 +98,13 @@ Story's target-changing Operations reconcile. Resume acquires a new controller g
 running `RC-RESUME-INTEGRITY`. A safety-relevant difference parks for exact re-approval; only an
 unchanged, reconciled basis returns the underlying Stories to dispatch.
 
-`RC-RESUME-INTEGRITY` also reads `LG-INTAKE` for an accepted successor acknowledgement naming this
-Run as predecessor. Such an acknowledgement permanently fences predecessor resumption: the check
+`RC-RESUME-INTEGRITY` also reads the witnessed `LG-INTAKE` successor-cut claim namespace for this
+predecessor and verifies the claim and winning acknowledgement share one position and bind each
+other. Such a winning pair permanently fences predecessor resumption: the check
 fails resume closed with a parked explanation naming the accepted successor, rather than restoring
-the predecessor's underlying Stories to dispatch. Intake consumes one predecessor quarantine cut
-for at most one accepted successor; the second successor submission naming an already-consumed cut
-fails intake closed.
+the predecessor's underlying Stories to dispatch. A rejected contender acknowledgement alone never
+fences resume. Missing companions, mismatched winners or positions, forked heads, or unverifiable
+claims are `FC-TRUST`; Recovery never repairs one side independently.
 
 No irreversible effect is blindly replayed:
 
@@ -122,6 +123,14 @@ disposition is externally owned. This unwitnessable `FC-TRUST` halt has no Jig a
 Jig promises none for the path. Any export-equivalent record is produced by the externally
 governed recovery under its own authority, using Jig's surfaced stop condition and the surviving
 ledger bytes as its material.
+
+When a trustworthy `Stopped` record exists, Recovery reconstructs its `SCH-SETTLEMENT` overlay,
+captured Story states, duty inventory, causal progress, and retained fences from the ledger before
+any settlement dispatch. It never infers duty completion from ambient mechanism state. Business
+dispatch remains fenced; only already-authorized effect reconciliation and cataloged settlement
+Operations may progress. A retained target fence releases only after every in-flight target-changing
+effect is reconciled to confirmed effect, confirmed absence, or cancellation with proof of no
+effect, or is externally transferred by the recorded terminal governance disposition.
 
 ## View V4 — state, recovery, acceptance, concurrency, and finalization
 

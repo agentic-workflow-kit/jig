@@ -8,7 +8,7 @@ scope: Smallest-safe failure containment, bounded progress and exhaustion, fail-
 state: proposed
 status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./brief.md
   - ./model.md
@@ -25,13 +25,13 @@ related:
 
 ## Smallest-safe failure containment
 
-| Fault scope         | Required posture                                                                                                                                                                                     | Safe continuation                                                                   |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Preflight           | Reject the Run durably before Story effects.                                                                                                                                                         | No Story starts.                                                                    |
-| Story               | Apply bounded retry/rework; park iff a recorded owner action or changed fact can advance, otherwise block; preserve and retire resources.                                                            | Independent Stories continue; transitive dependents remain ineligible.              |
-| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.                                                                                                  | Safe implementation and review may continue within capacity.                        |
-| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy.                                                                                                | No control transition continues while the ledger or controller authority is unsafe. |
-| Trust root          | Immediately fence dispatch/adoption, halt autonomous progress, and surface the lost guarantee. A terminal `Stopped` record requires a trustworthy witnessed append basis or later external recovery. | Only externally governed recovery may continue.                                     |
+| Fault scope         | Required posture                                                                                                                                                                                                                                                                                          | Safe continuation                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Preflight           | Reject the Run durably before Story effects.                                                                                                                                                                                                                                                              | No Story starts.                                                                                 |
+| Story               | Apply bounded retry/rework; park iff a recorded owner action or changed fact can advance, otherwise block; preserve and retire resources.                                                                                                                                                                 | Independent Stories continue; transitive dependents remain ineligible.                           |
+| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.                                                                                                                                                                                                       | Safe implementation and review may continue within capacity.                                     |
+| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy.                                                                                                                                                                                                     | No control transition continues while the ledger or controller authority is unsafe.              |
+| Trust root          | Immediately fence dispatch/adoption, halt autonomous progress, and surface the lost guarantee. A terminal `Stopped` record requires a trustworthy witnessed append basis or later external recovery; when recorded, it opens the same finite `SCH-SETTLEMENT` overlay as an owner-selected terminal stop. | Only externally governed recovery may continue; overlay duties cannot restore business dispatch. |
 
 A failure remains at the smallest safe scope. It becomes shared only when uncertainty, authority, or
 proof crosses Story boundaries.
@@ -80,16 +80,21 @@ into a factual effect or landing claim.
 
 ## Finite-scope liveness guarantee and assumptions
 
-For a finite frozen Run, Jig guarantees that no accepted scope remains in an unnamed or unbounded
-wait. Every Story eventually reaches `Landed`, directly `Blocked`, owner-decided `Rejected`, or derived
-`Not run — dependency blocked`; every Retirement obligation eventually completes or becomes an
-explicit owner-accepted Residual Obligation.
+For a finite frozen Run that remains under ordinary execution, Jig guarantees that no accepted
+scope remains in an unnamed or unbounded wait. Every Story eventually reaches `Landed`, directly
+`Blocked`, owner-decided `Rejected`, or derived `Not run — dependency blocked`; every Retirement
+obligation eventually completes or becomes an explicit owner-accepted Residual Obligation. The
+owner-selected terminal-stop exception does not invent those Story outcomes: it preserves every
+current Story state, opens one `SCH-SETTLEMENT`, and guarantees that each finite overlay duty either
+completes or becomes an explicit owner-accountable Residual Obligation while business dispatch
+remains fenced.
 The precise settlement substitute is status `accepted-handoff`; an `open` obligation does not
 satisfy the duty.
 
 An operator-controlled `Suspended` Run is deliberately outside this autonomous progress claim. It
 is a named durable condition with no dispatch, not an unbounded retry or wait; resume re-enters the
-integrity/recovery path, and an explicit terminal decision enters `Stopped`.
+integrity/recovery path, and an explicit terminal decision enters `Stopped`, atomically opening the
+Settlement overlay with the preserved-state snapshot, outstanding duties, and retained fences.
 
 The guarantee assumes:
 
@@ -110,16 +115,18 @@ completion.
 
 When the first existing `EV-BOUND-EXHAUSTED` for a live `open` obligation blocks terminal
 settlement, it is the explicit no-settlement disposition: the bounded wait has ended, but the
-obligation remains open, owner-only handoff is unchanged, and the Run remains `Settling` or
-pre-terminal `Stopped` (with any Story already `Retiring`) unchanged. It neither auto-handoffs,
+obligation remains open, owner-only handoff is unchanged, and the Run remains `Settling`, terminal
+`Stopped` with its overlay, or at the same Story `Retiring` position. It neither auto-handoffs,
 resolves, closes, nor settles; no terminal-settlement audit export or artifact disposal is
 authorized. Live projections, notice, ledger, obligation, and evidence stay inspectable and
 preserved. Exact owner acceptance or evidence-backed resolution later exits the disposition,
 wakes settlement, reaches terminal position, and only then permits terminal-settlement audit export.
 
-Retirement settles or fences pending Operations, preserves committed work and evidence, applies
-required preservation behavior, releases finalization authority, closes sessions, and safely removes
-or hands off resources. Destructive cleanup is never evidence of business success.
+Retirement and the terminal-stop Settlement overlay settle or fence pending Operations, preserve
+committed work and evidence, apply required preservation behavior, release finalization authority,
+close sessions, and safely remove or hand off resources. Every duty is carried by the Story
+Retirement set or the one Run-scoped `ID-SETTLEMENT`; no cleanup provider may advance that carrier
+directly. Destructive cleanup is never evidence of business success.
 
 When an automatic Retirement, preservation, surfacing, or export duty cannot complete, Jig mints a
 Residual Obligation in `open` status with the affected resource or proof obligation, originating

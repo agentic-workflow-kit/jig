@@ -9,7 +9,7 @@ scope: Active navigation and authority for docs/redesign; product definition and
 state: current
 status: active — canonical redesign and product-readiness amendment history are durable; the current readiness verdict and authorized remediation are recorded in design/decisions/product-readiness-gate-record.md; the product-readiness lock activates only after two consecutive independent exact-candidate PASS reviews of the same merged commit
 owner: Arye Kogan (Jig owner)
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - Explicit owner reset and layered-authoring instruction, 2026-07-14
   - Explicit owner structure-revision instruction, 2026-07-15

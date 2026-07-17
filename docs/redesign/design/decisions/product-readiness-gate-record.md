@@ -9,7 +9,7 @@ scope: Rolling record of independent product-readiness reviews and owner-authori
 state: current
 status: rolling record; the latest independent-review section records the current verdict, owner-authorized remediation, and readiness-lock state
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./product-guarantee-import.md
   - ../product-guarantee-reconciliation.md
@@ -686,3 +686,68 @@ definitions, `CF-GATE-PRODUCT`, and the delegation register remain unchanged.
 This section makes no readiness verdict, merge claim, self-certification, or lock activation. Two
 fresh independent reviews of the same exact merged commit must still return `PASS` before the
 readiness lock can activate.
+
+## Thirteenth independent review — final empty-repository contract findings and remediation
+
+The twelfth remediation merged at baseline
+`412c298b51554c952bfdba50a7606fb40b62fb3f`, tree
+`2024a42f65698c65986265efbf475cfb9ccfe5e3`. Its complete 66-path normative subject has manifest
+digest `8c88d6e75ef9f9afff3914a627074fef64f3361b8fbedab8e40eaffb6c137f43`. A design-only
+empty-repository review of those exact bytes on 2026-07-18 returned **FAIL** with three
+implementation-readiness blockers. The review did not inspect or rely on current product source,
+tests, package boundaries, or the active delivery track, and it did not authorize archival on the
+failing candidate.
+
+Arye Kogan selected the three bounded contract directions in D16 and authorized this documentation
+remediation, its pull-request lifecycle and merge, two fresh independent reviews of the exact
+merged candidate, and Phase B archival only if both reviews return `PASS`. This author-side
+remediation is not an independent review, makes no readiness verdict, and cannot activate the
+readiness lock.
+
+### Thirteenth-review finding-to-resolution record
+
+| Item | Class     | Countable finding                                                                                                                                                                                                                                          | Owner-authorized candidate resolution                                                                                                                                                                                                                                                                                                           |
+| ---: | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | `BLOCKER` | Terminal `Stopped` named preservation, close, review-retirement, workspace-retirement, authority-release, artifact, and obligation duties, but preserved nonterminal Story states had neither an executable carrier nor cataloged authorizing Transitions. | Keep every Story state unchanged; terminal stop atomically opens one Run-scoped `ID-SETTLEMENT`/`SCH-SETTLEMENT` overlay. Its opened/progress/sealed records carry the exact duty/fence set, authorize only settlement Operations, remain bounded, and cannot resume business work, manufacture an outcome, or release dependencies.            |
+|    2 | `BLOCKER` | `Reworking` advanced directly to `Implementing` on capacity without the open/bind/assign/acknowledge path needed to create and fence the rework assignment.                                                                                                | Each rework entry commits a fresh ordinal and deterministic logical-assignment basis. Capacity admission reserves a fresh `ID-SESSION`; cataloged self-loops open and bind it, assignment acknowledgement makes it active, and only then may collection begin. Provider-process reuse is non-authoritative metadata, not reconnect authority.   |
+|    3 | `BLOCKER` | Successor uniqueness was asserted across different composition digests, while `LG-INTAKE` conditional creation conflicted only per composition-digest acknowledgement key.                                                                                 | Keep `LG-INTAKE` as the sole intake authority and atomically append an accepted successor's acknowledgement with a unique predecessor/cut claim. Claim then acknowledgement digests are staged; one contender wins, a loser receives a durable rejection naming the winner and no `ID-RUN`, and witness/readback rules cover every crash point. |
+
+### Owner directions and round-13 addition budget
+
+1. **OD-1 — bounded D4/D8 reopen:** Reopen D4 and D8 only to make explicit that terminal
+   `Stopped` may precede Story business outcome and executes finite settlement through the overlay.
+   Do not add a Story state, Run phase, delivery path, or synthetic outcome.
+2. **OD-2 — exact authority closure:** Only `CP-TRANSITION` may open, advance, or seal
+   `SCH-SETTLEMENT`; providers return facts. The overlay may authorize only the cataloged
+   preservation, close, reconciliation/release, review-retirement, workspace-retirement/handoff,
+   obligation, and artifact-pin duties.
+3. **OD-3 — fresh rework assignment:** Treat each rework turn as a new logical Jig assignment and
+   session lifecycle. Same-assignment reconnect/replacement remains available only within that
+   assignment; all capacity, bounds, identity, result attribution, stale-fact, and recovery rules
+   remain enforceable.
+4. **OD-4 — one witnessed successor authority:** Represent the successor acknowledgement and
+   unique predecessor/cut claim in one atomic `LG-INTAKE` semantic commit. Do not add a second
+   registry or split authority between stores.
+5. **OD-5 — existing-suite evidence:** Extend the existing `CF-RUN-CONTROL`, `CF-PRESERVATION`,
+   `CF-RELEASE`, `CF-BINDING`, `CF-CAPACITY`, `CF-BOUNDS`, `CF-OBSERVABILITY`,
+   `CF-NOTICE-EXPORT`, `CF-ENVELOPE`, `CF-REVIEW-PUBLICATION`, `CF-MECH-LEDGER`, and
+   `CF-MECH-SESSION` suites with the exact setup, adversarial, crash/replay, ordering, stale-basis,
+   and binding/freshness oracles. Add no new acceptance philosophy.
+6. **OD-6 — delegation closure:** Narrow existing DR-3, DR-4, and DR-6 constraints for the new
+   carriers; add no unresolved design choice. Wire encoding, physical atomic realization, provider
+   process reuse technique, package layout, and internal deterministic algorithms remain planning
+   choices only if they pass those existing suites.
+7. **OD-7 — renewed exact-candidate gate:** After this remediation merges, two fresh independent
+   reviews must each inspect the same exact merged commit/tree and normative manifest and return
+   `PASS`. Only then may a durable implementation-readiness record authorize Phase B archival.
+
+The addition budget is exactly one decision record (`D16`), two schema families
+(`SCH-SETTLEMENT`, `SCH-INTAKE-CUT-CLAIM`), and one identity (`ID-SETTLEMENT`), plus rows and clauses
+inside existing event, Operation, port, ledger, component, bound, projection, and conformance
+families. There is no new Run phase, Story state, port, runtime unit, provider power, Operation
+class, failure code, product promise, compatibility promise, or greenfield delivery-track artifact.
+
+This section records the failure and authorized remediation only. Candidate commit, tree, manifest,
+check results, and author-side advisory review evidence belong to the pull request. It makes no
+readiness verdict, archive claim, or lock activation; both independent exact-candidate `PASS`
+reviews remain mandatory.

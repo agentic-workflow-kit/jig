@@ -10,7 +10,7 @@ scope: Source/authority vocabulary, runtime vocabulary, and the identity and bin
 state: proposed
 status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./brief.md
   - ../AGENTS.md
@@ -60,22 +60,24 @@ own vocabulary.
 | **Rejected**            | The durable Story business outcome after an authorized owner decision declines an exact Story-bound parked request; dependents treat it as a direct non-delivery root.                                                                               |
 | **Suspended**           | A durable, resumable Run phase entered by validated operator stop; dispatch ceases while every unfinished Story keeps its underlying state.                                                                                                          |
 | **Stopped**             | A terminal Run non-delivery outcome after `FC-TRUST` trust-root failure, including a liveness-assumption breach that destroys the trust root, or an explicit terminal-stop decision; projects as product-visible `ended`, never resumable `stopped`. |
+| **Settlement overlay**  | The durable Run-terminal overlay applied by `Stopped` to each unfinished Story: it preserves the underlying Story state, forbids further business dispatch, and carries only the finite settlement and reconciliation duty set to the terminal cut.  |
 | **Retirement**          | Settlement, fencing, preservation, cleanup, release, or explicit handoff of resources and proof obligations after a business outcome.                                                                                                                |
 | **Residual Obligation** | A durable, owner-assigned Retirement or proof obligation that could not be completed automatically.                                                                                                                                                  |
 
 ## Identity and binding model
 
-| Stable identity         | Parent scope                                           | What it binds at Layer 1                                                                                                                            |
-| ----------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run identity            | Architecture-controlled run scope                      | The frozen Execution Envelope, controller generation, ordered history, outcomes, and obligations.                                                   |
-| Story identity          | Run                                                    | Requirements, dependencies, immutable ordering facts, Candidate history, business outcome, and Retirement.                                          |
-| Transition identity     | Run and expected prior ledger position                 | One deterministic decision and the operation intents it authorizes; it survives an unknown commit acknowledgement.                                  |
-| Operation identity      | Run or Story                                           | One semantic effect, its payload basis, authority fence, external result, and effect certainty.                                                     |
-| Candidate identity      | Story                                                  | `SCH-CANDIDATE`'s exact committed content, target basis, reviewed evidence, delivery metadata, acceptance, and Candidate-sensitive effects.         |
-| Controller generation   | Run                                                    | Current control authority and the rejection of stale pre-interruption dispatchers.                                                                  |
-| Finalization authority  | Configured target and Story                            | The sole current right to align, verify, and request target change for the bound `SCH-CANDIDATE` basis.                                             |
-| Evidence subject        | Run, Story, Candidate, Operation, or target fact       | The exact claim to which attributable evidence may contribute.                                                                                      |
-| Owner decision identity | Run, Story, parked request, notice, or authority scope | The exact subject, authorized responder or grant, selected action and reason, and later continuation, suspension, stop, acknowledgement, or snooze. |
+| Stable identity         | Parent scope                                           | What it binds at Layer 1                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run identity            | Architecture-controlled run scope                      | The frozen Execution Envelope, controller generation, ordered history, outcomes, and obligations.                                                                            |
+| Story identity          | Run                                                    | Requirements, dependencies, immutable ordering facts, Candidate history, business outcome, and Retirement.                                                                   |
+| Transition identity     | Run and expected prior ledger position                 | One deterministic decision and the operation intents it authorizes; it survives an unknown commit acknowledgement.                                                           |
+| Operation identity      | Run or Story                                           | One semantic effect, its payload basis, authority fence, external result, and effect certainty.                                                                              |
+| Candidate identity      | Story                                                  | `SCH-CANDIDATE`'s exact committed content, target basis, reviewed evidence, delivery metadata, acceptance, and Candidate-sensitive effects.                                  |
+| Controller generation   | Run                                                    | Current control authority and the rejection of stale pre-interruption dispatchers.                                                                                           |
+| Finalization authority  | Configured target and Story                            | The sole current right to align, verify, and request target change for the bound `SCH-CANDIDATE` basis.                                                                      |
+| Evidence subject        | Run, Story, Candidate, Operation, or target fact       | The exact claim to which attributable evidence may contribute.                                                                                                               |
+| Owner decision identity | Run, Story, parked request, notice, or authority scope | The exact subject, authorized responder or grant, selected action and reason, and later continuation, suspension, stop, acknowledgement, or snooze.                          |
+| Settlement identity     | Terminally Stopped Run                                 | The terminal-stop position, preserved Story-state snapshot, complete duty inventory and progress, retained fence/reconciliation facts, obligations, and sealed terminal cut. |
 
 Identity representation and schemas are Layer 2 decisions. The binding rule is already fixed: a
 stale, duplicate, late, wrong-role, wrong-subject, wrong-basis, or wrong-fence result cannot advance

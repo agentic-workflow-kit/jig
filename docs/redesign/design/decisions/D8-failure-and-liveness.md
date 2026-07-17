@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D8 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical failure model is owned by the failure-and-liveness page.
 state: proposed
-status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation, round-4 terminal-liveness remediation, then third bounded round-5 two-phase trust-stop clarification; renewed exact-candidate review pending
+status: established owner decision, amended by explicit bounded reopens of 2026-07-17 and the 2026-07-18 D16 terminal-stop settlement closure; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -59,6 +59,12 @@ obligation closes or is explicitly handed off. Without those assumptions, Jig gu
 named stopping point — a park, a block, or a terminal stop under the failure taxonomy's fixed
 selectors — and explicit loss of guarantee, not successful delivery.
 
+A terminally `Stopped` Run may end before an unfinished Story reaches a business outcome. Its
+Settlement overlay preserves the Story's existing state and drives a finite, bounded duty set to
+completion or exact owner-accepted handoff. Every overlay duty has the same no-silent-success,
+no-bound-renewal, preservation, reconciliation, and accountable-obligation posture as ordinary
+Retirement, without reclassifying the Story as `Retiring`.
+
 Deliberate operator `Suspended` is outside that autonomous finite-run progress claim: it is a
 durable owner-controlled condition with no dispatch, not a retry or unnamed wait. Resume re-enters
 the recovery integrity path; `FC-TRUST` is the sole failure selector for terminal `Stopped`, while
@@ -71,6 +77,8 @@ The first 2026-07-17 owner-approved readiness remediation amended this record's 
 second, bounded round-4 reopen clarifies only the already-fixed terminal selectors. The third,
 bounded round-5 reopen clarifies the two-phase trusted-recording condition for that same selector;
 it does not add an edge, event, state, or failure code.
+The 2026-07-18 D16 bounded reopen adds the terminal-stop Settlement overlay and its exact duty
+closure; it adds no Run phase, Story state, failure code, port, or provider authority.
 
 ## Rationale and benefits
 
