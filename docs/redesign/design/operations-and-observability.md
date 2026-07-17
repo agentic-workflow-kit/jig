@@ -8,7 +8,7 @@ scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks,
 state: approved
 status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./failure-and-liveness.md
   - ./state-and-recovery.md
@@ -87,15 +87,15 @@ of truth against the ledger (I5).
 Every observation surface is a derived projection rebuilt from the ledger by `CP-PROJECTION`
 (`S-DERIVED` in [state and recovery](./state-and-recovery.md)); none is authoritative.
 
-| ID                | Surface            | Answers                                                                                                                                 |
-| ----------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                                               |
-| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).                         |
-| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                                                 |
-| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.                         |
-| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, original wait start/deadline and overdue state, and completion or handoff status (I19). |
-| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.                                  |
-| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions.                      |
+| ID                | Surface            | Answers                                                                                                                                                                         |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, headline outcome so far, and for terminal `Stopped` the `ID-SETTLEMENT` position, open-duty count, and sealed/no-settlement status.                |
+| `OBS-STORY-BOARD` | Story board        | Per-Story preserved phase or business outcome and blockers with their complete canonically ordered direct-root sets (I14); terminal stop never projects a manufactured outcome. |
+| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                                                                                         |
+| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input and Settlement-overlay duty waits, with its owner, reason, deadline, retained fence, and exhaustion action.               |
+| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, original wait start/deadline and overdue state, and completion or handoff status (I19).                                         |
+| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.                                                                          |
+| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions.                                                              |
 
 ### Unified actionable notices
 
@@ -133,7 +133,11 @@ target inside its range and cannot demote the derived class.
 An open obligation's first `EV-BOUND-EXHAUSTED` that blocks settlement is a named no-settlement
 disposition. It authorizes neither terminal-settlement audit export nor artifact disposal; projections, notices, and
 the preserved ledger/obligation/evidence remain live and inspectable until exact owner acceptance
-or evidence-backed resolution wakes settlement and reaches the terminal position.
+or evidence-backed resolution wakes settlement and reaches the terminal position. For terminal
+`Stopped`, the read models continue to expose the immutable preserved Story-state snapshot, every
+remaining/completed overlay duty, retained authority or uncertain-Operation fence, accountable
+owner, next permitted action, and overlay position until `sealed`; consumers can therefore
+distinguish terminal Run state from completed cleanup without reading controller memory.
 
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. An audit export exists exactly for a Run

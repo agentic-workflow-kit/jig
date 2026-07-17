@@ -10,7 +10,7 @@ scope: Envelope Builder responsibilities, input composition, policy/work-profile
 state: approved
 status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ../../product/guarantees.md
   - ./context.md
@@ -142,29 +142,36 @@ missing evidence into success.
 
 ### Intake idempotency
 
-`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest, its sole submission
-identity. Preflight validates
+`PORT-INTAKE` derives the composition acknowledgement key and, for a successor, the canonical
+`successor-cut` claim key from predecessor `ID-RUN` plus the full quarantine-cut position/digest.
+Preflight validates
 lineage consistency before that create/read: a successor names an existing predecessor
 acknowledgement and `ID-RUN`, carries a non-empty re-plan reason, and provides a
 predecessor-quarantine cut. A verified read of the predecessor's durable record at that position
 must match the cut digest and prove every named affected Story/root-blocker is preserved-and-parked
 or terminal; otherwise intake fails closed. A genesis envelope carries the explicit `absent` value
 and no predecessor fields. The composition digest covers these lineage bytes. Any mismatch fails
-closed. One predecessor quarantine cut binds at most one accepted successor: a second successor
-submission naming an already-consumed cut fails intake closed.
+closed. One atomic `LG-INTAKE` commit then creates the accepted successor acknowledgement and claim
+at one shared position only when both keys are absent. The first commit in intake order wins; a
+different-digest contender for the occupied cut creates no claim or Run and receives a durable
+rejected acknowledgement with reason `successor-cut-already-claimed` and the witnessed winner's
+claim, acknowledgement tuple, and `ID-RUN` binding.
 
 Before conditional-create, `CP-INTAKE` computes `acknowledgementContentDigest` over the canonical
 terminal content: composition digest; every applicable preflight-attempt handle/digest and bound
 consumption; disposition and reason; proposal digest and exact approval; and, for acceptance, the
-frozen envelope and complete genesis basis. The domain excludes its own digest field, `ID-RUN`, the
+frozen envelope and complete genesis basis. For a successor it also contains the claim key and the
+staged claim content digest; that claim digest binds the predecessor/cut, winning composition, and
+acknowledgement key while excluding itself and every post-commit field. The acknowledgement domain excludes its own digest field, `ID-RUN`, the
 unassigned `LG-INTAKE` position, and derived create/readback/witness proofs or handles. The create
-then assigns the intake position; after durable create/readback and witness verification the stable
+then assigns the intake position, shared by both successor entries; after durable create/readback and witness verification the stable
 tuple is `(compositionDigest, intakeCreatePosition, acknowledgementContentDigest)`. Only then does
 an accepted acknowledgement derive `ID-RUN` under the canonical post-position identity rule and
 bind it to that tuple; rejection derives none. A duplicate returns that exact tuple and derived
-fields, and a lost acknowledgement is recovered by digest lookup without a second create. Only a
-different composition digest is a new submission. The submitter can therefore retry after ambiguity
-without forking two Runs from one approval.
+fields, and a lost acknowledgement is recovered by digest lookup without a second create. A
+different composition digest is a new submission only when it does not conflict with an occupied
+successor-cut claim. The submitter can therefore retry after ambiguity without forking either one
+approval or one predecessor quarantine cut.
 
 ## Policy and work profile
 

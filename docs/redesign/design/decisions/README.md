@@ -5,11 +5,11 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Future architecture authors after authorization
-scope: Index and status of decisions D1–D15, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
+scope: Index and status of decisions D1–D16, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D15 remain byte-locked; prior bounded reopens are historical; the current readiness verdict and authorized remediation are recorded in product-readiness-gate-record.md
+status: active index — D1–D16 and their explicit bounded reopens are owner-approved; renewed exact-candidate review remains pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -51,13 +51,15 @@ Layer 1 gate recorded in the [review and approval record](./review-and-approval-
 
 D10–D12 were authored on 2026-07-15 and approved — not locked — by the explicit owner decision of
 2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 and
-D14 are the later owner-approved product-readiness amendments. D15 is the 2026-07-17
-readiness-remediation decision for pre-acceptance review publication. The merged first remediation
+D14 are later owner-approved product-readiness amendments. D15 is the 2026-07-17
+readiness-remediation decision for pre-acceptance review publication. D16 is the 2026-07-18 final
+readiness contract closure. The merged first remediation
 already recorded its D4/D6/D8 and I14 amendments; D3/D7/D10 amendments are historical baseline
 records. The fourth remediation's D4/D8 amendments are historical baseline. The fifth remediation
 explicitly reopens only D8; the sixth remediation reopens only D13; and the eighth remediation
 narrowly reopens only D6's suspension-release sentence to align it with the already-selected
-retained-but-fenced rule. D1–D5 and D7–D15 remain byte-locked against further change. Renewed
+retained-but-fenced rule. D1–D3, D5, D7, and D9–D15 remain byte-locked against further change; D4
+and D8 carry the explicit D16 bounded reopen. Renewed
 review is required under the [product readiness
 gate](./product-readiness-gate-record.md).
 
@@ -69,6 +71,7 @@ gate](./product-readiness-gate-record.md).
 | [D13](./D13-envelope-production-boundary.md)       | Envelope production boundary       | Jig-owned configuration front end outside active-Run control authority; lock pending exact review.             |
 | [D14](./D14-agent-provider-permission-boundary.md) | Agent-provider permission boundary | Provider-native runtime permission enforcement with human-needed requests routed through the durable Doorbell. |
 | [D15](./D15-pre-acceptance-review-publication.md)  | Pre-acceptance review publication  | Candidate-fenced draft review publication without finalization or landing authority.                           |
+| [D16](./D16-final-readiness-contract-closure.md)   | Final readiness contract closure   | Settlement overlay, fresh bounded rework assignments, and atomic successor-cut claims.                         |
 
 ## Imported promises and constraints
 

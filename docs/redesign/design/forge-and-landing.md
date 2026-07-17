@@ -8,7 +8,7 @@ scope: Repository and forge Operations, policy-selected integration modes, conte
 state: approved
 status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./concurrency-and-finalization.md
@@ -56,7 +56,10 @@ anchor, mutate the target ref, request merge, declare landing, or invoke an `OPC
 Publication is neither acceptance nor landing and cannot release dependencies.
 
 After a terminal Story outcome, its recorded Transition may authorize only the corresponding
-review-venue retirement Operations under the same D15 scope:
+review-venue retirement Operations under the same D15 scope. If the Run instead enters terminal
+`Stopped` while that Story is nonterminal, the opening or later progress Transition of the one
+`SCH-SETTLEMENT` overlay may authorize the same retirement set without changing the preserved
+Story state:
 
 | ID                       | Retirement duty                                     |
 | ------------------------ | --------------------------------------------------- |
@@ -65,7 +68,9 @@ review-venue retirement Operations under the same D15 scope:
 | `OPC-REV-RETIRE-STATUS`  | Retire or final-state the stable status marker.     |
 | `OPC-REV-RETIRE-COMMENT` | Retire or final-state the stable explanation block. |
 
-These Operations cannot acquire finalization authority, invoke integration, or mutate the target.
+These Operations cannot acquire finalization authority, invoke integration, mutate the target, or
+manufacture a Story outcome. Their facts return through `PORT-DELIVERY` and advance only Story
+Retirement or the exact `ID-SETTLEMENT` duty that authorized them.
 An exhausted retirement failure preserves the remaining venue and records an `ID-OBLIGATION`
 with completion criteria and evidence instead of delaying or revising the terminal Story outcome.
 

@@ -8,7 +8,7 @@ scope: Resource-class capacity, the deterministic total order, and target-scoped
 state: proposed
 status: established Layer 1 baseline; no semantic change in the 2026-07-17 readiness-remediation candidate
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ./brief.md
   - ./model.md
@@ -63,7 +63,10 @@ by a later higher-priority Story.
   rebinding to that carrier.
 - Ordinary implementation rework releases authority and returns through acceptance.
 - Landing, reconciled block, owner rejection, terminal stop, or Recovery-driven transfer releases
-  authority only after the authority-release prerequisite. Suspension preserves the Story phase and
+  authority only after the authority-release prerequisite. Terminal stop opens the sole
+  `SCH-SETTLEMENT` overlay with the retained fence; its administrative Transitions may reconcile
+  and release that authority but can never deliver, land, reacquire, or change preserved Story
+  state. Suspension preserves the Story phase and
   retains any held grant fenced until every in-flight target-changing Operation resolves; the
   existing phase-preserving reconciliation Transition then releases it durably.
 - Recovery reconstructs and reconciles authority and target state before resuming or reassigning.

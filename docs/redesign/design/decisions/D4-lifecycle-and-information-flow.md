@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D4 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical lifecycle content is owned by the lifecycle flow page.
 state: proposed
-status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation then round-4 terminal-liveness remediation; renewed exact-candidate review pending
+status: established owner decision, amended by explicit bounded reopens of 2026-07-17 and the 2026-07-18 D16 terminal-stop settlement closure; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-17
+last_verified: 2026-07-18
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -51,10 +51,18 @@ Retirement follows Landed, Blocked, and Rejected. A Story closes only when outco
 are final; a Run completes only when every outcome is final and every obligation completes or has an
 owner-accepted residual handoff.
 
+The terminal `Stopped` Run outcome is the explicit exception to ordinary Story business-outcome
+progression. It applies a durable Settlement overlay to every unfinished Story, preserves that
+Story's existing state, freezes business dispatch, and completes only the terminal-stop duty set;
+it neither invents a Story business outcome nor moves that Story into `Retiring`. The overlay's
+settled cut is the Run's terminal-settlement position.
+
 The first 2026-07-17 owner-approved readiness remediation reopened this locked decision only to add
 the resumable/terminal Run distinction and the `Rejected` Story outcome. The second, bounded
 round-4 reopen narrows the terminal-failure wording to the already-fixed `FC-TRUST` selector. The
 recovery, outcome/Retirement separation, and record-before-dispatch direction remain unchanged.
+The 2026-07-18 D16 bounded reopen makes the previously approved terminal-stop preservation prose
+operational through the Settlement overlay; it does not alter ordinary Story Retirement.
 
 Accepted transitions and authorized Operation intents are recorded durably before live adoption or
 dispatch. External results and owner decisions return as later validated triggers.
