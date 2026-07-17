@@ -80,7 +80,23 @@ owner authorized their remediation. This candidate reopens only D8 under its thi
 does not certify the gate, and requires a fresh independent reviewer to assess the exact merged
 commit after merge.
 
-## Finding-to-resolution record
+## Fifth-review finding-to-resolution record
+
+| Finding                     | Owner-approved resolution carried by this candidate                                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Rejected intake spawning | Accepted acknowledgement conditions every Run-ledger/controller derivation; rejected acknowledgement is terminal and derives neither.                                            |
+| 2. Acceptance invalidation  | Exact invalidating owner decisions take affected `Accepted`, `Waiting`, and `Finalizing` Stories to `Reviewing` with a fresh `RP-PACKAGE`; only `Finalizing` releases authority. |
+| 3. Target-refresh alignment | `OPC-SESSION-ASSIGN` supports bounded re-dispatch, then a new Candidate and target-observation fact with retained authority and atomic rebind.                                   |
+| 4. Post-terminal export     | The closed post-terminal administrative regime authorizes the create-once export/receipt path without changing the business-final cut.                                           |
+| 5. Evidence disposal        | `OPC-ART-DISPOSE` requires artifact-bound owner authorization, certainty reconciliation, and preservation, retention, and no-open-obligation guards.                             |
+| 6. Session lifecycle facts  | `EV-SESSION-FACT` carries all eight attestation kinds and every session-lifecycle row names its committing event.                                                                |
+| 7. Successor quarantine     | `predecessorQuarantineCut` is lineage-bound, fail-closed at intake, and covered by the composition digest.                                                                       |
+| 8. Two-phase trust stop     | `FC-TRUST` fences and halts first; `Stopped` records only on a trustworthy witnessed append basis or through external recovery.                                                  |
+| 9. Qualifying progress      | `BND-IDLE` is an exhaustive digest-bound predicate over four qualifying fact classes, excluding message, token, and provider self-report volume.                                 |
+| 10. Principal/read scopes   | The local OS-user plus configured-key trust root, fail-closed caller binding, reader scopes, and adversarial probes are explicit.                                                |
+| 11. Pre-Run source deadline | `BND-WAIT-MECHANISM` and `CF-MECH-SOURCE` cover each `PORT-SOURCE` attempt and pre-Run exhaustion.                                                                               |
+
+## Prior finding-to-resolution record
 
 | Finding | Owner-approved resolution carried by this candidate                                                                                                                                                                                      |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

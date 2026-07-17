@@ -285,7 +285,7 @@ flowchart LR
         OwnerR(["P-OWNER<br/>Arye or recorded delegate<br/>[Person]"])
     end
 
-    OperatorP -->|"after LG-INTAKE acknowledgement, creates ledger and starts per Run"| ControllerP
+    OperatorP -->|"after accepted LG-INTAKE acknowledgement, creates ledger and starts per Run"| ControllerP
     OperatorP -->|"conditionally creates LG-INTAKE via PORT-LEDGER"| LedgerD
     ControllerP -->|"spawns and supervises scoped"| MechanismP
     ControllerP -->|"conditionally appends via PORT-LEDGER to"| LedgerD

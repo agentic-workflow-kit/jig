@@ -171,6 +171,10 @@ These are high-level phases, not an exhaustive state machine. `Parked`, `Suspend
 `Interrupted / Recovering` may suspend a Run or a Story without replacing the Story's underlying
 phase. No Story transition fires while the Run is `Suspended`. Exact substates, transitions, event
 types, counters, and cancellation behavior belong to Layer 2.
+When a changed-safety-basis re-approval park closes while acceptance remains invalidated, each
+affected `Accepted`, `Waiting`, or `Finalizing` Story takes the same cataloged
+`EV-OWNER-DECISION` transition to `Reviewing` as a rule-surface invalidation; the `Finalizing`
+transition releases its held authority and every transition creates a fresh `RP-PACKAGE`.
 
 ### View V3b — Story phases
 
