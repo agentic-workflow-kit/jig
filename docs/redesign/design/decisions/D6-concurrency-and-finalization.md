@@ -60,10 +60,12 @@ Operator suspension fences dispatch and preserves the underlying Story phase. An
 target-scoped finalization authority remains retained-but-fenced until every in-flight
 target-changing Operation of its holding Story resolves as confirmed effect, confirmed absence, or
 cancellation with proof of no effect. An `Uncertain` Operation under `BND-RECOVERY` does not satisfy
-that prerequisite. Only the existing fact-triggered, phase-preserving `Suspended` → `Suspended`
-reconciliation Transition durably releases the authority; resume must then reacquire and rebind it
-before target-changing dispatch. Until release, another Story or Run cannot acquire the same target
-authority.
+that prerequisite: the authority stays retained-but-fenced until reconciliation completes or an
+explicit terminal governance disposition preserves or externally transfers that target fence. Only
+the existing fact-triggered, phase-preserving `Suspended` → `Suspended` reconciliation Transition
+durably releases the authority within a resumable Run; resume must then reacquire and rebind it
+before target-changing dispatch. Until release or that terminal disposition, another Story or Run
+cannot acquire the same target authority.
 
 ## Rationale and benefits
 
