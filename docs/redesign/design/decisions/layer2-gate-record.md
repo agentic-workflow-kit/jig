@@ -6,9 +6,9 @@ audience:
   - Independent architecture reviewers
 scope: The Layer 2 gate only; Layer 2 content lives in the design pages, and the Layer 1 gate lives in the Layer 1 review and approval record.
 state: current
-status: gate record — the corrected candidate passed the 2026-07-16 round-4 verification recheck, and Arye explicitly approved Layer 2 (approved, not locked) the same day
+status: historical gate record — Layer 2 was approved, not locked, on 2026-07-16; the bounded D10 amendment and dependent 2026-07-17 remediation await renewed exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./review-and-approval-record.md
   - ./D9-invariants-and-artifact-shape.md
@@ -301,7 +301,7 @@ Four findings returned with converging demands, resolved by a fourth correction 
    mechanism-contract preamble and substitutions, D12); the substitutions
    table now defines the ledger's binding-identity-and-fence substitute (store line, expected
    position, proposing generation) and references only defined clauses (`MC-IDEMPOTENT`,
-   `MC-LOOKUP` — the undefined `MC-RECONCILE` reference is corrected).
+   `MC-LOOKUP` — the previously undefined reconciliation-clause reference is corrected).
 
 ### Round-4 verification recheck and owner decision (2026-07-16)
 
