@@ -45,13 +45,13 @@ The controller assembles one complete assignment package per review; `CP-EVIDENC
 exact subject before dispatch. The package identifies the exact subject the reviewer judges; a
 verdict over anything else is invalid (I7).
 
-| Package element     | Content                                                                                                                       |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Exact Candidate     | `SCH-CANDIDATE`'s `candidateContentDigest` and recorded target-basis digest; nothing mutable or symbolic.                     |
-| Frozen requirements | The Story's approved requirements and acceptance criteria drawn from the approved `SCH-PLAN` content frozen in the Run basis. |
-| Evidence manifest   | The complete evidence manifest linked by this `SCH-CANDIDATE` and bound to this Candidate.                                    |
-| Findings ledger     | Every prior finding for this Story with its current resolution state (see `RP-FINDING`).                                      |
-| Delivery metadata   | This `SCH-CANDIDATE`'s bounded delivery metadata as proposed for acceptance judgment.                                         |
+| Package element     | Content                                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact Candidate     | `SCH-CANDIDATE`'s `candidateContentDigest` and recorded target-basis digest; nothing mutable or symbolic.                                                      |
+| Frozen requirements | The Story's approved requirements and acceptance criteria drawn from the approved `SCH-PLAN` content frozen in the Run basis.                                  |
+| Evidence manifest   | The complete evidence manifest linked by this `SCH-CANDIDATE` and bound to this Candidate.                                                                     |
+| Findings ledger     | Every prior finding for this Story with its current resolution state (see `RP-FINDING`).                                                                       |
+| Delivery metadata   | This `SCH-CANDIDATE`'s closed delivery-metadata tuple and `deliveryMetadataDigest`, plus D15's separate fixed review-publication-observation tuple and digest. |
 
 A package element that is missing, integrity-failing, or bound to a different `SCH-CANDIDATE` digest
 fails the assignment closed before dispatch (QS8); Jig never asks a reviewer to judge an
@@ -60,7 +60,8 @@ incompletely identified subject.
 **The package digest (`RP-PACKAGE-DIGEST`)** makes the whole package the immutable review subject:
 one digest computed over every package element — the `SCH-CANDIDATE` content digest, the target basis
 digest, the frozen-requirements digest, the evidence manifest digest, the findings-ledger state
-digest, and the delivery metadata digest. D7 binds acceptance to the judged requirements,
+digest, `SCH-CANDIDATE.deliveryMetadataDigest`, and the fixed review-publication-observation digest.
+D7 binds acceptance to the judged requirements,
 evidence, findings state, and delivery metadata, not to content alone, so the digest that
 identifies the judged subject must cover them all: a change to any element — including the frozen
 requirements a re-planned Run presents — changes the package digest even when the Candidate

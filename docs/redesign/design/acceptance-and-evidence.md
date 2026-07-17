@@ -35,7 +35,8 @@ The reviewer owns full-package judgment of:
 
 A valid reviewer approval of the exact `SCH-CANDIDATE` record at `ID-CAND` is the acceptance gate
 and permits finalization. Jig validates reviewer identity and authority, the carrier's exact
-content binding, target-basis digest, bounded delivery metadata, and evidence-manifest linkage,
+content binding, target-basis digest, closed delivery metadata and `deliveryMetadataDigest`, and
+evidence-manifest linkage,
 the Candidate's lifecycle binding, required evidence availability and integrity, absence of
 unresolved **blocking** findings, and current lifecycle position.
 Jig then durably records `Accepted` without independently rejudging the reviewer's sufficiency
@@ -80,7 +81,8 @@ Large or provider-shaped evidence remains in immutable, bounded supporting artif
 keeps bounded decision facts, manifest completeness, digests, and references. Evidence required by a
 decision must be available, authorized, exact-subject-bound, and integrity-valid. The Candidate
 subject, target basis, delivery metadata, and evidence-manifest linkage resolve to
-`SCH-CANDIDATE` at `ID-CAND`; changing any reviewed component invalidates current use of prior
+`SCH-CANDIDATE` at `ID-CAND`, with delivery metadata bound by its closed tuple and
+`deliveryMetadataDigest`; changing any reviewed component invalidates current use of prior
 acceptance and evidence.
 
 ## Landing proof
