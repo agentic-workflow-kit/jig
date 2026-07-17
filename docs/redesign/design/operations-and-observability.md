@@ -87,15 +87,15 @@ of truth against the ledger (I5).
 Every observation surface is a derived projection rebuilt from the ledger by `CP-PROJECTION`
 (`S-DERIVED` in [state and recovery](./state-and-recovery.md)); none is authoritative.
 
-| ID                | Surface            | Answers                                                                                                            |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                          |
-| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).    |
-| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                            |
-| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.    |
-| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, and their completion or handoff status (I19).                      |
-| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.             |
-| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions. |
+| ID                | Surface            | Answers                                                                                                                                 |
+| ----------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                                               |
+| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).                         |
+| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                                                 |
+| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.                         |
+| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, original wait start/deadline and overdue state, and completion or handoff status (I19). |
+| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.                                  |
+| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions.                      |
 
 ### Unified actionable notices
 
@@ -110,6 +110,11 @@ Each of those three events triggers its cataloged control-administrative Transit
 `CP-PROJECTION` updates notice presentation and wake eligibility from the resulting durable facts.
 None resolves the underlying durable condition, advances Run, Story, or obligation lifecycle state,
 or authorizes an Operation.
+
+For a live `open` Residual Obligation, urgency derives from its recorded original
+`BND-WAIT-DECISION` start/deadline. Deadline expiry commits one idempotent
+`EV-BOUND-EXHAUSTED` re-escalation and notice basis for the same obligation and owner. It does not
+reset the wait, change obligation status, relax owner-only handoff authority, or claim resolution.
 
 Owner-reviewable notice-delivery defaults:
 
@@ -160,7 +165,8 @@ the obligation's resolution through the operator interface as
 `EV-OBLIGATION-RESOLVED` from either `open` or `accepted-handoff`, before or after terminal
 settlement — the validated event and its evidence close the obligation, not the shell history. A
 post-terminal audit-export failure therefore has both an owner-only handoff exit and a completion
-exit without revising settled facts. Destructive cleanup outside an authorized retirement or a
+exit without revising settled facts. Its original decision deadline also gives it a durable overdue
+re-escalation path without auto-handoff or auto-resolution. Destructive cleanup outside an authorized retirement or a
 recorded obligation is out of contract: cleanup cannot reverse landing or delay dependency release
 (I18), and work and evidence are preserved before any destruction (I19).
 
