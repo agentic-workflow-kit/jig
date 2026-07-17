@@ -37,7 +37,8 @@ Use **centralized deterministic authority with scoped judgment and attestation**
 
 - Jig Control is the sole routine lifecycle authority and owns Authorize, Decide, Record, and
   Reconcile powers;
-- **Arye** decides escalations, exceptions, imports, approvals, stops, and reopens;
+- **Arye** decides escalations, exceptions, imports, approvals, reopens, and every stop or decision
+  no current operational grant covers;
 - a recorded delegate holds only bounded operational authority — decide/answer, Run stop/resume,
   notice, and similar operational classes — within the exact current `ID-GRANT`;
 - product or architecture imports or approval, gate verdicts, and layer reopens are non-delegable;

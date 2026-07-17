@@ -165,10 +165,9 @@ flowchart LR
         end
     end
 
-    PDecide -->|"returns scoped owner decisions to"| Mediator
+    PDecide -->|"returns scoped owner decisions to"| Escalation
     PMech -->|"returns attestations and effect certainty to"| Mediator
     Mediator -->|"supplies validated result triggers to"| Transition
-    Mediator -->|"routes validated owner decisions to"| Escalation
     Mediator -->|"hands attested evidence to"| Evidence
     Escalation -->|"proposes wake triggers to"| Transition
     Escalation -->|"parks durable named questions via"| PDecide

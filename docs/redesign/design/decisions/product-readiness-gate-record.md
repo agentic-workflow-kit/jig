@@ -14,6 +14,7 @@ sources_of_truth:
   - ./product-guarantee-import.md
   - ../product-guarantee-reconciliation.md
   - ./D3-responsibilities-trust-authority.md
+  - ./D7-acceptance-and-evidence.md
   - ./D10-runtime-decomposition.md
   - ./D15-pre-acceptance-review-publication.md
   - ../../../product/guarantees.md
@@ -35,47 +36,47 @@ The product-readiness lock therefore remains **inactive**.
 
 Arye Kogan verified the findings, settled the nine decisions they require, and approved the exact
 resolutions below. That authorization permits the named design and non-guarantee product-prose
-corrections, including bounded reopen of D3 and D10. It does not authorize unrelated Layer 1
+corrections, including bounded reopen of D3, D7, and D10. It does not authorize unrelated Layer 1
 changes, implementation, archive, greenfield planning, merge, or self-certification of readiness.
 
 ## Finding-to-resolution record
 
-| Finding | Owner-approved resolution carried by this candidate                                                                                                                                                                                                                                             |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `B1`    | Define design-owned `SCH-PLAN`, including stable Stories and edges, policy-check done conditions, track/policy references, digest, and fail-closed validation; delegate only wire encoding.                                                                                                     |
-| `B2`    | Realize the local-first Execution Host seam inside the `PORT-WORKSPACE` provider family with host identity, posture, replacement, manifest-level swapping, and conformance clauses.                                                                                                             |
-| `B3`    | Move integration strategy/merge spectrum into frozen policy, subject to a non-weakening repository floor and `CF-POLICY`.                                                                                                                                                                       |
-| `B4`    | Define effect-free Envelope Builder preview through `PORT-CONSUMER`, with no Run identity, ledger mutation, intake acknowledgement, or dispatch.                                                                                                                                                |
-| `B5`    | Make `SCH-INTAKE-ACK` conditional-create the single intake commit point; derive/recreate the Run ledger and projections after acknowledgement, and start the controller only after it exists.                                                                                                   |
-| `B6`    | Reconcile authority wording: `CP-FINALIZER` alone proposes target-changing work under sole target authority; `CP-TRANSITION` alone authorizes it in a recorded Transition.                                                                                                                      |
-| `B7`    | Make the target-authority registry the cross-Run arbiter with comparator-ordered waiters, conditional grant/release, atomic Candidate-changing rebind, and registry-first recovery.                                                                                                             |
-| `B8`    | Make forge and privileged-delivery credential classes structurally unrepresentable in Agent manifests and session bindings; reject them as `FC-AUTHORITY` and probe adversarially.                                                                                                              |
-| `B9`    | Add `ID-EVENT` and standalone `SCH-EVENT`; define ledger position as the sole trigger order and normalize producer/derivation deduplication.                                                                                                                                                    |
-| `B10`   | Permit same-identity retry only for effectful Operations after confirmed absence and recorded reauthorization; replace effect-free observations with a new Operation.                                                                                                                           |
-| `B11`   | Add `EV-ARTIFACT-FACT` so artifact result/certainty/failure facts commit before evidence-manifest adoption.                                                                                                                                                                                     |
-| `B12`   | Complete Operation lifecycle coverage for effectful retry plus durable `Superseded` and `Cancelled` outcomes.                                                                                                                                                                                   |
-| `B13`   | Define the terminal-settlement export cut, keep export receipt/failure obligations post-terminal and outside its range, and add `EV-OBLIGATION-RESOLVED`.                                                                                                                                       |
-| `B14`   | Route `BND-REFRESH` exhaustion to nonterminal `RefreshPark` with target-instability escalation and no dependent release.                                                                                                                                                                        |
-| `B15`   | Apply absence of unresolved **blocking** findings in the amendable design views; severity remains reviewer judgment. Independent review found the locked D7 record still says “unresolved findings,” so complete closure requires an owner-authorized D7 reopen and remains an open item below. |
-| `DG1`   | Reserve pre-Run envelope/configuration approval to Arye in v1; keep `ID-GRANT` per-Run and operational-only.                                                                                                                                                                                    |
-| `DG2`   | Add review-publication retirement Operations for venue, branch, and status markers; failed retirement preserves a Residual Obligation.                                                                                                                                                          |
-| `DG3`   | Make the V3a Run-transition contract exhaustive: every edge has one trigger/event candidate, guard, and persisted fact.                                                                                                                                                                         |
-| `DG4`   | Add `ID-SESSION` and an exhaustive role-session lifecycle with replacement/result lineage and terminal loss attestation.                                                                                                                                                                        |
-| `DG5`   | Add `ID-FINDING` and explicit finding tuple/severity/resolution transitions within `SCH-VERDICT`.                                                                                                                                                                                               |
-| `DG6`   | Add owner-reviewable defaults and allowed ranges for evidence size/oversize handling, retention, snapshot cadence, proof freshness, and notice urgency.                                                                                                                                         |
-| `DG7`   | Default progress reserve to one slot per configurable scarce class, default per-Story demand to one, declare ranges, preserve the structural finalizer exception, and preflight feasibility.                                                                                                    |
-| `DG8`   | Bind merge-queue and branch-protection holds to `BND-WAIT-TARGET`.                                                                                                                                                                                                                              |
-| `DG9`   | Replace discretionary containment alternatives with fixed failure selectors: park only when recorded owner action can change the outcome; otherwise block, with trust-root failures stopping.                                                                                                   |
-| `TG1`   | Re-sweep all four product documents, map 44 normative commitments, and refresh every changed carrier row.                                                                                                                                                                                       |
-| `TG2`   | Add secret-absence, observability, evidence-lifecycle, export-completeness, and fault-to-containment conformance coverage and propagate changed contracts through existing suites.                                                                                                              |
-| `TG3`   | Amend D10 canonical bytes from nine to ten ports and define `PORT-CONSUMER` as a private first-party facade with no authority crossing of its own.                                                                                                                                              |
-| `TG4`   | Amend D3 canonical bytes to reserve imports, approvals, verdicts, and reopens to Arye; correct stale model/import text and record the bounded reopen.                                                                                                                                           |
-| `E1`    | Refresh stale page-local status and `last_verified` metadata without activating the readiness lock.                                                                                                                                                                                             |
-| `E2`    | Complete V8 with all cataloged identities, including `ID-EVENT`, `ID-SESSION`, and `ID-FINDING`.                                                                                                                                                                                                |
-| `E3`    | Limit `CP-MEDIATOR`'s inbound claim to mediated mechanism ports; preserve the documented `PORT-LEDGER`, intake, decision, and controller-derived paths.                                                                                                                                         |
-| `E4`    | Limit `PORT-LEDGER` sole-writer language to the Run Transition ledger and name the separate `LG-INTAKE` and target-registry writers.                                                                                                                                                            |
-| `E5`    | Correct non-guarantee product prose: the optional supporting-product artifact chain no longer appears mandatory, and the private MCP adapter is current rather than future.                                                                                                                     |
-| `E6`    | Correct `PC-JIG-5`: decisions use `EV-OWNER-DECISION`; handoff uses `EV-DELEGATION-GRANT`, `SCH-DELEGATION-GRANT`, and `ID-GRANT`.                                                                                                                                                              |
+| Finding | Owner-approved resolution carried by this candidate                                                                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `B1`    | Define design-owned `SCH-PLAN`, including stable Stories and edges, policy-check done conditions, track/policy references, digest, and fail-closed validation; delegate only wire encoding.                                              |
+| `B2`    | Realize the local-first Execution Host seam inside the `PORT-WORKSPACE` provider family with host identity, posture, replacement, manifest-level swapping, and conformance clauses.                                                      |
+| `B3`    | Move integration strategy/merge spectrum into frozen policy, subject to a non-weakening repository floor and `CF-POLICY`.                                                                                                                |
+| `B4`    | Define effect-free Envelope Builder preview through `PORT-CONSUMER`, with no Run identity, ledger mutation, intake acknowledgement, or dispatch.                                                                                         |
+| `B5`    | Make `SCH-INTAKE-ACK` conditional-create the single intake commit point; derive/recreate the Run ledger and projections after acknowledgement, and start the controller only after it exists.                                            |
+| `B6`    | Reconcile authority wording: `CP-FINALIZER` alone proposes target-changing work under sole target authority; `CP-TRANSITION` alone authorizes it in a recorded Transition.                                                               |
+| `B7`    | Make the target-authority registry the cross-Run arbiter with comparator-ordered waiters, conditional grant/release, atomic Candidate-changing rebind, and registry-first recovery.                                                      |
+| `B8`    | Make forge and privileged-delivery credential classes structurally unrepresentable in Agent manifests and session bindings; reject them as `FC-AUTHORITY` and probe adversarially.                                                       |
+| `B9`    | Add `ID-EVENT` and standalone `SCH-EVENT`; define ledger position as the sole trigger order and normalize producer/derivation deduplication.                                                                                             |
+| `B10`   | Permit same-identity retry only for effectful Operations after confirmed absence and recorded reauthorization; replace effect-free observations with a new Operation.                                                                    |
+| `B11`   | Add `EV-ARTIFACT-FACT` so artifact result/certainty/failure facts commit before evidence-manifest adoption.                                                                                                                              |
+| `B12`   | Complete Operation lifecycle coverage for effectful retry plus durable `Superseded` and `Cancelled` outcomes.                                                                                                                            |
+| `B13`   | Define the terminal-settlement export cut, keep export receipt/failure obligations post-terminal and outside its range, and add `EV-OBLIGATION-RESOLVED`.                                                                                |
+| `B14`   | Route `BND-REFRESH` exhaustion to nonterminal `RefreshPark` with target-instability escalation and no dependent release.                                                                                                                 |
+| `B15`   | Require absence of unresolved **blocking** findings in the amendable design views and canonical D7 bytes; severity remains reviewer judgment. The recorded owner-authorized D7 bounded reopen resolves the exact-commit review conflict. |
+| `DG1`   | Reserve pre-Run envelope/configuration approval to Arye in v1; keep `ID-GRANT` per-Run and operational-only.                                                                                                                             |
+| `DG2`   | Add review-publication retirement Operations for venue, branch, and status markers; failed retirement preserves a Residual Obligation.                                                                                                   |
+| `DG3`   | Make the V3a Run-transition contract exhaustive: every edge has one trigger/event candidate, guard, and persisted fact.                                                                                                                  |
+| `DG4`   | Add `ID-SESSION` and an exhaustive role-session lifecycle with replacement/result lineage and terminal loss attestation.                                                                                                                 |
+| `DG5`   | Add `ID-FINDING` and explicit finding tuple/severity/resolution transitions within `SCH-VERDICT`.                                                                                                                                        |
+| `DG6`   | Add owner-reviewable defaults and allowed ranges for evidence size/oversize handling, retention, snapshot cadence, proof freshness, and notice urgency.                                                                                  |
+| `DG7`   | Default progress reserve to one slot per configurable scarce class, default per-Story demand to one, declare ranges, preserve the structural finalizer exception, and preflight feasibility.                                             |
+| `DG8`   | Bind merge-queue and branch-protection holds to `BND-WAIT-TARGET`.                                                                                                                                                                       |
+| `DG9`   | Replace discretionary containment alternatives with fixed failure selectors: park only when recorded owner action can change the outcome; otherwise block, with trust-root failures stopping.                                            |
+| `TG1`   | Re-sweep all four product documents, map 44 normative commitments, and refresh every changed carrier row.                                                                                                                                |
+| `TG2`   | Add secret-absence, observability, evidence-lifecycle, export-completeness, and fault-to-containment conformance coverage and propagate changed contracts through existing suites.                                                       |
+| `TG3`   | Amend D10 canonical bytes from nine to ten ports and define `PORT-CONSUMER` as a private first-party facade with no authority crossing of its own.                                                                                       |
+| `TG4`   | Amend D3 canonical bytes to reserve imports, approvals, verdicts, and reopens to Arye; correct stale model/import text and record the bounded reopen.                                                                                    |
+| `E1`    | Refresh stale page-local status and `last_verified` metadata without activating the readiness lock.                                                                                                                                      |
+| `E2`    | Complete V8 with all cataloged identities, including `ID-EVENT`, `ID-SESSION`, and `ID-FINDING`.                                                                                                                                         |
+| `E3`    | Limit `CP-MEDIATOR`'s inbound claim to mediated mechanism ports; preserve the documented `PORT-LEDGER`, intake, decision, and controller-derived paths.                                                                                  |
+| `E4`    | Limit `PORT-LEDGER` sole-writer language to the Run Transition ledger and name the separate `LG-INTAKE` and target-registry writers.                                                                                                     |
+| `E5`    | Correct non-guarantee product prose: the optional supporting-product artifact chain no longer appears mandatory, and the private MCP adapter is current rather than future.                                                              |
+| `E6`    | Correct `PC-JIG-5`: decisions use `EV-OWNER-DECISION`; handoff uses `EV-DELEGATION-GRANT`, `SCH-DELEGATION-GRANT`, and `ID-GRANT`.                                                                                                       |
 
 ## Nine settled owner rulings of 2026-07-17
 
@@ -95,6 +96,9 @@ changes, implementation, archive, greenfield planning, merge, or self-certificat
 8. Refresh exhaustion parks with target-instability escalation and releases no dependents.
 9. D3 and D10 are bounded canonical reopens; pre-Run approval remains Arye-only, per-Run grants
    remain operational-only, and `PORT-CONSUMER` is the tenth private facade port.
+
+The later 2026-07-17 owner decision additionally authorizes the one-clause D7 bounded reopen that
+resolves B15; it does not alter the nine earlier settled rulings.
 
 ## Owner-reviewable defaults selected in this candidate
 
@@ -119,20 +123,19 @@ The imported `docs/product/guarantees.md` bytes and pinned digest remain unchang
 attaches to the complete file digests at that merged commit, not to this list or to a branch name.
 Any later byte change invalidates that verdict.
 
-D3 and D10 are the only newly reopened decision-record bytes in this remediation. D1, D2, and
-D4–D9 remain byte-locked against further change. The first remediation's already-recorded
+D3, D7, and D10 are the only newly reopened decision-record bytes in this remediation. D1, D2,
+D4–D6, and D8–D9 remain byte-locked against further change. The first remediation's already-recorded
 amendments remain historical baseline facts, not additional authority for this candidate.
 
-## Open owner item discovered during exact-commit review
+## Owner item discovered during exact-commit review — resolved
 
-The authorized B15 change is present in `acceptance-and-evidence.md` and
-`review-and-verification-execution.md`, but locked
-`decisions/D7-acceptance-and-evidence.md` still says Jig validates “unresolved findings.” Editing
-D7 is expressly outside this remediation's bounded reopen set. The conflict is therefore preserved
-and reported rather than improvised: B15 remains **not fully closed** until Arye authorizes either a
-D7 wording amendment to “unresolved blocking findings” or another explicit canonical
-interpretation. This open item prevents this author pass from claiming every remediation group
-passed; it does not alter the independent post-merge gate requirement.
+The authorized B15 change was already present in `acceptance-and-evidence.md` and
+`review-and-verification-execution.md`, while the exact-commit review found that canonical D7 still
+said Jig validates “unresolved findings.” That conflict was preserved and reported rather than
+improvised. Arye then explicitly authorized a bounded D7 reopen on 2026-07-17: the one clause now
+requires absence of unresolved blocking findings, while severity classification remains reviewer
+judgment. B15 is therefore resolved across the amendable views and canonical decision bytes. This
+author resolution does not alter or satisfy the independent post-merge gate requirement.
 
 ## Renewed gate requirements
 

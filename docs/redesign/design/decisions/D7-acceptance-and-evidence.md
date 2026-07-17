@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D7 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical acceptance model is owned by the acceptance-and-evidence page.
 state: proposed
-status: established owner decision, re-presented 2026-07-15; lock pending the Layer 1 gate
+status: established owner decision, amended by explicit bounded reopen of 2026-07-17; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -39,7 +39,7 @@ Use **reviewer-principal full-package acceptance with policy-selected final veri
   evidence sufficiency/provenance/relevance, findings, and delivery metadata;
 - valid reviewer approval of the exact Candidate is the acceptance gate and permits finalization;
 - Jig validates reviewer identity/authority, exact-subject binding, required evidence
-  availability/integrity, unresolved findings, and lifecycle position;
+  availability/integrity, unresolved blocking findings, and lifecycle position;
 - Jig records `Accepted` without independently rejudging reviewer sufficiency;
 - frozen policy selects final verification as `deterministic` or `none`;
 - with `none`, reviewer approval and reviewed implementer evidence may proceed to delivery;
