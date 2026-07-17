@@ -160,8 +160,9 @@ under one fail-closed Recovery decision; a provider's assertion that nothing cha
 | ISO-4 | One isolated workspace per active Story (`RC-ISOLATION`, `CB-WORKSPACE` pinning path, repository, and basis); admission commits its reservation Transition before any resource is touched; Operation identity prevents double dispatch. | `satisfied`    |
 
 ISO-2's "quarantine and re-plan" has one explicit meaning: preserve and park the affected work,
-then use Envelope Builder to produce an owner-approved successor Run linked to its predecessor.
-The original Run remains immutable and auditable.
+then use Envelope Builder to produce an owner-approved successor Run whose frozen
+`SCH-ENVELOPE` lineage names the predecessor and durable reason, and whose composition digest
+binds those bytes. The original Run remains immutable and auditable.
 
 ### Liveness (`LIVE`)
 
@@ -240,6 +241,10 @@ The inventory below normalizes every normative commitment in `docs/product/READM
 Repeated prose is mapped once to its authoritative carrier; examples point to the same row rather
 than creating a second contract.
 
+The proof-route column below is part of the inventory: each row names exactly one route. A
+`CF-*` route requires its recorded exact-subject pass; a `Governance` route requires the cited
+immutable decision or gate record to hold. No route is an implementation-readiness certification.
+
 | Commitment                                                                                                                                                                              | Product source                                  | Carrying design element                                                                                                                                                                   | Classification |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `PC-README-1` — product owns what/why and live design owns how/verification                                                                                                             | `README.md` contract paragraph                  | D1 source scope, this reconciliation, and the Layer 1/2 gate records                                                                                                                      | `satisfied`    |
@@ -286,6 +291,53 @@ than creating a second contract.
 | `PC-USE-5` — swapping a provider reuses the seam contract but requires exact proof for the new subject                                                                                  | `use-cases.md` swapping your agent              | D10–D12, provider manifest, `CF-GATE-PROVIDER`, and `PORT-SESSION`                                                                                                                        | `satisfied`    |
 | `PC-USE-6` — after-the-fact reconstruction and write-once redacted export use recorded truth                                                                                            | `use-cases.md` reconstructing a run             | `PORT-CONSUMER` → `PORT-PUBLISH`; `SCH-AUDIT-EXPORT`/`ID-EXPORT` cover through terminal settlement; `OPC-ART-GET` retrieves digest-verified bytes                                         | `satisfied`    |
 | `PC-USE-7` — changing a rule-governing surface parks for narrow owner judgment and then resumes or rejects durably                                                                      | `use-cases.md` rule-change Doorbell scenario    | Normalizes to `GUARD-2`; `SCH-RULE-SURFACE`, `EV-RULE-SURFACE-TOUCHED`, `ID-PARK`, and exact owner decision/re-evidence                                                                   | `satisfied`    |
+
+| Commitment      | Proof route                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `PC-README-1`   | Governance: D1 source scope and Layer 1/2 gate records hold |
+| `PC-README-2`   | Governance: D2/D13 boundary records hold                    |
+| `PC-README-3`   | `CF-ENVELOPE` pass                                          |
+| `PC-JIG-1`      | `CF-RUN-CONTROL` pass                                       |
+| `PC-JIG-2`      | `CF-ENVELOPE` pass                                          |
+| `PC-JIG-3`      | `CF-CONSUMER` pass                                          |
+| `PC-JIG-4`      | `CF-OBSERVABILITY` pass                                     |
+| `PC-JIG-5`      | `CF-OPERATOR-ACTIONS` pass                                  |
+| `PC-JIG-6`      | `CF-OPERATOR-ACTIONS` pass                                  |
+| `PC-JIG-7`      | `CF-ENVELOPE` pass                                          |
+| `PC-JIG-8`      | `CF-BINDING` pass                                           |
+| `PC-JIG-9`      | `CF-MECH-SESSION` pass                                      |
+| `PC-JIG-10`     | `CF-ACCEPTANCE` pass                                        |
+| `PC-JIG-11`     | `CF-REVIEW-PUBLICATION` pass                                |
+| `PC-JIG-12`     | `CF-POLICY` pass                                            |
+| `PC-JIG-13`     | Governance: D2/D13 boundary records hold                    |
+| `PC-JIG-14`     | `CF-CONSUMER` pass                                          |
+| `PC-JIG-15`     | `CF-GATE-PROVIDER` pass                                     |
+| `PC-JIG-16`     | `CF-GATE-PROVIDER` pass                                     |
+| `PC-JIG-17`     | Governance: D14 exclusions hold                             |
+| `PC-JIG-18`     | `CF-MECH-WORKSPACE` pass                                    |
+| `PC-JIG-19`     | `CF-CONSUMER` pass                                          |
+| `PC-JIG-20`     | Governance: D2/D10 boundary records hold                    |
+| `PC-JIG-21`     | `CF-GATE-PROVIDER` pass                                     |
+| `PC-JIG-22`     | `CF-ENVELOPE` pass                                          |
+| `PC-JIG-23`     | `CF-RUN-CONTROL` pass                                       |
+| `PC-JIG-24`     | Governance: D2/D13 and D7 records hold                      |
+| `PC-JIG-25`     | `CF-CONTAINMENT` pass                                       |
+| `PC-CONCEPTS-1` | `CF-POLICY` pass                                            |
+| `PC-CONCEPTS-2` | `CF-BLOCKERS` pass                                          |
+| `PC-CONCEPTS-3` | `CF-BINDING` pass                                           |
+| `PC-CONCEPTS-4` | `CF-CONSUMER` pass                                          |
+| `PC-CONCEPTS-5` | `CF-GATE-PROVIDER` pass                                     |
+| `PC-CONCEPTS-6` | `CF-REVIEW-PUBLICATION` pass                                |
+| `PC-CONCEPTS-7` | `CF-RUN-CONTROL` pass                                       |
+| `PC-CONCEPTS-8` | `CF-RUN-CONTROL` pass                                       |
+| `PC-CONCEPTS-9` | `CF-ENVELOPE` pass                                          |
+| `PC-USE-1`      | `CF-BOUNDS` pass                                            |
+| `PC-USE-2`      | `CF-PROVIDER-PERMISSION` pass                               |
+| `PC-USE-3`      | `CF-POLICY` pass                                            |
+| `PC-USE-4`      | `CF-FENCE` pass                                             |
+| `PC-USE-5`      | `CF-GATE-PROVIDER` pass                                     |
+| `PC-USE-6`      | `CF-NOTICE-EXPORT` pass                                     |
+| `PC-USE-7`      | `CF-RULE-SURFACE` pass                                      |
 
 ## Findings
 
