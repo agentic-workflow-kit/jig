@@ -10,9 +10,10 @@ that runs on its own, in parallel with other tracks in the same repo.
 
 ## What a track contains
 
-Each track carries its own complete lifecycle artifact chain:
-**PRD → design → plan → policy → work profile.** Every piece is scoped to that
-track and advances independently. One repo hosts many tracks simultaneously.
+When the optional supporting products are used, their **PRD → design → plan** artifacts
+remain scoped to the same track. Jig itself requires that track's execution plan plus
+owner-controlled policy and configuration, including its work profile. Tracks advance
+independently, and one repo can host many at once.
 
 ## Why tracks exist
 
@@ -161,10 +162,10 @@ invokes providers after gates`")
 
 ## SDK, providers, and conformance
 
-The **SDK boundary** is Jig's programmatic product surface for first-party consumers. The CLI uses
-that boundary today; a future MCP surface is expected to use it too. Product does not promise a
-public package or stable external API today, but it does promise that first-party consumers should
-not reach through Jig internals to get their work done.
+The **SDK boundary** is Jig's programmatic product surface for first-party consumers. The CLI and
+private MCP adapter use that boundary today. Product does not promise a public package or stable
+external API today, but it does promise that first-party consumers should not reach through Jig
+internals to get their work done.
 
 A **provider** — called a _driver_ in the guarantee detail when discussing a concrete trusted
 implementation — is an implementation behind one of Jig's swappable seams: Agent, Execution Host,
@@ -290,7 +291,7 @@ treatment.
 | **Doorbell**            | The durable human-interaction point for Jig-owned decisions and Agent-provider permissions or questions that require a person.                                                                                             |
 | **Records**             | Durable evidence trail for Jig-governed decisions, human Doorbell interactions, evidence, acceptance verdicts, stops, and outcomes; provider-internal review stays provider-local.                                         |
 | **Conformance**         | The repeatable proof — protocol behavior, declared posture and authority, adversarial probes — a provider passes before Jig grants autonomy (DRIVE-1, DRIVE-4).                                                            |
-| **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI today, MCP later), used instead of reaching into internals.                                                                                               |
+| **SDK boundary**        | Jig's stable programmatic surface for first-party consumers (CLI and private MCP adapter today), used instead of reaching into internals.                                                                                  |
 | **done vs landed**      | _done_ = policy-required final verification is satisfied: `deterministic` passed, or the posture is `none`; delivery is authorized and only landing remains. _landed_ = merged on evidence. Separate milestones (MERGE-4). |
 | **stopped**             | Product-visible resumable Run suspension, realized only by design `Suspended`.                                                                                                                                             |
 | **ended**               | Product-visible terminal Run non-delivery outcome, realized by design `Stopped`; it never resumes.                                                                                                                         |

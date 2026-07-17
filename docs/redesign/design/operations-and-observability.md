@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks, read models, metrics, exports, alerts, and service objectives; escalation and obligation schemas, ledger realization, failure codes, and evidence storage are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./failure-and-liveness.md
   - ./state-and-recovery.md
@@ -55,11 +55,16 @@ Generic operator commands are thin verbs over durable records and read models, r
 `RT-OPERATOR` through the private `PORT-CONSUMER` facade as short-lived processes with no lifecycle
 authority ([runtime](./runtime.md)):
 
-- **submit** an envelope; **answer**, **override**, or **hand off** a parked request; **stop** a Run
+- **preview** through the effect-free Envelope Builder path, producing a read-only composition,
+  policy, bounds, capacity-feasibility, and failure report without calling `PORT-INTAKE`;
+- **start** by submitting an approved envelope through `PORT-INTAKE`; **answer**, **override**, or
+  **hand off** a parked request; **stop** a Run
   into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
   **acknowledge** or
   **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
   a direct state change;
+- **resolve obligation** by submitting `EV-OBLIGATION-RESOLVED` through `PORT-DECIDE` with the
+  exact `ID-OBLIGATION`, responder/current grant, and digest-verified completion evidence;
 - **inspect**, **watch**, and **explain** — each answers from recorded Transitions and evidence;
   "why is this Story here" is the recorded decision trail, never live controller memory; and
 - **export** — a durable, redacted snapshot of read models (below).
@@ -93,17 +98,32 @@ whose preconditions are false. `EV-NOTICE-ACKNOWLEDGED` changes presentation onl
 `EV-NOTICE-SNOOZED` records an explicit wake condition that `EV-WAKE-TIMER` later satisfies.
 Neither resolves the underlying durable condition.
 
+Owner-reviewable notice-delivery defaults:
+
+| Urgency  | Default delivery target | Allowed range      |
+| -------- | ----------------------- | ------------------ |
+| Critical | immediate               | 0–1 minute         |
+| Urgent   | 5 minutes               | 0–30 minutes       |
+| Normal   | 1 hour                  | 5 minutes–24 hours |
+| Low      | 24 hours                | 1 hour–7 days      |
+
+The urgency class is derived from durable condition and impact; configuration selects only a
+target inside its range and cannot demote the derived class.
+
 ## Exports and downstream publication
 
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. At terminal settlement, `CP-PROJECTION`
-also materializes exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes containing
-the final ledger position, outcomes, notices, evidence manifest references, obligations, and
+also materializes exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes covering
+the ledger's first position through the **terminal-settlement position**, the business-final cut,
+and containing outcomes, notices, evidence manifest references, obligations, and
 provenance. Its content digest is `ID-EXPORT`; `OPC-ART-PUT` creates it once in immutable storage,
 and a repeat may only verify or recover the identical digest — never overwrite it. Consumers get
 explainable outcomes, obligations, and provenance, never control access; influence requires
 entering through `PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)).
 Export redaction follows the rules in [evidence handling](./evidence-handling.md).
+The manifest names the exact covered range. The immutable-store receipt and any export-failure
+Residual Obligation are post-terminal administrative records outside that range.
 
 ## Alerts and service objectives
 
@@ -118,8 +138,9 @@ Export redaction follows the rules in [evidence handling](./evidence-handling.md
 Residual Obligations drive manual cleanup. Each obligation names the affected resource, the
 reason, the preservation evidence, the accountable owner, and the completion criteria
 ([failure and liveness](./failure-and-liveness.md)). A runbook execution completes by recording
-the obligation's resolution through the operator interface — the durable record closes the
-obligation, not the shell history. Destructive cleanup outside an authorized retirement or a
+the obligation's resolution through the operator interface as
+`EV-OBLIGATION-RESOLVED` — the validated event and its evidence close the obligation, not the shell
+history. Destructive cleanup outside an authorized retirement or a
 recorded obligation is out of contract: cleanup cannot reverse landing or delay dependency release
 (I18), and work and evidence are preserved before any destruction (I19).
 
@@ -155,7 +176,7 @@ flowchart LR
         Export["Redacted export snapshot<br/>carries its ledger position<br/>[Durable export]"]
     end
     subgraph Outside["Operators, owner, and consumers"]
-        Operator["RT-OPERATOR<br/>submit · inspect · watch · explain<br/>decide · suspend/resume · ack/snooze · export<br/>[Runtime unit]"]
+        Operator["RT-OPERATOR<br/>preview · start · inspect · watch · explain<br/>decide · suspend/resume · ack/snooze · export<br/>[Runtime unit]"]
         Notify["Notification channels and alerts<br/>[Non-authoritative mirror]"]
         Owner(["P-OWNER<br/>Arye or recorded delegate<br/>[Decision authority]"])
         Consumer["X-CONSUMER<br/>Read-only consumers<br/>[External consumer]"]

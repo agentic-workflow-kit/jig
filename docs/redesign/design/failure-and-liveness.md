@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Smallest-safe failure containment, bounded progress and exhaustion, fail-closed behavior and owner authority, the finite-scope liveness guarantee, and Retirement with Residual Obligations; failure codes, exact bounds, backoff, timer scheduling, cancellation, health checks, escalation UX, cleanup runbooks, alerts, and service objectives are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ./brief.md
   - ./model.md
@@ -25,13 +25,13 @@ related:
 
 ## Smallest-safe failure containment
 
-| Fault scope         | Required posture                                                                                      | Safe continuation                                                                   |
-| ------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Preflight           | Reject the Run durably before Story effects.                                                          | No Story starts.                                                                    |
-| Story               | Apply bounded retry or rework, then block or park; preserve and retire resources.                     | Independent Stories continue; transitive dependents remain ineligible.              |
-| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.   | Safe implementation and review may continue within capacity.                        |
-| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy. | No control transition continues while the ledger or controller authority is unsafe. |
-| Trust root          | Fail autonomous progress closed and name the lost guarantee.                                          | Only externally governed recovery may continue.                                     |
+| Fault scope         | Required posture                                                                                                                          | Safe continuation                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Preflight           | Reject the Run durably before Story effects.                                                                                              | No Story starts.                                                                    |
+| Story               | Apply bounded retry/rework; park iff a recorded owner action or changed fact can advance, otherwise block; preserve and retire resources. | Independent Stories continue; transitive dependents remain ineligible.              |
+| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.                                       | Safe implementation and review may continue within capacity.                        |
+| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy.                                     | No control transition continues while the ledger or controller authority is unsafe. |
+| Trust root          | Fail autonomous progress closed and name the lost guarantee.                                                                              | Only externally governed recovery may continue.                                     |
 
 A failure remains at the smallest safe scope. It becomes shared only when uncertainty, authority, or
 proof crosses Story boundaries.
@@ -58,11 +58,12 @@ Jig automatically fails closed for invalid or insufficient input, identity, auth
 subject, lifecycle position, evidence, durable recording, Candidate approval, effect certainty,
 target proof, landing proof, or shared trust.
 
-Arye or a recorded delegate within explicit scope is required to change policy or authority scope,
-revise a gate, accept a Residual Obligation, govern trust-root Recovery, choose a risk-bearing
-ambiguity, stop or replace a Run definition, approve otherwise unauthorized destructive cleanup, or
-import a governing promise. An owner decision may authorize investigation, safe stop, or residual
-handoff; it cannot turn missing evidence into a factual effect or landing claim.
+Arye is required to change policy or authority scope, revise a gate, import a governing promise,
+approve a product or architecture direction, or reopen a layer. A recorded delegate may only make
+the bounded operational decisions named by the exact current per-Run `ID-GRANT`, such as answering
+a parked operational question, Run stop/resume, notice action, Residual Obligation handling, or
+approved cleanup within that scope. An owner decision may authorize investigation, safe stop, or
+residual handoff; it cannot turn missing evidence into a factual effect or landing claim.
 
 ## Finite-scope liveness guarantee and assumptions
 

@@ -57,9 +57,10 @@ Add a bounded **review-publication capability** on `PORT-DELIVERY`:
   cannot release dependencies; and
 - each external effect is idempotent or discoverable by its stable marker and reconciles under I17.
 
-All target-changing and landing Operations remain exclusively `CP-FINALIZER`-authorized under D6
-and D7 after acceptance. This decision adds no reviewer-less acceptance mode and changes no D7
-acceptance substance.
+After acceptance, all target-changing and landing Operations are proposed only by `CP-FINALIZER`
+while it holds sole target authority under D6 and D7; like every Operation, they are authorized
+only inside a recorded `CP-TRANSITION` Transition. This decision adds no reviewer-less acceptance
+mode and changes no D7 acceptance substance.
 
 ## Rationale and benefits
 
@@ -73,8 +74,11 @@ acceptance substance.
 ## Accepted negative consequence and trade-off
 
 Draft branches and requests may exist before acceptance. They create forge clutter, reconciliation
-work, and later Retirement obligations even when a Story is rejected or blocked. Arye accepts that
-cost to make ordinary code review possible without widening finalization or landing authority.
+work, and later Retirement obligations even when a Story is rejected or blocked. Layer 2 realizes
+those duties as `OPC-REV-RETIRE-REF`, `OPC-REV-RETIRE-REQUEST`,
+`OPC-REV-RETIRE-STATUS`, and `OPC-REV-RETIRE-COMMENT`; failure preserves an
+`ID-OBLIGATION`. Arye accepts that cost to make ordinary code review possible without widening
+finalization or landing authority.
 
 ## Alternatives not selected
 

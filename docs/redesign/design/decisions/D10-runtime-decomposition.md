@@ -7,9 +7,9 @@ audience:
   - Engineers realizing the Layer 2 design
 scope: The D10 selection, rationale, accepted consequence, and rejected alternatives; the canonical decomposition content is owned by the runtime page.
 state: approved
-status: approved Layer 2 decision — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: approved Layer 2 decision — explicit owner decision of 2026-07-16, amended by explicit bounded reopen of 2026-07-17 (approved, not locked); gate history in the Layer 2 gate record
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ../runtime.md
   - ./D2-system-boundary.md
@@ -23,7 +23,7 @@ related:
 
 # D10 — runtime decomposition and port model
 
-- **Status:** Approved Layer 2 selection (not locked) — explicit owner decision of 2026-07-16; gate history in the Layer 2 gate record.
+- **Status:** Approved Layer 2 selection (not locked) — explicit owner decision of 2026-07-16, amended by the explicit bounded reopen of 2026-07-17; gate history in the Layer 2 gate record.
 - **Owner:** Arye Kogan.
 - **Related:** [Runtime architecture](../runtime.md),
   [control plane components](../components/control-plane.md), [invariants I2–I3, I5–I7](../invariants.md).
@@ -43,9 +43,11 @@ Use a **modular single-authority runtime with named ports**:
   finalization authority is serialized per canonical target across Runs (I12) instead of per
   Run — and a passive currency-witness store on independently trusted storage, required so
   ledger rollback is detectable (I20);
-- nine named ports as the only crossings of the authority boundary, with one port per V1 external
+- ten named ports as the only crossings of the authority boundary, with one port per V1 external
   relationship (`X-STORE` split into the conditional-append ledger contract and the immutable
-  artifact contract);
+  artifact contract). `PORT-CONSUMER` is the private first-party facade: it crosses no authority
+  boundary of its own and delegates core actions to `PORT-INTAKE`, `PORT-DECIDE`, and
+  `PORT-PUBLISH` without bypassing them;
 - all lifecycle authority concentrated in the controller process, fenced per Run by the durable
   controller generation; and
 - mechanism sessions executed outside the controller as separate local processes or remote

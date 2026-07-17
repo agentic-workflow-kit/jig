@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D3 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical powers and matrix are owned by the authority-and-trust perspective.
 state: proposed
-status: established owner decision, re-presented 2026-07-15; lock pending the Layer 1 gate
+status: established owner decision, amended by explicit bounded reopen of 2026-07-17; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -21,7 +21,7 @@ related:
 
 # D3 — major responsibilities, trust, and authority
 
-- **Status:** Owner-selected; lock pending the Layer 1 gate.
+- **Status:** Owner-selected; amended by the explicit bounded reopen of 2026-07-17; renewed exact-candidate review pending.
 - **Owner:** Arye Kogan.
 - **Related:** [Authority and trust perspective](../perspectives/authority-and-trust.md),
   [invariants I3–I4](../invariants.md).
@@ -37,8 +37,11 @@ Use **centralized deterministic authority with scoped judgment and attestation**
 
 - Jig Control is the sole routine lifecycle authority and owns Authorize, Decide, Record, and
   Reconcile powers;
-- Arye or a recorded delegate decides explicit escalations, exceptions, imports, approvals, stops,
-  and reopens within recorded scope;
+- **Arye** decides escalations, exceptions, imports, approvals, reopens, and every stop or decision
+  no current operational grant covers;
+- a recorded delegate holds only bounded operational authority — decide/answer, Run stop/resume,
+  notice, and similar operational classes — within the exact current `ID-GRANT`;
+- product or architecture imports or approval, gate verdicts, and layer reopens are non-delegable;
 - the implementer proposes and performs implementation and supplies attributable self-report;
 - the reviewer independently judges the complete exact Candidate and attests its verdict;
 - verification, workspace, delivery, agent, and storage mechanisms perform or attest only scoped

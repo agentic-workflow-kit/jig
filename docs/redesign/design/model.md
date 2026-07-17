@@ -8,9 +8,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: Source/authority vocabulary, runtime vocabulary, and the identity and binding model; identity representation, schemas, and all mechanisms are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ./brief.md
   - ../AGENTS.md
@@ -32,17 +32,17 @@ own vocabulary.
 
 ## Source and authority vocabulary
 
-| Term                               | Canonical meaning                                                                                                                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Architecture Authority**         | The approved project brief plus explicit owner decisions.                                                                                                                                         |
-| **Owner Decision**                 | An explicit selection, import, approval, rejection, stop, exception, or reopen by Arye, or a bounded operational decision by a recorded delegate within scope; never silence or a document label. |
-| **Working Contract**               | The applicable `AGENTS.md` and explicit author instructions. It governs behavior and source scope without selecting architecture.                                                                 |
-| **Architecture Method**            | The active documentation method. It defines how artifacts are authored, reviewed, approved, and locked without selecting design.                                                                  |
-| **Directional Source**             | The immutable standalone proposal: evidence to preserve, test, reorganize, or reject, not approved architecture.                                                                                  |
-| **Review Evidence**                | Immutable archived findings used as adversarial scenarios and questions, not automatic fixes.                                                                                                     |
-| **Product Reference**              | A targeted observation that may inform discussion but has no governing force. None was consulted for this candidate.                                                                              |
-| **Imported Promise or Constraint** | An exact external statement made governing only by explicit owner import with provenance, rationale, consequences, and affected decisions. None was imported.                                     |
-| **Proposed Architecture**          | This coherent candidate set. It becomes the approved, locked Layer 1 foundation only when its exact candidate passes independent review under the owner-approved bounded delegation.              |
+| Term                               | Canonical meaning                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture Authority**         | The approved project brief plus explicit owner decisions.                                                                                                                                                                                                                                   |
+| **Owner Decision**                 | An explicit selection, import, approval, rejection, stop, exception, or reopen by Arye, or a bounded operational decision by a recorded delegate within scope; never silence or a document label.                                                                                           |
+| **Working Contract**               | The applicable `AGENTS.md` and explicit author instructions. It governs behavior and source scope without selecting architecture.                                                                                                                                                           |
+| **Architecture Method**            | The active documentation method. It defines how artifacts are authored, reviewed, approved, and locked without selecting design.                                                                                                                                                            |
+| **Directional Source**             | The immutable standalone proposal: evidence to preserve, test, reorganize, or reject, not approved architecture.                                                                                                                                                                            |
+| **Review Evidence**                | Immutable archived findings used as adversarial scenarios and questions, not automatic fixes.                                                                                                                                                                                               |
+| **Product Reference**              | A targeted observation that may inform discussion but has no governing force. None was consulted for this candidate.                                                                                                                                                                        |
+| **Imported Promise or Constraint** | An exact external statement made governing only by explicit owner import with provenance, rationale, consequences, and affected decisions. The five product guarantees and their correction re-imports are recorded in [product guarantee import](./decisions/product-guarantee-import.md). |
+| **Proposed Architecture**          | This coherent candidate set. It becomes the approved, locked Layer 1 foundation only when its exact candidate passes independent review under the owner-approved bounded delegation.                                                                                                        |
 
 ## Runtime vocabulary
 

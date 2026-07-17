@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Resource-class capacity, the deterministic total order, and target-scoped finalization authority; resource manifests, reservation algorithms, queue structures, fairness metrics, exact bounds, provider-capacity mapping, and authority APIs are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline; no semantic change in the 2026-07-17 readiness-remediation candidate
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ./brief.md
   - ./model.md

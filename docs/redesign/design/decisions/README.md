@@ -7,7 +7,7 @@ audience:
   - Future architecture authors after authorization
 scope: Index and status of decisions D1–D15, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D9 locked baseline with explicit F1/F2 amendment pending renewed review; D10–D15 owner-approved
+status: active index — D1, D2, D4–D6, and D8–D9 remain locked; bounded D3/D7/D10 remediation amendments and D11–D15 are owner-approved pending renewed exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -52,8 +52,9 @@ Layer 1 gate recorded in the [review and approval record](./review-and-approval-
 D10–D12 were authored on 2026-07-15 and approved — not locked — by the explicit owner decision of
 2026-07-16 after the review history in the [Layer 2 gate record](./layer2-gate-record.md). D13 and
 D14 are the later owner-approved product-readiness amendments. D15 is the 2026-07-17
-readiness-remediation decision for pre-acceptance review publication. The same remediation
-explicitly reopens only the D4/D6/D8 and I14 lifecycle consequences named by F1/F2; renewed review
+readiness-remediation decision for pre-acceptance review publication. The merged first remediation
+already recorded its D4/D6/D8 and I14 amendments. This second remediation explicitly reopens only
+D3, D7, and D10; D1, D2, D4–D6, and D8–D9 remain byte-locked against further change. Renewed review
 is required under the [product readiness gate](./product-readiness-gate-record.md).
 
 | ID                                                 | Topic                              | Approved direction                                                                                             |

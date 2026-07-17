@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The Layer 2 review protocol, finding representation, check-policy language, verification execution, and remote-gate observation; acceptance authority itself, evidence storage and integrity mechanisms, scheduling bounds, and landing proof are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./decisions/D7-acceptance-and-evidence.md
@@ -70,10 +70,24 @@ content is untouched.
 
 - **Verdict (`RP-VERDICT`):** exactly one of `approve` or `changes-required`, expressed over the
   exact `RP-PACKAGE-DIGEST` from the assignment, attested and attributable to one validated
-  reviewer session bound to its participant principal (`ID-PRINCIPAL` in
+  reviewer `ID-SESSION` bound to its participant principal (`ID-PRINCIPAL` in
   [data and identity](./data-and-identity.md)).
-- **Finding (`RP-FINDING`):** a tuple of stable finding identity, subject anchor within the
-  Candidate, severity class, requirement or risk trace, description, and resolution state.
+- **Finding (`RP-FINDING`):** the cataloged `ID-FINDING` tuple in `SCH-VERDICT`: introduction
+  package, exact subject anchor, severity class, requirement or risk trace, description,
+  resolution state/evidence/reviewer, and supersession lineage.
+
+Finding resolution is an explicit ledger transition, never an edit in place:
+
+| From               | Reviewer action and guard                                                                                    | To                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| none               | Introduce the finding in a valid exact-package verdict                                                       | `open`                                       |
+| `open`             | Validate resolution evidence in a later exact package and attribute the resolving reviewer session/principal | `resolved`                                   |
+| `resolved`         | A later exact-package review finds the same traced risk present again                                        | `reopened` (blocking semantics equal `open`) |
+| `open`, `reopened` | A reviewer replaces the statement with a new, more precise `ID-FINDING`                                      | `superseded`; record the successor identity  |
+
+`superseded` is terminal for that finding identity. `Resolved` is closed but may transition to
+`reopened` when a later exact package proves recurrence; recurrence after supersession is expressed
+on the successor, never by rewriting history.
 
 Rules the representation must preserve:
 
@@ -152,7 +166,8 @@ Verification execution is **effect-free by enforced contract**, not by conventio
 capability binding confines checks to a read-only view of the checkout, a writable scratch area
 that is discarded, and zero network egress by default
 ([mechanism and provider contracts](./mechanism-and-provider-contracts.md)); this is what makes a
-lost check response safe to re-issue without effect reconciliation (I17). A check class that
+lost check response safe to replace with a newly authorized Operation and new `ID-OP`, without
+effect reconciliation (I17). A check class that
 genuinely requires an external effect is outside `PORT-VERIFY`. It must instead be modeled as a
 separately authorized workspace or delivery Operation under that port's own authority, or deferred
 to a future D-record — never silently run as an "observation". Observations return as attestations:

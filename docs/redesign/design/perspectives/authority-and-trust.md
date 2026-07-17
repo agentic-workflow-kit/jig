@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Participant powers, the responsibility and authority matrix, trust and compromise posture, and fault scopes; credentials, identity formats, sandboxing, interfaces, and enforcement mechanisms are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../model.md
@@ -72,8 +72,9 @@ attestations and any accepted owner decision as inputs to its next deterministic
    provenance, binding, and integrity; it does not make an underlying claim semantically true.
 4. Missing, contradictory, stale, malformed, wrong-subject, unauthorized, or integrity-failing
    input creates no claimed fact and authorizes no progress.
-5. A participant failure confined to one Story may block or park that Story while unrelated work
-   continues with trustworthy authority and sufficient capacity.
+5. A participant failure confined to one Story parks when a recorded owner action or changed fact
+   can advance it and otherwise blocks; unrelated work continues with trustworthy authority and
+   sufficient capacity.
 6. Uncertainty or compromise of target-scoped authority fences further target effects while safe
    implementation and review may continue.
 7. Loss or compromise of shared Jig authority, the ordered ledger, or controller fencing interrupts
@@ -81,9 +82,10 @@ attestations and any accepted owner decision as inputs to its next deterministic
 8. Trust-root recovery is externally governed. Jig makes no autonomous safety, reconstruction,
    no-double-effect, or terminal-truth guarantee after the governing history or decision authority
    becomes untrustworthy.
-9. A duplicate-safe redispatch preserves the Operation identity and payload basis but requires a
-   fresh recorded authorization under the current controller and, where applicable, finalization
-   fence. Retaining a stale fence is rejected as `FC-FENCE`.
+9. Only an effectful Operation proven absent may be retried with the same identity and payload
+   basis, and it requires a fresh recorded authorization under the current controller and, where
+   applicable, finalization fence. An effect-free replacement receives a new Operation identity.
+   Retaining a stale fence is rejected as `FC-FENCE`.
 10. Concrete bound values are owner-visible frozen-policy choices made by the policy author during
     envelope composition. Providers may enforce a narrower posture but cannot widen those values.
 
@@ -127,7 +129,7 @@ flowchart LR
     end
 
     subgraph Containment["Compromise and insufficiency containment"]
-        Story["F-STORY<br/>Block or park affected Story<br/>[Story fault scope]"]
+        Story["F-STORY<br/>Park if owner-changeable; otherwise block<br/>[Story fault scope]"]
         Target["F-TARGET<br/>Fence target effects and reconcile<br/>[Target fault scope]"]
         Run["F-RUN<br/>Interrupt affected Run<br/>[Shared fault scope]"]
         External["F-EXTERNAL<br/>Externally governed recovery<br/>[Trust-root stop]"]

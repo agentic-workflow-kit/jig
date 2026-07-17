@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Resource classes, the admission algorithm, bound and budget classes, timers and wake triggers, and fairness; provider-capacity mapping, authority APIs, and schema shapes are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./decisions/D6-concurrency-and-finalization.md
   - ./decisions/D8-failure-and-liveness.md
@@ -45,12 +45,23 @@ capacity; frozen policy may only narrow it, resolving the effective maximum to t
 | `RC-DELIVERY`    | Delivery operations in flight | Each authorized publication or integration effect on `PORT-DELIVERY`. | Delivery mechanism configuration.           | Any value at or above the progress reserve.         |
 | `RC-FINALIZER`   | Target finalization authority | The single Story holding finalization authority for one target.       | Fixed by the architecture: exactly 1 (I12). | Not lowerable; capacity 1 is structural, not tuned. |
 
-**Progress-reserve rule (mandatory, all classes):** every class carries a reserve so that every
+**Progress-reserve rule (mandatory, configurable classes):** every configurable class carries a reserve so that every
 admitted Story retains a path to its **next mandatory safe point** — the nearest of preserved
 rework, recorded block, acceptance, or confirmed landing — using only remaining capacity. Preflight
 rejects an envelope whose declared capacity, policy maxima, and reserve cannot jointly preserve
 that path for any admissible Story (D6, I10). The reserve is a class property with a named
-conservative default; frozen policy may enlarge it, never waive it.
+conservative default; frozen policy may enlarge it, never waive it. The **owner-reviewable
+default** is one slot per scarce resource class, configurable from one through class capacity
+minus one. A configurable class with capacity below two is infeasible. `RC-FINALIZER` is the
+explicit exception: it is a structural singleton with capacity one, has no configurable reserve,
+and is protected instead by `C-ORDER`, sole `ID-AUTH`, and `BND-WAIT-TARGET`/`BND-REFRESH`.
+
+The demand side is equally explicit. Each `SCH-PLAN` Story declares its maximum simultaneous
+path-to-safe-point demand per configurable `RC-*` class; omitted used classes default to one unit.
+Policy composition may only narrow the admitted path or add conservative demand, never reduce a
+plan-declared demand. Preflight evaluates every admissible Story path against effective capacity,
+declared/defaulted demand, and reserve; an unknown class, demand above effective capacity,
+out-of-range reserve, or infeasible combination rejects the envelope before intake.
 
 ## Admission algorithm — deterministic, derived, replayable
 
@@ -93,19 +104,19 @@ deadline class (I16). Exhaustion actions come from the fixed
 [D8](./decisions/D8-failure-and-liveness.md) set — retry, block, park, escalate, interrupt, stop,
 or Residual Obligation — never silent success or an unnamed indefinite wait.
 
-| ID                   | What it bounds                                                                      | Numeric default and allowed range  | Renewal or reset rule                                                 | Explicit exhaustion action                                                                                        |
-| -------------------- | ----------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `BND-REWORK`         | Review and rework loops per Story.                                                  | 2 loops; range 1–5.                | No automatic renewal.                                                 | Block the Story; dependents derive `Not run — dependency blocked`.                                                |
-| `BND-RETRY`          | Total attempts per Operation class or pre-Run source-request class.                 | 3 attempts; range 1–5.             | No automatic renewal; every attempt is recorded.                      | Block at the owning Story/Operation, or fail source composition before Run creation.                              |
-| `BND-REFRESH`        | Target refreshes while holding finalization authority.                              | 2 refreshes; range 1–5.            | No automatic renewal.                                                 | Park with escalation naming target instability.                                                                   |
-| `BND-WAIT-DECISION`  | Human-answer waits on parked Jig questions or Agent-provider permissions/questions. | 72h; range 1h–30d.                 | Renewable only by recorded scoped decision; renewal opens a new wait. | Escalate again durably; the exact request stays parked, never dropped.                                            |
-| `BND-WAIT-MECHANISM` | Mechanism response deadlines on mediated Operation ports.                           | 15m per port request; range 5s–2h. | No renewal; retry consumes `BND-RETRY`.                               | Retry under `BND-RETRY`; then block at the owning Story or Operation scope.                                       |
-| `BND-WAIT-LEDGER`    | Ledger/registry/intake-index acknowledgements and verified reads.                   | 30s; range 1s–5m.                  | No renewal; exhaustion enters Recovery.                               | Halt dispatch and interrupt the Run into Recovery; shared authority uncertainty is never Story-blocked (D8, I15). |
-| `BND-WAIT-TARGET`    | Target stability waits before and during finalization.                              | 30m; range 1m–24h.                 | No automatic renewal; a decision may open a new bounded wait.         | Park with escalation; target effects stay fenced.                                                                 |
-| `BND-IDLE`           | Time since a responsive session's last qualifying progress observation.             | 30m per role; range 5m–8h.         | A qualifying durable progress fact resets the clock.                  | Classify `stuck`, park the Story, and preserve the workspace.                                                     |
-| `BND-SILENCE`        | Time since the last valid heartbeat or response from an assigned session.           | 5m per mechanism; range 10s–30m.   | A valid heartbeat resets the clock.                                   | Classify `dead`, reconcile the session, then park or replace within the retry bound.                              |
-| `BND-RECOVERY`       | Reconciliation attempts for one uncertain effect (I17).                             | 3 attempts; range 1–5.             | No renewal and no semantic-effect retry.                              | Escalate; no second semantic attempt until reconciled.                                                            |
-| `BND-RETIRE`         | Retirement attempts per obligation.                                                 | 3 attempts; range 1–5.             | No renewal; exhaustion creates the handoff.                           | Residual Obligation handed to the owner (I19).                                                                    |
+| ID                   | What it bounds                                                                                        | Numeric default and allowed range  | Renewal or reset rule                                                 | Explicit exhaustion action                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `BND-REWORK`         | Review and rework loops per Story.                                                                    | 2 loops; range 1–5.                | No automatic renewal.                                                 | Block the Story; dependents derive `Not run — dependency blocked`.                                                |
+| `BND-RETRY`          | Total attempts per Operation class or pre-Run source-request class.                                   | 3 attempts; range 1–5.             | No automatic renewal; every attempt is recorded.                      | Block at the owning Story/Operation, or fail source composition before Run creation.                              |
+| `BND-REFRESH`        | Target refreshes while holding finalization authority.                                                | 2 refreshes; range 1–5.            | No automatic renewal.                                                 | Park with escalation naming target instability.                                                                   |
+| `BND-WAIT-DECISION`  | Human-answer waits on parked Jig questions or Agent-provider permissions/questions.                   | 72h; range 1h–30d.                 | Renewable only by recorded scoped decision; renewal opens a new wait. | Escalate again durably; the exact request stays parked, never dropped.                                            |
+| `BND-WAIT-MECHANISM` | Mechanism response deadlines on mediated Operation ports.                                             | 15m per port request; range 5s–2h. | No renewal; retry consumes `BND-RETRY`.                               | Retry under `BND-RETRY`; then block at the owning Story or Operation scope.                                       |
+| `BND-WAIT-LEDGER`    | Ledger/registry/intake-index acknowledgements and verified reads.                                     | 30s; range 1s–5m.                  | No renewal; exhaustion enters Recovery.                               | Halt dispatch and interrupt the Run into Recovery; shared authority uncertainty is never Story-blocked (D8, I15). |
+| `BND-WAIT-TARGET`    | Target stability waits before/during finalization, including merge-queue and branch-protection holds. | 30m; range 1m–24h.                 | No automatic renewal; a decision may open a new bounded wait.         | Park with escalation; target effects stay fenced.                                                                 |
+| `BND-IDLE`           | Time since a responsive session's last qualifying progress observation.                               | 30m per role; range 5m–8h.         | A qualifying durable progress fact resets the clock.                  | Classify `stuck`, park the Story, and preserve the workspace.                                                     |
+| `BND-SILENCE`        | Time since the last valid heartbeat or response from an assigned session.                             | 5m per mechanism; range 10s–30m.   | A valid heartbeat resets the clock.                                   | Classify `dead`; replace only after attested loss and valid same-principal successor binding, otherwise park.     |
+| `BND-RECOVERY`       | Reconciliation attempts for one uncertain effect (I17).                                               | 3 attempts; range 1–5.             | No renewal and no semantic-effect retry.                              | Escalate; no second semantic attempt until reconciled.                                                            |
+| `BND-RETIRE`         | Retirement attempts per obligation.                                                                   | 3 attempts; range 1–5.             | No renewal; exhaustion creates the handoff.                           | Residual Obligation handed to the owner (I19).                                                                    |
 
 The mechanism/ledger split is deliberate: a timed-out or unknown outcome on a mediated Operation
 port is a Story- or Operation-scoped fault, but an unknown ledger or registry acknowledgement is
@@ -128,8 +139,9 @@ named bounds, the controller derives exactly one applicable condition:
 
 Qualifying progress is a durable subject-bound change such as a new Candidate, evidence item,
 completed check, or explicitly enumerated checkpoint; message volume and provider self-reports do
-not count. Stuck and dead classifications record `FC-LIVENESS`, preserve work, and park or escalate
-under the table's exhaustion action. Human-input-overdue re-escalates without dropping the request.
+not count. Stuck and dead classifications record `FC-LIVENESS` and preserve work. `Stuck` parks;
+`dead` follows the fixed `BND-SILENCE` replacement guard and otherwise parks.
+Human-input-overdue re-escalates without dropping the request.
 
 ## Timers and wake triggers
 

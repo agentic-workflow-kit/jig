@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Level 2 runtime units, named ports, the process model, and the single-host deployment shape; component internals, schemas, algorithms, provider technology, and operational tooling are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./context.md
   - ./model.md
@@ -41,14 +41,14 @@ with `RT-OPERATOR` cannot move the builder inside the authority boundary.
 
 ## Runtime units
 
-| ID              | Runtime unit              | Type         | Responsibility                                                                                                                                                                                                                           |
-| --------------- | ------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RT-OPERATOR`   | Operator interface        | Runtime unit | Implements the private first-party `PORT-CONSUMER` facade, delegates each command to the validated authority port, and presents durable explanations/outcomes; it holds no lifecycle authority.                                          |
-| `RT-CONTROLLER` | Run controller            | Runtime unit | The single active Jig Control process for one Run: it validates, decides, records, dispatches, and reconciles under its controller generation.                                                                                           |
-| `RT-LEDGER`     | Run ledger store          | Data store   | Holds one Run's durable ordered Transition ledger and durable control facts; passive data at rest with no decision behavior.                                                                                                             |
-| `RT-EVIDENCE`   | Immutable artifact store  | Data store   | Holds bounded evidence artifacts and terminal audit exports referenced by digest from the ledger; passive data at rest with no decision behavior.                                                                                        |
-| `RT-REGISTRY`   | Target-authority registry | Data store   | Holds the durable cross-Run target-authority registry keyed by canonical target identity (`ID-TARGET`); the one store shared by all Run controllers, and passive data at rest like the others.                                           |
-| `RT-WITNESS`    | Currency witness store    | Data store   | Holds the `LG-WITNESS` heads for the Run ledgers and the registry, on storage whose trust is independent of `RT-LEDGER` and its backups; where no independent witness is configured, autonomous restore is traded for a deliberate stop. |
+| ID              | Runtime unit              | Type         | Responsibility                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------- | ------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RT-OPERATOR`   | Operator interface        | Runtime unit | Implements the private first-party `PORT-CONSUMER` facade and hosts pre-controller `CP-INTAKE`. Intake's only durable write is the `LG-INTAKE` acknowledgement conditional-create; after it exists, the operator idempotently creates the derived Run ledger and spawns the controller. The unit otherwise delegates commands and presents durable outcomes; it holds no lifecycle authority. |
+| `RT-CONTROLLER` | Run controller            | Runtime unit | The single active Jig Control process for one Run: it validates, decides, records, dispatches, and reconciles under its controller generation.                                                                                                                                                                                                                                                |
+| `RT-LEDGER`     | Run ledger store          | Data store   | Holds one Run's durable ordered Transition ledger and durable control facts; passive data at rest with no decision behavior.                                                                                                                                                                                                                                                                  |
+| `RT-EVIDENCE`   | Immutable artifact store  | Data store   | Holds bounded evidence artifacts and terminal audit exports referenced by digest from the ledger; passive data at rest with no decision behavior.                                                                                                                                                                                                                                             |
+| `RT-REGISTRY`   | Target-authority registry | Data store   | Holds the durable cross-Run waiter and target-authority order keyed by `ID-TARGET`; grants only the comparator-least eligible recorded waiter, atomically rebinds Candidate-changing refreshes, and is the registry-first authority of record on recovery.                                                                                                                                    |
+| `RT-WITNESS`    | Currency witness store    | Data store   | Holds the `LG-WITNESS` heads for the Run ledgers and the registry, on storage whose trust is independent of `RT-LEDGER` and its backups; where no independent witness is configured, autonomous restore is traded for a deliberate stop.                                                                                                                                                      |
 
 Rules the units must preserve:
 
@@ -68,18 +68,18 @@ semantic contract owned by Jig, not a transport: transports, encodings, and prov
 selected per configured mechanism in
 [mechanism and provider contracts](./mechanism-and-provider-contracts.md).
 
-| ID               | Port                            | Faces (V1)                                     | Carries                                                                                                                                                                                                                 |
-| ---------------- | ------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT-CONSUMER`  | First-party consumer API facade | CLI, private MCP adapter, SDK                  | Versioned first-party command submission, inspection reads, decision entry, and export retrieval; delegates to `PORT-INTAKE`, `PORT-DECIDE`, and `PORT-PUBLISH` without bypassing them.                                 |
-| `PORT-INTAKE`    | Envelope intake                 | `X-ENVELOPE`                                   | Composition-digest-keyed conditional-create submission in; byte-equivalent durable `SCH-INTAKE-ACK`, existing `ID-RUN` on duplicate/lost-ack lookup, and preflight outcome out.                                         |
-| `PORT-DECIDE`    | Human decision                  | `P-OWNER`                                      | Parked questions and provider human requests out; grant-aware answers, Run suspend/resume/terminal-stop decisions, delegation-grant changes, and notice acknowledgement/snooze events in.                               |
-| `PORT-SESSION`   | Role session                    | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments and scoped Doorbell answers out; attributable results, self-reports, verdicts, liveness, and human-needed provider requests in.                                                                |
-| `PORT-WORKSPACE` | Workspace effects               | `X-WORKSPACE`                                  | Authorized isolation and repository effects out; content, basis, cleanliness, and preservation facts in.                                                                                                                |
-| `PORT-VERIFY`    | Verification                    | `X-VERIFY`                                     | Authorized exact-subject check requests out; check observations in.                                                                                                                                                     |
-| `PORT-DELIVERY`  | Delivery and target             | `X-DELIVERY`                                   | Disjoint review-publication `OPC-REV-*` effects and finalization/landing `OPC-DEL-*` effects out; target, gate, effect-certainty, request, and landing facts in. Review scope can never invoke target-changing classes. |
-| `PORT-LEDGER`    | Ledger commit and read          | `X-STORE`                                      | Conditional ordered appends and verified reads of Run/registry authority, witness heads, and the deployment-scoped digest-to-intake-acknowledgement index `LG-INTAKE`.                                                  |
-| `PORT-ARTIFACT`  | Artifact persistence            | `X-STORE`                                      | Immutable evidence and terminal audit-export artifact writes, plus digest-verified reads.                                                                                                                               |
-| `PORT-PUBLISH`   | Read-only publication           | `X-CONSUMER`                                   | Durable outcomes, explanations, actionable notices, immutable audit-export references, and obligations out; no control input.                                                                                           |
+| ID               | Port                            | Faces (V1)                                     | Carries                                                                                                                                                                                                                                                   |
+| ---------------- | ------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT-CONSUMER`  | First-party consumer API facade | CLI, private MCP adapter, SDK                  | Versioned first-party preview/start commands, inspection reads, decision entry, and export retrieval. Preview invokes the Envelope Builder effect-free; core commands delegate to `PORT-INTAKE`, `PORT-DECIDE`, or `PORT-PUBLISH` without bypassing them. |
+| `PORT-INTAKE`    | Envelope intake                 | `X-ENVELOPE`                                   | Composition-digest-keyed conditional-create submission in; byte-equivalent durable `SCH-INTAKE-ACK`, existing `ID-RUN` on duplicate/lost-ack lookup, and preflight outcome out.                                                                           |
+| `PORT-DECIDE`    | Human decision                  | `P-OWNER`                                      | Parked questions and provider human requests out; grant-aware answers, Run suspend/resume/terminal-stop decisions, delegation-grant changes, and notice acknowledgement/snooze events in.                                                                 |
+| `PORT-SESSION`   | Role session                    | `X-AGENT` hosting `P-IMPLEMENTER`/`P-REVIEWER` | Bounded role assignments and scoped Doorbell answers out; attributable results, self-reports, verdicts, liveness, and human-needed provider requests in.                                                                                                  |
+| `PORT-WORKSPACE` | Workspace effects               | `X-WORKSPACE`                                  | Authorized isolation and repository effects out; content, basis, cleanliness, and preservation facts in.                                                                                                                                                  |
+| `PORT-VERIFY`    | Verification                    | `X-VERIFY`                                     | Authorized exact-subject check requests out; check observations in.                                                                                                                                                                                       |
+| `PORT-DELIVERY`  | Delivery and target             | `X-DELIVERY`                                   | Disjoint review-publication `OPC-REV-*` effects and finalization/landing `OPC-DEL-*` effects out; target, gate, effect-certainty, request, and landing facts in. Review scope can never invoke target-changing classes.                                   |
+| `PORT-LEDGER`    | Ledger commit and read          | `X-STORE`                                      | Conditional ordered appends and verified reads of Run/registry authority, witness heads, and the deployment-scoped digest-to-intake-acknowledgement index `LG-INTAKE`.                                                                                    |
+| `PORT-ARTIFACT`  | Artifact persistence            | `X-STORE`                                      | Immutable evidence and terminal audit-export artifact writes, plus digest-verified reads.                                                                                                                                                                 |
+| `PORT-PUBLISH`   | Read-only publication           | `X-CONSUMER`                                   | Durable outcomes, explanations, actionable notices, immutable audit-export references, and obligations out; no control input.                                                                                                                             |
 
 Port rules:
 
@@ -87,46 +87,57 @@ Port rules:
   at Layer 2. `X-STORE` is reached through two ports because the ledger's conditional-append
   contract and the artifact store's immutable-blob contract are different proof obligations.
 - Every inbound message is validated at the port against identity, role, exact subject, lifecycle
-  position, fence, and capability before it can become a trigger (I7). The validating component is
-  `CP-MEDIATOR` in the [control plane](./components/control-plane.md) for every port except
-  `PORT-LEDGER`, whose commit primitive carries equivalent identity, position, and digest
-  validation inside the transition engine's commit protocol.
+  position, fence, and capability before it can become a trigger (I7). `CP-MEDIATOR` validates the
+  mediated mechanism ports; `CP-INTAKE` validates `PORT-INTAKE`; `CP-ESCALATION` validates
+  `PORT-DECIDE`; controller derivation validation owns wakes; and `PORT-LEDGER`'s commit primitive
+  carries equivalent identity, position, and digest validation inside the transition engine's
+  commit protocol.
 - `PORT-PUBLISH` is one-directional by construction. A consumer that needs to influence a Run must
   enter through `PORT-INTAKE` or `PORT-DECIDE` as a first-class validated participant.
 - `PORT-CONSUMER` is a private product facade, not another lifecycle authority or provider seam. It
   terminates at `RT-OPERATOR`, preserves caller principal/grant and event schema, and delegates to
-  the existing validated ports; controller components, stores, and mechanisms remain unreachable.
-- `PORT-SOURCE` is not a tenth crossing of `SYS-JIG`: it belongs to `X-ENVELOPE`'s bounded product
+  the existing validated ports for core actions. Its preview method instead invokes the Envelope
+  Builder's effect-free `EP-PREVIEW` path outside the core authority boundary; controller
+  components, stores, and mechanisms remain unreachable.
+- `PORT-SOURCE` is not an eleventh crossing of `SYS-JIG`: it belongs to `X-ENVELOPE`'s bounded product
   front end. Candidate work can reach `PORT-INTAKE` only after validation, composition, and owner
   approval produce a new immutable envelope.
 
 ### First-party consumer API delegation
 
-| Consumer action                                        | Delegates to                                  | Boundary rule                                                                                   |
-| ------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Envelope submission or launch                          | `PORT-INTAKE`                                 | Reuses digest-keyed validation and acknowledgement; the facade cannot mint a Run.               |
-| Decide, override, handoff, stop, resume, notice action | `PORT-DECIDE`                                 | Preserves authenticated principal, current `ID-GRANT`, exact subject, and event schema.         |
-| Inspect, watch, ask why, notices, outcomes             | `PORT-PUBLISH`                                | Reads a durable projection at a stated ledger position; no control input is added.              |
-| Export retrieval                                       | `PORT-PUBLISH`, then `OPC-ART-GET` internally | Returns a validated reference/read; the consumer never reads `RT-EVIDENCE` or storage directly. |
+| Consumer action                                        | Delegates to                                  | Boundary rule                                                                                                 |
+| ------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Preview                                                | Envelope Builder `EP-PREVIEW`                 | Runs composition and validation effect-free; never calls intake, mints a Run, writes a ledger, or dispatches. |
+| Start / envelope submission                            | `PORT-INTAKE`                                 | Reuses digest-keyed validation and acknowledgement; only intake may mint or retrieve a Run.                   |
+| Decide, override, handoff, stop, resume, notice action | `PORT-DECIDE`                                 | Preserves authenticated principal, current `ID-GRANT`, exact subject, and event schema.                       |
+| Inspect, watch, ask why, notices, outcomes             | `PORT-PUBLISH`                                | Reads a durable projection at a stated ledger position; no control input is added.                            |
+| Export retrieval                                       | `PORT-PUBLISH`, then `OPC-ART-GET` internally | Returns a validated reference/read; the consumer never reads `RT-EVIDENCE` or storage directly.               |
 
 The facade is private and versioned for shipped first-party consumers. It creates no public package
 or external stability commitment; changing that posture is a deliberate owner-visible decision.
 
 ## Process model
 
-- `RT-OPERATOR` runs as a short-lived process per command (configure, submit, inspect, decide,
+- `RT-OPERATOR` runs as a short-lived process per command (configure, preview, start/submit,
+  inspect, decide,
   suspend, resume, notice acknowledge/snooze, export). A realization may host the Envelope Builder
   in the same executable, but the
   builder still has only proposal authority and remains outside the controller's trust boundary.
   It communicates with a live controller only through durable records and validated port triggers,
   never through shared memory, so an absent or crashed operator process cannot corrupt control
-  state.
-- `RT-CONTROLLER` runs as one long-lived process per Run from intake acknowledgement to Run
+  state. For start/submit it hosts `CP-INTAKE`; the acknowledgement conditional-create is the
+  single commit point, and controller spawn occurs only after that acknowledgement exists.
+- `RT-CONTROLLER` runs as one long-lived process per Run after intake acknowledgement through Run
   completion, interruption, or suspension. A suspended controller holds no live dispatch authority.
   On start, restart, or operator resume it acquires a new controller generation through
   `PORT-LEDGER` before any dispatch (I6). Concurrent Runs are concurrent controller processes; the
   only state shared between Runs is the target-authority registry (`RT-REGISTRY`), the deliberate
-  cross-Run exception that serializes finalization authority per canonical target (I12).
+  cross-Run exception that serializes finalization authority per canonical target (I12). Every
+  acquisition first records the waiter's D6/`C-ORDER` tuple; the registry grants only the
+  comparator-least eligible waiter, records grant/release by conditional append, and performs a
+  Candidate-changing refresh rebind in one atomic registry append. Recovery treats the registry as
+  the cross-Run authority of record before reconciling a Run-ledger mirror. No global scheduler or
+  second arbiter exists.
 - Mechanism sessions (agent roles, verification executions, delivery operations) run outside the
   controller process as separate local processes or remote services reached through their ports.
   A mechanism crash is a Story- or Operation-scoped fault (I15), never a controller memory fault.
@@ -162,7 +173,7 @@ flowchart LR
     end
 
     subgraph Jig["SYS-JIG runtime units"]
-        Operator["RT-OPERATOR<br/>Operator interface<br/>submits · inspects · relays decisions<br/>[Runtime unit]"]
+        Operator["RT-OPERATOR<br/>Operator interface + CP-INTAKE<br/>acknowledges · submits · inspects · relays decisions<br/>[Runtime unit]"]
         Controller["RT-CONTROLLER<br/>Run controller<br/>validates · decides · records · reconciles<br/>[Runtime unit]"]
         Ledger[("RT-LEDGER<br/>Run ledger store<br/>[Data store]")]
         Evidence[("RT-EVIDENCE<br/>Evidence artifact store<br/>[Data store]")]
@@ -172,7 +183,8 @@ flowchart LR
 
     Envelope -->|"submits envelope via PORT-INTAKE to"| Operator
     FirstParty -->|"uses PORT-CONSUMER only through"| Operator
-    Operator -->|"proposes validated triggers to"| Controller
+    Operator -->|"after durable intake acknowledgement, creates ledger and starts"| Controller
+    Operator -->|"conditionally creates LG-INTAKE acknowledgement via PORT-LEDGER"| Ledger
     Owner -->|"returns scoped decisions via PORT-DECIDE to"| Operator
     Controller -->|"parks named questions via PORT-DECIDE for"| Owner
     Controller -->|"assigns bounded role work via PORT-SESSION to"| Session
@@ -252,7 +264,7 @@ deployment topology).
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
 flowchart LR
     subgraph Host["Operator host: workstation or job runner"]
-        OperatorP["RT-OPERATOR<br/>Short-lived command process<br/>[Process]"]
+        OperatorP["RT-OPERATOR + CP-INTAKE<br/>Short-lived command process<br/>[Process]"]
         ControllerP["RT-CONTROLLER<br/>One long-lived process per Run<br/>[Process]"]
         MechanismP["Local mechanism sessions<br/>agent · workspace · verification<br/>[Child processes]"]
         subgraph HostStore["Host storage"]
@@ -271,7 +283,8 @@ flowchart LR
         OwnerR(["P-OWNER<br/>Arye or recorded delegate<br/>[Person]"])
     end
 
-    OperatorP -->|"starts and signals per Run"| ControllerP
+    OperatorP -->|"after LG-INTAKE acknowledgement, creates ledger and starts per Run"| ControllerP
+    OperatorP -->|"conditionally creates LG-INTAKE via PORT-LEDGER"| LedgerD
     ControllerP -->|"spawns and supervises scoped"| MechanismP
     ControllerP -->|"conditionally appends via PORT-LEDGER to"| LedgerD
     ControllerP -->|"acquires cross-Run target authority via PORT-LEDGER from"| RegistryD
@@ -308,16 +321,16 @@ node to keep this view at one level; their contracts are identical to remote mec
 
 ## How the decomposition preserves the Layer 1 contract
 
-| Layer 1 obligation                                  | Where it lands at Layer 2                                                                                                                                                                  |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Sole routine lifecycle authority (I3)               | Only `RT-CONTROLLER` decides; `RT-OPERATOR` proposes and reads; stores are passive.                                                                                                        |
-| Ledger authority, record before adopt/dispatch (I5) | `RT-LEDGER` behind `PORT-LEDGER`'s conditional-append contract; the transition engine is its only writer.                                                                                  |
-| Fencing and safe resume (I6)                        | Controller generation acquired through `PORT-LEDGER` before any dispatch; one controller process per Run.                                                                                  |
-| One target-scoped finalization authority (I12)      | Cross-Run arbitration through the shared `RT-REGISTRY` store behind `PORT-LEDGER`'s conditional-append contract; every Run controller contends on one authority line per canonical target. |
-| Fail-closed trust posture after rollback (I20)      | `LG-WITNESS` heads in `RT-WITNESS`, on storage whose trust is independent of the ledger and its backups, advanced before every acknowledgement.                                            |
-| Exact-subject validation at the boundary (I7)       | Every inbound port message passes `CP-MEDIATOR` validation (or, for `PORT-LEDGER`, the commit protocol's equivalent validation) before becoming a trigger.                                 |
-| Smallest-safe containment (I15)                     | Mechanism sessions are separate processes; their faults arrive as attested failures, not shared-memory failures.                                                                           |
-| No undeclared control path (D2, D3)                 | `PORT-PUBLISH` is read-only; every other crossing is a named, validated port.                                                                                                              |
+| Layer 1 obligation                                  | Where it lands at Layer 2                                                                                                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sole routine lifecycle authority (I3)               | Only `RT-CONTROLLER` decides; `RT-OPERATOR` proposes and reads; stores are passive.                                                                                                                          |
+| Ledger authority, record before adopt/dispatch (I5) | `RT-LEDGER` behind `PORT-LEDGER`; the transition engine alone writes Run Transitions, while `CP-INTAKE` writes only `LG-INTAKE` and registry arbitration uses its separate declared conditional-append path. |
+| Fencing and safe resume (I6)                        | Controller generation acquired through `PORT-LEDGER` before any dispatch; one controller process per Run.                                                                                                    |
+| One target-scoped finalization authority (I12)      | Cross-Run arbitration through the shared `RT-REGISTRY` store behind `PORT-LEDGER`'s conditional-append contract; every Run controller contends on one authority line per canonical target.                   |
+| Fail-closed trust posture after rollback (I20)      | `LG-WITNESS` heads in `RT-WITNESS`, on storage whose trust is independent of the ledger and its backups, advanced before every acknowledgement.                                                              |
+| Exact-subject validation at the boundary (I7)       | Mechanism messages pass `CP-MEDIATOR`; intake passes `CP-INTAKE`; decisions pass `CP-ESCALATION`; wakes pass controller derivation validation; ledger primitives pass commit-protocol validation.            |
+| Smallest-safe containment (I15)                     | Mechanism sessions are separate processes; their faults arrive as attested failures, not shared-memory failures.                                                                                             |
+| No undeclared control path (D2, D3)                 | `PORT-PUBLISH` is read-only; every other crossing is a named, validated port.                                                                                                                                |
 
 ## Where to go next
 
