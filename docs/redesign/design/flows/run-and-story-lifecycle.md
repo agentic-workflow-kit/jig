@@ -231,19 +231,19 @@ or Transition.
 
 ## Story lifecycle
 
-| Story stage                  | Meaning and authority                                                                                                                                                                                            |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pending**                  | Wait for every prerequisite to be confirmed `Landed`; allocate no Story resources.                                                                                                                               |
-| **Eligible**                 | Enter deterministic admission ordering when prerequisites and resource-class capacity permit.                                                                                                                    |
-| **Preparing**                | Establish isolated resources and a bounded implementer assignment.                                                                                                                                               |
-| **Implementing**             | Produce a committed exact Candidate and the evidence required by the frozen Run basis.                                                                                                                           |
-| **Reviewing**                | An independent reviewer judges the complete exact Candidate; changes return through separately bounded rework.                                                                                                   |
-| **Accepted**                 | Jig durably records valid reviewer approval after identity, authority, exact binding, evidence availability/integrity, findings, and lifecycle validation.                                                       |
-| **Waiting for finalization** | Wait in deterministic order without target finalization authority and without repeated target mutation.                                                                                                          |
-| **Finalizing**               | Hold the sole target-scoped authority; align to target, renew review after Candidate-changing refresh, perform policy-selected final verification, authorize delivery, reconcile uncertainty, and prove landing. |
-| **Business outcome**         | Record `Landed`, directly `Blocked`, owner-decided `Rejected`, or derive `Not run — dependency blocked`.                                                                                                         |
-| **Retiring**                 | Settle or fence pending operations, release authority only after the authority-release prerequisite, preserve work/evidence, close sessions, and safely retire or hand off resources.                            |
-| **Closed**                   | Both business outcome and Retirement obligations are final.                                                                                                                                                      |
+| Story stage                  | Meaning and authority                                                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pending**                  | Wait for every prerequisite to be confirmed `Landed`; allocate no Story resources.                                                                                                                                                       |
+| **Eligible**                 | Enter deterministic admission ordering when prerequisites and resource-class capacity permit.                                                                                                                                            |
+| **Preparing**                | Establish isolated resources and a bounded implementer assignment.                                                                                                                                                                       |
+| **Implementing**             | Produce a committed `SCH-CANDIDATE` at its minted `ID-CAND`, including the exact content, target-basis digest, bounded delivery metadata, and evidence-manifest linkage required by the frozen Run basis.                                |
+| **Reviewing**                | An independent reviewer judges the complete `SCH-CANDIDATE` package at `ID-CAND`; changes return through separately bounded rework.                                                                                                      |
+| **Accepted**                 | Jig durably records valid reviewer approval after identity, authority, exact binding, evidence availability/integrity, findings, and lifecycle validation.                                                                               |
+| **Waiting for finalization** | Wait in deterministic order without target finalization authority and without repeated target mutation.                                                                                                                                  |
+| **Finalizing**               | Hold the sole target-scoped authority; align to target, renew review after a Candidate-changing refresh mints a new `ID-CAND`, perform policy-selected final verification, authorize delivery, reconcile uncertainty, and prove landing. |
+| **Business outcome**         | Record `Landed`, directly `Blocked`, owner-decided `Rejected`, or derive `Not run — dependency blocked`.                                                                                                                                 |
+| **Retiring**                 | Settle or fence pending operations, release authority only after the authority-release prerequisite, preserve work/evidence, close sessions, and safely retire or hand off resources.                                                    |
+| **Closed**                   | Both business outcome and Retirement obligations are final.                                                                                                                                                                              |
 
 **Authority-release prerequisite:** Every finalization-authority release in this view requires
 every in-flight target-changing Operation of the holding Story to resolve as a confirmed effect,
@@ -298,9 +298,9 @@ stateDiagram-v2
     Pending --> Eligible: prerequisites Landed and capacity permits
     Eligible --> Preparing: deterministic admission
     Preparing --> Implementing: isolated resources and bounded assignment
-    Implementing --> Reviewing: committed exact Candidate submitted
+    Implementing --> Reviewing: SCH-CANDIDATE at ID-CAND committed and submitted
     Reviewing --> Implementing: changes required through bounded rework
-    Reviewing --> Accepted: valid exact-Candidate approval
+    Reviewing --> Accepted: valid approval of SCH-CANDIDATE at ID-CAND
     Accepted --> Waiting: enters deterministic order without authority
     Waiting --> Finalizing: acquires sole target-scoped authority
     Finalizing --> Landed: authoritative target proof
@@ -487,8 +487,8 @@ flowchart LR
     Preflight -.->|"invalid or insufficient envelope rejects before Story effects"| Rejected
     Preflight -->|"freezes valid Run definition and submits trigger to"| Transition
     Transition -->|"records durable decision and dispatches authorized Story work to"| Work
-    Work -->|"submits committed exact Candidate to"| Review
-    Review -->|"valid exact-Candidate approval permits"| Accepted
+    Work -->|"submits SCH-CANDIDATE at ID-CAND to"| Review
+    Review -->|"valid carrier-bound approval permits"| Accepted
     Review -->|"changes required returns through bounded rework to"| Work
     Accepted -->|"enters deterministic order at"| Wait
     Wait -->|"acquires sole target authority for"| Finalize

@@ -60,21 +60,21 @@ sequenceDiagram
     participant Del as Delivery system and target
 
     Jig->>Impl: Assigns bounded implementation for one admitted Story
-    Impl-->>Jig: Proposes committed exact Candidate, self-report, and evidence
-    Note over Jig: Validates identity, role, exact subject, and evidence.<br/>Records the durable transition before any dispatch.
+    Impl-->>Jig: Supplies committed-content observation, self-report, and evidence
+    Note over Jig: Validates identity, role, exact subject, and evidence.<br/>Mints ID-CAND and commits SCH-CANDIDATE before any dispatch.
     opt Review mode requires a forge venue
-        Jig->>Del: Publishes the exact Candidate and opens/updates a draft non-mergeable request under D15
+        Jig->>Del: Publishes SCH-CANDIDATE at ID-CAND and opens/updates a draft non-mergeable request under D15
         Del-->>Jig: Attests the stable review ref and request metadata; no finalization authority exists
     end
-    Jig->>Rev: Assigns the exact Candidate and complete delivery package
-    alt Reviewer approves the exact Candidate
+    Jig->>Rev: Assigns SCH-CANDIDATE at ID-CAND and its complete delivery package
+    alt Reviewer approves that exact carrier
         Rev-->>Jig: Attests full-package approval verdict
         Note over Jig: Validates the verdict and evidence and records Accepted.<br/>The Story waits in deterministic order without authority.
         Note over Jig: Acquires the sole target-scoped finalization authority.<br/>Runs the policy-selected final verification.
         Jig->>Del: Authorizes the delivery effect under the authority fence
         Del-->>Jig: Reports effect certainty
         Jig->>Del: Requests the post-effect target observation
-        Del-->>Jig: Confirms the target contains the Accepted result
+        Del-->>Jig: Confirms the target contains the Accepted carrier-bound result
         Note over Jig: Records Landed and releases dependent Stories immediately.<br/>Retirement follows separately and cannot reverse the outcome.
     else Reviewer requires changes
         Rev-->>Jig: Attests changes-required verdict with findings

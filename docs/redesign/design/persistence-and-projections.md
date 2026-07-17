@@ -261,7 +261,7 @@ digest.
 The registry protocol is the total-order arbiter selected by D6; there is no global scheduler:
 
 - every acquisition attempt conditionally appends the union's `waiter` variant carrying the Run,
-  Story, exact Candidate basis, eligibility-fact references/digest, complete immutable
+  Story, exact `SCH-CANDIDATE` identity/digest/basis, eligibility-fact references/digest, complete immutable
   D6/`C-ORDER` comparator tuple, and the continuous-starvation start for
   `BND-WAIT-CAPACITY`. `CP-FINALIZER` is accountable for that target-authority queue wait and wakes
   it only through `EV-WAKE-AUTHORITY`. It conditionally appends the one `withdrawal` variant,
@@ -270,16 +270,17 @@ The registry protocol is the total-order arbiter selected by D6; there is no glo
   grantable;
 - for one `ID-TARGET`, a grant may be conditionally appended only for the comparator-least eligible
   recorded waiter. The `grant` variant references that waiter handle, revalidates its current
-  eligibility basis, and carries the allocated `ID-AUTH`, Candidate/target binding, and fence. The
-  `release` variant names the current authority and Candidate/fence plus either reconciliation proof
+  eligibility basis, and carries the allocated `ID-AUTH`, `SCH-CANDIDATE`/target binding, and fence. The
+  `release` variant names the current authority and `SCH-CANDIDATE`/fence plus either reconciliation proof
   for every in-flight target-changing Operation or a structural proof that none can exist. Grant,
   release, and withdrawal are conditional appends against the registry head. A grant racing a
   withdrawal loses by ordinary conditional-append ordering: after a prior withdrawal invalidates
   its named basis it cannot commit, and the losing proposal re-reads the head;
 - when a bounded refresh changes the Candidate, **atomic authority rebinding** is one registry
   `atomic-rebind` variant that carries the old authority/Candidate/fence and its release proof,
-  revalidated new Candidate/waiter basis, and new `ID-AUTH`. It simultaneously releases the old
-  binding and reacquires authority for the new Candidate digest. No intermediate unowned state is
+  the revalidated new `SCH-CANDIDATE`'s `ID-CAND`, recorded basis, and
+  `candidateContentDigest` waiter basis, and new `ID-AUTH`. It simultaneously releases the old
+  binding and reacquires authority for that carrier's digest. No intermediate unowned state is
   observable or eligible for another grant; and
 - recovery re-reads and verifies the registry before trusting the Run-ledger mirror. If the two
   disagree, reconciliation is registry-first because the registry is the cross-Run authority of

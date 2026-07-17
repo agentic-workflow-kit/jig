@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — ninth remediation candidate"
-purpose: Record the prior remediation history, the ninth independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
+title: "Product readiness gate — tenth remediation candidate"
+purpose: Record the prior remediation history, the tenth independent readiness review's Candidate-contract findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The ninth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The tenth independent readiness review and its 2026-07-17 documentation-only Candidate-contract remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: eighth remediation merged; ninth independent review returned FAIL with 6 blockers; owner-approved ninth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
+status: ninth remediation merged; tenth independent review returned FAIL with 2 blockers; owner-approved tenth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -28,19 +28,18 @@ related:
   - ../delegation-register.md
 ---
 
-# Product readiness gate — ninth remediation candidate
+# Product readiness gate — tenth remediation candidate
 
 ## Current gate state
 
-The eighth remediation merged as baseline
-`14e3de2a9b4fbaac4e40c89b7f077484f2247d0a`, tree
-`58ed182e1a9fa29dce8bcce442246a899a5b985f`. Its 66-path normative subject has round-8-v1
-manifest digest `40688dce250dd47cf1d418499581bcc5b1a68167bb13753e8c97370c192038df`. A fresh independent
-readiness review of that exact subject on 2026-07-17 returned **FAIL** with six in-rubric blockers
-and proposed the now-owner-authorized R1.2 amendment. The product-readiness lock therefore remains
-**inactive**.
+The ninth remediation merged as baseline
+`d13abaa434f6ff7ddcf8ac7216307e2f97db7f1c`, tree
+`350adf6f8a28b45dd166fbd62d027a161a010d3a`. Its 66-path normative subject has round-8-v1
+manifest digest `3be389556cb8f4e88310473b697e4efab315a8e40cfe93158f915a43dc0f1631`. A fresh independent
+readiness review of that exact subject on 2026-07-17 returned **FAIL** with two connected
+in-rubric blockers, R2.2 and R2.3. The product-readiness lock therefore remains **inactive**.
 
-Arye Kogan authorized the bounded ninth-remediation resolutions recorded below. That instruction
+Arye Kogan authorized the bounded tenth-remediation resolutions recorded below. That instruction
 does not authorize implementation inspection, archive work, greenfield planning, merge, or
 self-certification of readiness. Author checks and the pre-PR independent assessment establish
 review readiness only; two consecutive independent post-merge `PASS` reviews of the same exact
@@ -476,3 +475,71 @@ checks, budget diff, and adversarial self-review iterations are generated only a
 is frozen and are carried as pull-request evidence rather than embedded self-referentially here.
 No entry in this section records `PASS` or activates the readiness lock; after merge, the same exact
 merged bytes still require two consecutive fresh independent `PASS` reviews.
+
+## Tenth independent review — remediation in progress
+
+The ninth remediation merged at baseline
+`d13abaa434f6ff7ddcf8ac7216307e2f97db7f1c`, tree
+`350adf6f8a28b45dd166fbd62d027a161a010d3a`. Its complete 66-path normative subject has
+round-8-v1 manifest digest
+`3be389556cb8f4e88310473b697e4efab315a8e40cfe93158f915a43dc0f1631`. A fresh independent
+review of those exact bytes on 2026-07-17 returned **FAIL** with two connected in-rubric blockers:
+R2.2 and R2.3. The review found these items; it did not authorize a design change.
+
+Arye Kogan's 2026-07-17 instruction authorizes the bounded documentation remediation recorded
+below. It does not authorize implementation work, archive work, merge, readiness
+self-certification, a readiness verdict, or lock activation.
+
+### Tenth-review finding-to-resolution record
+
+| Item | Clause | Countable finding                                                                                                                                                                                                        | Owner-authorized candidate resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Joined files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---: | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|    1 | R2.2   | The Candidate binds exact committed content, target basis, reviewed evidence, delivery metadata, acceptance, and Candidate-sensitive effects, but the 24-family schema inventory has no authoritative Candidate carrier. | Add `SCH-CANDIDATE` as the sole authoritative Candidate carrier, assembled from the workspace/session committed-content observation and evidence-manifest linkage, then committed atomically by `CP-TRANSITION` at the Candidate-creating Transition. It binds `ID-CAND`, owning Story, producing `ID-SESSION` lineage, target-basis digest, canonical content components and digest, a fixed-field Candidate-delivery tuple and `deliveryMetadataDigest`, and evidence-manifest linkage; review assembly combines that immutable digest with D15's separate fixed review-publication-observation digest. Refresh alignment/rebind, finalization and `LP-EQUIV`, acceptance validation, and audit export consume the carrier.                                                                                                                                                                                                                                        | `model.md`, `data-and-identity.md`, `lifecycle-catalogs.md`, `review-and-verification-execution.md`, `forge-and-landing.md`, `persistence-and-projections.md`, `scheduling-and-bounds.md`, `evidence-handling.md`, `mechanism-and-provider-contracts.md`, `architecture-conformance.md`, `acceptance-and-evidence.md`, `concurrency-and-finalization.md`, `state-and-recovery.md`, `components/control-plane.md`, `flows/run-and-story-lifecycle.md`, `flows/story-delivery.md`, `operations-and-observability.md`, this gate record |
+|    2 | R2.3   | `ID-CAND` has a shape but no durable ordinal allocation, duplicate/lost-acknowledgement replay rule, or canonical non-self-referential content/digest domain across original and refresh creation.                       | Mint the ordinal only at the Candidate-creating Transition commit as the successor of the Story's highest committed candidate ordinal. Persist `candidateCreationKey`, derived from a literal creation-path tag, owning Story, producing-session lineage, the validated source event's producer-scoped deduplication key, and staged `candidateContentDigest`; byte-equivalent replay resolves the existing `ID-CAND`, while a missing key or same-key/different-bytes reuse fails closed. Define the canonical staged content digest over recorded target-basis digest, ordered changed paths with per-path content digests, resulting tree digest, and optional workspace commit identity, excluding the record's own digest, creation key, `ID-CAND`, assigned ordinal, metadata, evidence linkage, and derived handles. Both original and refresh paths use the same carrier shape and rule; `LP-EQUIV` names the relevant carrier components for each strategy. | `model.md`, `data-and-identity.md`, `lifecycle-catalogs.md`, `review-and-verification-execution.md`, `forge-and-landing.md`, `persistence-and-projections.md`, `scheduling-and-bounds.md`, `evidence-handling.md`, `mechanism-and-provider-contracts.md`, `architecture-conformance.md`, `acceptance-and-evidence.md`, `concurrency-and-finalization.md`, `state-and-recovery.md`, `components/control-plane.md`, `flows/run-and-story-lifecycle.md`, `flows/story-delivery.md`, `operations-and-observability.md`, this gate record |
+
+### Owner directions and round-10 addition budget
+
+1. **OD-1 — carrier, producer split, and consumers:** Add only `SCH-CANDIDATE` as the
+   authoritative carrier. The workspace/session mechanism supplies the committed-content
+   observation, `CP-EVIDENCE` supplies evidence-manifest linkage, the controller assembles the
+   record, and `CP-TRANSITION` commits it atomically. The carrier is consumed by review-package
+   assembly, refresh alignment/rebind, finalization and `LP-EQUIV`, acceptance validation, and
+   audit export.
+2. **OD-2 — minting and replay:** Allocate the Candidate ordinal at the durable
+   Candidate-creating Transition commit under the single-writer ordered Run ledger. Persist
+   `candidateCreationKey` over the literal creation-path tag, owning Story, producing-session
+   lineage, validated source-event producer-scoped deduplication key, and staged content digest.
+   Byte-equivalent replay resolves to the existing `ID-CAND` and appends nothing; a missing key or
+   same-key/different-bytes reuse fails closed. Before validation-commit the Candidate has no
+   identity or effect.
+3. **OD-3 — staged digest domain:** The canonical content digest covers the recorded target-basis
+   digest, ordered changed-path set with per-path content digests, resulting tree digest, and a
+   workspace commit identity when supplied. It excludes the record's own digest,
+   `candidateCreationKey`, `ID-CAND`, the assigned ordinal, delivery metadata, evidence linkage,
+   and derived handles. The separate `deliveryMetadataDigest` covers the closed tuple of changed
+   paths, exact commit message or tagged absence, optional commit identity, and session lineage.
+4. **OD-4 — creation paths:** The original `EV-SESSION-RESULT` path and the refresh path through
+   bounded `OPC-SESSION-ASSIGN` plus `EV-WORKSPACE-FACT` both create one `SCH-CANDIDATE` carrier
+   through the same tagged-key minting rule. Atomic registry rebind uses the new `ID-CAND` and
+   digest from that carrier.
+5. **OD-5 — conformance and evidence boundary:** Extend only existing `CF-ACCEPTANCE` and
+   `CF-RUN-CONTROL` for deterministic minting, ordinal replay, carrier binding and digest
+   verification, both tagged creation-key derivations, byte-equivalent duplicate/lost-ack replay,
+   and wrong-content, wrong-basis, wrong-metadata, missing-key, or same-key/different-bytes
+   rejection.
+   `SCH-CANDIDATE` adds no artifact holder because its binding digests are not `RT-EVIDENCE`
+   addresses.
+6. **OD-6 — merge-invariant editorial rule:** The three status frontmatter lines state only
+   durable truth and route current verdict and authorized remediation to this gate record; they do
+   not narrate a round as currently in progress.
+7. **OD-7 — advisory author self-review:** At most three author self-review iterations are
+   advisory checks only. They make no verdict and cannot activate a lock; two fresh independent
+   reviews of the exact merged commit must still return `PASS` to certify readiness.
+
+The addition budget is exactly `+SCH-CANDIDATE` and zero everything else. D1–D15, the guidelines,
+the product layer, the raw layer, and the brief remain unchanged. New rows and clauses within
+existing families do not widen that budget.
+
+This record makes no readiness verdict, self-certification, or lock activation. Candidate commit,
+tree, manifest, and author self-review evidence remain pull-request material so this record does
+not become self-referential.

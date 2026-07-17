@@ -144,8 +144,10 @@ The following eleven holder classes are the exhaustive address-bearing set:
 
 These eleven rows, and no other schema or event fields, create artifact-address liveness. Other
 digest fields are comparison or derivation bases rather than artifact addresses unless a row above
-also carries an explicit artifact reference. In particular, `SCH-EVENT` payload
-digests, `SCH-OPERATION` payload-basis digests, and `SCH-SOURCE-EXCHANGE` content digests do not
+also carries an explicit artifact reference. In particular, `SCH-CANDIDATE` content, basis, tree,
+commit, and manifest-linkage values are binding or comparison values, not `RT-EVIDENCE` artifact
+addresses; `SCH-EVIDENCE` remains the holder of any artifact address. `SCH-EVENT` payload digests,
+`SCH-OPERATION` payload-basis digests, and `SCH-SOURCE-EXCHANGE` content digests likewise do not
 address `RT-EVIDENCE` by themselves.
 
 The protected context closes all five pre-Run holder classes without a pin or disposal race:

@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — ninth readiness review failed with 6 blockers on 2026-07-17; owner-approved documentation remediation in progress; product-readiness lock inactive pending two consecutive independent exact-candidate PASS reviews after merge
+status: active — canonical redesign and product-readiness amendment history are durable; the current readiness verdict and authorized remediation are recorded in design/decisions/product-readiness-gate-record.md; the product-readiness lock activates only after two consecutive independent exact-candidate PASS reviews of the same merged commit
 owner: Arye Kogan (Jig owner)
 last_verified: 2026-07-17
 sources_of_truth:
@@ -41,13 +41,12 @@ the explicit owner continuation instruction of 2026-07-15 against the then-locke
 and I1–I21 as fixed inputs, and closed its gate on 2026-07-16: independent review, the owner's
 ten-finding PR review, four correction passes, a recorded verification recheck, and Arye's
 explicit approval — approved, not locked (see the
-[Layer 2 gate record](./design/decisions/layer2-gate-record.md)). The eighth remediation then merged
-at `14e3de2a9b4fbaac4e40c89b7f077484f2247d0a`. The ninth independent readiness review of that
-exact baseline returned `FAIL` with six rubric blockers and one owner-authorized R1.2 amendment.
-Arye authorized the bounded documentation corrections and one-row ledger-contract addition budget.
-The product-readiness lock remains inactive until two
-consecutive independent sessions return `PASS` on the same exact merged candidate after this
-remediation merges.
+[Layer 2 gate record](./design/decisions/layer2-gate-record.md)). The subsequent amendment history
+through the ninth remediation and tenth independent readiness review is durable in the
+[product-readiness gate record](./design/decisions/product-readiness-gate-record.md), which is the
+sole current source for the readiness verdict and owner-authorized remediation. The
+product-readiness lock remains inactive until two consecutive independent sessions return `PASS`
+on the same exact merged candidate.
 
 ## Navigation
 

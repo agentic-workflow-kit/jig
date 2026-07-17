@@ -39,14 +39,14 @@ dependencies (I13).
 
 ## Review-publication Operation set
 
-During `Reviewing`, or when a Transition records and safely surfaces an existing exact Candidate as
+During `Reviewing`, or when a Transition records and safely surfaces an existing exact `SCH-CANDIDATE` as
 `Blocked`, the transition engine may authorize these Operations under
-`CB-REVIEW-PUBLICATION`. They carry the current controller generation, Candidate digest and basis,
+`CB-REVIEW-PUBLICATION`. They carry the current controller generation, `SCH-CANDIDATE` digest and basis,
 dedicated review ref, draft request identity/markers, and provider manifest, but no `ID-AUTH`.
 
 | ID                | Operation                                 | Reconciliation lookup                                                                   |
 | ----------------- | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `OPC-REV-PUBLISH` | Publish exact Candidate to a review ref   | Operation identity, exact review ref, and Candidate digest.                             |
+| `OPC-REV-PUBLISH` | Publish exact Candidate to a review ref   | Operation identity, exact review ref, and `SCH-CANDIDATE.candidateContentDigest`.       |
 | `OPC-REV-REQUEST` | Open/update draft non-mergeable request   | Stable Jig request marker plus source/target refs; confirm draft/non-mergeable posture. |
 | `OPC-REV-STATUS`  | Create/update Jig review status           | Request identity plus stable Jig status context.                                        |
 | `OPC-REV-COMMENT` | Create/update redacted review explanation | Request identity plus stable Jig marker; edit the existing block rather than append.    |
@@ -80,7 +80,7 @@ and authority fence from [operation identity and fencing](./state-and-recovery.m
 | ID                | Operation                         | Effect class                                            | Reconciliation lookup                                                                                                                                                                  |
 | ----------------- | --------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPC-DEL-ANCHOR`  | Create target lineage anchor      | Irreversible external effect, atomic conditional-create | Re-observation of the anchor: present with this realization-bound registry identity is success, present with another identity is a lost race that parks, absent permits bounded retry. |
-| `OPC-DEL-PUBLISH` | Publish Candidate branch          | Irreversible external effect                            | Operation identity, plus the published ref name and Candidate content digest as the provider correlation key.                                                                          |
+| `OPC-DEL-PUBLISH` | Publish Candidate branch          | Irreversible external effect                            | Operation identity, plus the published ref name and `SCH-CANDIDATE.candidateContentDigest` as the provider correlation key.                                                            |
 | `OPC-DEL-REQUEST` | Open integration request          | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                                                    |
 | `OPC-DEL-STATUS`  | Surface Jig integration status    | Irreversible external effect                            | Integration-request identity plus a stable Jig status context; repeated publication updates that context idempotently.                                                                 |
 | `OPC-DEL-COMMENT` | Surface the Jig explanation block | Irreversible external effect                            | Integration-request identity plus a stable Jig marker; lookup edits the existing explanation block instead of appending duplicates.                                                    |
@@ -109,22 +109,22 @@ proof must resolve and the content-equivalence rule it must apply.
 Frozen policy must explicitly select exactly one cataloged mode. An omitted, unknown, or
 repository-floor-forbidden mode fails preflight closed; no default mode exists.
 
-| Strategy            | Expected result shape                                                             | `LP-EQUIV` rule                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Direct fast-forward | The target head advances to the exact Candidate commit; no new commit is created. | The observed target head content is identical to the Accepted Candidate content digest.                  |
-| Merge commit        | A new merge commit joins the Candidate history into the target.                   | The merged tree equals the Candidate tree over the Candidate's changed paths against the recorded basis. |
-| Squash              | One new commit rewrites the Candidate history as a single change.                 | The squashed commit's patch over the recorded target basis is equivalent to the Candidate's change set.  |
-| Merge queue         | The queue emits a rebased or merged commit it produced from the request.          | The queue-produced commit's tree equals the Candidate tree over the Candidate's changed paths.           |
+| Strategy            | Expected result shape                                                             | `LP-EQUIV` rule                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Direct fast-forward | The target head advances to the exact Candidate commit; no new commit is created. | Compare the observed head's workspace commit identity and canonical `SCH-CANDIDATE.candidateContentDigest`.              |
+| Merge commit        | A new merge commit joins the Candidate history into the target.                   | Compare the resulting tree digest over `SCH-CANDIDATE`'s ordered changed paths against its recorded target-basis digest. |
+| Squash              | One new commit rewrites the Candidate history as a single change.                 | Compare the ordered `SCH-CANDIDATE` change set over its recorded target-basis digest.                                    |
+| Merge queue         | The queue emits a rebased or merged commit it produced from the request.          | Compare the resulting tree digest over `SCH-CANDIDATE`'s ordered changed paths against its recorded target-basis digest. |
 
 ## Content equivalence (`LP-EQUIV`)
 
-Landing proof compares **content, not commit identifiers**, because strategies such as squash and
-merge queue rewrite history and produce commits Jig never created. The rule is strategy-specific
-equivalence between the Accepted Candidate content over its changed paths and the observed target
-state: tree or patch equivalence over the Candidate's change set against the recorded target
-basis. A target that has moved since the recorded basis requires the bounded refresh path of
+Landing proof compares `SCH-CANDIDATE`'s binding values, not an untyped Candidate reference. The
+fast-forward rule needs both its workspace commit identity and canonical content digest; history-
+rewriting strategies instead use its recorded basis, ordered changed-path/per-path digests, and
+resulting tree digest. A selected strategy fails closed when its named carrier component is absent.
+A target that has moved since the recorded basis requires the bounded refresh path of
 [D6](./decisions/D6-concurrency-and-finalization.md) — retaining Story ownership, with renewed
-full review and atomic authority rebinding when the Candidate changes — never a silent re-merge.
+full review and atomic authority rebinding when the `SCH-CANDIDATE` changes — never a silent re-merge.
 The rejected alternative, commit-identifier comparison, was not selected because it proves nothing
 under history-rewriting strategies and falsely fails under equivalent rewrites.
 
@@ -134,7 +134,7 @@ under history-rewriting strategies and falsely fails under equivalent rewrites.
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LP-OBSERVE` | After effect certainty, request the authoritative post-effect target observation through `PORT-DELIVERY` (`OPC-DEL-OBSERVE`).                                                                                    |
 | `LP-RESOLVE` | Resolve the integration result the effect claims produced — the fast-forward head, merge commit, squash commit, or queue-produced commit — using the recorded correlation keys.                                  |
-| `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted Candidate digest over its change set.                                                                             |
+| `LP-COMPARE` | Apply the frozen strategy's `LP-EQUIV` rule between the resolved result and the exact Accepted `SCH-CANDIDATE` binding values named in the strategy row.                                                         |
 | `LP-RECORD`  | Record `Landed` durably with the observed facts, proof evidence, and the allocating registry identity (`ID-REGISTRY`) in the landing's delivery metadata, then release dependent Stories immediately (I13, I18). |
 
 **Target lineage anchor and registry lineage check:** no Candidate-changing landing effect is authorized
@@ -166,7 +166,7 @@ Replays after interruption **re-observe** the held integration through its corre
 than re-requesting the merge (I17). For a post-acceptance held integration, Jig uses the
 `CP-FINALIZER`-proposed, Transition-authorized `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`. For a `Blocked` Story that never reached
 acceptance/finalization, a recorded Transition may instead use the D15 `OPC-REV-*` set against an
-existing exact Candidate and draft request. Both paths use stable status context and comment
+existing exact `SCH-CANDIDATE` and draft request. Both paths use stable status context and comment
 markers; neither can rewrite the recorded business outcome.
 
 A surfacing failure never erases or downgrades the original `Blocked` fact. It creates a separate
@@ -211,7 +211,7 @@ sequenceDiagram
     participant Del as X-DELIVERY delivery mechanism
     participant Tgt as Authoritative target
 
-    Note over Ctl: CP-FINALIZER holds the sole target-scoped authority<br/>under its fence for this Story and Candidate basis
+    Note over Ctl: CP-FINALIZER holds the sole target-scoped authority<br/>under its fence for this Story and SCH-CANDIDATE basis
     Ctl->>Del: Requests the target lineage anchor through PORT-DELIVERY
     Del->>Tgt: Reads the lineage anchor
     Del-->>Ctl: Attests absent or the realization-bound ID-REGISTRY
@@ -237,7 +237,7 @@ sequenceDiagram
             Ctl->>Del: Requests the post-effect target observation LP-OBSERVE
             Del->>Tgt: Reads the authoritative post-effect target state
             Del-->>Ctl: Attests the observed target facts for LP-RESOLVE
-            Note over Ctl: LP-COMPARE applies the strategy LP-EQUIV rule against the<br/>exact Accepted Candidate digest.<br/>LP-RECORD records Landed and releases dependents immediately
+            Note over Ctl: LP-COMPARE applies the strategy LP-EQUIV rule against the<br/>exact Accepted SCH-CANDIDATE binding values.<br/>LP-RECORD records Landed and releases dependents immediately
         else Effect uncertain or contradictory
             Note over Ctl: Enters reconciliation through the recorded lookup.<br/>Re-observes and never authorizes a second semantic effect first
         end
