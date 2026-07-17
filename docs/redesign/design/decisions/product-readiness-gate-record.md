@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — fifth remediation candidate"
-purpose: Record the prior remediation history, the fifth independent readiness review's findings, their owner-approved bounded remediation, and the renewed exact-candidate review required after remediation merges.
+title: "Product readiness gate — sixth remediation candidate"
+purpose: Record the prior remediation history, the sixth independent readiness review's findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The fifth independent readiness review against baseline 22b275075f86d81593ad365124cfec9da844f96d, including the 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The sixth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: fifth independent readiness review returned FAIL with 8 blockers, 2 delegation gaps, and 1 traceability gap; owner-approved remediation candidate in progress; readiness lock inactive pending merge and renewed independent exact-candidate review
+status: sixth independent readiness review returned FAIL with 6 blocker groups, 2 delegation gaps, and 2 traceability gaps; owner-approved remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -23,9 +23,11 @@ related:
   - ./layer2-gate-record.md
   - ../README.md
   - ../architecture-conformance.md
+  - ../../guidelines/readiness-closure-rubric.md
+  - ../delegation-register.md
 ---
 
-# Product readiness gate — fifth remediation candidate
+# Product readiness gate — sixth remediation candidate
 
 ## Current gate state
 
@@ -38,6 +40,39 @@ Arye Kogan verified the findings, settled the nine decisions they require, and a
 resolutions below. That authorization permits the named design and non-guarantee product-prose
 corrections, including bounded reopen of D3, D7, and D10. It does not authorize unrelated Layer 1
 changes, implementation, archive, greenfield planning, merge, or self-certification of readiness.
+
+## Sixth independent review — remediation in progress
+
+A fresh independent empty-repository readiness review of the round-6 baseline on 2026-07-17
+returned **FAIL**: six blocker groups, two delegation gaps, and two traceability gaps. The review
+found the issues. **Arye Kogan authorized** every direction, addition-budget use, and bounded
+reopen carried by this candidate; no review authorized a design change. This candidate does not
+certify the gate. After merge, the normative
+[readiness closure rubric](../../guidelines/readiness-closure-rubric.md) requires two consecutive
+independent `PASS` reviews of the same exact commit before the readiness lock can activate.
+
+### Sixth-review finding-to-resolution record
+
+| Finding                                                                                      | Verified status                                                                                                                                            | Closing item | Arye Kogan authorization                                                                    |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------- |
+| 1a — self-referential approval digest                                                        | Verified against the envelope and D13 wording; candidate closure is the two-digest protocol.                                                               | 1            | Authorizes proposal-digest approval and composition-digest submission identity.             |
+| 1b — approved requirements have no `SCH-PLAN` carrier                                        | Verified against `RP-PACKAGE` and `SCH-PLAN`; candidate closure adds the frozen plan carrier.                                                              | 2            | Authorizes the design-owned, non-delegable requirements/criteria field extension.           |
+| 2a — non-agent reviewer has no session ingress                                               | Verified against the product-permitted reviewer principals and `PORT-SESSION`; candidate closure widens the existing face.                                 | 3            | OD-1: authorizes qualified human-client session mechanisms, not a new decision port.        |
+| 2b — compose-time capability proof has no carrier/lifecycle                                  | Verified against the provider requirement; candidate closure adds the one permitted proof schema family and its acquisition/revalidation path.             | 4            | Authorizes the one new `SCH-CAPABILITY-PROOF` family within the round-6 budget.             |
+| 3a — suspension releases finalization authority before target effects reconcile              | Verified against the suspend and Operation graphs; candidate closure retains fenced authority until reconciliation or bounded park.                        | 5            | Authorizes the bounded suspend-semantics clarification.                                     |
+| 3b — registry waiter cannot withdraw after leaving eligibility                               | Verified against the registry protocol; candidate closure adds the one permitted conditional-append withdrawal record.                                     | 6            | Authorizes the one registry protocol record type within the round-6 budget.                 |
+| 3c — accepted successor does not permanently fence predecessor resume                        | Verified against successor intake and resume integrity; candidate closure adds the consumed quarantine-cut rule.                                           | 7            | Authorizes the successor-resumption fence and one-successor cut.                            |
+| 4a — intake index is outside witness coverage                                                | Verified against the witness scope; candidate closure makes intake recovery witness-verified.                                                              | 8            | Authorizes the intake witness-coverage extension.                                           |
+| 4b — shared evidence disposal has only a Run-scoped guard                                    | Verified against global content addressing and disposal preconditions; candidate closure adds the deployment-wide reference guard.                         | 9            | Authorizes the cross-Run disposal guard.                                                    |
+| 5a — reservation is incorrectly described as an Operation intent                             | Verified against the Operation catalog; candidate closure reclassifies reservations as durable Transition facts replayed from the ledger.                  | 10           | Authorizes reclassification only; no Operation is added.                                    |
+| 5b — Retirement can strand when its final duty completes after preservation                  | Verified against the Story graph and wake catalog; candidate closure reuses `EV-WAKE-SETTLEMENT` for every duty-completing fact.                           | 11           | Authorizes the existing-event edge and derivation extension.                                |
+| 5c — terminal stop cannot reach settlement/export authorization                              | Verified against the stopped-Run path and export identity; candidate closure reuses the settlement duty set, wake event, and terminal-settlement position. | 12           | OD-2: authorizes stopped-Run settlement without new phases, states, events, or Operations.  |
+| 6 — non-gating policy surface has no default, forbidden set, validation, or oracle           | Verified against the best-effort clause; candidate closure adds the design-owned forbidden set and fail-closed preflight rule.                             | 13           | Authorizes the design half; the remaining allowed vocabulary is delegated only under DR-11. |
+| Delegation gap 2 — checkpoint can be mistaken for session self-report                        | Verified against the profile checkpoint and liveness clauses; candidate closure requires a cataloged mechanism-produced durable event.                     | 14           | Authorizes the checkpoint producer and validation clause.                                   |
+| Traceability gap 1 — `PC-*` routes and product gate composition are incomplete/discretionary | Verified by clause-by-clause audit of all 44 commitments; candidate closure records minimal sets and pure-conjunction inputs.                              | 15           | OD-3: retains the 56-ID matrix-plus-suite resolution; no per-ID route ratchet.              |
+| Traceability gap 2 — product override has no normative design mapping                        | Verified against the product action and decision schema; candidate closure maps it to a scoped existing owner/delegate decision.                           | 16           | OD-4: authorizes the existing-event mapping with no new decision kind.                      |
+| Delegation gap 1 — legitimate implementation seams have no normative closure register        | Verified across the readiness review; candidate closure lands the closure rubric and delegation register.                                                  | 17           | OD-5: adopts the supplied rubric and register, including DR-10 and DR-11.                   |
+| Gate convergence/provenance discipline                                                       | Verified against prior record wording; candidate closure records findings as review-found and all directions as Arye-authorized.                           | 18           | Authorizes this bounded record update; it is not a gate verdict.                            |
 
 ## Third independent review — remediation in progress
 
@@ -175,14 +210,13 @@ surfaces the latitude exercised for owner review; it does not create a second co
 ## Exact remediation candidate
 
 The exact candidate is the complete merged commit produced by this remediation pull request and is
-confined to `docs/redesign/design/`. The imported `docs/product/guarantees.md` bytes and pinned
-digest remain unchanged. A review verdict attaches to the complete file digests at that merged
-commit, not to this list or to a branch name. Any later byte change invalidates that verdict.
+confined to `docs/redesign/`. The imported `docs/product/guarantees.md` bytes and pinned digest
+remain unchanged. A review verdict attaches to the complete file digests at that merged commit,
+not to this list or to a branch name. Any later byte change invalidates that verdict.
 
-D3, D4, D7, and D10 are already-amended historical baseline records and remain byte-locked in this
-candidate, as do D1–D7 and D9–D15. Only D8 changes under its owner-approved third bounded reopen;
-the earlier D4/D8 and D3/D7/D10 amendments are historical and are not additional authority for this
-candidate.
+All decision records except D13 remain byte-locked in this candidate. D13 changes only under its
+owner-approved bounded reopen of 2026-07-17; the earlier D4/D8 and D3/D7/D10 amendments are
+historical and are not additional authority for this candidate.
 
 ## Owner item discovered during exact-commit review — resolved
 
@@ -202,17 +236,18 @@ author resolution does not alter or satisfy the independent post-merge gate requ
 | `PR-R2` | The product-commitment inventory maps every normative commitment in `README.md`, `jig.md`, `concepts.md`, and `use-cases.md` to a named carrier and non-empty minimal set of proof-route elements — existing conformance suites/clauses, testable oracles/evidence artifacts, or cited static governance records — that jointly cover the complete commitment; every element must pass or hold. |
 | `PR-R3` | B1–B15, DG1–DG9, TG1–TG4, and E1–E6 meet their approved closed conditions across states, events, Operations, schemas, ports, capabilities, conformance, decisions, perspectives, and reconciliation.                                                                                                                                                                                            |
 | `PR-R4` | Existing stable IDs and imported guarantee statements remain unchanged unless an approved finding explicitly adds a new ID or narrows non-guarantee product wording.                                                                                                                                                                                                                            |
-| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/design/`; no product-layer, implementation, archive, delivery, configuration, or greenfield artifact is included.                                                                                                                                                                                                                 |
+| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/`; no product-layer, implementation, archive, delivery, configuration, or greenfield artifact is included.                                                                                                                                                                                                                        |
 | `PR-R6` | Formatting, links, repository checks, scoped greps, orphan scan, and a finding-by-finding author acceptance pass succeed.                                                                                                                                                                                                                                                                       |
-| `PR-R7` | After merge, a fresh independent reviewer examines the exact merged candidate from an empty-repository implementation-readiness posture and returns `PASS`.                                                                                                                                                                                                                                     |
+| `PR-R7` | After merge, two consecutive independent reviewers examine the same exact merged candidate from an empty-repository implementation-readiness posture and return `PASS` under the readiness closure rubric.                                                                                                                                                                                      |
 
 ## Lock and review semantics
 
 Author checks and the per-section acceptance pass establish only that the remediation is ready for
 review. They are not the readiness gate and cannot activate the lock. This pull request remains
 unmerged until separately authorized. After merge, the independent readiness gate must rerun on
-the exact merged commit; only its recorded `PASS` activates the product-readiness lock. Any
-blocking finding keeps the lock inactive, and any correction creates a new exact candidate.
+the exact merged commit; only two consecutive independent `PASS` verdicts on that same commit
+activate the product-readiness lock. Any blocking finding keeps the lock inactive, and any
+correction creates a new exact candidate.
 
 ## Verification record
 

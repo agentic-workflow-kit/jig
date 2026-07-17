@@ -45,13 +45,13 @@ The controller assembles one complete assignment package per review; `CP-EVIDENC
 exact subject before dispatch. The package identifies the exact subject the reviewer judges; a
 verdict over anything else is invalid (I7).
 
-| Package element     | Content                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| Exact Candidate     | The Candidate content digest and its recorded target basis digest; nothing mutable or symbolic. |
-| Frozen requirements | The Story's approved requirements and acceptance criteria exactly as frozen at Run definition.  |
-| Evidence manifest   | The complete manifest of digest-verified evidence artifacts bound to this Candidate.            |
-| Findings ledger     | Every prior finding for this Story with its current resolution state (see `RP-FINDING`).        |
-| Delivery metadata   | The Candidate's delivery metadata as proposed for acceptance judgment.                          |
+| Package element     | Content                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Exact Candidate     | The Candidate content digest and its recorded target basis digest; nothing mutable or symbolic.                               |
+| Frozen requirements | The Story's approved requirements and acceptance criteria drawn from the approved `SCH-PLAN` content frozen in the Run basis. |
+| Evidence manifest   | The complete manifest of digest-verified evidence artifacts bound to this Candidate.                                          |
+| Findings ledger     | Every prior finding for this Story with its current resolution state (see `RP-FINDING`).                                      |
+| Delivery metadata   | The Candidate's delivery metadata as proposed for acceptance judgment.                                                        |
 
 A package element that is missing, integrity-failing, or bound to a different Candidate digest
 fails the assignment closed before dispatch (QS8); Jig never asks a reviewer to judge an

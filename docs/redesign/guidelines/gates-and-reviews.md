@@ -16,6 +16,7 @@ related:
   - ./README.md
   - ./communication-contracts.md
   - ./maintenance.md
+  - ./readiness-closure-rubric.md
 ---
 
 # Gates, reviews, and change — approval you can trust later
@@ -88,6 +89,14 @@ One artifact per gated layer or foundation, owning:
 
 The gate record is the one page that must never lie: when reality moves (an owner instruction, a
 supersession, a verdict), update it in the same change set.
+
+## Product-readiness closure reviews
+
+The Jig empty-repository product-readiness gate additionally uses the normative
+[readiness closure rubric](./readiness-closure-rubric.md) and its linked delegation register. A
+blocker must cite a rubric clause against the exact candidate; a finding outside the rubric is an
+owner-routed amendment proposal or delegation-register candidate, not a new unstated gate. The
+product-readiness gate record owns the chained review history and exact-candidate lock effect.
 
 ## Proposals, decisions, and locks
 

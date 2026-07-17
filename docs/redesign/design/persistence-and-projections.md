@@ -46,16 +46,16 @@ recorded Transition and the commit primitive is what records Transitions; treati
 Operation would be circular. Its unknown-acknowledgement recovery is defined here, not in the
 Operation reconciliation rules.
 
-| ID            | Contract element             | Obligation                                                                                                                                                                                                                                                                                                                                                       |
-| ------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LG-RECORD`   | Ledger record                | One durable control record carrying its Transition identity, its own content digest, and the chained digest of the previous record.                                                                                                                                                                                                                              |
-| `LG-POSITION` | Ledger position              | The strictly increasing per-Run ordinal at which one record is committed; positions are never reused, skipped, or reassigned.                                                                                                                                                                                                                                    |
-| `LG-APPEND`   | Conditional append           | Commits one `LG-RECORD` atomically at exactly the expected prior position plus one, or rejects with the actual current position; no partial or reordered commit.                                                                                                                                                                                                 |
-| `LG-ACK`      | Durable acknowledgement      | Acknowledges an append only after the record is durably flushed; an acknowledgement is a durability promise, not a buffering report.                                                                                                                                                                                                                             |
-| `LG-READ`     | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                    |
-| `LG-CHAIN`    | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                     |
-| `LG-WITNESS`  | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest); it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups. |
-| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key.                                 |
+| ID            | Contract element             | Obligation                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LG-RECORD`   | Ledger record                | One durable control record carrying its Transition identity, its own content digest, and the chained digest of the previous record.                                                                                                                                                                                                                                                                                                                                              |
+| `LG-POSITION` | Ledger position              | The strictly increasing per-Run ordinal at which one record is committed; positions are never reused, skipped, or reassigned.                                                                                                                                                                                                                                                                                                                                                    |
+| `LG-APPEND`   | Conditional append           | Commits one `LG-RECORD` atomically at exactly the expected prior position plus one, or rejects with the actual current position; no partial or reordered commit.                                                                                                                                                                                                                                                                                                                 |
+| `LG-ACK`      | Durable acknowledgement      | Acknowledges an append only after the record is durably flushed; an acknowledgement is a durability promise, not a buffering report.                                                                                                                                                                                                                                                                                                                                             |
+| `LG-READ`     | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                                                                                                                                    |
+| `LG-CHAIN`    | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                                                                                                                                     |
+| `LG-WITNESS`  | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head; it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement, including an intake acknowledgement, implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups. |
+| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key.                                                                                                                                                 |
 
 An append therefore carries four facts: the qualified Transition identity (position claim plus
 proposing controller generation, per [data and identity](./data-and-identity.md)), the expected
@@ -68,11 +68,13 @@ lost, `CP-RECOVERY` re-reads the expected position and classifies what it finds:
 not a Run Transition stream: it exists before the per-Run controller or Run ledger. `CP-INTAKE`
 runs in the short-lived `RT-OPERATOR` process and is its sole caller through `PORT-LEDGER`; its
 only durable write is the acknowledgement conditional-create. The acknowledgement is therefore
-the **single intake commit point**. Run-ledger creation, controller spawn, and deployment indexes
-or projections happen only after an **accepted** acknowledgement exists and are derived, idempotent
-consequences that recovery recreates from it. A rejected acknowledgement is terminal preflight and
-derives nothing but its own projection. A lookup can return the immutable acknowledgement
-but can never advance lifecycle state or write a second intake authority.
+the **single intake commit point**. Its intake-index head is covered by `LG-WITNESS` under the same
+flush-before-witness-before-acknowledgement rule as a Run-ledger append. Run-ledger creation,
+controller spawn, and deployment indexes or projections happen only after an **accepted**
+acknowledgement exists and are derived, idempotent consequences that recovery recreates from it. A
+rejected acknowledgement is terminal preflight and derives nothing but its own projection. A lookup
+can return the immutable acknowledgement but can never advance lifecycle state or write a second
+intake authority.
 
 An accepted acknowledgement is self-contained: it embeds the canonical frozen `SCH-ENVELOPE`
 bytes plus the complete Run-ledger genesis/rebuild basis. The composition and acknowledgement
@@ -140,19 +142,22 @@ therefore a separate obligation with its own witness:
 - `LG-WITNESS` is advanced and durably persisted after the record's durable flush and **before**
   `LG-ACK` returns, so an acknowledgement implies witness coverage of the acknowledged position; a
   crash between flush and witness advance leaves the witness one position behind, which recovery
-  treats as a verified floor to advance — never as a rollback. The witness is monotonic and lives
-  in the `RT-WITNESS` store ([runtime architecture](./runtime.md)), reached through `PORT-LEDGER`
-  under a witness-line `CB-STORE` scope, on storage whose trust does not depend on the ledger or
-  the ledger's backups (a separately configured device, path of independent trust, or small
-  remote service; a file beside the ledger is not a witness).
+  treats as a verified floor to advance — never as a rollback. This applies equally to the
+  `LG-INTAKE` head: intake-index recovery is a witness-verified readback before it can recreate or
+  adopt an acknowledgement. The witness is monotonic and lives in the `RT-WITNESS` store
+  ([runtime architecture](./runtime.md)), reached through `PORT-LEDGER` under a witness-line
+  `CB-STORE` scope, on storage whose trust does not depend on the ledger or the ledger's backups (a
+  separately configured device, path of independent trust, or small remote service; a file beside
+  the ledger is not a witness).
 - On every controller start, restart, and restore, recovery compares the verified chain head
   against `LG-WITNESS`. A chain head behind the witness, or a head digest that contradicts it, is
   a rollback: a trust-root failure that fails closed to externally governed recovery (I20), never
   an autonomous resume.
 - Where no independent witness is configured, currency **cannot be established autonomously**:
-  restore from backup, and any restart that cannot rule out rollback, fails closed and escalates
-  instead of assuming the visible prefix is complete. Configuring a witness is what buys autonomous
-  restart after restore; its absence buys a deliberate stop, never an assumption.
+  restore from backup, and any restart that cannot rule out rollback — including an intake-index
+  readback — fails closed and escalates instead of assuming the visible prefix is complete.
+  Configuring a witness is what buys autonomous restart after restore; its absence buys a deliberate
+  stop, never an assumption.
 
 ## Target-authority registry
 
@@ -180,9 +185,14 @@ would need to finalize against it (QS4, I12).
 The registry protocol is the total-order arbiter selected by D6; there is no global scheduler:
 
 - every acquisition attempt conditionally appends a waiter record carrying the Run, Story,
-  Candidate basis, eligibility facts, and complete D6/`C-ORDER` comparator tuple;
+  Candidate basis, eligibility facts, and complete D6/`C-ORDER` comparator tuple. The controller
+  conditionally appends the one waiter-withdrawal record when its Story leaves the eligible set
+  (parked, blocked, rejected, suspended, or invalidated); a withdrawn waiter is never grantable;
 - for one `ID-TARGET`, a grant may be conditionally appended only for the comparator-least eligible
-  recorded waiter, and both grant and release are conditional appends against the registry head;
+  recorded waiter and must name the current eligibility basis it validated; grant, release, and
+  withdrawal are conditional appends against the registry head. A grant racing a withdrawal loses
+  by ordinary conditional-append ordering: after a prior withdrawal invalidates its named basis it
+  cannot commit, and the losing proposal re-reads the head;
 - when a bounded refresh changes the Candidate, **atomic authority rebinding** is one registry
   conditional-append record that simultaneously releases the old Candidate binding and reacquires
   authority for the new Candidate digest with a new `ID-AUTH` ordinal. No intermediate unowned

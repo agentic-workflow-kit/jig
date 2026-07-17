@@ -57,7 +57,10 @@ authority ([runtime](./runtime.md)):
 
 - **preview** through the effect-free Envelope Builder path, producing a read-only composition,
   policy, bounds, capacity-feasibility, and failure report without calling `PORT-INTAKE`;
-- **start** by submitting an approved envelope through `PORT-INTAKE`; **answer**, **override**, or
+- **start** by submitting an approved envelope through `PORT-INTAKE`; **answer**, **override** (a
+  scoped owner or in-grant delegated selection of a different offered choice at an exact parked
+  request or Story-bound decision point, recorded through `EV-OWNER-DECISION` under its existing
+  guards), or
   **hand off** a parked request; **stop** a Run
   into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
   **acknowledge** or

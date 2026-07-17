@@ -78,9 +78,17 @@ canonical state, enumerates pending and uncertain Operations, reconciles externa
 observations, revalidates authorities, and only then resumes.
 
 A deliberate operator `Suspended` Run uses the same machinery on resume: suspension stops dispatch,
-fences/releases target authority without changing any Story state, and resume acquires a new
-controller generation before running `RC-RESUME-INTEGRITY`. A safety-relevant difference parks for
-exact re-approval; only an unchanged, reconciled basis returns the underlying Stories to dispatch.
+fences target authority without changing any Story state, and releases it only after the holding
+Story's target-changing Operations reconcile. Resume acquires a new controller generation before
+running `RC-RESUME-INTEGRITY`. A safety-relevant difference parks for exact re-approval; only an
+unchanged, reconciled basis returns the underlying Stories to dispatch.
+
+`RC-RESUME-INTEGRITY` also reads `LG-INTAKE` for an accepted successor acknowledgement naming this
+Run as predecessor. Such an acknowledgement permanently fences predecessor resumption: the check
+fails resume closed with a parked explanation naming the accepted successor, rather than restoring
+the predecessor's underlying Stories to dispatch. Intake consumes one predecessor quarantine cut
+for at most one accepted successor; the second successor submission naming an already-consumed cut
+fails intake closed.
 
 No irreversible effect is blindly replayed:
 
