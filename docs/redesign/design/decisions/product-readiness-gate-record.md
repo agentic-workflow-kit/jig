@@ -5,9 +5,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The tenth independent readiness review and its 2026-07-17 documentation-only Candidate-contract remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: Rolling record of independent product-readiness reviews and owner-authorized bounded remediations; implementation, archive, greenfield planning, and merge authorization are excluded.
 state: current
-status: ninth remediation merged; tenth independent review returned FAIL with 2 blockers; owner-approved tenth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
+status: rolling record; the latest independent-review section records the current verdict, owner-authorized remediation, and readiness-lock state
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -303,7 +303,7 @@ under procedure point 7. The budget permits `SCH-CONFIG-ARTIFACT`, `BND-WAIT-CAP
 specified existing-event lifecycle edges only; all other additions remain prohibited for this
 round.
 
-## Eighth independent review — remediation in progress
+## Eighth independent review — findings and remediation
 
 The seventh remediation merged at baseline
 `30129ea6148c1c81b30e27e291caecb85665ba55`, tree
@@ -376,7 +376,7 @@ the initial prompt's readiness phase and the exact normative subject. That asses
 activate the product-readiness lock. After merge, two consecutive independent sessions must still
 return `PASS` on the same exact merged commit, tree, and manifest before the lock can activate.
 
-## Ninth independent review — remediation in progress
+## Ninth independent review — findings and remediation
 
 The eighth remediation merged at baseline
 `14e3de2a9b4fbaac4e40c89b7f077484f2247d0a`, tree
@@ -476,7 +476,7 @@ is frozen and are carried as pull-request evidence rather than embedded self-ref
 No entry in this section records `PASS` or activates the readiness lock; after merge, the same exact
 merged bytes still require two consecutive fresh independent `PASS` reviews.
 
-## Tenth independent review — remediation in progress
+## Tenth independent review — findings and remediation
 
 The ninth remediation merged at baseline
 `d13abaa434f6ff7ddcf8ac7216307e2f97db7f1c`, tree
@@ -543,3 +543,53 @@ existing families do not widen that budget.
 This record makes no readiness verdict, self-certification, or lock activation. Candidate commit,
 tree, manifest, and author self-review evidence remain pull-request material so this record does
 not become self-referential.
+
+## Eleventh independent review — findings and remediation
+
+The tenth remediation merged at baseline
+`e24958f82acf5f9d8251b00a9cb457df66cde5d5`, tree
+`1d218b8a667f063a12ab92dc33c20031bc456263`. Its complete 66-path normative subject has manifest
+digest `74e1d068c048ce46eeadbac31c434c0241a9bb599d76c46c776464e00cdac578`. A fresh independent
+review of those exact bytes on 2026-07-17 returned **FAIL** with exactly one in-rubric blocker:
+R6.1. The review found four of the 44 product-commitment proof routes were non-minimal; it did not
+authorize a design change.
+
+Arye Kogan's 2026-07-17 instruction authorizes the bounded documentation remediation recorded
+below. It does not authorize implementation work, archive work, merge, readiness
+self-certification, a readiness verdict, or lock activation.
+
+### Eleventh-review finding-to-resolution record
+
+| Item | Clause | Countable finding                                                                                              | Owner-authorized candidate resolution                                                                                                                                                   | Joined files                                            |
+| ---: | ------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+|    1 | R6.1   | Four of 44 product-commitment proof routes contain elements whose removal leaves every promise clause covered. | Delete only the redundant elements from `PC-JIG-14`, `PC-JIG-18`, `PC-JIG-20`, and `PC-CONCEPTS-4`, retaining the smaller owner-specified proof-route sets and changing no other route. | `product-guarantee-reconciliation.md`, this gate record |
+
+### Owner directions and round-11 addition budget
+
+1. **OD-1 — exact deletion-only route narrowing:** Narrow only the four named route rows. Retain
+   these exact sets:
+   - `PC-JIG-14`: `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and
+     no-public-stability records hold.
+   - `PC-CONCEPTS-4`: `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and
+     no-public-stability records hold.
+   - `PC-JIG-18`: `CF-MECH-WORKSPACE` pass + Governance: gate-record `B2` resolution holds.
+   - `PC-JIG-20`: Governance: D10 runtime-boundary records hold.
+2. **OD-2 — complete deletion test:** Re-run the element-removal test across all 44 routes. If any
+   redundancy beyond the four approved rows appears, stop for Arye with the row, element, and
+   covering evidence; do not widen the candidate.
+3. **OD-3 — append-only correction:** Record this review and remediation without rewriting prior
+   review history. The round-9 author assertion that every route element passed its deletion test
+   is disproved for these four rows and is superseded by this round's complete route audit.
+4. **OD-4 — merge-invariant status:** Make the frontmatter scope and status merge-invariant, route
+   the current verdict and lock state to the latest review section, and retitle the three earlier
+   headings from “remediation in progress” to “findings and remediation.”
+5. **OD-5 — closed addition budget:** Add no identifier of any family, suite, schema row, or prose
+   surface beyond this section and the authorized frontmatter and heading fixes.
+
+The round-11 addition budget is zero identifier additions; the route-table diff is net-deletion.
+The product layer, D1–D15, the guidelines, the other 40 route rows, the satisfaction matrix,
+conformance-suite definitions, `CF-GATE-PRODUCT`, and the delegation register remain unchanged.
+
+This section makes no readiness verdict, merge claim, self-certification, or lock activation. Two
+fresh independent reviews of the same exact merged commit must still return `PASS` before the
+readiness lock can activate.
