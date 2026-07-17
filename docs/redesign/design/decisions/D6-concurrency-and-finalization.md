@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D6 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical concurrency model is owned by the concurrency-and-finalization page.
 state: proposed
-status: established owner decision, re-presented 2026-07-15; lock pending the Layer 1 gate
+status: established owner decision; bounded 2026-07-17 suspension-release clarification authorized for the Round 8 readiness remediation; readiness lock pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -21,10 +21,15 @@ related:
 
 # D6 — concurrency, capacity, and finalization
 
-- **Status:** Owner-selected; lock pending the Layer 1 gate.
+- **Status:** Owner-selected; bounded suspension-release clarification authorized 2026-07-17;
+  readiness lock pending.
 - **Owner:** Arye Kogan.
 - **Related:** [Concurrency and finalization](../concurrency-and-finalization.md),
   [invariants I10–I14](../invariants.md).
+
+The 2026-07-17 Round 8 owner instruction narrowly reopens only the suspension-release sentence
+below. It aligns this record with the already-selected retained-but-fenced rule and adds no state,
+event, Operation, port, authority, or scheduling mechanism.
 
 ## Question
 
@@ -51,9 +56,14 @@ authority**:
   `Blocked` or `Rejected`; and
 - make finite-run scheduling starvation-resistant under the recorded liveness assumptions.
 
-An operator suspension fences and releases any held target-scoped finalization authority while
-preserving the underlying Story phase. Resume must reacquire and rebind authority before any
-target-changing dispatch, so a deliberately suspended Run cannot starve other Runs.
+Operator suspension fences dispatch and preserves the underlying Story phase. Any held
+target-scoped finalization authority remains retained-but-fenced until every in-flight
+target-changing Operation of its holding Story resolves as confirmed effect, confirmed absence, or
+cancellation with proof of no effect. An `Uncertain` Operation under `BND-RECOVERY` does not satisfy
+that prerequisite. Only the existing fact-triggered, phase-preserving `Suspended` → `Suspended`
+reconciliation Transition durably releases the authority; resume must then reacquire and rebind it
+before target-changing dispatch. Until release, another Story or Run cannot acquire the same target
+authority.
 
 ## Rationale and benefits
 

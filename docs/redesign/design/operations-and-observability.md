@@ -117,11 +117,15 @@ target inside its range and cannot demote the derived class.
 
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. An audit export exists exactly for a Run
-that commits a terminal-settlement position: `Completed` and settled `Stopped` Runs. At terminal settlement, `CP-PROJECTION`
-derives exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes covering
+that commits a terminal-settlement position: `Completed` and settled `Stopped` Runs. At terminal
+settlement, `CP-PROJECTION` derives the exact terminal cut and export material; `CP-EVIDENCE`
+assembles the canonical redacted bytes and manifest; and `CP-TRANSITION` adopts exactly one
+`SCH-AUDIT-EXPORT` only after the create-once artifact fact commits. The export covers
 the ledger's first position through the **terminal-settlement position**, the business-final cut,
 and containing outcomes, notices, evidence manifest references, obligations, and
-provenance. Its content digest is `ID-EXPORT`; `OPC-ART-PUT` creates it once in immutable storage,
+provenance. `ID-EXPORT` includes the Run, terminal-settlement position, exact covered range, schema,
+redacted bytes, manifest, and their content digest; the digest is one identity input, not the whole
+identity or a mutable path. `OPC-ART-PUT` creates those exact bytes once in immutable storage,
 and a repeat may only verify or recover the identical digest — never overwrite it. Consumers get
 explainable outcomes, obligations, and provenance, never control access; influence requires
 entering through `PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)).

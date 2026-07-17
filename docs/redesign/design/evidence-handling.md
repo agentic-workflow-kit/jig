@@ -120,8 +120,10 @@ canonical redacted bytes cover the ledger from its first position through the
 **terminal-settlement position**, the business-final cut, and `SCH-AUDIT-EXPORT` names that exact
 range. The export receipt and any export-failure `ID-OBLIGATION` are post-terminal administrative
 records outside the exported range, so neither is required to exist inside the bytes whose write
-it reports. The bytes include the terminal-settlement position and manifest;
-their SHA-256 digest is `ID-EXPORT`. `OPC-ART-PUT` is create-once by that digest: recovery may
+it reports. The bytes include the terminal-settlement position and manifest. Their SHA-256 digest
+is the content-digest component of `ID-EXPORT`, whose full identity also binds the Run, terminal
+position, covered range, schema, redaction, and manifest. `OPC-ART-PUT` is create-once by those exact
+identity bytes: recovery may
 verify an identical artifact or complete an absent write, but no path may replace existing bytes.
 The terminal-settlement Transition authorizes the create-once `OPC-ART-PUT`; its receipt returns as
 `EV-ARTIFACT-FACT` in the post-terminal administrative regime. The post-terminal ledger record

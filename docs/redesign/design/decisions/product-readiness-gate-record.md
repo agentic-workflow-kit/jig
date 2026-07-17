@@ -1,19 +1,20 @@
 ---
-title: "Product readiness gate — seventh remediation candidate"
-purpose: Record the prior remediation history, the seventh independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
+title: "Product readiness gate — eighth remediation candidate"
+purpose: Record the prior remediation history, the eighth independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The seventh independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The eighth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: sixth remediation merged; seventh independent review, first under closure rubric v1, returned FAIL with 12 blockers, 1 rubric-amendment proposal, and 1 editorial item; owner-approved remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
+status: seventh remediation merged; eighth independent review returned FAIL with 11 blockers plus non-blocking rubric and editorial items; owner-approved eighth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
   - ./product-guarantee-import.md
   - ../product-guarantee-reconciliation.md
   - ./D3-responsibilities-trust-authority.md
+  - ./D6-concurrency-and-finalization.md
   - ./D7-acceptance-and-evidence.md
   - ./D10-runtime-decomposition.md
   - ./D15-pre-acceptance-review-publication.md
@@ -27,21 +28,23 @@ related:
   - ../delegation-register.md
 ---
 
-# Product readiness gate — seventh remediation candidate
+# Product readiness gate — eighth remediation candidate
 
 ## Current gate state
 
-The first remediation merged as baseline `fe493beec71aeb4411a3024ccc81cf7b6f5a2c88`. A fresh
-independent empty-repository readiness review of that exact commit on 2026-07-17 returned
-**FAIL**: 15 blocker groups, 9 delegation gaps, 4 traceability gaps, and 6 editorial groups.
-The product-readiness lock therefore remains **inactive**.
+The seventh remediation merged as baseline
+`30129ea6148c1c81b30e27e291caecb85665ba55`, tree
+`19bbd99a9c1f16dd91b9b90b76f1b2abd1d5aa2d`. A fresh independent readiness review of that exact
+subject on 2026-07-17 returned **FAIL** with eleven in-rubric blockers plus non-blocking rubric and
+editorial items. The product-readiness lock therefore remains **inactive**.
 
-Arye Kogan verified the findings, settled the nine decisions they require, and approved the exact
-resolutions below. That authorization permits the named design and non-guarantee product-prose
-corrections, including bounded reopen of D3, D7, and D10. It does not authorize unrelated Layer 1
-changes, implementation, archive, greenfield planning, merge, or self-certification of readiness.
+Arye Kogan authorized the bounded eighth-remediation resolutions recorded below. That instruction
+does not authorize implementation inspection, archive work, greenfield planning, merge, or
+self-certification of readiness. Author checks and the pre-PR independent assessment establish
+review readiness only; two consecutive independent post-merge `PASS` reviews of the same exact
+commit remain required.
 
-## Sixth independent review — remediation in progress
+## Historical sixth independent review and remediation
 
 A fresh independent empty-repository readiness review of the round-6 baseline on 2026-07-17
 returned **FAIL**: six blocker groups, two delegation gaps, and two traceability gaps. The review
@@ -74,7 +77,7 @@ independent `PASS` reviews of the same exact commit before the readiness lock ca
 | Delegation gap 1 — legitimate implementation seams have no normative closure register        | Verified across the readiness review; candidate closure lands the closure rubric and delegation register.                                                  | 17           | OD-5: adopts the supplied rubric and register, including DR-10 and DR-11.                   |
 | Gate convergence/provenance discipline                                                       | Verified against prior record wording; candidate closure records findings as review-found and all directions as Arye-authorized.                           | 18           | Authorizes this bounded record update; it is not a gate verdict.                            |
 
-## Third independent review — remediation in progress
+## Historical third independent review and remediation
 
 A fresh independent empty-repository readiness review of `ee35667b25b20610632dff4673bc1f07f7f9359a`
 on 2026-07-17 returned **CHANGES_REQUIRED**. Arye Kogan verified the two findings and authorized
@@ -86,7 +89,7 @@ after merge, a fresh independent reviewer must assess the exact merged commit.
 | Successor-envelope digest collision | Add explicit genesis-or-successor lineage to `SCH-ENVELOPE` and its composition digest; preflight validates the lineage fail-closed, and `CF-ENVELOPE` proves distinct predecessor/reason successors create distinct digests and `ID-RUN`s. |
 | `PC-*` proof-route traceability gap | Add one named proof route to every 44-row product-commitment inventory entry and require those routes or their governance records in `CF-GATE-PRODUCT` and this renewed gate.                                                               |
 
-## Fourth independent review — remediation in progress
+## Historical fourth independent review and remediation
 
 A fresh independent empty-repository readiness review of
 `f0045c27408220bb0577cb286ebfe7574f3c66f5` on 2026-07-17 returned
@@ -105,7 +108,7 @@ provider-permission enforcement, held merge, Windows host, and transport behavio
 continues to prevent any unproven capability from becoming configurable; this inventory preserves the
 specific current limitation rather than implying that the gate proves it.
 
-## Fifth independent review — remediation in progress
+## Historical fifth independent review and remediation
 
 A fresh independent empty-repository readiness review of
 `22b275075f86d81593ad365124cfec9da844f96d` on 2026-07-17 returned **FAIL**: 8 blockers,
@@ -192,7 +195,7 @@ commit after merge.
 The later 2026-07-17 owner decision additionally authorizes the one-clause D7 bounded reopen that
 resolves B15; it does not alter the nine earlier settled rulings.
 
-## Owner-reviewable defaults selected in this candidate
+## Historical first-remediation owner-reviewable defaults
 
 | Policy class                | Default                                                           | Allowed range or behavior                                                                                 |
 | --------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -207,18 +210,18 @@ resolves B15; it does not alter the nine earlier settled rulings.
 The owning design pages define the precise units, tier ranges, and validation rules. This table
 surfaces the latitude exercised for owner review; it does not create a second contract.
 
-## Exact remediation candidate
+## Historical first-remediation exact candidate
 
-The exact candidate is the complete merged commit produced by this remediation pull request and is
-confined to `docs/redesign/`. The imported `docs/product/guarantees.md` bytes and pinned digest
-remain unchanged. A review verdict attaches to the complete file digests at that merged commit,
-not to this list or to a branch name. Any later byte change invalidates that verdict.
+That exact candidate was the complete merged commit produced by the first-remediation pull request
+and was confined to `docs/redesign/`. The imported `docs/product/guarantees.md` bytes and pinned
+digest remained unchanged. Its review verdict attached to the complete file digests at that merged
+commit, not to this list or to a branch name; later byte changes superseded it.
 
-All decision records except D13 remain byte-locked in this candidate. D13 changes only under its
-owner-approved bounded reopen of 2026-07-17; the earlier D4/D8 and D3/D7/D10 amendments are
-historical and are not additional authority for this candidate.
+All decision records except D13 remained byte-locked in that first-remediation candidate. D13
+changed only under its then-current owner-approved bounded reopen; the earlier D4/D8 and D3/D7/D10
+amendments were historical and supplied no additional authority.
 
-## Owner item discovered during exact-commit review — resolved
+## Historical first-remediation exact-commit owner item — resolved
 
 The authorized B15 change was already present in `acceptance-and-evidence.md` and
 `review-and-verification-execution.md`, while the exact-commit review found that canonical D7 still
@@ -255,7 +258,7 @@ The earlier verification and review results remain historical evidence for their
 They do not cover this remediation candidate. The pull request carries deterministic author checks
 and a B1–E6 acceptance record; the independent post-merge verdict remains deliberately absent.
 
-## Seventh independent review — remediation in progress
+## Historical seventh independent review and remediation
 
 The first independent review under [readiness closure rubric v1](../../guidelines/readiness-closure-rubric.md)
 ran in Mode 1 (report-only) on 2026-07-17 and returned **FAIL** with 12 blockers, one
@@ -298,3 +301,76 @@ The amendment is recorded in [readiness closure rubric v1](../../guidelines/read
 under procedure point 7. The budget permits `SCH-CONFIG-ARTIFACT`, `BND-WAIT-CAPACITY`, and the
 specified existing-event lifecycle edges only; all other additions remain prohibited for this
 round.
+
+## Eighth independent review — remediation in progress
+
+The seventh remediation merged at baseline
+`30129ea6148c1c81b30e27e291caecb85665ba55`, tree
+`19bbd99a9c1f16dd91b9b90b76f1b2abd1d5aa2d`. A fresh independent readiness review of that exact
+subject on 2026-07-17 returned **FAIL** with eleven in-rubric blockers. It also proposed one
+non-blocking R1.2 rubric amendment and reported two editorial groups. The review found the issues;
+it did not authorize a design change.
+
+Arye Kogan's 2026-07-17 instruction to plan, fix, verify from the initial prompt's readiness phase,
+and open a pull request only after verification authorizes the bounded documentation remediation
+recorded below. It does not authorize implementation inspection, archive work, merge, or readiness
+self-certification. This candidate remains review-readiness work with no lock effect.
+
+### Eighth-review finding-to-resolution record
+
+| Item | Clause    | Countable finding                                                                                        | Owner-authorized candidate resolution                                                                                                                                                                                                                                              |
+| ---: | --------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | R1.3      | Five Operations lack named authorizing Transitions.                                                      | Make the Operation-to-authorizing-Transition inventory exhaustive for all 29 existing `OPC-*` Operations, including the five omitted session, setup, and verification Operations.                                                                                                  |
+|    2 | R1.4      | Role-session terminal disposition and legal post-terminal appends are incomplete.                        | Define one terminal/closed disposition with the finite causes `replaced`, `cancelled`, `lost-attested`, and `completed-close`; enumerate the legal terminal append behavior without adding a session state.                                                                        |
+|    3 | R2.1      | `SCH-CAPABILITY-PROOF` producer naming contradicts its owning contracts.                                 | Name the configured provider as source and `EP-PROVIDERS` as assembler/validator of the immutable proof carrier.                                                                                                                                                                   |
+|    4 | R2.1      | `SCH-EVIDENCE` producer split omits manifest assembly and binding by `CP-EVIDENCE`.                      | Distinguish the mechanism-produced evidence bytes from `CP-EVIDENCE` assembly/binding and `CP-TRANSITION` adoption.                                                                                                                                                                |
+|    5 | R2.1      | `SCH-AUDIT-EXPORT` names `CP-TRANSITION` as producer instead of `CP-PROJECTION`.                         | Distinguish `CP-PROJECTION` derivation, `CP-EVIDENCE` assembly, and `CP-TRANSITION` adoption of the authorized post-terminal append.                                                                                                                                               |
+|    6 | R2.2/R2.3 | Registry waiter, withdrawal, grant, release, and atomic-rebind records lack a carrier and digest domain. | Add dedicated tagged-union `SCH-REGISTRY-RECORD`; derive expected-position-plus-one before hashing its non-self-referential staged domain, then use the committed-position-plus-digest handle; add no standalone registry identity.                                                |
+|    7 | R3.1      | Arye-only pre-Run approval has no ingress port.                                                          | Reuse the private first-party `PORT-CONSUMER` facade for authenticated `EP-APPROVE` proposal approval; retain `P-OWNER` and `SCH-ENVELOPE`, and add no decision event, Run grant, or port.                                                                                         |
+|    8 | R3.3      | D6 and its Layer 1 view contradict the retained-but-fenced suspension rule.                              | Narrowly reopen D6's suspension-release sentence and align both pages: authority remains retained-but-fenced until effect reconciliation or a terminal governance disposition preserves or externally transfers the fence.                                                         |
+|    9 | R5.1      | Capability-proof acquisition has retries but no exact bounded attempt.                                   | Bind every exact proof request/attempt to existing `BND-WAIT-MECHANISM` and `BND-RETRY`; exhaustion fails composition or preflight before a Run exists.                                                                                                                            |
+|   10 | R5.1      | Pre-Run configuration-artifact reads have no response deadline or exhaustion action.                     | Reuse the existing `SCH-INTAKE-ACK` family for immutable pre-ack start/result variants through `PORT-ARTIFACT`; deterministic keys and predecessor proof preserve bounds across loss/crash, the `terminal-ack` binds the chain, and exhaustion rejects intake before Run creation. |
+|   11 | R5.1      | The finalization-authority queue bounds the holder, not its queued waiter.                               | Store the wait basis and continuous-starvation start in `SCH-REGISTRY-RECORD`; bind the waiter to existing `BND-WAIT-CAPACITY`, with release/eligibility wakes and deterministic park/escalation on exhaustion.                                                                    |
+
+### Round-8 owner rulings and addition budget
+
+The instruction above adopts the smallest closure set proposed by the verified Round-8 ledger:
+
+1. add only `SCH-REGISTRY-RECORD` as the registry carrier, with no new `ID-*` family;
+2. reopen only D6's contradictory suspension-release sentence;
+3. use only existing `BND-WAIT-MECHANISM`, `BND-RETRY`, and `BND-WAIT-CAPACITY` classes for the
+   three uncovered wait surfaces;
+4. use existing `PORT-CONSUMER` for authenticated Arye-only pre-Run approval;
+5. express role-session terminality as one disposition with finite causes, not a new state; and
+6. add zero events, Operations, ports, bound classes, Run phases, Story states, failure codes,
+   principals, conformance suites, runtime units, or global components.
+
+The non-blocking R1.2 amendment proposal is not part of this candidate because the exact amendment
+text was not supplied. That omission cannot be converted into a blocker under the current rubric.
+The editorial groups are closed by refreshing current-status navigation and by stating
+`ID-EXPORT`'s complete terminal-settlement-position plus export-basis digest domain and path.
+
+### Round-8 exact-subject and verification discipline
+
+The normative subject remains the complete tracked set under `docs/product`,
+`docs/redesign/design`, and `docs/redesign/guidelines`, not merely the changed files. For this round,
+manifest algorithm `round-8-v1` is the SHA-256 of the byte serialization produced by:
+
+```bash
+git ls-files -z docs/product docs/redesign/design docs/redesign/guidelines |
+  LC_ALL=C sort -z |
+  xargs -0 shasum -a 256 |
+  shasum -a 256
+```
+
+The baseline subject contains 66 paths and has digest
+`bbd107fb406004c0a046e4f280a388c4ac3c316fc042fdf1b0d0740be4030592`. The candidate commit, tree,
+path count, manifest digest, docs-only checks, deterministic catalog/schema/bound counts, and
+finding-by-finding R1–R7 author self-gate are generated after the candidate is frozen and carried
+as pull-request evidence; they are not embedded self-referentially in these candidate bytes.
+
+Before the pull request opens, an independent reviewer must assess that frozen commit using only
+the initial prompt's readiness phase and the exact normative subject. That assessment is explicitly
+**advisory and non-gating**. It may prevent publication of a deficient candidate, but it cannot
+activate the product-readiness lock. After merge, two consecutive independent sessions must still
+return `PASS` on the same exact merged commit, tree, and manifest before the lock can activate.

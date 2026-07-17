@@ -7,9 +7,9 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Active navigation and authority for docs/redesign; product definition and architecture content live in design/, while prior presentations live in raw/.
 state: current
-status: active — final readiness review failed on 2026-07-17; owner-approved documentation remediation in progress; product-readiness lock inactive pending renewed independent review after merge
+status: active — eighth readiness review failed with 11 blockers on 2026-07-17; owner-approved documentation remediation in progress; product-readiness lock inactive pending two consecutive independent exact-candidate PASS reviews after merge
 owner: Arye Kogan (Jig owner)
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - Explicit owner reset and layered-authoring instruction, 2026-07-14
   - Explicit owner structure-revision instruction, 2026-07-15
@@ -41,11 +41,13 @@ the explicit owner continuation instruction of 2026-07-15 against the then-locke
 and I1–I21 as fixed inputs, and closed its gate on 2026-07-16: independent review, the owner's
 ten-finding PR review, four correction passes, a recorded verification recheck, and Arye's
 explicit approval — approved, not locked (see the
-[Layer 2 gate record](./design/decisions/layer2-gate-record.md)). The final readiness review on
-2026-07-17 subsequently returned 13 blocking/delegation/traceability findings. Arye explicitly
-authorized their named documentation corrections, including the necessary bounded Layer 1 reopen;
-the product-readiness lock is inactive until a renewed independent exact-candidate review passes
-after the remediation merges.
+[Layer 2 gate record](./design/decisions/layer2-gate-record.md)). The seventh remediation then merged
+at `30129ea6148c1c81b30e27e291caecb85665ba55`. The eighth independent readiness review of that
+exact baseline returned `FAIL` with eleven rubric blockers plus non-blocking rubric and editorial
+items. Arye authorized the bounded documentation corrections, including the narrow D6
+suspension-release clarification. The product-readiness lock remains inactive until two
+consecutive independent sessions return `PASS` on the same exact merged candidate after this
+remediation merges.
 
 ## Navigation
 
