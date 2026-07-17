@@ -106,7 +106,11 @@ declared ranges.
    separate section of the gate record.
 5. PASS: zero in-rubric blockers plus green formatting/link verification. The readiness lock
    activates only after **two consecutive independent sessions** return PASS on the **same exact
-   commit**.
+   commit**. The lock binds to that reviewed commit, tree, and normative-subject manifest.
+   Post-PASS record and archival commits are administrative appends: within the normative set they
+   may only add the gate-record entry and archive manifest and update navigation/status pointers,
+   each enumerated and diff-verified against the reviewed commit; any other normative change
+   invalidates the dual PASS and requires a fresh dual review of the changed candidate.
 6. After lock, further discoveries route to the implementation track as ordinary issues; they do
    not reopen the gate unless the owner rules a rubric clause was violated at lock time.
 7. Rubric changes are owner-ruled amendments recorded with the same bounded-reopen discipline as
