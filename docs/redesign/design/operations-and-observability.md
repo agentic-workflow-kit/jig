@@ -167,7 +167,12 @@ settlement — the validated event and its evidence close the obligation, not th
 post-terminal audit-export failure therefore has both an owner-only handoff exit and a completion
 exit without revising settled facts. Its original decision deadline also gives it a durable overdue
 re-escalation path without auto-handoff or auto-resolution. Destructive cleanup outside an authorized retirement or a
-recorded obligation is out of contract: cleanup cannot reverse landing or delay dependency release
+recorded obligation is out of contract. Artifact disposal first rejects every protected
+configuration/intake context subject and any changed or unverifiable artifact-provider resource
+binding. A disposable evidence subject also requires its six-class deployment-wide pin lookup's
+chain-verified head to equal its current independent `LG-WITNESS` line after every start, restart,
+or restore; unproved binding or currency takes the `FC-TRUST` deliberate-stop path. Cleanup
+cannot reverse landing or delay dependency release
 (I18), and work and evidence are preserved before any destruction (I19).
 
 ### View V16 — observation and escalation dataflow

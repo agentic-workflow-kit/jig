@@ -34,9 +34,13 @@ evidence is persisted, bound, protected, and kept.
 
 ## Storage model
 
-- **`EVR-DIGEST`:** every evidence artifact is immutable and content-addressed: its SHA-256 content
-  digest is its artifact identity. Two byte-identical artifacts are one artifact; a changed byte is
-  a different artifact, never a new version of the old one.
+- **`EVR-DIGEST`:** every evidence artifact is immutable and content-addressed by its SHA-256
+  content digest; the digest remains its artifact identity. The existing holder class
+  deterministically selects a protected or disposable `PORT-ARTIFACT`/`CB-STORE` routing context;
+  that context is not a persisted identity or schema operand. Byte-identical content in one context
+  is one artifact, while protected and disposable copies of the same digest are independent storage
+  objects so disposal can never alias the protected copy. A changed byte is a different artifact,
+  never a new version of the old one.
 - **`EVR-MANIFEST`:** artifacts live in `RT-EVIDENCE` behind `PORT-ARTIFACT`
   ([runtime](./runtime.md)); the ledger records bounded decision facts plus an evidence manifest —
   subject, producer, digest, size, kind, and completeness — and never inlines bulky payloads,
@@ -102,64 +106,104 @@ The **owner-reviewable default** retention window is 90 days after Run settlemen
 select seven days through seven years by evidence kind. An open obligation, preservation duty, or
 unexpired audit requirement overrides the elapsed window and forbids disposal until it closes.
 
-### Exhaustive shared-namespace reference guard
+### Exhaustive context-routed reference guard
 
-All content addressed through `RT-EVIDENCE` shares one deployment-wide digest namespace. The
-following eleven holder classes are the exhaustive set that can carry an address-bearing reference
-into that namespace:
+`RT-EVIDENCE` contains two configured logical routing contexts behind the same existing
+`PORT-ARTIFACT` and store. The **protected configuration/intake context** is non-disposable by
+contract and accepts the five pre-Run holder classes below. The **disposable evidence context**
+accepts the six controller-mediated holder classes below and is the only context that
+`OPC-ART-DISPOSE` may address. Holder class selects the context; it is not carried as a new record
+field. Both context addresses are bound to the existing approved artifact-provider manifest and
+resource scope. A changed, missing, or unverifiable binding fails preflight/recovery closed, so
+restore cannot reinterpret a protected address as disposable. Byte-identical content already
+persisted through the existing producer path in both contexts remains independently retained and
+never aliases across disposal. The protected context has no autonomous replacement or restore:
+lost or unverifiable continuity of its exact append-only resource scope is `FC-TRUST` and stops
+before any attempt-key readback or holder adoption, so restore cannot reset consumed pre-Run
+history.
 
-| Holder class                               | Address-bearing content                                                                                              | Live-reference and protection rule                                                                                                                                         |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SCH-EVIDENCE`                             | Manifest artifact references                                                                                         | Live while the depending Run, decision, obligation, preservation duty, or retention period is live.                                                                        |
-| `SCH-AUDIT-EXPORT`                         | The export artifact and its transitive manifest references                                                           | Live while the export's audit-retention basis is live; every transitive artifact reference is pinned with the export.                                                      |
-| `SCH-ENVELOPE`                             | Configuration, preset, work-profile prompt, capability-proof, conformance-evidence, and other explicit artifact refs | Configuration and work-profile prompt refs are monotonically non-disposable; remaining refs stay live for the envelope/Run retention basis.                                |
-| `SCH-WORK-PROFILE`                         | Versioned prompt-strategy and role-prompt artifact refs                                                              | Every pre-Run prompt reference is monotonically non-disposable.                                                                                                            |
-| `SCH-CONFIG-ARTIFACT`                      | Its content-addressed configuration bytes                                                                            | The configuration carrier's digest is monotonically non-disposable once recorded or referenced.                                                                            |
-| `SCH-INTAKE-ACK`                           | Configuration-attempt records, attempt handles, and terminal acknowledgement binding                                 | All pre-Run intake-attempt material is monotonically non-disposable, including rejected and exhausted chains.                                                              |
-| `SCH-CAPABILITY-PROOF`                     | Capability-attempt records and proof-basis/evidence refs                                                             | All capability-proof attempt and proof material is monotonically non-disposable, including negative, timed-out, and exhausted attempts.                                    |
-| `EV-ARTIFACT-FACT`                         | A returned artifact digest awaiting adoption                                                                         | A temporary pin exists before event adoption and transfers to the adopting durable holder; rejection releases it. A disposal receipt for its own target is not a live pin. |
-| `SCH-VERDICT` and its exact review package | Review-package, evidence-manifest, finding-resolution, and delivery-metadata artifact refs                           | Live while the verdict, any finding, or the Run's review-retention basis depends on the package or its transitive refs.                                                    |
-| `SCH-DECISION` and `EV-OWNER-DECISION`     | Exact artifact subjects and decision-evidence refs                                                                   | Live while the recorded decision depends on those bytes. The exact owner authorization whose sole subject is disposal of that digest is not a blocking self-reference.     |
-| `SCH-OBLIGATION`                           | Preservation, handoff, completion, and resolution-evidence refs                                                      | Live while status is `open` or `accepted-handoff`, and after `resolved` until its recorded retention basis closes.                                                         |
+The following eleven holder classes are the exhaustive address-bearing set:
 
-These eleven rows, and no other schema or event fields, create shared-namespace liveness. Other
+| Holder class                               | Address-bearing content                                                                                              | Routing context and live-reference rule                                                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCH-EVIDENCE`                             | Manifest artifact references                                                                                         | Disposable evidence; pinned while the depending Run, decision, obligation, preservation duty, or retention period is live.                                                       |
+| `SCH-AUDIT-EXPORT`                         | The export artifact and its transitive manifest references                                                           | Disposable evidence; pinned while the export's audit-retention basis is live, including every transitive artifact reference.                                                     |
+| `SCH-ENVELOPE`                             | Configuration, preset, work-profile prompt, capability-proof, conformance-evidence, and other explicit artifact refs | Protected configuration/intake; each reference is adopted only after its existing producer or `LG-PREFLIGHT-ATTEMPT` path has persisted and verified it there. Never disposable. |
+| `SCH-WORK-PROFILE`                         | Versioned prompt-strategy and role-prompt artifact refs                                                              | Protected configuration/intake; every pre-Run prompt object is never disposable.                                                                                                 |
+| `SCH-CONFIG-ARTIFACT`                      | Its content-addressed configuration bytes                                                                            | Protected configuration/intake; the configuration carrier is never disposable.                                                                                                   |
+| `SCH-INTAKE-ACK`                           | Configuration-attempt records, attempt handles, and terminal acknowledgement binding                                 | Protected configuration/intake; all accepted, rejected, timed-out, and exhausted attempt material is never disposable.                                                           |
+| `SCH-CAPABILITY-PROOF`                     | Capability-attempt records and proof-basis/evidence refs                                                             | Protected configuration/intake; all positive, negative, timed-out, and exhausted attempt and proof material is never disposable.                                                 |
+| `EV-ARTIFACT-FACT`                         | A returned artifact digest awaiting adoption                                                                         | Disposable evidence; a temporary pin precedes event adoption and transfers to the adopting durable holder, while rejection releases it. A disposal receipt is not a live pin.    |
+| `SCH-VERDICT` and its exact review package | Review-package, evidence-manifest, finding-resolution, and delivery-metadata artifact refs                           | Disposable evidence; pinned while the verdict, finding, or Run review-retention basis depends on the package or its transitive refs.                                             |
+| `SCH-DECISION` and `EV-OWNER-DECISION`     | Exact artifact subjects and decision-evidence refs                                                                   | Disposable evidence; pinned while the decision depends on those bytes. The exact disposal authorization for its subject is not a blocking self-reference.                        |
+| `SCH-OBLIGATION`                           | Preservation, handoff, completion, and resolution-evidence refs                                                      | Disposable evidence; pinned while status is `open` or `accepted-handoff`, and after `resolved` until its retention basis closes.                                                 |
+
+These eleven rows, and no other schema or event fields, create artifact-address liveness. Other
 digest fields are comparison or derivation bases rather than artifact addresses unless a row above
-also carries an explicit artifact reference. In particular, `SCH-EVENT` payload digests,
-`SCH-OPERATION` payload-basis digests, and `SCH-SOURCE-EXCHANGE` content digests do not address
-`RT-EVIDENCE` by themselves.
+also carries an explicit artifact reference. In particular, `SCH-EVENT` payload
+digests, `SCH-OPERATION` payload-basis digests, and `SCH-SOURCE-EXCHANGE` content digests do not
+address `RT-EVIDENCE` by themselves.
 
-`PORT-ARTIFACT` maintains the authoritative deployment-wide reverse-reference/pin lookup:
-`digest -> (holder class, owning Run or pre-Run key, durable anchor, liveness basis)[]`. A pin is
-registered and durably acknowledged before the referencing attempt, event, Transition, or other
-record may be adopted. Pin registration and disposal are linearized atomically: an accepted pin
-causes concurrent disposal to fail closed, while a disposal that linearizes first rejects a new
-pin and therefore prevents adoption of the reference. A scan after adoption is not a substitute
-for this ordering.
+The protected context closes all five pre-Run holder classes without a pin or disposal race:
+`PORT-ARTIFACT` rejects every disposal, move into the disposable context, or cross-context alias
+for those addresses. Configuration reads and both `LG-PREFLIGHT-ATTEMPT` families retain
+their existing bounded conditional-create/readback semantics; the isolation adds no write class,
+port, runtime store, lifecycle, or authority.
+
+For the six disposable classes, `PORT-ARTIFACT` maintains the authoritative deployment-wide
+reverse-reference/pin lookup:
+`digest -> (holder class, owning Run, durable anchor, liveness basis)[]` inside that context. A pin is
+registered and durably acknowledged before the referencing event, Transition, or record may be
+adopted. Pin registration and disposal are linearized atomically: an accepted pin causes concurrent
+disposal to fail closed, while a disposal that linearizes first rejects a new pin and therefore
+prevents adoption. A later holder scan is not a substitute for this ordering.
+
+The lookup is a monotonic hash-chained mutation sequence with one `(position, head digest)`
+currency line in the existing `LG-WITNESS`, keyed by the approved artifact provider's configured
+deployment-wide disposable evidence resource scope. Every pin registration or release first durably flushes its exact lookup
+mutation. `CP-EVIDENCE` supplies that verified head to `CP-TRANSITION`, whose existing
+witness-line `PORT-LEDGER` commit protocol advances the independent witness; only after durable
+completion may the existing enclosing-action owner acknowledge adoption or release. A crash
+between lookup flush and witness advance leaves a conservative unacknowledged mutation to
+reconcile; it never permits adoption or disposal from an unwitnessed head.
+
+Before any disposable reference adoption, release, or `OPC-ART-DISPOSE` after process start,
+restart, or restore, `CP-RECOVERY` verifies the lookup chain and compares its exact head with the
+independent witness. A head behind the witness, a fork or digest mismatch, missing acknowledged
+content, or an unverifiable chain is `FC-TRUST`: Jig fences disposable reference adoption, release,
+and disposal and enters the deliberate-stop path until externally governed recovery restores and
+reconciles the exact witnessed head. Without an independent witness, restore cannot establish
+lookup currency autonomously and takes the same fail-closed stop. Rebuilding by scanning visible
+holders is not proof of completeness because rollback may omit a controller-mediated holder that
+was live at the witnessed head.
 
 Pin registration or release has no standalone mutation path. It is an atomic subordinate clause
-of the existing action that creates or retires the durable holder: `LG-PREFLIGHT-ATTEMPT` for the
-two pre-Run attempt families, `LG-INTAKE` for terminal acknowledgement and frozen-envelope
-adoption, the `PORT-LEDGER` Transition commit protocol for later typed-holder adoption, and the
-already cataloged `OPC-ART-PUT` or `OPC-ART-DISPOSE` for artifact creation or retirement. Thus
-every durable pin change remains inside an existing commit-primitive-class contract or Operation;
-the reverse lookup exposes no fourth durable-mutation class.
+of the existing `PORT-LEDGER` Transition commit for typed-holder adoption or of the already
+cataloged `OPC-ART-PUT`/`OPC-ART-DISPOSE` artifact action and its adopting Transition. Thus every
+durable pin change remains inside an existing commit-primitive-class contract or Operation; the
+reverse lookup exposes no fourth durable-mutation class.
 
-Because `EVR-DIGEST` deduplicates byte-identical content, protection is computed per digest, not
-per logical holder. A monotonically non-disposable reference from any row gives that strongest
-protection to the shared digest even when another holder would otherwise be eligible for disposal.
+The joint commit is conservative in both directions: registration is witnessed before a new
+disposable holder can become live, while release is atomic with durable holder retirement and
+cannot become visible as absent while that holder remains live. A lost acknowledgement retains or
+reconstructs the safer pin until the enclosing action and witnessed lookup head reconcile; it never
+makes disposal newly eligible from an uncertain partial result.
 
-- **`EVR-RETAIN`:** an artifact is preserved at least until its Run completes and every depending
+- **`EVR-RETAIN`:** protected configuration/intake objects are retained without disposal or move.
+  A disposable evidence artifact is preserved at least until its Run completes and every depending
   obligation closes (I19); afterwards, policy retention classes govern each evidence kind.
-- **`EVR-ARCHIVE`:** archival relocates artifacts with digests unchanged; because identity is the
-  digest (`EVR-DIGEST`), identity and verifiability survive relocation.
+- **`EVR-ARCHIVE`:** archival applies only to disposable evidence and relocates it within the same
+  approved disposable resource scope with digests unchanged; because identity is the digest
+  (`EVR-DIGEST`), identity and verifiability survive relocation. Protected objects never move.
 - **`EVR-DISPOSE`:** destructive disposal is the explicit owner-authorized `OPC-ART-DISPOSE`
   retirement action. Its `EV-ARTIFACT-FACT` is digest-verified disposal evidence; it is never a
   side effect of cleanup, compaction, or storage convenience. Before dispatch, a verified
-  deployment-scoped reference guard must prove through the authoritative reverse lookup that no
-  live pin from any of the eleven exhaustive holder classes references the digest and that no
-  monotonically non-disposable reference has ever protected it. Any live reference fails disposal
-  closed and names the owning Runs or pre-Run keys and durable anchors in the failure reason; the
-  exact owner decision authorizing that same disposal is the sole non-blocking self-reference.
+  routing guard rejects protected configuration/intake addresses. For a disposable evidence
+  address, the authoritative reverse lookup must prove that none of the six disposable holder
+  classes has a live pin; its head must be chain-verified and equal the current independent
+  `LG-WITNESS` line. Any live reference or unproved lookup currency fails disposal closed and names
+  the owning Runs and durable anchors in the failure reason; the exact owner decision authorizing
+  that same disposal is the sole non-blocking self-reference.
 
 ## Terminal audit export
 
@@ -212,7 +256,7 @@ flowchart LR
     end
 
     subgraph Durable["Durable stores"]
-        Artifact[("RT-EVIDENCE<br/>Content-addressed artifacts<br/>SHA-256 digest is identity<br/>[Immutable artifact store]")]
+        Artifact[("RT-EVIDENCE<br/>Protected config/intake · disposable evidence<br/>SHA-256 digest is identity<br/>[Immutable artifact store]")]
         Ledger[("RT-LEDGER<br/>Evidence manifests and decision facts<br/>[Durable authority]")]
     end
 

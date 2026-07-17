@@ -4,7 +4,7 @@ purpose: Define the storage-agnostic conditional-append ledger contract that rea
 audience:
   - Engineers, architects, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
-scope: The PORT-LEDGER conditional-append contract, record chaining and integrity, snapshots and projections, the single-host reference realization, and compaction, retention, backup, and disaster recovery; record schemas, identity representation, evidence-artifact storage, and provider-specific reconciliation are excluded.
+scope: The PORT-LEDGER conditional-append contract, record chaining and integrity, snapshots and projections, the single-host reference realization, artifact-pin currency witness, and compaction, retention, backup, and disaster recovery; record schemas, identity representation, evidence-artifact bytes, and provider-specific reconciliation are excluded.
 state: approved
 status: approved Layer 2 baseline (not locked), amended by the owner-approved 2026-07-17 readiness remediation; renewed exact-candidate review pending
 owner: Arye Kogan
@@ -58,7 +58,7 @@ durability primitive. It is carried by the existing mechanism exchanges named be
 | `LG-ACK`               | Durable acknowledgement      | Acknowledges an append only after the record is durably flushed; an acknowledgement is a durability promise, not a buffering report.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `LG-READ`              | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `LG-CHAIN`             | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `LG-WITNESS`           | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head; it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement, including an intake acknowledgement, implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups.                                                                                                                                                                                                                                                                                                       |
+| `LG-WITNESS`           | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head, plus exactly one artifact-reference-index witness line keyed by the approved artifact provider's configured deployment-wide disposable evidence resource scope; it is advanced and durably persisted after the covered record or disposable pin mutation durably flushes and before the relevant acknowledgement returns, so every acknowledgement, including an intake acknowledgement or disposable holder adoption/release, implies witness coverage of the acknowledged position. Its trust must not depend on any witnessed ledger, registry, intake index, artifact pin lookup, or their backups. |
 | `LG-PREFLIGHT-ATTEMPT` | Pre-Run attempt evidence     | The shared deployment-scoped conditional-create/readback primitive for the two durable pre-Run attempt families: configuration-artifact reads and provider capability-proof exchanges. Each exchange-attempt key derives separate deterministic start and result variant keys; the first conditional-creates immutable start bytes before request, and the second conditional-creates immutable result bytes only after validated completion. Readback returns those exact bytes. Same-variant-key byte-equivalent replay returns the existing value; a byte mismatch, missed deadline rule, missing or invalid predecessor, or digest/integrity failure fails closed. It creates no event, Operation, Run, authority, Transition, or dispatch and is never a second ledger authority. |
 | `LG-INTAKE`            | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` `terminal-ack` variant. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key. Only after the create assigns its intake position does an accepted acknowledgement derive `ID-RUN` and bind that identity to the stable acknowledgement tuple. Pre-ack attempt evidence uses `LG-PREFLIGHT-ATTEMPT` and grants no intake authority.                                                                                                                                                                                         |
 
@@ -183,9 +183,21 @@ therefore a separate obligation with its own witness:
   `LG-INTAKE` head: intake-index recovery is a witness-verified readback before it can recreate or
   adopt an acknowledgement. The witness is monotonic and lives in the `RT-WITNESS` store
   ([runtime architecture](./runtime.md)), reached through `PORT-LEDGER` under a witness-line
-  `CB-STORE` scope, on storage whose trust does not depend on the ledger or the ledger's backups (a
-  separately configured device, path of independent trust, or small remote service; a file beside
-  the ledger is not a witness).
+  `CB-STORE` scope, on storage whose trust does not depend on any witnessed ledger, registry, intake
+  index, artifact pin lookup, or their backups (a separately configured device, path of independent
+  trust, or small remote service; a file beside any witnessed store is not a witness).
+- The one artifact-reference-index witness line covers the authoritative deployment-wide
+  reverse-reference pin lookup for the disposable evidence routing context. Every authoritative pin add
+  or release durably flushes its pin mutation; `CP-EVIDENCE` supplies the verified
+  `(position, head digest)` to `CP-TRANSITION`, whose existing witness-line `PORT-LEDGER` commit
+  protocol withholds completion until the monotonic witness advance is durable. Only then may the
+  existing enclosing-action owner acknowledge adoption or release. It is a safety-guard durability
+  step subordinate to the existing holder action, not a lifecycle, control, or mutation authority
+  of its own; `PORT-ARTIFACT` never writes `RT-WITNESS` directly. The five pre-Run holder classes
+  instead use the configured protected configuration/intake context, which is non-disposable and
+  does not depend on pin-lookup state. Existing holder class selects each context under the approved
+  artifact-provider manifest/resource scope; changed, missing, or unverifiable binding fails
+  preflight/recovery closed.
 - On every controller start, restart, and restore, recovery compares the verified chain head
   against `LG-WITNESS`. A chain head behind the witness, or a head digest that contradicts it, is
   a rollback: a trust-root failure that fails closed to externally governed recovery (I20), never
@@ -195,6 +207,13 @@ therefore a separate obligation with its own witness:
   readback — fails closed and escalates instead of assuming the visible prefix is complete.
   Configuring a witness is what buys autonomous restart after restore; its absence buys a deliberate
   stop, never an assumption.
+- On those same start, restart, and restore paths, `CP-RECOVERY` verifies the disposable
+  context's pin lookup chain and head against that independent artifact-reference-index witness
+  line **before** any disposable reference adoption, release, or `OPC-ART-DISPOSE`. A lookup behind
+  its witness, forked, digest-mismatched, unverifiable, or missing acknowledged content is
+  `FC-TRUST`: a deliberate stop until exact-head externally governed reconciliation. Without the
+  independent witness, autonomous restore cannot establish disposable pin currency. Protected
+  configuration/intake addresses remain non-disposable independently of that mutable lookup.
 
 ## Target-authority registry
 
@@ -315,11 +334,19 @@ truth or make lifecycle progress.
   hold overrides the elapsed window (I19).
 - **Backup** is a position-consistent copy: a backup set records the exact `LG-POSITION` it
   captures and the digests needed to verify it, so a restore can prove both integrity and
-  currency. Copies that cannot state their position are not backups under this contract.
+  currency. For the disposable evidence context's authoritative reverse-reference pin lookup,
+  its acknowledged content and exact head must also verify against the one independent
+  artifact-reference-index witness line. Copies that cannot state their position are not backups
+  under this contract. The protected configuration/intake context is not autonomously restored or
+  replaced; changed or unverifiable continuity of its exact append-only provider resource scope is
+  `FC-TRUST` before any attempt-key readback or holder adoption.
 - **Restore** is never a silent resume. The order is fixed: verify the chain (`LG-CHAIN`),
   establish currency against `LG-WITNESS` (failing closed where no independent witness can), run a
   mandatory full reconciliation pass re-resolving every pending or uncertain Operation against
-  external state, and only then permit resume (I6, I17) — exactly as after interruption.
+  external state, and only then permit resume (I6, I17) — exactly as after interruption. Pin
+  lookup currency is established before any reference adoption, release, or `OPC-ART-DISPOSE`; the
+  listed `FC-TRUST` conditions require exact-head externally governed reconciliation, never an
+  autonomous restore.
 - A restore to an earlier position than externally observed effects (for example, a landing the
   target proves but the restored ledger does not contain) is a **named trust-root stop**: the
   restored history cannot own its effects, so Jig fails closed under I20 and escalates for

@@ -247,15 +247,29 @@ The deployment-wide artifact-reference responsibility is exhaustive over eleven 
 `SCH-EVIDENCE`, `SCH-AUDIT-EXPORT`, `SCH-ENVELOPE`, `SCH-WORK-PROFILE`,
 `SCH-CONFIG-ARTIFACT`, `SCH-INTAKE-ACK`, `SCH-CAPABILITY-PROOF`, the pre-adoption
 `EV-ARTIFACT-FACT`, `SCH-VERDICT` (including its transitive package/manifest references),
-`SCH-DECISION`, and `SCH-OBLIGATION`. The producer named above must register each typed artifact
-address before the durable record that refers to it can be adopted, closing the put/adoption versus
-disposal race. Pre-Run configuration, work-profile prompt, intake-attempt, and capability-proof
-references are monotonically non-disposable; if any protected holder shares byte-identical content
-with a disposable holder, the digest remains protected. A disposal-authorization
-`SCH-DECISION` is the control input for its own exact digest and is not a blocking live-reference
-pin. `SCH-EVENT.payloadDigest`, `SCH-OPERATION.payloadBasisDigest`, and
-`SCH-SOURCE-EXCHANGE.contentDigest` are hash/basis values rather than artifact addresses unless a
-schema field explicitly types them as one of the holder classes above.
+`SCH-DECISION`, and `SCH-OBLIGATION`. The digest remains the artifact identity; the existing holder
+class deterministically selects a protected configuration/intake or disposable evidence
+`PORT-ARTIFACT`/`CB-STORE` routing context and adds no schema field. The five pre-Run classes —
+envelope, work profile, configuration artifact, intake acknowledgement, and capability proof — use
+only the protected context, which is non-disposable; byte-identical content in the disposable
+context is an independently retained object. The other six classes use the disposable context.
+Their producer must register a pin before the durable record can be adopted, closing the
+put/adoption versus disposal race. A disposal-authorization `SCH-DECISION` is the control input for
+its own exact disposable address and is not a blocking live-reference pin. Both configured context
+addresses bind to the existing approved artifact-provider manifest and resource scope; changed,
+missing, or unverifiable binding fails preflight/recovery closed.
+
+The disposable context's authoritative lookup has one hash-chained mutation head covered by one
+monotonic `LG-WITNESS` currency line. Each pin add or release durably flushes, then `CP-EVIDENCE`
+supplies its exact `(position, head digest)` to `CP-TRANSITION` for the existing witness-line
+`PORT-LEDGER` commit; only after durable completion may the enclosing action acknowledge adoption
+or release. Start, restart, and restore verify the exact head before any disposable holder mutation
+or disposal. A behind, forked, mismatched, missing, or unverifiable acknowledged head fails closed
+as `FC-TRUST`; scanning only visible holders cannot prove a rolled-back lookup complete. Protected
+context addresses reject disposal independently of this mutable lookup. `SCH-EVENT.payloadDigest`,
+`SCH-OPERATION.payloadBasisDigest`, and `SCH-SOURCE-EXCHANGE.contentDigest` are hash/basis values
+rather than artifact addresses unless a schema field explicitly types them as one of the holder
+classes above.
 
 Envelope schema rules are owned jointly with
 [envelope production](./envelope-production.md): policy and work profile remain distinct named
