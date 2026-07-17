@@ -44,8 +44,9 @@ related:
   recorded `PORT-CONSUMER` as a private facade with no authority crossing of its own. He explicitly
   reopened D7 for the single acceptance clause that now requires absence of unresolved **blocking**
   findings, aligning its canonical bytes with the B15 rule while leaving severity classification to
-  reviewer judgment. The fourth independent readiness review then authorized second bounded reopens
-  of D4 and D8 only: D4 narrows its terminal-failure prose to the fixed `FC-TRUST` selector, and D8
+  reviewer judgment. After the fourth independent readiness review's terminal-liveness finding, Arye
+  Kogan authorized second bounded reopens of D4 and D8 only: D4 narrows its terminal-failure prose
+  to the fixed `FC-TRUST` selector, and D8
   clarifies the failure taxonomy's park/block/terminal stopping-point interpretation. All other Layer
   1 decisions remain locked; the revised exact candidate requires renewed independent review under
   the product-readiness gate.
