@@ -7,7 +7,7 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Readiness-gate closure criteria and review procedure; architecture selection and implementation verification are excluded.
 state: current
-status: owner-approved round-6 remediation standard, amended by owner ruling on 2026-07-17; applies to future product-readiness reviews
+status: owner-approved round-6 remediation standard, amended by owner ruling on 2026-07-17, further amended by the 2026-07-17 R5.1 wait/derived-structural-ineligibility clarification and the R6.1 settling ruling recorded in the twelfth gate-record review; applies to future product-readiness reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -67,7 +67,12 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 ### R5 — Liveness closure
 
 - R5.1 Every wait names accountable owner, durable reason, wake condition, bound class, and
-  explicit exhaustion action (existing D8 rule, restated as a gate clause).
+  explicit exhaustion action (existing D8 rule, restated as a gate clause). A **wait** is a
+  bounded, owner-held pause with a wake condition, a bound class, and an exhaustion action;
+  **derived structural ineligibility** — no timer, no owner-held bound, resolving by derived
+  eligibility or by a terminal dependency disposition — is not a wait. The finite wait inventory
+  enumerates waits and need not enumerate derived ineligibility. Story `Pending` (dependency
+  eligibility awaiting prerequisite `Landed`) is the recorded example.
 - R5.2 Every state with completion duties has a trigger that fires when the last duty completes,
   regardless of the order in which duties complete.
 - R5.3 Every Run phase path reaches a terminal-settlement position or an explicitly cataloged
@@ -75,8 +80,12 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 
 ### R6 — Traceability closure
 
-- R6.1 Every `PC-*` commitment row names a minimal proof-route set covering its complete compound
-  promise.
+- R6.1 The 44 `PC-*` proof routes are covered per the recorded resolution in the reconciliation
+  minimal-route table, as corrected through round 12: each route names the set of elements that
+  jointly covers its commitment's complete compound promise. Reviewers verify each route against
+  that recorded resolution and confirm R6.2's deterministic `CF-GATE-PRODUCT` composition; they do
+  not re-derive per-route minimal-complete sets or apply a per-route deletion/completeness ratchet.
+  Reopening a specific route requires explicit Arye authorization; it is not a reviewer preference.
 - R6.2 `CF-GATE-PRODUCT` composition is deterministic: it enumerates its inputs and its
   conjunction rule; no judgment step decides which routes count.
 - R6.3 The 56 imported guarantee IDs are covered per the recorded rounds-3–5 resolution
