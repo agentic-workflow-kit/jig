@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — fourth remediation candidate"
-purpose: Record the prior remediation history, the fourth independent readiness review's two findings, their owner-approved remediation, and the renewed exact-candidate review required after remediation merges.
+title: "Product readiness gate — fifth remediation candidate"
+purpose: Record the prior remediation history, the fifth independent readiness review's findings, their owner-approved bounded remediation, and the renewed exact-candidate review required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The fourth independent readiness review against baseline f0045c27408220bb0577cb286ebfe7574f3c66f5, including the 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The fifth independent readiness review against baseline 22b275075f86d81593ad365124cfec9da844f96d, including the 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: fourth independent readiness review returned changes required for one terminal-liveness blocker and one PC-proof-route completeness gap; owner-approved remediation candidate in progress; readiness lock inactive pending merge and renewed independent exact-candidate review
+status: fifth independent readiness review returned FAIL with 8 blockers, 2 delegation gaps, and 1 traceability gap; owner-approved remediation candidate in progress; readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -25,7 +25,7 @@ related:
   - ../architecture-conformance.md
 ---
 
-# Product readiness gate — fourth remediation candidate
+# Product readiness gate — fifth remediation candidate
 
 ## Current gate state
 
@@ -70,7 +70,33 @@ provider-permission enforcement, held merge, Windows host, and transport behavio
 continues to prevent any unproven capability from becoming configurable; this inventory preserves the
 specific current limitation rather than implying that the gate proves it.
 
-## Finding-to-resolution record
+## Fifth independent review — remediation in progress
+
+A fresh independent empty-repository readiness review of
+`22b275075f86d81593ad365124cfec9da844f96d` on 2026-07-17 returned **FAIL**: 8 blockers,
+2 delegation gaps, and 1 traceability gap. Arye Kogan verified the findings and approved the
+bounded directions carried by this documentation-only candidate. The review found the issues; the
+owner authorized their remediation. This candidate reopens only D8 under its third bounded reopen,
+does not certify the gate, and requires a fresh independent reviewer to assess the exact merged
+commit after merge.
+
+## Fifth-review finding-to-resolution record
+
+| Finding                     | Owner-approved resolution carried by this candidate                                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Rejected intake spawning | Accepted acknowledgement conditions every Run-ledger/controller derivation; rejected acknowledgement is terminal and derives neither.                                            |
+| 2. Acceptance invalidation  | Exact invalidating owner decisions take affected `Accepted`, `Waiting`, and `Finalizing` Stories to `Reviewing` with a fresh `RP-PACKAGE`; only `Finalizing` releases authority. |
+| 3. Target-refresh alignment | `OPC-SESSION-ASSIGN` supports bounded re-dispatch, then a new Candidate and target-observation fact with retained authority and atomic rebind.                                   |
+| 4. Post-terminal export     | The closed post-terminal administrative regime authorizes the create-once export/receipt path without changing the business-final cut.                                           |
+| 5. Evidence disposal        | `OPC-ART-DISPOSE` requires artifact-bound owner authorization, certainty reconciliation, and preservation, retention, and no-open-obligation guards.                             |
+| 6. Session lifecycle facts  | `EV-SESSION-FACT` carries all eight attestation kinds and every session-lifecycle row names its committing event.                                                                |
+| 7. Successor quarantine     | `predecessorQuarantineCut` is lineage-bound, fail-closed at intake, and covered by the composition digest.                                                                       |
+| 8. Two-phase trust stop     | `FC-TRUST` fences and halts first; `Stopped` records only on a trustworthy witnessed append basis or through external recovery.                                                  |
+| 9. Qualifying progress      | `BND-IDLE` is an exhaustive digest-bound predicate over four qualifying fact classes, excluding message, token, and provider self-report volume.                                 |
+| 10. Principal/read scopes   | The local OS-user plus configured-key trust root, fail-closed caller binding, reader scopes, and adversarial probes are explicit.                                                |
+| 11. Pre-Run source deadline | `BND-WAIT-MECHANISM` and `CF-MECH-SOURCE` cover each `PORT-SOURCE` attempt and pre-Run exhaustion.                                                                               |
+
+## Prior finding-to-resolution record
 
 | Finding | Owner-approved resolution carried by this candidate                                                                                                                                                                                      |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -153,10 +179,10 @@ confined to `docs/redesign/design/`. The imported `docs/product/guarantees.md` b
 digest remain unchanged. A review verdict attaches to the complete file digests at that merged
 commit, not to this list or to a branch name. Any later byte change invalidates that verdict.
 
-D3, D7, and D10 are already-amended historical baseline records and remain byte-locked in this
-candidate, as do D1–D3, D5–D7, and D9–D15. Only D4 and D8 change under the owner-approved second
-bounded reopens recorded above; their first-remediation amendments and the D3/D7/D10 amendments are
-historical and are not additional authority for this candidate.
+D3, D4, D7, and D10 are already-amended historical baseline records and remain byte-locked in this
+candidate, as do D1–D7 and D9–D15. Only D8 changes under its owner-approved third bounded reopen;
+the earlier D4/D8 and D3/D7/D10 amendments are historical and are not additional authority for this
+candidate.
 
 ## Owner item discovered during exact-commit review — resolved
 

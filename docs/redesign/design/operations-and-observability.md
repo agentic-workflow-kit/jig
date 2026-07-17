@@ -114,7 +114,7 @@ target inside its range and cannot demote the derived class.
 
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. At terminal settlement, `CP-PROJECTION`
-also materializes exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes covering
+derives exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes covering
 the ledger's first position through the **terminal-settlement position**, the business-final cut,
 and containing outcomes, notices, evidence manifest references, obligations, and
 provenance. Its content digest is `ID-EXPORT`; `OPC-ART-PUT` creates it once in immutable storage,

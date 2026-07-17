@@ -161,8 +161,10 @@ under one fail-closed Recovery decision; a provider's assertion that nothing cha
 
 ISO-2's "quarantine and re-plan" has one explicit meaning: preserve and park the affected work,
 then use Envelope Builder to produce an owner-approved successor Run whose frozen
-`SCH-ENVELOPE` lineage names the predecessor and durable reason, and whose composition digest
-binds those bytes. The original Run remains immutable and auditable.
+`SCH-ENVELOPE` lineage names the predecessor and durable reason and includes the predecessor
+quarantine cut: a position and digest proving the named affected set was preserved-and-parked or
+terminal. Its composition digest binds those lineage bytes. The original Run remains immutable and
+auditable.
 
 ### Liveness (`LIVE`)
 

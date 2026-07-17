@@ -25,13 +25,13 @@ related:
 
 ## Smallest-safe failure containment
 
-| Fault scope         | Required posture                                                                                                                          | Safe continuation                                                                   |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Preflight           | Reject the Run durably before Story effects.                                                                                              | No Story starts.                                                                    |
-| Story               | Apply bounded retry/rework; park iff a recorded owner action or changed fact can advance, otherwise block; preserve and retire resources. | Independent Stories continue; transitive dependents remain ineligible.              |
-| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.                                       | Safe implementation and review may continue within capacity.                        |
-| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy.                                     | No control transition continues while the ledger or controller authority is unsafe. |
-| Trust root          | Fail autonomous progress closed and name the lost guarantee.                                                                              | Only externally governed recovery may continue.                                     |
+| Fault scope         | Required posture                                                                                                                                                                                     | Safe continuation                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Preflight           | Reject the Run durably before Story effects.                                                                                                                                                         | No Story starts.                                                                    |
+| Story               | Apply bounded retry/rework; park iff a recorded owner action or changed fact can advance, otherwise block; preserve and retire resources.                                                            | Independent Stories continue; transitive dependents remain ineligible.              |
+| Target/finalization | Fence further target effects and reconcile the current Operation before another finalizer proceeds.                                                                                                  | Safe implementation and review may continue within capacity.                        |
+| Shared Run          | Stop new dispatch, interrupt, reconstruct, reconcile, and resume only after authority is trustworthy.                                                                                                | No control transition continues while the ledger or controller authority is unsafe. |
+| Trust root          | Immediately fence dispatch/adoption, halt autonomous progress, and surface the lost guarantee. A terminal `Stopped` record requires a trustworthy witnessed append basis or later external recovery. | Only externally governed recovery may continue.                                     |
 
 A failure remains at the smallest safe scope. It becomes shared only when uncertainty, authority, or
 proof crosses Story boundaries.

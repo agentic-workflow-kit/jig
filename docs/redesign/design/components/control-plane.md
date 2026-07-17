@@ -39,7 +39,7 @@ and module structure inside the unit remains a D10 realization deferral.
 `CP-INTAKE` is a pre-controller component hosted by `RT-OPERATOR`, not an
 `RT-CONTROLLER` component. It validates the complete envelope, runs preflight, and conditionally
 creates or looks up `LG-INTAKE`; that `SCH-INTAKE-ACK` conditional-create is its only durable
-write and the single intake commit point. Only after the acknowledgement exists may the operator
+write and the single intake commit point. Only after an **accepted** acknowledgement exists may the operator
 idempotently create the derived Run ledger and spawn the per-Run controller. Recovery recreates a
 missing Run ledger or projection/index entry from the acknowledgement; an index never establishes
 intake authority.
