@@ -6,7 +6,7 @@ audience:
   - Independent architecture reviewers
 scope: Question traceability, archive reconciliation, gate evidence, prior review records, and the current approval state; decision content lives in the decision records and design pages.
 state: current
-status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; bounded 2026-07-17 reopens cover the recorded F1/F2/F4/F6/F13 corrections, D3/D7/D10 amendments, and the D4/D8 round-4 amendments
+status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; bounded 2026-07-17 reopens cover the recorded F1/F2/F4/F6/F13 corrections, D3/D7/D10 amendments, D4/D8 round-4 amendments, and D8-only fifth-round two-phase trust-stop clarification
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:

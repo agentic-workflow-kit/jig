@@ -223,7 +223,7 @@ sequenceDiagram
         Note over Ctl: Registry lineage is confirmed
     end
     Note over Ctl,Del: The remaining path executes only after the anchor<br/>is confirmed to name this grant's ID-REGISTRY
-    Ctl->>Del: Authorizes basis alignment and verification for the Accepted digest via PORT-DELIVERY
+    Ctl->>Del: Authorizes target observation for the Accepted digest via PORT-DELIVERY
     Del->>Tgt: Reads the current target state
     Del-->>Ctl: Attests whether the target matches the recorded basis
     alt Target basis unchanged

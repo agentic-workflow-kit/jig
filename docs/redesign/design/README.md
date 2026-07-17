@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — fourth independent readiness review returned changes required on 2026-07-17; owner-approved remediation candidate in progress; product-readiness lock inactive
+status: active index — fifth independent readiness review returned FAIL on 2026-07-17; owner-approved remediation candidate in progress; product-readiness lock inactive
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -199,12 +199,12 @@ owner-approved readiness amendment.
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                         | Status                                                                                                                                                            |
-| --------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                             | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                             |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants         | D1–D3, D5–D7, and D9 remain byte-locked; the bounded owner-approved D4/D8 amendments are pending renewed exact-candidate review                                   |
-| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                    | Approved, not locked; the bounded owner-approved D10 amendment and dependent remediation are pending renewed exact-candidate review                               |
-| Product readiness amendment       | D13–D15, V18, amended contracts, product correction, reconciliation, and readiness gate | Fourth independent review returned changes required for terminal-liveness consistency and `PC-*` proof-route completeness; remediation in progress; lock inactive |
+| Layer gate                        | Canonical or proposed artifacts                                                         | Status                                                                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                             | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                       |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants         | D1–D7 and D9 remain byte-locked; the D4/D8 round-4 amendments are historical baseline and only D8 is pending renewed exact-candidate review |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                    | Approved, not locked; the bounded owner-approved D10 amendment and dependent remediation are pending renewed exact-candidate review         |
+| Product readiness amendment       | D13–D15, V18, amended contracts, product correction, reconciliation, and readiness gate | Fifth independent review returned FAIL with 8 blockers, 2 delegation gaps, and 1 traceability gap; remediation in progress; lock inactive   |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression

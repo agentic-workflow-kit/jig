@@ -91,8 +91,11 @@ No irreversible effect is blindly replayed:
 
 If the ledger is unavailable, corrupted, rolled back, or compromised beyond trustworthy recovery,
 Jig cannot guarantee reconstruction, audit completeness, Operation ownership, no-double-effect
-behavior, safe autonomous resume, or trustworthy terminal outcomes. It fails closed and requires
-externally governed recovery.
+behavior, safe autonomous resume, or trustworthy terminal outcomes. `FC-TRUST` first fences all
+dispatch and adoption and surfaces the operator-visible stop condition without claiming an
+authoritative ledger record. A `Stopped` record follows only when a witnessed verified-currency
+append basis remains, or later through externally governed recovery; until then the terminal
+disposition is externally owned.
 
 ## View V4 — state, recovery, acceptance, concurrency, and finalization
 

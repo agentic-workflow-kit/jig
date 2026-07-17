@@ -69,8 +69,9 @@ not a Run Transition stream: it exists before the per-Run controller or Run ledg
 runs in the short-lived `RT-OPERATOR` process and is its sole caller through `PORT-LEDGER`; its
 only durable write is the acknowledgement conditional-create. The acknowledgement is therefore
 the **single intake commit point**. Run-ledger creation, controller spawn, and deployment indexes
-or projections happen only after the acknowledgement exists and are derived, idempotent
-consequences that recovery recreates from it. A lookup can return the immutable acknowledgement
+or projections happen only after an **accepted** acknowledgement exists and are derived, idempotent
+consequences that recovery recreates from it. A rejected acknowledgement is terminal preflight and
+derives nothing but its own projection. A lookup can return the immutable acknowledgement
 but can never advance lifecycle state or write a second intake authority.
 
 An accepted acknowledgement is self-contained: it embeds the canonical frozen `SCH-ENVELOPE`
@@ -81,12 +82,13 @@ uncommitted submission buffer.
 
 The crash classification around that point is exhaustive:
 
-| Observation after recovery                                        | Required result                                                                                                                                                                                  |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No acknowledgement exists                                         | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                                                                                 |
-| Acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
-| Acknowledgement and Run ledger exist                              | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                |
-| An index/projection exists without an acknowledgement             | Discard and rebuild it; the index is never authoritative.                                                                                                                                        |
+| Observation after recovery                                                 | Required result                                                                                                                                                                                  |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No acknowledgement exists                                                  | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                                                                                 |
+| Accepted acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
+| Rejected acknowledgement exists and the Run ledger is absent               | This is the correct terminal preflight state. Recreate neither a Run ledger nor controller.                                                                                                      |
+| Acknowledgement and Run ledger exist                                       | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                |
+| An index/projection exists without an acknowledgement                      | Discard and rebuild it; the index is never authoritative.                                                                                                                                        |
 
 Thus every crash before the conditional-create is the first row and every crash after it is one of
 the remaining rows; there is no interval in which Run-ledger or index existence decides whether

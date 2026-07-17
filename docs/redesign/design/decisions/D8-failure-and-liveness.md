@@ -7,7 +7,7 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D8 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical failure model is owned by the failure-and-liveness page.
 state: proposed
-status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation then round-4 terminal-liveness remediation; renewed exact-candidate review pending
+status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation, round-4 terminal-liveness remediation, then third bounded round-5 two-phase trust-stop clarification; renewed exact-candidate review pending
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -61,12 +61,16 @@ selectors — and explicit loss of guarantee, not successful delivery.
 
 Deliberate operator `Suspended` is outside that autonomous finite-run progress claim: it is a
 durable owner-controlled condition with no dispatch, not a retry or unnamed wait. Resume re-enters
-the recovery integrity path; `FC-TRUST` alone selects terminal `Stopped` directly, while any other
-terminal stop requires `EV-RUN-TERMINAL-STOP-DECISION` from `Suspended`.
+the recovery integrity path; `FC-TRUST` is the sole failure selector for terminal `Stopped`, while
+any other terminal stop requires `EV-RUN-TERMINAL-STOP-DECISION` from `Suspended`. On `FC-TRUST`,
+Jig immediately fences dispatch, halts, and surfaces the condition without asserting an in-ledger
+record; the authoritative `Stopped` record is committed only on a trustworthy witnessed append
+basis or later through externally governed recovery.
 
 The first 2026-07-17 owner-approved readiness remediation amended this record's failure model. The
-second, bounded round-4 reopen clarifies only the already-fixed terminal selectors; it does not add
-an edge, event, state, or failure code.
+second, bounded round-4 reopen clarifies only the already-fixed terminal selectors. The third,
+bounded round-5 reopen clarifies the two-phase trusted-recording condition for that same selector;
+it does not add an edge, event, state, or failure code.
 
 ## Rationale and benefits
 

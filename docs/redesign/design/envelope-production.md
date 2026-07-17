@@ -42,7 +42,7 @@ its own proposal on the owner's behalf, or mutate an accepted Run.
 | `EP-SOURCE`    | Invoke a configured Work Source through `PORT-SOURCE` under `ID-SOURCE-REQ`; validate the revision/cursor-bound result identity, content digest, provenance, and plan shape.                         | Candidate work is unapproved input. Retry is bounded; changed content creates a new candidate and cannot bypass validation or create a Run.    |
 | `EP-TRACK`     | Resolve one track identity and its plan, policy, and work profile; reject ambiguous or cross-track composition.                                                                                      | One envelope carries exactly one track.                                                                                                        |
 | `EP-FLOORS`    | Compose repo-policy floors with the track policy and emit a proof that every floor is preserved or tightened.                                                                                        | Composition cannot weaken a repo floor; an unknown rule fails closed.                                                                          |
-| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, and role realization.                                                                                     | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements.      |
+| `EP-PROFILE`   | Validate the named work profile: model/provider choice, effort, prompt-strategy reference, role realization, and any exhaustive qualifying-checkpoint list.                                          | A work profile may change cost or behavior but cannot lower policy, authority, provider-posture floors, evidence, or review requirements.      |
 | `EP-PROVIDERS` | Bind each selected provider to an approved authority-manifest digest and qualifying conformance evidence; for the Agent provider, select one exact native permission posture and declared semantics. | A missing, changed, stale, insufficient, or policy-incompatible posture keeps the envelope unlaunchable.                                       |
 | `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                        |
 | `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                                |
@@ -67,8 +67,8 @@ The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 6. the setup recipe and its freshness-input declaration; and
 7. owner approval identity, scope, and proposal digest; and
 8. `successorLineage`: explicitly `absent` for a genesis envelope, or the predecessor `ID-RUN`,
-   predecessor envelope composition digest, durable re-plan reason, and affected Story/root-blocker
-   set for a successor.
+   predecessor envelope composition digest, durable re-plan reason, affected Story/root-blocker
+   set, and predecessor-quarantine-cut position and digest for a successor.
 
 There is no ambient fallback. An omitted required artifact, unknown version, unverifiable
 provenance, floor violation, changed authority manifest, unbound reference, or inconsistent lineage
@@ -112,8 +112,12 @@ preview and start, and `PORT-INTAKE` independently validates the later approved 
 
 `PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest. Preflight validates
 lineage consistency before that create/read: a successor names an existing predecessor
-acknowledgement and `ID-RUN`, and carries a non-empty re-plan reason; a genesis envelope carries
-the explicit `absent` value and no predecessor fields. Any mismatch fails closed. The first
+acknowledgement and `ID-RUN`, carries a non-empty re-plan reason, and provides a
+predecessor-quarantine cut. A verified read of the predecessor's durable record at that position
+must match the cut digest and prove every named affected Story/root-blocker is preserved-and-parked
+or terminal; otherwise intake fails closed. A genesis envelope carries the explicit `absent` value
+and no predecessor fields. The composition digest covers these lineage bytes. Any mismatch fails
+closed. The first
 submission binds one immutable acknowledgement and `ID-RUN`; a duplicate returns that exact value,
 and a lost acknowledgement is recovered by digest lookup. Only a different composition digest is a
 new submission. The submitter can therefore retry after ambiguity without forking two Runs from one
@@ -128,7 +132,8 @@ The split is structural rather than editorial:
   mode, capacity maxima, and bounds. Repository-floor composition may forbid weaker integration
   modes and can only preserve or strengthen the track-policy selection.
 - **Work profile** owns realization: agent/model selection, effort and cost posture, versioned
-  prompt strategy, and the participant/provider realization of implementer and reviewer roles.
+  prompt strategy, participant/provider realization of implementer and reviewer roles, and any
+  exhaustive qualifying-progress checkpoint list.
 
 The composition report proves that no work-profile field is consulted as a safety-floor value.
 When a work-profile choice cannot satisfy policy — for example a provider lacks a required

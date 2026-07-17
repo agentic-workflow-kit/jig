@@ -93,7 +93,8 @@ Owner-reviewable defaults:
 - **`EVR-ENCRYPT`:** encryption at rest is a configuration option of the artifact-store mechanism
   behind `PORT-ARTIFACT`; its attested posture cannot silently downgrade a policy minimum.
 - **`EVR-ACCESS`:** evidence access is read-only through the operator interface and `PORT-PUBLISH`
-  projections, scoped to authorized readers; no reader path can mutate an artifact or its binding.
+  projections, scoped to the configured reader-principal set. Every read path binds to one such
+  principal or fails closed; no reader path can mutate an artifact or its binding.
 
 ## Retention and archival
 
@@ -105,8 +106,9 @@ unexpired audit requirement overrides the elapsed window and forbids disposal un
   obligation closes (I19); afterwards, policy retention classes govern each evidence kind.
 - **`EVR-ARCHIVE`:** archival relocates artifacts with digests unchanged; because identity is the
   digest (`EVR-DIGEST`), identity and verifiability survive relocation.
-- **`EVR-DISPOSE`:** destructive disposal is an explicit, owner-authorized retirement action with a
-  durable record; it is never a side effect of cleanup, compaction, or storage convenience.
+- **`EVR-DISPOSE`:** destructive disposal is the explicit owner-authorized `OPC-ART-DISPOSE`
+  retirement action. Its `EV-ARTIFACT-FACT` is digest-verified disposal evidence; it is never a
+  side effect of cleanup, compaction, or storage convenience.
 
 ## Terminal audit export
 
@@ -118,8 +120,9 @@ records outside the exported range, so neither is required to exist inside the b
 it reports. The bytes include the terminal-settlement position and manifest;
 their SHA-256 digest is `ID-EXPORT`. `OPC-ART-PUT` is create-once by that digest: recovery may
 verify an identical artifact or complete an absent write, but no path may replace existing bytes.
-The post-terminal ledger record stores the digest, size, covered range, redaction-policy version,
-and immutable store receipt. An unreadable or digest-mismatched export is an integrity failure and remains an
+The terminal-settlement Transition authorizes the create-once `OPC-ART-PUT`; its receipt returns as
+`EV-ARTIFACT-FACT` in the post-terminal administrative regime. The post-terminal ledger record
+stores the digest, size, covered range, redaction-policy version, and immutable store receipt. An unreadable or digest-mismatched export is an integrity failure and remains an
 explicit residual obligation; the system never silently regenerates different terminal bytes.
 
 ### View V13 — evidence dataflow

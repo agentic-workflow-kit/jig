@@ -143,7 +143,11 @@ again before delivery, `CP-TRANSITION` compares the Candidate's changed paths wi
 A touch is never ordinary implementation work: `EV-RULE-SURFACE-TOUCHED` parks the Run, records
 `FC-RULES`, invalidates the prior review package, verdict, acceptance, and evidence that depended
 on the previous rule surface, and requests owner approval of the exact replacement manifest plus
-fresh evidence and full review. Removing a path from the manifest is itself a rule-surface change.
+fresh evidence and full review. The exact `EV-OWNER-DECISION` closing that invalidating park takes
+every affected `Accepted`, `Waiting`, or `Finalizing` Story through its cataloged invalidation
+transition to `Reviewing`; it releases held finalization authority and creates a fresh
+`RP-PACKAGE` even if Candidate bytes did not change. Removing a path from the manifest is itself a
+rule-surface change.
 
 The envelope also freezes the Agent provider's exact native permission posture. Worker runtime
 actions allowed, automatically reviewed, or rejected by that posture remain internal to the Agent
