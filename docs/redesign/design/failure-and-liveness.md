@@ -58,11 +58,12 @@ Jig automatically fails closed for invalid or insufficient input, identity, auth
 subject, lifecycle position, evidence, durable recording, Candidate approval, effect certainty,
 target proof, landing proof, or shared trust.
 
-Arye or a recorded delegate within explicit scope is required to change policy or authority scope,
-revise a gate, accept a Residual Obligation, govern trust-root Recovery, choose a risk-bearing
-ambiguity, stop or replace a Run definition, approve otherwise unauthorized destructive cleanup, or
-import a governing promise. An owner decision may authorize investigation, safe stop, or residual
-handoff; it cannot turn missing evidence into a factual effect or landing claim.
+Arye is required to change policy or authority scope, revise a gate, import a governing promise,
+approve a product or architecture direction, or reopen a layer. A recorded delegate may only make
+the bounded operational decisions named by the exact current per-Run `ID-GRANT`, such as answering
+a parked operational question, Run stop/resume, notice action, Residual Obligation handling, or
+approved cleanup within that scope. An owner decision may authorize investigation, safe stop, or
+residual handoff; it cannot turn missing evidence into a factual effect or landing claim.
 
 ## Finite-scope liveness guarantee and assumptions
 

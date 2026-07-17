@@ -209,7 +209,9 @@ names. The start and end markers are the standard state-diagram entry and termin
 
 ## Authoritative transition ordering
 
-Every accepted trigger follows one invariant sequence:
+Every accepted trigger follows one invariant sequence. The ordered trigger in I4 is the committed
+`SCH-EVENT` sequence: `ID-EVENT` is minted from the Run-ledger position, replay consumes ledger
+commit order, and no arrival-time or provider-time ordering exists.
 
 1. validate its identity, role, exact subject, authority fence, capability, and current authoritative
    lifecycle position;

@@ -1,10 +1,10 @@
 ---
-title: "Forge and landing — delivery Operations, integration strategies, and landing proof"
-purpose: Define the delivery-port Operation set, the frozen integration strategies, the content-equivalence rules, and the landing-proof algorithm that turn an Accepted Candidate into a proven Landed outcome.
+title: "Forge and landing — delivery Operations, policy-selected integration modes, and landing proof"
+purpose: Define the delivery-port Operation set, the frozen policy-selected integration modes, the content-equivalence rules, and the landing-proof algorithm that turn an Accepted Candidate into a proven Landed outcome.
 audience:
   - Engineering, security, and operations readers
   - Arye Kogan, Jig product and architecture decision owner
-scope: Repository and forge Operations, integration strategies, content equivalence, landing-proof steps, held and blocked integrations, and landing-path redaction; acceptance, review protocol, finalization ordering, reconciliation internals, and provider transports are excluded.
+scope: Repository and forge Operations, policy-selected integration modes, content equivalence, landing-proof steps, held and blocked integrations, and landing-path redaction; acceptance, review protocol, finalization ordering, reconciliation internals, and provider transports are excluded.
 state: approved
 status: owner-approved complete product-readiness candidate of 2026-07-16; lock pending exact-candidate review
 owner: Arye Kogan
@@ -23,7 +23,7 @@ related:
   - ./scheduling-and-bounds.md
 ---
 
-# Forge and landing — delivery Operations, integration strategies, and landing proof
+# Forge and landing — delivery Operations, policy-selected integration modes, and landing proof
 
 This page consumes [D9 category 10](./decisions/D9-invariants-and-artifact-shape.md) (repository
 and forge Operations, merge strategies, content-equivalence rules, and landing-proof algorithms).
@@ -31,9 +31,11 @@ It realizes the Layer 1 landing-proof rule of
 [acceptance and evidence](./acceptance-and-evidence.md) and the serialized finalization of
 [concurrency and finalization](./concurrency-and-finalization.md): every message crosses
 `PORT-DELIVERY` from the [runtime architecture](./runtime.md). Two disjoint authority scopes use
-that port: D15 review publication is authorized directly by a recorded Story-lifecycle Transition,
-while every target-changing `OPC-DEL-*` remains under the single target-scoped `CP-FINALIZER` and
-its fence. Nothing here re-decides D6 or D7; only confirmed landing releases dependencies (I13).
+that port: D15 review publication is authorized directly by a recorded Story-lifecycle Transition.
+Landing and target-changing `OPC-DEL-*` intents are proposed only by `CP-FINALIZER` while it holds
+sole target authority; like every Operation, they are authorized only inside a recorded
+`CP-TRANSITION` Transition. Nothing here re-decides D6 or D7; only confirmed landing releases
+dependencies (I13).
 
 ## Review-publication Operation set
 
@@ -55,10 +57,11 @@ Publication is neither acceptance nor landing and cannot release dependencies.
 
 ## Finalization and landing Operation set
 
-A landing uses these finalizer-authorized delivery-port Operations. Their canonical catalog identities (`OPC-*`) are
-owned by the Layer 2 event and Operation catalog under D9 category 3; this page binds their
-delivery semantics. Every dispatch carries the durable Operation identity, payload basis, and
-authority fence from [operation identity and fencing](./state-and-recovery.md).
+A landing uses these delivery-port Operations, proposed only by `CP-FINALIZER` under sole target
+authority and authorized by their recorded Transition. Their canonical catalog identities
+(`OPC-*`) are owned by the Layer 2 event and Operation catalog under D9 category 3; this page binds
+their delivery semantics. Every dispatch carries the durable Operation identity, payload basis,
+and authority fence from [operation identity and fencing](./state-and-recovery.md).
 
 | ID                | Operation                         | Effect class                                            | Reconciliation lookup                                                                                                                                                                  |
 | ----------------- | --------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,24 +70,27 @@ authority fence from [operation identity and fencing](./state-and-recovery.md).
 | `OPC-DEL-REQUEST` | Open integration request          | Irreversible external effect                            | Recorded provider correlation key of the integration request; lookup by source and target refs when the key was never acknowledged.                                                    |
 | `OPC-DEL-STATUS`  | Surface Jig integration status    | Irreversible external effect                            | Integration-request identity plus a stable Jig status context; repeated publication updates that context idempotently.                                                                 |
 | `OPC-DEL-COMMENT` | Surface the Jig explanation block | Irreversible external effect                            | Integration-request identity plus a stable Jig marker; lookup edits the existing explanation block instead of appending duplicates.                                                    |
-| `OPC-DEL-OBSERVE` | Observe gate state                | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
+| `OPC-DEL-OBSERVE` | Observe gate state                | Observation                                             | A lost or replaced observation is newly authorized under a new Operation identity over the same exact gate subject.                                                                    |
 | `OPC-DEL-MERGE`   | Request merge                     | Irreversible external effect                            | Provider correlation key of the integration request, resolved by post-effect target observation, never by response alone.                                                              |
-| `OPC-DEL-OBSERVE` | Observe target                    | Observation                                             | Re-observation by Operation identity; repeatable without external effect.                                                                                                              |
+| `OPC-DEL-OBSERVE` | Observe target                    | Observation                                             | A lost or replaced observation is newly authorized under a new Operation identity over the same exact target subject.                                                                  |
 
 `OPC-DEL-OBSERVE` appears in two rows deliberately: gate-state observation and target observation
 are two delivery uses of the one observation Operation class in the
 [Operation catalog](./lifecycle-catalogs.md).
 
 An uncertain irreversible effect is reconciled through its lookup before any second semantic
-attempt (I17); observations are always safe to repeat. Remote-gate states observed through
+attempt (I17); an observation replacement is effect-free but always a new authorized Operation.
+Remote-gate states observed through
 `OPC-DEL-OBSERVE` are attested external facts per
 [remote-gate observation](./review-and-verification-execution.md).
 
-## Integration strategies
+## Policy-selected integration modes
 
-The target integration method is configured in the envelope and **frozen per Run**; the provider
-cannot select or substitute a strategy at delivery time. Each strategy defines the result shape
-the landing proof must resolve and the content-equivalence rule it must apply.
+The target integration mode is expressed in policy, composed against repository floors, and
+**frozen per Run** with the rest of policy. A repository floor may forbid weaker modes, and policy
+composition can only preserve or strengthen the selected mode. Configuration and providers cannot
+lower, change, or substitute it at delivery time. Each mode defines the result shape the landing
+proof must resolve and the content-equivalence rule it must apply.
 
 | Strategy            | Expected result shape                                                             | `LP-EQUIV` rule                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -141,7 +147,7 @@ a wake condition, under a wait budget class defined in
 [scheduling and bounds](./scheduling-and-bounds.md) with an explicit exhaustion action (I16).
 Replays after interruption **re-observe** the held integration through its correlation key rather
 than re-requesting the merge (I17). For a post-acceptance held integration, Jig uses the
-finalizer-authorized `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`. For a `Blocked` Story that never reached
+`CP-FINALIZER`-proposed, Transition-authorized `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`. For a `Blocked` Story that never reached
 acceptance/finalization, a recorded Transition may instead use the D15 `OPC-REV-*` set against an
 existing exact Candidate and draft request. Both paths use stable status context and comment
 markers; neither can rewrite the recorded business outcome.
@@ -223,7 +229,8 @@ sequenceDiagram
     end
 ```
 
-**V15 legend:** Solid arrows are finalizer-authorized effects or requests dispatched through
+**V15 legend:** Solid arrows are effects or requests proposed by `CP-FINALIZER` under sole target
+authority, authorized in a recorded Transition, and dispatched through
 `PORT-DELIVERY`, or the delivery mechanism acting on the authoritative target; dashed arrows are
 the attestations the mechanism returns. Notes over the controller mark durable authority,
 reconciliation, and recorded decisions; every recorded decision commits to the ledger before the

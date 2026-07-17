@@ -62,6 +62,7 @@ stateDiagram-v2
     state "Waiting for finalization" as Waiting
     state "Finalizing" as Finalizing
     state "Refreshing target, ownership retained" as Refreshing
+    state "Refreshing parked, target instability" as RefreshPark
     state "Landed" as Landed
     state "Directly Blocked" as Blocked
     state "Rejected by owner" as Rejected
@@ -85,7 +86,7 @@ stateDiagram-v2
     Waiting --> Finalizing: EV-WAKE-AUTHORITY, sole target authority acquired, new auth ordinal (I12)
     Finalizing --> Refreshing: EV-TARGET-FACT, target basis advanced, bounded refresh (D6)
     Refreshing --> Reviewing: EV-WORKSPACE-FACT, aligned. Any basis change invalidates prior verdicts and re-enters full review, with atomic authority rebinding when the Candidate changed (D6, D7)
-    Refreshing --> Blocked: refresh bound exhausted on the failing trigger (FC-BOUND)
+    Refreshing --> RefreshPark: BND-REFRESH exhausted, park with escalation naming target instability (FC-BOUND)
     Accepted --> Finalizing: EV-SESSION-VERDICT, re-approval while finalization authority is retained after a bounded refresh (D6, I12)
     Finalizing --> Reworking: EV-CHECK-OBSERVATION, policy-required check failed, authority released, bounded rework (I9, D6)
     Finalizing --> Blocked: EV-CHECK-OBSERVATION, required-check failure with rework bound exhausted (FC-BOUND)
@@ -99,6 +100,7 @@ stateDiagram-v2
     Waiting --> Rejected: EV-OWNER-DECISION, exact Story-bound reject-story choice
     Finalizing --> Rejected: EV-OWNER-DECISION, release authority and reject
     Refreshing --> Rejected: EV-OWNER-DECISION, release authority and reject
+    RefreshPark --> Rejected: EV-OWNER-DECISION, release authority and reject
     Landed --> Retiring: EV-LANDING-OBSERVED, same Transition releases dependents first (I13, I18)
     Blocked --> Retiring: recorded with the blocking event, preservation-safe Retirement begins (I19)
     Rejected --> Retiring: recorded with the owner decision, preservation-safe Retirement begins (I19)
@@ -124,13 +126,17 @@ stateDiagram-v2
     classDef substate fill:#fce8e6,stroke:#a7615b,color:#172033
     classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
     class Pending,Eligible,Preparing,Implementing,Reviewing,Accepted,Waiting,Finalizing phase
-    class Reworking,Refreshing substate
+    class Reworking,Refreshing,RefreshPark substate
     class Landed,Blocked,Rejected,NotRun,Retiring,Closed outcome
 ```
 
 **V9 legend:** Every node is a Story state; yellow nodes are the unchanged V3b phases, red nodes the
 two Layer 2 substates this page adds (bounded rework iteration and bounded target refresh), and
-green nodes business outcomes and Retirement. `Rejected` is legal only for a Jig-originated,
+green nodes business outcomes and Retirement. `RefreshPark` is the non-terminal parked branch
+required by `BND-REFRESH`: it retains Story ownership, releases no dependents, and names target
+instability in a live Story-bound `ID-PARK`, so the canonical product projection is `parked`. It
+does not renew the exhausted bound; further work requires an explicit owner resolution such as
+rejection or successor-Run replanning. `Rejected` is legal only for a Jig-originated,
 Story-bound parked request that explicitly offered `reject-story`; declining an Agent-provider
 permission or question never rejects the Story. The decision records `ID-PARK`, `ID-STORY`, the
 underlying state, request and decision reasons, responder principal/grant, authorizing Transition,
@@ -152,8 +158,22 @@ comparator.
 
 ## Event catalog
 
-Durable trigger event types. Every event is validated by `CP-MEDIATOR` at its port before it can
-become a trigger (I7); wake triggers are typed durable records, never bare timers.
+Durable trigger event types. An event has no `ID-EVENT`, ordering position, or effect before
+boundary validation accepts it and `CP-TRANSITION` commits its `SCH-EVENT` atomically inside the
+same `LG-RECORD` as the resulting `SCH-TRANSITION`. That commit mints
+`<run>/event/<ledger position>`; **ledger commit order is the sole trigger order** used by I4 and
+replay, with no arrival-time, provider-time, or secondary ordering. Mediated port events are
+validated by `CP-MEDIATOR`; intake follows its preflight/commit boundary, and controller-derived
+wakes follow the same Transition commit path (I7). Wake triggers are typed durable records, never
+bare timers.
+
+Every externally produced input at `PORT-INTAKE`, `PORT-SESSION`, `PORT-WORKSPACE`, `PORT-VERIFY`,
+`PORT-DELIVERY`, `PORT-SOURCE`, or `PORT-DECIDE` carries a producer-scoped deduplication key
+normalized for that family from provider/principal identity, attempt ordinal, exact subject, and
+validated content digest. At validation, a duplicate key resolves to the existing event identity
+(or the existing pre-Run `ID-SOURCE-REQ` result for `PORT-SOURCE`) and commits nothing new.
+Controller-derived wake triggers are deduplicated by their derivation basis: event type, exact
+subject, causal ledger positions, and bound/wake-condition digest.
 
 | ID                              | Source group              | Producer                              | Subject kind                 | Validation it must pass                                                                                                                                                                                                                                                                                        |
 | ------------------------------- | ------------------------- | ------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -186,25 +206,27 @@ become a trigger (I7); wake triggers are typed durable records, never bare timer
 
 ## Operation catalog
 
-Authorized Operation types per port. Reconciliation obligation classes: **re-issue safe** (a
-reversible observation may simply be repeated), **identity lookup** (existence is checked by the
-durable Operation identity before any repeat), and **certainty reconciliation** (the effect must
-resolve to confirmed present or confirmed absent, or park — no second semantic attempt before
-reconciliation, I17).
+Authorized Operation types per port. Reconciliation obligation classes: **new observation
+Operation** (an effect-free observation may be replaced without effect reconciliation, but only by
+a newly authorized `ID-OP` over the same exact subject), **identity lookup** (existence is checked
+by the durable Operation identity before any repeat), and **certainty reconciliation** (the effect
+must resolve to confirmed present or confirmed absent, or park — no second semantic attempt before
+reconciliation, I17). Same-identity retry exists only for an effectful Operation after
+`ConfirmedAbsent`, under a recorded reauthorization with the current fence.
 
 | ID                    | Port             | Operation                                                         | Effect class                                    | Reconciliation obligation                                                                                                                                                                                                                                                         |
 | --------------------- | ---------------- | ----------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPC-SESSION-OPEN`    | `PORT-SESSION`   | Open a bounded role session                                       | Irreversible effect (resource)                  | Identity lookup, then adopt or retire the found session.                                                                                                                                                                                                                          |
 | `OPC-SESSION-ASSIGN`  | `PORT-SESSION`   | Assign bounded role work                                          | Irreversible effect                             | Certainty reconciliation.                                                                                                                                                                                                                                                         |
-| `OPC-SESSION-COLLECT` | `PORT-SESSION`   | Collect attributable results and verdicts                         | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                                                                                    |
+| `OPC-SESSION-COLLECT` | `PORT-SESSION`   | Collect attributable results and verdicts                         | Effect-free observation                         | A lost or replaced observation is a new authorized Operation over the same exact subject.                                                                                                                                                                                         |
 | `OPC-SESSION-RESPOND` | `PORT-SESSION`   | Return one scoped Doorbell answer to its durable provider request | Irreversible session interaction                | Lookup by `ID-PARK`, then resolve the session currently bound to the originating principal/assignment. Delivery is idempotent by request/answer identity; same-session resume, same-principal replacement, and cancel-and-reissue lineage are explicit, and posture cannot widen. |
 | `OPC-SESSION-CLOSE`   | `PORT-SESSION`   | Close a session                                                   | Irreversible effect                             | Identity lookup; idempotent by session identity.                                                                                                                                                                                                                                  |
 | `OPC-WS-PROVISION`    | `PORT-WORKSPACE` | Provision isolated workspace resources                            | Irreversible effect (resource)                  | Identity lookup.                                                                                                                                                                                                                                                                  |
 | `OPC-WS-SETUP`        | `PORT-WORKSPACE` | Apply the frozen setup recipe when stale                          | Irreversible workspace effect                   | Identity lookup by recipe/input/host fingerprint; an exact fresh receipt makes the Operation a no-op.                                                                                                                                                                             |
-| `OPC-WS-OBSERVE`      | `PORT-WORKSPACE` | Observe content, basis, cleanliness                               | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                                                                                    |
+| `OPC-WS-OBSERVE`      | `PORT-WORKSPACE` | Observe content, basis, cleanliness                               | Effect-free observation                         | A lost or replaced observation is a new authorized Operation over the same exact subject.                                                                                                                                                                                         |
 | `OPC-WS-PRESERVE`     | `PORT-WORKSPACE` | Preserve work and evidence                                        | Irreversible effect                             | Identity lookup; required before any destruction (I19).                                                                                                                                                                                                                           |
 | `OPC-WS-RETIRE`       | `PORT-WORKSPACE` | Retire or hand off resources                                      | Irreversible effect (destructive)               | Certainty reconciliation; never dispatched before preservation.                                                                                                                                                                                                                   |
-| `OPC-VERIFY-EXECUTE`  | `PORT-VERIFY`    | Execute policy-selected checks on exact subject                   | Effect-free by enforced contract                | Re-issue safe because external effects are prohibited. A check needing an external effect is outside `PORT-VERIFY` and must be a separately authorized workspace/delivery Operation or a future decision.                                                                         |
+| `OPC-VERIFY-EXECUTE`  | `PORT-VERIFY`    | Execute policy-selected checks on exact subject                   | Effect-free by enforced contract                | A lost or replaced check is a new authorized Operation over the same exact subject. A check needing an external effect is outside `PORT-VERIFY` and must be a separately authorized workspace/delivery Operation or a future decision.                                            |
 | `OPC-REV-PUBLISH`     | `PORT-DELIVERY`  | Publish the exact Candidate to a dedicated review ref             | Irreversible external effect                    | Certainty reconciliation by Operation identity, exact review ref, and Candidate digest.                                                                                                                                                                                           |
 | `OPC-REV-REQUEST`     | `PORT-DELIVERY`  | Open or update a draft, non-mergeable integration request         | Irreversible external effect                    | Identity lookup by stable Jig request marker plus source/target refs; the request must remain draft and non-mergeable.                                                                                                                                                            |
 | `OPC-REV-STATUS`      | `PORT-DELIVERY`  | Create or update Jig review status                                | Irreversible external effect                    | Identity lookup by request and stable Jig status context; updates are idempotent.                                                                                                                                                                                                 |
@@ -215,9 +237,9 @@ reconciliation, I17).
 | `OPC-DEL-STATUS`      | `PORT-DELIVERY`  | Create or update the Jig status on a request                      | Irreversible external effect                    | Identity lookup by request and stable Jig status context; updates are idempotent.                                                                                                                                                                                                 |
 | `OPC-DEL-COMMENT`     | `PORT-DELIVERY`  | Create or update the Jig explanation block                        | Irreversible external effect                    | Identity lookup by request and stable Jig marker; edit the existing block rather than append duplicates.                                                                                                                                                                          |
 | `OPC-DEL-MERGE`       | `PORT-DELIVERY`  | Request target integration or merge                               | Irreversible effect                             | Certainty reconciliation; indeterminate parks.                                                                                                                                                                                                                                    |
-| `OPC-DEL-OBSERVE`     | `PORT-DELIVERY`  | Observe target, gates, and landing                                | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                                                                                    |
+| `OPC-DEL-OBSERVE`     | `PORT-DELIVERY`  | Observe target, gates, and landing                                | Effect-free observation                         | A lost or replaced observation is a new authorized Operation over the same exact subject.                                                                                                                                                                                         |
 | `OPC-ART-PUT`         | `PORT-ARTIFACT`  | Put an immutable evidence or audit artifact                       | Irreversible effect (idempotent by digest)      | Identity lookup by digest.                                                                                                                                                                                                                                                        |
-| `OPC-ART-GET`         | `PORT-ARTIFACT`  | Digest-verified artifact read                                     | Reversible observation                          | Re-issue safe.                                                                                                                                                                                                                                                                    |
+| `OPC-ART-GET`         | `PORT-ARTIFACT`  | Digest-verified artifact read                                     | Effect-free observation                         | A lost or replaced read is a new authorized Operation over the same exact artifact subject.                                                                                                                                                                                       |
 
 Entering `Reviewing` may authorize the initial `OPC-REV-*` intents, and a Transition recording
 `Blocked` may authorize safe surfacing intents for an existing exact Candidate. Publication success
@@ -260,37 +282,52 @@ stateDiagram-v2
     state "Confirmed effect" as ConfirmedEffect
     state "Confirmed absent" as ConfirmedAbsent
     state "Indeterminate, parked" as Indeterminate
+    state "Superseded by replacement" as Superseded
+    state "Cancelled, durably recorded" as Cancelled
 
     [*] --> Intended: intent committed with its authorizing Transition (I5)
     Intended --> Dispatched: dispatched after confirmed commit with its fence tuple
+    Intended --> Superseded: replacement authorization records a new ID-OP before dispatch
+    Intended --> Cancelled: fence loss, Run suspension, or terminal stop before dispatch
     Dispatched --> Result: attested result passes fence and subject validation
     Dispatched --> Failure: attested failure passes validation, FC class recorded
-    Dispatched --> Uncertain: lost, late, or unverifiable outcome (FC-EFFECT)
+    Dispatched --> Uncertain: effectful outcome lost, late, or unverifiable (FC-EFFECT)
+    Dispatched --> Superseded: effect-free execution lost, replacement authorized under new ID-OP
+    Dispatched --> Cancelled: fence or stop, provider proves no effect or observation began
     Uncertain --> Reconciling: reconciliation begins, no second semantic attempt (I17)
     Reconciling --> ConfirmedEffect: external state proves the effect, factual result adopted
-    Reconciling --> ConfirmedAbsent: absence proven, policy may authorize bounded retry with the same identity
+    Reconciling --> ConfirmedAbsent: absence proven
     Reconciling --> Indeterminate: reconciliation bound exhausted, parked for EV-OWNER-DECISION
+    ConfirmedAbsent --> Dispatched: effectful only, recorded reauthorization permits bounded same-identity retry (F6)
+    ConfirmedAbsent --> Superseded: replacement authorization records a new ID-OP
     Result --> [*]
     Failure --> [*]
     ConfirmedEffect --> [*]
-    ConfirmedAbsent --> [*]
+    ConfirmedAbsent --> [*]: no further Operation authorized
     Indeterminate --> [*]
+    Superseded --> [*]
+    Cancelled --> [*]
 
     classDef phase fill:#fff7df,stroke:#a8781f,color:#172033
     classDef outcome fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef exception fill:#fce8e6,stroke:#a7615b,color:#172033
     class Intended,Dispatched phase
-    class Result,ConfirmedEffect,ConfirmedAbsent outcome
+    class Result,ConfirmedEffect,ConfirmedAbsent,Superseded,Cancelled outcome
     class Failure,Uncertain,Reconciling,Indeterminate exception
 ```
 
 **V9a legend:** Yellow nodes are the normal dispatch path, green nodes settled outcomes (an attested
-result, a reconciled confirmed effect, or confirmed absence), and red nodes failure and uncertainty
-handling. Color is redundant with the state names. Transition labels name the condition and, in
-parentheses, the governing invariant, decision, or failure-code class. A retry after confirmed
-absence reuses the same Operation identity and payload basis under a newly recorded reauthorization
-whose fence refreshes current `ID-GEN` and, where reacquired, `ID-AUTH`/`ID-REGISTRY`. Retaining a
-stale fence is `FC-FENCE`, never a legal redispatch. `FC` abbreviates the failure-code classes below.
+result, a reconciled confirmed effect or absence, durable supersession, or durable cancellation),
+and red nodes failure and uncertainty handling. `Superseded` means a recorded replacement
+authorization created a new `ID-OP`; `Cancelled` means fencing or a Run suspend/terminal-stop
+durably ended an Operation before dispatch or while a provider proved it was still recoverably
+pending. Silence is neither state. Color is redundant with the state names. Transition labels name
+the condition and, in parentheses, the governing invariant, decision, or failure-code class. Only
+an effectful Operation may retry after confirmed absence under the same identity and payload basis,
+and only under a newly recorded reauthorization whose fence refreshes current `ID-GEN` and, where
+reacquired, `ID-AUTH`/`ID-REGISTRY`. An effect-free observation replacement always uses a new
+identity. Retaining a stale fence is `FC-FENCE`, never a legal redispatch. `FC` abbreviates the
+failure-code classes below.
 
 ## Failure-code taxonomy
 

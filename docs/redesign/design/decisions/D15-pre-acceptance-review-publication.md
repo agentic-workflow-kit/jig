@@ -57,9 +57,10 @@ Add a bounded **review-publication capability** on `PORT-DELIVERY`:
   cannot release dependencies; and
 - each external effect is idempotent or discoverable by its stable marker and reconciles under I17.
 
-All target-changing and landing Operations remain exclusively `CP-FINALIZER`-authorized under D6
-and D7 after acceptance. This decision adds no reviewer-less acceptance mode and changes no D7
-acceptance substance.
+After acceptance, all target-changing and landing Operations are proposed only by `CP-FINALIZER`
+while it holds sole target authority under D6 and D7; like every Operation, they are authorized
+only inside a recorded `CP-TRANSITION` Transition. This decision adds no reviewer-less acceptance
+mode and changes no D7 acceptance substance.
 
 ## Rationale and benefits
 

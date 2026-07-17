@@ -6,9 +6,9 @@ audience:
   - Independent architecture reviewers
 scope: Question traceability, archive reconciliation, gate evidence, prior review records, and the current approval state; decision content lives in the decision records and design pages.
 state: current
-status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; the owner explicitly reopened only the F1/F2/F4/F6/F13-affected contracts on 2026-07-17 for readiness remediation
+status: historical Layer 1 gate record — PASS activated the 2026-07-15 lock; bounded 2026-07-17 reopens cover the recorded F1/F2/F4/F6/F13 corrections and the D3/D10 amendments
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../AGENTS.md
@@ -35,13 +35,15 @@ related:
   G-R10 effect makes the recorded Layer 1 approval and lock effective without a separate
   owner-selection step. The `PASS` approves faithful organization and re-expression only; it
   selected and changed no architecture.
-- **2026-07-17 bounded reopen:** The final readiness review failed on 13 findings. Arye explicitly
-  authorized the named F1, F2, F4, F6, and F13 corrections where they propagate through D4, D6,
-  D8, I14, and dependent Layer 1 views. On 2026-07-17 Arye also recorded the controlling
-  interpretation of D3's delegation language: grants are operational-only; product/architecture
-  imports or approval, gate verdicts, and layer reopens are non-delegable. D3 bytes remain
-  unchanged. All other Layer 1 decisions remain locked; the
-  revised exact candidate requires renewed independent review under the product-readiness gate.
+- **2026-07-17 bounded reopens:** The first final-readiness review authorized the named F1, F2,
+  F4, F6, and F13 corrections where they propagate through D4, D6, D8, I14, and dependent Layer 1
+  views. After the second independent readiness review rejected interpretation at a distance,
+  Arye explicitly reopened and amended D3 so its canonical bytes reserve imports, approvals, gate
+  verdicts, and layer reopens to Arye while limiting delegates to exact per-Run operational
+  `ID-GRANT` scope. He also explicitly reopened and amended D10 from nine to ten named ports and
+  recorded `PORT-CONSUMER` as a private facade with no authority crossing of its own. All other
+  Layer 1 decisions remain locked; the revised exact candidate requires renewed independent review
+  under the product-readiness gate.
 - **Post-verdict record-keeping:** Recording the verdict in this gate record and refreshing the
   [design index](../README.md) gate table are gate record-keeping over the unchanged reviewed
   content; the reviewed baseline and hashes below identify the exact locked candidate. Individual

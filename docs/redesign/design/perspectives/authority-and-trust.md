@@ -81,9 +81,10 @@ attestations and any accepted owner decision as inputs to its next deterministic
 8. Trust-root recovery is externally governed. Jig makes no autonomous safety, reconstruction,
    no-double-effect, or terminal-truth guarantee after the governing history or decision authority
    becomes untrustworthy.
-9. A duplicate-safe redispatch preserves the Operation identity and payload basis but requires a
-   fresh recorded authorization under the current controller and, where applicable, finalization
-   fence. Retaining a stale fence is rejected as `FC-FENCE`.
+9. Only an effectful Operation proven absent may be retried with the same identity and payload
+   basis, and it requires a fresh recorded authorization under the current controller and, where
+   applicable, finalization fence. An effect-free replacement receives a new Operation identity.
+   Retaining a stale fence is rejected as `FC-FENCE`.
 10. Concrete bound values are owner-visible frozen-policy choices made by the policy author during
     envelope composition. Providers may enforce a narrower posture but cannot widen those values.
 

@@ -192,11 +192,13 @@ SHA-256 digests below are the durable identification of the exact reviewed conte
      session with provenance across reconnection and replacement; a reviewer principal that
      contributed to the Candidate in any session is rejected (data-and-identity,
      review-and-verification-execution, mechanism-and-provider-contracts, lifecycle-catalogs).
-  6. **Arbitrary checks classed re-issue safe:** verification execution is effect-free by enforced
-     contract (`CB-VERIFY`: read-only subject, discarded scratch, zero egress). The former proposal
-     to classify a verification check with external effects as irreversible is superseded by the
-     2026-07-17 F9 prohibition: such a check is outside `PORT-VERIFY` and requires a separately
-     authorized workspace/delivery Operation or a future decision.
+  6. **Arbitrary checks classed effect-free:** verification execution is effect-free by enforced
+     contract (`CB-VERIFY`: read-only subject, discarded scratch, zero egress). A lost observation
+     is replaced by a newly authorized Operation with a new identity and requires no effect
+     reconciliation. The former proposal to classify a verification check with external effects
+     as irreversible is superseded by the 2026-07-17 F9 prohibition: such a check is outside
+     `PORT-VERIFY` and requires a separately authorized workspace/delivery Operation or a future
+     decision.
   7. **Mediator did not cover storage ports:** `PORT-ARTIFACT` now routes through `CP-MEDIATOR`;
      `PORT-LEDGER` is an explicit, narrowly recorded exception whose equivalent validation lives
      in the commit protocol and verified reads (control-plane, runtime,

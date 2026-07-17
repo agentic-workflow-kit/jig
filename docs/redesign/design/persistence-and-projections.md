@@ -153,6 +153,21 @@ the single-host reference realization it is a host-scoped directory beside the R
 A target no configured registry can arbitrate is unarbitrated, and preflight rejects a Run that
 would need to finalize against it (QS4, I12).
 
+The registry protocol is the total-order arbiter selected by D6; there is no global scheduler:
+
+- every acquisition attempt conditionally appends a waiter record carrying the Run, Story,
+  Candidate basis, eligibility facts, and complete D6/`C-ORDER` comparator tuple;
+- for one `ID-TARGET`, a grant may be conditionally appended only for the comparator-least eligible
+  recorded waiter, and both grant and release are conditional appends against the registry head;
+- when a bounded refresh changes the Candidate, **atomic authority rebinding** is one registry
+  conditional-append record that simultaneously releases the old Candidate binding and reacquires
+  authority for the new Candidate digest with a new `ID-AUTH` ordinal. No intermediate unowned
+  state is observable or eligible for another grant; and
+- recovery re-reads and verifies the registry before trusting the Run-ledger mirror. If the two
+  disagree, reconciliation is registry-first because the registry is the cross-Run authority of
+  record for target authority; the repaired Run-ledger mirror remains audit evidence, never a
+  competing arbiter.
+
 ## Snapshots and projections
 
 - A snapshot (`LG-SNAPSHOT`) is a **verified projection**, not a second authority. It carries the

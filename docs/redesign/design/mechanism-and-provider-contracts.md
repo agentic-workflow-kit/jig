@@ -164,8 +164,10 @@ reissues the request with lineage. The provider, not Jig, enforces or consumes t
 
 Verification sessions remain stricter because they are Jig-authorized verification mechanisms,
 not worker-runtime actions: `CB-VERIFY` enforces zero external effects/network egress, a read-only
-subject view, and discarded scratch. Effect-freedom licenses re-issuing a lost check response
-without reconciliation (I17); a check requiring external effects is outside `PORT-VERIFY`.
+subject view, and discarded scratch. Effect-freedom means no effect reconciliation is needed, but a
+lost or replaced check is always a **new authorized Operation with a new `ID-OP`** over the same
+exact subject; same-identity retry is reserved for effectful Operations after confirmed absence
+under recorded reauthorization. A check requiring external effects is outside `PORT-VERIFY`.
 
 ## Provider-specific realization duties
 
@@ -180,6 +182,30 @@ suite before a provider becomes configurable.
 | Delivery (`PORT-DELIVERY`)              | Review and landing effects are idempotent/discoverable; request status and explanations use stable markers; the target lineage anchor is atomic conditional-create.                                                                                                                                                                                                | Every uncertain effect is looked up before another semantic attempt; surfacing failure preserves the outcome. A review binding requesting merge, anchor access, target mutation, `ID-AUTH`, landing, or `OPC-DEL-*` is rejected. | Connection loss never re-fires an effect; replacement dispatch reconciles first and cannot cross from `CB-REVIEW-PUBLICATION` to `CB-DELIVERY`.                                                    |
 | Storage (`PORT-LEDGER`/`PORT-ARTIFACT`) | Conditional appends are decided by expected position; an unknown commit acknowledgement is resolved by reading the position. Registry storage attests the canonical realization descriptor used to derive `ID-REGISTRY`, and a mismatch fails preflight. Witness lines advance durably before append acknowledgement and are readable independently of the ledger. | Digest-verified reads answer whether a record or artifact exists; repair or migration only as new authorized Operations.                                                                                                         | A storage reconnection replays no writes; the append condition, content digests, and witness heads make duplicate application and rollback detectable.                                             |
 | Work Source (`PORT-SOURCE`)             | `ID-SOURCE-REQ`, request basis, item key, cursor/revision, content digest, and provenance are repeatably discoverable; same-request retries retain identity.                                                                                                                                                                                                       | A changed revision/content tuple creates a new result and envelope candidate; mutation is forbidden. `BND-RETRY` exhaustion fails envelope production before any Run exists.                                                     | Reconnection resumes from the recorded cursor/revision or reports loss; no source session reaches active-Run state.                                                                                |
+
+### Execution Host inside the workspace provider family
+
+The workspace provider realizes the independently swappable **Execution Host** seam in v1; this is
+an explicit provider-family seam inside `PORT-WORKSPACE`, not a new port or runtime authority. Its
+contract adds these host duties:
+
+- **Host identity:** every setup and workspace attestation carries the workspace/host identity and
+  host fingerprint already bound by `SCH-SETUP-RECEIPT`; process replacement preserves that exact
+  durable workspace/host identity and fingerprint. A different host identity is a provider-manifest
+  swap that must requalify, not a replacement hidden under the existing receipt.
+- **Native-posture enforcement:** the host enforces the Agent provider's exact selected native
+  permission posture — filesystem, command, approval-review, network, and subprocess semantics —
+  as declared in the frozen manifest. A host unable to enforce it fails preflight closed (SEC-2).
+- **Process and replacement:** the host starts and supervises the declared mechanism processes. A
+  lost host process is replaced against the durable workspace, revalidating basis, setup freshness,
+  manifest, and posture before any dispatch; loss never creates a second workspace or authority.
+- **Manifest-level swappability:** a different Execution Host provider is a different
+  `ID-MANIFEST` subject and becomes configurable only after passing the same workspace/host
+  conformance suite. No design, port, or controller change is permitted for the swap.
+
+The workspace provider manifest therefore names both workspace mechanics and the exact Execution
+Host realization. Bundling them in one provider family does not collapse their independently
+reviewable duties or let host identity become ambient configuration.
 
 ## Conformance gating
 

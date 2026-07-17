@@ -152,7 +152,8 @@ Verification execution is **effect-free by enforced contract**, not by conventio
 capability binding confines checks to a read-only view of the checkout, a writable scratch area
 that is discarded, and zero network egress by default
 ([mechanism and provider contracts](./mechanism-and-provider-contracts.md)); this is what makes a
-lost check response safe to re-issue without effect reconciliation (I17). A check class that
+lost check response safe to replace with a newly authorized Operation and new `ID-OP`, without
+effect reconciliation (I17). A check class that
 genuinely requires an external effect is outside `PORT-VERIFY`. It must instead be modeled as a
 separately authorized workspace or delivery Operation under that port's own authority, or deferred
 to a future D-record — never silently run as an "observation". Observations return as attestations:

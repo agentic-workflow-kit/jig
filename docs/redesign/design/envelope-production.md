@@ -47,20 +47,22 @@ its own proposal on the owner's behalf, or mutate an accepted Run.
 | `EP-SETUP`     | Validate the declared workspace setup recipe, its input-fingerprint rule, and its required authority.                                                                                                | The builder declares setup; execution remains an authorized `PORT-WORKSPACE` Operation.                                                        |
 | `EP-GUIDANCE`  | Offer versioned presets and explanations for policy, work profile, provider posture, and setup.                                                                                                      | Guidance is never authority and never becomes a hidden default.                                                                                |
 | `EP-COMPOSE`   | Produce the canonical composition report and digest over every resolved input.                                                                                                                       | Any input change creates a new proposal and digest.                                                                                            |
-| `EP-APPROVE`   | Present the exact proposal to the owner and bind the recorded approval to its digest and scope.                                                                                                      | Only the owner or an authorized configuration delegate may approve; the builder never self-approves.                                           |
+| `EP-PREVIEW`   | Run the identical composition and preflight-validation path and produce a read-only report of what would run, composed policy, bounds, capacity feasibility, and failures.                           | Preview mints no `ID-RUN`, appends no ledger or `LG-INTAKE` record, dispatches nothing, and creates no submission-time preflight entitlement.  |
+| `EP-APPROVE`   | Present the exact proposal to Arye and bind his recorded approval to its digest and scope.                                                                                                           | Pre-Run envelope/configuration approval is reserved to Arye in v1; the builder never self-approves and no pre-Run grant identity exists.       |
 | `EP-SUBMIT`    | Submit the approved `SCH-ENVELOPE` through `PORT-INTAKE`, using its composition digest as submission identity, and retain or recover `SCH-INTAKE-ACK`.                                               | Same-digest resubmission returns the existing acknowledgement/`ID-RUN`; a different digest is new. Submission never implies preflight success. |
 
 ## Canonical input composition
 
 The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 
-1. track identity and the exact approved execution-plan digest;
-2. repo-policy-floor digest, track-policy digest, and their deterministic composition report;
+1. track identity, exact `SCH-PLAN` content, and its approved plan digest;
+2. repo-policy-floor digest, track-policy digest, policy-selected integration mode, and their
+   deterministic composition report;
 3. the named work-profile digest and every referenced prompt/role artifact digest;
 4. provider identities, capability requirements, approved authority-manifest digests, the exact
    Agent-provider native permission-posture reference and declared semantics, and qualifying
    conformance-evidence references;
-5. target, integration strategy, capacity, storage, and other validated configuration;
+5. target, capacity, storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and
 7. owner approval identity, scope, and proposal digest.
 
@@ -68,6 +70,36 @@ There is no ambient fallback. An omitted required artifact, unknown version, unv
 provenance, floor violation, changed authority manifest, or unbound reference makes the proposal
 invalid. `PORT-INTAKE` independently validates the submitted envelope and freezes its digest; it
 does not trust the builder's success claim.
+
+### Plan validation
+
+`SCH-PLAN` is Jig's design-owned, non-delegable hard-input contract. Under the Envelope Builder's
+proposal authority, `EP-COMPOSE` validates before approval that:
+
+- the dependency graph is acyclic;
+- every dependency edge names existing stable Story keys, with no dangling Story reference;
+- every per-Story done condition is well formed and references a check class present in the exact
+  frozen policy; and
+- the plan resolves to exactly one track and that track's policy reference.
+
+Any failure makes the proposal invalid and fails preflight closed. Engineering may select the wire
+encoding and serialization, but it may not change these fields or validation rules. The envelope
+freezes the approved plan digest, binding the validated `SCH-PLAN` content to the Run basis.
+
+### Effect-free preview
+
+Preview is an `EP-PREVIEW` invocation of the Envelope Builder, exposed to first-party consumers
+through `PORT-CONSUMER`; it is not a `PORT-INTAKE` call. The Builder executes the identical input
+resolution, composition, and preflight-validation path — including plan validation, provider
+qualification, bound evaluation, and capacity feasibility — used to prepare a submission. It
+returns a read-only report showing what would run, the composed policy (including the
+policy-selected integration mode), selected bounds, capacity feasibility, and every validation
+failure.
+
+Preview mints no `ID-RUN`, appends nothing to `LG-INTAKE` or any ledger, dispatches no Operation,
+and changes no external state. A successful preview is not submission-time preflight success: the
+world, source revision, provider proof, capacity, target, or policy-floor basis may change between
+preview and start, and `PORT-INTAKE` independently validates the later approved envelope.
 
 ### Intake idempotency
 
@@ -82,7 +114,9 @@ approval.
 The split is structural rather than editorial:
 
 - **Policy** owns governance: acceptance and review strength, authority categories, anti-gaming
-  floors, escalation posture, confinement minima, required checks, capacity maxima, and bounds.
+  floors, escalation posture, confinement minima, required checks, the integration/merge-spectrum
+  mode, capacity maxima, and bounds. Repository-floor composition may forbid weaker integration
+  modes and can only preserve or strengthen the track-policy selection.
 - **Work profile** owns realization: agent/model selection, effort and cost posture, versioned
   prompt strategy, and the participant/provider realization of implementer and reviewer roles.
 
@@ -90,6 +124,10 @@ The composition report proves that no work-profile field is consulted as a safet
 When a work-profile choice cannot satisfy policy — for example a provider lacks a required
 capability or independent reviewer principal — the envelope fails before Run creation instead of
 silently reducing the requirement.
+
+Configuration and providers cannot lower, replace, or reinterpret the policy-selected integration
+mode. A future delegate-approval model for pre-Run envelopes is explicitly deferred; it has no
+authority in this candidate. `ID-GRANT` remains per-Run and operational-only.
 
 ## Guided setup and presets
 
@@ -156,7 +194,7 @@ inserted into it.
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
 flowchart LR
-    Owner(["P-OWNER<br/>Owner or configuration delegate<br/>[Approval authority]"])
+    Owner(["P-OWNER<br/>Arye Kogan<br/>[Pre-Run approval authority]"])
     subgraph SourceZone["Candidate-work providers"]
         Source["X-WORK-SOURCE<br/>Configured Work Source<br/>[External provider]"]
     end

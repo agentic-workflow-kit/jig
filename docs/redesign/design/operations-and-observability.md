@@ -55,7 +55,10 @@ Generic operator commands are thin verbs over durable records and read models, r
 `RT-OPERATOR` through the private `PORT-CONSUMER` facade as short-lived processes with no lifecycle
 authority ([runtime](./runtime.md)):
 
-- **submit** an envelope; **answer**, **override**, or **hand off** a parked request; **stop** a Run
+- **preview** through the effect-free Envelope Builder path, producing a read-only composition,
+  policy, bounds, capacity-feasibility, and failure report without calling `PORT-INTAKE`;
+- **start** by submitting an approved envelope through `PORT-INTAKE`; **answer**, **override**, or
+  **hand off** a parked request; **stop** a Run
   into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
   **acknowledge** or
   **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
@@ -155,7 +158,7 @@ flowchart LR
         Export["Redacted export snapshot<br/>carries its ledger position<br/>[Durable export]"]
     end
     subgraph Outside["Operators, owner, and consumers"]
-        Operator["RT-OPERATOR<br/>submit · inspect · watch · explain<br/>decide · suspend/resume · ack/snooze · export<br/>[Runtime unit]"]
+        Operator["RT-OPERATOR<br/>preview · start · inspect · watch · explain<br/>decide · suspend/resume · ack/snooze · export<br/>[Runtime unit]"]
         Notify["Notification channels and alerts<br/>[Non-authoritative mirror]"]
         Owner(["P-OWNER<br/>Arye or recorded delegate<br/>[Decision authority]"])
         Consumer["X-CONSUMER<br/>Read-only consumers<br/>[External consumer]"]

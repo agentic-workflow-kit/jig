@@ -38,6 +38,11 @@ Credentials and secret values never enter durable authority or durable evidence.
 
 The durable ordered Transition ledger remains authoritative. A snapshot or materialized current view
 may accelerate reconstruction only when its ledger position and integrity are verifiable.
+Each validated trigger is committed as `SCH-EVENT`; its `ID-EVENT` is
+`<run>/event/<ledger position>`, and that commit position is the one and only I4 trigger-ordering
+key. Replay consumes events in ledger commit order. Arrival time, provider timestamps, queue order,
+and live process scheduling cannot reorder them; before validation-commit an event has no identity
+and no effect.
 
 When commit acknowledgement is lost, Jig resolves the stable Transition identity and expected prior
 position:
@@ -51,9 +56,13 @@ Jig never dispatches an effect from an indeterminate control commit.
 ## Operation identity and fencing
 
 - One semantic effect has one durable Operation identity.
-- Duplicate-safe redispatch retains the same identity and payload basis under a newly recorded
-  reauthorization. Its fence refreshes the current `ID-GEN` and, when target authority was
-  reacquired, `ID-AUTH` plus `ID-REGISTRY`; audit records which generation dispatched each attempt.
+- Same-identity retry exists only for an effectful Operation after reconciliation proves confirmed
+  absence. A newly recorded reauthorization retains its identity and payload basis, refreshes the
+  current `ID-GEN` and, when target authority was reacquired, `ID-AUTH` plus `ID-REGISTRY`, and
+  records which generation dispatched the attempt.
+- An effect-free observation is never retried under the same identity. A lost, cancelled, or
+  replaced observation is a newly authorized Operation with a new identity over the same exact
+  subject; supersession and cancellation are durable records, never silence.
 - A new linked semantic attempt is allowed only after the earlier effect is reconciled.
 - Candidate-sensitive work binds the Story, Candidate, and target basis. Review publication binds
   its dedicated `CB-REVIEW-PUBLICATION` without finalization authority; target-changing work also
@@ -76,7 +85,8 @@ exact re-approval; only an unchanged, reconciled basis returns the underlying St
 No irreversible effect is blindly replayed:
 
 - confirmed effect: adopt its factual result;
-- confirmed absence: frozen policy may authorize a bounded retry; or
+- confirmed absence: frozen policy may authorize a bounded same-identity retry only for an
+  effectful Operation; an effect-free replacement receives a new identity; or
 - indeterminate effect: park and escalate without authorizing a second semantic effect.
 
 If the ledger is unavailable, corrupted, rolled back, or compromised beyond trustworthy recovery,
@@ -156,7 +166,7 @@ flowchart LR
     Capacity -->|"admits work while preserving progress under"| Order
     Order -->|"selects next waiting Accepted Story for"| Finalizer
     Accepted -->|"waits without authority until selected by"| Finalizer
-    Finalizer -->|"authorizes exact-basis effect against"| Target
+    Finalizer -->|"proposes exact-basis effect for recorded Transition authorization against"| Target
     Target -->|"returns independently observed fact for"| Proof
     Proof -->|"permits durable"| Release
     Release -->|"records business outcome in"| Ledger
