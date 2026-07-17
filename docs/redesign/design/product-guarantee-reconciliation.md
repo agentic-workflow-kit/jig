@@ -315,10 +315,10 @@ to hold. No route is an implementation-readiness certification.
 | `PC-JIG-15`     | `CF-GATE-PROVIDER` pass + Governance: D10/D12 mechanism records hold                       |
 | `PC-JIG-16`     | `CF-GATE-PROVIDER` pass + Governance: D10 package deferral holds                           |
 | `PC-JIG-17`     | Governance: D10 private-facade and D14 middleman-exclusion records hold                    |
-| `PC-JIG-18`     | `CF-MECH-WORKSPACE` pass + Governance: fourth-review B2 and D14 exclusions hold            |
+| `PC-JIG-18`     | `CF-MECH-WORKSPACE` pass + Governance: gate-record `B2` resolution and D14 exclusions hold |
 | `PC-JIG-19`     | `CF-CONSUMER` pass + Governance: D10/D13 boundary records hold                             |
-| `PC-JIG-20`     | Governance: fourth-review B2 and D10 runtime-boundary records hold                         |
-| `PC-JIG-21`     | `CF-GATE-PROVIDER` pass + Governance: fourth-review unproven-edge inventory holds          |
+| `PC-JIG-20`     | Governance: gate-record `B2` resolution and D10 runtime-boundary records hold              |
+| `PC-JIG-21`     | `CF-GATE-PROVIDER` pass + Governance: gate-record unproven-edge inventory holds            |
 | `PC-JIG-22`     | `CF-ENVELOPE` pass, including actionable legacy-guidance clause                            |
 | `PC-JIG-23`     | `CF-ENVELOPE` pass + `CF-RUN-CONTROL` pass + `CF-BOUNDS` pass                              |
 | `PC-JIG-24`     | Governance: D2/D13 and D7 records hold                                                     |

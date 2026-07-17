@@ -65,7 +65,7 @@ independent reviewer must assess the exact merged commit.
 | Terminal-liveness contradiction     | Keep the exhaustive V3a and failure taxonomy unchanged; narrow all summary prose to `FC-TRUST` as the sole non-decision terminal selector, interpret liveness loss as `FC-TRUST` only when it destroys the trust root, and add a `CF-CONTAINMENT` oracle that rejects any direct `FC-LIVENESS → Stopped` selection. |
 | `PC-*` proof-route completeness gap | Replace the one-route rule with minimal proof-route sets whose elements jointly cover each commitment; widen all eleven reviewer-required rows and the additional rows whose complete commitments require existing suites, governance records, or the narrow existing-suite clause recorded below.                  |
 
-The fourth-review governance inventory records these currently unproven edges: remote execution,
+This gate record's unproven-edge inventory records these currently unproven edges: remote execution,
 provider-permission enforcement, held merge, Windows host, and transport behavior. `CF-GATE-PROVIDER`
 continues to prevent any unproven capability from becoming configurable; this inventory preserves the
 specific current limitation rather than implying that the gate proves it.
