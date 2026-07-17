@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The PORT-LEDGER conditional-append contract, record chaining and integrity, snapshots and projections, the single-host reference realization, and compaction, retention, backup, and disaster recovery; record schemas, identity representation, evidence-artifact storage, and provider-specific reconciliation are excluded.
 state: approved
-status: approved Layer 2 content — explicit owner decision of 2026-07-16 (approved, not locked); gate history in the Layer 2 gate record
+status: approved Layer 2 baseline (not locked), amended by the owner-approved 2026-07-17 readiness remediation; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./state-and-recovery.md
   - ./runtime.md
@@ -73,14 +73,20 @@ or projections happen only after the acknowledgement exists and are derived, ide
 consequences that recovery recreates from it. A lookup can return the immutable acknowledgement
 but can never advance lifecycle state or write a second intake authority.
 
+An accepted acknowledgement is self-contained: it embeds the canonical frozen `SCH-ENVELOPE`
+bytes plus the complete Run-ledger genesis/rebuild basis. The composition and acknowledgement
+digests bind those bytes. Recovery therefore recreates an absent or incomplete Run ledger from
+the acknowledgement alone and never consults mutable configuration, a projection, or an
+uncommitted submission buffer.
+
 The crash classification around that point is exhaustive:
 
-| Observation after recovery                                        | Required result                                                                                                                                |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| No acknowledgement exists                                         | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                               |
-| Acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
-| Acknowledgement and Run ledger exist                              | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.              |
-| An index/projection exists without an acknowledgement             | Discard and rebuild it; the index is never authoritative.                                                                                      |
+| Observation after recovery                                        | Required result                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No acknowledgement exists                                         | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                                                                                 |
+| Acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
+| Acknowledgement and Run ledger exist                              | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                |
+| An index/projection exists without an acknowledgement             | Discard and rebuild it; the index is never authoritative.                                                                                                                                        |
 
 Thus every crash before the conditional-create is the first row and every crash after it is one of
 the remaining rows; there is no interval in which Run-ledger or index existence decides whether

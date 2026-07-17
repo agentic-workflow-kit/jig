@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Identity representation for every model identity kind, the recorded effect-fence tuple, and the durable schema families with their style and evolution rules; storage layout, projections, evidence integrity mechanics, and the event/Operation/failure catalogs are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./model.md
   - ./decisions/D5-state-authority-and-recovery.md
@@ -168,7 +168,7 @@ is performed by the transition engine's commit protocol itself
 | ------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SCH-PLAN`               | Execution Plan                           | Story set with unique stable Story keys; dependency edges; per-Story done conditions referencing frozen-policy check classes; exactly one track/policy reference; per-Story path-to-safe-point demand by configurable scarce-resource class, defaulting to one unit for every class the path uses; and the plan digest. The semantic contract and validation are design-owned and non-delegable; wire encoding and serialization are delegated to engineering.                |
 | `SCH-ENVELOPE`           | Execution Envelope                       | Track and approved-plan digests; composed repo floors and track policy; named work profile; setup declaration; exact bound values and range-version references; target/configuration; provider identities, authority-manifest approvals, Agent-provider native permission-posture selection, conformance references, owner approval, and composition digest. Frozen at preflight as the Run basis.                                                                            |
-| `SCH-INTAKE-ACK`         | Durable intake acknowledgement           | Envelope composition digest, `ID-RUN`, accepted/rejected preflight disposition, acknowledgement digest, and conditional-create or digest-lookup proof. Same-digest readback is byte-equivalent.                                                                                                                                                                                                                                                                               |
+| `SCH-INTAKE-ACK`         | Durable intake acknowledgement           | Envelope composition digest, `ID-RUN`, accepted/rejected preflight disposition and reason, acknowledgement digest, and conditional-create or digest-lookup proof. An accepted acknowledgement also embeds the canonical frozen `SCH-ENVELOPE` bytes and complete Run-ledger genesis/rebuild basis; recovery needs no mutable or separately authoritative input. Same-digest readback is byte-equivalent.                                                                      |
 | `SCH-SOURCE-EXCHANGE`    | Work Source request and result           | `ID-SOURCE-REQ`, provider/source identity, normalized request-basis digest, stable item key, recorded cursor/revision, content digest, provenance, provider attestation, attempt ordinal, and `BND-RETRY` reference. The result identity is the request, item, revision/cursor, and content tuple.                                                                                                                                                                            |
 | `SCH-WORK-PROFILE`       | Work profile                             | Model/provider selection, effort and cost posture, versioned prompt-strategy references, and implementer/reviewer role realization; no safety-floor field is representable.                                                                                                                                                                                                                                                                                                   |
 | `SCH-PROVIDER-AUTHORITY` | Provider authority manifest              | Exact provider identity and declared runtime, filesystem, network, credential, subprocess, external-service authority, and supported native permission postures; for an Agent provider, each posture declares filesystem, command, approval-review, and network semantics, while forge and privileged-delivery credential classes are structurally unrepresentable and rejected as `FC-AUTHORITY`; owner approval identity and scope; manifest digest and supersession state. |
@@ -240,7 +240,10 @@ flowchart LR
         TxnN["ID-TXN<br/>Transition, run/txn/position/gen plus digest<br/>[Qualified position claim]"]
         OpN["ID-OP<br/>Operation, txn/op/n<br/>[Authorized effect]"]
         ParkN["ID-PARK<br/>Owner decision, run/park/n<br/>[Escalation identity]"]
+        GrantN["ID-GRANT<br/>Delegation grant, run/grant/n<br/>[Operational authority]"]
+        NoticeN["ID-NOTICE<br/>Notice, run/notice/kind/subject<br/>[Attention identity]"]
         ObligationN["ID-OBLIGATION<br/>Residual obligation, run/obligation/n<br/>[Durable handoff]"]
+        ExportN["ID-EXPORT<br/>Audit export, run/export/position/digest<br/>[Terminal artifact]"]
     end
     subgraph StoryScope["Story scope"]
         StoryN["ID-STORY<br/>Story, run/story/key<br/>[Plan-scoped identity]"]
@@ -250,8 +253,11 @@ flowchart LR
     end
     subgraph ConfigScope["Configuration scope"]
         PrincN(["ID-PRINCIPAL<br/>Participant principal, principal/key<br/>[Stable participant identity]"])
+        SourceReqN["ID-SOURCE-REQ<br/>Work Source request, source/provider/request/basis<br/>[Pre-Run request]"]
+        ManifestN["ID-MANIFEST<br/>Provider authority, provider/authority/digest<br/>[Approved authority]"]
     end
     subgraph TargetScope["Target scope, cross-Run"]
+        RegistryN["ID-REGISTRY<br/>Authority registry, registry/descriptor-digest<br/>[Cross-Run arbiter]"]
         TargetN["ID-TARGET<br/>Canonical target, target/key<br/>[Cross-Run target identity]"]
         AuthN["ID-AUTH<br/>Finalization authority, target/auth/n<br/>[Registry-serialized authority]"]
     end
@@ -266,13 +272,18 @@ flowchart LR
     RunN -->|"numbers control authority as"| GenN
     RunN -->|"scopes"| StoryN
     RunN -->|"parks owner questions as"| ParkN
+    RunN -->|"scopes operational delegation as"| GrantN
+    RunN -->|"projects attention conditions as"| NoticeN
     RunN -->|"hands off unresolved duties as"| ObligationN
+    RunN -->|"exports terminal range as"| ExportN
     TxnN -->|"authorizes"| OpN
     StoryN -->|"owns ordered"| CandN
     StoryN -->|"owns role sessions as"| SessionN
     StoryN -->|"owns reviewer findings as"| FindingN
     SessionN -->|"contributes attributable results to"| CandN
     FindingN -->|"judges exact packages of"| CandN
+    SourceReqN -->|"feeds approved composition that mints"| RunN
+    RegistryN -->|"allocates authority for"| TargetN
     TargetN -->|"numbers finalization authority as"| AuthN
     AuthN -->|"binds the finalizing Story's exact"| CandN
     OpN -->|"carries"| FenceN
@@ -280,8 +291,10 @@ flowchart LR
     FenceN -->|"pins target-scoped"| AuthN
     FenceN -->|"pins content digest of"| CandN
     FenceN -->|"pins basis digest of"| TargetN
+    FenceN -->|"pins approved provider authority as"| ManifestN
     CandN -->|"binds evidence and verdicts through"| EvSubjN
     PrincN -->|"is bound to"| SessionN
+    GrantN -->|"authorizes bounded actions by"| PrincN
     PrincN -->|"attributes verdicts containing"| FindingN
 
     style RunScope fill:#eef5ff,stroke:#7a96bd,color:#172033
@@ -296,7 +309,7 @@ flowchart LR
     classDef subject fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef target fill:#f1e9ff,stroke:#8061a8,color:#172033
     classDef person fill:#e8f1ff,stroke:#5a78a8,color:#172033
-    class RunN,StoryN,ParkN,OpN,EventN,ObligationN,SessionN,FindingN identity
+    class RunN,StoryN,ParkN,OpN,EventN,GrantN,NoticeN,ObligationN,ExportN,SessionN,FindingN,SourceReqN,ManifestN,RegistryN identity
     class TxnN ledger
     class GenN,AuthN authority
     class FenceN fence

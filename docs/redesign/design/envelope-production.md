@@ -8,9 +8,9 @@ audience:
   - Architecture and security reviewers
 scope: Envelope Builder responsibilities, input composition, policy/work-profile separation, guided setup, presets, Work Source, and successor-Run re-planning; active-Run lifecycle, provider transport, and setup-command execution are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ../../product/guarantees.md
   - ./context.md

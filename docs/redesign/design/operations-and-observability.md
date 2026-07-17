@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Escalation interfaces, notifications, operator tooling, cleanup runbooks, read models, metrics, exports, alerts, and service objectives; escalation and obligation schemas, ledger realization, failure codes, and evidence storage are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./failure-and-liveness.md
   - ./state-and-recovery.md

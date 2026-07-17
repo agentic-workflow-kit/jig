@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Repository and forge Operations, policy-selected integration modes, content equivalence, landing-proof steps, held and blocked integrations, and landing-path redaction; acceptance, review protocol, finalization ordering, reconciliation internals, and provider transports are excluded.
 state: approved
-status: owner-approved complete product-readiness candidate of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./concurrency-and-finalization.md

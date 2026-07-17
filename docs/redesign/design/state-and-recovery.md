@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: State classification, durable ordering and uncertain acknowledgement, operation identity and fencing, reconstruction and reconciliation, and the cross-cutting V4 relationship view; storage technology, schemas, queue/reservation algorithms, exact verification commands, merge methods, and cleanup mechanics are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ./brief.md
   - ./model.md

@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Level 2 runtime units, named ports, the process model, and the single-host deployment shape; component internals, schemas, algorithms, provider technology, and operational tooling are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./context.md
   - ./model.md

@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: Participant powers, the responsibility and authority matrix, trust and compromise posture, and fault scopes; credentials, identity formats, sandboxing, interfaces, and enforcement mechanisms are excluded.
 state: proposed
-status: proposed Layer 1 content, re-presented 2026-07-15 under the owner-directed view-based structure; pending independent review of the new candidate set
+status: established Layer 1 baseline with bounded 2026-07-17 remediation amendments; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../model.md

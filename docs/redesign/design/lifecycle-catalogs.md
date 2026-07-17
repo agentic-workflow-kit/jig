@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The exhaustive Story state machine, the Operation lifecycle, and the event, Operation, and failure-code catalogs; schemas, numeric budgets, retry algorithms, reviewer protocol steps, and provider mechanics are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./flows/run-and-story-lifecycle.md
   - ./decisions/D6-concurrency-and-finalization.md
@@ -171,12 +171,16 @@ Transition commit path (I7). Wake triggers are typed durable records, never
 bare timers.
 
 Every externally produced input at `PORT-INTAKE`, `PORT-SESSION`, `PORT-WORKSPACE`, `PORT-VERIFY`,
-`PORT-DELIVERY`, `PORT-SOURCE`, or `PORT-DECIDE` carries a producer-scoped deduplication key
+`PORT-DELIVERY`, `PORT-ARTIFACT`, `PORT-SOURCE`, or `PORT-DECIDE` carries a producer-scoped deduplication key
 normalized for that family from provider/principal identity, attempt ordinal, exact subject, and
 validated content digest. At validation, a duplicate key resolves to the existing event identity
 (or the existing pre-Run `ID-SOURCE-REQ` result for `PORT-SOURCE`) and commits nothing new.
 Controller-derived wake triggers are deduplicated by their derivation basis: event type, exact
 subject, causal ledger positions, and bound/wake-condition digest.
+
+For `PORT-ARTIFACT`, the producer key is store/provider identity, artifact Operation and attempt,
+exact evidence subject, and validated result digest. Repeated put/get attestations for that tuple
+therefore resolve to the existing `EV-ARTIFACT-FACT` rather than creating another adoption fact.
 
 | ID                              | Source group              | Producer                                            | Subject kind                         | Validation it must pass                                                                                                                                                                                                                                                                                                        |
 | ------------------------------- | ------------------------- | --------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

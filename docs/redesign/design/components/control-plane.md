@@ -1,14 +1,14 @@
 ---
 title: "Control plane — component view of the run controller"
-purpose: Decompose RT-CONTROLLER into its nine internal components, allocate each Jig Control power to exactly one component, and show the trigger-decision-record-dispatch cycle and recovery path inside the unit.
+purpose: Decompose RT-CONTROLLER into its eight internal components, place pre-controller intake in RT-OPERATOR, allocate each Jig Control power to exactly one component, and show the trigger-decision-record-dispatch cycle and recovery path inside the unit.
 audience:
   - Engineers and architects realizing or reviewing the controller
   - Arye Kogan, Jig product and architecture decision owner
 scope: Level 3 component responsibilities, power ownership, interaction rules, and the V7 internal view of RT-CONTROLLER; schemas, algorithms, numeric budgets, storage technology, and provider contracts are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ../runtime.md
   - ../decisions/D10-runtime-decomposition.md

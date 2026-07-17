@@ -6,9 +6,9 @@ audience:
   - Arye Kogan, Jig product and architecture decision owner
 scope: The Layer 2 review protocol, finding representation, check-policy language, verification execution, and remote-gate observation; acceptance authority itself, evidence storage and integrity mechanisms, scheduling bounds, and landing proof are excluded.
 state: approved
-status: complete owner-approved product-readiness amendment of 2026-07-16; lock pending exact-candidate review
+status: owner-approved 2026-07-17 readiness-remediation candidate; product-readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
-last_verified: 2026-07-16
+last_verified: 2026-07-17
 sources_of_truth:
   - ./acceptance-and-evidence.md
   - ./decisions/D7-acceptance-and-evidence.md
