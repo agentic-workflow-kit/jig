@@ -53,15 +53,18 @@ by a later higher-priority Story.
 ## Target-scoped finalization authority
 
 - Exactly one Story owns finalization authority for the configured target.
-- Accepted Stories wait in deterministic order without authority and do not repeatedly refresh or
-  mutate the target.
+- Accepted Stories wait in deterministic order without authority under `BND-WAIT-CAPACITY`; their
+  `SCH-REGISTRY-RECORD` waiter preserves the continuous-starvation start, and they do not repeatedly
+  refresh or mutate the target.
 - The authority fence binds Story, controller generation, Candidate, target basis, and authority
   generation.
 - A bounded target refresh may retain Story ownership; Candidate-changing refresh requires renewed
   full review and atomic authority rebinding.
 - Ordinary implementation rework releases authority and returns through acceptance.
-- Landing, reconciled block, owner rejection, Run suspension/terminal stop, or Recovery-driven
-  transfer releases authority. Suspension preserves the Story phase but cannot retain the grant.
+- Landing, reconciled block, owner rejection, terminal stop, or Recovery-driven transfer releases
+  authority only after the authority-release prerequisite. Suspension preserves the Story phase and
+  retains any held grant fenced until every in-flight target-changing Operation resolves; the
+  existing phase-preserving reconciliation Transition then releases it durably.
 - Recovery reconstructs and reconciles authority and target state before resuming or reassigning.
 
 Only confirmed landing releases dependencies. Direct `Blocked` and `Rejected` non-delivery roots

@@ -55,7 +55,7 @@ Operation reconciliation rules.
 | `LG-READ`     | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                                                                                                                                    |
 | `LG-CHAIN`    | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                                                                                                                                     |
 | `LG-WITNESS`  | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest) for every Run ledger, the registry, and the `LG-INTAKE` intake-index head; it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement, including an intake acknowledgement, implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups. |
-| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key.                                                                                                                                                 |
+| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` `terminal-ack` variant and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key. The pre-ack configuration-read attempt variants live behind `PORT-ARTIFACT` and grant no intake authority.               |
 
 An append therefore carries four facts: the qualified Transition identity (position claim plus
 proposing controller generation, per [data and identity](./data-and-identity.md)), the expected
@@ -67,7 +67,17 @@ lost, `CP-RECOVERY` re-reads the expected position and classifies what it finds:
 `LG-INTAKE` uses the same configured ledger mechanism and durable conditional-create proof but is
 not a Run Transition stream: it exists before the per-Run controller or Run ledger. `CP-INTAKE`
 runs in the short-lived `RT-OPERATOR` process and is its sole caller through `PORT-LEDGER`; its
-only durable write is the acknowledgement conditional-create. The acknowledgement is therefore
+only Jig-authority write is the `SCH-INTAKE-ACK` `terminal-ack` conditional-create. Before it, each
+configuration read uses a deterministic `(composition digest, artifact subject, expected digest,
+attempt ordinal)` request key. Through `PORT-ARTIFACT`, the mechanism conditionally creates or
+replays an immutable `config-read-attempt-start` variant before the read and an immutable
+`config-read-attempt-result` variant when a validated response/failure exists. A new ordinal's start
+must reference the prior start/result and prove either its terminal result or its recorded deadline
+elapsed; loss or crash therefore re-queries the same key and cannot reset consumption. `CP-INTAKE`
+reconstructs the ordered variant chain and embeds every handle, bound consumption, and exhaustion
+result in the accepted or rejected `terminal-ack`. Missing, rolled-back, or unverifiable attempt
+evidence fails closed. The attempt variants are durable mechanism evidence, not intake authority;
+the terminal acknowledgement remains
 the **single intake commit point**. Its intake-index head is covered by `LG-WITNESS` under the same
 flush-before-witness-before-acknowledgement rule as a Run-ledger append. Run-ledger creation,
 controller spawn, and deployment indexes or projections happen only after an **accepted**
@@ -84,13 +94,13 @@ uncommitted submission buffer.
 
 The crash classification around that point is exhaustive:
 
-| Observation after recovery                                                 | Required result                                                                                                                                                                                  |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No acknowledgement exists                                                  | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                                                                                 |
-| Accepted acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
-| Rejected acknowledgement exists and the Run ledger is absent               | This is the correct terminal preflight state. Recreate neither a Run ledger nor controller.                                                                                                      |
-| Acknowledgement and Run ledger exist                                       | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                |
-| An index/projection exists without an acknowledgement                      | Discard and rebuild it; the index is never authoritative.                                                                                                                                        |
+| Observation after recovery                                                 | Required result                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No terminal acknowledgement exists                                         | No `ID-RUN` is adopted. Reconstruct configuration-read consumption from deterministic `SCH-INTAKE-ACK` start/result variants; resume the same ordinal/deadline or advance only from a proved terminal/deadline predecessor. Missing or unverifiable evidence fails intake closed rather than resetting a consumed bound. |
+| Accepted acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from the frozen envelope and genesis basis embedded in `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement.                                                                                                                         |
+| Rejected acknowledgement exists and the Run ledger is absent               | This is the correct terminal preflight state. Recreate neither a Run ledger nor controller.                                                                                                                                                                                                                              |
+| Acknowledgement and Run ledger exist                                       | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.                                                                                                                                                                                        |
+| An index/projection exists without an acknowledgement                      | Discard and rebuild it; the index is never authoritative.                                                                                                                                                                                                                                                                |
 
 Thus every crash before the conditional-create is the first row and every crash after it is one of
 the remaining rows; there is no interval in which Run-ledger or index existence decides whether
@@ -182,21 +192,41 @@ the single-host reference realization it is a host-scoped directory beside the R
 A target no configured registry can arbitrate is unarbitrated, and preflight rejects a Run that
 would need to finalize against it (QS4, I12).
 
+Every durable registry append uses the `SCH-REGISTRY-RECORD` tagged union. Its common content fields
+bind `ID-REGISTRY`, `ID-TARGET`, expected head position/digest, proposed committed position equal to
+expected head position plus one, predecessor-chain digest, and source Run/Story where applicable.
+Its staged `recordContentDigest` hashes that proposed position and all other canonical union-content
+bytes while excluding only the digest field and any handle derived from it. Conditional append
+rejects unless the actual assigned position equals the proposal. After durable flush and witness
+advancement, the stable record handle is `(ID-REGISTRY, committed position, recordContentDigest)`.
+The append acknowledgement and witness proof bind that tuple but are post-append protocol evidence,
+not staged record-content fields. A rejected conditional append creates no record: its proposer
+re-reads the head, derives the new expected-plus-one position, and recomputes the candidate bytes and
+digest.
+
 The registry protocol is the total-order arbiter selected by D6; there is no global scheduler:
 
-- every acquisition attempt conditionally appends a waiter record carrying the Run, Story,
-  Candidate basis, eligibility facts, and complete D6/`C-ORDER` comparator tuple. The controller
-  conditionally appends the one waiter-withdrawal record when its Story leaves the eligible set
-  (parked, blocked, rejected, suspended, or invalidated); a withdrawn waiter is never grantable;
+- every acquisition attempt conditionally appends the union's `waiter` variant carrying the Run,
+  Story, exact Candidate basis, eligibility-fact references/digest, complete immutable
+  D6/`C-ORDER` comparator tuple, and the continuous-starvation start for
+  `BND-WAIT-CAPACITY`. `CP-FINALIZER` is accountable for that target-authority queue wait and wakes
+  it only through `EV-WAKE-AUTHORITY`. It conditionally appends the one `withdrawal` variant,
+  referencing the waiter handle and invalidated eligibility basis, when the Story leaves the
+  eligible set (parked, blocked, rejected, suspended, or invalidated); a withdrawn waiter is never
+  grantable;
 - for one `ID-TARGET`, a grant may be conditionally appended only for the comparator-least eligible
-  recorded waiter and must name the current eligibility basis it validated; grant, release, and
-  withdrawal are conditional appends against the registry head. A grant racing a withdrawal loses
-  by ordinary conditional-append ordering: after a prior withdrawal invalidates its named basis it
-  cannot commit, and the losing proposal re-reads the head;
+  recorded waiter. The `grant` variant references that waiter handle, revalidates its current
+  eligibility basis, and carries the allocated `ID-AUTH`, Candidate/target binding, and fence. The
+  `release` variant names the current authority and Candidate/fence plus either reconciliation proof
+  for every in-flight target-changing Operation or a structural proof that none can exist. Grant,
+  release, and withdrawal are conditional appends against the registry head. A grant racing a
+  withdrawal loses by ordinary conditional-append ordering: after a prior withdrawal invalidates
+  its named basis it cannot commit, and the losing proposal re-reads the head;
 - when a bounded refresh changes the Candidate, **atomic authority rebinding** is one registry
-  conditional-append record that simultaneously releases the old Candidate binding and reacquires
-  authority for the new Candidate digest with a new `ID-AUTH` ordinal. No intermediate unowned
-  state is observable or eligible for another grant; and
+  `atomic-rebind` variant that carries the old authority/Candidate/fence and its release proof,
+  revalidated new Candidate/waiter basis, and new `ID-AUTH`. It simultaneously releases the old
+  binding and reacquires authority for the new Candidate digest. No intermediate unowned state is
+  observable or eligible for another grant; and
 - recovery re-reads and verifies the registry before trusting the Run-ledger mirror. If the two
   disagree, reconciliation is registry-first because the registry is the cross-Run authority of
   record for target authority; the repaired Run-ledger mirror remains audit evidence, never a
