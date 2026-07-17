@@ -74,8 +74,11 @@ mode and changes no D7 acceptance substance.
 ## Accepted negative consequence and trade-off
 
 Draft branches and requests may exist before acceptance. They create forge clutter, reconciliation
-work, and later Retirement obligations even when a Story is rejected or blocked. Arye accepts that
-cost to make ordinary code review possible without widening finalization or landing authority.
+work, and later Retirement obligations even when a Story is rejected or blocked. Layer 2 realizes
+those duties as `OPC-REV-RETIRE-REF`, `OPC-REV-RETIRE-REQUEST`,
+`OPC-REV-RETIRE-STATUS`, and `OPC-REV-RETIRE-COMMENT`; failure preserves an
+`ID-OBLIGATION`. Arye accepts that cost to make ordinary code review possible without widening
+finalization or landing authority.
 
 ## Alternatives not selected
 

@@ -72,8 +72,9 @@ attestations and any accepted owner decision as inputs to its next deterministic
    provenance, binding, and integrity; it does not make an underlying claim semantically true.
 4. Missing, contradictory, stale, malformed, wrong-subject, unauthorized, or integrity-failing
    input creates no claimed fact and authorizes no progress.
-5. A participant failure confined to one Story may block or park that Story while unrelated work
-   continues with trustworthy authority and sufficient capacity.
+5. A participant failure confined to one Story parks when a recorded owner action or changed fact
+   can advance it and otherwise blocks; unrelated work continues with trustworthy authority and
+   sufficient capacity.
 6. Uncertainty or compromise of target-scoped authority fences further target effects while safe
    implementation and review may continue.
 7. Loss or compromise of shared Jig authority, the ordered ledger, or controller fencing interrupts
@@ -128,7 +129,7 @@ flowchart LR
     end
 
     subgraph Containment["Compromise and insufficiency containment"]
-        Story["F-STORY<br/>Block or park affected Story<br/>[Story fault scope]"]
+        Story["F-STORY<br/>Park if owner-changeable; otherwise block<br/>[Story fault scope]"]
         Target["F-TARGET<br/>Fence target effects and reconcile<br/>[Target fault scope]"]
         Run["F-RUN<br/>Interrupt affected Run<br/>[Shared fault scope]"]
         External["F-EXTERNAL<br/>Externally governed recovery<br/>[Trust-root stop]"]

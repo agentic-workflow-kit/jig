@@ -70,10 +70,24 @@ content is untouched.
 
 - **Verdict (`RP-VERDICT`):** exactly one of `approve` or `changes-required`, expressed over the
   exact `RP-PACKAGE-DIGEST` from the assignment, attested and attributable to one validated
-  reviewer session bound to its participant principal (`ID-PRINCIPAL` in
+  reviewer `ID-SESSION` bound to its participant principal (`ID-PRINCIPAL` in
   [data and identity](./data-and-identity.md)).
-- **Finding (`RP-FINDING`):** a tuple of stable finding identity, subject anchor within the
-  Candidate, severity class, requirement or risk trace, description, and resolution state.
+- **Finding (`RP-FINDING`):** the cataloged `ID-FINDING` tuple in `SCH-VERDICT`: introduction
+  package, exact subject anchor, severity class, requirement or risk trace, description,
+  resolution state/evidence/reviewer, and supersession lineage.
+
+Finding resolution is an explicit ledger transition, never an edit in place:
+
+| From               | Reviewer action and guard                                                                                    | To                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| none               | Introduce the finding in a valid exact-package verdict                                                       | `open`                                       |
+| `open`             | Validate resolution evidence in a later exact package and attribute the resolving reviewer session/principal | `resolved`                                   |
+| `resolved`         | A later exact-package review finds the same traced risk present again                                        | `reopened` (blocking semantics equal `open`) |
+| `open`, `reopened` | A reviewer replaces the statement with a new, more precise `ID-FINDING`                                      | `superseded`; record the successor identity  |
+
+`superseded` is terminal for that finding identity. `Resolved` is closed but may transition to
+`reopened` when a later exact package proves recurrence; recurrence after supersession is expressed
+on the successor, never by rewriting history.
 
 Rules the representation must preserve:
 

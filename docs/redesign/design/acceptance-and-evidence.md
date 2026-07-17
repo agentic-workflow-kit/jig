@@ -35,7 +35,7 @@ The reviewer owns full-package judgment of:
 
 A valid reviewer approval of the exact Candidate is the acceptance gate and permits finalization.
 Jig validates reviewer identity and authority, exact Candidate and lifecycle binding, required
-evidence availability and integrity, absence of unresolved findings, and current lifecycle position.
+evidence availability and integrity, absence of unresolved **blocking** findings, and current lifecycle position.
 Jig then durably records `Accepted` without independently rejudging the reviewer's sufficiency
 assessment.
 

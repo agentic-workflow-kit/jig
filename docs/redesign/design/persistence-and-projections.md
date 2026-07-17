@@ -38,7 +38,7 @@ ordering (I5) are fixed inputs; this page decides only how they are persisted an
 
 `PORT-LEDGER` is a semantic contract, not a storage technology. Every conforming backend must
 satisfy these clauses; `CP-TRANSITION` ([control plane](./components/control-plane.md)) is the
-port's sole writer, and the single logical writer per Run is enforced by the durable controller
+Run Transition stream's sole writer, and the single logical writer per Run is enforced by the durable controller
 generation, not by backend locking convention (I6). The conditional append is the **commit
 primitive** that creates authoritative record — it is deliberately not an ordinary Operation in
 the [Operation catalog](./lifecycle-catalogs.md), because an Operation intent exists only inside a
@@ -55,7 +55,7 @@ Operation reconciliation rules.
 | `LG-READ`     | Verified read                | Returns records in position order with content digests re-verified against the chain; an unverifiable record is a read failure, never silently repaired data.                                                                                                                                                                                                    |
 | `LG-CHAIN`    | Chain verification           | Replays the digest chain from a verified anchor and confirms every record's linkage, digest, and position before recovered state is trusted.                                                                                                                                                                                                                     |
 | `LG-WITNESS`  | Currency witness             | An independently trusted, monotonic record of the latest committed head (position plus head digest); it is advanced and durably persisted after the record's durable flush and before `LG-ACK` returns, so every acknowledgement implies witness coverage of the acknowledged position. Its trust must not depend on the ledger content or the ledger's backups. |
-| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` and `ID-RUN`; same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key.                                                                                           |
+| `LG-INTAKE`   | Intake acknowledgement index | A deployment-scoped conditional-create/read mapping from one envelope composition digest to exactly one immutable `SCH-INTAKE-ACK` and `ID-RUN`. Its conditional-create is the single intake commit point: same-digest duplicates and lost acknowledgements read the existing value, while a different digest is a distinct key.                                 |
 
 An append therefore carries four facts: the qualified Transition identity (position claim plus
 proposing controller generation, per [data and identity](./data-and-identity.md)), the expected
@@ -65,10 +65,26 @@ locked three readback outcomes of [state and recovery](./state-and-recovery.md).
 lost, `CP-RECOVERY` re-reads the expected position and classifies what it finds:
 
 `LG-INTAKE` uses the same configured ledger mechanism and durable conditional-create proof but is
-not a Run Transition stream: it exists before `ID-RUN`. `CP-INTAKE` is its sole caller through
-`PORT-LEDGER`; a lookup can return the immutable acknowledgement but can never advance lifecycle
-state. This gives duplicate submission and lost-ack recovery one durable owner without introducing
-a second authority store.
+not a Run Transition stream: it exists before the per-Run controller or Run ledger. `CP-INTAKE`
+runs in the short-lived `RT-OPERATOR` process and is its sole caller through `PORT-LEDGER`; its
+only durable write is the acknowledgement conditional-create. The acknowledgement is therefore
+the **single intake commit point**. Run-ledger creation, controller spawn, and deployment indexes
+or projections happen only after the acknowledgement exists and are derived, idempotent
+consequences that recovery recreates from it. A lookup can return the immutable acknowledgement
+but can never advance lifecycle state or write a second intake authority.
+
+The crash classification around that point is exhaustive:
+
+| Observation after recovery                                        | Required result                                                                                                                                |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| No acknowledgement exists                                         | Nothing happened. No `ID-RUN` is adopted; resubmission is fresh.                                                                               |
+| Acknowledgement exists and the Run ledger is absent or incomplete | Recreate the Run ledger deterministically from `SCH-INTAKE-ACK`, then spawn the per-Run controller. Never mint another Run or acknowledgement. |
+| Acknowledgement and Run ledger exist                              | Verify their binding, rebuild any index/projection entry, and start or reconnect the controller under normal generation recovery.              |
+| An index/projection exists without an acknowledgement             | Discard and rebuild it; the index is never authoritative.                                                                                      |
+
+Thus every crash before the conditional-create is the first row and every crash after it is one of
+the remaining rows; there is no interval in which Run-ledger or index existence decides whether
+intake committed.
 
 - **Confirmed committed — this proposal:** position, proposing generation, and record digest all
   match. Adopt exactly once. An identity match without a digest match is never treated as
@@ -178,8 +194,10 @@ The registry protocol is the total-order arbiter selected by D6; there is no glo
   on demand and are never authoritative (`S-PROJECTION`, `S-DERIVED` in
   [state and recovery](./state-and-recovery.md)). Losing every snapshot and projection loses
   performance, never truth.
-- Snapshot cadence is a policy-supplied bound class with a safe default, not a hardcoded number;
-  correctness never depends on cadence because every snapshot is verifiable and disposable.
+- Snapshot cadence is a policy-supplied bound class. The **owner-reviewable default** is every
+  100 committed records or five minutes, whichever occurs first; policy may select 10–10,000
+  records and 30 seconds–one hour. Correctness never depends on cadence because every snapshot is
+  verifiable and disposable.
 
 ## Reference realization and portability
 
@@ -204,8 +222,10 @@ recorded in [D11](./decisions/D11-ledger-realization.md).
 - **Compaction** is snapshot plus archived immutable segments: a verified `LG-SNAPSHOT` is written,
   and the segments it summarizes are moved to archival storage intact. Compaction never rewrites,
   merges, or deletes records destructively; the full chain remains reconstructable from archive.
-- **Retention** bounds live-directory size only; retention windows are policy-supplied bound
-  classes with safe defaults, and archived segments follow the Run's preservation duties (I19).
+- **Retention** bounds live-directory size only. The **owner-reviewable default** archive
+  retention is seven years after settlement, configurable from 90 days through ten years;
+  archived segments follow the Run's preservation duties, and an open obligation or legal/audit
+  hold overrides the elapsed window (I19).
 - **Backup** is a position-consistent copy: a backup set records the exact `LG-POSITION` it
   captures and the digests needed to verify it, so a restore can prove both integrity and
   currency. Copies that cannot state their position are not backups under this contract.
@@ -240,7 +260,7 @@ recorded in [D11](./decisions/D11-ledger-realization.md).
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryTextColor": "#172033", "lineColor": "#65758b"}}}%%
 flowchart LR
     subgraph Controller["RT-CONTROLLER control plane"]
-        Transition["CP-TRANSITION<br/>Transition engine<br/>sole writer to PORT-LEDGER<br/>[Controller component]"]
+        Transition["CP-TRANSITION<br/>Transition engine<br/>sole Run-ledger writer<br/>[Controller component]"]
         Projection["CP-PROJECTION<br/>Projection and read models<br/>[Controller component]"]
         Recovery["CP-RECOVERY<br/>Recovery and reconciliation<br/>[Controller component]"]
     end
@@ -287,7 +307,7 @@ flowchart LR
 ```
 
 **V11 legend:** Rectangles are controller components or contract operations; cylinders are
-durable data. The thick yellow border marks `CP-TRANSITION` as the sole writer to `PORT-LEDGER`;
+durable data. The thick yellow border marks `CP-TRANSITION` as the sole Run Transition-ledger writer;
 thick blue borders mark the chained record sequence (the sole durable authority) and the
 `LG-WITNESS` head in `RT-WITNESS`, whose trust is independent of the ledger and its backups. The
 acknowledgement barrier is explicit: the witness head advances durably after the record's flush

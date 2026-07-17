@@ -62,7 +62,8 @@ The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 4. provider identities, capability requirements, approved authority-manifest digests, the exact
    Agent-provider native permission-posture reference and declared semantics, and qualifying
    conformance-evidence references;
-5. target, capacity, storage, and other validated configuration;
+5. target, per-class capacity/reserve and per-Story path-to-safe-point demand composition,
+   storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and
 7. owner approval identity, scope, and proposal digest.
 
@@ -80,6 +81,9 @@ proposal authority, `EP-COMPOSE` validates before approval that:
 - every dependency edge names existing stable Story keys, with no dangling Story reference;
 - every per-Story done condition is well formed and references a check class present in the exact
   frozen policy; and
+- every Story declares path-to-safe-point demand for each scarce resource class it uses (default
+  one), every configurable class reserve is within one through capacity minus one, and preflight
+  proves demand plus reserve feasible for every admissible path; and
 - the plan resolves to exactly one track and that track's policy reference.
 
 Any failure makes the proposal invalid and fails preflight closed. Engineering may select the wire

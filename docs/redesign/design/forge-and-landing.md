@@ -55,6 +55,20 @@ These Operations cannot acquire/retain finalization authority, create or touch t
 anchor, mutate the target ref, request merge, declare landing, or invoke an `OPC-DEL-*` class.
 Publication is neither acceptance nor landing and cannot release dependencies.
 
+After a terminal Story outcome, its recorded Transition may authorize only the corresponding
+review-venue retirement Operations under the same D15 scope:
+
+| ID                       | Retirement duty                                     |
+| ------------------------ | --------------------------------------------------- |
+| `OPC-REV-RETIRE-REF`     | Retire the dedicated review ref after preservation. |
+| `OPC-REV-RETIRE-REQUEST` | Close the draft request without merge.              |
+| `OPC-REV-RETIRE-STATUS`  | Retire or final-state the stable status marker.     |
+| `OPC-REV-RETIRE-COMMENT` | Retire or final-state the stable explanation block. |
+
+These Operations cannot acquire finalization authority, invoke integration, or mutate the target.
+An exhausted retirement failure preserves the remaining venue and records an `ID-OBLIGATION`
+with completion criteria and evidence instead of delaying or revising the terminal Story outcome.
+
 ## Finalization and landing Operation set
 
 A landing uses these delivery-port Operations, proposed only by `CP-FINALIZER` under sole target
@@ -143,8 +157,8 @@ was observed to contain, not what the provider reported it did.
 
 A merge held by remote protections — required gates, queue position, protected-branch policy — is
 a **durable named wait**, not a spin loop: it records an accountable owner, a durable reason, and
-a wake condition, under a wait budget class defined in
-[scheduling and bounds](./scheduling-and-bounds.md) with an explicit exhaustion action (I16).
+a wake condition under `BND-WAIT-TARGET`, including merge-queue and branch-protection holds, with
+the explicit exhaustion action defined in [scheduling and bounds](./scheduling-and-bounds.md) (I16).
 Replays after interruption **re-observe** the held integration through its correlation key rather
 than re-requesting the merge (I17). For a post-acceptance held integration, Jig uses the
 `CP-FINALIZER`-proposed, Transition-authorized `OPC-DEL-STATUS` and `OPC-DEL-COMMENT`. For a `Blocked` Story that never reached

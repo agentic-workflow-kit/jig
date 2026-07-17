@@ -41,6 +41,11 @@ evidence is persisted, bound, protected, and kept.
   ([runtime](./runtime.md)); the ledger records bounded decision facts plus an evidence manifest —
   subject, producer, digest, size, kind, and completeness — and never inlines bulky payloads,
   realizing the Layer 1 rule that bulky evidence stays in immutable, bounded supporting artifacts.
+- **`EVR-ADOPT`:** `CP-EVIDENCE` first proposes an `OPC-ART-PUT` or `OPC-ART-GET` intent;
+  `CP-TRANSITION` commits that intent before `CP-MEDIATOR` dispatches it. The store's result,
+  certainty, or failure returns only as validated `EV-ARTIFACT-FACT`. Only after that event and
+  its adopting Transition commit may the manifest claim the artifact present, readable, or
+  failed. A store receipt outside this path is not evidence.
 
 Rejected alternatives: inlining evidence into ledger records (bloats the ordered authority) and
 location-addressed mutable evidence (identity would not survive relocation or prove tampering).
@@ -76,8 +81,14 @@ location-addressed mutable evidence (identity would not survive relocation or pr
 
 ## Size, encryption, and access
 
-- **`EVR-SIZE`:** every evidence kind has a bounded size class with policy-supplied limits and safe
-  defaults. Oversize evidence is either truncated with a named, recorded loss or rejected, per the
+Owner-reviewable defaults:
+
+| Policy class           | Default             | Allowed range / alternatives | Deterministic behavior                                                                                                                                                                                       |
+| ---------------------- | ------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Evidence artifact size | 10 MiB per artifact | 64 KiB–1 GiB                 | Default `reject`. Policy may select `truncate-with-recorded-loss` for non-completeness-critical kinds; truncation records original/retained sizes and can never satisfy a completeness-critical requirement. |
+
+- **`EVR-SIZE`:** every evidence kind selects the bounded class above. Oversize evidence is either
+  truncated with a named, recorded loss or rejected, per the
   kind's declared behavior — never silently dropped or silently trimmed.
 - **`EVR-ENCRYPT`:** encryption at rest is a configuration option of the artifact-store mechanism
   behind `PORT-ARTIFACT`; its attested posture cannot silently downgrade a policy minimum.
@@ -85,6 +96,10 @@ location-addressed mutable evidence (identity would not survive relocation or pr
   projections, scoped to authorized readers; no reader path can mutate an artifact or its binding.
 
 ## Retention and archival
+
+The **owner-reviewable default** retention window is 90 days after Run settlement; policy may
+select seven days through seven years by evidence kind. An open obligation, preservation duty, or
+unexpired audit requirement overrides the elapsed window and forbids disposal until it closes.
 
 - **`EVR-RETAIN`:** an artifact is preserved at least until its Run completes and every depending
   obligation closes (I19); afterwards, policy retention classes govern each evidence kind.
@@ -96,11 +111,15 @@ location-addressed mutable evidence (identity would not survive relocation or pr
 ## Terminal audit export
 
 The finished audit export uses the same immutable artifact path but is not decision evidence. Its
-canonical redacted bytes include the terminal ledger position and `SCH-AUDIT-EXPORT` manifest;
+canonical redacted bytes cover the ledger from its first position through the
+**terminal-settlement position**, the business-final cut, and `SCH-AUDIT-EXPORT` names that exact
+range. The export receipt and any export-failure `ID-OBLIGATION` are post-terminal administrative
+records outside the exported range, so neither is required to exist inside the bytes whose write
+it reports. The bytes include the terminal-settlement position and manifest;
 their SHA-256 digest is `ID-EXPORT`. `OPC-ART-PUT` is create-once by that digest: recovery may
 verify an identical artifact or complete an absent write, but no path may replace existing bytes.
-The ledger records the digest, size, terminal position, redaction-policy version, and immutable
-store receipt. An unreadable or digest-mismatched export is an integrity failure and remains an
+The post-terminal ledger record stores the digest, size, covered range, redaction-policy version,
+and immutable store receipt. An unreadable or digest-mismatched export is an integrity failure and remains an
 explicit residual obligation; the system never silently regenerates different terminal bytes.
 
 ### View V13 — evidence dataflow
@@ -131,6 +150,8 @@ flowchart LR
 
     subgraph Controller["RT-CONTROLLER evidence handling"]
         Binder["CP-EVIDENCE<br/>Evidence binder<br/>binds · redacts · validates<br/>[Controller component]"]
+        Transition["CP-TRANSITION<br/>Commits artifact intent and result event<br/>[Authority component]"]
+        Mediator["CP-MEDIATOR<br/>Dispatches and validates PORT-ARTIFACT<br/>[Boundary component]"]
         Quarantine["EVR-QUARANTINE<br/>Quarantined artifact<br/>never durably persisted<br/>[Story-scoped failure]"]
     end
 
@@ -146,8 +167,13 @@ flowchart LR
 
     People -->|"submit attributed evidence via PORT-SESSION to"| Binder
     Mech -->|"attest observed facts via their ports to"| Binder
-    Binder -->|"writes redaction-validated immutable artifacts via PORT-ARTIFACT to"| Artifact
-    Binder -->|"records manifest of subject · producer · digest · size · kind · completeness in"| Ledger
+    Binder -->|"proposes OPC-ART-PUT/GET intent to"| Transition
+    Transition -->|"commits intent before effect in"| Ledger
+    Transition -->|"dispatches authorized artifact Operation through"| Mediator
+    Mediator -->|"writes or reads via PORT-ARTIFACT"| Artifact
+    Artifact -->|"returns result/certainty/failure as EV-ARTIFACT-FACT through"| Mediator
+    Mediator -->|"submits validated artifact fact to"| Transition
+    Transition -->|"commits event and adopted manifest in"| Ledger
     Binder -.->|"quarantines detected secret material and raises Story-scoped failure as"| Quarantine
     Artifact -->|"serves digest-verified artifact reads to"| Decide
     Ledger -->|"proves required-evidence completeness to"| Decide
@@ -160,13 +186,15 @@ flowchart LR
     classDef person fill:#e8f1ff,stroke:#5a78a8,color:#172033
     classDef mechanism fill:#f1e9ff,stroke:#8061a8,color:#172033
     classDef component fill:#fff1cf,stroke:#a8781f,color:#172033
+    classDef authority fill:#fff1cf,stroke:#a8781f,stroke-width:3px,color:#172033
     classDef fault fill:#fce8e6,stroke:#a7615b,stroke-dasharray:5 3,color:#172033
     classDef store fill:#e8f1ff,stroke:#5a78a8,stroke-width:3px,color:#172033
     classDef decision fill:#e8f7ed,stroke:#4f8a63,color:#172033
     classDef consumer fill:#f4f5f7,stroke:#7c8798,stroke-dasharray:5 3,color:#172033
     class People person
     class Mech mechanism
-    class Binder component
+    class Binder,Mediator component
+    class Transition authority
     class Quarantine fault
     class Artifact,Ledger store
     class Decide decision

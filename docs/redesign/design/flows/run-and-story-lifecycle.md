@@ -73,23 +73,23 @@ stateDiagram-v2
     state "Completed" as Completed
     state "Durable named stop" as Stopped
 
-    [*] --> Received: envelope submitted
-    Received --> Preflighting: begins validation
-    Preflighting --> Rejected: invalid or insufficient envelope
-    Preflighting --> Active: freezes valid Run definition
-    Active --> Parked: durable named question for owner authority
-    Parked --> Active: valid scoped decision continues
-    Active --> Recovering: interruption or shared authority loss
-    Recovering --> Active: reconstructed and reconciled
-    Recovering --> Parked: unresolved scoped authority question
-    Recovering --> Stopped: trust or liveness assumption failure
+    [*] --> Received: PORT-INTAKE submission, LG-INTAKE commit
+    Received --> Preflighting: same atomic intake evaluation
+    Preflighting --> Rejected: SCH-INTAKE-ACK rejected disposition
+    Preflighting --> Active: EV-ENVELOPE-SUBMITTED, accepted ack and frozen basis
+    Active --> Parked: cataloged event selects owner-changeable wait
+    Parked --> Active: EV-OWNER-DECISION, scoped continuation
+    Active --> Recovering: EV-RECOVERY-OBSERVATION, shared authority uncertain
+    Recovering --> Active: EV-RECOVERY-OBSERVATION, integrity and reconciliation pass
+    Recovering --> Parked: EV-RECOVERY-OBSERVATION, owner-changeable question
+    Recovering --> Stopped: EV-RECOVERY-OBSERVATION, FC-TRUST
     Active --> Suspended: EV-RUN-SUSPEND-DECISION
     Parked --> Suspended: EV-RUN-SUSPEND-DECISION
     Suspended --> Active: EV-RUN-RESUME-DECISION, new generation and RC-RESUME-INTEGRITY pass
-    Suspended --> Parked: resume integrity requires exact re-approval
+    Suspended --> Parked: EV-RUN-RESUME-DECISION, changed basis needs re-approval
     Suspended --> Stopped: EV-RUN-TERMINAL-STOP-DECISION
-    Active --> Settling: no further business progress possible
-    Settling --> Completed: outcomes and obligations final or handed off
+    Active --> Settling: EV-WAKE-SETTLEMENT, every Story terminal/retiring
+    Settling --> Completed: EV-WAKE-SETTLEMENT, settlement complete or handed off
     Rejected --> [*]
     Stopped --> [*]
     Completed --> [*]
@@ -108,6 +108,37 @@ durable outcomes, and red nodes are exceptional conditions (`Parked`, `Interrupt
 and the terminal stop). `Suspended` is durable and resumable but dispatch-free; its blue phase
 styling distinguishes it from terminal red `Stopped`. Color is redundant with the phase names. The
 start and end markers are the standard state-diagram entry and terminal points.
+
+### Exhaustive Run-transition contract
+
+The first three rows are the pre-controller intake protocol. The `LG-INTAKE` conditional-create is
+one atomic commit point: `Received` and `Preflighting` describe evaluation within that operation,
+not separately committed Run-ledger positions. Before the acknowledgement exists, the submission
+has no `ID-EVENT`; after an accepted acknowledgement exists, the newly spawned controller commits
+`EV-ENVELOPE-SUBMITTED` as the first ordered Run event. A rejected acknowledgement is itself the
+durable terminal preflight fact and no controller is spawned.
+
+| From → to                              | Trigger                                                                                                                           | Guard                                                                                      | Persisted fact                                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| entry → `Received`                     | Validated `PORT-INTAKE` submission (pre-Run, not yet an `ID-EVENT`)                                                               | Envelope shape and composition digest are readable                                         | Atomic `SCH-INTAKE-ACK` conditional-create begins; no other store decides commitment.                          |
+| `Received` → `Preflighting`            | Same atomic intake evaluation                                                                                                     | Same-digest conditional-create owns the key                                                | Validation/preflight disposition is computed for the acknowledgement; no separate crash-visible commit exists. |
+| `Preflighting` → rejected              | Rejected `SCH-INTAKE-ACK` disposition                                                                                             | Invalid/insufficient envelope or infeasible authority/capacity                             | Immutable rejected acknowledgement and reason; no Run ledger/controller.                                       |
+| `Preflighting` → `Active`              | `EV-ENVELOPE-SUBMITTED`                                                                                                           | Accepted acknowledgement exists, derived Run ledger exists, frozen digest matches          | First `SCH-EVENT`/`SCH-TRANSITION`, frozen Run basis, and current `ID-GEN`.                                    |
+| `Active` → `Parked`                    | Cataloged subject event such as `EV-SESSION-HUMAN-REQUEST`, `EV-RULE-SURFACE-TOUCHED`, `EV-TARGET-FACT`, or a failure observation | Fixed failure selector proves a recorded owner action or changed external fact can advance | `ID-PARK`, exact question/reason, accountable responder, wake condition, and suspended Story positions.        |
+| `Parked` → `Active`                    | `EV-OWNER-DECISION`                                                                                                               | Exact request, lifecycle position, responder/current grant, and continuation guard pass    | Decision, closed parked request, and resumed durable positions.                                                |
+| `Active` → `Interrupted / Recovering`  | `EV-RECOVERY-OBSERVATION` (including a restart-derived observation)                                                               | Shared ledger/registry/generation/effect authority is uncertain                            | Dispatch fence, Recovery entry reason, and reconciliation set.                                                 |
+| `Interrupted / Recovering` → `Active`  | `EV-RECOVERY-OBSERVATION`                                                                                                         | Chain/currency/generation verification and every mandatory reconciliation pass             | New generation, adopted reconciliations, and Recovery-complete fact.                                           |
+| `Interrupted / Recovering` → `Parked`  | `EV-RECOVERY-OBSERVATION`                                                                                                         | Integrity is trustworthy but a recorded owner action can resolve the remaining question    | Parked request and preserved reconciliation evidence.                                                          |
+| `Interrupted / Recovering` → `Stopped` | `EV-RECOVERY-OBSERVATION`                                                                                                         | `FC-TRUST`: authoritative state cannot be established                                      | Named trust-root stop and externally governed recovery requirement.                                            |
+| `Active` or `Parked` → `Suspended`     | `EV-RUN-SUSPEND-DECISION`                                                                                                         | Exact Run/lifecycle position and responder/current grant pass                              | Dispatch fence, released finalization authority, reason, and preserved Story states.                           |
+| `Suspended` → `Active`                 | `EV-RUN-RESUME-DECISION`                                                                                                          | New generation and `RC-RESUME-INTEGRITY` pass unchanged                                    | Resume decision, new `ID-GEN`, and resumed positions.                                                          |
+| `Suspended` → `Parked`                 | `EV-RUN-RESUME-DECISION`                                                                                                          | Resume integrity finds a changed safety basis requiring exact approval                     | Parked re-approval request and invalidated dependent evidence/authority.                                       |
+| `Suspended` → `Stopped`                | `EV-RUN-TERMINAL-STOP-DECISION`                                                                                                   | Explicit terminal intent and no resumable transition remains                               | Terminal non-delivery outcome and Retirement handoff facts.                                                    |
+| `Active` → `Settling`                  | `EV-WAKE-SETTLEMENT`                                                                                                              | Every Story has a terminal business root or is retiring; no business transition remains    | Terminal-settlement work set and business-final cut predecessor.                                               |
+| `Settling` → `Completed`               | `EV-WAKE-SETTLEMENT`                                                                                                              | Every Retirement duty is complete or represented by an accepted `ID-OBLIGATION`            | Terminal-settlement position, complete outcomes/obligations, and `Completed`.                                  |
+
+Every active-Run row commits its trigger and Transition atomically and therefore names both the
+guard evaluated and the fact replay consumes; no ambient process transition is legal.
 
 ## Story lifecycle
 
