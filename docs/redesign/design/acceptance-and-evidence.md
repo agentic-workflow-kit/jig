@@ -46,11 +46,13 @@ verification is `none`; it is not an omitted decision.
 
 ## Policy-selected final verification
 
-The frozen policy selects exactly one high-level posture:
+The frozen policy must explicitly select exactly one high-level posture:
 
 - **`deterministic`:** run the configured final check set against the exact Accepted Candidate before
   delivery; or
 - **`none`:** proceed from reviewer approval and the reviewed implementer evidence.
+
+Omission of this selection fails preflight closed; no default posture exists.
 
 Configuration and providers may satisfy or exceed policy but cannot lower or silently change it. A
 failed required verification prevents delivery. Candidate mutation or changed delivery metadata

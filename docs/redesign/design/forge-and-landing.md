@@ -106,6 +106,9 @@ composition can only preserve or strengthen the selected mode. Configuration and
 lower, change, or substitute it at delivery time. Each mode defines the result shape the landing
 proof must resolve and the content-equivalence rule it must apply.
 
+Frozen policy must explicitly select exactly one cataloged mode. An omitted, unknown, or
+repository-floor-forbidden mode fails preflight closed; no default mode exists.
+
 | Strategy            | Expected result shape                                                             | `LP-EQUIV` rule                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Direct fast-forward | The target head advances to the exact Candidate commit; no new commit is created. | The observed target head content is identical to the Accepted Candidate content digest.                  |
