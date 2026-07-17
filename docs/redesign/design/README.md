@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — fifth independent readiness review returned FAIL on 2026-07-17; owner-approved remediation candidate in progress; product-readiness lock inactive
+status: active index — sixth remediation merged; seventh independent review, the first under the closure rubric, returned FAIL on 2026-07-17; this owner-approved seventh remediation candidate is in progress; readiness lock inactive pending two consecutive independent PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:

@@ -116,7 +116,8 @@ target inside its range and cannot demote the derived class.
 ## Exports and downstream publication
 
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
-position it reflects, published through `PORT-PUBLISH`. At terminal settlement, `CP-PROJECTION`
+position it reflects, published through `PORT-PUBLISH`. An audit export exists exactly for a Run
+that commits a terminal-settlement position: `Completed` and settled `Stopped` Runs. At terminal settlement, `CP-PROJECTION`
 derives exactly one `SCH-AUDIT-EXPORT` for the Run: canonical redacted bytes covering
 the ledger's first position through the **terminal-settlement position**, the business-final cut,
 and containing outcomes, notices, evidence manifest references, obligations, and

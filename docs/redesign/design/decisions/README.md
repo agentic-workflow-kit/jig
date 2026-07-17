@@ -7,7 +7,7 @@ audience:
   - Future architecture authors after authorization
 scope: Index and status of decisions D1–D15, the consolidated accepted burdens, and the review records; each decision's content lives in its own record.
 state: current
-status: active index — D1–D12 and D14–D15 remain byte-locked; bounded D4/D8 round-4 amendments and the fifth-round D8 reopen are historical, while D13 has one bounded 2026-07-17 reopen for the sixth remediation candidate pending renewed exact-candidate review
+status: active index — D1–D15 remain byte-locked; bounded D4/D8 round-4 amendments and the fifth-round D8 reopen are historical, as is D13's bounded 2026-07-17 reopen for the sixth remediation; the seventh remediation candidate changes no decision record
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
