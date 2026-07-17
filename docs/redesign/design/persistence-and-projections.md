@@ -170,6 +170,13 @@ intake committed.
 
 ## Currency and rollback detection
 
+Artifact pin currency is advanced only after an `OPC-ART-PUT` exact two-entry-set registration or
+`OPC-ART-DISPOSE` release-pin mutation returns its exact lookup position/head in
+`EV-ARTIFACT-FACT`.
+`CP-TRANSITION` advances independent `LG-WITNESS` through `PORT-LEDGER` before adoption or release
+acknowledgement; `PORT-ARTIFACT` cannot write it. Any lost acknowledgement retains/reconciles the
+conservative pin, and restore fails closed rather than inferring currency from holders.
+
 A hash chain proves the integrity and linkage of the prefix it sees; it cannot prove that the
 prefix is the **latest** one. A self-consistent earlier prefix — a rolled-back ledger, or a ledger
 and backups replaced together — passes `LG-CHAIN` while silently discarding a suffix that may
@@ -187,12 +194,13 @@ therefore a separate obligation with its own witness:
   index, artifact pin lookup, or their backups (a separately configured device, path of independent
   trust, or small remote service; a file beside any witnessed store is not a witness).
 - The one artifact-reference-index witness line covers the authoritative deployment-wide
-  reverse-reference pin lookup for the disposable evidence routing context. Every authoritative pin add
-  or release durably flushes its pin mutation; `CP-EVIDENCE` supplies the verified
-  `(position, head digest)` to `CP-TRANSITION`, whose existing witness-line `PORT-LEDGER` commit
+  reverse-reference pin lookup for the disposable evidence routing context. Every `OPC-ART-PUT`
+  exact two-entry-set registration or `OPC-ART-DISPOSE` release-pin durably flushes its mutation and
+  returns the verified `(position, head digest)` to `CP-TRANSITION`, whose existing witness-line
+  `PORT-LEDGER` commit
   protocol withholds completion until the monotonic witness advance is durable. Only then may the
-  existing enclosing-action owner acknowledge adoption or release. It is a safety-guard durability
-  step subordinate to the existing holder action, not a lifecycle, control, or mutation authority
+  Transition acknowledge adoption or release. It is an existing Operation-result durability step,
+  not a lifecycle, control, or direct-mutation authority
   of its own; `PORT-ARTIFACT` never writes `RT-WITNESS` directly. The five pre-Run holder classes
   instead use the configured protected configuration/intake context, which is non-disposable and
   does not depend on pin-lookup state. Existing holder class selects each context under the approved

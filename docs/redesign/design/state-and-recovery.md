@@ -73,6 +73,11 @@ Jig never dispatches an effect from an indeterminate control commit.
 
 ## Reconstruction and reconciliation
 
+Recovery treats disposable pin effects as the existing artifact Operations: it verifies exact
+`OPC-ART-PUT` or mode-bound `OPC-ART-DISPOSE` results and their witnessed lookup heads before
+adoption, release, or byte disposal. A missing or uncertain release result preserves/reconciles the
+pin; no restore may infer release or delete bytes from a holder scan.
+
 After interruption, Jig acquires a new controller generation, verifies the ledger, verifies that
 holder class still selects the protected/disposable contexts bound to the unchanged approved
 artifact-provider manifest/resource scope, and verifies the disposable pin lookup against its

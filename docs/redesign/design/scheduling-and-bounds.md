@@ -195,6 +195,19 @@ Human-input-overdue re-escalates without dropping the request.
 
 ## Timers and wake triggers
 
+The first existing `EV-BOUND-EXHAUSTED` for a live `open` `SCH-OBLIGATION` that blocks terminal
+settlement records a named no-settlement disposition, rather than an indefinite wait. It preserves
+the open obligation, original bound, owner-only handoff, and current `Settling`/pre-terminal
+`Stopped` or `Retiring` position; it cannot auto-handoff, resolve, close, settle, authorize a
+terminal-settlement audit export, or dispose.
+Only later exact owner acceptance or evidence-backed resolution wakes settlement.
+
+The exact recorded end of a disposable holder's liveness or retention basis also derives the
+existing `EV-WAKE-SETTLEMENT` during the cataloged Story `Retiring` self-loop or after terminal
+settlement. That wake commits the holder retirement and its `release-pin` intent; dispatch follows
+the commit. No other pre-terminal position consumes this holder wake. It adds no bound, wait class,
+or ambient timer surface.
+
 Durable typed **wake triggers** are the authoritative wait facts: each records its subject,
 deadline class, and completion or wake condition, committed with the Transition that opened the
 wait. A `BND-WAIT-CAPACITY` admission wait is accountable to `CP-SCHEDULER` and wakes on

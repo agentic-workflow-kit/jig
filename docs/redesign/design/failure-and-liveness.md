@@ -108,6 +108,15 @@ completion.
 
 ## Retirement and Residual Obligations
 
+When the first existing `EV-BOUND-EXHAUSTED` for a live `open` obligation blocks terminal
+settlement, it is the explicit no-settlement disposition: the bounded wait has ended, but the
+obligation remains open, owner-only handoff is unchanged, and the Run remains `Settling` or
+pre-terminal `Stopped` (with any Story already `Retiring`) unchanged. It neither auto-handoffs,
+resolves, closes, nor settles; no terminal-settlement audit export or artifact disposal is
+authorized. Live projections, notice, ledger, obligation, and evidence stay inspectable and
+preserved. Exact owner acceptance or evidence-backed resolution later exits the disposition,
+wakes settlement, reaches terminal position, and only then permits terminal-settlement audit export.
+
 Retirement settles or fences pending Operations, preserves committed work and evidence, applies
 required preservation behavior, releases finalization authority, closes sessions, and safely removes
 or hands off resources. Destructive cleanup is never evidence of business success.

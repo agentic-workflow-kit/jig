@@ -130,6 +130,11 @@ target inside its range and cannot demote the derived class.
 
 ## Exports and downstream publication
 
+An open obligation's first `EV-BOUND-EXHAUSTED` that blocks settlement is a named no-settlement
+disposition. It authorizes neither terminal-settlement audit export nor artifact disposal; projections, notices, and
+the preserved ledger/obligation/evidence remain live and inspectable until exact owner acceptance
+or evidence-backed resolution wakes settlement and reaches the terminal position.
+
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. An audit export exists exactly for a Run
 that commits a terminal-settlement position: `Completed` and settled `Stopped` Runs. At terminal
@@ -140,8 +145,11 @@ the ledger's first position through the **terminal-settlement position**, the bu
 and containing outcomes, notices, evidence manifest references, obligations, and
 provenance. `ID-EXPORT` includes the Run, terminal-settlement position, exact covered range, schema,
 redacted bytes, manifest, and their content digest; the digest is one identity input, not the whole
-identity or a mutable path. `OPC-ART-PUT` creates those exact bytes once in immutable storage,
-and a repeat may only verify or recover the identical digest — never overwrite it. Consumers get
+identity or a mutable path. `OPC-ART-PUT` creates or verifies those exact bytes and registers the
+exact temporary-event/export-holder two-pin set; digest-only or partial-set replay is insufficient,
+while the same-set Operation may reconcile without overwriting bytes. After witnessed success, the
+adopting Transition changes no lookup: it adopts the export holder, retires the temporary tuple, and
+records that tuple's post-commit `release-pin` intent. Consumers get
 explainable outcomes, obligations, and provenance, never control access; influence requires
 entering through `PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)).
 Export redaction follows the rules in [evidence handling](./evidence-handling.md).
