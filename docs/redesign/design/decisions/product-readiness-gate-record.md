@@ -1,6 +1,6 @@
 ---
-title: "Product readiness gate — tenth remediation candidate"
-purpose: Record the prior remediation history, the tenth independent readiness review's Candidate-contract findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
+title: "Product readiness gate — rolling independent review record"
+purpose: Record the rolling history of independent product-readiness reviews, their owner-approved bounded remediations, and the renewed exact-candidate reviews required after each remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
@@ -28,7 +28,7 @@ related:
   - ../delegation-register.md
 ---
 
-# Product readiness gate — tenth remediation candidate
+# Product readiness gate — rolling independent review record
 
 ## Historical sixth independent review and remediation
 
@@ -574,6 +574,114 @@ self-certification, a readiness verdict, or lock activation.
 The round-11 addition budget is zero identifier additions; the route-table diff is net-deletion.
 The product layer, D1–D15, the guidelines, the other 40 route rows, the satisfaction matrix,
 conformance-suite definitions, `CF-GATE-PRODUCT`, and the delegation register remain unchanged.
+
+This section makes no readiness verdict, merge claim, self-certification, or lock activation. Two
+fresh independent reviews of the same exact merged commit must still return `PASS` before the
+readiness lock can activate.
+
+## Twelfth independent review — exhaustive route audit and R6.1 settling
+
+The eleventh remediation merged at baseline
+`0030156813cd530bb002d3f3c0513820075c2ca1`, tree
+`9ad8733e09935e7aa79f71f306127e4640e4c374`. Its complete 66-path normative subject has manifest
+digest `968d4a63ccebb8ad6cfd079c567eb88949eb9c13983e07013909925d899e48b5`. A fresh independent
+review of those exact bytes on 2026-07-17 returned **FAIL** with in-rubric blockers under R6.1 and
+R5.1, recorded in the finding-to-resolution table below; it did not authorize a design change.
+
+R6.1 had been re-audited every round since round 6 without converging: two independent Mode-1
+reviews of the identical commit produced contradictory verdicts on the same route element
+(`PC-JIG-18`: one said delete `CF-PROVIDER-AUTHORITY` as redundant, the next said keep it as
+covering). Arye Kogan's 2026-07-17 instruction authorizes the bounded documentation remediation
+recorded below, together with an exhaustive both-directions audit of all 44 routes and a rubric
+amendment that ends the per-route re-derivation ratchet by freezing the recorded resolution. It does
+not authorize implementation work, archive work, merge, readiness self-certification, a readiness
+verdict, or lock activation.
+
+### Twelfth-review finding-to-resolution record
+
+| Item | Clause | Countable finding                                                                                                                                                                                                                                                                        | Owner-authorized candidate resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Joined files                                                                                                    |
+| ---: | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+|    1 | R6.1   | `PC-JIG-14`'s route, narrowed in round 11 (#100), was re-verified against the current bytes.                                                                                                                                                                                             | Already correct — no change. `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and no-public-stability records hold is retained as-is.                                                                                                                                                                                                                                                                                                                                                                            | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    2 | R6.1   | `PC-JIG-18`'s route, narrowed in round 11 (#100), was re-raised: the round-12 review claimed `CF-PROVIDER-AUTHORITY` should be restored as a covering element for in-Run provider posture.                                                                                               | Overruled — no change. `CF-PROVIDER-AUTHORITY` governs manifest approval, proof-freshness, and credential rejection, not deployment locality; `CF-MECH-WORKSPACE` already covers manifest-qualified host swap. The round-11 route (`CF-MECH-WORKSPACE` pass + Governance: gate-record `B2` resolution holds) stands.                                                                                                                                                                                                        | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    3 | R6.1   | `PC-CONCEPTS-4`'s route, narrowed in round 11 (#100), was re-verified against the current bytes.                                                                                                                                                                                         | Already correct — no change. `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and no-public-stability records hold is retained as-is.                                                                                                                                                                                                                                                                                                                                                                            | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    4 | R6.1   | The round-12 review proposed adding `CF-MECH-SESSION` to `PC-JIG-12`'s route for "in-Run posture stability."                                                                                                                                                                             | False positive — no change. `CF-POLICY` already proves the design-owned acceptance, evidence-integrity, authority, landing, and preservation forbidden set is unrepresentable in an accepted envelope — exactly "all four frozen floors enforced" — and `CF-PROVIDER-AUTHORITY` covers provider posture. The proposed clause is not stated by the promise.                                                                                                                                                                  | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    5 | R6.1   | The round-12 review proposed adding `CF-MECH-SESSION`/`CF-REVIEW-PUBLICATION` to `PC-JIG-23`'s route to prove the manual toil the durable lifecycle replaces.                                                                                                                            | Complete as-is — no change. "Replacing manual X" is the value proposition proven by the durable automated lifecycle/recovery suites already in the route (`CF-ENVELOPE`, `CF-RUN-CONTROL`, `CF-BOUNDS`, `CF-OBSERVABILITY`), matching the authoritative carrier column (brief O2/O5/O8 + D2 + V3/V4); it is not "proves the X mechanism."                                                                                                                                                                                   | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    6 | R6.1   | `PC-USE-3`'s route (`CF-POLICY` pass + `CF-PROVIDER-AUTHORITY` pass) did not name the element carrying "a work profile ... cannot lower policy, authority, provider-posture floors, evidence, or review requirements," although the carrier column already cites "envelope composition." | Genuine gap — corrected. Append `+ Governance: EP-PROFILE authority limit holds`; `EP-PROFILE` (`envelope-production.md:45`) is an existing identifier, so this adds no new identifier.                                                                                                                                                                                                                                                                                                                                     | `product-guarantee-reconciliation.md`, this gate record                                                         |
+|    7 | R5.1   | The round-12 review questioned whether Story `Pending` (dependency eligibility awaiting prerequisite `Landed`) is an unenumerated R5.1 wait, since the finite wait inventory names sixteen surfaces and does not list it.                                                                | Resolved. `Pending` is derived structural ineligibility, not a wait: no `BND-*` class, no accountable-owner-held bound, no exhaustion timer. It resolves by derived eligibility or, on a prerequisite reaching `Blocked`/`Rejected`, by the terminal `Not run — dependency blocked` disposition (I14, `CF-BLOCKERS`), observable through `OBS-STORY-BOARD` rather than `OBS-WAITS`. The sixteen-surface inventory stays exactly sixteen; the rubric now states explicitly that it need not enumerate derived ineligibility. | `scheduling-and-bounds.md`, `flows/run-and-story-lifecycle.md`, `readiness-closure-rubric.md`, this gate record |
+
+### Exhaustive both-directions 44-route audit
+
+Following the self-gate discipline this task exists to close, this review ran both prescribed tests
+against the current bytes for every one of the 44 `PC-*` proof routes in the
+[reconciliation minimal-route table](../product-guarantee-reconciliation.md#round-6-minimal-route-audit):
+
+- **Deletion test** — for each route, does removing any single named element leave every clause of
+  the compound promise still covered by the remaining elements?
+- **Completeness test** — for each route, is every atomic clause of the compound promise covered by
+  some named element, whether a suite pass or a cited governance record?
+
+Result: the four routes narrowed in round 11 (`PC-JIG-14`, `PC-JIG-18`, `PC-JIG-20`,
+`PC-CONCEPTS-4`) pass both tests at their current, already-minimal element sets; item 2 above
+overrules the round-12 re-raise on `PC-JIG-18`. `PC-JIG-12` and `PC-JIG-23` pass both tests as-is;
+items 4 and 5 above resolve the round-12 completeness claims against them as false positives. Every
+other route across all four commitment groups (`PC-README-*`, `PC-JIG-*`, `PC-CONCEPTS-*`,
+`PC-USE-*`) passes both the deletion and completeness tests with its current element set: no element
+is removable without uncovering a promise clause, and no clause lacks a covering element. `PC-USE-3`
+is the sole route that failed the completeness test, per item 6 above. That is the only correction
+this review makes to route content — one addition to one row of the 44; the other 43 route rows, the
+satisfaction matrix, every `CF-*` suite definition, and `CF-GATE-PRODUCT` are unchanged. This audit,
+not a partial or representative sample, is the basis for the R6.1 freeze below.
+
+### Owner rulings and R6.1 settling
+
+Arye Kogan's rulings, verified against the bytes above and recorded here as settled inputs:
+
+- The four routes corrected in round 11 (`PC-JIG-14`, `PC-JIG-18`, `PC-JIG-20`, `PC-CONCEPTS-4`)
+  remain correct; the round-12 re-raise on `PC-JIG-18` is overruled.
+- `PC-JIG-12` and `PC-JIG-23` are false positives; their routes are complete as-is.
+- `PC-USE-3` is a genuine gap; its route is corrected to add the `EP-PROFILE` governance element.
+- Story `Pending` is derived structural ineligibility, not an R5.1 wait; the sixteen-surface wait
+  inventory stays closed.
+
+**R6.1 settling (the freeze).** The [readiness closure rubric](../../guidelines/readiness-closure-rubric.md)
+R6.1 clause is rewritten to mirror R6.3's settled form: the 44 `PC-*` proof routes recorded in the
+reconciliation minimal-route table, as corrected through this round, are the **settled resolution**.
+Reviewers verify each route against that recorded resolution and confirm R6.2's deterministic
+`CF-GATE-PRODUCT` composition; they do not re-derive per-route minimal-complete sets or apply a
+per-route deletion/completeness ratchet. Reopening a specific route requires explicit Arye
+authorization and is not a reviewer preference — the same bounded-reopen discipline R6.3 has applied
+to the 56 imported guarantee IDs since rounds 3–5. This ends the non-convergence that produced
+contradictory verdicts on `PC-JIG-18` across independent reviews: after this round, a route dispute
+is a request to reopen a settled record, not a fresh derivation.
+
+### Owner directions and round-12 addition budget
+
+1. **OD-1 — exact route correction:** Add only `+ Governance: EP-PROFILE authority limit holds` to
+   the `PC-USE-3` row. Change no other route row.
+2. **OD-2 — R5.1 clarification:** Distinguish a wait (bounded, owner-held, with a wake condition,
+   bound class, and exhaustion action) from derived structural ineligibility (no timer or
+   owner-held bound; resolves by derived eligibility or a terminal dependency disposition) in the
+   rubric and in the corpus (`scheduling-and-bounds.md`, `flows/run-and-story-lifecycle.md`). Keep
+   the sixteen-surface wait inventory exactly sixteen; add no new identifier, bound, event, state,
+   or Operation.
+3. **OD-3 — R6.1 settling:** Rewrite rubric R6.1 to mirror R6.3's settled form, as recorded above.
+   Update the rubric frontmatter `status` to append, not overwrite, the 2026-07-17 R5.1+R6.1
+   amendment note.
+4. **OD-4 — complete both-directions audit:** Run the deletion test and the completeness test
+   against all 44 routes and record the result, per the subsection above. A route problem found
+   beyond `PC-USE-3` would have required stopping for Arye rather than editing; none was found.
+5. **OD-5 — append-only correction:** Record this review and remediation without rewriting prior
+   review history.
+6. **OD-6 — merge-invariant title and purpose:** Generalize the frontmatter `title` and `purpose`
+   from the "tenth remediation candidate" framing to the rolling-review framing already used in
+   `scope`.
+7. **OD-7 — closed addition budget:** Add no identifier of any family, suite, schema row, or prose
+   surface beyond this section, the one route-row addition, the R5.1 corpus/rubric clarification,
+   and the authorized frontmatter fixes. `EP-PROFILE` and `OBS-STORY-BOARD` already exist.
+
+The round-12 addition budget is zero new identifiers and a single-row route-table addition. The
+product layer, D1–D15, the other 43 route rows, the satisfaction matrix, conformance-suite
+definitions, `CF-GATE-PRODUCT`, and the delegation register remain unchanged.
 
 This section makes no readiness verdict, merge claim, self-certification, or lock activation. Two
 fresh independent reviews of the same exact merged commit must still return `PASS` before the
