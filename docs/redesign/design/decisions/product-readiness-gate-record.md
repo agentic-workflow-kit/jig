@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — eighth remediation candidate"
-purpose: Record the prior remediation history, the eighth independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
+title: "Product readiness gate — ninth remediation candidate"
+purpose: Record the prior remediation history, the ninth independent readiness review's closure findings, their owner-approved bounded remediation, and the renewed exact-candidate reviews required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The eighth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The ninth independent readiness review and its 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: seventh remediation merged; eighth independent review returned FAIL with 11 blockers plus non-blocking rubric and editorial items; owner-approved eighth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
+status: eighth remediation merged; ninth independent review returned FAIL with 6 blockers; owner-approved ninth remediation candidate in progress; readiness lock inactive pending merge and two consecutive independent exact-candidate PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -28,17 +28,19 @@ related:
   - ../delegation-register.md
 ---
 
-# Product readiness gate — eighth remediation candidate
+# Product readiness gate — ninth remediation candidate
 
 ## Current gate state
 
-The seventh remediation merged as baseline
-`30129ea6148c1c81b30e27e291caecb85665ba55`, tree
-`19bbd99a9c1f16dd91b9b90b76f1b2abd1d5aa2d`. A fresh independent readiness review of that exact
-subject on 2026-07-17 returned **FAIL** with eleven in-rubric blockers plus non-blocking rubric and
-editorial items. The product-readiness lock therefore remains **inactive**.
+The eighth remediation merged as baseline
+`14e3de2a9b4fbaac4e40c89b7f077484f2247d0a`, tree
+`58ed182e1a9fa29dce8bcce442246a899a5b985f`. Its 66-path normative subject has round-8-v1
+manifest digest `40688dce250dd47cf1d418499581bcc5b1a68167bb13753e8c97370c192038df`. A fresh independent
+readiness review of that exact subject on 2026-07-17 returned **FAIL** with six in-rubric blockers
+and proposed the now-owner-authorized R1.2 amendment. The product-readiness lock therefore remains
+**inactive**.
 
-Arye Kogan authorized the bounded eighth-remediation resolutions recorded below. That instruction
+Arye Kogan authorized the bounded ninth-remediation resolutions recorded below. That instruction
 does not authorize implementation inspection, archive work, greenfield planning, merge, or
 self-certification of readiness. Author checks and the pre-PR independent assessment establish
 review readiness only; two consecutive independent post-merge `PASS` reviews of the same exact
@@ -126,7 +128,7 @@ commit after merge.
 | 2. Acceptance invalidation  | Exact invalidating owner decisions take affected `Accepted`, `Waiting`, and `Finalizing` Stories to `Reviewing` with a fresh `RP-PACKAGE`; only `Finalizing` releases authority. |
 | 3. Target-refresh alignment | `OPC-SESSION-ASSIGN` supports bounded re-dispatch, then a new Candidate and target-observation fact with retained authority and atomic rebind.                                   |
 | 4. Post-terminal export     | The closed post-terminal administrative regime authorizes the create-once export/receipt path without changing the business-final cut.                                           |
-| 5. Evidence disposal        | `OPC-ART-DISPOSE` requires artifact-bound owner authorization, certainty reconciliation, and preservation, retention, and no-open-obligation guards.                             |
+| 5. Evidence disposal        | The `dispose-bytes` mode of `OPC-ART-DISPOSE` requires artifact-bound owner authorization, certainty reconciliation, and preservation, retention, and no-open-obligation guards. |
 | 6. Session lifecycle facts  | `EV-SESSION-FACT` carries all eight attestation kinds and every session-lifecycle row names its committing event.                                                                |
 | 7. Successor quarantine     | `predecessorQuarantineCut` is lineage-bound, fail-closed at intake, and covered by the composition digest.                                                                       |
 | 8. Two-phase trust stop     | `FC-TRUST` fences and halts first; `Stopped` records only on a trustworthy witnessed append basis or through external recovery.                                                  |
@@ -374,3 +376,103 @@ the initial prompt's readiness phase and the exact normative subject. That asses
 **advisory and non-gating**. It may prevent publication of a deficient candidate, but it cannot
 activate the product-readiness lock. After merge, two consecutive independent sessions must still
 return `PASS` on the same exact merged commit, tree, and manifest before the lock can activate.
+
+## Ninth independent review — remediation in progress
+
+The eighth remediation merged at baseline
+`14e3de2a9b4fbaac4e40c89b7f077484f2247d0a`, tree
+`58ed182e1a9fa29dce8bcce442246a899a5b985f`. Its complete 66-path normative subject has
+round-8-v1 manifest digest `40688dce250dd47cf1d418499581bcc5b1a68167bb13753e8c97370c192038df`.
+A fresh independent review of those exact bytes on 2026-07-17 returned **FAIL** with six in-rubric
+blockers. It also proposed the R1.2 amendment recorded below. The review found these items; it did
+not authorize a design change.
+
+Arye Kogan's 2026-07-17 instruction authorizes the bounded documentation remediation, one-row
+ledger-contract budget, and exact rubric amendment recorded here. It does not authorize a decision
+record reopen, implementation work, merge, archive work, or readiness self-certification. This
+candidate remains review-readiness work with no lock effect.
+
+### Ninth-review finding-to-resolution record
+
+| Item | Clause | Countable finding                                                                                                                    | Owner-authorized candidate resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Joined files                                                                                                                                                                                                                                                                                                                          |
+| ---: | ------ | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | R1.3   | Pre-Run configuration-read and capability-proof durable attempts crossed neither an Operation nor a commit-primitive-class contract. | Define their shared immutable conditional-create/readback protocol as `LG-PREFLIGHT-ATTEMPT`; require deterministic start/result variant keys, byte-equivalent same-variant-key replay, predecessor and deadline proof, and fail-closed mismatch, loss, tampering, or exhaustion. It creates no event, Operation, Run, Transition, authority, or dispatch. Classify snapshot, archive, and backup writes as subordinate physical-storage maintenance under the existing commit, projection, and recovery contracts rather than independent external acts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `persistence-and-projections.md`, `data-and-identity.md`, `runtime.md`, `scheduling-and-bounds.md`, `components/control-plane.md`, `flows/run-and-story-lifecycle.md`, `mechanism-and-provider-contracts.md`, `envelope-production.md`, `lifecycle-catalogs.md`, `architecture-conformance.md`, `product-guarantee-reconciliation.md` |
+|    2 | R1.4   | The declared Residual Obligation statuses had no closed lifecycle; finding resolution after reopen was also missing.                 | Add the complete open, accepted-handoff, and resolved obligation-status lifecycle, including entry, legal exits, triggers, settlement effect, duplicate behavior, terminality, and post-terminal behavior; add reopened-to-resolved finding closure. Treat every live `open` obligation as the sixteenth bounded wait under existing `BND-WAIT-DECISION`, with original start/deadline, exact handoff/resolution wakes, no reset, and one idempotent overdue re-escalation. `BND-RETIRE` exhaustion creates only `open`; it never accepts handoff or satisfies settlement automatically. The first existing `EV-BOUND-EXHAUSTED` for an `open` obligation that blocks terminal settlement records the explicit no-settlement disposition while preserving the obligation status and current Run/Story position; it cannot auto-handoff, resolve, close, settle, authorize terminal audit export, or dispose. Exact owner acceptance or evidence-backed resolution exits the disposition and wakes settlement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `data-and-identity.md`, `lifecycle-catalogs.md`, `flows/run-and-story-lifecycle.md`, `review-and-verification-execution.md`, `failure-and-liveness.md`, `operations-and-observability.md`, `scheduling-and-bounds.md`, `components/control-plane.md`, `architecture-conformance.md`, this gate record                                 |
+|    3 | R2.3   | The intake terminal acknowledgement had to bind fields that exist only after its own durable create.                                 | Stage a pre-create acknowledgement content digest over canonical terminal content while excluding its own digest, `ID-RUN`, assigned intake position, and derived create/lookup/witness handles; after create, bind the position-plus-content-digest tuple, then derive `ID-RUN` and the proof bindings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `data-and-identity.md`, `persistence-and-projections.md`, `architecture-conformance.md`                                                                                                                                                                                                                                               |
+|    4 | R3.1   | Provider-authority-manifest approval named owner approval fields but no authenticated ingress.                                       | Add a distinct method on existing `PORT-CONSUMER`, bound to Arye's configured principal and the exact manifest digest and scope; validate and return the existing approval fields, keep it non-delegable and distinct from envelope-proposal approval, and make any content change invalidate approval.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `data-and-identity.md`, `runtime.md`, `mechanism-and-provider-contracts.md`, `envelope-production.md`, `architecture-conformance.md`, `product-guarantee-reconciliation.md`                                                                                                                                                           |
+|    5 | R4.2   | Artifact disposal checked only evidence and export manifests although the shared content-addressed namespace had other live holders. | Enumerate all eleven holder classes and apply the owner-approved isolation alternative: existing holder class deterministically routes five pre-Run configuration/intake classes to a protected non-disposable context and six controller-mediated classes to a disposable evidence context under the unchanged approved artifact-provider manifest/resource scope, with no new schema operand or cross-context alias. Protected disposal/move fails closed. For the disposable context, `OPC-ART-PUT` puts or verifies bytes and registers the exact temporary-event/intended-holder two-pin set before adoption; digest-only or partial-set replay is insufficient. Adoption changes no lookup: its Transition adopts the durable holder, retires the temporary tuple, and records its post-commit `release-pin`; rejection records release for both. Any later holder retirement uses the cataloged Story `Retiring` self-loop, or the post-terminal administrative row for later retention expiry; both commit before mode-bound `OPC-ART-DISPOSE release-pin`, while `dispose-bytes` remains owner-authorized and guarded. Each normal `EV-ARTIFACT-FACT` result carries the flushed lookup head, and `CP-TRANSITION` advances the existing independent `LG-WITNESS` line through `PORT-LEDGER` before acknowledgement. Start/restart/restore proves immutable context binding and exact lookup currency; rollback, fork, mismatch, missing content, or unverifiability is `FC-TRUST`, and a visible-holder scan cannot substitute. | `data-and-identity.md`, `runtime.md`, `state-and-recovery.md`, `persistence-and-projections.md`, `evidence-handling.md`, `components/control-plane.md`, `flows/run-and-story-lifecycle.md`, `lifecycle-catalogs.md`, `mechanism-and-provider-contracts.md`, `delegation-register.md`, `architecture-conformance.md`, this gate record |
+|    6 | R6.1   | Four of 44 product-commitment routes did not cover their complete compound promise or were non-minimal.                              | Widen `PC-JIG-1` to cover envelope, acceptance, policy, control, landing, notice/export, and observability; bind both outcome-projection rows to the canonical projection; replace the Track route's unnecessary capacity element with the governing Track and independent-controller boundaries.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `product-guarantee-reconciliation.md`, `architecture-conformance.md`, this gate record                                                                                                                                                                                                                                                |
+
+### Owner directions and round-9 addition budget
+
+The owner-directed shape of this remediation is:
+
+1. treat both durable pre-Run attempt families as one commit-primitive-class protocol, optionally
+   using the sole budgeted ledger-contract row;
+2. close every lifecycle enumeration found by the schema-family sweep, including obligations and
+   reopened findings;
+3. apply the existing registry staged-digest pattern to the intake terminal acknowledgement;
+4. use existing `PORT-CONSUMER` for a distinct, Arye-only exact-manifest approval method;
+5. enumerate every live digest-holder class, isolate the five pre-Run configuration/intake classes
+   in a protected non-disposable context, close the six disposable classes' pin/disposal race, and
+   cover that lookup's mutation head with existing independent witness and fail-closed restore
+   rules;
+6. re-audit all 44 product-commitment routes for full compound-clause coverage and minimality; and
+7. adopt only the exact R1.2 amendment below under rubric procedure point 7.
+
+The addition budget is exactly one new ledger-contract row, `LG-PREFLIGHT-ATTEMPT`. The candidate
+adds zero events, Operations, ports, runtime units, control-plane components, Run phases, Story
+states, failure codes, bound classes, conformance suites, principals, schema families, or other
+identifier families. D1–D15 remain byte-locked. New rows and clauses within existing families do
+not widen that budget.
+
+### Iteration-5 administrative closure
+
+Iteration 5 records the bounded wording repair for R1.3/D12 and R1.4/R5.3 across their existing
+replicas: artifact pins are mediated only by existing artifact Operations, and an exhausted open
+obligation that blocks settlement has the named no-settlement disposition. This administrative
+record adds no identifier, event, schema, state, phase, principal, port, or decision-record change;
+D1–D15 and the product bytes remain frozen. It is not a readiness verdict, self-certification, or
+lock activation.
+
+### R1.2 owner-ruled amendment
+
+Under readiness-rubric procedure point 7, the owner authorized replacing only R1.2 with this exact
+text:
+
+> Every trigger consumed by a cataloged lifecycle or administrative Transition is a cataloged
+> event. Every cataloged event names at least one consuming Transition or an explicit named
+> non-Transition consumer; every event that advances lifecycle state appears as a trigger on at
+> least one state-changing Transition.
+
+The joined replicas are `readiness-closure-rubric.md`, `lifecycle-catalogs.md`,
+`operations-and-observability.md`, `components/control-plane.md`, `architecture-conformance.md`,
+and this gate record.
+
+The candidate closes the new reverse direction by mapping every cataloged event to a cataloged
+lifecycle, phase-preserving, post-terminal administrative, or control-administrative Transition and
+by retaining a state-changing Transition for every lifecycle-advancing event. No other rubric or
+guideline text changes in this round.
+
+The author census derives 32 distinct cataloged events and 32 distinct Transition triggers, with no
+uncataloged trigger and no catalog event lacking a consuming Transition. The 26 events that advance
+lifecycle or obligation status are all state-changing Transition triggers; the other six trigger
+only phase-preserving or administrative Transitions. These counts are re-derived from the frozen
+candidate for the pull-request self-review; they are author evidence, not a gate verdict.
+
+### Round-9 44-route audit record
+
+The author audit extracted the 44 commitment identities from the reconciliation inventory and the
+44 route identities from its minimal-route table, verified equal ordered sets with no duplicates,
+then split every commitment at conjunctions and outcome alternatives. Each atomic clause was mapped
+to a named suite or governance carrier. Every route element then underwent a deletion test: removal
+had to leave an atomic clause uncovered, while the full set had to cover every clause. The result
+was 40 unchanged routes and four corrected routes: `PC-JIG-1`, `PC-CONCEPTS-7`, `PC-CONCEPTS-8`,
+and `PC-CONCEPTS-9`. The identity-set check and incorporation of all 44 routes into
+`CF-GATE-PRODUCT` were rerun after correction.
+
+This is an author audit, not a readiness verdict. Candidate commit, tree, manifest digest, full
+checks, budget diff, and adversarial self-review iterations are generated only after the candidate
+is frozen and are carried as pull-request evidence rather than embedded self-referentially here.
+No entry in this section records `PASS` or activates the readiness lock; after merge, the same exact
+merged bytes still require two consecutive fresh independent `PASS` reviews.

@@ -7,7 +7,7 @@ audience:
   - Product, engineering, security, and operations stakeholders
 scope: Navigation, overview, and gate status for the canonical redesign artifacts; each fact lives in exactly one linked page.
 state: current
-status: active index — seventh remediation merged; eighth independent readiness review returned FAIL with 11 blockers on 2026-07-17; this owner-approved eighth remediation candidate is in progress; readiness lock inactive pending two consecutive independent PASS reviews
+status: active index — eighth remediation merged; ninth independent readiness review returned FAIL with 6 blockers on 2026-07-17; this owner-approved ninth remediation candidate is in progress; readiness lock inactive pending two consecutive independent PASS reviews
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -199,12 +199,12 @@ owner-approved readiness amendment.
 
 ## Layer gate status
 
-| Layer gate                        | Canonical or proposed artifacts                                                         | Status                                                                                                                                                                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Layer 0 — project definition      | [Project brief](./brief.md)                                                             | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                                                                            |
-| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants         | D1–D5, D7, and D9 remain byte-locked; prior D4/D8 amendments are historical, and the eighth remediation narrowly reopens only D6's suspension-release sentence pending renewed exact-candidate review            |
-| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                    | Approved, not locked; prior bounded D10 amendments are historical, and this eighth remediation does not reopen D10–D12                                                                                           |
-| Product readiness amendment       | D13–D15, V18, amended contracts, product correction, reconciliation, and readiness gate | Seventh remediation merged; eighth independent review returned FAIL with 11 blockers; eighth remediation in progress; lock inactive pending two consecutive independent exact-candidate PASS reviews after merge |
+| Layer gate                        | Canonical or proposed artifacts                                                         | Status                                                                                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Layer 0 — project definition      | [Project brief](./brief.md)                                                             | Approved; content unchanged by the 2026-07-15 relocation; governing input for Layer 1                                                                                                                        |
+| Layer 1 — high-level architecture | All Layer 1 pages in the document map, the decision records, and the invariants         | D1–D9 remain byte-locked; prior bounded amendments are historical, and the ninth remediation reopens no decision record                                                                                      |
+| Layer 2 — detailed architecture   | The Layer 2 document map above, D10–D12, and the Layer 2 gate record                    | Approved, not locked; prior bounded D10 amendments are historical, and the ninth remediation reopens no decision record                                                                                      |
+| Product readiness amendment       | D13–D15, V18, amended contracts, product correction, reconciliation, and readiness gate | Eighth remediation merged; ninth independent review returned FAIL with 6 blockers; ninth remediation in progress; lock inactive pending two consecutive independent exact-candidate PASS reviews after merge |
 
 Arye retains all material product and architecture decision ownership. The bounded review
 delegation permits an independent reviewer to approve only faithful organization and re-expression

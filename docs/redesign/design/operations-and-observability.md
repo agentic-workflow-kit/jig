@@ -49,6 +49,12 @@ scoped answer by `ID-PARK` to the session currently bound to the originating pri
 same-session resume, provenance-linked replacement, or cancel-and-reissue is explicit. The provider
 enforces or consumes the answer. Replying on an unvalidated notification channel remains rejected.
 
+`CP-ESCALATION` validates `EV-DELEGATION-GRANT` before proposing its cataloged
+control-administrative Transition. Once `CP-TRANSITION` durably records that Transition, the exact
+current `ID-GRANT` is available to validate later answers and decisions. The Transition changes the
+grant binding only; it does not advance Run, Story, or obligation lifecycle state or authorize an
+Operation.
+
 ## Operator tooling
 
 Generic operator commands are thin verbs over durable records and read models, run by
@@ -61,7 +67,8 @@ authority ([runtime](./runtime.md)):
   scoped owner or in-grant delegated selection of a different offered choice at an exact parked
   request or Story-bound decision point, recorded through `EV-OWNER-DECISION` under its existing
   guards), or
-  **hand off** a parked request; **stop** a Run
+  **hand off** a parked request; Arye may **accept handoff** of an exact live `open` Residual
+  Obligation before or after terminal settlement; **stop** a Run
   into `Suspended`, **resume** it, or explicitly **end** it terminally as product `ended`; and
   **acknowledge** or
   **snooze** a notice — each becomes its cataloged, grant-aware event through `PORT-DECIDE`, never
@@ -80,15 +87,15 @@ of truth against the ledger (I5).
 Every observation surface is a derived projection rebuilt from the ledger by `CP-PROJECTION`
 (`S-DERIVED` in [state and recovery](./state-and-recovery.md)); none is authoritative.
 
-| ID                | Surface            | Answers                                                                                                            |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                          |
-| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).    |
-| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                            |
-| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.    |
-| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, and their completion or handoff status (I19).                      |
-| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.             |
-| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions. |
+| ID                | Surface            | Answers                                                                                                                                 |
+| ----------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `OBS-RUN-STATUS`  | Run status         | The Run's phase, gate state, and headline outcome so far.                                                                               |
+| `OBS-STORY-BOARD` | Story board        | Per-Story phase, business outcome, and blockers with their complete canonically ordered direct-root sets (I14).                         |
+| `OBS-CAPACITY`    | Capacity           | Resource-class usage against declared capacity and what is waiting for admission (I10).                                                 |
+| `OBS-WAITS`       | Waits              | Every live wait, including Agent-provider human input, with its owner, reason, deadline, and exhaustion action.                         |
+| `OBS-OBLIGATIONS` | Obligations        | Residual Obligations, their accountable owners, original wait start/deadline and overdue state, and completion or handoff status (I19). |
+| `OBS-EVIDENCE`    | Evidence coverage  | Manifest completeness per decision: which required evidence is present, missing, or integrity-failing.                                  |
+| `OBS-NOTICES`     | Actionable notices | Every parked, blocked, stale, or overdue condition with urgency, accountable owner, and immediately valid actions.                      |
 
 ### Unified actionable notices
 
@@ -99,7 +106,15 @@ class, bound state, and impact; its actions are the currently authorized command
 same ledger position. A notice cannot invent authority, omit a live condition, or offer an action
 whose preconditions are false. `EV-NOTICE-ACKNOWLEDGED` changes presentation only;
 `EV-NOTICE-SNOOZED` records an explicit wake condition that `EV-WAKE-TIMER` later satisfies.
-Neither resolves the underlying durable condition.
+Each of those three events triggers its cataloged control-administrative Transition;
+`CP-PROJECTION` updates notice presentation and wake eligibility from the resulting durable facts.
+None resolves the underlying durable condition, advances Run, Story, or obligation lifecycle state,
+or authorizes an Operation.
+
+For a live `open` Residual Obligation, urgency derives from its recorded original
+`BND-WAIT-DECISION` start/deadline. Deadline expiry commits one idempotent
+`EV-BOUND-EXHAUSTED` re-escalation and notice basis for the same obligation and owner. It does not
+reset the wait, change obligation status, relax owner-only handoff authority, or claim resolution.
 
 Owner-reviewable notice-delivery defaults:
 
@@ -115,6 +130,11 @@ target inside its range and cannot demote the derived class.
 
 ## Exports and downstream publication
 
+An open obligation's first `EV-BOUND-EXHAUSTED` that blocks settlement is a named no-settlement
+disposition. It authorizes neither terminal-settlement audit export nor artifact disposal; projections, notices, and
+the preserved ledger/obligation/evidence remain live and inspectable until exact owner acceptance
+or evidence-backed resolution wakes settlement and reaches the terminal position.
+
 A live export is a durable, redacted snapshot of one or more read models stamped with the ledger
 position it reflects, published through `PORT-PUBLISH`. An audit export exists exactly for a Run
 that commits a terminal-settlement position: `Completed` and settled `Stopped` Runs. At terminal
@@ -125,8 +145,11 @@ the ledger's first position through the **terminal-settlement position**, the bu
 and containing outcomes, notices, evidence manifest references, obligations, and
 provenance. `ID-EXPORT` includes the Run, terminal-settlement position, exact covered range, schema,
 redacted bytes, manifest, and their content digest; the digest is one identity input, not the whole
-identity or a mutable path. `OPC-ART-PUT` creates those exact bytes once in immutable storage,
-and a repeat may only verify or recover the identical digest — never overwrite it. Consumers get
+identity or a mutable path. `OPC-ART-PUT` creates or verifies those exact bytes and registers the
+exact temporary-event/export-holder two-pin set; digest-only or partial-set replay is insufficient,
+while the same-set Operation may reconcile without overwriting bytes. After witnessed success, the
+adopting Transition changes no lookup: it adopts the export holder, retires the temporary tuple, and
+records that tuple's post-commit `release-pin` intent. Consumers get
 explainable outcomes, obligations, and provenance, never control access; influence requires
 entering through `PORT-INTAKE` or `PORT-DECIDE` as a validated participant ([runtime](./runtime.md)).
 Export redaction follows the rules in [evidence handling](./evidence-handling.md).
@@ -147,9 +170,17 @@ Residual Obligations drive manual cleanup. Each obligation names the affected re
 reason, the preservation evidence, the accountable owner, and the completion criteria
 ([failure and liveness](./failure-and-liveness.md)). A runbook execution completes by recording
 the obligation's resolution through the operator interface as
-`EV-OBLIGATION-RESOLVED` — the validated event and its evidence close the obligation, not the shell
-history. Destructive cleanup outside an authorized retirement or a
-recorded obligation is out of contract: cleanup cannot reverse landing or delay dependency release
+`EV-OBLIGATION-RESOLVED` from either `open` or `accepted-handoff`, before or after terminal
+settlement — the validated event and its evidence close the obligation, not the shell history. A
+post-terminal audit-export failure therefore has both an owner-only handoff exit and a completion
+exit without revising settled facts. Its original decision deadline also gives it a durable overdue
+re-escalation path without auto-handoff or auto-resolution. Destructive cleanup outside an authorized retirement or a
+recorded obligation is out of contract. Artifact disposal first rejects every protected
+configuration/intake context subject and any changed or unverifiable artifact-provider resource
+binding. A disposable evidence subject also requires its six-class deployment-wide pin lookup's
+chain-verified head to equal its current independent `LG-WITNESS` line after every start, restart,
+or restore; unproved binding or currency takes the `FC-TRUST` deliberate-stop path. Cleanup
+cannot reverse landing or delay dependency release
 (I18), and work and evidence are preserved before any destruction (I19).
 
 ### View V16 — observation and escalation dataflow

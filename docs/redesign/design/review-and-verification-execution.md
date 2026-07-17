@@ -81,7 +81,7 @@ Finding resolution is an explicit ledger transition, never an edit in place:
 | From               | Reviewer action and guard                                                                                    | To                                           |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | none               | Introduce the finding in a valid exact-package verdict                                                       | `open`                                       |
-| `open`             | Validate resolution evidence in a later exact package and attribute the resolving reviewer session/principal | `resolved`                                   |
+| `open`, `reopened` | Validate resolution evidence in a later exact package and attribute the resolving reviewer session/principal | `resolved`                                   |
 | `resolved`         | A later exact-package review finds the same traced risk present again                                        | `reopened` (blocking semantics equal `open`) |
 | `open`, `reopened` | A reviewer replaces the statement with a new, more precise `ID-FINDING`                                      | `superseded`; record the successor identity  |
 
