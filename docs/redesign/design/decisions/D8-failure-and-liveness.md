@@ -7,9 +7,9 @@ audience:
   - Future Layer 2 architecture authors after authorization
 scope: The D8 selection, rationale, accepted consequence, rejected alternatives, and Layer 2 deferral; the canonical failure model is owned by the failure-and-liveness page.
 state: proposed
-status: established owner decision, re-presented 2026-07-15; lock pending the Layer 1 gate
+status: established owner decision, amended by explicit bounded reopens of 2026-07-17; first remediation then round-4 terminal-liveness remediation; renewed exact-candidate review pending
 owner: Arye Kogan
-last_verified: 2026-07-15
+last_verified: 2026-07-17
 sources_of_truth:
   - ../brief.md
   - ../../raw/design/decisions.md
@@ -44,8 +44,8 @@ escalation**:
 - retry, rework, refresh, wait, Recovery, and Retirement are separately bounded;
 - every wait has durable reason, owner, wake condition, and exhaustion action, with typed wake
   triggers and no timer authority;
-- exhaustion becomes retry, block, park, escalation, interruption, stop, or residual handoff, never
-  silent success or indefinite waiting;
+- exhaustion becomes retry, block, park, escalation, interruption, an explicit terminal-stop
+  decision, or residual handoff, never silent success or indefinite waiting;
 - uncertain irreversible effects reconcile under the same Operation identity before another
   semantic attempt;
 - Landed, Blocked, and Rejected outcomes continue through safe Retirement; and
@@ -56,11 +56,17 @@ For a finite frozen Run with a trustworthy ledger/controller, eventually availab
 responsive or timing-out mechanisms, a target stable long enough for bounded finalization, and
 responsive owner authority, every Story reaches a final business outcome and every Retirement
 obligation closes or is explicitly handed off. Without those assumptions, Jig guarantees a durable
-named stop, not successful delivery.
+named stopping point — a park, a block, or a terminal stop under the failure taxonomy's fixed
+selectors — and explicit loss of guarantee, not successful delivery.
 
 Deliberate operator `Suspended` is outside that autonomous finite-run progress claim: it is a
 durable owner-controlled condition with no dispatch, not a retry or unnamed wait. Resume re-enters
-the recovery integrity path; terminal `Stopped` remains the fail-closed non-delivery outcome.
+the recovery integrity path; `FC-TRUST` alone selects terminal `Stopped` directly, while any other
+terminal stop requires `EV-RUN-TERMINAL-STOP-DECISION` from `Suspended`.
+
+The first 2026-07-17 owner-approved readiness remediation amended this record's failure model. The
+second, bounded round-4 reopen clarifies only the already-fixed terminal selectors; it does not add
+an edge, event, state, or failure code.
 
 ## Rationale and benefits
 
