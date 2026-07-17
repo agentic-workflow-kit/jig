@@ -63,9 +63,9 @@ covers the proposal digest plus that owner-approval record; it is the sole submi
 2. repo-policy-floor digest, track-policy digest, policy-selected integration mode, and their
    deterministic composition report;
 3. the named work-profile digest and every referenced prompt/role artifact digest;
-4. provider identities, capability requirements, approved authority-manifest digests, the exact
-   Agent-provider native permission-posture reference and declared semantics, and qualifying
-   conformance-evidence references;
+4. provider identities, capability requirements, `SCH-CAPABILITY-PROOF` references, approved
+   authority-manifest digests, the exact Agent-provider native permission-posture reference and
+   declared semantics, and qualifying conformance-evidence references;
 5. target, per-class capacity/reserve and per-Story path-to-safe-point demand composition,
    storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and

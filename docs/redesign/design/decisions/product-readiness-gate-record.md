@@ -210,14 +210,13 @@ surfaces the latitude exercised for owner review; it does not create a second co
 ## Exact remediation candidate
 
 The exact candidate is the complete merged commit produced by this remediation pull request and is
-confined to `docs/redesign/design/`. The imported `docs/product/guarantees.md` bytes and pinned
-digest remain unchanged. A review verdict attaches to the complete file digests at that merged
-commit, not to this list or to a branch name. Any later byte change invalidates that verdict.
+confined to `docs/redesign/`. The imported `docs/product/guarantees.md` bytes and pinned digest
+remain unchanged. A review verdict attaches to the complete file digests at that merged commit,
+not to this list or to a branch name. Any later byte change invalidates that verdict.
 
-D3, D4, D7, and D10 are already-amended historical baseline records and remain byte-locked in this
-candidate, as do D1–D7 and D9–D15. Only D8 changes under its owner-approved third bounded reopen;
-the earlier D4/D8 and D3/D7/D10 amendments are historical and are not additional authority for this
-candidate.
+All decision records except D13 remain byte-locked in this candidate. D13 changes only under its
+owner-approved bounded reopen of 2026-07-17; the earlier D4/D8 and D3/D7/D10 amendments are
+historical and are not additional authority for this candidate.
 
 ## Owner item discovered during exact-commit review — resolved
 
@@ -237,7 +236,7 @@ author resolution does not alter or satisfy the independent post-merge gate requ
 | `PR-R2` | The product-commitment inventory maps every normative commitment in `README.md`, `jig.md`, `concepts.md`, and `use-cases.md` to a named carrier and non-empty minimal set of proof-route elements — existing conformance suites/clauses, testable oracles/evidence artifacts, or cited static governance records — that jointly cover the complete commitment; every element must pass or hold. |
 | `PR-R3` | B1–B15, DG1–DG9, TG1–TG4, and E1–E6 meet their approved closed conditions across states, events, Operations, schemas, ports, capabilities, conformance, decisions, perspectives, and reconciliation.                                                                                                                                                                                            |
 | `PR-R4` | Existing stable IDs and imported guarantee statements remain unchanged unless an approved finding explicitly adds a new ID or narrows non-guarantee product wording.                                                                                                                                                                                                                            |
-| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/design/`; no product-layer, implementation, archive, delivery, configuration, or greenfield artifact is included.                                                                                                                                                                                                                 |
+| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/`; no product-layer, implementation, archive, delivery, configuration, or greenfield artifact is included.                                                                                                                                                                                                                        |
 | `PR-R6` | Formatting, links, repository checks, scoped greps, orphan scan, and a finding-by-finding author acceptance pass succeed.                                                                                                                                                                                                                                                                       |
 | `PR-R7` | After merge, two consecutive independent reviewers examine the same exact merged candidate from an empty-repository implementation-readiness posture and return `PASS` under the readiness closure rubric.                                                                                                                                                                                      |
 

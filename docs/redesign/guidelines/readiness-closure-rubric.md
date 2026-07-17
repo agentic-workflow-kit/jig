@@ -78,8 +78,8 @@ block) or a **delegation-register candidate** — never an automatic blocker.
 - R6.2 `CF-GATE-PRODUCT` composition is deterministic: it enumerates its inputs and its
   conjunction rule; no judgment step decides which routes count.
 - R6.3 The 56 imported guarantee IDs are covered per the recorded rounds-3–5 resolution
-  (reconciliation matrix plus conformance suites). Ratcheting to per-ID minimal routes requires an
-  owner ruling (open as OD-3), not a reviewer preference.
+  (reconciliation matrix plus conformance suites). OD-3 retains that resolution and excludes a
+  per-ID minimal-route ratchet unless Arye explicitly reopens it; it is not a reviewer preference.
 
 ### R7 — Policy-surface closure
 
