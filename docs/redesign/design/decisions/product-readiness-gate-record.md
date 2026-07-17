@@ -1,13 +1,13 @@
 ---
-title: "Product readiness gate — second remediation candidate"
-purpose: Record the second failed final-readiness review, every owner-approved remediation group, the nine settled rulings, and the renewed exact-candidate review required after remediation merges.
+title: "Product readiness gate — third remediation candidate"
+purpose: Record the second remediation, the third independent readiness review's two findings, their owner-approved remediation, and the renewed exact-candidate review required after remediation merges.
 audience:
   - Arye Kogan, Jig product and architecture decision owner
   - Independent architecture reviewers
   - Engineers awaiting an implementation-ready corpus
-scope: The second readiness review against baseline fe493beec71aeb4411a3024ccc81cf7b6f5a2c88 and the 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
+scope: The second remediation and the third independent readiness review against baseline ee35667b25b20610632dff4673bc1f07f7f9359a, including the 2026-07-17 documentation-only remediation; implementation, archive, greenfield planning, merge authorization, and the renewed review verdict are excluded.
 state: current
-status: second readiness review failed with 15 blocker groups, 9 delegation gaps, 4 traceability gaps, and 6 editorial groups; owner-approved remediation candidate in progress; readiness lock inactive pending merge and renewed independent exact-candidate review
+status: third independent readiness review returned changes required for one successor-lineage blocker and one PC-proof-route traceability gap; owner-approved remediation candidate in progress; readiness lock inactive pending merge and renewed independent exact-candidate review
 owner: Arye Kogan
 last_verified: 2026-07-17
 sources_of_truth:
@@ -25,7 +25,7 @@ related:
   - ../architecture-conformance.md
 ---
 
-# Product readiness gate — second remediation candidate
+# Product readiness gate — third remediation candidate
 
 ## Current gate state
 
@@ -38,6 +38,18 @@ Arye Kogan verified the findings, settled the nine decisions they require, and a
 resolutions below. That authorization permits the named design and non-guarantee product-prose
 corrections, including bounded reopen of D3, D7, and D10. It does not authorize unrelated Layer 1
 changes, implementation, archive, greenfield planning, merge, or self-certification of readiness.
+
+## Third independent review — remediation in progress
+
+A fresh independent empty-repository readiness review of `ee35667b25b20610632dff4673bc1f07f7f9359a`
+on 2026-07-17 returned **CHANGES_REQUIRED**. Arye Kogan verified the two findings and authorized
+their settled, documentation-only remediation below. This candidate does not certify the gate;
+after merge, a fresh independent reviewer must assess the exact merged commit.
+
+| Finding                             | Resolution carried by this candidate                                                                                                                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Successor-envelope digest collision | Add explicit genesis-or-successor lineage to `SCH-ENVELOPE` and its composition digest; preflight validates the lineage fail-closed, and `CF-ENVELOPE` proves distinct predecessor/reason successors create distinct digests and `ID-RUN`s. |
+| `PC-*` proof-route traceability gap | Add one named proof route to every 44-row product-commitment inventory entry and require those routes or their governance records in `CF-GATE-PRODUCT` and this renewed gate.                                                               |
 
 ## Finding-to-resolution record
 
@@ -117,15 +129,14 @@ surfaces the latitude exercised for owner review; it does not create a second co
 
 ## Exact remediation candidate
 
-The exact candidate is the complete merged commit produced by this remediation pull request:
-changed files under `docs/redesign/design/` plus the E5 correction in `docs/product/concepts.md`.
-The imported `docs/product/guarantees.md` bytes and pinned digest remain unchanged. A review verdict
-attaches to the complete file digests at that merged commit, not to this list or to a branch name.
-Any later byte change invalidates that verdict.
+The exact candidate is the complete merged commit produced by this remediation pull request and is
+confined to `docs/redesign/design/`. The imported `docs/product/guarantees.md` bytes and pinned
+digest remain unchanged. A review verdict attaches to the complete file digests at that merged
+commit, not to this list or to a branch name. Any later byte change invalidates that verdict.
 
-D3, D7, and D10 are the only newly reopened decision-record bytes in this remediation. D1, D2,
-D4–D6, and D8–D9 remain byte-locked against further change. The first remediation's already-recorded
-amendments remain historical baseline facts, not additional authority for this candidate.
+D3, D7, and D10 are already-amended historical baseline records and remain byte-locked in this
+candidate, as do D1, D2, D4–D6, and D8–D9. Those earlier amendments are not additional authority
+for this candidate.
 
 ## Owner item discovered during exact-commit review — resolved
 
@@ -139,15 +150,15 @@ author resolution does not alter or satisfy the independent post-merge gate requ
 
 ## Renewed gate requirements
 
-| ID      | Requirement                                                                                                                                                                                                                    |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PR-R1` | All 56 imported guarantee IDs retain one honest `satisfied` or explanatory `note` mapping, with no `gap`, `upstream`, or `conflict`.                                                                                           |
-| `PR-R2` | The product-commitment inventory maps every normative commitment in `README.md`, `jig.md`, `concepts.md`, and `use-cases.md` to a named carrier or explicit owner-visible gap.                                                 |
-| `PR-R3` | B1–B15, DG1–DG9, TG1–TG4, and E1–E6 meet their approved closed conditions across states, events, Operations, schemas, ports, capabilities, conformance, decisions, perspectives, and reconciliation.                           |
-| `PR-R4` | Existing stable IDs and imported guarantee statements remain unchanged unless an approved finding explicitly adds a new ID or narrows non-guarantee product wording.                                                           |
-| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/design/` plus the approved E5 correction in `docs/product/concepts.md`; no implementation, archive, delivery, configuration, or greenfield artifact is included. |
-| `PR-R6` | Formatting, links, repository checks, scoped greps, orphan scan, and a finding-by-finding author acceptance pass succeed.                                                                                                      |
-| `PR-R7` | After merge, a fresh independent reviewer examines the exact merged candidate from an empty-repository implementation-readiness posture and returns `PASS`.                                                                    |
+| ID      | Requirement                                                                                                                                                                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PR-R1` | All 56 imported guarantee IDs retain one honest `satisfied` or explanatory `note` mapping, with no `gap`, `upstream`, or `conflict`.                                                                                                                                                                   |
+| `PR-R2` | The product-commitment inventory maps every normative commitment in `README.md`, `jig.md`, `concepts.md`, and `use-cases.md` to a named carrier and exactly one non-empty proof route: an existing conformance suite/clause, a testable oracle/evidence artifact, or a cited static governance record. |
+| `PR-R3` | B1–B15, DG1–DG9, TG1–TG4, and E1–E6 meet their approved closed conditions across states, events, Operations, schemas, ports, capabilities, conformance, decisions, perspectives, and reconciliation.                                                                                                   |
+| `PR-R4` | Existing stable IDs and imported guarantee statements remain unchanged unless an approved finding explicitly adds a new ID or narrows non-guarantee product wording.                                                                                                                                   |
+| `PR-R5` | The diff is documentation-only and confined to `docs/redesign/design/`; no product-layer, implementation, archive, delivery, configuration, or greenfield artifact is included.                                                                                                                        |
+| `PR-R6` | Formatting, links, repository checks, scoped greps, orphan scan, and a finding-by-finding author acceptance pass succeed.                                                                                                                                                                              |
+| `PR-R7` | After merge, a fresh independent reviewer examines the exact merged candidate from an empty-repository implementation-readiness posture and returns `PASS`.                                                                                                                                            |
 
 ## Lock and review semantics
 

@@ -65,12 +65,15 @@ The builder produces one versioned `SCH-ENVELOPE` whose digest covers:
 5. target, per-class capacity/reserve and per-Story path-to-safe-point demand composition,
    storage, and other validated configuration;
 6. the setup recipe and its freshness-input declaration; and
-7. owner approval identity, scope, and proposal digest.
+7. owner approval identity, scope, and proposal digest; and
+8. `successorLineage`: explicitly `absent` for a genesis envelope, or the predecessor `ID-RUN`,
+   predecessor envelope composition digest, durable re-plan reason, and affected Story/root-blocker
+   set for a successor.
 
 There is no ambient fallback. An omitted required artifact, unknown version, unverifiable
-provenance, floor violation, changed authority manifest, or unbound reference makes the proposal
-invalid. `PORT-INTAKE` independently validates the submitted envelope and freezes its digest; it
-does not trust the builder's success claim.
+provenance, floor violation, changed authority manifest, unbound reference, or inconsistent lineage
+makes the proposal invalid. `PORT-INTAKE` independently validates the submitted envelope and
+freezes its digest; it does not trust the builder's success claim.
 
 ### Plan validation
 
@@ -107,10 +110,13 @@ preview and start, and `PORT-INTAKE` independently validates the later approved 
 
 ### Intake idempotency
 
-`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest. The first submission binds
-one immutable acknowledgement and `ID-RUN`; a duplicate returns that exact value, and a lost
-acknowledgement is recovered by digest lookup. Only a different composition digest is a new
-submission. The submitter can therefore retry after ambiguity without forking two Runs from one
+`PORT-INTAKE` conditionally creates `LG-INTAKE` by composition digest. Preflight validates
+lineage consistency before that create/read: a successor names an existing predecessor
+acknowledgement and `ID-RUN`, and carries a non-empty re-plan reason; a genesis envelope carries
+the explicit `absent` value and no predecessor fields. Any mismatch fails closed. The first
+submission binds one immutable acknowledgement and `ID-RUN`; a duplicate returns that exact value,
+and a lost acknowledgement is recovered by digest lookup. Only a different composition digest is a
+new submission. The submitter can therefore retry after ambiguity without forking two Runs from one
 approval.
 
 ## Policy and work profile
@@ -174,7 +180,9 @@ request re-planning, but the result is a **successor envelope** and a **successo
 - the predecessor Run and envelope identities;
 - the durable reason and affected Story/root-blocker set;
 - the new plan, policy, work profile, and evidence bases; and
-- a fresh owner approval over the successor composition digest.
+- a fresh owner approval over the successor composition digest; and
+- the lineage bytes that distinguish its predecessor identity, reason, and affected work from every
+  otherwise identical successor proposal.
 
 The predecessor remains reconstructible and is never rewritten. Independent work may land before
 the successor according to the predecessor's frozen policy; no successor fact is retroactively
