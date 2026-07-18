@@ -1,9 +1,0 @@
-{
-  "version": "policy-v0",
-  "policy": {
-    "id": "local-dry-run-policy",
-    "rules": {
-      "allowLocalDryRun": true
-    }
-  }
-}

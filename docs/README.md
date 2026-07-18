@@ -5,33 +5,20 @@ status: active index
 
 # Jig — documentation
 
-Jig owns its full artifact chain in this repo. Documentation is organized by **altitude**:
-product owns intent and promises; the redesign's design layer owns the engineering target for
-satisfying them. The pre-redesign design reference and historical planning, delivery, and review
-records are preserved under `archive/` for provenance. The current runtime binds owner
-configuration at launch from four artifacts where configured: plan, policy, work profile, and
-repo-policy floors.
+The active documentation corpus is organized by authority: product owns what and why; the approved
+redesign owns how. The implementation-readiness gate passed on 2026-07-18, and the repository is now
+intentionally source-empty pending a separately planned greenfield implementation.
 
-| Area                     | Owns                                                                                                                                                                                         | Status            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| [product/](./product/)   | **What and why** — audience, problem, promise, guarantees, boundaries. The contract design reconciles to.                                                                                    | target truth      |
-| [redesign/](./redesign/) | **How** — the live design layer: the approved layered architecture (brief, model, views, invariants, decisions), its method, and immutable proposal and review inputs.                       | target truth      |
-| [delivery/](./delivery/) | **In what order** — active delivery planning: phased tracks from the current implementation to the product/design target.                                                                    | active planning   |
-| [archive/](./archive/)   | Historical record: the pre-redesign design reference ([archive/design/](./archive/design/)), delivery sequencing, repo-local planning, and point-in-time reviews. Not active operating docs. | historical record |
+| Area                     | Owns                                                                                               | Status                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------- |
+| [product/](./product/)   | Audience, promise, guarantees, workflows, and boundaries.                                          | governing product truth |
+| [redesign/](./redesign/) | Approved architecture, decisions, contracts, conformance obligations, and design method.           | governing design truth  |
+| [archive/](./archive/)   | Historical provenance, the final readiness record, and immutable generation recovery instructions. | non-governing reference |
 
-Suite-level framing (how Jig relates to the other products in the lifecycle) lives at the
-[organization profile](https://github.com/agentic-workflow-kit), not here. This repo stays
-scoped to **Jig the execution engine**.
+There is no active `docs/delivery/` track. Creating the greenfield implementation track is the next
+session's task and must start from the governing product/redesign corpus and the
+[empty-repository readiness gate](./archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md).
 
-Current implementation truth includes a private setup command that emits validated owner
-configuration, plus a private real GitHub Forge/GitHub Issues path with blocked-PR surfacing,
-held-merge replay safety, landing-path redaction, and origin-bearing candidate provenance —
-the success-path real Forge `open-pr`, protected-branch held merge, commit-status/comment
-block-surfacing, and resume idempotency smokes have been captured on the current checkout;
-phase-table PR-number status updates still live in delivery docs.
-
-The pre-redesign ADR log and evidence records remain citation targets from their archived home:
-
-- [archive/design/decisions/](./archive/design/decisions/) — ADR index (archived 2026-07-16).
-- [archive/design/evidence/](./archive/design/evidence/) — committed evidence records that inform
-  ADRs and contract decisions (archived 2026-07-16).
+The retired source and delivery track are not duplicated in the active tree. Use the
+[generation manifest](./archive/generations/jig-v0-pre-greenfield-2026-07-18.md) only for an
+already-specified active story.

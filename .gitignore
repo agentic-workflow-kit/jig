@@ -34,7 +34,6 @@ pnpm-debug.log*
 .idea/
 .vscode/
 
-# Local agent/runtime artifacts
+# Local agent artifacts
 .codex/
 .claude/
-runs/

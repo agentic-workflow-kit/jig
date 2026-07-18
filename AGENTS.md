@@ -1,114 +1,58 @@
 # AGENTS.md — jig
 
-The contract for working in this repo. **Self-contained:** act on it with only this repo
-checked out (including Claude or Codex cloud runs). Don't work from memory — read the doc here
-that owns your subject, then plan before non-trivial work.
+This is the governing contract for work in this repository. Read the document that owns the
+surface you touch before planning non-trivial work.
 
-`jig` is the deterministic delivery engine of the agentic-workflow-kit suite: it takes an
-approved **execution plan** plus a **policy** and turns it into reviewed, landed work — or a
-deliberate, inspectable stop. It owns two contracts other tools build on: the **execution-plan
-contract** (its one hard input boundary) and the **observability / event records** (its durable
-output). Treat both as versioned seams — changing their shape is a breaking change for
-downstream consumers.
+## Current repository posture
 
-## Ground truth — read what your task touches
+Jig's approved product and architecture are implementation-ready, but the active repository
+intentionally contains no product source and no implementation delivery track. The next
+implementation must be planned greenfield from the approved documents. Do not create source,
+package scaffolds, or a delivery track unless the owner explicitly starts that next phase.
 
-Altitude: `docs/product/` owns _what & why_; `docs/redesign/design/` owns _how_ — the approved
-layered architecture (Layer 0 brief; Layer 1 locked; Layer 2 approved, not locked). Product is
-the contract design reconciles to; where they conflict, name it rather than silently resolving.
-The pre-redesign engineering reference is archived at `docs/archive/design/` and remains the
-citation target for the v0 data contracts, the ADR log, and committed evidence records until
-those seams are reconciled into the redesign. Historical delivery, planning, and review records
-live under `docs/archive/`; treat archive content as provenance, not current implementation
-instructions.
+The retired implementation generation and its delivery track are recoverable through the immutable
+archive described in
+[`docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md`](docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md).
+They are non-governing provenance. Consult them only for an already-specified active story, never to
+choose the new architecture or plan. Any reused material must independently conform to the current
+design and retain provenance.
 
-| Task                                                       | Read                                                                           |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Intent, audience, the five guarantees, boundaries          | `docs/product/jig.md` (hub)                                                    |
-| Guarantees in ID detail / scenarios / concepts             | `docs/product/guarantees.md`, `use-cases.md`, `concepts.md`                    |
-| How a promise is met (model, views, invariants, decisions) | `docs/redesign/design/` (live; start at its README and the gate records)       |
-| v0 data contracts, ADR log, committed evidence records     | `docs/archive/design/` (archived reference; still cited by delivery phases)    |
-| Active delivery phasing toward the target state            | `docs/delivery/` (start at its README)                                         |
-| Historical delivery sequencing and phase ladders           | `docs/archive/delivery/`                                                       |
-| Historical design-work sequencing                          | `docs/archive/planning/design-track/`                                          |
-| Point-in-time repo reviews and their findings              | `docs/archive/reviews/`                                                        |
-| The engine source and its tests                            | `packages/*/src`, `packages/*/tests`, `tests/` (fixtures at `tests/fixtures/`) |
-| Local agent runbooks                                       | `skills/`                                                                      |
+## Ground truth
 
-## Status
+| Task                                                                                           | Read                                                                                |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Intent, audience, guarantees, workflows, and boundaries                                        | `docs/product/`                                                                     |
+| Approved architecture, authority, runtime, lifecycle, data, failure, and conformance contracts | `docs/redesign/design/`                                                             |
+| Architecture method and maintenance rules                                                      | `docs/redesign/guidelines/` and `docs/redesign/AGENTS.md`                           |
+| Final empty-repository readiness gate                                                          | `docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md` |
+| Retired-generation recovery and lookup policy                                                  | `docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md`                      |
 
-Jig is early source-checkout tooling. The CLI exposes `jig setup`, `jig preview`, `jig run`,
-`jig inspect`, `jig resume`, `jig watch`, `jig ask-why`, `jig notice-ack`,
-`jig notice-snooze`, `jig decide`, `jig stop`, and `jig export`; fixture-backed local runs are the
-supported way to exercise the repo from a fresh checkout. Runs now bind the launch policy together with any
-configured work profile and
-repo-policy floors, and resume reuses the recorded effective policy basis rather than trusting
-ambient local state. The repo is a private pnpm workspace shell (`@agentic-workflow-kit/jig-repo`,
-`"private": true`) coordinating the private packages `@agentic-workflow-kit/jig-sdk`,
-`@agentic-workflow-kit/jig-cli`, `@agentic-workflow-kit/jig-mcp`, and
-`@agentic-workflow-kit/jig-testkit`. Nothing in the workspace publishes `@agentic-workflow-kit/jig`
-or makes a public SDK/provider/MCP stability promise. The real
-execution-host path is now selectable on macOS and proves an honest `weak` `process-group` posture
-at compose time; the current real GitHub Forge/GitHub Issues path includes blocked-PR surfacing,
-held-merge replay safety, landing-path redaction, and origin-bearing work-source provenance —
-the success-path real Forge `open-pr`, protected-branch held merge, commit-status/comment
-block-surfacing, and resume idempotency smokes have been captured on the current checkout.
-Strong no-phone-home evidence remains future work. EVRUN-partial is recorded; P11 also records a
-blocked EVRUN-full capture attempt plus a later successful combined EVRUN-full smoke: real GitHub
-Issues, real Codex app-server, real host attestation, real GitHub Forge `open-pr`, and records
-integrity on the disposable target repo. Strong no-phone-home, hosted, and Windows evidence remain
-future work.
+Product owns what and why. The approved redesign owns how. Historical material under
+`docs/archive/` and `docs/redesign/raw/` is provenance, not current implementation instruction.
 
 ## Commands
 
 ```bash
-pnpm install --frozen-lockfile   # setup (or: pnpm dev:setup)
-pnpm check                       # the full gate: lint, format:check, typecheck, boundaries:check, links:check, delivery:check, test
-pnpm build                       # tsc -b — emits dist/; required before running the CLI directly
-node packages/jig-cli/bin/jig.js setup .jig/local-track \
-  --track local-track \
-  --template conservative-manual \
-  --posture reference-scripted
-node packages/jig-cli/bin/jig.js run tests/fixtures/m5b-local-mvp/minimal-plan.json \
-  --config tests/fixtures/m5b-local-mvp/local-config.json \
-  --policy tests/fixtures/m5b-local-mvp/local-policy.json \
-  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
-node packages/jig-cli/bin/jig.js preview tests/fixtures/m5b-local-mvp/minimal-plan.json \
-  --config tests/fixtures/m5b-local-mvp/local-config.json \
-  --policy tests/fixtures/m5b-local-mvp/local-policy.json
-node packages/jig-cli/bin/jig.js inspect <runs/run-dir-from-output>
-node packages/jig-cli/bin/jig.js watch <runs/run-dir-from-output>
-node packages/jig-cli/bin/jig.js ask-why <runs/run-dir-from-output> --story STORY-1
-node packages/jig-cli/bin/jig.js notice-ack <runs/run-dir-from-output> unattended-park
-node packages/jig-cli/bin/jig.js notice-snooze <runs/run-dir-from-output> unattended-park \
-  --until 2026-07-03T12:00:00.000Z
-node packages/jig-cli/bin/jig.js decide <runs/run-dir-from-output> --outcome approve
-node packages/jig-cli/bin/jig.js stop <runs/run-dir-from-output> --reason owner-requested-pause
-node packages/jig-cli/bin/jig.js export <runs/run-dir-from-output>
-node packages/jig-cli/bin/jig.js resume <runs/run-dir-from-output> \
-  --scripted-output tests/fixtures/m5b-local-mvp/scripted-worker-success.json
-pnpm mcp                         # after pnpm build: private stdio MCP adapter
+pnpm install --frozen-lockfile
+pnpm check
+pnpm format
+pnpm worktree:new <branch>
+pnpm worktree:clean <branch>
 ```
 
-`pnpm test` builds first (`tsc -b`, incremental) and then runs vitest with enforced 90%
-coverage thresholds, so it works standalone from a fresh checkout. Only invoking the CLI
-directly requires an explicit `pnpm build` beforehand.
+`pnpm check` validates repository structure, the archive recovery anchor, formatting, lint, and
+documentation links. There is no build, runtime, package-boundary, delivery-track, or product-test
+command while the active source tree is intentionally empty.
 
 ## Gate and conventions
 
-- **`pnpm check`** before claiming any change done; show its output as evidence, don't assert
-  success. It runs biome (code format+lint), prettier (Markdown/YAML), `tsc -b`, package-boundary
-  enforcement, the Markdown doc-link check, the delivery foundation check, and vitest with
-  coverage thresholds enforced at 90% (aim 95%). Work is test-driven.
-- **Gate integrity:** do not skip steps, adjust thresholds, or widen exclusion lists to make
-  `pnpm check` green — fix the cause, or raise it instead of routing around it.
-- **`main`-based:** branch from `main`, PR into it, green `check` required, review conversations
-  resolved, squash-merge. Conventional commit subjects (`feat:`/`fix:`/`docs:`/…); no
-  attribution footers. Worktrees for non-trivial work are external siblings of this checkout under
-  `worktrees/jig/<branch>` — never nested inside it. Use `pnpm worktree:new <branch>` to create one
-  and `pnpm worktree:clean <branch>` after merge.
-- **No emojis** anywhere. **Immutability** — return new values, don't mutate inputs. Handle
-  errors explicitly and validate external input at boundaries. Diagrams in Mermaid, inline — styled with a `%%{init}%%` theme block, colored `subgraph`
-  regions, and `classDef` category colors (no committed image assets). No
-  hardcoded secrets — credentials via environment only; redact secrets, tokens, and PII in logs;
-  if you find an exposed secret, stop and rotate it.
+- Keep product and approved redesign documents authoritative and navigable.
+- Do not use archived implementation details to fill a design or planning gap.
+- A new implementation track requires a separate owner-authorized session and must start from the
+  approved design and readiness gate, not from the archive.
+- Use external sibling worktrees under `worktrees/jig/<branch>` for non-trivial changes.
+- Branch from `main`, open PRs into `main`, require the `check` workflow, resolve review
+  conversations, and squash-merge.
+- Use conventional commit subjects. Do not add attribution footers.
+- Preserve secrets and credentials outside tracked files and logs.
+- Keep changes focused; do not weaken checks to make a change pass.

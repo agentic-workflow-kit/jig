@@ -5,38 +5,27 @@ status: historical archive
 
 # Jig — archive
 
-This directory keeps the pre-redesign design reference and historical planning, delivery, and
-review records. These files explain how Jig reached its current product and design state; they
-are not active delivery instructions and should not be used to start new work.
+This directory preserves non-governing provenance and durable gate records. It must not be used to
+choose the next implementation architecture or delivery plan.
 
-## Design (pre-redesign)
+## Retired implementation generation
 
-[design/](./design/) contains the retired pre-redesign engineering reference — v0 data
-contracts, core and provider design, security model, the ADR log, and committed evidence
-records (archived 2026-07-16 by explicit owner decision). The live design layer is
-[../redesign/design/](../redesign/design/README.md). The archived ADRs, v0 contracts, and
-evidence records remain valid citation targets for the active delivery phases until those
-seams are reconciled into the redesign.
+The current generation archive is described by
+[`generations/jig-v0-pre-greenfield-2026-07-18.md`](./generations/jig-v0-pre-greenfield-2026-07-18.md).
+The implementation source, tests, fixtures, private adapters, runbook, tooling, and superseded
+delivery track live only at its verified Git tag; they are not duplicated in the active tree.
 
-## Delivery
+## Readiness and reviews
 
-[delivery/](./delivery/) contains completed and superseded delivery tracks, implementation briefs,
-phase ladders, acceptance evidence, and M7 closeout history.
+[`reviews/`](./reviews/) contains point-in-time review records, including the
+[final empty-repository implementation-readiness gate](./reviews/2026-07-18-empty-repository-implementation-readiness-gate.md).
 
-## Planning
+## Earlier provenance
 
-[planning/](./planning/) contains historical repo-local design-track waves, session scaffolds,
-traceability, and implementation-phasing handoffs.
+- [`design/`](./design/) — retired pre-redesign engineering reference and evidence.
+- [`delivery/`](./delivery/) — completed and superseded delivery records.
+- [`planning/`](./planning/) — historical design-track planning.
+- [`reviews/`](./reviews/) — point-in-time repository and design reviews.
 
-## Reviews
-
-[reviews/](./reviews/) contains point-in-time repository, reconciliation, and post-milestone
-reviews.
-
-## Still Cited From Here
-
-The archived ADR log and committed evidence records remain citation targets for the active
-delivery phases:
-
-- [design/decisions/](./design/decisions/)
-- [design/evidence/](./design/evidence/)
+These directories remain historical context only. Relative links from them to removed generation
+paths are validated against the immutable generation tag, not against the active source-empty tree.
