@@ -221,6 +221,30 @@ function sourceCatalog(readText, errors, { path, start, end, prefix, count }) {
     errors.push(`source catalog ${path} must contain exactly ${count} unique ${prefix}-* first-column rows`);
   return ids;
 }
+function coverageStoryRows(text, errors) {
+  const heading = '## Story metadata to covered items';
+  const headings = [...text.matchAll(/^## Story metadata to covered items$/gm)];
+  if (headings.length !== 1) {
+    errors.push('coverage.md must contain exactly one Story metadata to covered items section');
+    return new Map();
+  }
+  const remainder = text.slice(headings[0].index + heading.length);
+  const nextHeading = remainder.search(/^## /m);
+  const section = nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
+  const rows = [...section.matchAll(/^\|\s*(GF-\d{3})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gm)];
+  const parsed = new Map();
+  const cell = (value) => (value.trim() === 'none' ? [] : value.split(',').map((item) => item.trim()));
+  for (const [, id, stableIds, productRoutes, importedCommitments] of rows) {
+    if (parsed.has(id)) errors.push(`coverage.md duplicates story metadata row ${id}`);
+    parsed.set(id, {
+      stable_ids: cell(stableIds),
+      product_routes: cell(productRoutes),
+      imported_commitments: cell(importedCommitments),
+    });
+  }
+  if (!eqSet([...parsed.keys()], STORY_IDS)) errors.push('coverage.md must contain the exact 47 story metadata rows');
+  return parsed;
+}
 function exactKeys(value, keys) {
   return value && typeof value === 'object' && !Array.isArray(value) && eqSet(Object.keys(value), keys);
 }
@@ -610,6 +634,17 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
   if (!exact(track.counts, derivedCounts))
     errors.push('track counts must be independently recomputed from exact structural sets');
   if (rootDir) {
+    const coverageRows = coverageStoryRows(readText('docs/delivery/greenfield/coverage.md'), errors);
+    for (const story of byId.values()) {
+      const row = coverageRows.get(story.id);
+      if (
+        !row ||
+        !eqSet(row.stable_ids, story.stable_ids) ||
+        !eqSet(row.product_routes, story.product_routes) ||
+        !eqSet(row.imported_commitments, story.imported_commitments)
+      )
+        errors.push(`coverage.md story row ${story.id} must exactly match track metadata in both directions`);
+    }
     const reconciliation = readText('docs/redesign/design/product-guarantee-reconciliation.md');
     const routes = routeRows(reconciliation);
     if (routes.size !== 44 || !eqSet(Object.keys(track.product_routes ?? {}), [...routes.keys()]))

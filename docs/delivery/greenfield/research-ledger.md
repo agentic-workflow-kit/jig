@@ -28,9 +28,10 @@ remnants into a planning source.
 
 The owner-approved planning source selects a private TypeScript/Node/pnpm/Turbo topology, strict
 JSON initially, D11 file stores with a genuinely independent witness trust root, and an initial
-provider set of file source/storage, local Git host, local verify, Codex, GitHub, and terminal/file
-notices. The final supported profile includes both a private CLI and private MCP. These are bounded
-realization selections, not a public-product expansion.
+qualified provider set of file source/storage, local Git host, local verify, Codex, and GitHub. The
+DR-12 terminal/file notice route is a presentation channel rather than a port provider. The final
+supported profile includes both a private CLI and private MCP. These are bounded realization
+selections, not a public-product expansion.
 
 Before implementation, pin CI actions immutably and place the selection/evidence/fallback in the
 applicable story contract. Unsupported GitHub modes and Codex postures remain unconfigurable.

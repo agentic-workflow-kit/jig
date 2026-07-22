@@ -5132,7 +5132,7 @@
       "DR-5": {
         "owner": "Configuration",
         "earliest_story": "GF-022 then GF-020/GF-025/GF-026/GF-039/GF-047/GF-060/GF-061",
-        "constraints": "Initial providers are structured-file source, file stores, local Git workspace, local verifier, Codex sessions, GitHub delivery, and terminal/file notice.",
+        "constraints": "Initial qualified providers are structured-file source, file stores, local Git workspace, local verifier, Codex sessions, and GitHub delivery.",
         "alternatives": "Unsupported provider mode omitted, never waived or inferred.",
         "evidence": "Exact real-provider mechanism conformance suite and provider gate.",
         "fallback": "Unconfigurable provider.",
@@ -5177,9 +5177,9 @@
       "DR-12": {
         "owner": "Engineering + configuration",
         "earliest_story": "GF-019/GF-020/GF-052",
-        "constraints": "Work source and notice implementations use validated PORT-SOURCE exchange and fixed notice derivation.",
-        "alternatives": "Channel implementation may vary below the port contract.",
-        "evidence": "Source/notice port suites.",
+        "constraints": "Work Source uses validated PORT-SOURCE; terminal/file notice uses fixed durable derivation and presentation and is not a port provider.",
+        "alternatives": "Source transport and notice channel may vary only below their respective contracts; a future external port provider requires its own gate.",
+        "evidence": "CF-MECH-SOURCE and CF-GATE-PROVIDER for source; CF-NOTICE-EXPORT and CF-BLOCK-SURFACING for notice.",
         "fallback": "Reject source or retain undelivered notice.",
         "blocks": "Intake and operator profile."
       }

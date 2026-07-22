@@ -10,14 +10,15 @@ owner: "Arye Kogan"
 
 ## Owner-approved decisions already carried by the track
 
-| Decision          | Approved direction                                                                                                                | Delivery consequence                                                                                              |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Private topology  | Node/TypeScript/pnpm/Turbo private modular topology.                                                                              | GF-001/GF-003 use package seams and the task graph as proof surfaces, not an authority change.                    |
-| Boundary framing  | Strict JSON initially.                                                                                                            | GF-002 rejects alternative/ambiguous durable or public framing.                                                   |
-| Durable truth     | D11 file stores with a genuinely independent witness trust root.                                                                  | GF-010/GF-012/GF-013 establish semantic ledger, registry, artifact, and witness contracts; no autonomous restore. |
-| Initial providers | Structured-file source, file storage, local Git workspace, local verifier, Codex sessions, GitHub delivery, terminal/file notice. | GF-020/GF-025/GF-026/GF-039/GF-047/GF-060/GF-061 are distinct qualification gates.                                |
-| Provider posture  | Unsupported modes are unconfigurable.                                                                                             | Every provider gate fails closed; no compatibility inference or partial mode.                                     |
-| Consumer surface  | Private SDK plus CLI and private stdio MCP.                                                                                       | GF-054–056 prove parity and do not create a public API promise.                                                   |
+| Decision          | Approved direction                                                                                              | Delivery consequence                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Private topology  | Node/TypeScript/pnpm/Turbo private modular topology.                                                            | GF-001/GF-003 use package seams and the task graph as proof surfaces, not an authority change.                    |
+| Boundary framing  | Strict JSON initially.                                                                                          | GF-002 rejects alternative/ambiguous durable or public framing.                                                   |
+| Durable truth     | D11 file stores with a genuinely independent witness trust root.                                                | GF-010/GF-012/GF-013 establish semantic ledger, registry, artifact, and witness contracts; no autonomous restore. |
+| Initial providers | Structured-file source, file storage, local Git workspace, local verifier, Codex sessions, and GitHub delivery. | GF-020/GF-025/GF-026/GF-039/GF-047/GF-060/GF-061 are distinct qualification gates.                                |
+| Notice channel    | Terminal/file presentation under DR-12; it is not a DR-5 port provider.                                         | GF-052/GF-055 require notice/block-surfacing evidence, not `CF-GATE-PROVIDER`.                                    |
+| Provider posture  | Unsupported modes are unconfigurable.                                                                           | Every provider gate fails closed; no compatibility inference or partial mode.                                     |
+| Consumer surface  | Private SDK plus CLI and private stdio MCP.                                                                     | GF-054–056 prove parity and do not create a public API promise.                                                   |
 
 ## Risks, containment, and escalation
 

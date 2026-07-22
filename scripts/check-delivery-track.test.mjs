@@ -320,6 +320,16 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
       }),
     'must map every fixed inventory ID forward and reverse',
   );
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(
+      p,
+      readFileSync(p, 'utf8').replace(
+        'LG-SNAPSHOT, FC-TRUST, BND-WAIT-LEDGER, CF-GATE-PROVIDER',
+        'LG-SNAPSHOT, CF-GATE-PROVIDER',
+      ),
+    );
+  }, 'coverage.md story row GF-025 must exactly match track metadata in both directions');
   reject(
     (dir) =>
       edit(dir, (t) => {
