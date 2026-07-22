@@ -1,9 +1,0 @@
-{
-  "storyId": "STORY-1",
-  "outcome": "success",
-  "evidence": {
-    "category": "automated-check",
-    "name": "scripted-check",
-    "result": "passed"
-  }
-}

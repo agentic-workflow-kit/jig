@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "."
-  },
-  "references": [{ "path": "../jig-sdk" }],
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
-}

@@ -1,8 +1,13 @@
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 
 const rootDir = process.cwd();
 const excludedDirNames = new Set(['node_modules', 'dist', 'coverage', 'runs', '.git']);
+const generationArchiveRef = 'archive/jig-v0-pre-greenfield-2026-07-18';
+const historicalSourceRoots = [resolve(rootDir, 'docs/archive'), resolve(rootDir, 'docs/redesign/raw')];
+const generationPathPrefixes = ['packages/', 'tests/', 'docs/delivery/', 'skills/', 'tools/n1a/'];
+const generationRootPaths = new Set(['tsconfig.json', 'tsconfig.base.json', 'tsconfig.tools.json', 'vitest.config.ts']);
 
 // Matches inline links and images: [text](target) / ![alt](target), optionally with a
 // quoted title after the target ([text](target "title")). Reference-style links
@@ -139,6 +144,46 @@ function resolveFileTarget(candidatePath) {
   return { exists: true, resolvedPath: candidatePath, isDirectory: false };
 }
 
+function isWithin(candidatePath, parentPath) {
+  const child = relative(parentPath, candidatePath);
+  return child === '' || (!child.startsWith('..') && !child.startsWith('/'));
+}
+
+function resolveArchivedGenerationTarget(sourceFile, candidatePath) {
+  if (!historicalSourceRoots.some((historicalRoot) => isWithin(sourceFile, historicalRoot))) {
+    return null;
+  }
+
+  const repositoryPath = relative(rootDir, candidatePath).replaceAll('\\', '/');
+  if (
+    repositoryPath.startsWith('../') ||
+    (!generationRootPaths.has(repositoryPath) &&
+      !generationPathPrefixes.some((prefix) => repositoryPath.startsWith(prefix)))
+  ) {
+    return null;
+  }
+
+  const objectSpec = `${generationArchiveRef}:${repositoryPath}`;
+  try {
+    const objectType = execFileSync('git', ['cat-file', '-t', objectSpec], {
+      cwd: rootDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const text =
+      objectType === 'blob' && isMarkdownFile(repositoryPath)
+        ? execFileSync('git', ['show', objectSpec], {
+            cwd: rootDir,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+        : null;
+    return { repositoryPath, objectType, text };
+  } catch {
+    return null;
+  }
+}
+
 function nearestCandidateSlugs(slugs, fragment, limit = 3) {
   const target = fragment.toLowerCase();
   return [...slugs]
@@ -229,6 +274,32 @@ function checkLinksInFile(filePath, errors) {
       const resolution = resolveFileTarget(resolvedPath);
 
       if (!resolution.exists) {
+        const archivedResolution = resolveArchivedGenerationTarget(filePath, resolvedPath);
+        if (archivedResolution !== null) {
+          if (fragment !== null && fragment.length > 0) {
+            if (archivedResolution.objectType === 'tree') {
+              errors.push({
+                file: filePath,
+                line: lineNumber,
+                target,
+                reason: 'fragment used on an archived directory link (directories have no headings)',
+                candidates: [],
+              });
+            } else if (archivedResolution.text !== null) {
+              const targetSlugs = extractHeadingSlugs(splitLinesOutsideFences(archivedResolution.text));
+              if (!targetSlugs.has(fragment)) {
+                errors.push({
+                  file: filePath,
+                  line: lineNumber,
+                  target,
+                  reason: `fragment does not match any heading in ${generationArchiveRef}:${archivedResolution.repositoryPath}`,
+                  candidates: nearestCandidateSlugs(targetSlugs, fragment),
+                });
+              }
+            }
+          }
+          continue;
+        }
         errors.push({
           file: filePath,
           line: lineNumber,
