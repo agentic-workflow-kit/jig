@@ -3010,7 +3010,7 @@
           "type": "implementation"
         }
       ],
-      "size": "S/M",
+      "size": "M",
       "governing_paths": [
         "docs/product/concepts.md",
         "docs/redesign/design/runtime.md"

@@ -1,6 +1,7 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const TRACK_PATH = 'docs/delivery/greenfield/track.json';
@@ -27,6 +28,15 @@ const STORY_KEYS = [
   'imported_commitments',
 ];
 const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
+const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = '07d97124e659ed410c58d2abdba1c5883cc774f0b94982b2bf477c2ef9ca42eb';
+const APPROVED_PROVIDER_SPLITS_SHA256 = '12ee04a022c25f2113710bb9ad9315336c6349d6da5239402ce6b1974e25fb4d';
+const APPROVED_DELEGATED_CHOICES_SHA256 = 'e2eedc5d70386de86893e3ee8beb531736398a26ef9a370bcff61dd143bb78d3';
+const APPROVED_IMPORTED_COMMITMENTS_SHA256 = '4db2ec88712864823cb84b3f9609ef1dca9f6e35831eef6c3a61b4c2340ac3b0';
+const NORMALIZED_WAIT_PROGRESS = new Set(
+  'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
+    ' ',
+  ),
+);
 const HEADINGS = [
   'Outcome, value, and why now',
   'Governing paths and stable IDs',
@@ -43,13 +53,6 @@ const HEADINGS = [
   'PR boundary, relative size, and split',
   'Definition of Ready',
   'Definition of Done',
-];
-const SPLITS = [
-  ['GF-019', 'GF-020'],
-  ['GF-010', 'GF-025'],
-  ['GF-013', 'GF-026'],
-  ['GF-033', 'GF-039'],
-  ['GF-042', 'GF-047'],
 ];
 const PHASES = [
   {
@@ -129,13 +132,18 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 function sha(value) {
+  const source = typeof value === 'string' ? value : canonical(value);
   return createHash('sha256')
-    .update(typeof value === 'string' ? value : canonical(value))
+    .update(source === undefined ? 'undefined' : source)
     .digest('hex');
 }
 function eqSet(a, b) {
   return (
-    Array.isArray(a) && a.length === b.length && new Set(a).size === a.length && a.every((item) => b.includes(item))
+    Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    new Set(a).size === a.length &&
+    a.every((item) => b.includes(item))
   );
 }
 function allFiles(dir) {
@@ -143,45 +151,242 @@ function allFiles(dir) {
     entry.isDirectory() ? allFiles(join(dir, entry.name)) : [join(dir, entry.name)],
   );
 }
+function normativeCorpusPaths(rootDir) {
+  return ['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((dir) =>
+    allFiles(join(rootDir, dir))
+      .filter((path) => path.endsWith('.md'))
+      .map((path) => relative(rootDir, path))
+      .sort(),
+  );
+}
+function activeFiles(rootDir, path) {
+  try {
+    if (
+      execFileSync('git', ['-C', rootDir, 'rev-parse', '--is-inside-work-tree'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim() === 'true'
+    ) {
+      return execFileSync(
+        'git',
+        ['-C', rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', path],
+        {
+          encoding: 'utf8',
+        },
+      )
+        .split('\n')
+        .filter(Boolean);
+    }
+  } catch {
+    // Fixtures outside a Git checkout deliberately use filesystem enumeration.
+  }
+  return allFiles(join(rootDir, path)).map((file) => relative(rootDir, file));
+}
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function assertOwnedRegularFile(rootDir, path) {
+  try {
+    const root = resolve(rootDir);
+    const target = resolve(root, path);
+    if (target === root || !target.startsWith(`${root}/`)) throw new Error('outside root');
+    const parts = path.split('/');
+    let current = root;
+    for (const [index, part] of parts.entries()) {
+      current = join(current, part);
+      const stat = lstatSync(current);
+      if (stat.isSymbolicLink()) throw new Error('symlink');
+      if (index < parts.length - 1 ? !stat.isDirectory() : !stat.isFile()) throw new Error('wrong file type');
+    }
+    return;
+  } catch {
+    // Report the same ownership failure for missing, unreadable, and non-file inputs.
+  }
+  throw new Error(`${path} is not an owned regular file`);
+}
+function arrayOrEmpty(value, error, errors) {
+  if (Array.isArray(value)) return value;
+  errors.push(error);
+  return [];
+}
+function stringArrayOrEmpty(value, arrayError, elementError, errors) {
+  const items = arrayOrEmpty(value, arrayError, errors);
+  if (items.every((item) => typeof item === 'string')) return items;
+  errors.push(elementError);
+  return items.filter((item) => typeof item === 'string');
+}
+function nonemptyUniqueStringArray(value, arrayError, elementError, errors) {
+  const items = stringArrayOrEmpty(value, arrayError, elementError, errors);
+  if (!items.length || items.some((item) => item.trim() === '') || new Set(items).size !== items.length) {
+    errors.push(elementError);
+  }
+  return items.filter((item) => item.trim() !== '');
+}
+function isCanonicalGoverningPath(path) {
+  if (typeof path !== 'string' || path.startsWith('/') || path !== posix.normalize(path) || !path.endsWith('.md'))
+    return false;
+  return ['docs/product/', 'docs/redesign/design/', 'docs/redesign/guidelines/'].some((prefix) =>
+    path.startsWith(prefix),
+  );
+}
+function balancedCollectionEnd(text) {
+  const source = text.trim();
+  if (!'[{'.includes(source[0])) return -1;
+  const stack = [];
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if ('[{'.includes(char)) stack.push(char);
+    else if (']}'.includes(char)) {
+      const opening = stack.pop();
+      if ((char === ']' && opening !== '[') || (char === '}' && opening !== '{')) return -1;
+      if (stack.length === 0) return index;
+    }
+  }
+  return -1;
+}
+function collectBalanced(lines, index, value) {
+  let collected = value;
+  while (balancedCollectionEnd(collected) === -1 && index + 1 < lines.length) collected += `\n${lines[++index].trim()}`;
+  return { index, value: collected };
+}
+function assertNoDuplicateJsonObjectKeys(value) {
+  const stack = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '{') {
+      stack.push(new Set());
+      continue;
+    }
+    if (char === '}') {
+      stack.pop();
+      continue;
+    }
+    if (char !== '"') continue;
+    let end = index + 1;
+    let escaped = false;
+    while (end < value.length) {
+      if (escaped) escaped = false;
+      else if (value[end] === '\\') escaped = true;
+      else if (value[end] === '"') break;
+      end += 1;
+    }
+    if (end === value.length) return;
+    let next = end + 1;
+    while (/\s/.test(value[next] ?? '')) next += 1;
+    if (value[next] === ':' && stack.length) {
+      const key = JSON.parse(value.slice(index, end + 1));
+      const keys = stack.at(-1);
+      if (keys.has(key)) throw new Error(`duplicate JSON object key ${key}`);
+      keys.add(key);
+    }
+    index = end;
+  }
+}
+function normalizeJsonTrailingCommas(value) {
+  let normalized = '';
+  let quote = false;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      normalized += char;
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') quote = false;
+      continue;
+    }
+    if (char === '"') {
+      quote = true;
+      normalized += char;
+      continue;
+    }
+    if (char === ',') {
+      let next = index + 1;
+      while (/\s/.test(value[next] ?? '')) next += 1;
+      const prior = normalized.trimEnd().at(-1);
+      if ('}]'.includes(value[next]) && !'[{'.includes(prior)) {
+        index = next - 1;
+        continue;
+      }
+    }
+    normalized += char;
+  }
+  return normalized;
+}
+function jsonWithSupportedTrailingComma(value) {
+  assertNoDuplicateJsonObjectKeys(value);
+  return JSON.parse(normalizeJsonTrailingCommas(value));
+}
+function splitInlineParts(value) {
+  if (value.trim() === '') return [];
+  const parts = [];
+  let start = 0;
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if ('[{'.includes(char)) depth += 1;
+    else if (']}'.includes(char)) depth -= 1;
+    else if (char === ',' && depth === 0) {
+      const part = value.slice(start, index).trim();
+      if (part === '') throw new Error('empty inline collection element');
+      parts.push(part);
+      start = index + 1;
+    }
+  }
+  const final = value.slice(start).trim();
+  if (final === '') {
+    if (parts.length === 0) throw new Error('empty inline collection element');
+  } else parts.push(final);
+  return parts;
+}
 function parseScalar(text) {
   const value = text.trim();
   if (/^".*"$/.test(value)) return JSON.parse(value);
+  if (/^[&*!]/.test(value)) throw new Error('uses YAML alias or tag');
   if (/^-?\d+$/.test(value)) return Number(value);
   if (value.startsWith('{') && value.endsWith('}')) {
     try {
-      return JSON.parse(value.replace(/,\s*([}\]])/g, '$1'));
-    } catch {
-      return Object.fromEntries(
-        value
-          .slice(1, -1)
-          .split(',')
-          .filter(Boolean)
-          .map((part) => {
-            const pair = part.trim().match(/^([a-z_]+):\s*(.*)$/);
-            if (!pair) throw new Error('invalid inline map');
-            return [pair[1], parseScalar(pair[2])];
-          }),
-      );
+      return jsonWithSupportedTrailingComma(value);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('duplicate JSON object key ')) throw error;
+      const map = Object.create(null);
+      for (const part of splitInlineParts(value.slice(1, -1))) {
+        const pair = part.match(/^([a-z_]+):\s*(.*)$/);
+        if (!pair) throw new Error('invalid inline map');
+        if (Object.hasOwn(map, pair[1])) throw new Error(`duplicates nested front matter field ${pair[1]}`);
+        map[pair[1]] = parseScalar(pair[2]);
+      }
+      return map;
     }
   }
   if (value === '[]') return [];
   if (value.startsWith('[') && value.endsWith(']')) {
     try {
-      return JSON.parse(value.replace(/,\s*([\]}])/g, '$1'));
-    } catch {
-      const parts = [];
-      let start = 0;
-      let depth = 0;
-      for (let index = 0; index < value.length; index += 1) {
-        if ('[{'.includes(value[index])) depth += 1;
-        if (']}'.includes(value[index])) depth -= 1;
-        if (value[index] === ',' && depth === 1) {
-          parts.push(value.slice(start + 1, index));
-          start = index;
-        }
-      }
-      parts.push(value.slice(start + 1, -1));
-      return parts.map((part) => parseScalar(part)).filter(Boolean);
+      return jsonWithSupportedTrailingComma(value);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('duplicate JSON object key ')) throw error;
+      return splitInlineParts(value.slice(1, -1)).map((part) => parseScalar(part));
     }
   }
   return value;
@@ -190,20 +395,27 @@ function parseStrictFrontMatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) return { error: 'lacks YAML front matter' };
   const lines = match[1].split('\n');
-  const fields = {};
+  const fields = Object.create(null);
+  const scalarError = (error, key) => {
+    if (!(error instanceof Error)) return `has invalid scalar for ${key}`;
+    if (error.message.startsWith('duplicates nested front matter field ')) return error.message;
+    if (error.message.startsWith('duplicate JSON object key '))
+      return `duplicates nested front matter field ${error.message.slice('duplicate JSON object key '.length)}`;
+    if (error.message === 'uses YAML alias or tag') return error.message;
+    return `has invalid scalar for ${key}`;
+  };
   for (let index = 0; index < lines.length; index += 1) {
     const field = lines[index].match(/^([a-z_]+):\s*(.*)$/);
     if (!field) return { error: `has unsupported YAML line ${index + 1}` };
     const [, key, first] = field;
     if (Object.hasOwn(fields, key)) return { error: `duplicates front matter field ${key}` };
     if (first === '' && lines[index + 1]?.trim().startsWith('[')) {
-      let value = '';
-      do value += lines[++index].trim();
-      while (!value.includes(']') && index + 1 < lines.length);
+      const collected = collectBalanced(lines, index + 1, lines[index + 1].trim());
+      index = collected.index;
       try {
-        fields[key] = parseScalar(value);
-      } catch {
-        return { error: `has invalid scalar for ${key}` };
+        fields[key] = parseScalar(collected.value);
+      } catch (error) {
+        return { error: scalarError(error, key) };
       }
       continue;
     }
@@ -212,18 +424,37 @@ function parseStrictFrontMatter(text) {
       while (index + 1 < lines.length && /^ {2}- /.test(lines[index + 1])) {
         const item = lines[++index].slice(4);
         if (item === '{') {
-          let object = '{';
-          while (index + 1 < lines.length && !object.includes('}')) object += lines[++index].trim();
-          values.push(parseScalar(object));
+          const collected = collectBalanced(lines, index, '{');
+          index = collected.index;
+          try {
+            values.push(parseScalar(collected.value));
+          } catch (error) {
+            return { error: scalarError(error, key) };
+          }
           continue;
         }
         const pair = item.match(/^([a-z_]+):\s*(.*)$/);
-        if (!pair) values.push(parseScalar(item));
+        if (!pair)
+          try {
+            values.push(parseScalar(item));
+          } catch (error) {
+            return { error: scalarError(error, key) };
+          }
         else {
-          const entry = { [pair[1]]: parseScalar(pair[2]) };
+          const entry = Object.create(null);
+          try {
+            entry[pair[1]] = parseScalar(pair[2]);
+          } catch (error) {
+            return { error: scalarError(error, key) };
+          }
           while (index + 1 < lines.length && /^ {4}[a-z_]+:\s*/.test(lines[index + 1])) {
             const next = lines[++index].trim().match(/^([a-z_]+):\s*(.*)$/);
-            entry[next[1]] = parseScalar(next[2]);
+            if (Object.hasOwn(entry, next[1])) return { error: `duplicates nested front matter field ${next[1]}` };
+            try {
+              entry[next[1]] = parseScalar(next[2]);
+            } catch (error) {
+              return { error: scalarError(error, key) };
+            }
           }
           values.push(entry);
         }
@@ -232,12 +463,15 @@ function parseStrictFrontMatter(text) {
       continue;
     }
     let value = first;
-    while (value.includes('[') && !value.includes(']') && index + 1 < lines.length) value += lines[++index].trim();
-    if (/^[&*!]|\s[&*!][A-Za-z]/.test(value)) return { error: `uses YAML alias or tag in ${key}` };
+    if ('[{'.includes(value.trim()[0])) {
+      const collected = collectBalanced(lines, index, value);
+      index = collected.index;
+      value = collected.value;
+    }
     try {
       fields[key] = parseScalar(value);
-    } catch {
-      return { error: `has invalid scalar for ${key}` };
+    } catch (error) {
+      return { error: scalarError(error, key) };
     }
   }
   return { fields, raw: match[1], narrative: text.slice(match[0].length) };
@@ -336,7 +570,7 @@ export function deliveryAllowlist() {
     ...STORY_IDS.map((id) => `docs/delivery/greenfield/stories/${id}.md`),
   ]);
 }
-export function candidatePackageManifest(rootDir = process.cwd()) {
+function candidatePackagePaths() {
   const paths = [
     ...deliveryAllowlist(),
     'AGENTS.md',
@@ -349,7 +583,16 @@ export function candidatePackageManifest(rootDir = process.cwd()) {
   ].sort();
   if (new Set(paths).size !== 70)
     throw new Error(`candidate package manifest requires exactly 70 paths, got ${paths.length}`);
-  const rows = paths.map((path) => `${sha(readFileSync(join(rootDir, path), 'utf8'))}  ${path}\n`).join('');
+  return paths;
+}
+export function candidatePackageManifest(rootDir = process.cwd()) {
+  const paths = candidatePackagePaths();
+  const rows = paths
+    .map((path) => {
+      assertOwnedRegularFile(rootDir, path);
+      return `${sha(readFileSync(join(rootDir, path), 'utf8'))}  ${path}\n`;
+    })
+    .join('');
   return sha(rows);
 }
 export function verifyCandidatePackageManifest(expected, rootDir = process.cwd()) {
@@ -358,8 +601,9 @@ export function verifyCandidatePackageManifest(expected, rootDir = process.cwd()
   return actual;
 }
 
-export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
+export function validateDeliveryTrack(track, { exists, isFile = exists, readText, rootDir }) {
   const errors = [];
+  if (!isRecord(track)) return ['track must be an object record'];
   const catalogSpecs = [
     ['runtime_units', 'docs/redesign/design/runtime.md', '## Runtime units', '## Named ports', 'RT', 6],
     [
@@ -460,21 +704,37 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
   )
     errors.push('track schema, kind, or planning status is invalid');
   if (
-    !Array.isArray(track?.stories) ||
-    !eqSet(
-      track.stories.map((story) => story.id),
-      STORY_IDS,
-    )
+    sha({
+      authority_order: track.authority_order,
+      baseline: track.baseline,
+      global_definition_of_ready: track.global_definition_of_ready,
+      global_definition_of_done: track.global_definition_of_done,
+      universal_constraints: track.universal_constraints,
+    }) !== APPROVED_GLOBAL_TRACK_FIELDS_SHA256
   )
-    errors.push('track must contain the exact 47 story IDs');
+    errors.push('immutable authority and global-definition fields must exactly preserve their approved values');
+  if (sha(track.mandatory_provider_splits) !== APPROVED_PROVIDER_SPLITS_SHA256)
+    errors.push('mandatory_provider_splits must exactly preserve every row and rule');
+  if (sha(track.delegated_choices) !== APPROVED_DELEGATED_CHOICES_SHA256)
+    errors.push('delegated_choices must exactly preserve open and closed decision records');
+  if (sha(track.imported_commitments) !== APPROVED_IMPORTED_COMMITMENTS_SHA256)
+    errors.push('imported_commitments must exactly preserve authority family semantics');
+  const stories = arrayOrEmpty(track?.stories, 'track stories must be an array', errors);
+  const hasExactStorySet = eqSet(
+    stories.map((story) => story?.id),
+    STORY_IDS,
+  );
+  if (!hasExactStorySet) errors.push('track must contain the exact 47 story IDs');
   if (!exact(track?.phases, PHASES))
     errors.push('track phases must exactly preserve all seven IDs, names, ordered story sets, and exit gates');
   if (!exact(track?.parallel_lanes, PARALLEL_LANES))
     errors.push('parallel_lanes must exactly preserve the approved parallel start and convergence rules');
   if (!exact(track?.gate_edges, GATE_EDGES))
     errors.push('gate_edges must exactly preserve the approved sequencing and product-claim stop lines');
-  const byId = new Map((track?.stories ?? []).map((story) => [story.id, story]));
-  if (byId.size !== (track?.stories ?? []).length) errors.push('track contains a duplicate story ID');
+  const storyRecords = stories.filter(isRecord);
+  if (storyRecords.length !== stories.length) errors.push('track stories must contain only object records');
+  const byId = new Map(storyRecords.filter((story) => STORY_IDS.includes(story.id)).map((story) => [story.id, story]));
+  if (byId.size !== stories.length) errors.push('track contains a duplicate story ID');
   const phaseRows = Array.isArray(track?.phases) ? track.phases : [];
   const phase = new Map(
     phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id) => [id, item.id]) : [])),
@@ -482,19 +742,107 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
   const phasePosition = new Map(
     phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id, index) => [id, index]) : [])),
   );
-  for (const story of track?.stories ?? []) {
+  const authorityRoutes = rootDir
+    ? new Set(routeRows(readText('docs/redesign/design/product-guarantee-reconciliation.md')).keys())
+    : new Set();
+  const authorityStableIds = new Set(
+    rootDir
+      ? normativeCorpusPaths(rootDir).flatMap(
+          (path) => readText(path).match(/\b(?:[A-Z]{2,}-[A-Z0-9-]+|[DI]\d+|[a-z]+(?:_[a-z]+)+)\b/g) ?? [],
+        )
+      : [],
+  );
+  for (const story of storyRecords) {
     if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
+    if (typeof story.title !== 'string' || story.title.trim() === '')
+      errors.push(`${story.id} title must be a nonempty string`);
+    if (typeof story.outcome !== 'string' || story.outcome.trim() === '')
+      errors.push(`${story.id} outcome must be a nonempty string`);
+    if (story.status !== 'proposed') errors.push(`${story.id} status must be proposed`);
+    if (story.baseline_commit !== 'b860891d9102e0bdda1d23def81b1b974a4a26ac')
+      errors.push(`${story.id} baseline_commit must equal the selected baseline`);
+    const governingPaths = nonemptyUniqueStringArray(
+      story.governing_paths,
+      `${story.id} governing_paths must be an array`,
+      `${story.id} governing_paths must be a nonempty unique string array`,
+      errors,
+    );
+    const dependencies = stringArrayOrEmpty(
+      story.dependencies,
+      `${story.id} dependencies must be an array`,
+      `${story.id} dependencies must contain only strings`,
+      errors,
+    );
+    const dependencyEdges = arrayOrEmpty(
+      story.dependency_edges,
+      `${story.id} dependency_edges must be an array`,
+      errors,
+    );
+    if (!dependencyEdges.every(isRecord)) {
+      errors.push(`${story.id} dependency_edges must contain only object records`);
+      errors.push(`${story.id} has invalid dependency edge metadata`);
+    }
+    const dependencyEdgeRecords = dependencyEdges.filter(isRecord);
+    const stableIds = stringArrayOrEmpty(
+      story.stable_ids,
+      `${story.id} stable_ids must be an array`,
+      `${story.id} stable_ids must contain only strings`,
+      errors,
+    );
+    const productRoutes = stringArrayOrEmpty(
+      story.product_routes,
+      `${story.id} product_routes must be an array`,
+      `${story.id} product_routes must contain only strings`,
+      errors,
+    );
+    const importedCommitments = stringArrayOrEmpty(
+      story.imported_commitments,
+      `${story.id} imported_commitments must be an array`,
+      `${story.id} imported_commitments must contain only strings`,
+      errors,
+    );
+    nonemptyUniqueStringArray(
+      story.oracle,
+      `${story.id} oracle must be an array`,
+      `${story.id} oracle must be a nonempty unique string array`,
+      errors,
+    );
+    const drGates = nonemptyUniqueStringArray(
+      story.dr_gates,
+      `${story.id} dr_gates must be an array`,
+      `${story.id} dr_gates must be a nonempty unique string array`,
+      errors,
+    );
+    const allowedDrGates = new Set(['DR-1', 'DR-2', 'DR-3', 'DR-4', 'DR-5', 'DR-6', 'DR-7', 'DR-8', 'DR-9', 'DR-12']);
+    if (drGates.some((id) => !allowedDrGates.has(id))) errors.push(`${story.id} dr_gates must use only open DR IDs`);
+    if (rootDir && stableIds.some((id) => !authorityStableIds.has(id) && !NORMALIZED_WAIT_PROGRESS.has(id)))
+      errors.push(`${story.id} stable_ids contains an unknown governing literal`);
+    if (rootDir && productRoutes.some((id) => !authorityRoutes.has(id)))
+      errors.push(`${story.id} product_routes contains an unknown governing route`);
+    if (!['S', 'M', 'L'].includes(story.size)) errors.push(`${story.id} size must be one of S, M, or L`);
     if (phase.get(story.id) !== story.phase)
       errors.push(`${story.id} phase must exactly match its containing phase record`);
+    if (typeof story.story_file !== 'string') {
+      errors.push(`${story.id} story_file must be a string`);
+      continue;
+    }
+    if (story.story_file !== `docs/delivery/greenfield/stories/${story.id}.md`) {
+      errors.push(`${story.id} story_file must equal its canonical confined path`);
+      continue;
+    }
     if (!exists(story.story_file)) {
       errors.push(`${story.id} story file is missing`);
       continue;
     }
-    for (const path of story.governing_paths ?? [])
-      if (!exists(path)) errors.push(`${story.id} has unresolved governing path ${path}`);
-      else if (!/^docs\/(product|redesign\/(design|guidelines))\//.test(path))
-        errors.push(`${story.id} governing path is outside active product/design/guidelines authority: ${path}`);
-    for (const dep of story.dependencies ?? []) {
+    if (!isFile(story.story_file)) {
+      errors.push(`${story.id} story_file is not an owned regular file`);
+      continue;
+    }
+    for (const path of governingPaths)
+      if (!isCanonicalGoverningPath(path))
+        errors.push(`${story.id} governing path must be a canonical active authority Markdown path: ${path}`);
+      else if (!isFile(path)) errors.push(`${story.id} has unresolved governing path ${path}`);
+    for (const dep of dependencies) {
       if (!byId.has(dep)) errors.push(`${story.id} depends on unknown story ${dep}`);
       else if (dep === story.id || phase.get(dep) > story.phase)
         errors.push(`${story.id} has non-topological dependency ${dep}`);
@@ -503,12 +851,12 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     }
     if (
       !eqSet(
-        (story.dependency_edges ?? []).map((edge) => edge.from),
-        story.dependencies ?? [],
+        dependencyEdgeRecords.map((edge) => edge.from),
+        dependencies,
       )
     )
       errors.push(`${story.id} dependency edges do not exactly match dependencies`);
-    for (const edge of story.dependency_edges ?? [])
+    for (const edge of dependencyEdgeRecords)
       if (
         !edge ||
         !['implementation', 'evidence', 'decision', 'merge'].includes(edge.type) ||
@@ -523,7 +871,7 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     else if (!exact(parsed.fields, story))
       errors.push(`${story.id} front matter must exactly match all 16 track fields`);
     if (!parsed.error) {
-      for (const literal of [...story.stable_ids, ...story.product_routes, ...story.imported_commitments])
+      for (const literal of [...stableIds, ...productRoutes, ...importedCommitments])
         if (
           !new RegExp(`(^|[^A-Z0-9-])${literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^A-Z0-9-])`).test(
             parsed.narrative,
@@ -554,18 +902,12 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     }
     if (visited.has(id)) return;
     visiting.add(id);
-    for (const dep of byId.get(id)?.dependencies ?? []) if (byId.has(dep)) visit(dep);
+    const dependencies = Array.isArray(byId.get(id)?.dependencies) ? byId.get(id).dependencies : [];
+    for (const dep of dependencies) if (byId.has(dep)) visit(dep);
     visiting.delete(id);
     visited.add(id);
   }
   for (const id of byId.keys()) visit(id);
-  for (const [semantic, provider] of SPLITS)
-    if (
-      !byId
-        .get(provider)
-        ?.dependency_edges.some((edge) => edge.from === semantic && edge.split === 'semantic-to-provider')
-    )
-      errors.push(`mandatory provider split ${semantic}->${provider} is absent`);
   const expectedSplits = [
     ['GF-019', 'GF-020', 'PORT-SOURCE', 'CF-MECH-SOURCE'],
     ['GF-010', 'GF-025', 'PORT-LEDGER', 'CF-MECH-LEDGER'],
@@ -573,24 +915,30 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     ['GF-033', 'GF-039', 'PORT-WORKSPACE', 'CF-MECH-WORKSPACE'],
     ['GF-042', 'GF-047', 'PORT-VERIFY', 'CF-MECH-VERIFY'],
   ];
-  if (
-    !Array.isArray(track.mandatory_provider_splits) ||
-    track.mandatory_provider_splits.length !== expectedSplits.length
-  )
+  const mandatoryProviderSplits = arrayOrEmpty(
+    track?.mandatory_provider_splits,
+    'mandatory_provider_splits must be an array',
+    errors,
+  );
+  if (mandatoryProviderSplits.length !== expectedSplits.length)
     errors.push('mandatory_provider_splits must contain exactly five fixed rows');
   for (const [semantic, provider, port, suite] of expectedSplits) {
-    const row = track.mandatory_provider_splits?.find(
+    const row = mandatoryProviderSplits.find(
       (item) => item?.semantic_story === semantic && item?.provider_story === provider,
+    );
+    const providerEdges = arrayOrEmpty(
+      byId.get(provider)?.dependency_edges,
+      `${provider} dependency_edges must be an array`,
+      errors,
     );
     if (
       !row ||
       row.port !== port ||
+      typeof row.rule !== 'string' ||
       !row.rule.includes(suite) ||
-      !byId
-        .get(provider)
-        ?.dependency_edges.some(
-          (edge) => edge.from === semantic && edge.type === 'implementation' && edge.split === 'semantic-to-provider',
-        )
+      !providerEdges.some(
+        (edge) => edge?.from === semantic && edge.type === 'implementation' && edge.split === 'semantic-to-provider',
+      )
     )
       errors.push(
         `mandatory split ${semantic}->${provider} must retain ${port}, ${suite}, and its semantic-to-provider edge`,
@@ -603,12 +951,18 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
       closure.dependencies,
       STORY_IDS.filter((id) => id !== 'GF-062'),
     ) ||
-    !closure.dependency_edges.every((edge) => edge.type === 'merge')
+    !arrayOrEmpty(closure?.dependency_edges, 'GF-062 dependency_edges must be an array', errors).every(
+      (edge) => edge?.type === 'merge',
+    )
   )
     errors.push('GF-062 must merge exactly all other 46 stories');
   if (
-    !byId.get('GF-023')?.dependency_edges.some((edge) => edge.from === 'GF-025' && edge.type === 'evidence') ||
-    !byId.get('GF-023')?.dependency_edges.some((edge) => edge.from === 'GF-026' && edge.type === 'evidence')
+    !arrayOrEmpty(byId.get('GF-023')?.dependency_edges, 'GF-023 dependency_edges must be an array', errors).some(
+      (edge) => edge?.from === 'GF-025' && edge.type === 'evidence',
+    ) ||
+    !arrayOrEmpty(byId.get('GF-023')?.dependency_edges, 'GF-023 dependency_edges must be an array', errors).some(
+      (edge) => edge?.from === 'GF-026' && edge.type === 'evidence',
+    )
   )
     errors.push('GF-023 must have evidence dependencies on GF-025 and GF-026');
   const r03 = {
@@ -630,14 +984,19 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     },
   };
   for (const [id, rule] of Object.entries(r03)) {
-    const ids = byId.get(id)?.stable_ids ?? [];
+    const ids = arrayOrEmpty(byId.get(id)?.stable_ids, `${id} stable_ids must be an array`, errors);
     if (!rule.required.every((value) => ids.includes(value)) || rule.forbidden.some((value) => ids.includes(value)))
       errors.push(`${id} violates R03 local/remote selector separation`);
   }
-  if (
-    !Array.isArray(track?.critical_path) ||
+  if (!Array.isArray(track?.critical_path) || track.critical_path.length === 0)
+    errors.push('critical_path must be a nonempty actual maximum-length path');
+  else if (
     track.critical_path.some(
-      (id, index) => index > 0 && !byId.get(id)?.dependencies.includes(track.critical_path[index - 1]),
+      (id, index) =>
+        index > 0 &&
+        !arrayOrEmpty(byId.get(id)?.dependencies, `${id} dependencies must be an array`, errors).includes(
+          track.critical_path[index - 1],
+        ),
     )
   )
     errors.push('critical_path must be real dependency edges');
@@ -645,7 +1004,14 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     const memo = new Map();
     const longest = (id) => {
       if (memo.has(id)) return memo.get(id);
-      const value = 1 + Math.max(0, ...(byId.get(id)?.dependencies ?? []).filter((dep) => byId.has(dep)).map(longest));
+      const value =
+        1 +
+        Math.max(
+          0,
+          ...arrayOrEmpty(byId.get(id)?.dependencies, `${id} dependencies must be an array`, errors)
+            .filter((dep) => byId.has(dep))
+            .map(longest),
+        );
       memo.set(id, value);
       return value;
     };
@@ -674,6 +1040,11 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     conformance_suites:
       'CF-DETERMINISM CF-ORDERING CF-FENCE CF-BINDING CF-ACCEPTANCE CF-POLICY CF-CAPACITY CF-ORDER CF-RELEASE CF-BLOCKERS CF-CONTAINMENT CF-BOUNDS CF-DOUBLE-EFFECT CF-SEPARATION CF-PRESERVATION CF-TRUST-STOP CF-RULE-SURFACE CF-LIVENESS CF-NOTICE-EXPORT CF-OBSERVABILITY CF-RUN-CONTROL CF-OPERATOR-ACTIONS CF-EVIDENCE-LIFECYCLE CF-SECRET-ABSENCE CF-DELEGATION CF-CONSUMER CF-ENVELOPE CF-PROVIDER-PERMISSION CF-SETUP-FRESHNESS CF-PROVIDER-AUTHORITY CF-BLOCK-SURFACING CF-REVIEW-PUBLICATION CF-MECH-LEDGER CF-MECH-ARTIFACT CF-MECH-SESSION CF-MECH-WORKSPACE CF-MECH-SOURCE CF-MECH-VERIFY CF-MECH-DELIVERY',
   };
+  if (
+    !isRecord(track.inventories) ||
+    !exactKeys(track.inventories, [...Object.keys(expectedInventoryIds), 'cf_gate_product_inputs'])
+  )
+    errors.push('inventories must have exactly the fixed mapping families plus cf_gate_product_inputs');
   for (const [name, ids] of Object.entries(expectedInventoryIds)) {
     const mapping = track.inventories?.[name];
     if (!mapping || !eqSet(Object.keys(mapping), ids.split(' ')))
@@ -681,7 +1052,7 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     else if (
       !Object.entries(mapping).every(([inventoryId, stories]) => {
         const declaredByStories = [...byId.values()]
-          .filter((story) => story.stable_ids.includes(inventoryId))
+          .filter((story) => Array.isArray(story.stable_ids) && story.stable_ids.includes(inventoryId))
           .map((story) => story.id);
         return Array.isArray(stories) && stories.length && eqSet(stories, declaredByStories);
       })
@@ -718,21 +1089,32 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     }
     const reconciliation = readText('docs/redesign/design/product-guarantee-reconciliation.md');
     const routes = routeRows(reconciliation);
-    if (routes.size !== 44 || !eqSet(Object.keys(track.product_routes ?? {}), [...routes.keys()]))
+    const productRouteRecords = isRecord(track.product_routes) ? track.product_routes : Object.create(null);
+    if (!isRecord(track.product_routes)) errors.push('product_routes must be an object record');
+    if (routes.size !== 44 || !eqSet(Object.keys(productRouteRecords), [...routes.keys()]))
       errors.push('product_routes must contain the exact 44 Round-6 routes');
     for (const [id, proofRoute] of routes)
-      if (track.product_routes?.[id]?.proof_route !== proofRoute)
+      if (
+        !exactKeys(productRouteRecords[id], ['stories', 'proof_route']) ||
+        productRouteRecords[id].proof_route !== proofRoute
+      )
         errors.push(`product_routes.${id}.proof_route must exactly match the Round-6 authority text`);
     for (const id of routes.keys()) {
       const declaredByStories = [...byId.values()]
-        .filter((story) => story.product_routes.includes(id))
+        .filter((story) => Array.isArray(story.product_routes) && story.product_routes.includes(id))
         .map((story) => story.id);
-      if (!eqSet(track.product_routes?.[id]?.stories, declaredByStories))
+      if (!eqSet(productRouteRecords[id]?.stories, declaredByStories))
         errors.push(`product_routes.${id}.stories must exactly equal forward and reverse story route coverage`);
     }
     const imported = tableRows(reconciliation, '## Guarantee 1');
     const dispositions = new Map(imported);
-    const records = track.imported_commitments ?? [];
+    const importedCommitments = arrayOrEmpty(
+      track.imported_commitments,
+      'imported_commitments must be an array',
+      errors,
+    );
+    if (!importedCommitments.every(isRecord)) errors.push('imported_commitments must contain only object records');
+    const records = importedCommitments.filter(isRecord);
     if (
       records.length !== 56 ||
       !eqSet(
@@ -746,33 +1128,39 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     )
       errors.push('imported_commitments must contain the exact 56 authority-matrix ID and disposition records');
     for (const row of records) {
+      const rowStories = stringArrayOrEmpty(
+        row.stories,
+        `imported commitment ${row.id} stories must be an array`,
+        `imported commitment ${row.id} stories must contain only strings`,
+        errors,
+      );
       const declaredByStories = [...byId.values()]
-        .filter((story) => story.imported_commitments.includes(row.id))
+        .filter((story) => Array.isArray(story.imported_commitments) && story.imported_commitments.includes(row.id))
         .map((story) => story.id);
-      if (!eqSet(row.stories, declaredByStories))
+      if (!eqSet(rowStories, declaredByStories))
         errors.push(`imported commitment ${row.id} must exactly equal forward and reverse story coverage`);
     }
-    const reverseCoverage = [...byId.values()].every((story) =>
-      story.imported_commitments.every((id) => dispositions.has(id)),
+    const reverseCoverage = [...byId.values()].every(
+      (story) =>
+        Array.isArray(story.imported_commitments) && story.imported_commitments.every((id) => dispositions.has(id)),
     );
     if (!reverseCoverage) errors.push('imported commitments contain an undeclared story assignment');
     const owners = delegationRegisterOwners(readText('docs/redesign/design/delegation-register.md'));
     const scheduleOwners = deliveryScheduleOwners(readText('docs/delivery/greenfield/decisions.md'));
-    for (const [id, choice] of Object.entries(track.delegated_choices?.open ?? {}))
-      if (owners.get(id) !== choice.owner)
+    const delegatedChoices = isRecord(track.delegated_choices) ? track.delegated_choices : Object.create(null);
+    if (!isRecord(track.delegated_choices)) errors.push('delegated_choices must be an object record');
+    const openChoices = isRecord(delegatedChoices.open) ? delegatedChoices.open : Object.create(null);
+    if (!isRecord(delegatedChoices.open)) errors.push('delegated_choices.open must be an object record');
+    for (const [id, choice] of Object.entries(openChoices))
+      if (!isRecord(choice) || owners.get(id) !== choice.owner)
         errors.push(`delegated_choices.${id}.owner must exactly match the governing delegation register`);
     for (const [id, owner] of owners)
-      if (track.delegated_choices?.open?.[id] && scheduleOwners.get(id) !== owner)
+      if (openChoices[id] && scheduleOwners.get(id) !== owner)
         errors.push(`decisions.md ${id} owner must exactly match the governing delegation register`);
-    const actual = new Set(allFiles(join(rootDir, 'docs/delivery')).map((path) => relative(rootDir, path)));
+    const actual = new Set(activeFiles(rootDir, 'docs/delivery'));
     if (!eqSet([...actual], [...deliveryAllowlist()]))
       errors.push('active docs/delivery path set does not match exact allowlist');
-    const corpus = ['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((dir) =>
-      allFiles(join(rootDir, dir))
-        .filter((path) => path.endsWith('.md'))
-        .map((path) => relative(rootDir, path))
-        .sort(),
-    );
+    const corpus = normativeCorpusPaths(rootDir);
     const rows = corpus.map((path) => `${sha(readText(path))}  ${path}\n`).join('');
     if (corpus.length !== 67 || sha(rows) !== APPROVED_NORMATIVE_CORPUS_SHA256)
       errors.push('live 67-file normative corpus SHA-256 manifest does not match');
@@ -781,15 +1169,43 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
 }
 export function validateDeliveryTrackPackage(rootDir = process.cwd()) {
   const exists = (path) => existsSync(join(rootDir, path));
-  const readText = (path) => readFileSync(join(rootDir, path), 'utf8');
+  const isFile = (path) => {
+    try {
+      if (typeof path !== 'string') return false;
+      assertOwnedRegularFile(rootDir, path);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const readText = (path) => {
+    assertOwnedRegularFile(rootDir, path);
+    return readFileSync(join(rootDir, path), 'utf8');
+  };
   if (!exists(TRACK_PATH)) return ['delivery track is missing'];
+  if (!isFile(TRACK_PATH)) return ['docs/delivery/greenfield/track.json is not an owned regular file'];
+  try {
+    for (const path of candidatePackagePaths()) assertOwnedRegularFile(rootDir, path);
+  } catch (error) {
+    return [error instanceof Error ? error.message : 'candidate package ownership preflight failed'];
+  }
   let track;
   try {
-    track = JSON.parse(readText(TRACK_PATH));
+    const raw = readText(TRACK_PATH);
+    if (raw.length > 2 * 1024 * 1024) return ['delivery track exceeds the 2 MiB strict-validation limit'];
+    assertNoDuplicateJsonObjectKeys(raw);
+    track = JSON.parse(raw);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('duplicate JSON object key '))
+      return [`delivery track has ${error.message}`];
     return [`delivery track must be strict valid JSON: ${error.message}`];
   }
-  return validateDeliveryTrack(track, { exists, readText, rootDir });
+  try {
+    return validateDeliveryTrack(track, { exists, isFile, readText, rootDir });
+  } catch (error) {
+    if (error instanceof Error && error.message.endsWith(' is not an owned regular file')) return [error.message];
+    return ['delivery track contains malformed data that could not be validated safely'];
+  }
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const errors = validateDeliveryTrackPackage();
