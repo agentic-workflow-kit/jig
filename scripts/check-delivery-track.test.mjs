@@ -75,6 +75,64 @@ test('phase order places same-phase predecessors before their dependents', () =>
     'same-phase predecessor after its position',
   );
 });
+test('phase records, story membership, parallel lanes, and gate edges are exact', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.phases[0].name = 'mutant';
+      }),
+    'track phases must exactly preserve',
+  );
+  reject((dir) => {
+    edit(dir, (t) => {
+      t.stories.find((story) => story.id === 'GF-001').phase = 1;
+    });
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('phase: 0', 'phase: 1'));
+  }, 'GF-001 phase must exactly match its containing phase record');
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.parallel_lanes = [];
+      }),
+    'parallel_lanes must exactly preserve',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.parallel_lanes[0] = 'mutant';
+      }),
+    'parallel_lanes must exactly preserve',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.parallel_lanes = null;
+      }),
+    'parallel_lanes must exactly preserve',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.gate_edges = [];
+      }),
+    'gate_edges must exactly preserve',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.gate_edges[0] = 'mutant';
+      }),
+    'gate_edges must exactly preserve',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.gate_edges = {};
+      }),
+    'gate_edges must exactly preserve',
+  );
+});
 test('candidate manifest is an unpinned exact-package digest', () =>
   assert.match(candidatePackageManifest(root), /^[a-f0-9]{64}$/));
 test('external review tuple rejects a coherent candidate after its package digest changes', () =>

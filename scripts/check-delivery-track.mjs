@@ -51,6 +51,73 @@ const SPLITS = [
   ['GF-033', 'GF-039'],
   ['GF-042', 'GF-047'],
 ];
+const PHASES = [
+  {
+    id: 0,
+    name: 'substrate',
+    stories: ['GF-001', 'GF-002', 'GF-003', 'GF-004', 'GF-005'],
+    exit_gate: 'Hermetic graph and first deterministic replay evidence; no effect path.',
+  },
+  {
+    id: 1,
+    name: 'durable core',
+    stories: ['GF-010', 'GF-011', 'GF-012', 'GF-013', 'GF-014', 'GF-015'],
+    exit_gate:
+      'Complete semantic ledger/registry/artifact contracts with scripted fault, recovery, and uncertainty evidence; selected file providers remain unreachable.',
+  },
+  {
+    id: 2,
+    name: 'envelope and intake',
+    stories: ['GF-019', 'GF-021', 'GF-022', 'GF-020', 'GF-025', 'GF-026', 'GF-023', 'GF-024'],
+    exit_gate:
+      'Exact source contract/provider, preview and two approvals, qualified proof, and witnessed accepted/rejected acknowledgement; no Run on rejection.',
+  },
+  {
+    id: 3,
+    name: 'lifecycle and execution',
+    stories: ['GF-030', 'GF-031', 'GF-032', 'GF-033', 'GF-034', 'GF-035', 'GF-036', 'GF-037', 'GF-038', 'GF-039'],
+    exit_gate:
+      'Scripted intake-to-candidate/rework/park/suspend path, qualified local workspace, bounds/capacity/obligation semantics; no acceptance or landing claim.',
+  },
+  {
+    id: 4,
+    name: 'acceptance and delivery',
+    stories: ['GF-040', 'GF-041', 'GF-042', 'GF-043', 'GF-044', 'GF-045', 'GF-046', 'GF-047'],
+    exit_gate:
+      'Scripted E2E for Landed, Blocked, Rejected, and NotRun plus crash points; cleanup cannot alter outcome; Stopped closure remains phase 5.',
+  },
+  {
+    id: 5,
+    name: 'settlement and operator surfaces',
+    stories: ['GF-050', 'GF-051', 'GF-052', 'GF-053', 'GF-054', 'GF-055', 'GF-056'],
+    exit_gate: 'Stopped-from-every-position, reconstruction/export, and SDK/CLI/MCP parity evidence.',
+  },
+  {
+    id: 6,
+    name: 'real-provider closure',
+    stories: ['GF-060', 'GF-061', 'GF-062'],
+    exit_gate:
+      "Before the broader supported-profile claim: all supported-provider gates/profile evidence and GF-062's audit of all 56 imported dispositions; CF-GATE-PRODUCT itself is the pure conjunction of the 39 recorded suite results and every named element of the 44 settled product proof routes.",
+  },
+];
+const PARALLEL_LANES = [
+  'After GF-004, source-contract/composition and durable-core work may proceed independently.',
+  'After GF-010, controller/recovery, registry, and artifact lanes may proceed independently.',
+  'After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging at GF-023.',
+  "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
+  'GF-039 can qualify alongside candidate work after GF-033/GF-022.',
+  'After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.',
+  'After GF-054, CLI and private MCP lanes may proceed independently.',
+  'GF-060 and GF-061 qualify independently before GF-062.',
+];
+const GATE_EDGES = [
+  'No port traffic before DR-1 framing.',
+  'No implementation dispatch before GF-010, GF-011, and GF-015.',
+  "No provider reachability before GF-004, GF-022, and that provider's applicable exact mechanism conformance suite pass.",
+  'No Run before the witnessed GF-024 acknowledgement.',
+  'No acceptance before GF-040; no landing before GF-043 and GF-044; no cleanup before GF-046.',
+  "No product claim before GF-062's CF-GATE-PRODUCT pure conjunction of 39 recorded suite results and every named element of the 44 settled product proof routes; the broader supported-profile claim separately requires provider gates/profile evidence and the 56-import disposition audit.",
+];
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -400,21 +467,25 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     )
   )
     errors.push('track must contain the exact 47 story IDs');
-  if (
-    !Array.isArray(track?.phases) ||
-    track.phases.length !== 7 ||
-    !eqSet(
-      track.phases.flatMap((phase) => phase.stories),
-      STORY_IDS,
-    )
-  )
-    errors.push('track must contain the exact seven phase story sets');
+  if (!exact(track?.phases, PHASES))
+    errors.push('track phases must exactly preserve all seven IDs, names, ordered story sets, and exit gates');
+  if (!exact(track?.parallel_lanes, PARALLEL_LANES))
+    errors.push('parallel_lanes must exactly preserve the approved parallel start and convergence rules');
+  if (!exact(track?.gate_edges, GATE_EDGES))
+    errors.push('gate_edges must exactly preserve the approved sequencing and product-claim stop lines');
   const byId = new Map((track?.stories ?? []).map((story) => [story.id, story]));
   if (byId.size !== (track?.stories ?? []).length) errors.push('track contains a duplicate story ID');
-  const phase = new Map((track?.phases ?? []).flatMap((item) => item.stories.map((id) => [id, item.id])));
-  const phasePosition = new Map((track?.phases ?? []).flatMap((item) => item.stories.map((id, index) => [id, index])));
+  const phaseRows = Array.isArray(track?.phases) ? track.phases : [];
+  const phase = new Map(
+    phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id) => [id, item.id]) : [])),
+  );
+  const phasePosition = new Map(
+    phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id, index) => [id, index]) : [])),
+  );
   for (const story of track?.stories ?? []) {
     if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
+    if (phase.get(story.id) !== story.phase)
+      errors.push(`${story.id} phase must exactly match its containing phase record`);
     if (!exists(story.story_file)) {
       errors.push(`${story.id} story file is missing`);
       continue;
