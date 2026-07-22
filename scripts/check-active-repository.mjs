@@ -12,15 +12,19 @@ const requiredPaths = [
   'docs/product/README.md',
   'docs/redesign/design/README.md',
   'docs/redesign/guidelines/README.md',
+  'docs/delivery/README.md',
+  'docs/delivery/greenfield/track.json',
+  'docs/delivery/greenfield/story-contract.md',
   'docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md',
   'docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md',
   'scripts/check-doc-links.mjs',
+  'scripts/check-delivery-track.mjs',
+  'scripts/check-delivery-track.test.mjs',
 ];
 
 const forbiddenPaths = [
   'packages',
   'tests',
-  'docs/delivery',
   'skills',
   'tools/n1a',
   'tsconfig.json',
@@ -62,10 +66,20 @@ for (const forbiddenPath of forbiddenPaths) {
 }
 
 const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'));
-for (const retiredScript of ['build', 'mcp', 'test', 'typecheck', 'boundaries:check', 'delivery:check']) {
+for (const retiredScript of ['build', 'mcp', 'test', 'typecheck', 'boundaries:check']) {
   if (retiredScript in packageManifest.scripts) {
     errors.push(`retired implementation script remains active: ${retiredScript}`);
   }
+}
+
+if (
+  packageManifest.scripts['delivery:check'] !==
+  'node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs'
+) {
+  errors.push('delivery:check must run the focused delivery validator tests and CLI validator');
+}
+if (!packageManifest.scripts.check?.includes('pnpm delivery:check')) {
+  errors.push('check must include delivery:check');
 }
 
 try {
@@ -96,5 +110,7 @@ if (errors.length > 0) {
   }
   process.exitCode = 1;
 } else {
-  console.log(`Active repository structure check passed (greenfield tree; archive ${archiveRef} -> ${archiveCommit}).`);
+  console.log(
+    `Active repository structure check passed (docs-only greenfield delivery track; archive ${archiveRef} -> ${archiveCommit}).`,
+  );
 }

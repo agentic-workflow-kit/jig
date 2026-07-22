@@ -1,0 +1,2386 @@
+{
+  "schema_version": 1,
+  "kind": "jig-greenfield-delivery-track",
+  "status": "planning-baseline; no implementation authorized",
+  "authority_order": [
+    "explicit owner decisions in active product/design",
+    "docs/product",
+    "docs/redesign/design",
+    "docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md",
+    "this delivery track"
+  ],
+  "baseline": {
+    "current_main_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
+    "current_main_tree": "763fa777c62999795fb679cc05a61be1190d93b6",
+    "passing_subject_commit": "1731251d866b15b63131a0c3c580e7b563226cf3",
+    "passing_subject_tree": "dcd0c1f8a5616283cafbcf54694fcd37dd4888c1",
+    "normative_file_count": 67,
+    "normative_file_counts": { "product": 5, "design": 48, "guidelines": 14 },
+    "normative_manifest_sha256": "fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c",
+    "readiness_gate": "docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md",
+    "readiness_result": "PASS — archive authorized",
+    "current_corpus_relation": "The 67-file current normative corpus is byte-identical to the passing subject."
+  },
+  "counts": {
+    "phases": 7,
+    "stories": 45,
+    "product_routes": 44,
+    "imported_commitments": 56,
+    "runtime_units": 6,
+    "ports": 11,
+    "events": 32,
+    "operations": 29,
+    "identities": 22,
+    "schema_families": 27,
+    "failure_classes": 12,
+    "bound_classes": 12,
+    "wait_progress_surfaces": 16,
+    "conformance_suites": 39,
+    "open_delegated_choices": 10
+  },
+  "global_definition_of_ready": [
+    "Dependencies are merged on the selected baseline and exact evidence is current.",
+    "Governing paths and stable IDs are named; applicable DR ownership, constraints, evidence, and fallback are recorded.",
+    "Port, principal, authority, durable facts, failure paths, and conformance oracles are explicit.",
+    "No unapproved capability or partial provider path is reachable."
+  ],
+  "global_definition_of_done": [
+    "Boundary values are immutable/versioned; external inputs validate and unknown values fail closed.",
+    "Transitions are explicit, failures are typed FC-* values, and uncertain effects reconcile or park rather than retry blindly.",
+    "Applicable timeout, retry, recovery, resume, preservation, and cleanup proof is recorded against the exact subject.",
+    "Applicable unit, contract, adversarial, replay, crash, provider, and E2E evidence is recorded; pnpm check, git diff --check, CI, and independent exact-candidate review pass."
+  ],
+  "universal_constraints": {
+    "security": "Least authority; credential names resolve only in memory; secrets never enter durable records, logs, evidence, or exports; hostile-input and redaction limits apply at every port; provider output never widens authority.",
+    "retry_recovery": "Only named BND-* controls apply. Retry a same-effect identity only after confirmed absence and recorded reauthorization; otherwise reconcile or park. Timers wake but durable facts decide.",
+    "split_rule": "Split contract/core from realization when external mechanism families, primary authority seams, independent provider qualification, or semantic acceptance oracles differ. The semantic half remains useful and green but unconfigurable until realization qualifies."
+  },
+  "phases": [
+    {
+      "id": 0,
+      "name": "substrate",
+      "stories": ["GF-001", "GF-002", "GF-003", "GF-004", "GF-005"],
+      "exit_gate": "Hermetic graph and first deterministic replay evidence; no effect path."
+    },
+    {
+      "id": 1,
+      "name": "durable core",
+      "stories": ["GF-010", "GF-011", "GF-012", "GF-013", "GF-014", "GF-015"],
+      "exit_gate": "Witnessed ledger/artifact providers and deterministic recovery/uncertainty evidence; no provider bypass."
+    },
+    {
+      "id": 2,
+      "name": "envelope and intake",
+      "stories": ["GF-019", "GF-020", "GF-021", "GF-022", "GF-023", "GF-024"],
+      "exit_gate": "Exact source contract/provider, preview and two approvals, qualified proof, and witnessed accepted/rejected acknowledgement; no Run on rejection."
+    },
+    {
+      "id": 3,
+      "name": "lifecycle and execution",
+      "stories": [
+        "GF-030",
+        "GF-031",
+        "GF-032",
+        "GF-033",
+        "GF-034",
+        "GF-035",
+        "GF-036",
+        "GF-037",
+        "GF-038",
+        "GF-039"
+      ],
+      "exit_gate": "Scripted intake-to-candidate/rework/park/suspend path, qualified local workspace, bounds/capacity/obligation semantics; no acceptance or landing claim."
+    },
+    {
+      "id": 4,
+      "name": "acceptance and delivery",
+      "stories": [
+        "GF-040",
+        "GF-041",
+        "GF-042",
+        "GF-043",
+        "GF-044",
+        "GF-045",
+        "GF-046",
+        "GF-047"
+      ],
+      "exit_gate": "Scripted E2E for Landed, Blocked, Rejected, and NotRun plus crash points; cleanup cannot alter outcome; Stopped closure remains phase 5."
+    },
+    {
+      "id": 5,
+      "name": "settlement and operator surfaces",
+      "stories": [
+        "GF-050",
+        "GF-051",
+        "GF-052",
+        "GF-053",
+        "GF-054",
+        "GF-055",
+        "GF-056"
+      ],
+      "exit_gate": "Stopped-from-every-position, reconstruction/export, and SDK/CLI/MCP parity evidence."
+    },
+    {
+      "id": 6,
+      "name": "real-provider closure",
+      "stories": ["GF-060", "GF-061", "GF-062"],
+      "exit_gate": "All provider gates, 39 suites, 44 product routes, 56 imports, and the pure product conjunction."
+    }
+  ],
+  "stories": [
+    {
+      "id": "GF-001",
+      "title": "Private Node/TypeScript workspace substrate",
+      "phase": 0,
+      "dependencies": [],
+      "dependency_edges": [],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/runtime.md",
+        "docs/redesign/design/decisions/D10-runtime-decomposition.md"
+      ],
+      "stable_ids": ["DR-2", "DR-8"],
+      "dr_gates": ["DR-2", "DR-8"],
+      "story_file": "docs/delivery/greenfield/stories/GF-001.md",
+      "outcome": "Private pnpm dependency graph, hermetic lanes, and supply-chain baseline; no product runtime behavior.",
+      "oracle": [
+        "static dependency checks",
+        "affected-cache fixture",
+        "failure-isolation fixture"
+      ]
+    },
+    {
+      "id": "GF-002",
+      "title": "Canonical identity and boundary codec",
+      "phase": 0,
+      "dependencies": ["GF-001"],
+      "dependency_edges": [{ "from": "GF-001", "type": "implementation" }],
+      "size": "M",
+      "governing_paths": ["docs/redesign/design/data-and-identity.md"],
+      "stable_ids": ["ID-*", "DR-1"],
+      "dr_gates": ["DR-1"],
+      "story_file": "docs/delivery/greenfield/stories/GF-002.md",
+      "outcome": "Strict versioned JSON frame, all 22 identity representations, canonical digest vectors, and typed boundary errors.",
+      "oracle": [
+        "golden cross-runtime vectors",
+        "fuzz/property corpus",
+        "reject noncanonical/ambiguous/oversized input"
+      ]
+    },
+    {
+      "id": "GF-003",
+      "title": "Runtime topology and semantic port contracts",
+      "phase": 0,
+      "dependencies": ["GF-001", "GF-002"],
+      "dependency_edges": [
+        { "from": "GF-001", "type": "implementation" },
+        { "from": "GF-002", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/runtime.md",
+        "docs/redesign/design/decisions/D10-runtime-decomposition.md",
+        "docs/redesign/design/decisions/D13-envelope-production-boundary.md"
+      ],
+      "stable_ids": ["RT-*", "PORT-*", "DR-2", "DR-4"],
+      "dr_gates": ["DR-2", "DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-003.md",
+      "outcome": "Fixed six-unit and eleven-port topology, with controller-only lifecycle authority and passive stores.",
+      "oracle": [
+        "package graph",
+        "compile/static boundary tests",
+        "validated fake transports"
+      ]
+    },
+    {
+      "id": "GF-004",
+      "title": "Exact-subject conformance evidence harness",
+      "phase": 0,
+      "dependencies": ["GF-001", "GF-002", "GF-003"],
+      "dependency_edges": [
+        { "from": "GF-001", "type": "implementation" },
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-003", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": ["docs/redesign/design/architecture-conformance.md"],
+      "stable_ids": ["CF-*", "CF-GATE-PRODUCT", "DR-8"],
+      "dr_gates": ["DR-8"],
+      "story_file": "docs/delivery/greenfield/stories/GF-004.md",
+      "outcome": "Versioned harness and recorder for all fixed suites and realization/provider/product gates; no absent suite may pass.",
+      "oracle": [
+        "deterministic IDs/clocks",
+        "fault injection",
+        "evidence freshness rejection"
+      ]
+    },
+    {
+      "id": "GF-005",
+      "title": "Pure authority kernel and catalog reducer",
+      "phase": 0,
+      "dependencies": ["GF-002", "GF-003", "GF-004"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-003", "type": "implementation" },
+        { "from": "GF-004", "type": "evidence" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/components/control-plane.md"
+      ],
+      "stable_ids": ["SCH-EVENT", "SCH-TRANSITION", "SCH-OPERATION", "DR-3"],
+      "dr_gates": ["DR-3"],
+      "story_file": "docs/delivery/greenfield/stories/GF-005.md",
+      "outcome": "Closed pure decision kernel for 17 Story states, Run phases, 32 events, 29 Operations, record-before-adopt/dispatch.",
+      "oracle": [
+        "CF-DETERMINISM",
+        "CF-BINDING",
+        "illegal-edge corpus",
+        "replay permutations"
+      ]
+    },
+    {
+      "id": "GF-010",
+      "title": "Witnessed conditional Run ledger",
+      "phase": 1,
+      "dependencies": ["GF-002", "GF-005"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-005", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/persistence-and-projections.md",
+        "docs/redesign/design/decisions/D11-ledger-realization.md"
+      ],
+      "stable_ids": ["RT-LEDGER", "RT-WITNESS", "PORT-LEDGER", "LG-*", "DR-6"],
+      "dr_gates": ["DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-010.md",
+      "outcome": "Segmented file ledger with an independently trusted witness and five-way readback.",
+      "oracle": [
+        "CF-MECH-LEDGER",
+        "crash/readback corpus",
+        "FC-TRUST on fork/rollback"
+      ]
+    },
+    {
+      "id": "GF-011",
+      "title": "Fenced controller replay and recovery",
+      "phase": 1,
+      "dependencies": ["GF-005", "GF-010"],
+      "dependency_edges": [
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-010", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/state-and-recovery.md",
+        "docs/redesign/design/persistence-and-projections.md"
+      ],
+      "stable_ids": ["RT-CONTROLLER", "ID-GEN", "BND-RECOVERY"],
+      "dr_gates": ["DR-3", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-011.md",
+      "outcome": "Generation fencing, deterministic replay, optional projections, and verified recovery observation.",
+      "oracle": ["CF-FENCE", "CF-RUN-CONTROL", "CF-ORDERING"]
+    },
+    {
+      "id": "GF-012",
+      "title": "Witnessed target-authority registry",
+      "phase": 1,
+      "dependencies": ["GF-005", "GF-010"],
+      "dependency_edges": [
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-010", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/concurrency-and-finalization.md",
+        "docs/redesign/design/persistence-and-projections.md"
+      ],
+      "stable_ids": ["RT-REGISTRY", "ID-REGISTRY", "ID-TARGET", "ID-AUTH"],
+      "dr_gates": ["DR-3", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-012.md",
+      "outcome": "Deterministic waiter/grant/rebind/release under an independently witnessed registry.",
+      "oracle": ["CF-ORDER", "CF-MECH-LEDGER", "concurrency/crash tests"]
+    },
+    {
+      "id": "GF-013",
+      "title": "Immutable artifact storage and protected routing",
+      "phase": 1,
+      "dependencies": ["GF-002", "GF-005", "GF-010"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-010", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/evidence-handling.md",
+        "docs/redesign/design/runtime.md"
+      ],
+      "stable_ids": [
+        "RT-EVIDENCE",
+        "PORT-ARTIFACT",
+        "OPC-ART-*",
+        "EV-ARTIFACT-FACT",
+        "DR-6"
+      ],
+      "dr_gates": ["DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-013.md",
+      "outcome": "Five protected and six disposable artifact classes with two-pin lookup and independent witness.",
+      "oracle": [
+        "CF-MECH-ARTIFACT",
+        "CF-MECH-LEDGER",
+        "protected/disposable guard corpus"
+      ]
+    },
+    {
+      "id": "GF-014",
+      "title": "Evidence admission and exact-subject binding",
+      "phase": 1,
+      "dependencies": ["GF-002", "GF-005", "GF-013"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-013", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": ["docs/redesign/design/evidence-handling.md"],
+      "stable_ids": ["SCH-EVIDENCE", "ID-EVSUBJ", "ID-MANIFEST"],
+      "dr_gates": ["DR-1", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-014.md",
+      "outcome": "Immutable attribution, redaction, quarantine, and retention holds without acceptance or disposal authority.",
+      "oracle": [
+        "CF-EVIDENCE-LIFECYCLE",
+        "CF-SECRET-ABSENCE",
+        "hostile evidence corpus"
+      ]
+    },
+    {
+      "id": "GF-015",
+      "title": "Operation mediation and uncertainty reconciliation",
+      "phase": 1,
+      "dependencies": ["GF-005", "GF-010", "GF-011", "GF-014"],
+      "dependency_edges": [
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-010", "type": "implementation" },
+        { "from": "GF-011", "type": "implementation" },
+        { "from": "GF-014", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/components/control-plane.md",
+        "docs/redesign/design/state-and-recovery.md"
+      ],
+      "stable_ids": [
+        "CP-MEDIATOR",
+        "CP-RECOVERY",
+        "ID-OP",
+        "SCH-OPERATION",
+        "BND-WAIT-MECHANISM",
+        "BND-RETRY"
+      ],
+      "dr_gates": ["DR-3", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-015.md",
+      "outcome": "Intent-before-dispatch operation state machine, result validation, and conservative uncertainty recovery.",
+      "oracle": [
+        "CF-DOUBLE-EFFECT",
+        "CF-CONTAINMENT",
+        "crash-at-boundary corpus"
+      ]
+    },
+    {
+      "id": "GF-019",
+      "title": "Work Source semantic contract",
+      "phase": 2,
+      "dependencies": ["GF-002", "GF-004"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-004", "type": "evidence" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/envelope-production.md",
+        "docs/redesign/design/runtime.md"
+      ],
+      "stable_ids": [
+        "PORT-SOURCE",
+        "EP-SOURCE",
+        "SCH-PLAN",
+        "SCH-SOURCE-EXCHANGE",
+        "ID-SOURCE-REQ",
+        "DR-4",
+        "DR-12"
+      ],
+      "dr_gates": ["DR-4", "DR-12"],
+      "story_file": "docs/delivery/greenfield/stories/GF-019.md",
+      "outcome": "Exact Work Source contract and validation using a scripted fixture only.",
+      "oracle": ["CF-ENVELOPE", "CF-MECH-SOURCE", "hostile source corpus"]
+    },
+    {
+      "id": "GF-020",
+      "title": "Qualified structured-file Work Source provider",
+      "phase": 2,
+      "dependencies": ["GF-019", "GF-022"],
+      "dependency_edges": [
+        {
+          "from": "GF-019",
+          "type": "implementation",
+          "split": "semantic-to-provider"
+        },
+        { "from": "GF-022", "type": "evidence" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-SOURCE", "CF-MECH-SOURCE", "DR-5", "DR-12"],
+      "dr_gates": ["DR-5", "DR-12"],
+      "story_file": "docs/delivery/greenfield/stories/GF-020.md",
+      "outcome": "The initial structured JSON file source becomes configurable only after exact provider evidence.",
+      "oracle": ["CF-MECH-SOURCE", "CF-GATE-PROVIDER"]
+    },
+    {
+      "id": "GF-021",
+      "title": "Envelope policy, profiles, setup, and bounds",
+      "phase": 2,
+      "dependencies": ["GF-002", "GF-004", "GF-019"],
+      "dependency_edges": [
+        { "from": "GF-002", "type": "implementation" },
+        { "from": "GF-004", "type": "evidence" },
+        { "from": "GF-019", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/envelope-production.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
+      ],
+      "stable_ids": [
+        "EP-FLOORS",
+        "EP-PROFILE",
+        "EP-SETUP",
+        "EP-GUIDANCE",
+        "EP-COMPOSE",
+        "SCH-WORK-PROFILE",
+        "SCH-CONFIG-ARTIFACT",
+        "SCH-SETUP-RECEIPT",
+        "DR-9"
+      ],
+      "dr_gates": ["DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-021.md",
+      "outcome": "Immutable policy floors, work profiles, setup declarations, composition, and validated bound ranges.",
+      "oracle": ["CF-POLICY", "CF-SETUP-FRESHNESS"]
+    },
+    {
+      "id": "GF-022",
+      "title": "Provider manifest and capability-proof admission",
+      "phase": 2,
+      "dependencies": ["GF-004", "GF-013", "GF-021"],
+      "dependency_edges": [
+        { "from": "GF-004", "type": "evidence" },
+        { "from": "GF-013", "type": "implementation" },
+        { "from": "GF-021", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/decisions/D14-agent-provider-permission-boundary.md"
+      ],
+      "stable_ids": [
+        "EP-PROVIDERS",
+        "SCH-PROVIDER-AUTHORITY",
+        "SCH-CAPABILITY-PROOF",
+        "ID-MANIFEST",
+        "ID-PRINCIPAL",
+        "LG-PREFLIGHT-ATTEMPT",
+        "DR-4",
+        "DR-5"
+      ],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-022.md",
+      "outcome": "Owner-approved manifests and bounded proof production/admission; unsupported provider modes remain unconfigurable.",
+      "oracle": ["CF-PROVIDER-AUTHORITY", "CF-SECRET-ABSENCE"]
+    },
+    {
+      "id": "GF-023",
+      "title": "Effect-free preview and distinct owner approvals",
+      "phase": 2,
+      "dependencies": ["GF-014", "GF-020", "GF-021", "GF-022"],
+      "dependency_edges": [
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-020", "type": "evidence" },
+        { "from": "GF-021", "type": "implementation" },
+        { "from": "GF-022", "type": "decision" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/envelope-production.md",
+        "docs/redesign/design/runtime.md"
+      ],
+      "stable_ids": ["EP-PREVIEW", "EP-APPROVE", "PORT-CONSUMER"],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-023.md",
+      "outcome": "Preview plus separate exact Arye approvals for proposal and provider manifest without creating a Run or dispatch.",
+      "oracle": ["CF-ENVELOPE", "CF-CONSUMER", "negative authority corpus"]
+    },
+    {
+      "id": "GF-024",
+      "title": "Witnessed idempotent intake and Run birth",
+      "phase": 2,
+      "dependencies": ["GF-010", "GF-011", "GF-013", "GF-020", "GF-023"],
+      "dependency_edges": [
+        { "from": "GF-010", "type": "implementation" },
+        { "from": "GF-011", "type": "implementation" },
+        { "from": "GF-013", "type": "implementation" },
+        { "from": "GF-020", "type": "evidence" },
+        { "from": "GF-023", "type": "decision" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/runtime.md",
+        "docs/redesign/design/persistence-and-projections.md",
+        "docs/redesign/design/decisions/D16-final-readiness-contract-closure.md"
+      ],
+      "stable_ids": [
+        "CP-INTAKE",
+        "EP-SUBMIT",
+        "PORT-INTAKE",
+        "SCH-ENVELOPE",
+        "SCH-INTAKE-ACK",
+        "SCH-INTAKE-CUT-CLAIM",
+        "LG-INTAKE",
+        "ID-RUN",
+        "DR-4",
+        "DR-6"
+      ],
+      "dr_gates": ["DR-4", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-024.md",
+      "outcome": "Witnessed accepted/rejected intake with atomic successor ack and cut claim; rejection creates no Run.",
+      "oracle": [
+        "CF-ENVELOPE",
+        "CF-MECH-LEDGER",
+        "successor crash/second-winner corpus"
+      ]
+    },
+    {
+      "id": "GF-030",
+      "title": "Complete Run and Story lifecycle",
+      "phase": 3,
+      "dependencies": ["GF-005", "GF-011", "GF-024"],
+      "dependency_edges": [
+        { "from": "GF-005", "type": "implementation" },
+        { "from": "GF-011", "type": "implementation" },
+        { "from": "GF-024", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/flows/run-and-story-lifecycle.md",
+        "docs/redesign/design/lifecycle-catalogs.md"
+      ],
+      "stable_ids": ["SCH-TRANSITION", "SCH-EVENT", "I13", "I14"],
+      "dr_gates": ["DR-3"],
+      "story_file": "docs/delivery/greenfield/stories/GF-030.md",
+      "outcome": "All Story states, dependency semantics, five product outcomes, blocker roots, and release-on-Landed only.",
+      "oracle": [
+        "CF-BLOCKERS",
+        "CF-RELEASE",
+        "CF-CONTAINMENT",
+        "CF-RUN-CONTROL"
+      ]
+    },
+    {
+      "id": "GF-031",
+      "title": "Deterministic scheduler and reservations",
+      "phase": 3,
+      "dependencies": ["GF-012", "GF-030"],
+      "dependency_edges": [
+        { "from": "GF-012", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/scheduling-and-bounds.md",
+        "docs/redesign/design/concurrency-and-finalization.md"
+      ],
+      "stable_ids": [
+        "CP-SCHEDULER",
+        "RC-*",
+        "BND-WAIT-CAPACITY",
+        "DR-3",
+        "DR-9"
+      ],
+      "dr_gates": ["DR-3", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-031.md",
+      "outcome": "Deterministic capacity admission, seven RC classes, reserves, and immutable comparator order.",
+      "oracle": ["CF-CAPACITY", "CF-ORDER", "starvation/property corpus"]
+    },
+    {
+      "id": "GF-032",
+      "title": "Bounds, durable wakes, and liveness",
+      "phase": 3,
+      "dependencies": ["GF-015", "GF-030", "GF-031"],
+      "dependency_edges": [
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-031", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/failure-and-liveness.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
+      ],
+      "stable_ids": ["BND-*", "EV-WAKE-*", "FC-LIVENESS", "DR-9"],
+      "dr_gates": ["DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-032.md",
+      "outcome": "All twelve bound classes and sixteen finite wait/progress surfaces; timers remain hints only.",
+      "oracle": [
+        "CF-BOUNDS",
+        "CF-LIVENESS",
+        "boundary/exhaustion/replay corpus"
+      ]
+    },
+    {
+      "id": "GF-033",
+      "title": "Workspace semantic contract",
+      "phase": 3,
+      "dependencies": ["GF-015", "GF-021", "GF-022", "GF-031"],
+      "dependency_edges": [
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-021", "type": "implementation" },
+        { "from": "GF-022", "type": "evidence" },
+        { "from": "GF-031", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-WORKSPACE", "OPC-WS-*", "DR-4"],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-033.md",
+      "outcome": "Scripted workspace contract with stable host/workspace/basis/cleanliness/setup/preservation facts.",
+      "oracle": ["CF-MECH-WORKSPACE", "CF-SETUP-FRESHNESS"]
+    },
+    {
+      "id": "GF-034",
+      "title": "Role-session contract and scripted provider",
+      "phase": 3,
+      "dependencies": ["GF-004", "GF-015", "GF-022", "GF-031"],
+      "dependency_edges": [
+        { "from": "GF-004", "type": "evidence" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-022", "type": "evidence" },
+        { "from": "GF-031", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/decisions/D14-agent-provider-permission-boundary.md"
+      ],
+      "stable_ids": [
+        "PORT-SESSION",
+        "OPC-SESSION-*",
+        "ID-SESSION",
+        "SCH-SESSION",
+        "DR-4"
+      ],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-034.md",
+      "outcome": "Logical session lifecycle and scripted provider with fenced assignment/reconnect semantics.",
+      "oracle": ["CF-MECH-SESSION", "CF-PROVIDER-PERMISSION"]
+    },
+    {
+      "id": "GF-035",
+      "title": "Implementation assignment, candidates, and rework",
+      "phase": 3,
+      "dependencies": [
+        "GF-014",
+        "GF-030",
+        "GF-031",
+        "GF-032",
+        "GF-033",
+        "GF-034"
+      ],
+      "dependency_edges": [
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-031", "type": "implementation" },
+        { "from": "GF-032", "type": "implementation" },
+        { "from": "GF-033", "type": "implementation" },
+        { "from": "GF-034", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/data-and-identity.md",
+        "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/decisions/D16-final-readiness-contract-closure.md"
+      ],
+      "stable_ids": ["SCH-CANDIDATE", "ID-CAND", "BND-REWORK"],
+      "dr_gates": ["DR-3", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-035.md",
+      "outcome": "Exact Candidate minting and fresh logical assignment for every bounded rework turn.",
+      "oracle": ["CF-BINDING", "CF-RUN-CONTROL", "crash/replay corpus"]
+    },
+    {
+      "id": "GF-036",
+      "title": "Doorbell decisions and delegation",
+      "phase": 3,
+      "dependencies": ["GF-015", "GF-030", "GF-034", "GF-035"],
+      "dependency_edges": [
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-034", "type": "implementation" },
+        { "from": "GF-035", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D14-agent-provider-permission-boundary.md",
+        "docs/redesign/design/operations-and-observability.md"
+      ],
+      "stable_ids": [
+        "PORT-DECIDE",
+        "SCH-ESCALATION",
+        "SCH-DELEGATION-GRANT",
+        "SCH-DECISION",
+        "ID-PARK",
+        "ID-GRANT",
+        "BND-WAIT-DECISION"
+      ],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-036.md",
+      "outcome": "Authenticated owner decisions, scoped grants, and durable Doorbell request/answer lifecycle.",
+      "oracle": [
+        "CF-OPERATOR-ACTIONS",
+        "CF-DELEGATION",
+        "CF-PROVIDER-PERMISSION"
+      ]
+    },
+    {
+      "id": "GF-037",
+      "title": "Rule invalidation and Run control",
+      "phase": 3,
+      "dependencies": ["GF-030", "GF-035", "GF-036"],
+      "dependency_edges": [
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-035", "type": "implementation" },
+        { "from": "GF-036", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/flows/run-and-story-lifecycle.md"
+      ],
+      "stable_ids": [
+        "EV-RULE-SURFACE-TOUCHED",
+        "EV-RUN-SUSPEND-DECISION",
+        "EV-RUN-RESUME-DECISION",
+        "EV-RUN-TERMINAL-STOP-DECISION"
+      ],
+      "dr_gates": ["DR-3", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-037.md",
+      "outcome": "Frozen-input revalidation, suspend/resume/terminal-stop requests, and rule-surface invalidation without settlement duties.",
+      "oracle": ["CF-RULE-SURFACE", "CF-RUN-CONTROL", "CF-FENCE"]
+    },
+    {
+      "id": "GF-038",
+      "title": "Residual Obligation lifecycle",
+      "phase": 3,
+      "dependencies": ["GF-014", "GF-030", "GF-032", "GF-036"],
+      "dependency_edges": [
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-032", "type": "implementation" },
+        { "from": "GF-036", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/failure-and-liveness.md"
+      ],
+      "stable_ids": [
+        "SCH-OBLIGATION",
+        "ID-OBLIGATION",
+        "EV-OBLIGATION-RESOLVED",
+        "EV-BOUND-EXHAUSTED",
+        "EV-WAKE-SETTLEMENT"
+      ],
+      "dr_gates": ["DR-3", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-038.md",
+      "outcome": "Bounded absent/open/accepted-handoff/resolved obligations with durable overdue re-escalation.",
+      "oracle": ["CF-OPERATOR-ACTIONS", "CF-BOUNDS", "CF-PRESERVATION"]
+    },
+    {
+      "id": "GF-039",
+      "title": "Qualified local Git-worktree Execution Host",
+      "phase": 3,
+      "dependencies": ["GF-022", "GF-033"],
+      "dependency_edges": [
+        { "from": "GF-022", "type": "evidence" },
+        {
+          "from": "GF-033",
+          "type": "implementation",
+          "split": "semantic-to-provider"
+        }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-WORKSPACE", "CF-MECH-WORKSPACE", "DR-5"],
+      "dr_gates": ["DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-039.md",
+      "outcome": "Initial qualified local Git worktree host; remote and Windows modes remain unconfigurable.",
+      "oracle": ["CF-MECH-WORKSPACE", "CF-GATE-PROVIDER"]
+    },
+    {
+      "id": "GF-040",
+      "title": "Independent exact-candidate acceptance",
+      "phase": 4,
+      "dependencies": ["GF-014", "GF-034", "GF-035", "GF-037"],
+      "dependency_edges": [
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-034", "type": "implementation" },
+        { "from": "GF-035", "type": "implementation" },
+        { "from": "GF-037", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/acceptance-and-evidence.md"
+      ],
+      "stable_ids": ["SCH-VERDICT", "ID-FINDING", "D7"],
+      "dr_gates": ["DR-3", "DR-8"],
+      "story_file": "docs/delivery/greenfield/stories/GF-040.md",
+      "outcome": "Independent review package/findings/verdict and Accepted only on exact valid approval.",
+      "oracle": ["CF-ACCEPTANCE", "CF-BINDING", "CF-POLICY"]
+    },
+    {
+      "id": "GF-041",
+      "title": "Pre-acceptance review publication",
+      "phase": 4,
+      "dependencies": ["GF-015", "GF-035", "GF-040"],
+      "dependency_edges": [
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-035", "type": "implementation" },
+        { "from": "GF-040", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md"
+      ],
+      "stable_ids": ["OPC-REV-*", "CF-REVIEW-PUBLICATION"],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-041.md",
+      "outcome": "Scripted review publication with a dedicated non-mergeable draft and no acceptance/landing power.",
+      "oracle": ["CF-REVIEW-PUBLICATION", "CF-MECH-DELIVERY"]
+    },
+    {
+      "id": "GF-042",
+      "title": "Effect-free verification semantic contract",
+      "phase": 4,
+      "dependencies": ["GF-004", "GF-015", "GF-021", "GF-022", "GF-035"],
+      "dependency_edges": [
+        { "from": "GF-004", "type": "evidence" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-021", "type": "implementation" },
+        { "from": "GF-022", "type": "evidence" },
+        { "from": "GF-035", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/review-and-verification-execution.md"
+      ],
+      "stable_ids": [
+        "PORT-VERIFY",
+        "OPC-VERIFY-EXECUTE",
+        "EV-CHECK-OBSERVATION",
+        "RP-*",
+        "DR-4"
+      ],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-042.md",
+      "outcome": "Exact-subject, effect-free verification contract and scripted fixture; policy cannot choose sufficiency here.",
+      "oracle": ["CF-MECH-VERIFY", "CF-POLICY"]
+    },
+    {
+      "id": "GF-043",
+      "title": "Serialized finalizer and target authority",
+      "phase": 4,
+      "dependencies": [
+        "GF-012",
+        "GF-015",
+        "GF-031",
+        "GF-032",
+        "GF-040",
+        "GF-042"
+      ],
+      "dependency_edges": [
+        { "from": "GF-012", "type": "implementation" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-031", "type": "implementation" },
+        { "from": "GF-032", "type": "implementation" },
+        { "from": "GF-040", "type": "implementation" },
+        { "from": "GF-042", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/concurrency-and-finalization.md",
+        "docs/redesign/design/forge-and-landing.md"
+      ],
+      "stable_ids": [
+        "CP-FINALIZER",
+        "ID-AUTH",
+        "ID-TARGET",
+        "BND-REFRESH",
+        "RC-FINALIZER"
+      ],
+      "dr_gates": ["DR-3", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-043.md",
+      "outcome": "Comparator-least serialized finalization, target anchor, refresh/rebind, and mandatory re-review on change.",
+      "oracle": ["CF-ORDER", "CF-FENCE", "CF-CAPACITY"]
+    },
+    {
+      "id": "GF-044",
+      "title": "Final delivery semantic protocol",
+      "phase": 4,
+      "dependencies": ["GF-015", "GF-030", "GF-040", "GF-043"],
+      "dependency_edges": [
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-040", "type": "implementation" },
+        { "from": "GF-043", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": ["docs/redesign/design/forge-and-landing.md"],
+      "stable_ids": [
+        "OPC-DEL-*",
+        "EV-TARGET-FACT",
+        "EV-EFFECT-CERTAINTY",
+        "EV-LANDING-OBSERVED",
+        "LP-*",
+        "DR-4"
+      ],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-044.md",
+      "outcome": "Scripted final delivery with effect certainty, content-equivalent landing proof, and release only after authoritative landing.",
+      "oracle": ["CF-RELEASE", "CF-DOUBLE-EFFECT", "CF-MECH-DELIVERY"]
+    },
+    {
+      "id": "GF-045",
+      "title": "Block and held-integration surfacing",
+      "phase": 4,
+      "dependencies": ["GF-038", "GF-044"],
+      "dependency_edges": [
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-044", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/failure-and-liveness.md",
+        "docs/redesign/design/operations-and-observability.md"
+      ],
+      "stable_ids": ["CF-BLOCK-SURFACING"],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-045.md",
+      "outcome": "One authorized block marker and durable notice/obligation basis; failure leaves Blocked and releases no dependent.",
+      "oracle": ["CF-BLOCK-SURFACING"]
+    },
+    {
+      "id": "GF-046",
+      "title": "Preservation-safe retirement",
+      "phase": 4,
+      "dependencies": [
+        "GF-013",
+        "GF-014",
+        "GF-015",
+        "GF-033",
+        "GF-034",
+        "GF-038",
+        "GF-041",
+        "GF-044",
+        "GF-045"
+      ],
+      "dependency_edges": [
+        { "from": "GF-013", "type": "implementation" },
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-033", "type": "implementation" },
+        { "from": "GF-034", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-041", "type": "implementation" },
+        { "from": "GF-044", "type": "implementation" },
+        { "from": "GF-045", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/failure-and-liveness.md",
+        "docs/redesign/design/lifecycle-catalogs.md"
+      ],
+      "stable_ids": ["I18", "I19", "BND-RETIRE"],
+      "dr_gates": ["DR-3", "DR-6"],
+      "story_file": "docs/delivery/greenfield/stories/GF-046.md",
+      "outcome": "Preserve-before-destroy retirement of sessions, workspaces, review refs, authority, artifacts, and controller; cleanup cannot alter business outcome.",
+      "oracle": ["CF-SEPARATION", "CF-PRESERVATION"]
+    },
+    {
+      "id": "GF-047",
+      "title": "Qualified local verification provider",
+      "phase": 4,
+      "dependencies": ["GF-022", "GF-042"],
+      "dependency_edges": [
+        { "from": "GF-022", "type": "evidence" },
+        {
+          "from": "GF-042",
+          "type": "implementation",
+          "split": "semantic-to-provider"
+        }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-VERIFY", "CF-MECH-VERIFY", "DR-5"],
+      "dr_gates": ["DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-047.md",
+      "outcome": "Qualified local command verifier and remote-gate observer; effect-needing checks remain unsupported.",
+      "oracle": ["CF-MECH-VERIFY", "CF-GATE-PROVIDER"]
+    },
+    {
+      "id": "GF-050",
+      "title": "Terminal Stopped Settlement overlay",
+      "phase": 5,
+      "dependencies": [
+        "GF-011",
+        "GF-013",
+        "GF-014",
+        "GF-015",
+        "GF-030",
+        "GF-037",
+        "GF-038",
+        "GF-046"
+      ],
+      "dependency_edges": [
+        { "from": "GF-011", "type": "implementation" },
+        { "from": "GF-013", "type": "implementation" },
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-037", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-046", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D16-final-readiness-contract-closure.md",
+        "docs/redesign/design/lifecycle-catalogs.md"
+      ],
+      "stable_ids": ["SCH-SETTLEMENT", "ID-SETTLEMENT", "EV-WAKE-SETTLEMENT"],
+      "dr_gates": ["DR-3", "DR-6", "DR-9"],
+      "story_file": "docs/delivery/greenfield/stories/GF-050.md",
+      "outcome": "One phase-preserving Stopped overlay with deterministic duty/no-settlement semantics and no false terminal append.",
+      "oracle": ["CF-RUN-CONTROL", "CF-PRESERVATION", "CF-TRUST-STOP"]
+    },
+    {
+      "id": "GF-051",
+      "title": "Ledger-derived projections and why explanations",
+      "phase": 5,
+      "dependencies": [
+        "GF-030",
+        "GF-031",
+        "GF-032",
+        "GF-036",
+        "GF-037",
+        "GF-038",
+        "GF-040",
+        "GF-044",
+        "GF-046",
+        "GF-050"
+      ],
+      "dependency_edges": [
+        { "from": "GF-030", "type": "implementation" },
+        { "from": "GF-031", "type": "implementation" },
+        { "from": "GF-032", "type": "implementation" },
+        { "from": "GF-036", "type": "implementation" },
+        { "from": "GF-037", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-040", "type": "implementation" },
+        { "from": "GF-044", "type": "implementation" },
+        { "from": "GF-046", "type": "implementation" },
+        { "from": "GF-050", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/operations-and-observability.md",
+        "docs/redesign/design/persistence-and-projections.md"
+      ],
+      "stable_ids": ["CP-PROJECTION", "PORT-PUBLISH", "OBS-*"],
+      "dr_gates": ["DR-4"],
+      "story_file": "docs/delivery/greenfield/stories/GF-051.md",
+      "outcome": "Read-only projections rebuildable from a stated ledger position; no controller-memory-only explanation.",
+      "oracle": ["CF-OBSERVABILITY"]
+    },
+    {
+      "id": "GF-052",
+      "title": "Actionable notice projection and delivery",
+      "phase": 5,
+      "dependencies": ["GF-036", "GF-038", "GF-045", "GF-050", "GF-051"],
+      "dependency_edges": [
+        { "from": "GF-036", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-045", "type": "implementation" },
+        { "from": "GF-050", "type": "implementation" },
+        { "from": "GF-051", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/redesign/design/operations-and-observability.md"
+      ],
+      "stable_ids": [
+        "SCH-NOTICE",
+        "ID-NOTICE",
+        "EV-NOTICE-ACKNOWLEDGED",
+        "EV-NOTICE-SNOOZED",
+        "DR-12"
+      ],
+      "dr_gates": ["DR-12"],
+      "story_file": "docs/delivery/greenfield/stories/GF-052.md",
+      "outcome": "Terminal/append-only-file notice channel whose durable facts, not channel behavior, determine urgency/content.",
+      "oracle": ["CF-NOTICE-EXPORT", "CF-BLOCK-SURFACING"]
+    },
+    {
+      "id": "GF-053",
+      "title": "Audit export, retention, and guarded disposal",
+      "phase": 5,
+      "dependencies": [
+        "GF-013",
+        "GF-014",
+        "GF-015",
+        "GF-038",
+        "GF-046",
+        "GF-050",
+        "GF-051",
+        "GF-052"
+      ],
+      "dependency_edges": [
+        { "from": "GF-013", "type": "implementation" },
+        { "from": "GF-014", "type": "implementation" },
+        { "from": "GF-015", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-046", "type": "implementation" },
+        { "from": "GF-050", "type": "implementation" },
+        { "from": "GF-051", "type": "implementation" },
+        { "from": "GF-052", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/evidence-handling.md",
+        "docs/redesign/design/operations-and-observability.md"
+      ],
+      "stable_ids": ["SCH-AUDIT-EXPORT", "ID-EXPORT", "OPC-ART-DISPOSE"],
+      "dr_gates": ["DR-6", "DR-12"],
+      "story_file": "docs/delivery/greenfield/stories/GF-053.md",
+      "outcome": "Redacted write-once audit export, retention holds, and owner-authorized disposal under all guards.",
+      "oracle": [
+        "CF-NOTICE-EXPORT",
+        "CF-EVIDENCE-LIFECYCLE",
+        "CF-SECRET-ABSENCE"
+      ]
+    },
+    {
+      "id": "GF-054",
+      "title": "Private first-party SDK facade",
+      "phase": 5,
+      "dependencies": [
+        "GF-023",
+        "GF-024",
+        "GF-036",
+        "GF-037",
+        "GF-038",
+        "GF-051",
+        "GF-052",
+        "GF-053"
+      ],
+      "dependency_edges": [
+        { "from": "GF-023", "type": "decision" },
+        { "from": "GF-024", "type": "implementation" },
+        { "from": "GF-036", "type": "implementation" },
+        { "from": "GF-037", "type": "implementation" },
+        { "from": "GF-038", "type": "implementation" },
+        { "from": "GF-051", "type": "implementation" },
+        { "from": "GF-052", "type": "implementation" },
+        { "from": "GF-053", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": ["docs/redesign/design/runtime.md"],
+      "stable_ids": ["RT-OPERATOR", "PORT-CONSUMER", "DR-7"],
+      "dr_gates": ["DR-7"],
+      "story_file": "docs/delivery/greenfield/stories/GF-054.md",
+      "outcome": "Stable private SDK delegates to owning ports without direct controller/store access or a public semver promise.",
+      "oracle": ["CF-CONSUMER"]
+    },
+    {
+      "id": "GF-055",
+      "title": "Thin CLI and terminal/file channels",
+      "phase": 5,
+      "dependencies": ["GF-020", "GF-052", "GF-054"],
+      "dependency_edges": [
+        { "from": "GF-020", "type": "evidence" },
+        { "from": "GF-052", "type": "implementation" },
+        { "from": "GF-054", "type": "implementation" }
+      ],
+      "size": "M",
+      "governing_paths": [
+        "docs/product/jig.md",
+        "docs/redesign/design/runtime.md"
+      ],
+      "stable_ids": ["PORT-CONSUMER", "DR-7", "DR-12"],
+      "dr_gates": ["DR-7", "DR-12"],
+      "story_file": "docs/delivery/greenfield/stories/GF-055.md",
+      "outcome": "Thin operator-initiated CLI with redacted human/machine results and SDK-equivalent authority.",
+      "oracle": ["CF-CONSUMER", "CLI E2E parity"]
+    },
+    {
+      "id": "GF-056",
+      "title": "Thin private stdio MCP adapter",
+      "phase": 5,
+      "dependencies": ["GF-054"],
+      "dependency_edges": [{ "from": "GF-054", "type": "implementation" }],
+      "size": "S/M",
+      "governing_paths": [
+        "docs/product/concepts.md",
+        "docs/redesign/design/runtime.md"
+      ],
+      "stable_ids": ["PORT-CONSUMER", "DR-7"],
+      "dr_gates": ["DR-7"],
+      "story_file": "docs/delivery/greenfield/stories/GF-056.md",
+      "outcome": "Private stdio MCP adapter preserving SDK schemas, principal binding, and terminal semantics.",
+      "oracle": ["CF-CONSUMER", "SDK/CLI/MCP parity"]
+    },
+    {
+      "id": "GF-060",
+      "title": "Qualified Codex role-session provider",
+      "phase": 6,
+      "dependencies": [
+        "GF-022",
+        "GF-034",
+        "GF-035",
+        "GF-036",
+        "GF-040",
+        "GF-042"
+      ],
+      "dependency_edges": [
+        { "from": "GF-022", "type": "evidence" },
+        { "from": "GF-034", "type": "implementation" },
+        { "from": "GF-035", "type": "implementation" },
+        { "from": "GF-036", "type": "implementation" },
+        { "from": "GF-040", "type": "implementation" },
+        { "from": "GF-042", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D14-agent-provider-permission-boundary.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-SESSION", "DR-4", "DR-5"],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-060.md",
+      "outcome": "Qualified Codex implementer/reviewer sessions for exact approved build/protocol/posture; drift is unavailable, never widening fallback.",
+      "oracle": [
+        "CF-MECH-SESSION",
+        "CF-PROVIDER-PERMISSION",
+        "CF-SECRET-ABSENCE",
+        "CF-GATE-PROVIDER"
+      ]
+    },
+    {
+      "id": "GF-061",
+      "title": "Qualified GitHub review and delivery provider",
+      "phase": 6,
+      "dependencies": ["GF-022", "GF-041", "GF-043", "GF-044", "GF-045"],
+      "dependency_edges": [
+        { "from": "GF-022", "type": "evidence" },
+        { "from": "GF-041", "type": "implementation" },
+        { "from": "GF-043", "type": "implementation" },
+        { "from": "GF-044", "type": "implementation" },
+        { "from": "GF-045", "type": "implementation" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
+      ],
+      "stable_ids": ["PORT-DELIVERY", "DR-4", "DR-5"],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-061.md",
+      "outcome": "Qualified GitHub provider with disjoint review/final credentials; queue/held modes stay unconfigurable.",
+      "oracle": [
+        "CF-MECH-DELIVERY",
+        "CF-REVIEW-PUBLICATION",
+        "CF-BLOCK-SURFACING",
+        "CF-GATE-PROVIDER"
+      ]
+    },
+    {
+      "id": "GF-062",
+      "title": "Supported local reference profile and closure",
+      "phase": 6,
+      "dependencies": [
+        "GF-001",
+        "GF-002",
+        "GF-003",
+        "GF-004",
+        "GF-005",
+        "GF-010",
+        "GF-011",
+        "GF-012",
+        "GF-013",
+        "GF-014",
+        "GF-015",
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-030",
+        "GF-031",
+        "GF-032",
+        "GF-033",
+        "GF-034",
+        "GF-035",
+        "GF-036",
+        "GF-037",
+        "GF-038",
+        "GF-039",
+        "GF-040",
+        "GF-041",
+        "GF-042",
+        "GF-043",
+        "GF-044",
+        "GF-045",
+        "GF-046",
+        "GF-047",
+        "GF-050",
+        "GF-051",
+        "GF-052",
+        "GF-053",
+        "GF-054",
+        "GF-055",
+        "GF-056",
+        "GF-060",
+        "GF-061"
+      ],
+      "dependency_edges": [
+        { "from": "all prior stories", "type": "merge" },
+        { "from": "all 39 suites", "type": "evidence" }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/architecture-conformance.md",
+        "docs/redesign/design/decisions/product-readiness-gate-record.md"
+      ],
+      "stable_ids": [
+        "CF-GATE-PRODUCT",
+        "CF-GATE-REALIZATION",
+        "CF-GATE-PROVIDER"
+      ],
+      "dr_gates": [
+        "DR-1",
+        "DR-2",
+        "DR-3",
+        "DR-4",
+        "DR-5",
+        "DR-6",
+        "DR-7",
+        "DR-8",
+        "DR-9",
+        "DR-12"
+      ],
+      "story_file": "docs/delivery/greenfield/stories/GF-062.md",
+      "outcome": "Pure conjunction of the exact 44 routes, 56 imports, 39 suite results, and qualified reference providers; no new semantics.",
+      "oracle": [
+        "CF-GATE-PRODUCT",
+        "immutable route manifest",
+        "exact CER bundle"
+      ]
+    }
+  ],
+  "mandatory_provider_splits": [
+    {
+      "semantic_story": "GF-019",
+      "provider_story": "GF-020",
+      "port": "PORT-SOURCE",
+      "rule": "Structured-file source remains unconfigurable until its exact CF-MECH-SOURCE result passes."
+    },
+    {
+      "semantic_story": "GF-033",
+      "provider_story": "GF-039",
+      "port": "PORT-WORKSPACE",
+      "rule": "Local Git worktree host remains unconfigurable until its exact CF-MECH-WORKSPACE result passes."
+    },
+    {
+      "semantic_story": "GF-042",
+      "provider_story": "GF-047",
+      "port": "PORT-VERIFY",
+      "rule": "Local command verifier remains unconfigurable until its exact CF-MECH-VERIFY result passes."
+    }
+  ],
+  "critical_path": [
+    "GF-001",
+    "GF-002",
+    "GF-003",
+    "GF-004",
+    "GF-005",
+    "GF-010",
+    "GF-013",
+    "GF-022",
+    "GF-020",
+    "GF-023",
+    "GF-024",
+    "GF-030",
+    "GF-031",
+    "GF-032",
+    "GF-035",
+    "GF-036",
+    "GF-037",
+    "GF-040",
+    "GF-043",
+    "GF-044",
+    "GF-045",
+    "GF-046",
+    "GF-050",
+    "GF-051",
+    "GF-052",
+    "GF-053",
+    "GF-054",
+    "GF-055",
+    "GF-062"
+  ],
+  "parallel_lanes": [
+    "After GF-004, source-contract/composition and durable-core work may proceed independently.",
+    "After GF-010, controller/recovery, registry, and artifact lanes may proceed independently.",
+    "After GF-030, scheduler, workspace, and session lanes may proceed independently.",
+    "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
+    "After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.",
+    "After GF-054, CLI and private MCP lanes may proceed independently.",
+    "GF-060 and GF-061 qualify independently before GF-062."
+  ],
+  "gate_edges": [
+    "No port traffic before DR-1 framing.",
+    "No implementation dispatch before GF-010, GF-011, and GF-015.",
+    "No provider reachability before GF-004, GF-022, and that provider's CF-MECH-* pass.",
+    "No Run before the witnessed GF-024 acknowledgement.",
+    "No acceptance before GF-040; no landing before GF-043 and GF-044; no cleanup before GF-046.",
+    "No product claim before GF-062's pure conjunction."
+  ],
+  "inventories": {
+    "runtime_units": {
+      "RT-OPERATOR": ["GF-024", "GF-054", "GF-055", "GF-056"],
+      "RT-CONTROLLER": [
+        "GF-005",
+        "GF-011",
+        "GF-015",
+        "GF-024",
+        "GF-030",
+        "GF-031",
+        "GF-032",
+        "GF-033",
+        "GF-034",
+        "GF-035",
+        "GF-036",
+        "GF-037",
+        "GF-038",
+        "GF-040",
+        "GF-041",
+        "GF-042",
+        "GF-043",
+        "GF-044",
+        "GF-045",
+        "GF-046",
+        "GF-050"
+      ],
+      "RT-LEDGER": ["GF-010"],
+      "RT-EVIDENCE": ["GF-013", "GF-014", "GF-053"],
+      "RT-REGISTRY": ["GF-012", "GF-043"],
+      "RT-WITNESS": ["GF-010", "GF-012", "GF-013", "GF-024"]
+    },
+    "ports": {
+      "PORT-CONSUMER": ["GF-023", "GF-054", "GF-055", "GF-056"],
+      "PORT-INTAKE": ["GF-024"],
+      "PORT-DECIDE": ["GF-036", "GF-037", "GF-038"],
+      "PORT-SESSION": ["GF-034", "GF-060"],
+      "PORT-WORKSPACE": ["GF-033", "GF-039"],
+      "PORT-VERIFY": ["GF-042", "GF-047"],
+      "PORT-DELIVERY": ["GF-041", "GF-043", "GF-044", "GF-045", "GF-061"],
+      "PORT-LEDGER": ["GF-010", "GF-012"],
+      "PORT-ARTIFACT": ["GF-013", "GF-014", "GF-050", "GF-053"],
+      "PORT-PUBLISH": ["GF-051", "GF-052"],
+      "PORT-SOURCE": ["GF-019", "GF-020"]
+    },
+    "events": {
+      "EV-ENVELOPE-SUBMITTED": ["GF-024"],
+      "EV-SESSION-RESULT": ["GF-035"],
+      "EV-SESSION-VERDICT": ["GF-040"],
+      "EV-SESSION-FAULT": ["GF-034"],
+      "EV-SESSION-HUMAN-REQUEST": ["GF-036"],
+      "EV-SESSION-FACT": ["GF-034"],
+      "EV-WORKSPACE-FACT": ["GF-033", "GF-035"],
+      "EV-SETUP-FACT": ["GF-033"],
+      "EV-WORKSPACE-PRESERVED": ["GF-046"],
+      "EV-ARTIFACT-FACT": ["GF-013", "GF-014", "GF-053"],
+      "EV-RULE-SURFACE-TOUCHED": ["GF-037"],
+      "EV-LIVENESS-OBSERVED": ["GF-032"],
+      "EV-CHECK-OBSERVATION": ["GF-042", "GF-047"],
+      "EV-TARGET-FACT": ["GF-041", "GF-043", "GF-044"],
+      "EV-EFFECT-CERTAINTY": ["GF-015", "GF-044"],
+      "EV-LANDING-OBSERVED": ["GF-044"],
+      "EV-OWNER-DECISION": ["GF-036", "GF-037", "GF-050", "GF-053"],
+      "EV-DELEGATION-GRANT": ["GF-036"],
+      "EV-RUN-SUSPEND-DECISION": ["GF-037"],
+      "EV-RUN-RESUME-DECISION": ["GF-037"],
+      "EV-RUN-TERMINAL-STOP-DECISION": ["GF-037", "GF-050"],
+      "EV-RECOVERY-OBSERVATION": ["GF-011", "GF-015"],
+      "EV-WAKE-DEPENDENCY": ["GF-030"],
+      "EV-WAKE-CAPACITY": ["GF-031", "GF-032"],
+      "EV-WAKE-TIMER": ["GF-032", "GF-052"],
+      "EV-WAKE-AUTHORITY": ["GF-043"],
+      "EV-WAKE-FINALIZATION": ["GF-043"],
+      "EV-BOUND-EXHAUSTED": ["GF-032", "GF-038", "GF-050"],
+      "EV-OBLIGATION-RESOLVED": ["GF-038", "GF-050"],
+      "EV-WAKE-SETTLEMENT": ["GF-038", "GF-050"],
+      "EV-NOTICE-ACKNOWLEDGED": ["GF-052"],
+      "EV-NOTICE-SNOOZED": ["GF-052"]
+    },
+    "operations": {
+      "OPC-SESSION-OPEN": ["GF-034"],
+      "OPC-SESSION-RESPOND": ["GF-034", "GF-036"],
+      "OPC-SESSION-ASSIGN": ["GF-034", "GF-035"],
+      "OPC-SESSION-COLLECT": ["GF-034", "GF-035"],
+      "OPC-SESSION-CLOSE": ["GF-034", "GF-046"],
+      "OPC-WS-PROVISION": ["GF-033"],
+      "OPC-WS-SETUP": ["GF-033"],
+      "OPC-WS-OBSERVE": ["GF-033"],
+      "OPC-WS-PRESERVE": ["GF-033", "GF-046"],
+      "OPC-WS-RETIRE": ["GF-046"],
+      "OPC-VERIFY-EXECUTE": ["GF-042"],
+      "OPC-REV-PUBLISH": ["GF-041"],
+      "OPC-REV-REQUEST": ["GF-041"],
+      "OPC-REV-STATUS": ["GF-041"],
+      "OPC-REV-COMMENT": ["GF-041"],
+      "OPC-REV-RETIRE-REF": ["GF-041", "GF-046"],
+      "OPC-REV-RETIRE-REQUEST": ["GF-041", "GF-046"],
+      "OPC-REV-RETIRE-STATUS": ["GF-041", "GF-046"],
+      "OPC-REV-RETIRE-COMMENT": ["GF-041", "GF-046"],
+      "OPC-DEL-ANCHOR": ["GF-043"],
+      "OPC-DEL-PUBLISH": ["GF-044"],
+      "OPC-DEL-REQUEST": ["GF-044"],
+      "OPC-DEL-STATUS": ["GF-044"],
+      "OPC-DEL-COMMENT": ["GF-044"],
+      "OPC-DEL-MERGE": ["GF-044"],
+      "OPC-DEL-OBSERVE": ["GF-044"],
+      "OPC-ART-PUT": ["GF-013", "GF-014"],
+      "OPC-ART-GET": ["GF-013", "GF-014"],
+      "OPC-ART-DISPOSE": ["GF-013", "GF-053"]
+    },
+    "identities": {
+      "ID-RUN": ["GF-024"],
+      "ID-STORY": ["GF-030"],
+      "ID-TXN": ["GF-005", "GF-010"],
+      "ID-EVENT": ["GF-005", "GF-010"],
+      "ID-OP": ["GF-005", "GF-015"],
+      "ID-CAND": ["GF-035"],
+      "ID-GEN": ["GF-011"],
+      "ID-PRINCIPAL": ["GF-022", "GF-036"],
+      "ID-MANIFEST": ["GF-022"],
+      "ID-SESSION": ["GF-034"],
+      "ID-FINDING": ["GF-040"],
+      "ID-GRANT": ["GF-036"],
+      "ID-PARK": ["GF-036"],
+      "ID-SOURCE-REQ": ["GF-019", "GF-020"],
+      "ID-REGISTRY": ["GF-012"],
+      "ID-TARGET": ["GF-012", "GF-043"],
+      "ID-AUTH": ["GF-012", "GF-043"],
+      "ID-EVSUBJ": ["GF-014"],
+      "ID-OBLIGATION": ["GF-038"],
+      "ID-SETTLEMENT": ["GF-050"],
+      "ID-NOTICE": ["GF-052"],
+      "ID-EXPORT": ["GF-053"]
+    },
+    "schema_families": {
+      "SCH-PLAN": ["GF-019"],
+      "SCH-SOURCE-EXCHANGE": ["GF-019"],
+      "SCH-WORK-PROFILE": ["GF-021"],
+      "SCH-CONFIG-ARTIFACT": ["GF-021"],
+      "SCH-SETUP-RECEIPT": ["GF-021"],
+      "SCH-RULE-SURFACE": ["GF-021", "GF-037"],
+      "SCH-PROVIDER-AUTHORITY": ["GF-022"],
+      "SCH-CAPABILITY-PROOF": ["GF-022"],
+      "SCH-ENVELOPE": ["GF-023", "GF-024"],
+      "SCH-INTAKE-ACK": ["GF-024"],
+      "SCH-INTAKE-CUT-CLAIM": ["GF-024"],
+      "SCH-LIVENESS": ["GF-032", "GF-034"],
+      "SCH-SESSION": ["GF-034"],
+      "SCH-CANDIDATE": ["GF-035"],
+      "SCH-REGISTRY-RECORD": ["GF-012"],
+      "SCH-EVENT": ["GF-005"],
+      "SCH-TRANSITION": ["GF-005", "GF-030"],
+      "SCH-OPERATION": ["GF-005", "GF-015"],
+      "SCH-VERDICT": ["GF-040"],
+      "SCH-EVIDENCE": ["GF-014"],
+      "SCH-ESCALATION": ["GF-036"],
+      "SCH-DELEGATION-GRANT": ["GF-036"],
+      "SCH-DECISION": ["GF-036"],
+      "SCH-OBLIGATION": ["GF-038"],
+      "SCH-SETTLEMENT": ["GF-050"],
+      "SCH-NOTICE": ["GF-052"],
+      "SCH-AUDIT-EXPORT": ["GF-053"]
+    },
+    "failure_classes": {
+      "FC-INPUT": [
+        "GF-002",
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024"
+      ],
+      "FC-AUTHORITY": ["GF-003", "GF-012", "GF-022", "GF-036", "GF-043"],
+      "FC-SUBJECT": ["GF-002", "GF-035", "GF-040", "GF-042", "GF-047"],
+      "FC-FENCE": ["GF-011", "GF-015", "GF-034"],
+      "FC-EVIDENCE": ["GF-014", "GF-040"],
+      "FC-MECHANISM": [
+        "GF-015",
+        "GF-020",
+        "GF-039",
+        "GF-047",
+        "GF-060",
+        "GF-061"
+      ],
+      "FC-EFFECT": ["GF-015", "GF-041", "GF-044"],
+      "FC-CAPACITY": ["GF-031"],
+      "FC-LIVENESS": ["GF-032", "GF-034"],
+      "FC-RULES": ["GF-037"],
+      "FC-BOUND": ["GF-032", "GF-035", "GF-038", "GF-043", "GF-046"],
+      "FC-TRUST": [
+        "GF-010",
+        "GF-011",
+        "GF-012",
+        "GF-013",
+        "GF-014",
+        "GF-024",
+        "GF-050"
+      ]
+    },
+    "bound_classes": {
+      "BND-REWORK": ["GF-035"],
+      "BND-RETRY": ["GF-015", "GF-019", "GF-020", "GF-022"],
+      "BND-REFRESH": ["GF-043"],
+      "BND-WAIT-DECISION": ["GF-036", "GF-038"],
+      "BND-WAIT-MECHANISM": [
+        "GF-015",
+        "GF-019",
+        "GF-020",
+        "GF-022",
+        "GF-039",
+        "GF-047",
+        "GF-060",
+        "GF-061"
+      ],
+      "BND-WAIT-CAPACITY": ["GF-031", "GF-043"],
+      "BND-WAIT-LEDGER": ["GF-010"],
+      "BND-WAIT-TARGET": ["GF-043", "GF-044"],
+      "BND-IDLE": ["GF-032"],
+      "BND-SILENCE": ["GF-034"],
+      "BND-RECOVERY": ["GF-011", "GF-015"],
+      "BND-RETIRE": ["GF-046", "GF-050"]
+    },
+    "wait_progress_surfaces": {
+      "review_or_rework": ["GF-035", "GF-040"],
+      "operation_or_source_retry": ["GF-015", "GF-019", "GF-020"],
+      "refresh": ["GF-043"],
+      "human_decision": ["GF-036"],
+      "mediated_response": ["GF-015"],
+      "capacity": ["GF-031"],
+      "ledger_acknowledgement": ["GF-010"],
+      "target_stability": ["GF-043", "GF-044"],
+      "idle_progress": ["GF-032"],
+      "session_silence": ["GF-034"],
+      "effect_reconciliation": ["GF-015"],
+      "retirement_or_stop": ["GF-046", "GF-050"],
+      "capability_proof": ["GF-022"],
+      "configuration_read": ["GF-021"],
+      "finalizer_queue": ["GF-043"],
+      "residual_obligation": ["GF-038", "GF-050"]
+    },
+    "conformance_suites": {
+      "CF-DETERMINISM": ["GF-005"],
+      "CF-ORDERING": ["GF-010", "GF-011", "GF-015"],
+      "CF-FENCE": ["GF-011", "GF-015"],
+      "CF-BINDING": ["GF-005", "GF-035", "GF-040"],
+      "CF-ACCEPTANCE": ["GF-040"],
+      "CF-POLICY": ["GF-021", "GF-042"],
+      "CF-CAPACITY": ["GF-031"],
+      "CF-ORDER": ["GF-012", "GF-031", "GF-043"],
+      "CF-RELEASE": ["GF-030", "GF-044"],
+      "CF-BLOCKERS": ["GF-030"],
+      "CF-CONTAINMENT": ["GF-030", "GF-032"],
+      "CF-BOUNDS": ["GF-032"],
+      "CF-DOUBLE-EFFECT": ["GF-015", "GF-044"],
+      "CF-SEPARATION": ["GF-046"],
+      "CF-PRESERVATION": ["GF-046", "GF-050"],
+      "CF-TRUST-STOP": [
+        "GF-010",
+        "GF-011",
+        "GF-012",
+        "GF-013",
+        "GF-014",
+        "GF-050"
+      ],
+      "CF-RULE-SURFACE": ["GF-037"],
+      "CF-LIVENESS": ["GF-032"],
+      "CF-NOTICE-EXPORT": ["GF-052", "GF-053"],
+      "CF-OBSERVABILITY": ["GF-051"],
+      "CF-RUN-CONTROL": ["GF-030", "GF-037", "GF-050"],
+      "CF-OPERATOR-ACTIONS": ["GF-036", "GF-038"],
+      "CF-EVIDENCE-LIFECYCLE": ["GF-013", "GF-014", "GF-046", "GF-053"],
+      "CF-SECRET-ABSENCE": ["GF-014", "GF-022", "GF-060", "GF-061"],
+      "CF-DELEGATION": ["GF-036"],
+      "CF-CONSUMER": ["GF-054", "GF-055", "GF-056"],
+      "CF-ENVELOPE": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024"
+      ],
+      "CF-PROVIDER-PERMISSION": ["GF-034", "GF-036", "GF-060"],
+      "CF-SETUP-FRESHNESS": ["GF-021", "GF-033", "GF-039"],
+      "CF-PROVIDER-AUTHORITY": ["GF-022"],
+      "CF-BLOCK-SURFACING": ["GF-038", "GF-045", "GF-052"],
+      "CF-REVIEW-PUBLICATION": ["GF-041"],
+      "CF-MECH-LEDGER": ["GF-010"],
+      "CF-MECH-ARTIFACT": ["GF-013"],
+      "CF-MECH-SESSION": ["GF-034", "GF-060"],
+      "CF-MECH-WORKSPACE": ["GF-033", "GF-039"],
+      "CF-MECH-SOURCE": ["GF-019", "GF-020"],
+      "CF-MECH-VERIFY": ["GF-042", "GF-047"],
+      "CF-MECH-DELIVERY": ["GF-041", "GF-044", "GF-045", "GF-061"]
+    },
+    "cf_gate_product_inputs": [
+      "CF-DETERMINISM",
+      "CF-ORDERING",
+      "CF-FENCE",
+      "CF-BINDING",
+      "CF-ACCEPTANCE",
+      "CF-POLICY",
+      "CF-CAPACITY",
+      "CF-ORDER",
+      "CF-RELEASE",
+      "CF-BLOCKERS",
+      "CF-CONTAINMENT",
+      "CF-BOUNDS",
+      "CF-DOUBLE-EFFECT",
+      "CF-SEPARATION",
+      "CF-PRESERVATION",
+      "CF-TRUST-STOP",
+      "CF-RULE-SURFACE",
+      "CF-LIVENESS",
+      "CF-NOTICE-EXPORT",
+      "CF-OBSERVABILITY",
+      "CF-RUN-CONTROL",
+      "CF-OPERATOR-ACTIONS",
+      "CF-EVIDENCE-LIFECYCLE",
+      "CF-SECRET-ABSENCE",
+      "CF-DELEGATION",
+      "CF-CONSUMER",
+      "CF-ENVELOPE",
+      "CF-PROVIDER-PERMISSION",
+      "CF-SETUP-FRESHNESS",
+      "CF-PROVIDER-AUTHORITY",
+      "CF-BLOCK-SURFACING",
+      "CF-REVIEW-PUBLICATION",
+      "CF-MECH-LEDGER",
+      "CF-MECH-ARTIFACT",
+      "CF-MECH-SESSION",
+      "CF-MECH-WORKSPACE",
+      "CF-MECH-SOURCE",
+      "CF-MECH-VERIFY",
+      "CF-MECH-DELIVERY"
+    ]
+  },
+  "product_routes": {
+    "PC-README-1": {
+      "proof": ["D1", "Layer 1/2 gate records"],
+      "stories": ["GF-062"]
+    },
+    "PC-README-2": {
+      "proof": ["D2", "D13"],
+      "stories": ["GF-003", "GF-019", "GF-024"]
+    },
+    "PC-README-3": {
+      "proof": ["CF-ENVELOPE", "D2", "D13"],
+      "stories": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-062"
+      ]
+    },
+    "PC-JIG-1": {
+      "proof": [
+        "CF-ENVELOPE",
+        "CF-ACCEPTANCE",
+        "CF-POLICY",
+        "CF-RUN-CONTROL",
+        "CF-RELEASE",
+        "CF-NOTICE-EXPORT",
+        "CF-OBSERVABILITY"
+      ],
+      "stories": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-030",
+        "GF-037",
+        "GF-040",
+        "GF-044",
+        "GF-050",
+        "GF-051",
+        "GF-052",
+        "GF-053",
+        "GF-062"
+      ]
+    },
+    "PC-JIG-2": {
+      "proof": ["CF-ENVELOPE", "CF-RULE-SURFACE", "CF-FENCE"],
+      "stories": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-011",
+        "GF-015",
+        "GF-037"
+      ]
+    },
+    "PC-JIG-3": {
+      "proof": ["CF-CONSUMER", "CF-ENVELOPE"],
+      "stories": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-054",
+        "GF-055",
+        "GF-056"
+      ]
+    },
+    "PC-JIG-4": {
+      "proof": ["CF-CONSUMER", "CF-OBSERVABILITY"],
+      "stories": ["GF-051", "GF-054", "GF-055", "GF-056"]
+    },
+    "PC-JIG-5": {
+      "proof": ["CF-OPERATOR-ACTIONS", "CF-DELEGATION"],
+      "stories": ["GF-036", "GF-038"]
+    },
+    "PC-JIG-6": {
+      "proof": ["CF-OPERATOR-ACTIONS", "CF-RUN-CONTROL"],
+      "stories": ["GF-030", "GF-036", "GF-037", "GF-050"]
+    },
+    "PC-JIG-7": {
+      "proof": ["CF-ENVELOPE", "CF-POLICY"],
+      "stories": ["GF-019", "GF-020", "GF-021", "GF-022", "GF-023", "GF-024"]
+    },
+    "PC-JIG-8": {
+      "proof": [
+        "CF-BINDING",
+        "CF-PROVIDER-AUTHORITY",
+        "CF-SECRET-ABSENCE",
+        "CF-MECH-WORKSPACE",
+        "CF-MECH-SESSION",
+        "CF-MECH-VERIFY",
+        "CF-MECH-DELIVERY"
+      ],
+      "stories": [
+        "GF-003",
+        "GF-022",
+        "GF-033",
+        "GF-034",
+        "GF-035",
+        "GF-039",
+        "GF-040",
+        "GF-042",
+        "GF-047",
+        "GF-060",
+        "GF-061"
+      ]
+    },
+    "PC-JIG-9": {
+      "proof": ["CF-MECH-SESSION", "CF-PROVIDER-PERMISSION"],
+      "stories": ["GF-034", "GF-036", "GF-060"]
+    },
+    "PC-JIG-10": {
+      "proof": ["CF-ACCEPTANCE", "CF-POLICY"],
+      "stories": ["GF-021", "GF-040", "GF-042"]
+    },
+    "PC-JIG-11": {
+      "proof": ["CF-REVIEW-PUBLICATION"],
+      "stories": ["GF-041", "GF-061"]
+    },
+    "PC-JIG-12": {
+      "proof": ["CF-POLICY", "CF-PROVIDER-AUTHORITY"],
+      "stories": ["GF-021", "GF-022", "GF-037"]
+    },
+    "PC-JIG-13": {
+      "proof": ["D2", "D13", "runtime/port ownership"],
+      "stories": ["GF-003", "GF-020", "GF-024"]
+    },
+    "PC-JIG-14": {
+      "proof": [
+        "CF-CONSUMER",
+        "runtime/D10 private-facade and no-public-stability governance"
+      ],
+      "stories": ["GF-054", "GF-055", "GF-056"]
+    },
+    "PC-JIG-15": {
+      "proof": ["CF-GATE-PROVIDER", "CF-PROVIDER-AUTHORITY", "D10", "D12"],
+      "stories": [
+        "GF-004",
+        "GF-020",
+        "GF-022",
+        "GF-039",
+        "GF-047",
+        "GF-060",
+        "GF-061",
+        "GF-062"
+      ]
+    },
+    "PC-JIG-16": {
+      "proof": ["CF-GATE-PROVIDER", "D10 package deferral"],
+      "stories": ["GF-001", "GF-003", "GF-004", "GF-062"]
+    },
+    "PC-JIG-17": {
+      "proof": ["private facade", "D14 no-middleman"],
+      "stories": ["GF-003", "GF-054", "GF-060"]
+    },
+    "PC-JIG-18": {
+      "proof": ["CF-MECH-WORKSPACE", "gate-record B2 resolution"],
+      "stories": ["GF-033", "GF-039"]
+    },
+    "PC-JIG-19": {
+      "proof": ["CF-CONSUMER", "CF-ENVELOPE", "D10", "D13"],
+      "stories": [
+        "GF-003",
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-054",
+        "GF-055",
+        "GF-056"
+      ]
+    },
+    "PC-JIG-20": {
+      "proof": ["D10 runtime-boundary records"],
+      "stories": ["GF-001", "GF-003"]
+    },
+    "PC-JIG-21": {
+      "proof": [
+        "CF-GATE-PROVIDER",
+        "CF-PROVIDER-AUTHORITY",
+        "unproven-edge inventory"
+      ],
+      "stories": ["GF-022", "GF-060", "GF-061", "GF-062"]
+    },
+    "PC-JIG-22": {
+      "proof": ["CF-ENVELOPE", "actionable legacy guidance"],
+      "stories": ["GF-019", "GF-020", "GF-021", "GF-024"]
+    },
+    "PC-JIG-23": {
+      "proof": [
+        "CF-ENVELOPE",
+        "CF-RUN-CONTROL",
+        "CF-BOUNDS",
+        "CF-OBSERVABILITY"
+      ],
+      "stories": [
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-022",
+        "GF-023",
+        "GF-024",
+        "GF-030",
+        "GF-032",
+        "GF-037",
+        "GF-050",
+        "GF-051"
+      ]
+    },
+    "PC-JIG-24": {
+      "proof": ["D2", "D13", "D7"],
+      "stories": ["GF-003", "GF-019", "GF-024", "GF-040"]
+    },
+    "PC-JIG-25": {
+      "proof": [
+        "CF-CONTAINMENT",
+        "CF-RUN-CONTROL",
+        "CF-RELEASE",
+        "CF-OBSERVABILITY",
+        "D1",
+        "D2"
+      ],
+      "stories": [
+        "GF-030",
+        "GF-032",
+        "GF-037",
+        "GF-044",
+        "GF-050",
+        "GF-051",
+        "GF-062"
+      ]
+    },
+    "PC-CONCEPTS-1": {
+      "proof": ["CF-ENVELOPE", "CF-POLICY"],
+      "stories": ["GF-019", "GF-020", "GF-021", "GF-022", "GF-023", "GF-024"]
+    },
+    "PC-CONCEPTS-2": {
+      "proof": ["CF-BLOCKERS", "CF-CAPACITY", "CF-RELEASE"],
+      "stories": ["GF-030", "GF-031", "GF-044"]
+    },
+    "PC-CONCEPTS-3": {
+      "proof": ["PC-JIG-8 full independence/authority/mechanism route"],
+      "stories": [
+        "GF-003",
+        "GF-022",
+        "GF-033",
+        "GF-034",
+        "GF-035",
+        "GF-039",
+        "GF-040",
+        "GF-042",
+        "GF-047",
+        "GF-060",
+        "GF-061"
+      ]
+    },
+    "PC-CONCEPTS-4": {
+      "proof": [
+        "CF-CONSUMER",
+        "runtime/D10 private-facade and no-public-stability governance"
+      ],
+      "stories": ["GF-054", "GF-055", "GF-056"]
+    },
+    "PC-CONCEPTS-5": {
+      "proof": ["CF-GATE-PROVIDER", "CF-PROVIDER-AUTHORITY"],
+      "stories": ["GF-004", "GF-022", "GF-060", "GF-061", "GF-062"]
+    },
+    "PC-CONCEPTS-6": {
+      "proof": ["CF-REVIEW-PUBLICATION"],
+      "stories": ["GF-041", "GF-061"]
+    },
+    "PC-CONCEPTS-7": {
+      "proof": [
+        "CF-RUN-CONTROL",
+        "CF-OBSERVABILITY",
+        "canonical product projection"
+      ],
+      "stories": ["GF-030", "GF-037", "GF-050", "GF-051"]
+    },
+    "PC-CONCEPTS-8": {
+      "proof": [
+        "CF-RUN-CONTROL",
+        "CF-OBSERVABILITY",
+        "canonical product projection"
+      ],
+      "stories": ["GF-030", "GF-037", "GF-050", "GF-051"]
+    },
+    "PC-CONCEPTS-9": {
+      "proof": ["CF-ENVELOPE", "D2", "D13", "EP-TRACK"],
+      "stories": [
+        "GF-003",
+        "GF-019",
+        "GF-020",
+        "GF-021",
+        "GF-024",
+        "GF-030",
+        "GF-031"
+      ]
+    },
+    "PC-USE-1": {
+      "proof": [
+        "CF-BOUNDS",
+        "CF-CAPACITY",
+        "CF-MECH-WORKSPACE",
+        "CF-OBSERVABILITY"
+      ],
+      "stories": ["GF-031", "GF-032", "GF-033", "GF-039", "GF-051"]
+    },
+    "PC-USE-2": {
+      "proof": ["CF-PROVIDER-PERMISSION", "CF-MECH-SESSION"],
+      "stories": ["GF-034", "GF-036", "GF-060"]
+    },
+    "PC-USE-3": {
+      "proof": [
+        "CF-POLICY",
+        "CF-PROVIDER-AUTHORITY",
+        "EP-PROFILE authority limit"
+      ],
+      "stories": ["GF-021", "GF-022"]
+    },
+    "PC-USE-4": {
+      "proof": ["CF-FENCE", "CF-RUN-CONTROL"],
+      "stories": ["GF-011", "GF-015", "GF-030", "GF-037", "GF-050"]
+    },
+    "PC-USE-5": {
+      "proof": ["CF-GATE-PROVIDER", "CF-PROVIDER-AUTHORITY"],
+      "stories": [
+        "GF-004",
+        "GF-020",
+        "GF-022",
+        "GF-039",
+        "GF-047",
+        "GF-060",
+        "GF-061",
+        "GF-062"
+      ]
+    },
+    "PC-USE-6": {
+      "proof": [
+        "CF-OBSERVABILITY",
+        "CF-NOTICE-EXPORT",
+        "CF-EVIDENCE-LIFECYCLE"
+      ],
+      "stories": ["GF-013", "GF-014", "GF-046", "GF-051", "GF-052", "GF-053"]
+    },
+    "PC-USE-7": {
+      "proof": ["CF-RULE-SURFACE", "CF-OPERATOR-ACTIONS"],
+      "stories": ["GF-036", "GF-037", "GF-038"]
+    }
+  },
+  "imported_commitments": [
+    {
+      "family": "FENCE",
+      "ids": ["FENCE-1", "FENCE-2", "FENCE-3"],
+      "stories": ["GF-011", "GF-015", "GF-034", "GF-060"]
+    },
+    {
+      "family": "EARN",
+      "ids": ["EARN-1", "EARN-2"],
+      "stories": ["GF-036", "GF-040", "GF-042", "GF-047"]
+    },
+    {
+      "family": "GUARD",
+      "ids": ["GUARD-1", "GUARD-2"],
+      "stories": ["GF-036", "GF-040", "GF-042", "GF-047"]
+    },
+    {
+      "family": "DOOR",
+      "ids": ["DOOR-1", "DOOR-2", "DOOR-3"],
+      "stories": ["GF-036"]
+    },
+    {
+      "family": "MERGE",
+      "ids": ["MERGE-1", "MERGE-2", "MERGE-3", "MERGE-4", "MERGE-5"],
+      "stories": [
+        "GF-040",
+        "GF-041",
+        "GF-042",
+        "GF-043",
+        "GF-044",
+        "GF-045",
+        "GF-046",
+        "GF-061"
+      ]
+    },
+    {
+      "family": "SEC",
+      "ids": ["SEC-1", "SEC-2", "SEC-3"],
+      "stories": ["GF-014", "GF-022", "GF-060", "GF-061"]
+    },
+    {
+      "family": "CFG",
+      "ids": [
+        "CFG-1",
+        "CFG-2",
+        "CFG-3",
+        "CFG-4",
+        "CFG-5",
+        "CFG-6",
+        "CFG-7",
+        "CFG-8",
+        "CFG-9",
+        "CFG-10"
+      ],
+      "stories": ["GF-019", "GF-020", "GF-021", "GF-022", "GF-023", "GF-024"]
+    },
+    {
+      "family": "RESUME",
+      "ids": ["RESUME-1", "RESUME-2", "RESUME-3", "RESUME-4", "RESUME-5"],
+      "stories": ["GF-011", "GF-015", "GF-037", "GF-050"]
+    },
+    {
+      "family": "ISO",
+      "ids": ["ISO-1", "ISO-2", "ISO-3", "ISO-4"],
+      "stories": ["GF-030", "GF-031", "GF-032", "GF-033", "GF-039"]
+    },
+    {
+      "family": "LIVE",
+      "ids": ["LIVE-1", "LIVE-2"],
+      "stories": ["GF-032", "GF-034"]
+    },
+    {
+      "family": "STACK",
+      "ids": [
+        "STACK-1",
+        "STACK-2",
+        "STACK-3",
+        "STACK-4",
+        "STACK-5",
+        "STACK-6",
+        "STACK-7"
+      ],
+      "stories": [
+        "GF-003",
+        "GF-004",
+        "GF-020",
+        "GF-022",
+        "GF-039",
+        "GF-047",
+        "GF-060",
+        "GF-061"
+      ]
+    },
+    {
+      "family": "DRIVE",
+      "ids": ["DRIVE-1", "DRIVE-2", "DRIVE-3", "DRIVE-4"],
+      "stories": [
+        "GF-020",
+        "GF-039",
+        "GF-047",
+        "GF-054",
+        "GF-055",
+        "GF-056",
+        "GF-060",
+        "GF-061"
+      ]
+    },
+    {
+      "family": "SEE",
+      "ids": ["SEE-1", "SEE-2", "SEE-3", "SEE-4", "SEE-5", "SEE-6"],
+      "stories": ["GF-051", "GF-052", "GF-053", "GF-054"]
+    }
+  ],
+  "delegated_choices": {
+    "open": {
+      "DR-1": {
+        "owner": "Engineering",
+        "earliest_story": "GF-002",
+        "constraints": "Strict versioned JSON, deterministic canonical bytes, runtime validation and golden vectors; reject encoding.",
+        "alternatives": "Other encodings only under an owner-approved later decision.",
+        "evidence": "Golden vectors and fuzz/property corpus.",
+        "fallback": "Reject encoding.",
+        "blocks": "Every port and store."
+      },
+      "DR-2": {
+        "owner": "Engineering",
+        "earliest_story": "GF-001/GF-003",
+        "constraints": "Private pnpm packages follow dependency/runtime seams without moving authority.",
+        "alternatives": "Smaller private topology only if the same boundary proof holds.",
+        "evidence": "Graph/static boundary proof and independent-build fixture.",
+        "fallback": "Smallest topology with unchanged authority.",
+        "blocks": "GF-005 and all descendants."
+      },
+      "DR-3": {
+        "owner": "Engineering",
+        "earliest_story": "GF-005",
+        "constraints": "Pure immutable reducer/selectors and explicit tables; unimplemented transition rejects.",
+        "alternatives": "Internal decomposition only below the fixed semantic kernel.",
+        "evidence": "Replay and permutation proof.",
+        "fallback": "Reject incomplete transition.",
+        "blocks": "Control stories."
+      },
+      "DR-4": {
+        "owner": "Engineering and configuration",
+        "earliest_story": "GF-003 then each port",
+        "constraints": "In-process typed semantic ports; transport only at mechanism edge; unavailable provider cannot be reached.",
+        "alternatives": "Provider transport is delegated only after its port contract.",
+        "evidence": "CF-MECH-* and authority tests.",
+        "fallback": "Provider unavailable.",
+        "blocks": "Each port/provider descendant."
+      },
+      "DR-5": {
+        "owner": "Configuration",
+        "earliest_story": "GF-022 then GF-020/GF-039/GF-047/GF-060/GF-061",
+        "constraints": "Initial providers are structured-file source, file stores, local Git workspace, local verifier, Codex sessions, GitHub delivery, and terminal/file notice.",
+        "alternatives": "Unsupported provider mode omitted, never waived or inferred.",
+        "evidence": "Exact real-provider CF-MECH-* and provider gate.",
+        "fallback": "Unconfigurable provider.",
+        "blocks": "Supported profile and GF-062."
+      },
+      "DR-6": {
+        "owner": "Engineering",
+        "earliest_story": "GF-010/GF-013",
+        "constraints": "D11 file stores, separately trusted witness, protected/disposable separation, and FC-TRUST stop.",
+        "alternatives": "Physical representation only under the existing semantic contract.",
+        "evidence": "Storage/readback/witness probes.",
+        "fallback": "Deliberate stop; never autonomous restore.",
+        "blocks": "Recovery and intake."
+      },
+      "DR-7": {
+        "owner": "Engineering",
+        "earliest_story": "GF-054",
+        "constraints": "Private TypeScript SDK with thin CLI and stdio MCP parity; no direct internals/public stability promise.",
+        "alternatives": "No surface rather than a widened surface.",
+        "evidence": "Consumer parity suite.",
+        "fallback": "No surface.",
+        "blocks": "GF-055, GF-056, GF-062."
+      },
+      "DR-8": {
+        "owner": "Engineering",
+        "earliest_story": "GF-004",
+        "constraints": "Deterministic private testkit, adversarial/property/fault fixtures, and exact CER; absent proof cannot pass.",
+        "alternatives": "Harness internals may vary below recorded suite semantics.",
+        "evidence": "Versioned exact-subject suite result.",
+        "fallback": "No claim.",
+        "blocks": "Every suite claim."
+      },
+      "DR-9": {
+        "owner": "Configuration and policy",
+        "earliest_story": "GF-021/GF-031/GF-032",
+        "constraints": "Approved defaults/ranges and immutable validated profile; out-of-range fails preflight.",
+        "alternatives": "Tune only inside declared ranges.",
+        "evidence": "Boundary probes and profile validation.",
+        "fallback": "Preflight reject.",
+        "blocks": "Intake and scheduling."
+      },
+      "DR-12": {
+        "owner": "Engineering and configuration",
+        "earliest_story": "GF-019/GF-020/GF-052",
+        "constraints": "Work source and notice implementations use validated PORT-SOURCE exchange and fixed notice derivation.",
+        "alternatives": "Channel implementation may vary below the port contract.",
+        "evidence": "Source/notice port suites.",
+        "fallback": "Reject source or retain undelivered notice.",
+        "blocks": "Intake and operator profile."
+      }
+    },
+    "closed": {
+      "DR-10": "Closed remediation constraint: provider real limits map into declared hard RC-* capacity; policy may only narrow; misdeclaration becomes bounded mechanism fault.",
+      "DR-11": "Closed remediation constraint: non-gating Operations are owner-frozen and fail closed by default; authority, acceptance, evidence, landing, and preservation paths are never non-gating."
+    }
+  }
+}
