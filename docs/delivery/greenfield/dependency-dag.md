@@ -37,8 +37,8 @@ flowchart LR
   end
   subgraph P3["Phase 3 — lifecycle and execution"]
     D0["GF-030 lifecycle"] -->|implementation| D1["GF-031 scheduler"] -->|implementation| D2["GF-032 bounds"]
-    D3["GF-033 workspace semantic"] -->|implementation| D9["GF-039 local Git provider"]
-    D4["GF-034 sessions"] -->|implementation| D5["GF-035 candidates"] -->|implementation| D6["GF-036 Doorbell"] -->|implementation| D7["GF-037 Run control"]
+    D1 -->|implementation| D3["GF-033 workspace semantic"] -->|implementation| D9["GF-039 local Git provider"]
+    D1 -->|implementation| D4["GF-034 sessions"] -->|implementation| D5["GF-035 candidates"] -->|implementation| D6["GF-036 Doorbell"] -->|implementation| D7["GF-037 Run control"]
     D6 -->|implementation| D8["GF-038 obligations"]
   end
   subgraph P4["Phase 4 — acceptance and delivery"]
@@ -103,20 +103,20 @@ shown endpoint and label against the target story's `dependency_edges` before ch
 
 ## Critical and parallel lanes
 
-Longest path from the explicit story dependencies: `GF-001 → 002 → 003 → 004 → 005 → 010 → 013
-→ 022 → 020 → 023 → 024 → 030 → 031 → 032 → 035 → 036 → 037 → 040 → 043 → 044 → 045 → 046 →
-050 → 051 → 052 → 053 → 054 → 055 → 062`. GF-025 and GF-026 are co-critical alternate
-predecessors that converge with GF-020 at GF-023; neither is an edge after GF-020. GF-056 is the
-co-critical sibling after GF-054: it also must complete because GF-062 joins every prior story,
-but it is not an edge after GF-055.
+There are exactly 18 maximum-length paths of 29 stories. One representative is `GF-001 → 002 →
+003 → 004 → 005 → 010 → 013 → 022 → 020 → 023 → 024 → 030 → 031 → 032 → 035 → 036 → 037 →
+040 → 043 → 044 → 045 → 046 → 050 → 051 → 052 → 053 → 054 → 055 → 062`. The 18 paths are the
+cartesian product of three co-critical branch choices: GF-020/GF-025/GF-026 before GF-023,
+GF-032/GF-033/GF-034 before GF-035, and GF-055/GF-056 before GF-062. These are alternate dependency
+edges, not sequential edges; every story still must complete because GF-062 joins all 46 predecessors.
 
 Parallel work is allowed only after the complete listed dependencies in `track.json` are merged:
 source contract/composition beside durable core after GF-004; controller/recovery, registry, and
 artifacts after GF-010; after GF-022 plus their respective complete prerequisites, GF-020
 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging
-at GF-023; scheduler/workspace/session after GF-030; review-publication beside
-verification/finalization after GF-040; CLI beside MCP after GF-054; and Codex beside GitHub
-qualification in phase 6.
+at GF-023; GF-031 only after GF-030/GF-012, then bounds/workspace/session in parallel after GF-031
+plus each lane's remaining prerequisites; review-publication beside verification/finalization after
+GF-040; CLI beside MCP after GF-054; and Codex beside GitHub qualification in phase 6.
 
 ## Non-negotiable gate edges
 

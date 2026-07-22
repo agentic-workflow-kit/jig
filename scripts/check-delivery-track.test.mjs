@@ -316,6 +316,13 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
   reject(
     (dir) =>
       edit(dir, (t) => {
+        t.inventories.failure_classes['FC-TRUST'].pop();
+      }),
+    'must map every fixed inventory ID forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
         t.delegated_choices.open['DR-1'].owner = 'Wrong';
       }),
     'must exactly match the governing delegation register',

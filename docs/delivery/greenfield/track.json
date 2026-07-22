@@ -1190,6 +1190,8 @@
         "LG-POSITION",
         "LG-PREFLIGHT-ATTEMPT",
         "LG-SNAPSHOT",
+        "FC-TRUST",
+        "BND-WAIT-LEDGER",
         "CF-GATE-PROVIDER"
       ],
       "dr_gates": ["DR-5", "DR-6"],
@@ -1247,6 +1249,13 @@
         "DR-5",
         "DR-6",
         "RT-WITNESS",
+        "FC-MECHANISM",
+        "FC-EFFECT",
+        "FC-TRUST",
+        "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-WAIT-LEDGER",
+        "BND-RECOVERY",
         "CF-GATE-PROVIDER"
       ],
       "dr_gates": ["DR-5", "DR-6"],
@@ -1320,6 +1329,7 @@
         "EV-ENVELOPE-SUBMITTED",
         "FC-INPUT",
         "FC-TRUST",
+        "BND-WAIT-LEDGER",
         "CF-ENVELOPE",
         "CF-MECH-LEDGER"
       ],
@@ -3694,7 +3704,7 @@
     "After GF-004, source-contract/composition and durable-core work may proceed independently.",
     "After GF-010, controller/recovery, registry, and artifact lanes may proceed independently.",
     "After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging at GF-023.",
-    "After GF-030, scheduler, workspace, and session lanes may proceed independently.",
+    "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
     "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
     "After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.",
     "After GF-054, CLI and private MCP lanes may proceed independently.",
@@ -3918,12 +3928,13 @@
       "FC-MECHANISM": [
         "GF-015",
         "GF-020",
+        "GF-026",
         "GF-039",
         "GF-047",
         "GF-060",
         "GF-061"
       ],
-      "FC-EFFECT": ["GF-015", "GF-041", "GF-044"],
+      "FC-EFFECT": ["GF-015", "GF-026", "GF-041", "GF-044"],
       "FC-CAPACITY": ["GF-031"],
       "FC-LIVENESS": ["GF-032", "GF-034"],
       "FC-RULES": ["GF-037"],
@@ -3935,12 +3946,14 @@
         "GF-013",
         "GF-014",
         "GF-024",
+        "GF-025",
+        "GF-026",
         "GF-050"
       ]
     },
     "bound_classes": {
       "BND-REWORK": ["GF-032", "GF-035"],
-      "BND-RETRY": ["GF-015", "GF-019", "GF-020", "GF-022", "GF-032"],
+      "BND-RETRY": ["GF-015", "GF-019", "GF-020", "GF-022", "GF-026", "GF-032"],
       "BND-REFRESH": ["GF-032", "GF-043"],
       "BND-WAIT-DECISION": ["GF-032", "GF-036", "GF-038"],
       "BND-WAIT-MECHANISM": [
@@ -3948,6 +3961,7 @@
         "GF-019",
         "GF-020",
         "GF-022",
+        "GF-026",
         "GF-032",
         "GF-039",
         "GF-047",
@@ -3955,11 +3969,11 @@
         "GF-061"
       ],
       "BND-WAIT-CAPACITY": ["GF-031", "GF-032", "GF-043"],
-      "BND-WAIT-LEDGER": ["GF-010", "GF-032"],
+      "BND-WAIT-LEDGER": ["GF-010", "GF-024", "GF-025", "GF-026", "GF-032"],
       "BND-WAIT-TARGET": ["GF-032", "GF-043", "GF-044"],
       "BND-IDLE": ["GF-032"],
       "BND-SILENCE": ["GF-032", "GF-034"],
-      "BND-RECOVERY": ["GF-011", "GF-015", "GF-032"],
+      "BND-RECOVERY": ["GF-011", "GF-015", "GF-026", "GF-032"],
       "BND-RETIRE": ["GF-032", "GF-046", "GF-050"]
     },
     "wait_progress_surfaces": {

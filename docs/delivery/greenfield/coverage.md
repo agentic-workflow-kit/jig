@@ -283,37 +283,37 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 
 ### failure classes
 
-| Exact item   | Stories                                                |
-| ------------ | ------------------------------------------------------ |
-| FC-INPUT     | GF-002, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024 |
-| FC-AUTHORITY | GF-003, GF-012, GF-022, GF-036, GF-043                 |
-| FC-SUBJECT   | GF-002, GF-035, GF-040, GF-042, GF-047                 |
-| FC-FENCE     | GF-011, GF-015, GF-034                                 |
-| FC-EVIDENCE  | GF-014, GF-040                                         |
-| FC-MECHANISM | GF-015, GF-020, GF-039, GF-047, GF-060, GF-061         |
-| FC-EFFECT    | GF-015, GF-041, GF-044                                 |
-| FC-CAPACITY  | GF-031                                                 |
-| FC-LIVENESS  | GF-032, GF-034                                         |
-| FC-RULES     | GF-037                                                 |
-| FC-BOUND     | GF-032, GF-035, GF-038, GF-043, GF-046                 |
-| FC-TRUST     | GF-010, GF-011, GF-012, GF-013, GF-014, GF-024, GF-050 |
+| Exact item   | Stories                                                                |
+| ------------ | ---------------------------------------------------------------------- |
+| FC-INPUT     | GF-002, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024                 |
+| FC-AUTHORITY | GF-003, GF-012, GF-022, GF-036, GF-043                                 |
+| FC-SUBJECT   | GF-002, GF-035, GF-040, GF-042, GF-047                                 |
+| FC-FENCE     | GF-011, GF-015, GF-034                                                 |
+| FC-EVIDENCE  | GF-014, GF-040                                                         |
+| FC-MECHANISM | GF-015, GF-020, GF-026, GF-039, GF-047, GF-060, GF-061                 |
+| FC-EFFECT    | GF-015, GF-026, GF-041, GF-044                                         |
+| FC-CAPACITY  | GF-031                                                                 |
+| FC-LIVENESS  | GF-032, GF-034                                                         |
+| FC-RULES     | GF-037                                                                 |
+| FC-BOUND     | GF-032, GF-035, GF-038, GF-043, GF-046                                 |
+| FC-TRUST     | GF-010, GF-011, GF-012, GF-013, GF-014, GF-024, GF-025, GF-026, GF-050 |
 
 ### bound classes
 
-| Exact item         | Stories                                                                |
-| ------------------ | ---------------------------------------------------------------------- |
-| BND-REWORK         | GF-032, GF-035                                                         |
-| BND-RETRY          | GF-015, GF-019, GF-020, GF-022, GF-032                                 |
-| BND-REFRESH        | GF-032, GF-043                                                         |
-| BND-WAIT-DECISION  | GF-032, GF-036, GF-038                                                 |
-| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-032, GF-039, GF-047, GF-060, GF-061 |
-| BND-WAIT-CAPACITY  | GF-031, GF-032, GF-043                                                 |
-| BND-WAIT-LEDGER    | GF-010, GF-032                                                         |
-| BND-WAIT-TARGET    | GF-032, GF-043, GF-044                                                 |
-| BND-IDLE           | GF-032                                                                 |
-| BND-SILENCE        | GF-032, GF-034                                                         |
-| BND-RECOVERY       | GF-011, GF-015, GF-032                                                 |
-| BND-RETIRE         | GF-032, GF-046, GF-050                                                 |
+| Exact item         | Stories                                                                        |
+| ------------------ | ------------------------------------------------------------------------------ |
+| BND-REWORK         | GF-032, GF-035                                                                 |
+| BND-RETRY          | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032                                 |
+| BND-REFRESH        | GF-032, GF-043                                                                 |
+| BND-WAIT-DECISION  | GF-032, GF-036, GF-038                                                         |
+| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032, GF-039, GF-047, GF-060, GF-061 |
+| BND-WAIT-CAPACITY  | GF-031, GF-032, GF-043                                                         |
+| BND-WAIT-LEDGER    | GF-010, GF-024, GF-025, GF-026, GF-032                                         |
+| BND-WAIT-TARGET    | GF-032, GF-043, GF-044                                                         |
+| BND-IDLE           | GF-032                                                                         |
+| BND-SILENCE        | GF-032, GF-034                                                                 |
+| BND-RECOVERY       | GF-011, GF-015, GF-026, GF-032                                                 |
+| BND-RETIRE         | GF-032, GF-046, GF-050                                                         |
 
 ### wait/progress surfaces
 

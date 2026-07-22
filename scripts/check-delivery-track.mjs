@@ -584,12 +584,12 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     if (!mapping || !eqSet(Object.keys(mapping), ids.split(' ')))
       errors.push(`${name} must contain the exact fixed inventory IDs with no wildcard or invented selector`);
     else if (
-      !Object.entries(mapping).every(
-        ([inventoryId, stories]) =>
-          Array.isArray(stories) &&
-          stories.length &&
-          stories.every((id) => byId.has(id) && byId.get(id).stable_ids.includes(inventoryId)),
-      )
+      !Object.entries(mapping).every(([inventoryId, stories]) => {
+        const declaredByStories = [...byId.values()]
+          .filter((story) => story.stable_ids.includes(inventoryId))
+          .map((story) => story.id);
+        return Array.isArray(stories) && stories.length && eqSet(stories, declaredByStories);
+      })
     )
       errors.push(`${name} must map every fixed inventory ID forward and reverse to declared story selectors`);
     if (sourceCatalogs[name] && !eqSet(ids.split(' '), sourceCatalogs[name]))
