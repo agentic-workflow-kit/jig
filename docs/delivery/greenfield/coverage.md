@@ -61,50 +61,95 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 
 ## Imported commitment to story coverage
 
-| Family | Exact imported IDs                                                    | Story coverage                                                                         |
-| ------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| FENCE  | FENCE-1, FENCE-2, FENCE-3                                             | GF-011, GF-015, GF-034, GF-060, GF-062                                                 |
-| EARN   | EARN-1, EARN-2                                                        | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
-| GUARD  | GUARD-1, GUARD-2                                                      | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
-| DOOR   | DOOR-1, DOOR-2, DOOR-3                                                | GF-036, GF-062                                                                         |
-| MERGE  | MERGE-1, MERGE-2, MERGE-3, MERGE-4, MERGE-5                           | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
-| SEC    | SEC-1, SEC-2, SEC-3                                                   | GF-014, GF-022, GF-060, GF-061, GF-062                                                 |
-| CFG    | CFG-1, CFG-2, CFG-3, CFG-4, CFG-5, CFG-6, CFG-7, CFG-8, CFG-9, CFG-10 | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
-| RESUME | RESUME-1, RESUME-2, RESUME-3, RESUME-4, RESUME-5                      | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
-| ISO    | ISO-1, ISO-2, ISO-3, ISO-4                                            | GF-030, GF-031, GF-032, GF-033, GF-039, GF-062                                         |
-| LIVE   | LIVE-1, LIVE-2                                                        | GF-032, GF-034, GF-062                                                                 |
-| STACK  | STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7         | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
-| DRIVE  | DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                    | GF-020, GF-039, GF-047, GF-054, GF-055, GF-056, GF-060, GF-061, GF-062                 |
-| SEE    | SEE-1, SEE-2, SEE-3, SEE-4, SEE-5, SEE-6                              | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../../redesign/design/product-guarantee-reconciliation.md); they are not individual `CF-GATE-PRODUCT` route inputs.
+
+| ID       | Family | Authoritative disposition | Story coverage                                                                         |
+| -------- | ------ | ------------------------- | -------------------------------------------------------------------------------------- |
+| FENCE-1  | FENCE  | `satisfied`               | GF-011, GF-015, GF-034, GF-060, GF-062                                                 |
+| FENCE-2  | FENCE  | `satisfied`               | GF-011, GF-015, GF-034, GF-060, GF-062                                                 |
+| FENCE-3  | FENCE  | `satisfied`               | GF-011, GF-015, GF-034, GF-060, GF-062                                                 |
+| EARN-1   | EARN   | `satisfied`               | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
+| EARN-2   | EARN   | `note`                    | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
+| GUARD-1  | GUARD  | `satisfied`               | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
+| GUARD-2  | GUARD  | `satisfied`               | GF-036, GF-040, GF-042, GF-047, GF-062                                                 |
+| DOOR-1   | DOOR   | `satisfied`               | GF-036, GF-062                                                                         |
+| DOOR-2   | DOOR   | `satisfied`               | GF-036, GF-062                                                                         |
+| DOOR-3   | DOOR   | `satisfied`               | GF-036, GF-062                                                                         |
+| MERGE-1  | MERGE  | `satisfied`               | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
+| MERGE-2  | MERGE  | `satisfied`               | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
+| MERGE-3  | MERGE  | `satisfied`               | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
+| MERGE-4  | MERGE  | `note`                    | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
+| MERGE-5  | MERGE  | `satisfied`               | GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-061, GF-062                 |
+| SEC-1    | SEC    | `satisfied`               | GF-014, GF-022, GF-060, GF-061, GF-062                                                 |
+| SEC-2    | SEC    | `satisfied`               | GF-014, GF-022, GF-060, GF-061, GF-062                                                 |
+| SEC-3    | SEC    | `satisfied`               | GF-014, GF-022, GF-060, GF-061, GF-062                                                 |
+| CFG-1    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-2    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-3    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-4    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-5    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-6    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-7    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-8    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-9    | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| CFG-10   | CFG    | `satisfied`               | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062                                 |
+| RESUME-1 | RESUME | `satisfied`               | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
+| RESUME-2 | RESUME | `satisfied`               | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
+| RESUME-3 | RESUME | `satisfied`               | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
+| RESUME-4 | RESUME | `satisfied`               | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
+| RESUME-5 | RESUME | `satisfied`               | GF-011, GF-015, GF-037, GF-050, GF-062                                                 |
+| ISO-1    | ISO    | `satisfied`               | GF-030, GF-031, GF-032, GF-033, GF-039, GF-062                                         |
+| ISO-2    | ISO    | `satisfied`               | GF-030, GF-031, GF-032, GF-033, GF-039, GF-062                                         |
+| ISO-3    | ISO    | `satisfied`               | GF-030, GF-031, GF-032, GF-033, GF-039, GF-062                                         |
+| ISO-4    | ISO    | `satisfied`               | GF-030, GF-031, GF-032, GF-033, GF-039, GF-062                                         |
+| LIVE-1   | LIVE   | `satisfied`               | GF-032, GF-034, GF-062                                                                 |
+| LIVE-2   | LIVE   | `satisfied`               | GF-032, GF-034, GF-062                                                                 |
+| STACK-1  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-2  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-3  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-4  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-5  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-6  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| STACK-7  | STACK  | `satisfied`               | GF-003, GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-025, GF-026, GF-062 |
+| DRIVE-1  | DRIVE  | `satisfied`               | GF-020, GF-039, GF-047, GF-054, GF-055, GF-056, GF-060, GF-061, GF-062                 |
+| DRIVE-2  | DRIVE  | `satisfied`               | GF-020, GF-039, GF-047, GF-054, GF-055, GF-056, GF-060, GF-061, GF-062                 |
+| DRIVE-3  | DRIVE  | `satisfied`               | GF-020, GF-039, GF-047, GF-054, GF-055, GF-056, GF-060, GF-061, GF-062                 |
+| DRIVE-4  | DRIVE  | `satisfied`               | GF-020, GF-039, GF-047, GF-054, GF-055, GF-056, GF-060, GF-061, GF-062                 |
+| SEE-1    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+| SEE-2    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+| SEE-3    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+| SEE-4    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+| SEE-5    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
+| SEE-6    | SEE    | `satisfied`               | GF-051, GF-052, GF-053, GF-054, GF-062                                                 |
 
 ## Inventory item to story coverage
 
 ### runtime units
 
-| Exact item    | Stories                                                                                                                                                                |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RT-OPERATOR   | GF-024, GF-054, GF-055, GF-056                                                                                                                                         |
-| RT-CONTROLLER | GF-005, GF-011, GF-015, GF-024, GF-030, GF-031, GF-032, GF-033, GF-034, GF-035, GF-036, GF-037, GF-038, GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-050 |
-| RT-LEDGER     | GF-010, GF-025                                                                                                                                                         |
-| RT-EVIDENCE   | GF-013, GF-014, GF-026, GF-053                                                                                                                                         |
-| RT-REGISTRY   | GF-012, GF-025, GF-043                                                                                                                                                 |
-| RT-WITNESS    | GF-010, GF-012, GF-013, GF-024, GF-025, GF-026                                                                                                                         |
+| Exact item    | Stories                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| RT-OPERATOR   | GF-003, GF-024, GF-054, GF-055, GF-056                                                                                                                                         |
+| RT-CONTROLLER | GF-003, GF-005, GF-011, GF-015, GF-024, GF-030, GF-031, GF-032, GF-033, GF-034, GF-035, GF-036, GF-037, GF-038, GF-040, GF-041, GF-042, GF-043, GF-044, GF-045, GF-046, GF-050 |
+| RT-LEDGER     | GF-003, GF-010, GF-025                                                                                                                                                         |
+| RT-EVIDENCE   | GF-003, GF-013, GF-014, GF-026, GF-053                                                                                                                                         |
+| RT-REGISTRY   | GF-003, GF-012, GF-025, GF-043                                                                                                                                                 |
+| RT-WITNESS    | GF-003, GF-010, GF-012, GF-013, GF-025, GF-026, GF-024                                                                                                                         |
 
 ### ports
 
-| Exact item     | Stories                                |
-| -------------- | -------------------------------------- |
-| PORT-CONSUMER  | GF-023, GF-054, GF-055, GF-056         |
-| PORT-INTAKE    | GF-024                                 |
-| PORT-DECIDE    | GF-036, GF-037, GF-038                 |
-| PORT-SESSION   | GF-034, GF-060                         |
-| PORT-WORKSPACE | GF-033, GF-039                         |
-| PORT-VERIFY    | GF-042, GF-047                         |
-| PORT-DELIVERY  | GF-041, GF-043, GF-044, GF-045, GF-061 |
-| PORT-LEDGER    | GF-010, GF-012, GF-025                 |
-| PORT-ARTIFACT  | GF-013, GF-014, GF-026, GF-050, GF-053 |
-| PORT-PUBLISH   | GF-051, GF-052                         |
-| PORT-SOURCE    | GF-019, GF-020                         |
+| Exact item     | Stories                                        |
+| -------------- | ---------------------------------------------- |
+| PORT-CONSUMER  | GF-003, GF-023, GF-054, GF-055, GF-056         |
+| PORT-INTAKE    | GF-003, GF-024                                 |
+| PORT-DECIDE    | GF-003, GF-036, GF-037, GF-038                 |
+| PORT-SESSION   | GF-003, GF-034, GF-060                         |
+| PORT-WORKSPACE | GF-003, GF-033, GF-039                         |
+| PORT-VERIFY    | GF-003, GF-042, GF-047                         |
+| PORT-DELIVERY  | GF-003, GF-041, GF-043, GF-044, GF-045, GF-061 |
+| PORT-LEDGER    | GF-003, GF-010, GF-012, GF-025                 |
+| PORT-ARTIFACT  | GF-003, GF-013, GF-014, GF-026, GF-050, GF-053 |
+| PORT-PUBLISH   | GF-003, GF-051, GF-052                         |
+| PORT-SOURCE    | GF-003, GF-019, GF-020                         |
 
 ### events
 
@@ -116,14 +161,14 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | EV-SESSION-FAULT              | GF-034                         |
 | EV-SESSION-HUMAN-REQUEST      | GF-036                         |
 | EV-SESSION-FACT               | GF-034                         |
-| EV-WORKSPACE-FACT             | GF-033, GF-035                 |
+| EV-WORKSPACE-FACT             | GF-033, GF-035, GF-043         |
 | EV-SETUP-FACT                 | GF-033                         |
 | EV-WORKSPACE-PRESERVED        | GF-046                         |
-| EV-ARTIFACT-FACT              | GF-013, GF-014, GF-053         |
+| EV-ARTIFACT-FACT              | GF-013, GF-014, GF-026, GF-053 |
 | EV-RULE-SURFACE-TOUCHED       | GF-037                         |
 | EV-LIVENESS-OBSERVED          | GF-032                         |
 | EV-CHECK-OBSERVATION          | GF-042, GF-047                 |
-| EV-TARGET-FACT                | GF-041, GF-043, GF-044         |
+| EV-TARGET-FACT                | GF-041, GF-043, GF-044, GF-061 |
 | EV-EFFECT-CERTAINTY           | GF-015, GF-044                 |
 | EV-LANDING-OBSERVED           | GF-044                         |
 | EV-OWNER-DECISION             | GF-036, GF-037, GF-050, GF-053 |
@@ -132,77 +177,77 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | EV-RUN-RESUME-DECISION        | GF-037                         |
 | EV-RUN-TERMINAL-STOP-DECISION | GF-037, GF-050                 |
 | EV-RECOVERY-OBSERVATION       | GF-011, GF-015                 |
-| EV-WAKE-DEPENDENCY            | GF-030                         |
+| EV-WAKE-DEPENDENCY            | GF-030, GF-032                 |
 | EV-WAKE-CAPACITY              | GF-031, GF-032                 |
 | EV-WAKE-TIMER                 | GF-032, GF-052                 |
-| EV-WAKE-AUTHORITY             | GF-043                         |
-| EV-WAKE-FINALIZATION          | GF-043                         |
+| EV-WAKE-AUTHORITY             | GF-032, GF-043                 |
+| EV-WAKE-FINALIZATION          | GF-032, GF-043                 |
 | EV-BOUND-EXHAUSTED            | GF-032, GF-038, GF-050         |
 | EV-OBLIGATION-RESOLVED        | GF-038, GF-050                 |
-| EV-WAKE-SETTLEMENT            | GF-038, GF-050                 |
+| EV-WAKE-SETTLEMENT            | GF-032, GF-038, GF-050         |
 | EV-NOTICE-ACKNOWLEDGED        | GF-052                         |
 | EV-NOTICE-SNOOZED             | GF-052                         |
 
 ### operations
 
-| Exact item             | Stories        |
-| ---------------------- | -------------- |
-| OPC-SESSION-OPEN       | GF-034         |
-| OPC-SESSION-RESPOND    | GF-034, GF-036 |
-| OPC-SESSION-ASSIGN     | GF-034, GF-035 |
-| OPC-SESSION-COLLECT    | GF-034, GF-035 |
-| OPC-SESSION-CLOSE      | GF-034, GF-046 |
-| OPC-WS-PROVISION       | GF-033         |
-| OPC-WS-SETUP           | GF-033         |
-| OPC-WS-OBSERVE         | GF-033         |
-| OPC-WS-PRESERVE        | GF-033, GF-046 |
-| OPC-WS-RETIRE          | GF-046         |
-| OPC-VERIFY-EXECUTE     | GF-042         |
-| OPC-REV-PUBLISH        | GF-041         |
-| OPC-REV-REQUEST        | GF-041         |
-| OPC-REV-STATUS         | GF-041         |
-| OPC-REV-COMMENT        | GF-041         |
-| OPC-REV-RETIRE-REF     | GF-041, GF-046 |
-| OPC-REV-RETIRE-REQUEST | GF-041, GF-046 |
-| OPC-REV-RETIRE-STATUS  | GF-041, GF-046 |
-| OPC-REV-RETIRE-COMMENT | GF-041, GF-046 |
-| OPC-DEL-ANCHOR         | GF-043         |
-| OPC-DEL-PUBLISH        | GF-044         |
-| OPC-DEL-REQUEST        | GF-044         |
-| OPC-DEL-STATUS         | GF-044         |
-| OPC-DEL-COMMENT        | GF-044         |
-| OPC-DEL-MERGE          | GF-044         |
-| OPC-DEL-OBSERVE        | GF-044         |
-| OPC-ART-PUT            | GF-013, GF-014 |
-| OPC-ART-GET            | GF-013, GF-014 |
-| OPC-ART-DISPOSE        | GF-013, GF-053 |
+| Exact item             | Stories                |
+| ---------------------- | ---------------------- |
+| OPC-SESSION-OPEN       | GF-034                 |
+| OPC-SESSION-RESPOND    | GF-034, GF-036         |
+| OPC-SESSION-ASSIGN     | GF-034, GF-035         |
+| OPC-SESSION-COLLECT    | GF-034, GF-035         |
+| OPC-SESSION-CLOSE      | GF-034, GF-046         |
+| OPC-WS-PROVISION       | GF-033                 |
+| OPC-WS-SETUP           | GF-033                 |
+| OPC-WS-OBSERVE         | GF-033                 |
+| OPC-WS-PRESERVE        | GF-033, GF-046         |
+| OPC-WS-RETIRE          | GF-033, GF-046         |
+| OPC-VERIFY-EXECUTE     | GF-042, GF-047         |
+| OPC-REV-PUBLISH        | GF-041                 |
+| OPC-REV-REQUEST        | GF-041                 |
+| OPC-REV-STATUS         | GF-041                 |
+| OPC-REV-COMMENT        | GF-041                 |
+| OPC-REV-RETIRE-REF     | GF-041, GF-046         |
+| OPC-REV-RETIRE-REQUEST | GF-041, GF-046         |
+| OPC-REV-RETIRE-STATUS  | GF-041, GF-046         |
+| OPC-REV-RETIRE-COMMENT | GF-041, GF-046         |
+| OPC-DEL-ANCHOR         | GF-043, GF-044         |
+| OPC-DEL-PUBLISH        | GF-044                 |
+| OPC-DEL-REQUEST        | GF-044                 |
+| OPC-DEL-STATUS         | GF-044                 |
+| OPC-DEL-COMMENT        | GF-044                 |
+| OPC-DEL-MERGE          | GF-044                 |
+| OPC-DEL-OBSERVE        | GF-044, GF-061         |
+| OPC-ART-PUT            | GF-013, GF-014, GF-026 |
+| OPC-ART-GET            | GF-013, GF-014, GF-026 |
+| OPC-ART-DISPOSE        | GF-013, GF-026, GF-053 |
 
 ### identities
 
-| Exact item    | Stories        |
-| ------------- | -------------- |
-| ID-RUN        | GF-024         |
-| ID-STORY      | GF-030         |
-| ID-TXN        | GF-005, GF-010 |
-| ID-EVENT      | GF-005, GF-010 |
-| ID-OP         | GF-005, GF-015 |
-| ID-CAND       | GF-035         |
-| ID-GEN        | GF-011         |
-| ID-PRINCIPAL  | GF-022, GF-036 |
-| ID-MANIFEST   | GF-022         |
-| ID-SESSION    | GF-034         |
-| ID-FINDING    | GF-040         |
-| ID-GRANT      | GF-036         |
-| ID-PARK       | GF-036         |
-| ID-SOURCE-REQ | GF-019, GF-020 |
-| ID-REGISTRY   | GF-012         |
-| ID-TARGET     | GF-012, GF-043 |
-| ID-AUTH       | GF-012, GF-043 |
-| ID-EVSUBJ     | GF-014         |
-| ID-OBLIGATION | GF-038         |
-| ID-SETTLEMENT | GF-050         |
-| ID-NOTICE     | GF-052         |
-| ID-EXPORT     | GF-053         |
+| Exact item    | Stories                                                |
+| ------------- | ------------------------------------------------------ |
+| ID-RUN        | GF-002, GF-024                                         |
+| ID-STORY      | GF-002, GF-030                                         |
+| ID-TXN        | GF-002, GF-005, GF-010                                 |
+| ID-EVENT      | GF-002, GF-005, GF-010                                 |
+| ID-OP         | GF-002, GF-005, GF-015, GF-042, GF-044, GF-047, GF-061 |
+| ID-CAND       | GF-002, GF-035, GF-042, GF-043, GF-047                 |
+| ID-GEN        | GF-002, GF-011                                         |
+| ID-PRINCIPAL  | GF-002, GF-022, GF-036                                 |
+| ID-MANIFEST   | GF-002, GF-014, GF-022                                 |
+| ID-SESSION    | GF-002, GF-034                                         |
+| ID-FINDING    | GF-002, GF-040                                         |
+| ID-GRANT      | GF-002, GF-036                                         |
+| ID-PARK       | GF-002, GF-036                                         |
+| ID-SOURCE-REQ | GF-002, GF-019, GF-020                                 |
+| ID-REGISTRY   | GF-002, GF-012                                         |
+| ID-TARGET     | GF-002, GF-012, GF-043, GF-044, GF-061                 |
+| ID-AUTH       | GF-002, GF-012, GF-043, GF-044, GF-061                 |
+| ID-EVSUBJ     | GF-002, GF-014                                         |
+| ID-OBLIGATION | GF-002, GF-038                                         |
+| ID-SETTLEMENT | GF-002, GF-050                                         |
+| ID-NOTICE     | GF-002, GF-052                                         |
+| ID-EXPORT     | GF-002, GF-053                                         |
 
 ### schema families
 
@@ -221,9 +266,9 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | SCH-INTAKE-CUT-CLAIM   | GF-024         |
 | SCH-LIVENESS           | GF-032, GF-034 |
 | SCH-SESSION            | GF-034         |
-| SCH-CANDIDATE          | GF-035         |
+| SCH-CANDIDATE          | GF-035, GF-043 |
 | SCH-REGISTRY-RECORD    | GF-012         |
-| SCH-EVENT              | GF-005         |
+| SCH-EVENT              | GF-005, GF-030 |
 | SCH-TRANSITION         | GF-005, GF-030 |
 | SCH-OPERATION          | GF-005, GF-015 |
 | SCH-VERDICT            | GF-040         |
@@ -255,68 +300,24 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 
 ### bound classes
 
-| Exact item         | Stories                                                        |
-| ------------------ | -------------------------------------------------------------- |
-| BND-REWORK         | GF-035                                                         |
-| BND-RETRY          | GF-015, GF-019, GF-020, GF-022                                 |
-| BND-REFRESH        | GF-043                                                         |
-| BND-WAIT-DECISION  | GF-036, GF-038                                                 |
-| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061 |
-| BND-WAIT-CAPACITY  | GF-031, GF-043                                                 |
-| BND-WAIT-LEDGER    | GF-010                                                         |
-| BND-WAIT-TARGET    | GF-043, GF-044                                                 |
-| BND-IDLE           | GF-032                                                         |
-| BND-SILENCE        | GF-034                                                         |
-| BND-RECOVERY       | GF-011, GF-015                                                 |
-| BND-RETIRE         | GF-046, GF-050                                                 |
-
-### conformance suites
-
-| Exact item             | Stories                                                |
-| ---------------------- | ------------------------------------------------------ |
-| CF-DETERMINISM         | GF-005, GF-062                                         |
-| CF-ORDERING            | GF-010, GF-011, GF-015, GF-062                         |
-| CF-FENCE               | GF-011, GF-015, GF-062, GF-037, GF-043                 |
-| CF-BINDING             | GF-005, GF-035, GF-040, GF-062                         |
-| CF-ACCEPTANCE          | GF-040, GF-062                                         |
-| CF-POLICY              | GF-021, GF-042, GF-062, GF-040                         |
-| CF-CAPACITY            | GF-031, GF-062, GF-043                                 |
-| CF-ORDER               | GF-012, GF-031, GF-043, GF-062                         |
-| CF-RELEASE             | GF-030, GF-044, GF-062                                 |
-| CF-BLOCKERS            | GF-030, GF-062                                         |
-| CF-CONTAINMENT         | GF-030, GF-032, GF-062, GF-015                         |
-| CF-BOUNDS              | GF-032, GF-062, GF-038                                 |
-| CF-DOUBLE-EFFECT       | GF-015, GF-044, GF-062                                 |
-| CF-SEPARATION          | GF-046, GF-062                                         |
-| CF-PRESERVATION        | GF-046, GF-050, GF-062, GF-038                         |
-| CF-TRUST-STOP          | GF-010, GF-011, GF-012, GF-013, GF-014, GF-050, GF-062 |
-| CF-RULE-SURFACE        | GF-037, GF-062                                         |
-| CF-LIVENESS            | GF-032, GF-062                                         |
-| CF-NOTICE-EXPORT       | GF-052, GF-053, GF-062                                 |
-| CF-OBSERVABILITY       | GF-051, GF-062                                         |
-| CF-RUN-CONTROL         | GF-030, GF-037, GF-050, GF-062, GF-011, GF-035         |
-| CF-OPERATOR-ACTIONS    | GF-036, GF-038, GF-062                                 |
-| CF-EVIDENCE-LIFECYCLE  | GF-013, GF-014, GF-046, GF-053, GF-062                 |
-| CF-SECRET-ABSENCE      | GF-014, GF-022, GF-060, GF-061, GF-062, GF-053         |
-| CF-DELEGATION          | GF-036, GF-062                                         |
-| CF-CONSUMER            | GF-054, GF-055, GF-056, GF-062, GF-023                 |
-| CF-ENVELOPE            | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062 |
-| CF-PROVIDER-PERMISSION | GF-034, GF-036, GF-060, GF-062                         |
-| CF-SETUP-FRESHNESS     | GF-021, GF-033, GF-039, GF-062                         |
-| CF-PROVIDER-AUTHORITY  | GF-022, GF-062                                         |
-| CF-BLOCK-SURFACING     | GF-038, GF-045, GF-052, GF-062, GF-061                 |
-| CF-REVIEW-PUBLICATION  | GF-041, GF-062, GF-061                                 |
-| CF-MECH-LEDGER         | GF-010, GF-025, GF-062, GF-012, GF-013, GF-024         |
-| CF-MECH-ARTIFACT       | GF-013, GF-026, GF-062                                 |
-| CF-MECH-SESSION        | GF-034, GF-060, GF-062                                 |
-| CF-MECH-WORKSPACE      | GF-033, GF-039, GF-062                                 |
-| CF-MECH-SOURCE         | GF-019, GF-020, GF-062                                 |
-| CF-MECH-VERIFY         | GF-042, GF-047, GF-062                                 |
-| CF-MECH-DELIVERY       | GF-041, GF-044, GF-045, GF-061, GF-062                 |
+| Exact item         | Stories                                                                |
+| ------------------ | ---------------------------------------------------------------------- |
+| BND-REWORK         | GF-032, GF-035                                                         |
+| BND-RETRY          | GF-015, GF-019, GF-020, GF-022, GF-032                                 |
+| BND-REFRESH        | GF-032, GF-043                                                         |
+| BND-WAIT-DECISION  | GF-032, GF-036, GF-038                                                 |
+| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-032, GF-039, GF-047, GF-060, GF-061 |
+| BND-WAIT-CAPACITY  | GF-031, GF-032, GF-043                                                 |
+| BND-WAIT-LEDGER    | GF-010, GF-032                                                         |
+| BND-WAIT-TARGET    | GF-032, GF-043, GF-044                                                 |
+| BND-IDLE           | GF-032                                                                 |
+| BND-SILENCE        | GF-032, GF-034                                                         |
+| BND-RECOVERY       | GF-011, GF-015, GF-032                                                 |
+| BND-RETIRE         | GF-032, GF-046, GF-050                                                 |
 
 ### wait/progress surfaces
 
-| Surface                   | Stories                |
+| Exact item                | Stories                |
 | ------------------------- | ---------------------- |
 | review_or_rework          | GF-035, GF-040         |
 | operation_or_source_retry | GF-015, GF-019, GF-020 |
@@ -334,6 +335,50 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | configuration_read        | GF-021                 |
 | finalizer_queue           | GF-043                 |
 | residual_obligation       | GF-038, GF-050         |
+
+### conformance suites
+
+| Exact item             | Stories                                                        |
+| ---------------------- | -------------------------------------------------------------- |
+| CF-DETERMINISM         | GF-004, GF-005, GF-062                                         |
+| CF-ORDERING            | GF-004, GF-010, GF-011, GF-015, GF-062                         |
+| CF-FENCE               | GF-004, GF-011, GF-015, GF-037, GF-043, GF-062                 |
+| CF-BINDING             | GF-004, GF-005, GF-035, GF-040, GF-062                         |
+| CF-ACCEPTANCE          | GF-004, GF-040, GF-062                                         |
+| CF-POLICY              | GF-004, GF-021, GF-040, GF-042, GF-062                         |
+| CF-CAPACITY            | GF-004, GF-031, GF-043, GF-062                                 |
+| CF-ORDER               | GF-004, GF-012, GF-031, GF-043, GF-062                         |
+| CF-RELEASE             | GF-004, GF-030, GF-044, GF-062                                 |
+| CF-BLOCKERS            | GF-004, GF-030, GF-062                                         |
+| CF-CONTAINMENT         | GF-004, GF-015, GF-030, GF-032, GF-062                         |
+| CF-BOUNDS              | GF-004, GF-032, GF-038, GF-062                                 |
+| CF-DOUBLE-EFFECT       | GF-004, GF-015, GF-044, GF-062                                 |
+| CF-SEPARATION          | GF-004, GF-046, GF-062                                         |
+| CF-PRESERVATION        | GF-004, GF-038, GF-046, GF-050, GF-062                         |
+| CF-TRUST-STOP          | GF-004, GF-010, GF-011, GF-012, GF-013, GF-014, GF-050, GF-062 |
+| CF-RULE-SURFACE        | GF-004, GF-037, GF-062                                         |
+| CF-LIVENESS            | GF-004, GF-032, GF-062                                         |
+| CF-NOTICE-EXPORT       | GF-004, GF-052, GF-053, GF-062                                 |
+| CF-OBSERVABILITY       | GF-004, GF-051, GF-062                                         |
+| CF-RUN-CONTROL         | GF-004, GF-011, GF-030, GF-035, GF-037, GF-050, GF-062         |
+| CF-OPERATOR-ACTIONS    | GF-004, GF-036, GF-038, GF-062                                 |
+| CF-EVIDENCE-LIFECYCLE  | GF-004, GF-013, GF-014, GF-046, GF-053, GF-062                 |
+| CF-SECRET-ABSENCE      | GF-004, GF-014, GF-022, GF-053, GF-060, GF-061, GF-062         |
+| CF-DELEGATION          | GF-004, GF-036, GF-062                                         |
+| CF-CONSUMER            | GF-004, GF-023, GF-054, GF-055, GF-056, GF-062                 |
+| CF-ENVELOPE            | GF-004, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062 |
+| CF-PROVIDER-PERMISSION | GF-004, GF-034, GF-036, GF-060, GF-062                         |
+| CF-SETUP-FRESHNESS     | GF-004, GF-021, GF-033, GF-039, GF-062                         |
+| CF-PROVIDER-AUTHORITY  | GF-004, GF-022, GF-062                                         |
+| CF-BLOCK-SURFACING     | GF-004, GF-038, GF-045, GF-052, GF-061, GF-062                 |
+| CF-REVIEW-PUBLICATION  | GF-004, GF-041, GF-061, GF-062                                 |
+| CF-MECH-LEDGER         | GF-004, GF-010, GF-012, GF-013, GF-025, GF-024, GF-062         |
+| CF-MECH-ARTIFACT       | GF-004, GF-013, GF-026, GF-062                                 |
+| CF-MECH-SESSION        | GF-004, GF-034, GF-060, GF-062                                 |
+| CF-MECH-WORKSPACE      | GF-004, GF-033, GF-039, GF-062                                 |
+| CF-MECH-SOURCE         | GF-004, GF-019, GF-020, GF-062                                 |
+| CF-MECH-VERIFY         | GF-004, GF-042, GF-047, GF-062                                 |
+| CF-MECH-DELIVERY       | GF-004, GF-041, GF-044, GF-045, GF-061, GF-062                 |
 
 ## Story metadata to covered items
 

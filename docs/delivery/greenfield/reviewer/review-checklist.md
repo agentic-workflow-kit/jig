@@ -17,10 +17,14 @@ Use this against the frozen tuple defined in the [reviewer packet](./README.md).
 
 - [ ] Candidate commit, tree, merge base, path set, content/evidence digests, and environment are
       recorded and resolve exactly.
+- [ ] The independent reviewer computes and records the unpinned 70-path package digest outside the
+      candidate; no expected candidate/package digest is copied into `track.json`, validator
+      constants, fixtures, or candidate-authored review prose.
 - [ ] The checkout and review scope are clean; no unrecorded path, generated residue, or moving
       branch changes the frozen subject.
 - [ ] The live 67-file normative path set and aggregate SHA-256 manifest match the passed subject
-      and current byte-identical corpus, rather than a copied baseline assertion.
+      and current byte-identical corpus, rather than a copied baseline assertion. This is
+      corpus-drift evidence only, not a candidate approval digest.
 - [ ] The story contract is complete, internally consistent, and bounded to one cohesive semantic
       and authority subject.
 - [ ] Every brief front matter exactly matches its 16 `track.json` fields; all stable IDs,
@@ -34,7 +38,8 @@ Use this against the frozen tuple defined in the [reviewer packet](./README.md).
 ## Exact planning closure
 
 - [ ] The manifest has exactly 47 IDs in seven phases; the phase-2 topological sequence is
-      GF-019, GF-020, GF-021, GF-022, GF-025, GF-026, GF-023, GF-024.
+      GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, GF-024. After GF-022 and their own
+      prerequisites, GF-020, GF-025, and GF-026 may proceed in parallel.
 - [ ] Every DAG edge is topological and the declared critical path is the real longest path over
       live dependency edges, not a plausible-looking hand-drawn route.
 - [ ] All 44 proof-route texts exactly match the product-guarantee reconciliation table in both
@@ -112,6 +117,9 @@ whether re-review must cover the full candidate or a named subset.
 - [ ] Adversarial validator tests cover malformed manifest/front matter, missing/duplicate IDs,
       unknown dependencies/cycles, stale route/import/inventory mappings, absent split closure, and
       changed delegated-choice constraints. A stale validator result is reported, not weakened.
+- [ ] The validator is used only for governing-source projection, package consistency, and corpus
+      integrity. It does not semantically approve plan-authored outcomes/prose; any byte change
+      invalidates the external tuple and requires fresh full independent review.
 
 Return `PASS` only when no blocking finding remains on the exact frozen subject. Return
 `CHANGES_REQUIRED` for correctable defects. Return `OWNER_DECISION_REQUIRED` and stop when the

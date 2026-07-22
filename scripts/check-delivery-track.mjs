@@ -26,9 +26,7 @@ const STORY_KEYS = [
   'product_routes',
   'imported_commitments',
 ];
-const TRACK_SHA256 = 'a478cecf3eeb2bea66a0874278f5960df6434dbd67b33bd263a098aacc8a9508';
-const FRONTMATTER_SHA256 = '49ecb53bd6bd7918bef983807fe3e6de44457cfd80d7f7eb2363e2bd9157f50f';
-const NORMATIVE_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
+const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
 const HEADINGS = [
   'Outcome, value, and why now',
   'Governing paths and stable IDs',
@@ -207,6 +205,22 @@ function deliveryScheduleOwners(text) {
   }
   return owners;
 }
+function sourceCatalog(readText, errors, { path, start, end, prefix, count }) {
+  const text = readText(path);
+  const starts = [...text.matchAll(new RegExp(`^${start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'gm'))];
+  const ends = [...text.matchAll(new RegExp(`^${end.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'gm'))];
+  if (starts.length !== 1 || ends.length !== 1 || ends[0].index <= starts[0]?.index) {
+    errors.push(`source catalog ${path} has missing, duplicate, or malformed heading boundary`);
+    return [];
+  }
+  const section = text.slice(starts[0].index, ends[0].index);
+  const ids = [...section.matchAll(new RegExp(`^\\|\\s*\`?(${prefix}-[A-Z0-9-]+)\`?\\s*\\|`, 'gm'))].map(
+    (match) => match[1],
+  );
+  if (ids.length !== count || new Set(ids).size !== ids.length)
+    errors.push(`source catalog ${path} must contain exactly ${count} unique ${prefix}-* first-column rows`);
+  return ids;
+}
 function exactKeys(value, keys) {
   return value && typeof value === 'object' && !Array.isArray(value) && eqSet(Object.keys(value), keys);
 }
@@ -231,10 +245,129 @@ export function deliveryAllowlist() {
     ...STORY_IDS.map((id) => `docs/delivery/greenfield/stories/${id}.md`),
   ]);
 }
+export function candidatePackageManifest(rootDir = process.cwd()) {
+  const paths = [
+    ...deliveryAllowlist(),
+    'AGENTS.md',
+    'README.md',
+    'docs/README.md',
+    'package.json',
+    'scripts/check-delivery-track.mjs',
+    'scripts/check-delivery-track.test.mjs',
+    'scripts/check-active-repository.mjs',
+  ].sort();
+  if (new Set(paths).size !== 70)
+    throw new Error(`candidate package manifest requires exactly 70 paths, got ${paths.length}`);
+  const rows = paths.map((path) => `${sha(readFileSync(join(rootDir, path), 'utf8'))}  ${path}\n`).join('');
+  return sha(rows);
+}
+export function verifyCandidatePackageManifest(expected, rootDir = process.cwd()) {
+  const actual = candidatePackageManifest(rootDir);
+  if (actual !== expected) throw new Error(`candidate package manifest mismatch: expected ${expected}, got ${actual}`);
+  return actual;
+}
 
 export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
   const errors = [];
-  if (sha(track) !== TRACK_SHA256) errors.push('semantic SHA-256 lock does not match the approved 47-story track');
+  const catalogSpecs = [
+    ['runtime_units', 'docs/redesign/design/runtime.md', '## Runtime units', '## Named ports', 'RT', 6],
+    [
+      'ports_core',
+      'docs/redesign/design/runtime.md',
+      '## Named ports',
+      '### Pre-Run attempt commit primitive',
+      'PORT',
+      10,
+    ],
+    [
+      'identities',
+      'docs/redesign/design/data-and-identity.md',
+      '## Identity representation',
+      '## Effect-fence representation',
+      'ID',
+      22,
+    ],
+    [
+      'schema_families',
+      'docs/redesign/design/data-and-identity.md',
+      '## Schema families',
+      '### Family responsibility matrix',
+      'SCH',
+      27,
+    ],
+    ['events', 'docs/redesign/design/lifecycle-catalogs.md', '## Event catalog', '## Operation catalog', 'EV', 32],
+    [
+      'operations',
+      'docs/redesign/design/lifecycle-catalogs.md',
+      '## Operation catalog',
+      '### Cataloged phase-preserving authorization transitions',
+      'OPC',
+      29,
+    ],
+    [
+      'failure_classes',
+      'docs/redesign/design/lifecycle-catalogs.md',
+      '## Failure-code taxonomy',
+      '## Exclusions — owned by sibling pages',
+      'FC',
+      12,
+    ],
+    [
+      'bound_classes',
+      'docs/redesign/design/scheduling-and-bounds.md',
+      '## Bound and budget classes (`BND-*`)',
+      '### Normalized bounded-progress and wait inventory',
+      'BND',
+      12,
+    ],
+    [
+      'conformance_suites',
+      'docs/redesign/design/architecture-conformance.md',
+      '## Suite catalog (`CF-*`)',
+      '## Execution posture and gated outcomes',
+      'CF',
+      39,
+    ],
+  ];
+  const sourceCatalogs = Object.fromEntries(
+    catalogSpecs.map(([name, path, start, end, prefix, count]) => [
+      name,
+      sourceCatalog(readText, errors, { path, start, end, prefix, count }),
+    ]),
+  );
+  const sourcePort = sourceCatalogs.ports_core;
+  const envelope = readText('docs/redesign/design/envelope-production.md');
+  if ((envelope.match(/^## Work Source seam \(`PORT-SOURCE`\)$/gm) ?? []).length !== 1)
+    errors.push('source catalog envelope-production.md must contain exactly one anchored Work Source seam heading');
+  else sourceCatalogs.ports = [...sourcePort, 'PORT-SOURCE'];
+  const rootKeys = [
+    'schema_version',
+    'kind',
+    'status',
+    'authority_order',
+    'baseline',
+    'counts',
+    'global_definition_of_ready',
+    'global_definition_of_done',
+    'universal_constraints',
+    'phases',
+    'stories',
+    'mandatory_provider_splits',
+    'critical_path',
+    'parallel_lanes',
+    'gate_edges',
+    'inventories',
+    'product_routes',
+    'imported_commitments',
+    'delegated_choices',
+  ];
+  if (!exactKeys(track, rootKeys)) errors.push('track must have the exact top-level schema');
+  if (
+    track?.schema_version !== 1 ||
+    track?.kind !== 'jig-greenfield-delivery-track' ||
+    track?.status !== 'planning-baseline; no implementation authorized'
+  )
+    errors.push('track schema, kind, or planning status is invalid');
   if (
     !Array.isArray(track?.stories) ||
     !eqSet(
@@ -254,8 +387,8 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     errors.push('track must contain the exact seven phase story sets');
   const byId = new Map((track?.stories ?? []).map((story) => [story.id, story]));
   if (byId.size !== (track?.stories ?? []).length) errors.push('track contains a duplicate story ID');
-  const headers = [];
   const phase = new Map((track?.phases ?? []).flatMap((item) => item.stories.map((id) => [id, item.id])));
+  const phasePosition = new Map((track?.phases ?? []).flatMap((item) => item.stories.map((id, index) => [id, index])));
   for (const story of track?.stories ?? []) {
     if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
     if (!exists(story.story_file)) {
@@ -264,10 +397,14 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     }
     for (const path of story.governing_paths ?? [])
       if (!exists(path)) errors.push(`${story.id} has unresolved governing path ${path}`);
+      else if (!/^docs\/(product|redesign\/(design|guidelines))\//.test(path))
+        errors.push(`${story.id} governing path is outside active product/design/guidelines authority: ${path}`);
     for (const dep of story.dependencies ?? []) {
       if (!byId.has(dep)) errors.push(`${story.id} depends on unknown story ${dep}`);
       else if (dep === story.id || phase.get(dep) > story.phase)
         errors.push(`${story.id} has non-topological dependency ${dep}`);
+      else if (phase.get(dep) === story.phase && phasePosition.get(dep) >= phasePosition.get(story.id))
+        errors.push(`${story.id} has same-phase predecessor after its position: ${dep}`);
     }
     if (
       !eqSet(
@@ -290,7 +427,6 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
       errors.push(`${story.id} front matter must use exactly the 16 canonical fields`);
     else if (!exact(parsed.fields, story))
       errors.push(`${story.id} front matter must exactly match all 16 track fields`);
-    else headers.push(parsed.raw);
     if (!parsed.error) {
       for (const literal of [...story.stable_ids, ...story.product_routes, ...story.imported_commitments])
         if (
@@ -312,8 +448,6 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
       }
     }
   }
-  if (sha(headers.join('\n---\n')) !== FRONTMATTER_SHA256)
-    errors.push('front matter semantic SHA-256 lock does not match track metadata');
   const visiting = new Set();
   const visited = new Set();
   let hasCycle = false;
@@ -458,9 +592,23 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
       )
     )
       errors.push(`${name} must map every fixed inventory ID forward and reverse to declared story selectors`);
+    if (sourceCatalogs[name] && !eqSet(ids.split(' '), sourceCatalogs[name]))
+      errors.push(`${name} fixed catalog does not match its active source catalog`);
   }
+  if (!eqSet(expectedInventoryIds.ports.split(' '), sourceCatalogs.ports ?? []))
+    errors.push('ports fixed catalog does not match runtime plus Work Source active source catalogs');
   if (!eqSet(track.inventories?.cf_gate_product_inputs, expectedInventoryIds.conformance_suites.split(' ')))
     errors.push('CF-GATE-PRODUCT must consume exactly the fixed 39-suite input set');
+  const derivedCounts = {
+    phases: 7,
+    stories: STORY_IDS.length,
+    product_routes: 44,
+    imported_commitments: 56,
+    ...Object.fromEntries(Object.entries(expectedInventoryIds).map(([name, ids]) => [name, ids.split(' ').length])),
+    open_delegated_choices: Object.keys(track.delegated_choices?.open ?? {}).length,
+  };
+  if (!exact(track.counts, derivedCounts))
+    errors.push('track counts must be independently recomputed from exact structural sets');
   if (rootDir) {
     const reconciliation = readText('docs/redesign/design/product-guarantee-reconciliation.md');
     const routes = routeRows(reconciliation);
@@ -478,19 +626,28 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
     }
     const imported = tableRows(reconciliation, '## Guarantee 1');
     const dispositions = new Map(imported);
-    const ids = track.imported_commitments?.flatMap((row) => row.ids ?? []) ?? [];
-    if (dispositions.size !== 56 || !eqSet(ids, [...dispositions.keys()]))
-      errors.push('imported_commitments must contain the exact 56 authority-matrix IDs and dispositions');
-    const familyForId = new Map(track.imported_commitments?.flatMap((row) => (row.ids ?? []).map((id) => [id, row])));
-    for (const row of track.imported_commitments ?? []) {
+    const records = track.imported_commitments ?? [];
+    if (
+      records.length !== 56 ||
+      !eqSet(
+        records.map((row) => row.id),
+        [...dispositions.keys()],
+      ) ||
+      !records.every(
+        (row) =>
+          exactKeys(row, ['id', 'family', 'disposition', 'stories']) && dispositions.get(row.id) === row.disposition,
+      )
+    )
+      errors.push('imported_commitments must contain the exact 56 authority-matrix ID and disposition records');
+    for (const row of records) {
       const declaredByStories = [...byId.values()]
-        .filter((story) => row.ids?.some((id) => story.imported_commitments.includes(id)))
+        .filter((story) => story.imported_commitments.includes(row.id))
         .map((story) => story.id);
       if (!eqSet(row.stories, declaredByStories))
-        errors.push(`imported commitment ${row.family} must exactly equal forward and reverse story coverage`);
+        errors.push(`imported commitment ${row.id} must exactly equal forward and reverse story coverage`);
     }
     const reverseCoverage = [...byId.values()].every((story) =>
-      story.imported_commitments.every((id) => ids.includes(id) && familyForId.has(id)),
+      story.imported_commitments.every((id) => dispositions.has(id)),
     );
     if (!reverseCoverage) errors.push('imported commitments contain an undeclared story assignment');
     const owners = delegationRegisterOwners(readText('docs/redesign/design/delegation-register.md'));
@@ -511,7 +668,7 @@ export function validateDeliveryTrack(track, { exists, readText, rootDir }) {
         .sort(),
     );
     const rows = corpus.map((path) => `${sha(readText(path))}  ${path}\n`).join('');
-    if (corpus.length !== 67 || sha(rows) !== NORMATIVE_SHA256)
+    if (corpus.length !== 67 || sha(rows) !== APPROVED_NORMATIVE_CORPUS_SHA256)
       errors.push('live 67-file normative corpus SHA-256 manifest does not match');
   }
   return errors;
@@ -534,5 +691,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error('Delivery track validation failed:');
     for (const error of errors) console.error(`- ${error}`);
     process.exitCode = 1;
-  } else console.log('Delivery track validation passed (47 stories, 7 phases, exact semantic and corpus locks).');
+  } else {
+    console.log('Delivery track structural, source, two-way, and corpus validation passed (47 stories, 7 phases).');
+    console.log(`Candidate package manifest (unpinned): ${candidatePackageManifest()}`);
+  }
 }

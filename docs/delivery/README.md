@@ -77,8 +77,9 @@ supports this documentation track remains in scope.
 - [Research ledger](./greenfield/research-ledger.md) — allowed comparative inputs and limits.
 - [Reviewer packet](./greenfield/reviewer/README.md) — independent exact-candidate procedure.
 
-The phase-2 topological sequence is GF-019, GF-020, GF-021, GF-022, GF-025, GF-026, GF-023, then
-GF-024. GF-023 is effect-free and cannot create a Run or dispatch: it starts only after the
+The phase-2 topological sequence is GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, then
+GF-024. After GF-022 and each lane's own prerequisites, GF-020, GF-025, and GF-026 may proceed in
+parallel. GF-023 is effect-free and cannot create a Run or dispatch: it starts only after the
 qualified source, ledger/registry/witness, and artifact provider evidence gates close, then records
 separate exact Arye approvals for the proposal and provider manifest.
 
@@ -88,7 +89,18 @@ suite results plus every named element/governance record of all 44 settled `PC-*
 coverage claim, and provider/profile evidence supports admission; neither adds an input to the
 product gate.
 
+## Validator and reviewer boundary
+
+The local delivery validator proves governing-source projection, package consistency, and corpus
+integrity only; it does not semantically approve plan-authored outcomes or prose. An independent
+reviewer, outside the candidate, records the immutable candidate commit/tree and computed unpinned
+70-path package digest. Do not copy an expected candidate/package digest into `track.json`, validator
+constants, fixtures, or candidate-authored review prose. Any byte change invalidates that external
+tuple and requires fresh full review. The pre-existing 67-file normative digest remains corpus-drift
+evidence only, not a candidate approval digest.
+
 ## Focused track gate
 
 Run `pnpm delivery:check` to verify the machine manifest, full briefs, and delivery-document
-integrity. It is a focused track check, not a substitute for independent exact-candidate review.
+integrity. It is a focused structural check, not a substitute for independent exact-candidate
+review or semantic approval of plan-authored outcomes/prose.

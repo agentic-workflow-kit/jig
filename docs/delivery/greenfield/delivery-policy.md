@@ -56,6 +56,13 @@ independent review rather than speculative scaffolding or retrospective proof.
     review package invalidates the prior candidate tuple and verdict.
 13. The delivery-package PR itself requires an independent `PASS` on its frozen exact subject before
     hosted publication or lifecycle action; author checks never substitute for that review.
+14. The local validator proves governing-source projection, package consistency, and corpus
+    integrity only; it does not semantically approve plan-authored outcomes or prose. The
+    independent reviewer records the immutable commit/tree and computed unpinned 70-path package
+    digest outside the candidate. Never pin or copy an expected candidate/package digest into
+    `track.json`, validator constants, fixtures, or candidate-authored review prose. Any byte change
+    invalidates the external tuple and requires fresh full review; the 67-file normative digest is
+    corpus-drift evidence only.
 
 ## Required evidence ladder
 

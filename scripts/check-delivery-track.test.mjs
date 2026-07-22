@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { deliveryAllowlist, validateDeliveryTrackPackage } from './check-delivery-track.mjs';
+import {
+  candidatePackageManifest,
+  deliveryAllowlist,
+  validateDeliveryTrackPackage,
+  verifyCandidatePackageManifest,
+} from './check-delivery-track.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 function markdownFiles(dir) {
@@ -18,6 +23,13 @@ function markdownFiles(dir) {
 }
 const activeFixturePaths = [
   ...deliveryAllowlist(),
+  'AGENTS.md',
+  'README.md',
+  'docs/README.md',
+  'package.json',
+  'scripts/check-delivery-track.mjs',
+  'scripts/check-delivery-track.test.mjs',
+  'scripts/check-active-repository.mjs',
   ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
     markdownFiles(join(root, path)).map((file) => relative(root, file)),
   ),
@@ -53,48 +65,69 @@ function reject(mutate, expected) {
 
 test('valid final 47-story package passes', () =>
   fixture((dir) => assert.deepEqual(validateDeliveryTrackPackage(dir), [])));
-test('RED regression: semantic lock rejects shape-valid outcome, path, stable ID, route, inventory, and DR mutations', () => {
+test('phase order places same-phase predecessors before their dependents', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        const phase = t.phases.find((item) => item.id === 2);
+        [phase.stories[2], phase.stories[3]] = [phase.stories[3], phase.stories[2]];
+      }),
+    'same-phase predecessor after its position',
+  );
+});
+test('candidate manifest is an unpinned exact-package digest', () =>
+  assert.match(candidatePackageManifest(root), /^[a-f0-9]{64}$/));
+test('external review tuple rejects a coherent candidate after its package digest changes', () =>
+  fixture((dir) => {
+    const baseline = candidatePackageManifest(dir);
+    edit(dir, (track) => {
+      track.stories[0].outcome = 'Co-edited outcome';
+    });
+    const story = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(story, readFileSync(story, 'utf8').replace(/outcome: .*/, 'outcome: "Co-edited outcome"'));
+    assert.deepEqual(validateDeliveryTrackPackage(dir), []);
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+  }));
+test('source catalogs fail closed on missing headings and duplicate first-column rows', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/redesign/design/runtime.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('## Runtime units', '## Missing runtime units'));
+  }, 'source catalog docs/redesign/design/runtime.md has missing, duplicate, or malformed heading boundary');
+  reject((dir) => {
+    const p = join(dir, 'docs/redesign/design/runtime.md');
+    const row = readFileSync(p, 'utf8').match(/^\| `RT-OPERATOR`.*$/m)[0];
+    writeFileSync(p, readFileSync(p, 'utf8').replace(row, `${row}\n${row}`));
+  }, 'source catalog docs/redesign/design/runtime.md must contain exactly 6 unique RT-* first-column rows');
+});
+test('structural/source rules reject direct route, inventory, and owner mutations without plan locks', () => {
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.stories[0].outcome = 'mutant';
       }),
-    'semantic SHA-256 lock',
-  );
-  reject(
-    (dir) =>
-      edit(dir, (t) => {
-        t.stories[0].governing_paths[0] = t.stories[0].governing_paths[1];
-      }),
-    'semantic SHA-256 lock',
-  );
-  reject(
-    (dir) =>
-      edit(dir, (t) => {
-        t.stories[1].stable_ids[0] = 'DR-2';
-      }),
-    'semantic SHA-256 lock',
+    'front matter must exactly match',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.product_routes['PC-README-1'].proof_route = 'wrong';
       }),
-    'semantic SHA-256 lock',
+    'Round-6 authority text',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.inventories.events['EV-SESSION-RESULT'].push('GF-001');
       }),
-    'semantic SHA-256 lock',
+    'must map every fixed inventory ID forward and reverse',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.delegated_choices.open['DR-5'].owner = 'Arye';
       }),
-    'semantic SHA-256 lock',
+    'governing delegation register',
   );
 });
 test('rejects malformed JSON, unknown/cyclic deps, critical non-edge, split removal, and GF062 omission', () => {
@@ -104,28 +137,28 @@ test('rejects malformed JSON, unknown/cyclic deps, critical non-edge, split remo
       edit(dir, (t) => {
         t.stories[1].dependencies = ['GF-999'];
       }),
-    'semantic SHA-256 lock',
+    'depends on unknown story GF-999',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.critical_path = ['GF-001', 'GF-005'];
       }),
-    'semantic SHA-256 lock',
+    'critical_path must be real dependency edges',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.mandatory_provider_splits.pop();
       }),
-    'semantic SHA-256 lock',
+    'exactly five fixed rows',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.stories.find((s) => s.id === 'GF-062').dependencies.pop();
       }),
-    'semantic SHA-256 lock',
+    'GF-062 must merge exactly all other 46 stories',
   );
 });
 test('rejects frontmatter aliases and mapped narrative literal removal', () => {
@@ -167,16 +200,16 @@ test('rejects authority route, imported-matrix, inventory, DR, R03, split, DAG, 
   reject(
     (dir) =>
       edit(dir, (t) => {
-        t.imported_commitments[0].ids.pop();
+        t.imported_commitments[0].disposition = 'note';
       }),
-    'exact 56 authority-matrix IDs',
+    'exact 56 authority-matrix ID and disposition records',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
-        t.imported_commitments[0].ids.push('NOPE-1');
+        t.imported_commitments.find((row) => row.id === 'MERGE-4').disposition = 'satisfied';
       }),
-    'exact 56 authority-matrix IDs',
+    'exact 56 authority-matrix ID and disposition records',
   );
   reject(
     (dir) =>
@@ -264,14 +297,14 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
       edit(dir, (t) => {
         t.imported_commitments[0].stories.pop();
       }),
-    'imported commitment FENCE must exactly equal forward and reverse',
+    'imported commitment FENCE-1 must exactly equal forward and reverse',
   );
   reject(
     (dir) =>
       edit(dir, (t) => {
         t.imported_commitments[0].stories.push('GF-001');
       }),
-    'imported commitment FENCE must exactly equal forward and reverse',
+    'imported commitment FENCE-1 must exactly equal forward and reverse',
   );
   reject(
     (dir) =>
@@ -291,6 +324,13 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
     const p = join(dir, 'docs/delivery/greenfield/decisions.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('Engineering / GF-002', 'Wrong / GF-002'));
   }, 'decisions.md DR-1 owner must exactly match the governing delegation register');
+  reject((dir) => {
+    edit(dir, (t) => {
+      t.delegated_choices.open['DR-1'].owner = 'Wrong';
+    });
+    const p = join(dir, 'docs/delivery/greenfield/decisions.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('Engineering / GF-002', 'Wrong / GF-002'));
+  }, 'delegated_choices.DR-1.owner must exactly match the governing delegation register');
 });
 test('rejects specific story, edge, body, dependency, and local-selector structural defects', () => {
   reject(

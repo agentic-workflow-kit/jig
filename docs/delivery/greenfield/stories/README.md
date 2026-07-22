@@ -37,15 +37,16 @@ dependencies, inventories, provider gates, and counts.
 ## Phase 2 — envelope and intake
 
 - [GF-019 — Work Source semantic contract](./GF-019.md)
-- [GF-020 — Qualified structured-file Work Source provider](./GF-020.md)
 - [GF-021 — Envelope policy, profiles, setup, and bounds](./GF-021.md)
 - [GF-022 — Provider manifest and capability-proof admission](./GF-022.md)
+- [GF-020 — Qualified structured-file Work Source provider](./GF-020.md)
 - [GF-025 — Qualified local file ledger, registry, and witness provider](./GF-025.md)
 - [GF-026 — Qualified local file artifact provider](./GF-026.md)
 - [GF-023 — Effect-free preview and distinct owner approvals](./GF-023.md)
 - [GF-024 — Witnessed idempotent intake and Run birth](./GF-024.md)
 
-This is the required topological phase-2 order. GF-023 is evidence-gated by the qualified source,
+This is the required topological phase-2 order. After GF-022 and their own prerequisites, GF-020,
+GF-025, and GF-026 may proceed in parallel. GF-023 is evidence-gated by the qualified source,
 ledger/registry/witness, and artifact provider closures; it remains effect-free and records
 separate exact Arye proposal and provider-manifest approvals before GF-024 can attempt intake.
 

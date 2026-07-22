@@ -26,19 +26,26 @@ trust a branch name, prior verdict, or author narrative.
 
 The coordinator must supply a single immutable subject before review:
 
-| Required field                         | Reviewer check                                                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------------- |
-| candidate commit and tree              | resolve both Git objects; ensure the checkout is detached or otherwise immovable for review |
-| clean scope, merge base, and path set  | confirm clean scope and that changes match the story/phase contract                         |
-| content and aggregate evidence digests | confirm exact package/evidence binding, including target basis where relevant               |
-| story contract and `DR-*` selections   | verify all mandatory sections, scope, authority, and delegated-choice bounds                |
-| governing paths/IDs and dependencies   | trace each claimed behavior and predecessor to active product/design authority              |
-| check/CI/provider evidence             | verify freshness, identity, environment/build/manifest binding, and actual result           |
-| reviewer identity and independence     | reviewer is not the author/implementer and is authorized by the selected policy             |
+| Required field                           | Reviewer check                                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| candidate commit and tree                | resolve both Git objects; ensure the checkout is detached or otherwise immovable for review    |
+| clean scope, merge base, and path set    | confirm clean scope and that changes match the story/phase contract                            |
+| computed unpinned 70-path package digest | compute and record it outside the candidate; never accept a candidate-supplied expected digest |
+| content and aggregate evidence digests   | confirm exact package/evidence binding, including target basis where relevant                  |
+| story contract and `DR-*` selections     | verify all mandatory sections, scope, authority, and delegated-choice bounds                   |
+| governing paths/IDs and dependencies     | trace each claimed behavior and predecessor to active product/design authority                 |
+| check/CI/provider evidence               | verify freshness, identity, environment/build/manifest binding, and actual result              |
+| reviewer identity and independence       | reviewer is not the author/implementer and is authorized by the selected policy                |
 
-Record the candidate tuple in the review output. Any edit to source, evidence, contract metadata,
-or subject binding invalidates the review and requires a new freeze and fresh review. Do not claim a
-candidate commit/tree for this documentation package until this procedure happens.
+Record the candidate tuple—immutable commit/tree plus computed unpinned 70-path package digest—in
+the independent review output outside the candidate. Any edit to source, evidence, contract
+metadata, or subject binding invalidates the tuple and requires a fresh full review. No expected
+candidate/package digest may appear in `track.json`, validator constants, fixtures, or
+candidate-authored review prose. The local validator proves governing-source projection, package
+consistency, and corpus integrity only; it does not semantically approve plan-authored outcomes or
+prose. The pre-existing 67-file normative digest is corpus-drift evidence only, never the candidate
+approval digest. Do not claim a candidate commit/tree for this documentation package until this
+procedure happens.
 
 ## What to establish before a verdict
 
