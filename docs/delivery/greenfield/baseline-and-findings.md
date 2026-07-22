@@ -55,7 +55,7 @@ claim that its authored candidate has a final commit, tree, manifest, or `PASS` 
   governing `DR-*` constraints and get owner-recorded selections before their story starts.
 - Every provider needs its exact manifest, supported posture, qualification probes, expiry, and
   fallback outcome. A generic “adapter works” assertion is insufficient.
-- The package includes all 45 story contracts. Before implementation, each contract must still be
+- The package includes all 47 story contracts. Before implementation, each contract must still be
   revalidated against then-current merged dependency evidence, applicable `DR-*` gates, provider
   qualification, and the selected exact baseline; completion of a planning contract is not start
   authorization by itself.

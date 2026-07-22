@@ -21,7 +21,8 @@ independent review rather than speculative scaffolding or retrospective proof.
 ## Mandatory delivery rules
 
 1. Implement only a story whose [mandatory contract](./story-contract.md#mandatory-greenfield-story-contract),
-   including Definition of Ready, is satisfied and whose dependencies are merged on the selected baseline.
+   including Definition of Ready, is satisfied and whose predecessors have verified merged evidence
+   on the selected baseline.
 2. Treat the product and approved redesign as authority. The delivery track may select only an
    explicitly delegated `DR-*` realization choice, record its owner/constraints/evidence/fallback,
    and stop for `OWNER_DECISION_REQUIRED` outside that grant.
@@ -31,8 +32,9 @@ independent review rather than speculative scaffolding or retrospective proof.
    or lacks one coherent oracle. The first half stays useful and green but unconfigurable until the
    second qualifies.
 4. No adapter, provider, or effect path is reachable before its semantic contract, manifest,
-   qualification evidence, and gate evaluator pass. Scripted fixtures may exercise contracts but
-   must not make a real provider configurable.
+   exact qualification gate/evidence, and gate evaluator pass. This applies to all five mandatory
+   splits: GF-019→020, GF-010→025, GF-013→026, GF-033→039, and GF-042→047. Scripted fixtures may
+   exercise contracts but must not make a real provider configurable.
 5. Record operation intent before dispatch. For an uncertain external effect, reconcile using its
    stable identity; retry the same effect only after confirmed absence and recorded
    reauthorization. Otherwise park, preserve the resource, and surface the uncertainty.
@@ -48,6 +50,12 @@ independent review rather than speculative scaffolding or retrospective proof.
    proof makes `Landed` and releases dependents; cleanup cannot change business outcome or release.
 10. A passing local check is evidence, not approval. Every implementation candidate needs an
     independent exact-candidate review under the reviewer packet.
+11. Every correction loop searches sibling occurrences of the same defect across the exact
+    manifest, briefs, inventories, routes, and evidence before reporting it fixed.
+12. A post-edit re-review always freezes a new subject: any edit to source, evidence, metadata, or
+    review package invalidates the prior candidate tuple and verdict.
+13. The delivery-package PR itself requires an independent `PASS` on its frozen exact subject before
+    hosted publication or lifecycle action; author checks never substitute for that review.
 
 ## Required evidence ladder
 

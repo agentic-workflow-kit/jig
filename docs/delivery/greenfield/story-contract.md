@@ -14,19 +14,31 @@ last_verified: 2026-07-22
 
 Every `GF-*` story must instantiate every section below before implementation. “N/A” is valid only
 with a reason, proof that the subject cannot reach the omitted concern, and reviewer agreement.
-Link to governing relative paths and stable IDs rather than copying or weakening their meaning.
+Its front matter is a literal, machine-parseable projection of the 16 canonical `track.json` story
+fields; use no aliases, wildcards, or invented IDs. Link to governing relative paths and stable IDs
+rather than copying or weakening their meaning.
 
 ```md
 ---
-id: GF-NNN
+id: "GF-NNN"
 title: "<bounded outcome>"
-phase: <0-6>
-status: proposed | ready | implementing | review | accepted | parked
-baseline_commit: <40-hex or pending-freeze>
-governing_paths: []
-stable_ids: []
-depends_on: []
-dr_choices: []
+phase: <0-6 integer>
+size: "S | M | L"
+status: "proposed"
+baseline_commit: "<exact 40-hex selected baseline commit>"
+story_file: "docs/delivery/greenfield/stories/GF-NNN.md"
+governing_paths: ["docs/redesign/design/<exact-path>.md"]
+stable_ids: ["<literal track.json stable ID>"]
+product_routes: ["<literal PC-* route>"]
+imported_commitments: ["<literal imported commitment ID>"]
+dependencies: ["GF-NNN"]
+dependency_edges:
+  - from: "GF-NNN"
+    type: "implementation | evidence | decision | merge"
+    split: "semantic-to-provider" # omit when absent from track.json
+dr_gates: ["DR-N"]
+outcome: "<exact bounded outcome>"
+oracle: ["<exact observable oracle>"]
 ---
 
 # GF-NNN — <title>
@@ -39,14 +51,17 @@ specific later stories or guarantees it enables. State what remains impossible a
 ## Governing paths and stable IDs
 
 List the controlling product/design paths, sections, decision records, invariants, conformance
-suites, and every `ID-*`, `RT-*`, `CP-*`, `EP-*`, `PORT-*`, `SCH-*`, `OPC-*`, `EV-*`, `FC-*`,
-`BND-*`, `CF-*`, `DR-*`, and product commitment ID this story carries. Explain each mapping.
+suites, and every literal `stable_ids`, `product_routes`, and `imported_commitments` value from the
+front matter. Explain each local mapping and its bearing on this story. Do not use wildcard IDs or
+invent an ID absent from the governing source and manifest.
 
 ## Dependencies plus start evidence
 
 Name every predecessor and the exact merged commit/evidence needed to start. Prove the selected
 baseline, package/runtime boundary, prerequisite gate, required owner decision, and any provider
 qualification are current. A dependency is not satisfied by an unreviewed branch or an assertion.
+`dependencies` and `dependency_edges` must exactly match the manifest, including edge type and
+`semantic-to-provider` split where present.
 
 ## In-scope and non-goals
 

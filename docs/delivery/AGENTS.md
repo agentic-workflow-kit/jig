@@ -10,16 +10,16 @@ inherits the repository [`AGENTS.md`](../../AGENTS.md).
    guarantees, authority, lifecycle, and proof obligations must be realized.
 3. The final [readiness gate](../archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md)
    establishes the locked design baseline and the archive manifest is recovery-only provenance.
-4. [`greenfield/track.json`](./greenfield/track.json) is the exact-set planning source for the 45
+4. [`greenfield/track.json`](./greenfield/track.json) is the exact-set planning source for the 47
    story IDs, phases, dependencies, gates, and machine-readable planning facts. It faithfully
    encodes this track; it cannot override the product or design authority above it.
 5. This directory decomposes those governing contracts into reviewable delivery stories. It does
    not alter product or architecture decisions, reopen a `DR-*` choice, or authorize code.
 
-Do not use retired source, archived implementation plans, or the archived delivery track to choose
-architecture, sequencing, package boundaries, or story content. A story may later consult one
-bounded archived path only after that story is independently specified and records the lookup as
-non-governing provenance.
+Do not use retired source, archived implementation plans, the archived delivery track, or ignored
+remnants to choose architecture, sequencing, package boundaries, or story content. A story may
+later consult one bounded archived path only after that story is independently specified and
+records the lookup as non-governing provenance.
 
 ## Working rules
 
@@ -32,6 +32,10 @@ non-governing provenance.
   blindly retry an effect whose outcome is uncertain.
 - Preserve exact IDs, authority boundaries, and immutable bindings from the governing design. Raise
   `OWNER_DECISION_REQUIRED` for a material gap rather than inventing a behavior.
+- The five mandatory semantic-to-provider splits are GF-019→GF-020 (`PORT-SOURCE`),
+  GF-010→GF-025 (`PORT-LEDGER`), GF-013→GF-026 (`PORT-ARTIFACT`), GF-033→GF-039
+  (`PORT-WORKSPACE`), and GF-042→GF-047 (`PORT-VERIFY`). Each provider stays unconfigurable until
+  its exact mechanism evidence is admitted.
 - Product code, product package manifests/scaffolding, and hosted state are outside this
   documentation track. Minimal repository navigation, status, or validation wiring that solely
   supports this documentation track is allowed.

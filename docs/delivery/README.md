@@ -22,21 +22,21 @@ contains no product source. This is the durable planning package for a new gener
 The current post-archive baseline is `b860891d9102e0bdda1d23def81b1b974a4a26ac` with tree
 `763fa777c62999795fb679cc05a61be1190d93b6`.
 
-**Goals.** Turn the approved corpus into 45 small, auditable implementation stories in seven gated
+**Goals.** Turn the approved corpus into 47 small, auditable implementation stories in seven gated
 phases; preserve product intent and design authority; make every effect, provider, recovery route,
 and review obligation explicit before code begins.
 
 ## What and why
 
 This package is a delivery map, not a replacement architecture. It includes the machine-readable
-exact-set manifest and all 45 full story briefs, alongside the authority order, exact baseline,
+exact-set manifest and all 47 full story briefs, alongside the authority order, exact baseline,
 phase gates, research boundaries, and independent review procedure needed to plan or review a later
 implementation candidate. That separation keeps the new generation greenfield and prevents
 archived behavior from silently becoming the design.
 
 ## Scope and non-goals
 
-In scope: the machine manifest, seven-phase overview, 45 full story briefs, dependency/coverage/
+In scope: the machine manifest, seven-phase overview, 47 full story briefs, dependency/coverage/
 verification records, delegated-choice schedule, risk/owner-decision register, mandatory contract,
 delivery policy, baseline/finding register, research ledger, and reviewer packet. Out of scope:
 product code, product package manifests/scaffolding, changing product/redesign documents, choosing
@@ -76,6 +76,17 @@ supports this documentation track remains in scope.
 - [Delivery policy](./greenfield/delivery-policy.md) — implementation and qualification rules.
 - [Research ledger](./greenfield/research-ledger.md) — allowed comparative inputs and limits.
 - [Reviewer packet](./greenfield/reviewer/README.md) — independent exact-candidate procedure.
+
+The phase-2 topological sequence is GF-019, GF-020, GF-021, GF-022, GF-025, GF-026, GF-023, then
+GF-024. GF-023 is effect-free and cannot create a Run or dispatch: it starts only after the
+qualified source, ledger/registry/witness, and artifact provider evidence gates close, then records
+separate exact Arye approvals for the proposal and provider manifest.
+
+`CF-GATE-PRODUCT` is narrower than the supported-profile claim: it requires exactly 39 recorded
+suite results plus every named element/governance record of all 44 settled `PC-*` proof routes. The
+56 imports remain a separate matrix-plus-suite disposition audit for the broader supported-profile
+coverage claim, and provider/profile evidence supports admission; neither adds an input to the
+product gate.
 
 ## Focused track gate
 

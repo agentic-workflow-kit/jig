@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { deliveryAllowlist } from './check-delivery-track.mjs';
 
 const archiveRef = 'archive/jig-v0-pre-greenfield-2026-07-18';
 const archiveTagObject = '1834c58c1485d2be13e32f6e437a2625e6043042';
@@ -63,6 +64,18 @@ for (const forbiddenPath of forbiddenPaths) {
   if (activeEntries.length > 0) {
     errors.push(`archived generation path remains active: ${forbiddenPath}`);
   }
+}
+
+const activeDeliveryPaths = git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'docs/delivery')
+  .split('\n')
+  .filter(Boolean)
+  .sort();
+const expectedDeliveryPaths = [...deliveryAllowlist()].sort();
+if (
+  activeDeliveryPaths.length !== expectedDeliveryPaths.length ||
+  activeDeliveryPaths.some((path, index) => path !== expectedDeliveryPaths[index])
+) {
+  errors.push('active docs/delivery paths do not match the exact documentation-only allowlist');
 }
 
 const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'));

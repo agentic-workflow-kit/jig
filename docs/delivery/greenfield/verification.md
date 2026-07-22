@@ -12,15 +12,15 @@ Every result is exact-subject evidence: realization build, provider build where 
 suite/probe versions, manifest digest, and environment fingerprint. A passing baseline is not
 evidence for a later candidate.
 
-| Phase | Accumulated evidence                                                                                                                                                          | Exit condition                                                                             |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 0     | Private graph/static boundary proof; canonical codec vectors; harness version and fault fixtures; kernel replay/illegal-edge corpus.                                          | Hermetic graph and first deterministic replay; no effect path.                             |
-| 1     | Witnessed Run ledger and artifact readback, controller fencing/replay, registry race proof, mediated-operation crash/reconciliation corpus.                                   | Durable truth and uncertainty containment; no provider bypass.                             |
-| 2     | Source/plan validation, policy/profile proof, exact two approvals, capability proofs, intake retry/crash/second-winner matrix.                                                | Witnessed accepted/rejected acknowledgement; rejected intake creates no Run.               |
-| 3     | State/dependency tables, capacity/boundary/starvation probes, scripted workspace/session proof, candidate/rework/doorbell/obligation evidence, local-workspace provider gate. | Scripted intake-to-park path and qualified local workspace; no acceptance/landing claim.   |
-| 4     | Independent verdict package, review-publication proof, scripted verification/finalization/delivery/block/retirement E2E and crash matrix, local-verifier provider gate.       | Landed/Blocked/Rejected/NotRun scripted E2E; cleanup cannot alter outcome.                 |
-| 5     | Every-position Stopped Settlement, projection rebuild parity, notice dedup/redaction, export/disposal guard corpus, SDK/CLI/MCP parity.                                       | Stop/reconstruct/export/parity evidence.                                                   |
-| 6     | Qualified Codex and GitHub real-provider evidence plus exact supported-profile manifest.                                                                                      | `CF-GATE-PRODUCT`: all 39 suites, 44 routes, 56 imports, and approved profile conjunction. |
+| Phase | Accumulated evidence                                                                                                                                                                                        | Exit condition                                                                                                    |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 0     | Private graph/static boundary proof; canonical codec vectors; harness version and fault fixtures; kernel replay/illegal-edge corpus.                                                                        | Hermetic graph and first deterministic replay; no effect path.                                                    |
+| 1     | Scripted semantic-contract ledger/witness and artifact readback evidence, controller fencing/replay, registry race proof, mediated-operation crash/reconciliation corpus.                                   | Durable truth and uncertainty containment; selected file providers remain unreachable.                            |
+| 2     | Source/plan validation, policy/profile proof, exact two approvals, capability proofs, qualified local file ledger/registry/witness and artifact providers, intake retry/crash/second-winner matrix.         | Witnessed accepted/rejected acknowledgement; rejected intake creates no Run.                                      |
+| 3     | State/dependency tables, capacity/boundary/starvation probes, scripted workspace/session proof, candidate/rework/doorbell/obligation evidence, local-workspace provider gate.                               | Scripted intake-to-park path and qualified local workspace; no acceptance/landing claim.                          |
+| 4     | Independent verdict package, review-publication proof, scripted verification/finalization/delivery/block/retirement E2E and crash matrix, local-verifier provider gate.                                     | Landed/Blocked/Rejected/NotRun scripted E2E; cleanup cannot alter outcome.                                        |
+| 5     | Every-position Stopped Settlement, projection rebuild parity, notice dedup/redaction, export/disposal guard corpus, SDK/CLI/MCP parity.                                                                     | Stop/reconstruct/export/parity evidence.                                                                          |
+| 6     | Qualified local file ledger/registry/witness, local file artifact, Codex, and GitHub real-provider evidence; exact supported-profile manifest; and GF-062's retained audit of all 56 imported dispositions. | `CF-GATE-PRODUCT`: the 39 recorded suite results plus every named element of all 44 settled product proof routes. |
 
 ## Fixed conformance accumulation
 
@@ -38,8 +38,14 @@ The 39 inputs to `CF-GATE-PRODUCT` are fixed; no provider waiver can remove one:
 `CF-MECH-VERIFY`, and `CF-MECH-DELIVERY`.
 
 `CF-GATE-REALIZATION` is the exact realization-level conjunction. `CF-GATE-PROVIDER` makes an
-individual provider configurable only after the matching exact `CF-MECH-*` pass. `CF-GATE-PRODUCT`
-is the final 39-suite conjunction plus the fixed 44-route composition recorded in `track.json`.
+individual provider configurable only after its matching exact mechanism-conformance pass.
+`CF-GATE-PRODUCT` is the final pure conjunction of the 39 recorded suite results and every named
+element of all 44 settled product proof routes, as defined by
+[`architecture-conformance.md`](../../redesign/design/architecture-conformance.md) and the
+[Round-6 route inventory](../../redesign/design/product-guarantee-reconciliation.md#round-6-minimal-route-audit).
+GF-062 separately retains and audits all 56 imported commitment dispositions and the
+supported-provider gates/profile evidence for the broader supported-profile claim; neither is an
+extra `CF-GATE-PRODUCT` input.
 
 ## Mandatory verification rules
 

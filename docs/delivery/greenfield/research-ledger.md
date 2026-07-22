@@ -16,7 +16,8 @@ last_verified: 2026-07-22
 Research is non-governing. The active product and redesign select all outcomes, authority,
 lifecycle, and delivery obligations. A research observation may be adopted only when it conforms to
 the named governing IDs, is recorded in a story's `DR-*` section, and has its own proof. It cannot
-fill a product/design gap, justify archive reuse, or override an owner decision.
+fill a product/design gap, justify archive reuse, override an owner decision, or turn ignored
+remnants into a planning source.
 
 | Reference             | Inspected scope                                                                                                                                | May inform                                                                                                                                                                       | Explicitly not adopted                                                                                         |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |

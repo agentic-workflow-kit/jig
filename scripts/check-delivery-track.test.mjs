@@ -1,211 +1,354 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { deliveryAllowlist, validateDeliveryTrackPackage } from './check-delivery-track.mjs';
 
-import { validateDeliveryTrack, validateDeliveryTrackPackage } from './check-delivery-track.mjs';
-
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const docsSource = join(projectRoot, 'docs');
-
-function withFixture(run) {
-  const rootDir = mkdtempSync(join(tmpdir(), 'jig-delivery-track-'));
-  cpSync(docsSource, join(rootDir, 'docs'), { recursive: true });
-  const greenfieldDir = join(rootDir, 'docs/delivery/greenfield');
-  try {
-    return run(rootDir, greenfieldDir);
-  } finally {
-    rmSync(rootDir, { recursive: true, force: true });
-  }
-}
-
-function readTrack(greenfieldDir) {
-  return JSON.parse(readFileSync(join(greenfieldDir, 'track.json'), 'utf8'));
-}
-
-function editTrack(greenfieldDir, mutate) {
-  const track = readTrack(greenfieldDir);
-  mutate(track);
-  writeFileSync(join(greenfieldDir, 'track.json'), `${JSON.stringify(track, null, 2)}\n`);
-}
-
-function errorsFor(mutator) {
-  return withFixture((rootDir, greenfieldDir) => {
-    mutator(rootDir, greenfieldDir);
-    return validateDeliveryTrackPackage(rootDir);
-  });
-}
-
-function assertRejected(mutator, expectedError) {
-  const errors = errorsFor(mutator);
-  assert.ok(errors.length > 0, 'mutant package must fail validation');
-  assert.ok(
-    errors.some((error) => error.includes(expectedError)),
-    `expected ${expectedError} in: ${errors.join('\n')}`,
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+function markdownFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? markdownFiles(join(dir, entry.name))
+      : entry.name.endsWith('.md')
+        ? [join(dir, entry.name)]
+        : [],
   );
 }
-
-test('valid delivery package passes through the pure validator', () => {
-  withFixture((rootDir, greenfieldDir) => {
-    const track = readTrack(greenfieldDir);
-    const errors = validateDeliveryTrack(track, {
-      exists: (relativePath) => {
-        try {
-          readFileSync(join(rootDir, relativePath));
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      readText: (relativePath) => readFileSync(join(rootDir, relativePath), 'utf8'),
-    });
-    assert.deepEqual(errors, []);
+const activeFixturePaths = [
+  ...deliveryAllowlist(),
+  ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
+    markdownFiles(join(root, path)).map((file) => relative(root, file)),
+  ),
+];
+function fixture(run) {
+  const dir = mkdtempSync(join(tmpdir(), 'jig-r07-'));
+  for (const path of activeFixturePaths) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    cpSync(join(root, path), join(dir, path));
+  }
+  try {
+    return run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+function edit(dir, mutate) {
+  const path = join(dir, 'docs/delivery/greenfield/track.json');
+  const track = JSON.parse(readFileSync(path));
+  mutate(track);
+  writeFileSync(path, `${JSON.stringify(track, null, 2)}\n`);
+}
+function reject(mutate, expected) {
+  fixture((dir) => {
+    mutate(dir);
+    const errors = validateDeliveryTrackPackage(dir);
+    assert.ok(
+      errors.some((error) => error.includes(expected)),
+      `expected ${expected}; got ${errors.join('\n')}`,
+    );
   });
-});
+}
 
-test('rejects a missing story and a duplicate story ID', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => track.stories.pop());
-  }, 'exact unique 45-story GF ID set');
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => track.stories.push({ ...track.stories[0] }));
-  }, 'exact unique 45-story GF ID set');
+test('valid final 47-story package passes', () =>
+  fixture((dir) => assert.deepEqual(validateDeliveryTrackPackage(dir), [])));
+test('RED regression: semantic lock rejects shape-valid outcome, path, stable ID, route, inventory, and DR mutations', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[0].outcome = 'mutant';
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[0].governing_paths[0] = t.stories[0].governing_paths[1];
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[1].stable_ids[0] = 'DR-2';
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.product_routes['PC-README-1'].proof_route = 'wrong';
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.inventories.events['EV-SESSION-RESULT'].push('GF-001');
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.delegated_choices.open['DR-5'].owner = 'Arye';
+      }),
+    'semantic SHA-256 lock',
+  );
 });
-
-test('rejects unknown dependencies and cycles', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      const story = track.stories.find(({ id }) => id === 'GF-002');
-      story.dependencies = ['GF-999'];
-      story.dependency_edges = [{ from: 'GF-999', type: 'implementation' }];
-    });
-  }, 'depends on unknown story GF-999');
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      const story = track.stories.find(({ id }) => id === 'GF-001');
-      story.dependencies = ['GF-002'];
-      story.dependency_edges = [{ from: 'GF-002', type: 'implementation' }];
-    });
-  }, 'dependency graph contains a cycle');
+test('rejects malformed JSON, unknown/cyclic deps, critical non-edge, split removal, and GF062 omission', () => {
+  reject((dir) => writeFileSync(join(dir, 'docs/delivery/greenfield/track.json'), '{ nope'), 'strict valid JSON');
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[1].dependencies = ['GF-999'];
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.critical_path = ['GF-001', 'GF-005'];
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.mandatory_provider_splits.pop();
+      }),
+    'semantic SHA-256 lock',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-062').dependencies.pop();
+      }),
+    'semantic SHA-256 lock',
+  );
 });
-
-test('rejects a critical path that is not a longest chain of real dependency edges', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.critical_path = ['GF-001', 'GF-005'];
-    });
-  }, 'critical_path must use a real dependency edge: GF-001->GF-005');
+test('rejects frontmatter aliases and mapped narrative literal removal', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('dependencies: []', 'depends_on: []'));
+  }, 'front matter must use exactly');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replaceAll('PC-JIG-16', 'PC-JIG-X'));
+  }, 'narrative lacks mapped literal PC-JIG-16');
 });
-
-test('rejects a missing exact inventory ID', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => delete track.inventories.events['EV-NOTICE-SNOOZED']);
-  }, 'events must contain its exact fixed ID set');
+test('rejects every front matter scalar, array, duplicate, and alias drift directly', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('status: proposed', 'status: changed'));
+  }, 'front matter must exactly match all 16');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('dependencies: []', 'dependencies: ["GF-002"]'));
+  }, 'front matter must exactly match all 16');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('phase: 0', 'phase: 0\nphase: 0'));
+  }, 'duplicates front matter field phase');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('dependencies: []', 'dependencies: *deps'));
+  }, 'uses YAML alias');
 });
-
-test('rejects an unresolved governing path', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.stories.find(({ id }) => id === 'GF-001').governing_paths[0] = 'docs/redesign/design/missing.md';
-    });
-  }, 'unresolved governing path');
+test('rejects authority route, imported-matrix, inventory, DR, R03, split, DAG, and closure mutants directly', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.product_routes['PC-JIG-1'].proof_route = 'wrong';
+      }),
+    'Round-6 authority text',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.imported_commitments[0].ids.pop();
+      }),
+    'exact 56 authority-matrix IDs',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.imported_commitments[0].ids.push('NOPE-1');
+      }),
+    'exact 56 authority-matrix IDs',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        delete t.inventories.ports['PORT-VERIFY'];
+      }),
+    'exact fixed inventory IDs',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.inventories.ports['PORT-NOPE'] = ['GF-001'];
+      }),
+    'exact fixed inventory IDs',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.delegated_choices.open['DR-1'].owner = 'Wrong';
+      }),
+    'must exactly match the governing delegation register',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-044').stable_ids = t.stories
+          .find((s) => s.id === 'GF-044')
+          .stable_ids.filter((id) => id !== 'RP-REMOTE');
+      }),
+    'GF-044 violates R03',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-042').stable_ids.push('RP-REMOTE');
+      }),
+    'GF-042 violates R03',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.mandatory_provider_splits.pop();
+      }),
+    'exactly five fixed rows',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-001').dependencies = ['GF-002'];
+      }),
+    'dependency graph contains cycle',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.critical_path = ['GF-001', 'GF-002'];
+      }),
+    'actual maximum-length path',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-062').dependencies.pop();
+      }),
+    'GF-062 must merge exactly all other 46 stories',
+  );
 });
-
-test('rejects substituted product-route, conformance-suite, and delegated-choice IDs', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.product_routes['PC-OTHER'] = track.product_routes['PC-README-1'];
-      delete track.product_routes['PC-README-1'];
-    });
-  }, 'exact fixed 44 PC routes');
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.inventories.conformance_suites['CF-OTHER'] = track.inventories.conformance_suites['CF-DETERMINISM'];
-      delete track.inventories.conformance_suites['CF-DETERMINISM'];
-    });
-  }, 'conformance_suites must contain its exact fixed ID set');
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.delegated_choices.open['DR-13'] = track.delegated_choices.open['DR-12'];
-      delete track.delegated_choices.open['DR-12'];
-    });
-  }, 'open delegated choices must be exactly');
+test('rejects exact forward and reverse route, import, inventory, and governing-owner mappings', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.product_routes['PC-JIG-1'].stories.pop();
+      }),
+    'product_routes.PC-JIG-1.stories must exactly equal forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.product_routes['PC-JIG-1'].stories.push('GF-001');
+      }),
+    'product_routes.PC-JIG-1.stories must exactly equal forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.imported_commitments[0].stories.pop();
+      }),
+    'imported commitment FENCE must exactly equal forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.imported_commitments[0].stories.push('GF-001');
+      }),
+    'imported commitment FENCE must exactly equal forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.inventories.operations['OPC-VERIFY-EXECUTE'] = ['GF-001'];
+      }),
+    'must map every fixed inventory ID forward and reverse',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.delegated_choices.open['DR-1'].owner = 'Wrong';
+      }),
+    'must exactly match the governing delegation register',
+  );
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/decisions.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('Engineering / GF-002', 'Wrong / GF-002'));
+  }, 'decisions.md DR-1 owner must exactly match the governing delegation register');
 });
-
-test('does not let CF-GATE-PRODUCT pass without its fixed mapped product routes', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      delete track.product_routes['PC-README-1'];
-    });
-  }, 'CF-GATE-PRODUCT requires the fixed 39-suite input set and all 44 mapped product routes');
-});
-
-test('rejects reopening DR-10', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.delegated_choices.open['DR-10'] = track.delegated_choices.open['DR-1'];
-    });
-  }, 'open delegated choices must be exactly');
-});
-
-test('rejects changed required fields on an open delegated choice', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.delegated_choices.open['DR-5'].owner = 'Other';
-    });
-  }, 'delegated_choices.open.DR-5.owner must equal its fixed approved value');
-});
-
-test('rejects an absent semantic/provider split', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    editTrack(greenfieldDir, (track) => {
-      track.mandatory_provider_splits = track.mandatory_provider_splits.filter(
-        ({ provider_story }) => provider_story !== 'GF-020',
-      );
-    });
-  }, 'exactly three mandatory semantic/provider splits');
-});
-
-test('rejects a missing story file', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    rmSync(join(greenfieldDir, 'stories/GF-001.md'));
+test('rejects specific story, edge, body, dependency, and local-selector structural defects', () => {
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[1].id = 'GF-001';
+      }),
+    'duplicate story ID',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.pop();
+      }),
+    'exact 47 story IDs',
+  );
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    rmSync(p);
   }, 'GF-001 story file is missing');
-});
-
-test('rejects absent and empty mandatory story sections', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    const path = join(greenfieldDir, 'stories/GF-001.md');
-    writeFileSync(path, readFileSync(path, 'utf8').replace('## Exact acceptance', '## Acceptance'));
-  }, 'exactly one mandatory heading: Exact acceptance');
-  assertRejected((_rootDir, greenfieldDir) => {
-    const path = join(greenfieldDir, 'stories/GF-001.md');
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories[0].dependencies = ['GF-999'];
+      }),
+    'depends on unknown story GF-999',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        const story = t.stories.find((s) => s.id === 'GF-047');
+        story.stable_ids = story.stable_ids.filter((id) => id !== 'OPC-VERIFY-EXECUTE');
+      }),
+    'GF-047 violates R03 local/remote selector separation',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        t.stories.find((s) => s.id === 'GF-047').dependency_edges[1].split = 'bad';
+      }),
+    'GF-047 has invalid dependency edge metadata',
+  );
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(
-      path,
-      readFileSync(path, 'utf8').replace(
-        /## Exact acceptance[\s\S]*?\n## DR choices/,
-        '## Exact acceptance\n\n## DR choices',
-      ),
+      p,
+      readFileSync(p, 'utf8').replace(/(## Outcome, value, and why now)[\s\S]*?(?=\n## Governing paths)/, '$1\n'),
     );
-  }, 'mandatory heading is empty: Exact acceptance');
+  }, 'GF-001 has empty Outcome, value, and why now');
 });
-
-test('rejects story front-matter metadata mismatches', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    const path = join(greenfieldDir, 'stories/GF-001.md');
-    writeFileSync(
-      path,
-      readFileSync(path, 'utf8').replace(
-        'title: "Private Node/TypeScript workspace substrate"',
-        'title: "Different title"',
-      ),
-    );
-  }, 'front matter title does not match track metadata');
-});
-
-test('rejects malformed strict JSON', () => {
-  assertRejected((_rootDir, greenfieldDir) => {
-    writeFileSync(join(greenfieldDir, 'track.json'), '{ invalid json }');
-  }, 'strict valid JSON');
+test('rejects extra delivery path and normative corpus drift', () => {
+  reject((dir) => {
+    mkdirSync(join(dir, 'docs/delivery/extra'));
+    writeFileSync(join(dir, 'docs/delivery/extra/nope.md'), '# nope\n');
+  }, 'exact allowlist');
+  reject(
+    (dir) =>
+      writeFileSync(join(dir, 'docs/product/README.md'), `${readFileSync(join(dir, 'docs/product/README.md'))}\n`),
+    'normative corpus SHA-256',
+  );
 });

@@ -10,7 +10,7 @@
 
 The approved product and redesign documents passed the final empty-repository implementation-
 readiness gate on 2026-07-18. The active repository intentionally contains no product source. Its
-documentation-only [greenfield delivery track](docs/delivery/README.md) now records the 45 stories,
+documentation-only [greenfield delivery track](docs/delivery/README.md) now records 47 stories,
 seven phase gates, fixed inventories, and review contract needed for a later owner-authorized
 implementation phase.
 
@@ -53,7 +53,9 @@ The next owner-authorized implementation session must use the active greenfield 
    register as planning inputs; and
 4. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
-No implementation source or package scaffolding is included in this transition.
+No implementation source or product package scaffolding is included in this transition. The active
+track is a planning stop line: it does not authorize implementation until a story's merged
+predecessors, exact evidence, delegated-choice gate, and independent review requirements are met.
 
 ## License
 
