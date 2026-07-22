@@ -32,11 +32,11 @@ const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = '07d97124e659ed410c58d2abdba1c5883cc
 const APPROVED_PROVIDER_SPLITS_SHA256 = '12ee04a022c25f2113710bb9ad9315336c6349d6da5239402ce6b1974e25fb4d';
 const APPROVED_DELEGATED_CHOICES_SHA256 = 'e2eedc5d70386de86893e3ee8beb531736398a26ef9a370bcff61dd143bb78d3';
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = '4db2ec88712864823cb84b3f9609ef1dca9f6e35831eef6c3a61b4c2340ac3b0';
-const NORMALIZED_WAIT_PROGRESS = new Set(
+const WAIT_PROGRESS_SURFACES =
   'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
     ' ',
-  ),
-);
+  );
+const NORMALIZED_WAIT_PROGRESS = new Set(WAIT_PROGRESS_SURFACES);
 const HEADINGS = [
   'Outcome, value, and why now',
   'Governing paths and stable IDs',
@@ -153,34 +153,24 @@ function allFiles(dir) {
 }
 function normativeCorpusPaths(rootDir) {
   return ['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((dir) =>
-    allFiles(join(rootDir, dir))
+    activeFiles(rootDir, dir)
       .filter((path) => path.endsWith('.md'))
-      .map((path) => relative(rootDir, path))
       .sort(),
   );
 }
 function activeFiles(rootDir, path) {
-  try {
-    if (
-      execFileSync('git', ['-C', rootDir, 'rev-parse', '--is-inside-work-tree'], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim() === 'true'
-    ) {
-      return execFileSync(
-        'git',
-        ['-C', rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', path],
-        {
-          encoding: 'utf8',
-        },
-      )
-        .split('\n')
-        .filter(Boolean);
-    }
-  } catch {
-    // Fixtures outside a Git checkout deliberately use filesystem enumeration.
-  }
-  return allFiles(join(rootDir, path)).map((file) => relative(rootDir, file));
+  // Synthetic fixtures without repository metadata deliberately use filesystem enumeration.
+  if (!existsSync(join(rootDir, '.git'))) return allFiles(join(rootDir, path)).map((file) => relative(rootDir, file));
+  const insideWorkTree = execFileSync('git', ['-C', rootDir, 'rev-parse', '--is-inside-work-tree'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  if (insideWorkTree !== 'true') throw new Error(`${rootDir} has Git metadata but is not a working tree`);
+  return execFileSync('git', ['-C', rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', path], {
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter(Boolean);
 }
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -243,7 +233,7 @@ function balancedCollectionEnd(text) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"') {
       quote = char;
       continue;
     }
@@ -344,7 +334,7 @@ function splitInlineParts(value) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"' || char === "'") quote = char;
+    if (char === '"') quote = char;
     else if ('[{'.includes(char)) depth += 1;
     else if (']}'.includes(char)) depth -= 1;
     else if (char === ',' && depth === 0) {
@@ -720,6 +710,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
   if (sha(track.imported_commitments) !== APPROVED_IMPORTED_COMMITMENTS_SHA256)
     errors.push('imported_commitments must exactly preserve authority family semantics');
   const stories = arrayOrEmpty(track?.stories, 'track stories must be an array', errors);
+  if (!Array.isArray(track?.stories)) return [...new Set(errors)];
   const hasExactStorySet = eqSet(
     stories.map((story) => story?.id),
     STORY_IDS,
@@ -733,8 +724,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     errors.push('gate_edges must exactly preserve the approved sequencing and product-claim stop lines');
   const storyRecords = stories.filter(isRecord);
   if (storyRecords.length !== stories.length) errors.push('track stories must contain only object records');
+  const storyIds = storyRecords.map((story) => story.id);
+  if (new Set(storyIds).size !== storyIds.length) errors.push('track contains a duplicate story ID');
   const byId = new Map(storyRecords.filter((story) => STORY_IDS.includes(story.id)).map((story) => [story.id, story]));
-  if (byId.size !== stories.length) errors.push('track contains a duplicate story ID');
   const phaseRows = Array.isArray(track?.phases) ? track.phases : [];
   const phase = new Map(
     phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id) => [id, item.id]) : [])),
@@ -745,12 +737,11 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
   const authorityRoutes = rootDir
     ? new Set(routeRows(readText('docs/redesign/design/product-guarantee-reconciliation.md')).keys())
     : new Set();
+  const authorityPaths = new Set(rootDir ? normativeCorpusPaths(rootDir) : []);
   const authorityStableIds = new Set(
-    rootDir
-      ? normativeCorpusPaths(rootDir).flatMap(
-          (path) => readText(path).match(/\b(?:[A-Z]{2,}-[A-Z0-9-]+|[DI]\d+|[a-z]+(?:_[a-z]+)+)\b/g) ?? [],
-        )
-      : [],
+    [...authorityPaths].flatMap(
+      (path) => readText(path).match(/\b(?:[A-Z]{2,}-[A-Z0-9-]+|[DI]\d+|[a-z]+(?:_[a-z]+)+)\b/g) ?? [],
+    ),
   );
   for (const story of storyRecords) {
     if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
@@ -830,18 +821,11 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       errors.push(`${story.id} story_file must equal its canonical confined path`);
       continue;
     }
-    if (!exists(story.story_file)) {
-      errors.push(`${story.id} story file is missing`);
-      continue;
-    }
-    if (!isFile(story.story_file)) {
-      errors.push(`${story.id} story_file is not an owned regular file`);
-      continue;
-    }
     for (const path of governingPaths)
       if (!isCanonicalGoverningPath(path))
         errors.push(`${story.id} governing path must be a canonical active authority Markdown path: ${path}`);
-      else if (!isFile(path)) errors.push(`${story.id} has unresolved governing path ${path}`);
+      else if (!authorityPaths.has(path) || !isFile(path))
+        errors.push(`${story.id} has unresolved governing path ${path}`);
     for (const dep of dependencies) {
       if (!byId.has(dep)) errors.push(`${story.id} depends on unknown story ${dep}`);
       else if (dep === story.id || phase.get(dep) > story.phase)
@@ -1035,8 +1019,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       'FC-INPUT FC-AUTHORITY FC-SUBJECT FC-FENCE FC-EVIDENCE FC-MECHANISM FC-EFFECT FC-CAPACITY FC-LIVENESS FC-RULES FC-BOUND FC-TRUST',
     bound_classes:
       'BND-REWORK BND-RETRY BND-REFRESH BND-WAIT-DECISION BND-WAIT-MECHANISM BND-WAIT-CAPACITY BND-WAIT-LEDGER BND-WAIT-TARGET BND-IDLE BND-SILENCE BND-RECOVERY BND-RETIRE',
-    wait_progress_surfaces:
-      'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation',
+    wait_progress_surfaces: WAIT_PROGRESS_SURFACES.join(' '),
     conformance_suites:
       'CF-DETERMINISM CF-ORDERING CF-FENCE CF-BINDING CF-ACCEPTANCE CF-POLICY CF-CAPACITY CF-ORDER CF-RELEASE CF-BLOCKERS CF-CONTAINMENT CF-BOUNDS CF-DOUBLE-EFFECT CF-SEPARATION CF-PRESERVATION CF-TRUST-STOP CF-RULE-SURFACE CF-LIVENESS CF-NOTICE-EXPORT CF-OBSERVABILITY CF-RUN-CONTROL CF-OPERATOR-ACTIONS CF-EVIDENCE-LIFECYCLE CF-SECRET-ABSENCE CF-DELEGATION CF-CONSUMER CF-ENVELOPE CF-PROVIDER-PERMISSION CF-SETUP-FRESHNESS CF-PROVIDER-AUTHORITY CF-BLOCK-SURFACING CF-REVIEW-PUBLICATION CF-MECH-LEDGER CF-MECH-ARTIFACT CF-MECH-SESSION CF-MECH-WORKSPACE CF-MECH-SOURCE CF-MECH-VERIFY CF-MECH-DELIVERY',
   };
@@ -1165,7 +1148,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     if (corpus.length !== 67 || sha(rows) !== APPROVED_NORMATIVE_CORPUS_SHA256)
       errors.push('live 67-file normative corpus SHA-256 manifest does not match');
   }
-  return errors;
+  return [...new Set(errors)];
 }
 export function validateDeliveryTrackPackage(rootDir = process.cwd()) {
   const exists = (path) => existsSync(join(rootDir, path));

@@ -70,6 +70,7 @@ const activeDeliveryPaths = git('ls-files', '--cached', '--others', '--exclude-s
   .split('\n')
   .filter(Boolean)
   .sort();
+const deletedDeliveryPaths = git('ls-files', '--deleted', '--', 'docs/delivery').split('\n').filter(Boolean).sort();
 const expectedDeliveryPaths = [...deliveryAllowlist()].sort();
 if (
   activeDeliveryPaths.length !== expectedDeliveryPaths.length ||
@@ -77,21 +78,33 @@ if (
 ) {
   errors.push('active docs/delivery paths do not match the exact documentation-only allowlist');
 }
+if (deletedDeliveryPaths.length > 0) {
+  errors.push(`active docs/delivery paths are deleted from the working tree: ${deletedDeliveryPaths.join(', ')}`);
+}
 
 const packageManifest = JSON.parse(readFileSync('package.json', 'utf8'));
+const scripts =
+  packageManifest.scripts !== null &&
+  typeof packageManifest.scripts === 'object' &&
+  !Array.isArray(packageManifest.scripts)
+    ? packageManifest.scripts
+    : {};
+if (scripts !== packageManifest.scripts) {
+  errors.push('package.json scripts must be an object record');
+}
 for (const retiredScript of ['build', 'mcp', 'test', 'typecheck', 'boundaries:check']) {
-  if (retiredScript in packageManifest.scripts) {
+  if (retiredScript in scripts) {
     errors.push(`retired implementation script remains active: ${retiredScript}`);
   }
 }
 
 if (
-  packageManifest.scripts['delivery:check'] !==
+  scripts['delivery:check'] !==
   'node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs'
 ) {
   errors.push('delivery:check must run the focused delivery validator tests and CLI validator');
 }
-if (!packageManifest.scripts.check?.includes('pnpm delivery:check')) {
+if (!scripts.check?.includes('pnpm delivery:check')) {
   errors.push('check must include delivery:check');
 }
 

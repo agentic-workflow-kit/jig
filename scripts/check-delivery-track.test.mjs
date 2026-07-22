@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   cpSync,
   lstatSync,
@@ -34,6 +34,7 @@ function markdownFiles(dir) {
 }
 const activeFixturePaths = [
   ...deliveryAllowlist(),
+  '.gitignore',
   'AGENTS.md',
   'README.md',
   'docs/README.md',
@@ -56,6 +57,19 @@ function fixture(run) {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+function gitFixture(run) {
+  return fixture((dir) => {
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '.'], { cwd: dir });
+    return run(dir);
+  });
+}
+function runStructureCheck(dir) {
+  return spawnSync(process.execPath, ['scripts/check-active-repository.mjs'], {
+    cwd: dir,
+    encoding: 'utf8',
+  });
 }
 function edit(dir, mutate) {
   const path = join(dir, 'docs/delivery/greenfield/track.json');
@@ -165,6 +179,25 @@ test('front-matter parser balances quoted delimiters across multiline collection
     );
     assert.deepEqual(validateDeliveryTrackPackage(dir), []);
   });
+});
+test('front-matter parser preserves apostrophes in unquoted collection scalars', () => {
+  fixture((dir) => {
+    edit(dir, (track) => {
+      track.stories.find((story) => story.id === 'GF-001').oracle[0] = "owner's note";
+    });
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('"static dependency checks",', "owner's note,"));
+    assert.deepEqual(validateDeliveryTrackPackage(dir), []);
+  });
+});
+test('front-matter fallback preserves falsy elements for validation', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(
+      p,
+      readFileSync(p, 'utf8').replace('"static dependency checks",', 'static dependency checks,\n    0,'),
+    );
+  }, 'front matter must exactly match all 16 track fields');
 });
 test('front-matter JSON preserves comma-delimiter text inside quoted strings', () =>
   reject((dir) => {
@@ -417,6 +450,28 @@ test('front matter rejects duplicate nested keys in block and inline dependency 
     );
   }, 'duplicates nested front matter field type');
 });
+test('front matter exposes nested prototype keys in block and inline dependency edges', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-020.md');
+    writeFileSync(
+      p,
+      readFileSync(p, 'utf8').replace(
+        '    type: "implementation"\n    split: "semantic-to-provider"',
+        '    type: "implementation"\n    split: "semantic-to-provider"\n    __proto__: "ignored"',
+      ),
+    );
+  }, 'front matter must exactly match all 16 track fields');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/stories/GF-020.md');
+    writeFileSync(
+      p,
+      readFileSync(p, 'utf8').replace(
+        'dependency_edges:\n  - from: "GF-019"\n    type: "implementation"\n    split: "semantic-to-provider"\n  - from: "GF-022"\n    type: "evidence"',
+        'dependency_edges: [{from: GF-019, type: implementation, split: semantic-to-provider, __proto__: ignored}, {from: GF-022, type: evidence}]',
+      ),
+    );
+  }, 'front matter must exactly match all 16 track fields');
+});
 test('track JSON rejects duplicate object keys before JSON parsing normalizes them', () => {
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/track.json');
@@ -428,6 +483,17 @@ test('track JSON rejects duplicate object keys before JSON parsing normalizes th
       ),
     );
   }, 'delivery track has duplicate JSON object key kind');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/track.json');
+    const value = '"current_main_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",';
+    writeFileSync(p, readFileSync(p, 'utf8').replace(value, `${value}\n    ${value}`));
+  }, 'delivery track has duplicate JSON object key current_main_commit');
+});
+test('track JSON rejects inputs above the strict 2 MiB limit', () => {
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/track.json');
+    writeFileSync(p, `${readFileSync(p, 'utf8')}${' '.repeat(2 * 1024 * 1024)}`);
+  }, 'delivery track exceeds the 2 MiB strict-validation limit');
 });
 test('canonical story files reject symlinks before reads', () =>
   fixture((dir) => {
@@ -651,14 +717,78 @@ test('candidate package rejects symlinked parent directories', () =>
     assert.deepEqual(validateDeliveryTrackPackage(dir), [expected]);
     assert.throws(() => candidatePackageManifest(dir), new RegExp(expected));
   }));
-test('delivery allowlist ignores ignored files inside a Git checkout', () =>
-  fixture((dir) => {
-    writeFileSync(join(dir, '.gitignore'), 'docs/delivery/.DS_Store\n');
+test('Git-backed delivery enumeration ignores ignored files and rejects untracked governed files', () =>
+  gitFixture((dir) => {
+    writeFileSync(
+      join(dir, '.gitignore'),
+      `${readFileSync(join(dir, '.gitignore'), 'utf8')}\ndocs/delivery/.DS_Store\n`,
+    );
     writeFileSync(join(dir, 'docs/delivery/.DS_Store'), 'ignored\n');
-    execFileSync('git', ['init', '-q'], { cwd: dir });
-    execFileSync('git', ['add', 'docs/delivery'], { cwd: dir });
     assert.deepEqual(validateDeliveryTrackPackage(dir), []);
+    writeFileSync(join(dir, 'docs/delivery/greenfield/stray.md'), '# stray\n');
+    assert.ok(
+      validateDeliveryTrackPackage(dir).includes('active docs/delivery path set does not match exact allowlist'),
+    );
   }));
+test('Git-backed normative corpus enumeration ignores ignored Markdown remnants', () =>
+  gitFixture((dir) => {
+    writeFileSync(
+      join(dir, '.gitignore'),
+      `${readFileSync(join(dir, '.gitignore'), 'utf8')}\ndocs/product/ignored-remnant.md\n`,
+    );
+    writeFileSync(join(dir, 'docs/product/ignored-remnant.md'), '# ignored\n');
+    assert.deepEqual(validateDeliveryTrackPackage(dir), []);
+    pairStoryField(dir, 'governing_paths', ['docs/product/ignored-remnant.md']);
+    assert.ok(
+      validateDeliveryTrackPackage(dir).includes(
+        'GF-001 has unresolved governing path docs/product/ignored-remnant.md',
+      ),
+    );
+  }));
+test('Git metadata failures fail closed instead of using filesystem fallback', () =>
+  fixture((dir) => {
+    writeFileSync(join(dir, '.git'), 'gitdir: missing\n');
+    assert.deepEqual(validateDeliveryTrackPackage(dir), [
+      'delivery track contains malformed data that could not be validated safely',
+    ]);
+  }));
+test('structure check reports deleted governed paths and malformed package scripts without throwing', () => {
+  gitFixture((dir) => {
+    const deleted = 'docs/delivery/greenfield/stories/GF-001.md';
+    rmSync(join(dir, deleted));
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(`active docs/delivery paths are deleted from the working tree: ${deleted}`));
+    assert.doesNotMatch(result.stderr, /TypeError/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    delete manifest.scripts;
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /package.json scripts must be an object record/);
+    assert.doesNotMatch(result.stderr, /TypeError/);
+  });
+});
+test('malformed shape diagnostics are unique and invalid story roots short-circuit', () => {
+  for (const field of ['dependencies', 'dependency_edges'])
+    fixture((dir) => {
+      edit(dir, (track) => {
+        track.stories.find((story) => story.id === 'GF-020')[field] = null;
+      });
+      const message = `GF-020 ${field} must be an array`;
+      const errors = validateDeliveryTrackPackage(dir);
+      assert.equal(errors.filter((error) => error === message).length, 1, errors.join('\n'));
+    });
+  fixture((dir) => {
+    edit(dir, (track) => {
+      track.stories = {};
+    });
+    assert.deepEqual(validateDeliveryTrackPackage(dir), ['track stories must be an array']);
+  });
+});
 test('phase order places same-phase predecessors before their dependents', () => {
   reject(
     (dir) =>
@@ -1056,6 +1186,14 @@ test('rejects specific story, edge, body, dependency, and local-selector structu
       }),
     'duplicate story ID',
   );
+  fixture((dir) => {
+    edit(dir, (track) => {
+      track.stories.find((story) => story.id === 'GF-002').id = 'GF-999';
+    });
+    const errors = validateDeliveryTrackPackage(dir);
+    assert.ok(errors.includes('track must contain the exact 47 story IDs'));
+    assert.ok(!errors.includes('track contains a duplicate story ID'));
+  });
   reject(
     (dir) =>
       edit(dir, (t) => {
