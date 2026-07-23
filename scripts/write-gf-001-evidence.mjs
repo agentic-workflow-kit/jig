@@ -37,6 +37,70 @@ function digestTree(root, current = root) {
   return hash.digest('hex');
 }
 
+const expectedObservationLabels = new Map([
+  ['cold-isolated-cache', ['cold']],
+  ['warm-local-cache', ['cold', 'warm']],
+  ['affected-selection', ['affected', 'seed']],
+  ['shared-compiler-config-invalidation', ['changed', 'cold', 'warm']],
+  ['uncached-failure-isolation', ['failed']],
+  ['package-script-invalidation', ['changed', 'cold', 'warm']],
+]);
+
+function decodeRawSummary(record) {
+  if (typeof record?.rawSummaryBase64 !== 'string' || typeof record?.rawSummarySha256 !== 'string')
+    throw new Error('GF-001 fixture evidence is missing a raw Turbo summary');
+  const rawSummary = Buffer.from(record.rawSummaryBase64, 'base64').toString('utf8');
+  if (sha256(rawSummary) !== record.rawSummarySha256)
+    throw new Error('GF-001 fixture evidence has a tampered raw Turbo summary');
+  const summary = JSON.parse(rawSummary);
+  if (!Array.isArray(summary.tasks) || summary.tasks.length === 0)
+    throw new Error('GF-001 fixture evidence contains an incomplete raw Turbo summary');
+  return summary;
+}
+
+function getTask(summary, packageName) {
+  const task = summary.tasks.find((entry) => entry.taskId === `@gf-001-fixture/${packageName}#build`);
+  if (
+    !task ||
+    typeof task.hash !== 'string' ||
+    typeof task.cache?.status !== 'string' ||
+    typeof task.execution?.exitCode !== 'number'
+  )
+    throw new Error(`GF-001 fixture evidence lacks complete task data for ${packageName}`);
+  return task;
+}
+
+function requireTaskStatus(summary, packageNames, cacheStatus) {
+  for (const packageName of packageNames) {
+    const task = getTask(summary, packageName);
+    if (task.cache.status !== cacheStatus || task.execution.exitCode !== 0)
+      throw new Error(`GF-001 fixture evidence does not prove ${packageName} ${cacheStatus}`);
+  }
+}
+
+function requireExpectedScenario(name, summaries) {
+  const labels = expectedObservationLabels.get(name);
+  if (!labels || JSON.stringify(Object.keys(summaries).sort()) !== JSON.stringify(labels))
+    throw new Error(`GF-001 fixture evidence has an unexpected or incomplete scenario: ${name}`);
+  const parsed = Object.fromEntries(
+    Object.entries(summaries).map(([label, record]) => [label, decodeRawSummary(record)]),
+  );
+  if (name === 'cold-isolated-cache') requireTaskStatus(parsed.cold, ['pkg-a', 'pkg-b', 'pkg-c'], 'MISS');
+  if (name === 'warm-local-cache') requireTaskStatus(parsed.warm, ['pkg-a', 'pkg-b', 'pkg-c'], 'HIT');
+  if (name === 'affected-selection') {
+    requireTaskStatus(parsed.affected, ['pkg-a', 'pkg-b'], 'MISS');
+    if (parsed.affected.tasks.length !== 2) throw new Error('GF-001 affected selection includes an unrelated task');
+  }
+  if (name === 'shared-compiler-config-invalidation')
+    requireTaskStatus(parsed.changed, ['pkg-a', 'pkg-b', 'pkg-c'], 'MISS');
+  if (name === 'uncached-failure-isolation') {
+    if (getTask(parsed.failed, 'pkg-a').execution.exitCode === 0)
+      throw new Error('GF-001 intended failure did not fail');
+    requireTaskStatus(parsed.failed, ['pkg-c'], 'MISS');
+  }
+  if (name === 'package-script-invalidation') requireTaskStatus(parsed.changed, ['pkg-c'], 'MISS');
+}
+
 function requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, candidate, tree, mergeBase }) {
   if (
     fixtureResults.schemaVersion !== 2 ||
@@ -54,27 +118,22 @@ function requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, candidat
     fixtureEvidence.fixture?.inputTreeSha256 !== digestTree(fixtureRoot) ||
     fixtureEvidence.fixture?.lockfileSha256 !== sha256(readFileSync(join(fixtureRoot, 'pnpm-lock.yaml'))) ||
     !Array.isArray(fixtureEvidence.observations) ||
-    fixtureEvidence.observations.length < 6
+    fixtureEvidence.observations.length !== expectedObservationLabels.size
   )
     throw new Error('GF-001 fixture evidence is stale, incomplete, or not bound to the exact candidate');
-  for (const observation of fixtureEvidence.observations) {
-    if (
-      typeof observation?.name !== 'string' ||
-      !observation.summaries ||
-      Object.values(observation.summaries).some(
-        (tasks) =>
-          !Array.isArray(tasks) ||
-          tasks.some(
-            (task) =>
-              typeof task?.taskId !== 'string' ||
-              typeof task?.hash !== 'string' ||
-              typeof task?.cacheStatus !== 'string' ||
-              typeof task?.exitCode !== 'number',
-          ),
-      )
-    )
-      throw new Error('GF-001 fixture evidence contains an opaque Turbo summary');
-  }
+  const names = fixtureEvidence.observations.map((observation) => observation?.name).sort();
+  if (JSON.stringify(names) !== JSON.stringify([...expectedObservationLabels.keys()].sort()))
+    throw new Error('GF-001 fixture evidence is missing an expected scenario');
+  for (const observation of fixtureEvidence.observations)
+    requireExpectedScenario(observation.name, observation.summaries);
+  const manifest = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
+  const expectedToolchain = {
+    turbo: manifest.devDependencies.turbo,
+    typescript: manifest.devDependencies.typescript,
+    pnpm: manifest.packageManager.replace(/^pnpm@/, ''),
+  };
+  if (JSON.stringify(fixtureEvidence.toolchain) !== JSON.stringify(expectedToolchain))
+    throw new Error('GF-001 fixture evidence does not prove the pinned host toolchain');
 }
 
 export function writeEvidence({ outputPath, fixtureResultsPath, fixtureEvidencePath, requireClean = true } = {}) {
