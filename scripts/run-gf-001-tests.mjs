@@ -1,18 +1,32 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const startedAt = new Date().toISOString();
-const testFiles = readdirSync(join(rootDir, 'tests', 'gf-001'))
-  .filter((name) => name.endsWith('.test.mjs'))
-  .sort()
-  .map((name) => join('tests', 'gf-001', name));
-const command = [process.execPath, '--test', '--test-concurrency=1', ...testFiles];
-const result = spawnSync(command[0], command.slice(1), { cwd: rootDir, encoding: 'utf8' });
-process.stdout.write(result.stdout ?? '');
-process.stderr.write(result.stderr ?? '');
+const fixtureHarness = join('tests', 'gf-001', 'workspace-substrate.test.mjs');
+const evidenceContract = join('tests', 'gf-001', 'evidence.test.mjs');
+
+function runTestFile(testFile) {
+  const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', testFile], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  });
+  process.stdout.write(result.stdout ?? '');
+  process.stderr.write(result.stderr ?? '');
+  return result;
+}
+
+const results = [runTestFile(fixtureHarness)];
+if (results[0].status === 0 && !results[0].error) results.push(runTestFile(evidenceContract));
+const result = {
+  error: results.find((entry) => entry.error)?.error ?? null,
+  signal: results.find((entry) => entry.signal)?.signal ?? null,
+  status: results.find((entry) => entry.status !== 0)?.status ?? 0,
+  stderr: results.map((entry) => entry.stderr ?? '').join(''),
+  stdout: results.map((entry) => entry.stdout ?? '').join(''),
+};
 
 const outputDir = join(rootDir, 'artifacts', 'gf-001');
 mkdirSync(outputDir, { recursive: true });
@@ -21,7 +35,7 @@ const fixtureEvidence = existsSync(fixtureEvidencePath) ? readFileSync(fixtureEv
 const report = {
   schemaVersion: 2,
   subject: 'GF-001',
-  command: 'node --test tests/gf-001',
+  command: 'node --test tests/gf-001/workspace-substrate.test.mjs then evidence.test.mjs',
   startedAt,
   finishedAt: new Date().toISOString(),
   exitCode: result.status ?? 1,
