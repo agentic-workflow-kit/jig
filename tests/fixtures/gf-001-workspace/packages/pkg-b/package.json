@@ -1,0 +1,14 @@
+{
+  "name": "@gf-001-fixture/pkg-b",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@gf-001-fixture/pkg-a": "workspace:*"
+  }
+}

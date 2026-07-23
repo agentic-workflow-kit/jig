@@ -29,6 +29,9 @@ pnpm-debug.log*
 .vitest/
 .cache/
 
+# Versioned CI evidence content is generated from the exact candidate and uploaded by CI.
+artifacts/
+
 # OS and editor files
 .DS_Store
 .idea/
