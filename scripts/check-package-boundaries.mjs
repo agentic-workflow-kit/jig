@@ -156,8 +156,8 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
   const packagesRoot = join(rootDir, 'packages');
   if (existsSync(packagesRoot)) {
     const packageEntries = readdirSync(packagesRoot).sort();
-    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec']))
-      errors.push('GF-002 permits exactly one private pure codec package and no runtime package');
+    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec', 'runtime-contracts']))
+      errors.push('GF-003 permits only the pure codec and private runtime-contracts packages');
     const codecRoot = join(packagesRoot, 'codec');
     const codecFiles = listFiles(codecRoot)
       .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
@@ -193,6 +193,21 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       )
         errors.push('GF-002 codec must not add an effect, provider, filesystem, process, or network dependency');
     }
+  }
+
+  const runtimeRoot = join(rootDir, 'packages', 'runtime-contracts');
+  if (existsSync(runtimeRoot)) {
+    const runtimeManifest = JSON.parse(readFileSync(join(runtimeRoot, 'package.json'), 'utf8'));
+    if (
+      runtimeManifest.name !== '@agentic-workflow-kit/jig-runtime-contracts' ||
+      runtimeManifest.private !== true ||
+      JSON.stringify(runtimeManifest.dependencies) !==
+        JSON.stringify({ '@agentic-workflow-kit/jig-codec': 'workspace:*' }) ||
+      runtimeManifest.bin ||
+      runtimeManifest.publishConfig ||
+      runtimeManifest.scripts?.start
+    )
+      errors.push('GF-003 runtime contracts must remain private, codec-only, and non-runnable');
   }
 
   const fixtureDir = join(rootDir, fixtureRoot);

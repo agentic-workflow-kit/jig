@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.tools.json" }, { "path": "./packages/codec" }]
+  "references": [
+    { "path": "./tsconfig.tools.json" },
+    { "path": "./packages/codec" },
+    { "path": "./packages/runtime-contracts" }
+  ]
 }

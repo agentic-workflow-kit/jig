@@ -51,7 +51,7 @@ test('rejects product source roots and extra runtime packages', () => {
     mkdirSync(join(root, 'packages', 'runtime'), { recursive: true });
     writeFileSync(join(root, 'packages', 'runtime', 'package.json'), '{"name":"runtime"}\n');
   });
-  assert.ok(packageErrors.some((error) => error.includes('exactly one private pure codec')));
+  assert.ok(packageErrors.some((error) => error.includes('pure codec and private runtime-contracts')));
 });
 
 test('rejects codec effects and dependencies', () => {

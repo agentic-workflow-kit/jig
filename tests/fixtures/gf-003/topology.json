@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 2,
+  "topologyVersion": "jig.runtime-topology.v1",
+  "codecVersion": "jig.codec.v1",
+  "units": ["RT-OPERATOR", "RT-CONTROLLER", "RT-LEDGER", "RT-EVIDENCE", "RT-REGISTRY", "RT-WITNESS"],
+  "ports": [
+    "PORT-CONSUMER",
+    "PORT-INTAKE",
+    "PORT-DECIDE",
+    "PORT-SESSION",
+    "PORT-WORKSPACE",
+    "PORT-VERIFY",
+    "PORT-DELIVERY",
+    "PORT-LEDGER",
+    "PORT-ARTIFACT",
+    "PORT-PUBLISH",
+    "PORT-SOURCE"
+  ],
+  "allowedCrossings": [
+    {
+      "port": "PORT-CONSUMER",
+      "source": "X-CONSUMER",
+      "target": "RT-OPERATOR",
+      "owner": "RT-OPERATOR",
+      "direction": "inbound-delegation",
+      "capability": "private-delegation",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-INTAKE",
+      "source": "X-ENVELOPE",
+      "target": "RT-OPERATOR",
+      "owner": "RT-OPERATOR",
+      "direction": "inbound-envelope",
+      "capability": "immutable-envelope-acknowledgement",
+      "lifecycleAuthority": false,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-DECIDE",
+      "source": "P-OWNER",
+      "target": "RT-OPERATOR",
+      "owner": "RT-CONTROLLER",
+      "direction": "inbound-decision",
+      "capability": "authenticated-human-decision",
+      "lifecycleAuthority": false,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-DECIDE",
+      "source": "RT-CONTROLLER",
+      "target": "P-OWNER",
+      "owner": "RT-CONTROLLER",
+      "direction": "outbound-question",
+      "capability": "parked-question",
+      "lifecycleAuthority": true,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-SESSION",
+      "source": "RT-CONTROLLER",
+      "target": "X-MECHANISM",
+      "owner": "RT-CONTROLLER",
+      "direction": "outbound-mechanism",
+      "capability": "bounded-session",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-SESSION",
+      "source": "X-MECHANISM",
+      "target": "RT-CONTROLLER",
+      "owner": "RT-CONTROLLER",
+      "direction": "inbound-attestation",
+      "capability": "attributed-session-result",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-WORKSPACE",
+      "source": "RT-CONTROLLER",
+      "target": "X-MECHANISM",
+      "owner": "RT-CONTROLLER",
+      "direction": "outbound-mechanism",
+      "capability": "scoped-workspace",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-WORKSPACE",
+      "source": "X-MECHANISM",
+      "target": "RT-CONTROLLER",
+      "owner": "RT-CONTROLLER",
+      "direction": "inbound-attestation",
+      "capability": "workspace-fact",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-VERIFY",
+      "source": "RT-CONTROLLER",
+      "target": "X-MECHANISM",
+      "owner": "RT-CONTROLLER",
+      "direction": "outbound-mechanism",
+      "capability": "scoped-verification",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-VERIFY",
+      "source": "X-MECHANISM",
+      "target": "RT-CONTROLLER",
+      "owner": "RT-CONTROLLER",
+      "direction": "inbound-attestation",
+      "capability": "verification-fact",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-DELIVERY",
+      "source": "RT-CONTROLLER",
+      "target": "X-MECHANISM",
+      "owner": "RT-CONTROLLER",
+      "direction": "outbound-mechanism",
+      "capability": "scoped-delivery",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-DELIVERY",
+      "source": "X-MECHANISM",
+      "target": "RT-CONTROLLER",
+      "owner": "RT-CONTROLLER",
+      "direction": "inbound-attestation",
+      "capability": "delivery-fact",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-LEDGER",
+      "source": "RT-OPERATOR",
+      "target": "RT-LEDGER",
+      "owner": "RT-OPERATOR",
+      "direction": "intake-acknowledgement",
+      "capability": "LG-INTAKE acknowledgement-only append or atomic successor acknowledgement-plus-unique-cut-claim",
+      "lifecycleAuthority": false,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-LEDGER",
+      "source": "RT-CONTROLLER",
+      "target": "RT-LEDGER",
+      "owner": "RT-CONTROLLER",
+      "direction": "controller-store",
+      "capability": "conditional-ledger-append-read",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-LEDGER",
+      "source": "RT-CONTROLLER",
+      "target": "RT-REGISTRY",
+      "owner": "RT-CONTROLLER",
+      "direction": "controller-store",
+      "capability": "target-authority-arbitration",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-LEDGER",
+      "source": "RT-CONTROLLER",
+      "target": "RT-WITNESS",
+      "owner": "RT-CONTROLLER",
+      "direction": "controller-store",
+      "capability": "currency-witness-head",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-ARTIFACT",
+      "source": "RT-CONTROLLER",
+      "target": "RT-EVIDENCE",
+      "owner": "RT-CONTROLLER",
+      "direction": "controller-store",
+      "capability": "immutable-artifact-read-write",
+      "lifecycleAuthority": true,
+      "readOnly": false
+    },
+    {
+      "port": "PORT-ARTIFACT",
+      "source": "RT-EVIDENCE",
+      "target": "RT-CONTROLLER",
+      "owner": "RT-CONTROLLER",
+      "direction": "store-fact",
+      "capability": "immutable-artifact-fact",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-PUBLISH",
+      "source": "RT-OPERATOR",
+      "target": "X-CONSUMER",
+      "owner": "RT-OPERATOR",
+      "direction": "outbound-publication",
+      "capability": "read-only-projection",
+      "lifecycleAuthority": false,
+      "readOnly": true
+    },
+    {
+      "port": "PORT-SOURCE",
+      "source": "X-ENVELOPE",
+      "target": "X-WORK-SOURCE",
+      "owner": "X-ENVELOPE",
+      "direction": "external-builder-source",
+      "capability": "candidate-work-proposal",
+      "lifecycleAuthority": false,
+      "readOnly": false
+    }
+  ],
+  "deniedEdges": [
+    "builder-to-controller",
+    "consumer-to-controller",
+    "port-to-port-bypass",
+    "provider-import",
+    "store-decision",
+    "unknown-port"
+  ]
+}
