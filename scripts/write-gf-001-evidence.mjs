@@ -101,7 +101,7 @@ function requireExpectedScenario(name, summaries) {
   if (name === 'package-script-invalidation') requireTaskStatus(parsed.changed, ['pkg-c'], 'MISS');
 }
 
-function requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, candidate, tree, mergeBase }) {
+function requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, base, baseTree, candidate, tree, mergeBase }) {
   if (
     fixtureResults.schemaVersion !== 2 ||
     fixtureResults.subject !== 'GF-001' ||
@@ -114,6 +114,8 @@ function requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, candidat
     fixtureEvidence.subject !== 'GF-001' ||
     fixtureEvidence.candidate?.commit !== candidate ||
     fixtureEvidence.candidate?.tree !== tree ||
+    fixtureEvidence.base?.commit !== base ||
+    fixtureEvidence.base?.tree !== baseTree ||
     fixtureEvidence.base?.mergeBase !== mergeBase ||
     fixtureEvidence.fixture?.inputTreeSha256 !== digestTree(fixtureRoot) ||
     fixtureEvidence.fixture?.lockfileSha256 !== sha256(readFileSync(join(fixtureRoot, 'pnpm-lock.yaml'))) ||
@@ -145,6 +147,7 @@ export function writeEvidence({ outputPath, fixtureResultsPath, fixtureEvidenceP
     throw new Error('GF-001 fixture evidence is missing; run pnpm test before writing evidence');
   const fixtureResults = JSON.parse(readFileSync(resultsPath, 'utf8'));
   const base = git('rev-parse', 'origin/main');
+  const baseTree = git('rev-parse', 'origin/main^{tree}');
   const candidate = git('rev-parse', 'HEAD');
   const tree = git('rev-parse', 'HEAD^{tree}');
   const mergeBase = git('merge-base', 'HEAD', 'origin/main');
@@ -152,7 +155,7 @@ export function writeEvidence({ outputPath, fixtureResultsPath, fixtureEvidenceP
     throw new Error('GF-001 evidence must be written from a clean candidate checkout');
   const fixtureEvidenceText = readFileSync(evidencePath, 'utf8');
   const fixtureEvidence = JSON.parse(fixtureEvidenceText);
-  requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, candidate, tree, mergeBase });
+  requireExactFixtureEvidence({ fixtureEvidence, fixtureResults, base, baseTree, candidate, tree, mergeBase });
   if (fixtureResults.fixtureEvidenceSha256 !== sha256(fixtureEvidenceText))
     throw new Error('GF-001 fixture result hash does not match the retained fixture evidence');
   const evidence = {
@@ -163,7 +166,7 @@ export function writeEvidence({ outputPath, fixtureResultsPath, fixtureEvidenceP
     base: {
       ref: 'origin/main',
       commit: base,
-      tree: git('rev-parse', 'origin/main^{tree}'),
+      tree: baseTree,
       mergeBase,
     },
     toolchain: {

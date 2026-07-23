@@ -50,6 +50,10 @@ test('GF-001 evidence rejects tampered captured Turbo proof', () => {
     staleCandidate.candidate.commit = '0'.repeat(40);
     expectRejected(tempDir, staleCandidate);
 
+    const staleBase = structuredClone(captured);
+    staleBase.base.commit = '0'.repeat(40);
+    expectRejected(tempDir, staleBase);
+
     const staleRawSummaryHash = structuredClone(captured);
     staleRawSummaryHash.observations.find(
       (observation) => observation.name === 'warm-local-cache',

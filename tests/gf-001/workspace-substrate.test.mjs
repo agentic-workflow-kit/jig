@@ -66,7 +66,11 @@ process.on('exit', (exitCode) => {
     schemaVersion: 1,
     subject: 'GF-001',
     candidate: { commit: testStart.candidate, tree: testStart.tree },
-    base: { commit: base, mergeBase: git('merge-base', 'HEAD', 'origin/main') },
+    base: {
+      commit: base,
+      tree: git('rev-parse', 'origin/main^{tree}'),
+      mergeBase: git('merge-base', 'HEAD', 'origin/main'),
+    },
     fixture: {
       inputTreeSha256: sourceDigest,
       lockfileSha256: createHash('sha256')
