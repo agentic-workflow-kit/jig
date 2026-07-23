@@ -29,14 +29,14 @@ and review obligation explicit before code begins.
 ## What and why
 
 This package is a delivery map, not a replacement architecture. It includes the machine-readable
-exact-set manifest and all 47 full story briefs, alongside the authority order, exact baseline,
+exact-set manifest and all 48 full story briefs, alongside the authority order, exact baseline,
 phase gates, research boundaries, and independent review procedure needed to plan or review a later
 implementation candidate. That separation keeps the new generation greenfield and prevents
 archived behavior from silently becoming the design.
 
 ## Scope and non-goals
 
-In scope: the machine manifest, seven-phase overview, 47 full story briefs, dependency/coverage/
+In scope: the machine manifest, seven-phase overview, 48 full story briefs, dependency/coverage/
 verification records, delegated-choice schedule, risk/owner-decision register, mandatory contract,
 delivery policy, baseline/finding register, research ledger, and reviewer packet. Out of scope:
 product code, product package manifests/scaffolding, changing product/redesign documents, choosing
@@ -94,7 +94,7 @@ product gate.
 The local delivery validator proves governing-source projection, package consistency, and corpus
 integrity only; it does not semantically approve plan-authored outcomes or prose. An independent
 reviewer, outside the candidate, records the immutable candidate commit/tree and computed unpinned
-70-path package digest. Do not copy an expected candidate/package digest into `track.json`, validator
+71-path package digest. Do not copy an expected candidate/package digest into `track.json`, validator
 constants, fixtures, or candidate-authored review prose. Any byte change invalidates that external
 tuple and requires fresh full review. The pre-existing 67-file normative digest remains corpus-drift
 evidence only, not a candidate approval digest.

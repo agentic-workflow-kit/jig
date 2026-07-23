@@ -10,7 +10,7 @@
 
 The approved product and redesign documents passed the final empty-repository implementation-
 readiness gate on 2026-07-18. The active repository intentionally contains no product source. Its
-documentation-only [greenfield delivery track](docs/delivery/README.md) now records 47 stories,
+documentation-only [greenfield delivery track](docs/delivery/README.md) now records 48 stories,
 seven phase gates, fixed inventories, and review contract needed for a later owner-authorized
 implementation phase.
 

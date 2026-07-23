@@ -25,7 +25,7 @@ title: "<bounded outcome>"
 phase: <0-6 integer>
 size: "S | M | L"
 status: "proposed"
-baseline_commit: "<exact 40-hex selected baseline commit>"
+baseline_commit: "<exact 40-hex immutable planning/authority provenance commit>"
 story_file: "docs/delivery/greenfield/stories/GF-NNN.md"
 governing_paths: ["docs/redesign/design/<exact-path>.md"]
 stable_ids: ["<literal track.json stable ID>"]
@@ -57,11 +57,41 @@ invent an ID absent from the governing source and manifest.
 
 ## Dependencies plus start evidence
 
-Name every predecessor and the exact merged commit/evidence needed to start. Prove the selected
-baseline, package/runtime boundary, prerequisite gate, required owner decision, and any provider
-qualification are current. A dependency is not satisfied by an unreviewed branch or an assertion.
+Name every predecessor and the exact merged commit/evidence needed to start. `baseline_commit` is
+immutable planning/authority provenance, not a rolling implementation base. Prove the approved
+original delivery-package tuple `P` (reviewed commit/tree, exact package path set with per-path
+bytes/type/mode, aggregate digest, and independent `PASS`) being executed; any required external
+authoritative landing-equivalence record; the current implementation candidate base; package/runtime boundary; prerequisite gate;
+required owner decision; and any provider qualification. A dependency is not satisfied by an
+unreviewed branch or an assertion.
 `dependencies` and `dependency_edges` must exactly match the manifest, including edge type and
 `semantic-to-provider` split where present.
+
+## Implementation candidate tuple and review binding
+
+For each implementation attempt, record an external, immutable tuple: story ID; the approved
+original delivery-package tuple `P` (reviewed commit/tree, exact package path set with per-path
+bytes/type/mode, aggregate digest, and independent `PASS`); any required external authoritative
+landing-equivalence record; the exact external owner-ratification/activation record (authenticated owner or
+explicitly named delegated principal with independently verifiable delegation and current validity,
+durable record ID/URL, immutable planning/authority provenance, activation target scope, selected
+realization tuple, and expiry/revocation); observed target base ref; the ref's resolved base commit and tree; candidate
+commit and tree; proof that `merge-base(candidate, base) == base`; and target-content proof that
+every required predecessor landing is contained in that base. Record a current path-by-path
+comparison of the candidate's 67 normative authority files against immutable authority provenance,
+the exact owned source/config/test/evidence path set, applicable `DR-*` choices, available
+pre-review evidence/check digests, and selected final-verification posture. The tuple is dynamic
+per story and is never written back into this planning
+package merely because a predecessor merges.
+
+If the target ref moves, or the candidate is rebased, refreshed, or otherwise changes, resolve the
+new base commit/tree, re-prove merge-base equality and predecessor containment, regenerate the
+current normative-corpus comparison and affected evidence, and bind a new independent
+implementation-candidate review. A changed delivery-package tuple first requires a new package
+`PASS`, then a new implementation tuple. Under D15, a recorded transition into `Reviewing` may
+authorize only fenced `OPC-REV-*` draft/non-mergeable review publication for the frozen subject
+before independent review or acceptance. It grants no acceptance, finalization, landing, or
+dependency-release power; hosted CI may occur before review.
 
 ## In-scope and non-goals
 
@@ -116,10 +146,16 @@ metadata, and required repository/CI checks. State why omitted categories cannot
 
 ## Exact acceptance
 
-State the reviewer principal and independence, complete exact Candidate package (content digest,
-target basis, evidence and delivery metadata), required findings state, selected final-verification
-posture, acceptance transition, and the separate authoritative landing proof. Partial,
-self-authored, stale, or differently bound verdicts fail closed. Approval is not landing.
+State the reviewer principal and independence, the applicable review protocol, complete exact
+candidate tuple (including approved delivery-package `PASS` binding, target basis, merge-base
+equality, predecessor-containment proof, current normative-corpus comparison, owned paths,
+evidence, delivery metadata, original `P`, and any required authoritative landing-equivalence record), required findings state, selected final-verification posture and
+its applicable exact-candidate checks/evidence, acceptance transition, and the separate
+authoritative landing proof. If the selected posture runs verification after `Accepted`, record its
+successful check before finalization or landing. Use the delivery-package
+protocol only for a delivery-package subject; use the implementation-candidate protocol for
+story-owned source, configuration, tests, and evidence. Partial, self-authored, stale, or
+differently bound verdicts fail closed. Approval is not landing.
 
 ## DR choices
 
@@ -137,7 +173,22 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 
 ## Definition of Ready
 
-- Dependencies are merged on the selected current baseline with exact evidence.
+- The exact external owner-ratification/activation record is recorded: authenticated owner or
+  explicitly named delegated principal with independently verifiable delegation and current
+  validity; durable record ID/URL; original approved delivery-package tuple `P`, any required
+  authoritative landing-equivalence record, and immutable planning/authority provenance; activation target scope;
+  selected realization tuple; and expiry/revocation. A generic
+  authorization, planning `PASS`, reviewer verdict, branch, or PR cannot substitute for it.
+- Dependencies are landed in the observed implementation base with exact target-content proof.
+- Original delivery-package tuple `P` and any required authoritative landing-equivalence record are recorded
+  outside this planning package. A different squash OID never means that landed commit was
+  reviewed; it is usable only through the authoritative equivalence proof defined in the delivery
+  policy.
+- The observed implementation base ref and its resolved base commit/tree, predecessor containment,
+  planned owned paths, and applicable `DR-*` choices are recorded outside this planning package.
+- A current comparison of the 67 normative authority files against immutable authority provenance is
+  recorded; it must be clean before implementation starts.
+- Candidate commit/tree are intentionally absent until post-implementation candidate freeze.
 - Governing paths, stable IDs, ports, principals, authority, durable facts, failures, and oracles
   are named.
 - Applicable `DR-*` choice is recorded with owner, constraints, evidence, and fallback.
@@ -153,8 +204,11 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 - No uncertain effect was blindly retried; reconciliation and recovery use durable facts.
 - Required unit, contract, adversarial, replay, crash, provider, and E2E proof plus `CF-*` catalog
   updates pass on the exact candidate.
-- Exact-subject evidence, `git diff --check`, required repository checks, CI, and independent
-  exact-candidate review pass; no partial provider becomes configurable.
+- Exact-subject evidence, `git diff --check`, required repository checks, selected
+  final-verification posture (including applicable hosted CI), and independent
+  implementation-candidate review pass on the same candidate before finalization or landing; its
+  merge-base equality, approved package `PASS` binding, and normative-corpus comparison are
+  current; no partial provider becomes configurable.
 ```
 
 ## Universal fail-closed rules

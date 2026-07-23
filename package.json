@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig product and architecture corpus awaiting a greenfield implementation track.",
+  "description": "Jig active documentation-only greenfield delivery track; implementation is not yet authorized.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",

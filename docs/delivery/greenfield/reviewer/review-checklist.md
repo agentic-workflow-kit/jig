@@ -1,127 +1,152 @@
 ---
 title: "Jig greenfield delivery — independent review checklist"
-purpose: "Make PASS and finding criteria repeatable for a frozen greenfield candidate."
+purpose: "Make PASS and finding criteria repeatable for a frozen delivery-package or implementation-candidate subject."
 audience:
   - independent reviewers
 status: mandatory review checklist
 owner: Arye Kogan
-last_verified: 2026-07-22
+last_verified: 2026-07-23
 ---
 
 # Independent review checklist
 
-Use this against the frozen tuple defined in the [reviewer packet](./README.md). Mark each item
-`PASS`, `FINDING`, or `N/A with evidence`; `N/A` never means “not yet considered.”
+Select either the delivery-package or implementation-candidate protocol in the
+[reviewer packet](./README.md). Mark each applicable item `PASS`, `FINDING`, or `N/A with
+evidence`; `N/A` never means “not yet considered.” Do not impose package-corpus checks on a
+story implementation candidate.
 
-## Subject and authority
+## A. Delivery-package review
 
-- [ ] Candidate commit, tree, merge base, path set, content/evidence digests, and environment are
-      recorded and resolve exactly.
-- [ ] The independent reviewer computes and records the unpinned 70-path package digest outside the
-      candidate; no expected candidate/package digest is copied into `track.json`, validator
-      constants, fixtures, or candidate-authored review prose.
+Use this section only when reviewing the delivery package itself.
+
+### Subject and authority
+
+- [ ] Immutable package tuple `P` is recorded: reviewed commit/tree, exact package-only path set,
+      each path's bytes/type/mode, aggregate digest, `PASS`, content/evidence digests, and
+      environment; all resolve exactly.
+- [ ] The independent reviewer computes and records the unpinned digest of the exact package path
+      set outside the candidate; no expected package digest is copied into `track.json`, validator
+      constants, fixtures, or candidate-authored review prose. A different squash OID requires an
+      external authoritative landing-equivalence record binding `P` to target ref and landed
+      commit/tree and proving full-tree equality or complete package-path byte/type/mode equality
+      reproducing `P`'s digest; it does not make that landed commit reviewed.
 - [ ] The checkout and review scope are clean; no unrecorded path, generated residue, or moving
       branch changes the frozen subject.
 - [ ] The live 67-file normative path set and aggregate SHA-256 manifest match the passed subject
       and current byte-identical corpus, rather than a copied baseline assertion. This is
       corpus-drift evidence only, not a candidate approval digest.
-- [ ] The story contract is complete, internally consistent, and bounded to one cohesive semantic
-      and authority subject.
-- [ ] Every brief front matter exactly matches its 16 `track.json` fields; all stable IDs,
-      `PC-*` routes, and imported commitments are literal, locally explained, and neither wildcard
-      nor invented.
+- [ ] Every brief front matter exactly matches its manifest fields; all stable IDs, `PC-*` routes,
+      and imported commitments are literal, locally explained, and neither wildcard nor invented.
 - [ ] Product outcome/why and every governing design path/stable ID are traceable; no archive or
       non-governing research selected behavior.
-- [ ] Dependencies and phase gate evidence are current, merged, and exact-subject-bound.
 - [ ] Every `DR-*` selection has owner, constraints, evidence, fallback, and no material invention.
 
-## Exact planning closure
+### Exact planning closure
 
-- [ ] The manifest has exactly 47 IDs in seven phases; the phase-2 topological sequence is
-      GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, GF-024. After GF-022 and their own
-      prerequisites, GF-020, GF-025, and GF-026 may proceed in parallel.
-- [ ] Every DAG edge is topological and the declared critical path is the real longest path over
-      live dependency edges, not a plausible-looking hand-drawn route.
-- [ ] All 44 proof-route texts exactly match the product-guarantee reconciliation table in both
-      directions: route-to-carrier/proof and carrier/proof-to-route.
-- [ ] All 56 imported commitments and every fixed inventory have the required forward and reverse
-      story occurrence; no inventory uses a wildcard or invented ID.
-- [ ] The exact 12 failure classes and 22 identities appear only as their cataloged literals.
-
-## Authority, data, and security
-
-- [ ] Runtime units, ports, inputs, outputs, identities, durable facts, trust roots, and writer
-      authority are explicit and conform to the design.
-- [ ] No worker, reviewer, provider, projection, consumer, or evidence item gains lifecycle,
-      acceptance, finalization, landing, or configuration authority it does not own.
+- [ ] The manifest's exact story set, phases, dependencies, and declared critical path match the
+      live DAG; all edges are topological and the critical path is the actual longest path.
+- [ ] Every proof-route, import, and fixed inventory has the required forward and reverse occurrence;
+      exact failure-class and identity catalogs use their literal defined values only.
 - [ ] I13/I14 preserve only `Landed` dependency release and separate business outcome from
-      retirement; a pre-Run rejected acknowledgement is not a Story `NotRun`, `Rejected`, or
-      `Stopped` selector.
-- [ ] Boundary validation rejects malformed, unknown, stale, ambiguous, oversized, duplicate, and
-      cross-scope input as applicable; evidence never confers authority.
-- [ ] Credentials are in-memory named references only; logs, records, exports, fixtures, and review
-      material are redacted and hostile-input limits are tested.
-- [ ] A real adapter/provider is unreachable and unconfigurable until exact current qualification
-      evidence admits its manifest; fallback does not widen authority.
-
-## Lifecycle, effects, and recovery
-
-- [ ] Success, terminal/non-delivery outcomes, durable transitions, and dependency-release rules are
-      observable and distinguish acceptance, landing, business outcome, and retirement.
-- [ ] Intent is durable before dispatch; every effect has a stable identity, fence, result
-      validation, and deterministic reconciliation route.
-- [ ] No uncertain effect is blindly retried. Same-effect retry requires confirmed absence and
-      recorded reauthorization; otherwise the candidate parks/preserves/escalates.
-- [ ] All applicable `FC-*`, `BND-*`, timeout, retry, recovery, resume, settlement, cleanup, and
-      residual-obligation outcomes are finite, typed, and tested from durable facts.
-- [ ] Timers only wake work; they do not decide state. Cleanup preserves uncertain resources and
-      cannot alter outcome or release dependents.
-- [ ] Refresh retains the authorized holder only under its valid fence, mints a new `ID-CAND`,
-      returns the changed candidate to full review, and atomically rebinds the target basis.
+      retirement; pre-Run rejected acknowledgement remains separate from Story terminal selectors.
+- [ ] Refresh retains authority only under its valid fence, mints a new `ID-CAND`, returns the
+      changed candidate to full review, and atomically rebinds the target basis.
 - [ ] Remote `PORT-DELIVERY` and local `PORT-VERIFY` remain separate authority/mechanism seams.
 
-## Evidence and acceptance
+### Authority, evidence, and containment
 
-- [ ] Required unit/schema, contract, negative-authority, adversarial, replay, permutation/crash,
-      fault, provider, and E2E evidence is present or validly inapplicable.
-- [ ] Applicable `CF-*` suites/catalog entries, source/fixture identities, check results, build,
-      manifest, environment, and probe digests bind to the exact candidate.
-- [ ] Each mandatory split is closed: GF-019→020 source, GF-010→025 ledger/registry/witness,
-      GF-013→026 artifact, GF-033→039 workspace, and GF-042→047 verifier. Each provider is
-      unreachable until its exact gate; GF-025/GF-026 establish qualified local file-store closure.
-- [ ] `DR-*` owners exactly match the delegation register; Arye approval is separately evidenced
-      and never inferred from an engineering or configuration selection.
-- [ ] `CF-GATE-PRODUCT` contains exactly 39 recorded suite results plus every named
-      element/governance record of all 44 settled `PC-*` proof routes—no import or provider gate
-      is added as a product-gate input.
-- [ ] The broader supported-profile coverage claim separately passes the 56-import
-      matrix-plus-suite disposition audit; provider/profile evidence supports admission only.
-- [ ] The acceptance package is complete: independent reviewer identity/authority, exact Candidate,
-      complete evidence/delivery metadata, findings state, and selected verification posture.
-- [ ] Acceptance is not represented as landing; only authoritative target-content proof releases
-      dependencies where the story reaches finalization.
+- [ ] Runtime units, ports, inputs, outputs, identities, durable facts, trust roots, and writer
+      authority are explicit and conform to design; evidence never confers authority.
+- [ ] Every mandatory semantic-to-provider split is closed; a real provider remains unreachable and
+      unconfigurable until its exact current qualification evidence admits its manifest.
+- [ ] Required `CF-*` gates, product proof routes, imported-commitment disposition, reviewer
+      identity/independence, and acceptance metadata are complete and exact-subject-bound.
+- [ ] Changed paths match the package allowlist; no product source, product package scaffolding, or
+      unrelated configuration is included.
+- [ ] Adversarial validator tests cover malformed manifest/front matter, IDs, dependencies/cycles,
+      stale mappings, split closure, and changed delegated-choice constraints. A stale result is
+      reported, not weakened.
 
-## Verdict record
+### Delivery-package verdict record
 
-Record: candidate tuple; reviewer identity/independence; paths and IDs reviewed; all checks and
-evidence; phase-gate status; verdict; and findings. Each finding states `F-NNN`, severity,
-governing path/ID, exact evidence, affected observable behavior, required correction/result, and
-whether re-review must cover the full candidate or a named subset.
+Record: protocol; original `P` (reviewed package commit/tree, package path set with per-path
+bytes/type/mode, aggregate digest, and `PASS`); any required authoritative landing-equivalence
+record; reviewer identity/independence; paths and IDs reviewed; checks/evidence; verdict; and
+findings. Each finding
+states `F-NNN`, severity, governing path/ID, exact evidence, affected observable behavior, required
+correction/result, and re-review scope.
 
-## Track containment and adversarial validation
+## B. Implementation-candidate review
 
-- [ ] The changed paths match the exact `docs/delivery/` allowlist for this documentation package;
-      no product source, product package scaffolding, or unrelated configuration is included.
-- [ ] Archive material, ignored remnants, and comparative research were not used as governing
-      input; any permitted story-scoped archive lookup is explicitly recorded as provenance only.
-- [ ] Adversarial validator tests cover malformed manifest/front matter, missing/duplicate IDs,
-      unknown dependencies/cycles, stale route/import/inventory mappings, absent split closure, and
-      changed delegated-choice constraints. A stale validator result is reported, not weakened.
-- [ ] The validator is used only for governing-source projection, package consistency, and corpus
-      integrity. It does not semantically approve plan-authored outcomes/prose; any byte change
-      invalidates the external tuple and requires fresh full independent review.
+Use this section only for one implementation attempt of one `GF-*` story whose exact external
+owner-ratification/activation record is verified.
+It permits the bounded story-owned source, configuration, test, and evidence paths. It does not
+require a fresh package-digest computation, full delivery-corpus review, delivery-package path
+allowlist, or a full package closure review.
 
-Return `PASS` only when no blocking finding remains on the exact frozen subject. Return
+### Subject, base, and authorization
+
+- [ ] The exact external owner-ratification/activation record is recorded and independently
+      verified: authenticated owner or explicitly named delegated principal, independently
+      verifiable delegation/current validity, durable record ID/URL, original package tuple `P`,
+      any required authoritative landing-equivalence record, immutable planning/authority provenance, activation
+      target scope, realization tuple, and
+      expiry/revocation. Generic authorization cannot pass. The observed target base ref, resolved
+      base commit/tree, candidate commit/tree, clean scope, and owned path set also resolve exactly;
+      planning provenance is not the presumed execution base.
+- [ ] Original package tuple `P` is recorded and resolves exactly. Where a squash-produced landed
+      OID differs, the authoritative landing-equivalence record binds `P` to target ref and landed
+      commit/tree and proves full-tree equality or complete package-path byte/type/mode equality
+      reproducing `P`'s digest. Add/remove/rename/mode/byte drift, or missing/ambiguous evidence,
+      requires a new tuple and `PASS`; the landed commit is not itself treated as reviewed.
+- [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content evidence proves
+      every required predecessor landing is contained in that base; an unreviewed branch does not
+      satisfy a dependency.
+- [ ] A current path-by-path comparison shows the candidate's 67 normative authority files match
+      immutable authority provenance; its recorded result binds to this candidate tuple.
+- [ ] The changed paths are limited to the contract's bounded story ownership and may include
+      product source/configuration. No unrelated authority, behavior, or configuration is smuggled
+      into the candidate.
+- [ ] A target-ref move, refresh, rebase, source/configuration/evidence change, or candidate change
+      has produced a new tuple with refreshed merge-base/containment proof, normative-corpus
+      comparison, affected evidence, CI, and review. A changed package tuple `P`, or missing,
+      ambiguous, or drifting authoritative landing-equivalence evidence, has its own new independent package
+      `PASS` before implementation review.
+
+### Governing behavior and evidence
+
+- [ ] The story contract is complete and traces the implemented outcome, authority, IDs, inputs,
+      durable facts, failure/recovery behavior, provider reachability, and applicable `DR-*` bounds
+      to active product/design authority.
+- [ ] Required unit/schema, contract, negative-authority, adversarial, replay, crash/fault,
+      timeout/reconciliation, provider, and E2E evidence is present or validly inapplicable and
+      binds to the same base/candidate tuple.
+- [ ] No boundary, provider, reviewer, evidence, timer, retry, cleanup, acceptance, landing, or
+      dependency-release rule widens authority or violates the story's fail-closed contract.
+- [ ] The selected final-verification posture binds to the immutable candidate. Pre-review hosted
+      CI may be present, but review does not wait for verification selected to run after `Accepted`;
+      that applicable check/evidence passes before finalization or landing. Publication used only
+      D15's recorded `Reviewing` transition and fenced `OPC-REV-*` draft/non-mergeable review
+      publication, never approval or a substitute owner-ratification/activation record.
+- [ ] The reviewer is independent; findings, acceptance metadata, and final-verification posture
+      bind exactly to this tuple. No partial, stale, or differently based verdict is accepted.
+
+### Implementation-candidate verdict record
+
+Record: protocol; story ID; exact external owner-ratification/activation record (authenticated
+owner or explicitly named delegated principal, independently verifiable delegation/current
+validity, durable record ID/URL, original package tuple `P`, any required authoritative landing-equivalence
+record, immutable provenance, activation target scope, realization tuple, and expiry/revocation);
+base ref/commit/tree; candidate commit/tree; merge-base equality and
+predecessor-containment proof; current normative-corpus comparison; owned paths; selected
+final-verification posture and checks/CI/evidence digests; reviewer identity/independence; verdict;
+and findings. Do not require a fresh package-path-set digest computation for this protocol.
+
+## Verdict rule
+
+Return `PASS` only when no blocking finding remains on the selected exact frozen subject. Return
 `CHANGES_REQUIRED` for correctable defects. Return `OWNER_DECISION_REQUIRED` and stop when the
 needed correction changes product intent, architecture, authority, guarantee, accepted cost, or
-deliberate deferral beyond a recorded delegation.
+deliberate deferral beyond a recorded delegation. A `PASS` neither authorizes a future base refresh
+nor substitutes for the exact external owner-ratification/activation record, applicable exact-
+candidate CI/evidence, approval, landing, finalization, or dependency release.

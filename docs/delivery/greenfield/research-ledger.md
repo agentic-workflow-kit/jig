@@ -24,17 +24,22 @@ remnants into a planning source.
 | `main` at `d124ea5`   | task/config/CI, driver registry, run journal/runner/completion gate, config schema/version                                                     | narrow driver-factory, journaling, schema/version discipline                                                                                                                     | tracker, PR, completion, lifecycle, and config behavior; Changesets/OIDC until public distribution is promised |
 | `v-next` at `716db2e` | pnpm/Turbo/TS/Vitest/dependency-cruiser tooling; package/SDK/testkit/provider contracts; reducer/replay/storage/leases; deferred provider docs | private SDK/provider/testkit separation, task graph/TS refs, pure reducer, dependency guards, hermetic/adversarial testkit, record/replay/fencing/typed failures through Jig IDs | exact lifecycle/events/durability/methods/package count and deferred provider behavior                         |
 
-## Owner-recorded initial realization selections
+## Inactive proposed realization posture
 
-The owner-approved planning source selects a private TypeScript/Node/pnpm/Turbo topology, strict
-JSON initially, D11 file stores with a genuinely independent witness trust root, and an initial
-qualified provider set of file source/storage, local Git host, local verify, Codex, and GitHub. The
-DR-12 terminal/file notice route is a presentation channel rather than a port provider. The final
-supported profile includes both a private CLI and private MCP. These are bounded realization
-selections, not a public-product expansion.
+This ledger proposes a private TypeScript/Node/pnpm/Turbo topology, strict JSON initially, D11 file
+stores with a genuinely independent witness trust root, and an initial provider set of file
+source/storage, local Git host, local verify, Codex, and GitHub. It proposes the DR-12
+terminal/file notice route as a presentation channel rather than a port provider, and a supported
+profile with both a private CLI and private MCP. These are inactive, bounded realization proposals,
+not a public-product expansion or an owner-approved planning source.
 
-Before implementation, pin CI actions immutably and place the selection/evidence/fallback in the
-applicable story contract. Unsupported GitHub modes and Codex postures remain unconfigurable.
+No proposal is selectable or implementable until an external owner activates it through the exact
+ratification/activation record in the [delegated-choice schedule](./decisions.md#external-owner-ratification-and-activation-prerequisite).
+If activation is not recorded, the applicable realization remains unavailable.
+
+After external owner activation, pin CI actions immutably and place the selected
+realization/evidence/fallback in the applicable story contract. Unsupported GitHub modes and Codex
+postures remain unconfigurable.
 
 ## Provenance rule
 

@@ -10,7 +10,7 @@ inherits the repository [`AGENTS.md`](../../AGENTS.md).
    guarantees, authority, lifecycle, and proof obligations must be realized.
 3. The final [readiness gate](../archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md)
    establishes the locked design baseline and the archive manifest is recovery-only provenance.
-4. [`greenfield/track.json`](./greenfield/track.json) is the exact-set planning source for the 47
+4. [`greenfield/track.json`](./greenfield/track.json) is the exact-set planning source for the 48
    story IDs, phases, dependencies, gates, and machine-readable planning facts. It faithfully
    encodes this track; it cannot override the product or design authority above it.
 5. This directory decomposes those governing contracts into reviewable delivery stories. It does
@@ -24,8 +24,9 @@ records the lookup as non-governing provenance.
 ## Working rules
 
 - Start every implementation story from the mandatory [story contract](./greenfield/story-contract.md).
-- Keep the selected exact baseline and every reviewed candidate distinct. A passing baseline is not
-  evidence that a later candidate passed review.
+- Keep immutable planning/authority provenance, the approved delivery-package tuple, each observed
+  per-story execution base, and every reviewed implementation candidate distinct. A passing
+  package or earlier base is not evidence that a later candidate passed review.
 - A provider, adapter, or effect path is unavailable until its named qualification evidence passes;
   configuration must not expose an unqualified path.
 - Fail closed on malformed, stale, missing, ambiguous, or unverifiable inputs and evidence. Never

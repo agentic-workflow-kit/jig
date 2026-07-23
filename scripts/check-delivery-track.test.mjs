@@ -110,7 +110,7 @@ function malformed(mutate, expected) {
   });
 }
 
-test('valid final 47-story package passes', () =>
+test('valid final 48-story package passes', () =>
   fixture((dir) => assert.deepEqual(validateDeliveryTrackPackage(dir), [])));
 test('front-matter parser rejects empty inline elements and noncanonical keys', () => {
   reject((dir) => {
@@ -700,12 +700,43 @@ test('governing paths require canonical owned authority Markdown files', () => {
     writeFileSync(
       story,
       readFileSync(story, 'utf8').replace(
-        /governing_paths:\n(?: {2}- .*\n)+/,
+        /governing_paths:\n[\s\S]*?(?=stable_ids:)/,
         `governing_paths: [${JSON.stringify(path)}]\n`,
       ),
     );
   }, 'GF-001 has unresolved governing path docs/product/external/escape.md');
 });
+test('governing paths must be the story-specific authorities that map its claims', () =>
+  reject((dir) => {
+    const path = 'docs/redesign/design/invariants.md';
+    edit(dir, (track) => {
+      track.stories.find((story) => story.id === 'GF-001').governing_paths = [path];
+    });
+    const story = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(
+      story,
+      readFileSync(story, 'utf8')
+        .replace(/governing_paths:\n[\s\S]*?(?=stable_ids:)/, `governing_paths: [${JSON.stringify(path)}]\n`)
+        .replace(
+          /\[`runtime\.md`\]\([^)]*\)|\[D10\]\([^)]*\)|\[`architecture-conformance\.md`\]\([^)]*\)/g,
+          '[`invariants.md`](../../../redesign/design/invariants.md)',
+        ),
+    );
+  }, 'GF-001 governing paths must explicitly map every claimed stable ID, product route, and import'));
+test('inventory coverage cannot be the sole governing-path authority connection', () =>
+  reject((dir) => {
+    const path = 'docs/redesign/design/invariants.md';
+    edit(dir, (track) => {
+      track.stories.find((story) => story.id === 'GF-062').governing_paths = [path];
+    });
+    const story = join(dir, 'docs/delivery/greenfield/stories/GF-062.md');
+    writeFileSync(
+      story,
+      readFileSync(story, 'utf8')
+        .replace(/governing_paths:\n[\s\S]*?(?=stable_ids:)/, `governing_paths: [${JSON.stringify(path)}]\n`)
+        .replace(/\]\([^)]*\)/g, '](../../../redesign/design/invariants.md)'),
+    );
+  }, 'GF-062 governing paths must anchor a claimed stable ID or DR delegation scope'));
 test('candidate package rejects symlinked parent directories', () =>
   fixture((dir) => {
     const path = join(dir, 'docs/delivery/greenfield/reviewer');
@@ -770,6 +801,34 @@ test('structure check reports deleted governed paths and malformed package scrip
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /package.json scripts must be an object record/);
     assert.doesNotMatch(result.stderr, /TypeError/);
+  });
+});
+test('structure check fails closed on no-op pipeline wiring and active source paths', () => {
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    manifest.scripts.check = 'echo pnpm delivery:check';
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /check must exactly run the full repository validation pipeline/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    manifest.scripts.check =
+      'pnpm delivery:check && pnpm lint && pnpm format:check && pnpm links:check && pnpm structure:check';
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /check must exactly run the full repository validation pipeline/);
+  });
+  gitFixture((dir) => {
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src/unsafe.mjs'), 'export const unsafe = true;\n');
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /source-empty repository has unexpected active path: src\/unsafe\.mjs/);
   });
 });
 test('malformed shape diagnostics are unique and invalid story roots short-circuit', () => {
@@ -987,7 +1046,7 @@ test('rejects malformed JSON, unknown/cyclic deps, critical non-edge, split remo
       edit(dir, (t) => {
         t.stories.find((s) => s.id === 'GF-062').dependencies.pop();
       }),
-    'GF-062 must merge exactly all other 46 stories',
+    'GF-062 must merge exactly all other 47 stories',
   );
 });
 test('rejects frontmatter aliases and mapped narrative literal removal', () => {
@@ -1103,7 +1162,7 @@ test('rejects authority route, imported-matrix, inventory, DR, R03, split, DAG, 
       edit(dir, (t) => {
         t.stories.find((s) => s.id === 'GF-062').dependencies.pop();
       }),
-    'GF-062 must merge exactly all other 46 stories',
+    'GF-062 must merge exactly all other 47 stories',
   );
 });
 test('rejects exact forward and reverse route, import, inventory, and governing-owner mappings', () => {
@@ -1159,6 +1218,22 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
       ),
     );
   }, 'coverage.md story row GF-025 must exactly match track metadata in both directions');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('| PC-README-1   |', '| PC-INVENTED-1 |'));
+  }, 'coverage.md product-route matrix must exactly match track product-route coverage');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('| FENCE-1  |', '| FENCE-INVENTED  |'));
+  }, 'coverage.md imported-commitment matrix must exactly match track imported-commitment coverage');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('| RT-OPERATOR   |', '| RT-INVENTED   |'));
+  }, 'coverage.md inventory matrix must exactly match track inventory coverage');
+  reject((dir) => {
+    const p = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('| GF-019         | GF-020', '| GF-019         | GF-999'));
+  }, 'coverage.md provider-gate closure must exactly match mandatory provider splits');
   reject(
     (dir) =>
       edit(dir, (t) => {
@@ -1191,7 +1266,7 @@ test('rejects specific story, edge, body, dependency, and local-selector structu
       track.stories.find((story) => story.id === 'GF-002').id = 'GF-999';
     });
     const errors = validateDeliveryTrackPackage(dir);
-    assert.ok(errors.includes('track must contain the exact 47 story IDs'));
+    assert.ok(errors.includes('track must contain the exact 48 story IDs'));
     assert.ok(!errors.includes('track contains a duplicate story ID'));
   });
   reject(
@@ -1199,7 +1274,7 @@ test('rejects specific story, edge, body, dependency, and local-selector structu
       edit(dir, (t) => {
         t.stories.pop();
       }),
-    'exact 47 story IDs',
+    'exact 48 story IDs',
   );
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
@@ -1219,6 +1294,14 @@ test('rejects specific story, edge, body, dependency, and local-selector structu
         story.stable_ids = story.stable_ids.filter((id) => id !== 'OPC-VERIFY-EXECUTE');
       }),
     'GF-047 violates R03 local/remote selector separation',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (t) => {
+        const story = t.stories.find((s) => s.id === 'GF-061');
+        story.stable_ids = story.stable_ids.filter((id) => id !== 'OPC-DEL-MERGE');
+      }),
+    'GF-061 violates R03 local/remote selector separation',
   );
   reject(
     (dir) =>

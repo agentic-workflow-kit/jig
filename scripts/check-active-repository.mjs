@@ -36,6 +36,33 @@ const forbiddenPaths = [
   'scripts/check-package-boundaries.mjs',
 ];
 
+const allowedRootFiles = new Set([
+  '.gitignore',
+  '.nvmrc',
+  '.prettierignore',
+  'AGENTS.md',
+  'CLAUDE.md',
+  'LICENSE',
+  'README.md',
+  'biome.json',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+]);
+const allowedScriptPaths = new Set([
+  'scripts/check-active-repository.mjs',
+  'scripts/check-delivery-track.mjs',
+  'scripts/check-delivery-track.test.mjs',
+  'scripts/check-doc-links.mjs',
+  'scripts/dev-setup.sh',
+  'scripts/worktree-clean.sh',
+  'scripts/worktree-new.sh',
+]);
+const allowedGithubPaths = new Set(['.github/workflows/check.yml']);
+const allowedDocumentationExtensions = new Set(['.json', '.jsonl', '.md', '.txt']);
+const expectedCheckScript =
+  'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check';
+
 const representativeArchivePaths = [
   'packages/jig-sdk/src/sdk.ts',
   'packages/jig-cli/tests/cli.unit.test.ts',
@@ -64,6 +91,16 @@ for (const forbiddenPath of forbiddenPaths) {
   if (activeEntries.length > 0) {
     errors.push(`archived generation path remains active: ${forbiddenPath}`);
   }
+}
+
+const activeRepositoryPaths = git('ls-files', '--cached', '--others', '--exclude-standard').split('\n').filter(Boolean);
+for (const path of activeRepositoryPaths) {
+  const permitted =
+    allowedRootFiles.has(path) ||
+    allowedScriptPaths.has(path) ||
+    allowedGithubPaths.has(path) ||
+    (path.startsWith('docs/') && allowedDocumentationExtensions.has(path.slice(path.lastIndexOf('.'))));
+  if (!permitted) errors.push(`source-empty repository has unexpected active path: ${path}`);
 }
 
 const activeDeliveryPaths = git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'docs/delivery')
@@ -104,8 +141,8 @@ if (
 ) {
   errors.push('delivery:check must run the focused delivery validator tests and CLI validator');
 }
-if (!scripts.check?.includes('pnpm delivery:check')) {
-  errors.push('check must include delivery:check');
+if (scripts.check !== expectedCheckScript) {
+  errors.push('check must exactly run the full repository validation pipeline');
 }
 
 try {

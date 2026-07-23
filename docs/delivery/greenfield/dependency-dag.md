@@ -53,8 +53,9 @@ flowchart LR
     F4 -->|implementation| F6["GF-056 MCP"]
   end
   subgraph P6["Phase 6 — provider closure"]
+    G57["GF-057 GitHub review publication"]
     G0["GF-060 Codex"]
-    G1["GF-061 GitHub"]
+    G1["GF-061 GitHub final delivery"]
     G2["GF-062 exact closure"]
   end
   A5 -->|implementation| B0
@@ -73,20 +74,24 @@ flowchart LR
   E2 -->|implementation| E3
   E6 -->|implementation| F0
   C3 -. evidence .-> G0
+  C3 -. evidence .-> G57
   C3 -. evidence .-> G1
-  E1 -->|implementation| G1
+  E1 -->|implementation| G57
+  E5 -->|implementation| G57
+  E6 -->|implementation| G57
   E4 -->|implementation| G1
   F5 == merge ==> G2
   F6 == merge ==> G2
   D9 == merge ==> G2
   E7 == merge ==> G2
+  G57 == merge ==> G2
   G0 == merge ==> G2
   G1 == merge ==> G2
   classDef semantic fill:#e8f1ff,stroke:#5a78a8,color:#172033
   classDef provider fill:#f3edff,stroke:#8a6eb0,color:#172033
   classDef gate fill:#fff6dd,stroke:#b8903a,color:#172033
   class C0,D3,E2 semantic
-  class C1,C25,C26,D9,E7,G0,G1 provider
+  class C1,C25,C26,D9,E7,G57,G0,G1 provider
   class C5,E0,E4,F0,G2 gate
 ```
 
@@ -97,7 +102,7 @@ those two types). The blue semantic nodes split from their purple provider nodes
 is an evidence-gated realization and is unconfigurable before its matching exact mechanism
 conformance pass. Gold nodes are lifecycle gates. Decision edges require the named `DR-*`
 constraint to be recorded; evidence edges require exact-subject conformance; merge edges require
-the predecessor merged on the selected baseline. Omitted arrows are still authoritative in
+the predecessor contained in the observed per-story execution base. Omitted arrows are still authoritative in
 `track.json`; this rendering intentionally does not claim to be the complete DAG. Review each
 shown endpoint and label against the target story's `dependency_edges` before changing this view.
 
@@ -108,7 +113,7 @@ There are exactly 18 maximum-length paths of 29 stories. One representative is `
 040 → 043 → 044 → 045 → 046 → 050 → 051 → 052 → 053 → 054 → 055 → 062`. The 18 paths are the
 cartesian product of three co-critical branch choices: GF-020/GF-025/GF-026 before GF-023,
 GF-032/GF-033/GF-034 before GF-035, and GF-055/GF-056 before GF-062. These are alternate dependency
-edges, not sequential edges; every story still must complete because GF-062 joins all 46 predecessors.
+edges, not sequential edges; every story still must complete because GF-062 joins all 47 predecessors.
 
 Parallel work is allowed only after the complete listed dependencies in `track.json` are merged:
 source contract/composition beside durable core after GF-004; controller/recovery, registry, and
@@ -116,7 +121,8 @@ artifacts after GF-010; after GF-022 plus their respective complete prerequisite
 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging
 at GF-023; GF-031 only after GF-030/GF-012, then bounds/workspace/session in parallel after GF-031
 plus each lane's remaining prerequisites; review-publication beside verification/finalization after
-GF-040; CLI beside MCP after GF-054; and Codex beside GitHub qualification in phase 6.
+GF-040; CLI beside MCP after GF-054; and GF-057 review publication, GF-060 Codex, and GF-061 final
+delivery independently in phase 6 before GF-062 joins every other story.
 
 ## Non-negotiable gate edges
 

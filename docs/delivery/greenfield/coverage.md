@@ -8,7 +8,7 @@ owner: "Arye Kogan"
 
 # Complete coverage matrices
 
-This page renders the canonical track.json source. Counts are 47 stories, 44 product routes, 56 imported commitments, 6 runtime units, 11 ports, 32 events, 29 Operations, 22 identities, 27 schema families, 12 failure classes, 12 bound classes, 16 wait/progress surfaces, and 39 fixed suites.
+This page renders the canonical track.json source. Counts are 48 stories, 44 product routes, 56 imported commitments, 6 runtime units, 11 ports, 32 events, 29 Operations, 22 identities, 27 schema families, 12 failure classes, 12 bound classes, 16 wait/progress surfaces, and 39 fixed suites.
 
 ## Product route to story coverage
 
@@ -27,17 +27,17 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | PC-JIG-8      | `CF-BINDING` pass + `EV-SESSION-VERDICT` independence validation holds + `CF-PROVIDER-AUTHORITY` pass + `CF-SECRET-ABSENCE` pass + `CF-MECH-SESSION`/`CF-MECH-WORKSPACE`/`CF-MECH-VERIFY`/`CF-MECH-DELIVERY` passes | GF-003, GF-022, GF-033, GF-034, GF-035, GF-039, GF-040, GF-042, GF-047, GF-060, GF-061, GF-062                         |
 | PC-JIG-9      | `CF-MECH-SESSION` pass + `CF-PROVIDER-PERMISSION` pass                                                                                                                                                              | GF-034, GF-036, GF-060, GF-062                                                                                         |
 | PC-JIG-10     | `CF-ACCEPTANCE` pass + `CF-POLICY` pass                                                                                                                                                                             | GF-021, GF-040, GF-042, GF-062                                                                                         |
-| PC-JIG-11     | `CF-REVIEW-PUBLICATION` pass                                                                                                                                                                                        | GF-041, GF-061, GF-062                                                                                                 |
+| PC-JIG-11     | `CF-REVIEW-PUBLICATION` pass                                                                                                                                                                                        | GF-041, GF-062, GF-057                                                                                                 |
 | PC-JIG-12     | `CF-POLICY` pass + `CF-PROVIDER-AUTHORITY` pass                                                                                                                                                                     | GF-021, GF-022, GF-037, GF-062                                                                                         |
 | PC-JIG-13     | Governance: D2/D13 boundary records + V1/runtime-unit and port-ownership records hold                                                                                                                               | GF-003, GF-020, GF-024, GF-062                                                                                         |
 | PC-JIG-14     | `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and no-public-stability records hold                                                                                                                    | GF-054, GF-055, GF-056, GF-062                                                                                         |
-| PC-JIG-15     | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass + Governance: D10/D12 mechanism records hold                                                                                                                 | GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-062, GF-025, GF-026                                         |
+| PC-JIG-15     | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass + Governance: D10/D12 mechanism records hold                                                                                                                 | GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-062, GF-025, GF-026, GF-057                                 |
 | PC-JIG-16     | `CF-GATE-PROVIDER` pass + Governance: D10 package deferral holds                                                                                                                                                    | GF-001, GF-003, GF-004, GF-062, GF-025, GF-026                                                                         |
 | PC-JIG-17     | Governance: D10 private-facade + D14 middleman-exclusion records hold                                                                                                                                               | GF-003, GF-054, GF-060, GF-062                                                                                         |
 | PC-JIG-18     | `CF-MECH-WORKSPACE` pass + Governance: gate-record `B2` resolution holds                                                                                                                                            | GF-033, GF-039, GF-062                                                                                                 |
 | PC-JIG-19     | `CF-CONSUMER` pass + `CF-ENVELOPE` pass + Governance: D10/D13 boundary records hold                                                                                                                                 | GF-003, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-054, GF-055, GF-056, GF-062                                 |
 | PC-JIG-20     | Governance: D10 runtime-boundary records hold                                                                                                                                                                       | GF-001, GF-003, GF-062                                                                                                 |
-| PC-JIG-21     | `CF-GATE-PROVIDER` pass + Governance: gate-record unproven-edge inventory holds                                                                                                                                     | GF-022, GF-060, GF-061, GF-062                                                                                         |
+| PC-JIG-21     | `CF-GATE-PROVIDER` pass + Governance: gate-record unproven-edge inventory holds                                                                                                                                     | GF-022, GF-060, GF-061, GF-062, GF-057                                                                                 |
 | PC-JIG-22     | `CF-ENVELOPE` pass, including the actionable legacy-guidance clause                                                                                                                                                 | GF-019, GF-020, GF-021, GF-024, GF-062                                                                                 |
 | PC-JIG-23     | `CF-ENVELOPE` pass + `CF-RUN-CONTROL` pass + `CF-BOUNDS` pass + `CF-OBSERVABILITY` pass                                                                                                                             | GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-030, GF-032, GF-037, GF-050, GF-051, GF-062                         |
 | PC-JIG-24     | Governance: D2/D13 boundary + D7 acceptance records hold                                                                                                                                                            | GF-003, GF-019, GF-024, GF-040, GF-062                                                                                 |
@@ -46,8 +46,8 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | PC-CONCEPTS-2 | `CF-BLOCKERS` pass + `CF-CAPACITY` pass + `CF-RELEASE` pass                                                                                                                                                         | GF-030, GF-031, GF-044, GF-062                                                                                         |
 | PC-CONCEPTS-3 | `CF-BINDING` pass + `EV-SESSION-VERDICT` independence validation holds + `CF-PROVIDER-AUTHORITY` pass + `CF-SECRET-ABSENCE` pass + `CF-MECH-SESSION`/`CF-MECH-WORKSPACE`/`CF-MECH-VERIFY`/`CF-MECH-DELIVERY` passes | GF-003, GF-022, GF-033, GF-034, GF-035, GF-039, GF-040, GF-042, GF-047, GF-060, GF-061, GF-062                         |
 | PC-CONCEPTS-4 | `CF-CONSUMER` pass + Governance: runtime/D10 private-facade and no-public-stability records hold                                                                                                                    | GF-054, GF-055, GF-056, GF-062                                                                                         |
-| PC-CONCEPTS-5 | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass                                                                                                                                                              | GF-004, GF-022, GF-060, GF-061, GF-062, GF-025, GF-026                                                                 |
-| PC-CONCEPTS-6 | `CF-REVIEW-PUBLICATION` pass                                                                                                                                                                                        | GF-041, GF-061, GF-062                                                                                                 |
+| PC-CONCEPTS-5 | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass                                                                                                                                                              | GF-004, GF-022, GF-060, GF-061, GF-062, GF-025, GF-026, GF-057                                                         |
+| PC-CONCEPTS-6 | `CF-REVIEW-PUBLICATION` pass                                                                                                                                                                                        | GF-041, GF-062, GF-057                                                                                                 |
 | PC-CONCEPTS-7 | `CF-RUN-CONTROL` pass + `CF-OBSERVABILITY` pass + Governance: canonical product projection holds                                                                                                                    | GF-030, GF-037, GF-050, GF-051, GF-062                                                                                 |
 | PC-CONCEPTS-8 | `CF-RUN-CONTROL` pass + `CF-OBSERVABILITY` pass + Governance: canonical product projection holds                                                                                                                    | GF-030, GF-037, GF-050, GF-051, GF-062                                                                                 |
 | PC-CONCEPTS-9 | `CF-ENVELOPE` pass + Governance: D2/D13, `EP-TRACK`, and independent per-Run controller/scheduling boundaries hold                                                                                                  | GF-003, GF-019, GF-020, GF-021, GF-024, GF-030, GF-031, GF-062                                                         |
@@ -55,7 +55,7 @@ This page renders the canonical track.json source. Counts are 47 stories, 44 pro
 | PC-USE-2      | `CF-PROVIDER-PERMISSION` pass + `CF-MECH-SESSION` pass                                                                                                                                                              | GF-034, GF-036, GF-060, GF-062                                                                                         |
 | PC-USE-3      | `CF-POLICY` pass + `CF-PROVIDER-AUTHORITY` pass + Governance: `EP-PROFILE` authority limit holds                                                                                                                    | GF-021, GF-022, GF-062                                                                                                 |
 | PC-USE-4      | `CF-FENCE` pass + `CF-RUN-CONTROL` pass                                                                                                                                                                             | GF-011, GF-015, GF-030, GF-037, GF-050, GF-062                                                                         |
-| PC-USE-5      | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass                                                                                                                                                              | GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-062, GF-025, GF-026                                         |
+| PC-USE-5      | `CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass                                                                                                                                                              | GF-004, GF-020, GF-022, GF-039, GF-047, GF-060, GF-061, GF-062, GF-025, GF-026, GF-057                                 |
 | PC-USE-6      | `CF-OBSERVABILITY` pass + `CF-NOTICE-EXPORT` pass + `CF-EVIDENCE-LIFECYCLE` pass                                                                                                                                    | GF-013, GF-014, GF-046, GF-051, GF-052, GF-053, GF-062                                                                 |
 | PC-USE-7      | `CF-RULE-SURFACE` pass + `CF-OPERATOR-ACTIONS` pass                                                                                                                                                                 | GF-036, GF-037, GF-038, GF-062                                                                                         |
 
@@ -137,56 +137,56 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 
 ### ports
 
-| Exact item     | Stories                                        |
-| -------------- | ---------------------------------------------- |
-| PORT-CONSUMER  | GF-003, GF-023, GF-054, GF-055, GF-056         |
-| PORT-INTAKE    | GF-003, GF-024                                 |
-| PORT-DECIDE    | GF-003, GF-036, GF-037, GF-038                 |
-| PORT-SESSION   | GF-003, GF-034, GF-060                         |
-| PORT-WORKSPACE | GF-003, GF-033, GF-039                         |
-| PORT-VERIFY    | GF-003, GF-042, GF-047                         |
-| PORT-DELIVERY  | GF-003, GF-041, GF-043, GF-044, GF-045, GF-061 |
-| PORT-LEDGER    | GF-003, GF-010, GF-012, GF-025                 |
-| PORT-ARTIFACT  | GF-003, GF-013, GF-014, GF-026, GF-050, GF-053 |
-| PORT-PUBLISH   | GF-003, GF-051, GF-052                         |
-| PORT-SOURCE    | GF-003, GF-019, GF-020                         |
+| Exact item     | Stories                                                |
+| -------------- | ------------------------------------------------------ |
+| PORT-CONSUMER  | GF-003, GF-023, GF-054, GF-055, GF-056                 |
+| PORT-INTAKE    | GF-003, GF-024                                         |
+| PORT-DECIDE    | GF-003, GF-036, GF-037, GF-038                         |
+| PORT-SESSION   | GF-003, GF-034, GF-060                                 |
+| PORT-WORKSPACE | GF-003, GF-033, GF-039                                 |
+| PORT-VERIFY    | GF-003, GF-042, GF-047                                 |
+| PORT-DELIVERY  | GF-003, GF-041, GF-043, GF-044, GF-045, GF-061, GF-057 |
+| PORT-LEDGER    | GF-003, GF-010, GF-012, GF-025                         |
+| PORT-ARTIFACT  | GF-003, GF-013, GF-014, GF-026, GF-050, GF-053         |
+| PORT-PUBLISH   | GF-003, GF-051, GF-052                                 |
+| PORT-SOURCE    | GF-003, GF-019, GF-020                                 |
 
 ### events
 
-| Exact item                    | Stories                        |
-| ----------------------------- | ------------------------------ |
-| EV-ENVELOPE-SUBMITTED         | GF-024                         |
-| EV-SESSION-RESULT             | GF-035                         |
-| EV-SESSION-VERDICT            | GF-040                         |
-| EV-SESSION-FAULT              | GF-034                         |
-| EV-SESSION-HUMAN-REQUEST      | GF-036                         |
-| EV-SESSION-FACT               | GF-034                         |
-| EV-WORKSPACE-FACT             | GF-033, GF-035, GF-043         |
-| EV-SETUP-FACT                 | GF-033                         |
-| EV-WORKSPACE-PRESERVED        | GF-046                         |
-| EV-ARTIFACT-FACT              | GF-013, GF-014, GF-026, GF-053 |
-| EV-RULE-SURFACE-TOUCHED       | GF-037                         |
-| EV-LIVENESS-OBSERVED          | GF-032                         |
-| EV-CHECK-OBSERVATION          | GF-042, GF-047                 |
-| EV-TARGET-FACT                | GF-041, GF-043, GF-044, GF-061 |
-| EV-EFFECT-CERTAINTY           | GF-015, GF-044                 |
-| EV-LANDING-OBSERVED           | GF-044                         |
-| EV-OWNER-DECISION             | GF-036, GF-037, GF-050, GF-053 |
-| EV-DELEGATION-GRANT           | GF-036                         |
-| EV-RUN-SUSPEND-DECISION       | GF-037                         |
-| EV-RUN-RESUME-DECISION        | GF-037                         |
-| EV-RUN-TERMINAL-STOP-DECISION | GF-037, GF-050                 |
-| EV-RECOVERY-OBSERVATION       | GF-011, GF-015                 |
-| EV-WAKE-DEPENDENCY            | GF-030, GF-032                 |
-| EV-WAKE-CAPACITY              | GF-031, GF-032                 |
-| EV-WAKE-TIMER                 | GF-032, GF-052                 |
-| EV-WAKE-AUTHORITY             | GF-032, GF-043                 |
-| EV-WAKE-FINALIZATION          | GF-032, GF-043                 |
-| EV-BOUND-EXHAUSTED            | GF-032, GF-038, GF-050         |
-| EV-OBLIGATION-RESOLVED        | GF-038, GF-050                 |
-| EV-WAKE-SETTLEMENT            | GF-032, GF-038, GF-050         |
-| EV-NOTICE-ACKNOWLEDGED        | GF-052                         |
-| EV-NOTICE-SNOOZED             | GF-052                         |
+| Exact item                    | Stories                                |
+| ----------------------------- | -------------------------------------- |
+| EV-ENVELOPE-SUBMITTED         | GF-024                                 |
+| EV-SESSION-RESULT             | GF-035                                 |
+| EV-SESSION-VERDICT            | GF-040                                 |
+| EV-SESSION-FAULT              | GF-034                                 |
+| EV-SESSION-HUMAN-REQUEST      | GF-036                                 |
+| EV-SESSION-FACT               | GF-034                                 |
+| EV-WORKSPACE-FACT             | GF-033, GF-035, GF-043                 |
+| EV-SETUP-FACT                 | GF-033                                 |
+| EV-WORKSPACE-PRESERVED        | GF-046                                 |
+| EV-ARTIFACT-FACT              | GF-013, GF-014, GF-026, GF-053         |
+| EV-RULE-SURFACE-TOUCHED       | GF-037                                 |
+| EV-LIVENESS-OBSERVED          | GF-032                                 |
+| EV-CHECK-OBSERVATION          | GF-042, GF-047                         |
+| EV-TARGET-FACT                | GF-041, GF-043, GF-044, GF-061, GF-057 |
+| EV-EFFECT-CERTAINTY           | GF-015, GF-044                         |
+| EV-LANDING-OBSERVED           | GF-044                                 |
+| EV-OWNER-DECISION             | GF-036, GF-037, GF-050, GF-053         |
+| EV-DELEGATION-GRANT           | GF-036                                 |
+| EV-RUN-SUSPEND-DECISION       | GF-037                                 |
+| EV-RUN-RESUME-DECISION        | GF-037                                 |
+| EV-RUN-TERMINAL-STOP-DECISION | GF-037, GF-050                         |
+| EV-RECOVERY-OBSERVATION       | GF-011, GF-015                         |
+| EV-WAKE-DEPENDENCY            | GF-030, GF-032                         |
+| EV-WAKE-CAPACITY              | GF-031, GF-032                         |
+| EV-WAKE-TIMER                 | GF-032, GF-052                         |
+| EV-WAKE-AUTHORITY             | GF-032, GF-043                         |
+| EV-WAKE-FINALIZATION          | GF-032, GF-043                         |
+| EV-BOUND-EXHAUSTED            | GF-032, GF-038, GF-050                 |
+| EV-OBLIGATION-RESOLVED        | GF-038, GF-050                         |
+| EV-WAKE-SETTLEMENT            | GF-032, GF-038, GF-050                 |
+| EV-NOTICE-ACKNOWLEDGED        | GF-052                                 |
+| EV-NOTICE-SNOOZED             | GF-052                                 |
 
 ### operations
 
@@ -203,20 +203,20 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 | OPC-WS-PRESERVE        | GF-033, GF-046         |
 | OPC-WS-RETIRE          | GF-033, GF-046         |
 | OPC-VERIFY-EXECUTE     | GF-042, GF-047         |
-| OPC-REV-PUBLISH        | GF-041                 |
-| OPC-REV-REQUEST        | GF-041                 |
-| OPC-REV-STATUS         | GF-041                 |
-| OPC-REV-COMMENT        | GF-041                 |
-| OPC-REV-RETIRE-REF     | GF-041, GF-046         |
-| OPC-REV-RETIRE-REQUEST | GF-041, GF-046         |
-| OPC-REV-RETIRE-STATUS  | GF-041, GF-046         |
-| OPC-REV-RETIRE-COMMENT | GF-041, GF-046         |
-| OPC-DEL-ANCHOR         | GF-043, GF-044         |
-| OPC-DEL-PUBLISH        | GF-044                 |
-| OPC-DEL-REQUEST        | GF-044                 |
-| OPC-DEL-STATUS         | GF-044                 |
-| OPC-DEL-COMMENT        | GF-044                 |
-| OPC-DEL-MERGE          | GF-044                 |
+| OPC-REV-PUBLISH        | GF-041, GF-057         |
+| OPC-REV-REQUEST        | GF-041, GF-057         |
+| OPC-REV-STATUS         | GF-041, GF-057         |
+| OPC-REV-COMMENT        | GF-041, GF-057         |
+| OPC-REV-RETIRE-REF     | GF-041, GF-046, GF-057 |
+| OPC-REV-RETIRE-REQUEST | GF-041, GF-046, GF-057 |
+| OPC-REV-RETIRE-STATUS  | GF-041, GF-046, GF-057 |
+| OPC-REV-RETIRE-COMMENT | GF-041, GF-046, GF-057 |
+| OPC-DEL-ANCHOR         | GF-043, GF-044, GF-061 |
+| OPC-DEL-PUBLISH        | GF-044, GF-061         |
+| OPC-DEL-REQUEST        | GF-044, GF-061         |
+| OPC-DEL-STATUS         | GF-044, GF-061         |
+| OPC-DEL-COMMENT        | GF-044, GF-061         |
+| OPC-DEL-MERGE          | GF-044, GF-061         |
 | OPC-DEL-OBSERVE        | GF-044, GF-061         |
 | OPC-ART-PUT            | GF-013, GF-014, GF-026 |
 | OPC-ART-GET            | GF-013, GF-014, GF-026 |
@@ -224,30 +224,30 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 
 ### identities
 
-| Exact item    | Stories                                                |
-| ------------- | ------------------------------------------------------ |
-| ID-RUN        | GF-002, GF-024                                         |
-| ID-STORY      | GF-002, GF-030                                         |
-| ID-TXN        | GF-002, GF-005, GF-010                                 |
-| ID-EVENT      | GF-002, GF-005, GF-010                                 |
-| ID-OP         | GF-002, GF-005, GF-015, GF-042, GF-044, GF-047, GF-061 |
-| ID-CAND       | GF-002, GF-035, GF-042, GF-043, GF-047                 |
-| ID-GEN        | GF-002, GF-011                                         |
-| ID-PRINCIPAL  | GF-002, GF-022, GF-036                                 |
-| ID-MANIFEST   | GF-002, GF-014, GF-022                                 |
-| ID-SESSION    | GF-002, GF-034                                         |
-| ID-FINDING    | GF-002, GF-040                                         |
-| ID-GRANT      | GF-002, GF-036                                         |
-| ID-PARK       | GF-002, GF-036                                         |
-| ID-SOURCE-REQ | GF-002, GF-019, GF-020                                 |
-| ID-REGISTRY   | GF-002, GF-012                                         |
-| ID-TARGET     | GF-002, GF-012, GF-043, GF-044, GF-061                 |
-| ID-AUTH       | GF-002, GF-012, GF-043, GF-044, GF-061                 |
-| ID-EVSUBJ     | GF-002, GF-014                                         |
-| ID-OBLIGATION | GF-002, GF-038                                         |
-| ID-SETTLEMENT | GF-002, GF-050                                         |
-| ID-NOTICE     | GF-002, GF-052                                         |
-| ID-EXPORT     | GF-002, GF-053                                         |
+| Exact item    | Stories                                                        |
+| ------------- | -------------------------------------------------------------- |
+| ID-RUN        | GF-002, GF-024                                                 |
+| ID-STORY      | GF-002, GF-030                                                 |
+| ID-TXN        | GF-002, GF-005, GF-010                                         |
+| ID-EVENT      | GF-002, GF-005, GF-010                                         |
+| ID-OP         | GF-002, GF-005, GF-015, GF-042, GF-044, GF-047, GF-061, GF-057 |
+| ID-CAND       | GF-002, GF-035, GF-042, GF-043, GF-047                         |
+| ID-GEN        | GF-002, GF-011                                                 |
+| ID-PRINCIPAL  | GF-002, GF-022, GF-036                                         |
+| ID-MANIFEST   | GF-002, GF-014, GF-022                                         |
+| ID-SESSION    | GF-002, GF-034                                                 |
+| ID-FINDING    | GF-002, GF-040                                                 |
+| ID-GRANT      | GF-002, GF-036                                                 |
+| ID-PARK       | GF-002, GF-036                                                 |
+| ID-SOURCE-REQ | GF-002, GF-019, GF-020                                         |
+| ID-REGISTRY   | GF-002, GF-012                                                 |
+| ID-TARGET     | GF-002, GF-012, GF-043, GF-044, GF-061                         |
+| ID-AUTH       | GF-002, GF-012, GF-043, GF-044, GF-061                         |
+| ID-EVSUBJ     | GF-002, GF-014                                                 |
+| ID-OBLIGATION | GF-002, GF-038                                                 |
+| ID-SETTLEMENT | GF-002, GF-050, GF-037                                         |
+| ID-NOTICE     | GF-002, GF-052                                                 |
+| ID-EXPORT     | GF-002, GF-053                                                 |
 
 ### schema families
 
@@ -277,43 +277,43 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 | SCH-DELEGATION-GRANT   | GF-036         |
 | SCH-DECISION           | GF-036         |
 | SCH-OBLIGATION         | GF-038         |
-| SCH-SETTLEMENT         | GF-050         |
+| SCH-SETTLEMENT         | GF-050, GF-037 |
 | SCH-NOTICE             | GF-052         |
 | SCH-AUDIT-EXPORT       | GF-053         |
 
 ### failure classes
 
-| Exact item   | Stories                                                                |
-| ------------ | ---------------------------------------------------------------------- |
-| FC-INPUT     | GF-002, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024                 |
-| FC-AUTHORITY | GF-003, GF-012, GF-022, GF-036, GF-043                                 |
-| FC-SUBJECT   | GF-002, GF-035, GF-040, GF-042, GF-047                                 |
-| FC-FENCE     | GF-011, GF-015, GF-034                                                 |
-| FC-EVIDENCE  | GF-014, GF-040                                                         |
-| FC-MECHANISM | GF-015, GF-020, GF-026, GF-039, GF-047, GF-060, GF-061                 |
-| FC-EFFECT    | GF-015, GF-026, GF-041, GF-044                                         |
-| FC-CAPACITY  | GF-031                                                                 |
-| FC-LIVENESS  | GF-032, GF-034                                                         |
-| FC-RULES     | GF-037                                                                 |
-| FC-BOUND     | GF-032, GF-035, GF-038, GF-043, GF-046                                 |
-| FC-TRUST     | GF-010, GF-011, GF-012, GF-013, GF-014, GF-024, GF-025, GF-026, GF-050 |
+| Exact item   | Stories                                                                        |
+| ------------ | ------------------------------------------------------------------------------ |
+| FC-INPUT     | GF-002, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024                         |
+| FC-AUTHORITY | GF-003, GF-012, GF-022, GF-036, GF-043                                         |
+| FC-SUBJECT   | GF-002, GF-035, GF-040, GF-042, GF-047                                         |
+| FC-FENCE     | GF-011, GF-015, GF-034                                                         |
+| FC-EVIDENCE  | GF-014, GF-040                                                                 |
+| FC-MECHANISM | GF-015, GF-020, GF-026, GF-039, GF-047, GF-060, GF-061, GF-057                 |
+| FC-EFFECT    | GF-015, GF-026, GF-041, GF-044                                                 |
+| FC-CAPACITY  | GF-031                                                                         |
+| FC-LIVENESS  | GF-032, GF-034                                                                 |
+| FC-RULES     | GF-037                                                                         |
+| FC-BOUND     | GF-032, GF-035, GF-038, GF-043, GF-046                                         |
+| FC-TRUST     | GF-010, GF-011, GF-012, GF-013, GF-014, GF-024, GF-025, GF-026, GF-050, GF-037 |
 
 ### bound classes
 
-| Exact item         | Stories                                                                        |
-| ------------------ | ------------------------------------------------------------------------------ |
-| BND-REWORK         | GF-032, GF-035                                                                 |
-| BND-RETRY          | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032                                 |
-| BND-REFRESH        | GF-032, GF-043                                                                 |
-| BND-WAIT-DECISION  | GF-032, GF-036, GF-038                                                         |
-| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032, GF-039, GF-047, GF-060, GF-061 |
-| BND-WAIT-CAPACITY  | GF-031, GF-032, GF-043                                                         |
-| BND-WAIT-LEDGER    | GF-010, GF-024, GF-025, GF-026, GF-032                                         |
-| BND-WAIT-TARGET    | GF-032, GF-043, GF-044                                                         |
-| BND-IDLE           | GF-032                                                                         |
-| BND-SILENCE        | GF-032, GF-034                                                                 |
-| BND-RECOVERY       | GF-011, GF-015, GF-026, GF-032                                                 |
-| BND-RETIRE         | GF-032, GF-046, GF-050                                                         |
+| Exact item         | Stories                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| BND-REWORK         | GF-032, GF-035                                                                         |
+| BND-RETRY          | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032                                         |
+| BND-REFRESH        | GF-032, GF-043                                                                         |
+| BND-WAIT-DECISION  | GF-032, GF-036, GF-038                                                                 |
+| BND-WAIT-MECHANISM | GF-015, GF-019, GF-020, GF-022, GF-026, GF-032, GF-039, GF-047, GF-060, GF-061, GF-057 |
+| BND-WAIT-CAPACITY  | GF-031, GF-032, GF-043                                                                 |
+| BND-WAIT-LEDGER    | GF-010, GF-024, GF-025, GF-026, GF-032                                                 |
+| BND-WAIT-TARGET    | GF-032, GF-043, GF-044                                                                 |
+| BND-IDLE           | GF-032                                                                                 |
+| BND-SILENCE        | GF-032, GF-034                                                                         |
+| BND-RECOVERY       | GF-011, GF-015, GF-026, GF-032                                                         |
+| BND-RETIRE         | GF-032, GF-046, GF-050                                                                 |
 
 ### wait/progress surfaces
 
@@ -363,15 +363,15 @@ The 56 imported IDs retain their separate [matrix-plus-suite dispositions](../..
 | CF-RUN-CONTROL         | GF-004, GF-011, GF-030, GF-035, GF-037, GF-050, GF-062         |
 | CF-OPERATOR-ACTIONS    | GF-004, GF-036, GF-038, GF-062                                 |
 | CF-EVIDENCE-LIFECYCLE  | GF-004, GF-013, GF-014, GF-046, GF-053, GF-062                 |
-| CF-SECRET-ABSENCE      | GF-004, GF-014, GF-022, GF-053, GF-060, GF-061, GF-062         |
+| CF-SECRET-ABSENCE      | GF-004, GF-014, GF-022, GF-053, GF-060, GF-061, GF-062, GF-057 |
 | CF-DELEGATION          | GF-004, GF-036, GF-062                                         |
 | CF-CONSUMER            | GF-004, GF-023, GF-054, GF-055, GF-056, GF-062                 |
 | CF-ENVELOPE            | GF-004, GF-019, GF-020, GF-021, GF-022, GF-023, GF-024, GF-062 |
 | CF-PROVIDER-PERMISSION | GF-004, GF-034, GF-036, GF-060, GF-062                         |
 | CF-SETUP-FRESHNESS     | GF-004, GF-021, GF-033, GF-039, GF-062                         |
 | CF-PROVIDER-AUTHORITY  | GF-004, GF-022, GF-062                                         |
-| CF-BLOCK-SURFACING     | GF-004, GF-038, GF-045, GF-052, GF-061, GF-062                 |
-| CF-REVIEW-PUBLICATION  | GF-004, GF-041, GF-061, GF-062                                 |
+| CF-BLOCK-SURFACING     | GF-004, GF-038, GF-045, GF-052, GF-061, GF-062, GF-057         |
+| CF-REVIEW-PUBLICATION  | GF-004, GF-041, GF-062, GF-057                                 |
 | CF-MECH-LEDGER         | GF-004, GF-010, GF-012, GF-013, GF-025, GF-024, GF-062         |
 | CF-MECH-ARTIFACT       | GF-004, GF-013, GF-026, GF-062                                 |
 | CF-MECH-SESSION        | GF-004, GF-034, GF-060, GF-062                                 |
@@ -412,7 +412,7 @@ Every listed reverse mapping is present in the story metadata fields in track.js
 | GF-034 | PORT-SESSION, ID-SESSION, SCH-SESSION, DR-4, OPC-SESSION-OPEN, OPC-SESSION-RESPOND, OPC-SESSION-ASSIGN, OPC-SESSION-COLLECT, OPC-SESSION-CLOSE, RT-CONTROLLER, EV-SESSION-FAULT, EV-SESSION-FACT, SCH-LIVENESS, FC-FENCE, FC-LIVENESS, BND-SILENCE, CF-PROVIDER-PERMISSION, CF-MECH-SESSION, session_silence                                                                                                                                                                                                                                                                                                                                                                                                          | PC-JIG-8, PC-JIG-9, PC-CONCEPTS-3, PC-USE-2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | FENCE-1, FENCE-2, FENCE-3, LIVE-1, LIVE-2                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | GF-035 | SCH-CANDIDATE, ID-CAND, BND-REWORK, RT-CONTROLLER, EV-SESSION-RESULT, EV-WORKSPACE-FACT, OPC-SESSION-ASSIGN, OPC-SESSION-COLLECT, FC-SUBJECT, FC-BOUND, CF-BINDING, review_or_rework, CF-RUN-CONTROL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | PC-JIG-8, PC-CONCEPTS-3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | none                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | GF-036 | PORT-DECIDE, SCH-ESCALATION, SCH-DELEGATION-GRANT, SCH-DECISION, ID-PARK, ID-GRANT, BND-WAIT-DECISION, RT-CONTROLLER, EV-SESSION-HUMAN-REQUEST, EV-OWNER-DECISION, EV-DELEGATION-GRANT, OPC-SESSION-RESPOND, ID-PRINCIPAL, FC-AUTHORITY, CF-OPERATOR-ACTIONS, CF-DELEGATION, CF-PROVIDER-PERMISSION, human_decision                                                                                                                                                                                                                                                                                                                                                                                                   | PC-JIG-5, PC-JIG-6, PC-JIG-9, PC-USE-2, PC-USE-7                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | EARN-1, EARN-2, GUARD-1, GUARD-2, DOOR-1, DOOR-2, DOOR-3                                                                                                                                                                                                                                                                                                                                                                                                                |
-| GF-037 | EV-RULE-SURFACE-TOUCHED, EV-RUN-SUSPEND-DECISION, EV-RUN-RESUME-DECISION, EV-RUN-TERMINAL-STOP-DECISION, RT-CONTROLLER, PORT-DECIDE, EV-OWNER-DECISION, SCH-RULE-SURFACE, FC-RULES, CF-RULE-SURFACE, CF-RUN-CONTROL, CF-FENCE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | PC-JIG-1, PC-JIG-2, PC-JIG-6, PC-JIG-12, PC-JIG-23, PC-JIG-25, PC-CONCEPTS-7, PC-CONCEPTS-8, PC-USE-4, PC-USE-7                                                                                                                                                                                                                                                                                                                                                                                                              | RESUME-1, RESUME-2, RESUME-3, RESUME-4, RESUME-5                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| GF-037 | EV-RULE-SURFACE-TOUCHED, EV-RUN-SUSPEND-DECISION, EV-RUN-RESUME-DECISION, EV-RUN-TERMINAL-STOP-DECISION, SCH-SETTLEMENT, ID-SETTLEMENT, D16, RT-CONTROLLER, PORT-DECIDE, EV-OWNER-DECISION, SCH-RULE-SURFACE, FC-RULES, FC-TRUST, CF-RULE-SURFACE, CF-RUN-CONTROL, CF-FENCE                                                                                                                                                                                                                                                                                                                                                                                                                                           | PC-JIG-1, PC-JIG-2, PC-JIG-6, PC-JIG-12, PC-JIG-23, PC-JIG-25, PC-CONCEPTS-7, PC-CONCEPTS-8, PC-USE-4, PC-USE-7                                                                                                                                                                                                                                                                                                                                                                                                              | RESUME-1, RESUME-2, RESUME-3, RESUME-4, RESUME-5                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | GF-038 | SCH-OBLIGATION, ID-OBLIGATION, EV-OBLIGATION-RESOLVED, EV-BOUND-EXHAUSTED, EV-WAKE-SETTLEMENT, RT-CONTROLLER, PORT-DECIDE, FC-BOUND, BND-WAIT-DECISION, CF-OPERATOR-ACTIONS, CF-BLOCK-SURFACING, residual_obligation, CF-BOUNDS, CF-PRESERVATION                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | PC-JIG-5, PC-USE-7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | none                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | GF-039 | PORT-WORKSPACE, CF-MECH-WORKSPACE, DR-5, FC-MECHANISM, BND-WAIT-MECHANISM, CF-SETUP-FRESHNESS, CF-GATE-PROVIDER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | PC-JIG-8, PC-JIG-15, PC-JIG-18, PC-CONCEPTS-3, PC-USE-1, PC-USE-5                                                                                                                                                                                                                                                                                                                                                                                                                                                            | ISO-1, ISO-2, ISO-3, ISO-4, STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7, DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                                                           |
 | GF-040 | SCH-VERDICT, ID-FINDING, D7, RT-CONTROLLER, EV-SESSION-VERDICT, FC-SUBJECT, FC-EVIDENCE, CF-BINDING, CF-ACCEPTANCE, review_or_rework, CF-POLICY                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | PC-JIG-1, PC-JIG-8, PC-JIG-10, PC-JIG-24, PC-CONCEPTS-3                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | EARN-1, EARN-2, GUARD-1, GUARD-2, MERGE-1, MERGE-2, MERGE-3, MERGE-4, MERGE-5                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -430,8 +430,9 @@ Every listed reverse mapping is present in the story metadata fields in track.js
 | GF-054 | RT-OPERATOR, PORT-CONSUMER, DR-7, CF-CONSUMER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | PC-JIG-3, PC-JIG-4, PC-JIG-14, PC-JIG-17, PC-JIG-19, PC-CONCEPTS-4                                                                                                                                                                                                                                                                                                                                                                                                                                                           | DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4, SEE-1, SEE-2, SEE-3, SEE-4, SEE-5, SEE-6                                                                                                                                                                                                                                                                                                                                                                                            |
 | GF-055 | PORT-CONSUMER, DR-7, DR-12, RT-OPERATOR, CF-CONSUMER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | PC-JIG-3, PC-JIG-4, PC-JIG-14, PC-JIG-19, PC-CONCEPTS-4                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | GF-056 | PORT-CONSUMER, DR-7, RT-OPERATOR, CF-CONSUMER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | PC-JIG-3, PC-JIG-4, PC-JIG-14, PC-JIG-19, PC-CONCEPTS-4                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| GF-057 | PORT-DELIVERY, CB-REVIEW-PUBLICATION, DR-4, DR-5, FC-MECHANISM, BND-WAIT-MECHANISM, CF-SECRET-ABSENCE, CF-REVIEW-PUBLICATION, CF-BLOCK-SURFACING, CF-GATE-PROVIDER, EV-TARGET-FACT, OPC-REV-PUBLISH, OPC-REV-REQUEST, OPC-REV-STATUS, OPC-REV-COMMENT, OPC-REV-RETIRE-REF, OPC-REV-RETIRE-REQUEST, OPC-REV-RETIRE-STATUS, OPC-REV-RETIRE-COMMENT, ID-OP                                                                                                                                                                                                                                                                                                                                                               | PC-JIG-11, PC-JIG-15, PC-JIG-21, PC-CONCEPTS-5, PC-CONCEPTS-6, PC-USE-5                                                                                                                                                                                                                                                                                                                                                                                                                                                      | none                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | GF-060 | PORT-SESSION, DR-4, DR-5, FC-MECHANISM, BND-WAIT-MECHANISM, CF-SECRET-ABSENCE, CF-PROVIDER-PERMISSION, CF-MECH-SESSION, CF-GATE-PROVIDER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | PC-JIG-8, PC-JIG-9, PC-JIG-15, PC-JIG-17, PC-JIG-21, PC-CONCEPTS-3, PC-CONCEPTS-5, PC-USE-2, PC-USE-5                                                                                                                                                                                                                                                                                                                                                                                                                        | FENCE-1, FENCE-2, FENCE-3, SEC-1, SEC-2, SEC-3, STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7, DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                                       |
-| GF-061 | PORT-DELIVERY, DR-4, DR-5, FC-MECHANISM, BND-WAIT-MECHANISM, CF-SECRET-ABSENCE, CF-MECH-DELIVERY, EV-TARGET-FACT, RP-REMOTE, CF-REVIEW-PUBLICATION, CF-BLOCK-SURFACING, CF-GATE-PROVIDER, OPC-DEL-OBSERVE, ID-OP, ID-TARGET, ID-AUTH                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | PC-JIG-8, PC-JIG-11, PC-JIG-15, PC-JIG-21, PC-CONCEPTS-3, PC-CONCEPTS-5, PC-CONCEPTS-6, PC-USE-5                                                                                                                                                                                                                                                                                                                                                                                                                             | MERGE-1, MERGE-2, MERGE-3, MERGE-4, MERGE-5, SEC-1, SEC-2, SEC-3, STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7, DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                     |
+| GF-061 | PORT-DELIVERY, DR-4, DR-5, FC-MECHANISM, BND-WAIT-MECHANISM, CF-SECRET-ABSENCE, CF-MECH-DELIVERY, EV-TARGET-FACT, RP-REMOTE, CF-BLOCK-SURFACING, CF-GATE-PROVIDER, OPC-DEL-ANCHOR, OPC-DEL-PUBLISH, OPC-DEL-REQUEST, OPC-DEL-STATUS, OPC-DEL-COMMENT, OPC-DEL-MERGE, OPC-DEL-OBSERVE, ID-OP, ID-TARGET, ID-AUTH                                                                                                                                                                                                                                                                                                                                                                                                       | PC-JIG-8, PC-JIG-15, PC-JIG-21, PC-CONCEPTS-3, PC-CONCEPTS-5, PC-USE-5                                                                                                                                                                                                                                                                                                                                                                                                                                                       | MERGE-1, MERGE-2, MERGE-3, MERGE-4, MERGE-5, SEC-1, SEC-2, SEC-3, STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7, DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4                                                                                                                                                                                                                                                                                                     |
 | GF-062 | CF-GATE-PRODUCT, CF-GATE-REALIZATION, CF-GATE-PROVIDER, CF-DETERMINISM, CF-ORDERING, CF-FENCE, CF-BINDING, CF-ACCEPTANCE, CF-POLICY, CF-CAPACITY, CF-ORDER, CF-RELEASE, CF-BLOCKERS, CF-CONTAINMENT, CF-BOUNDS, CF-DOUBLE-EFFECT, CF-SEPARATION, CF-PRESERVATION, CF-TRUST-STOP, CF-RULE-SURFACE, CF-LIVENESS, CF-NOTICE-EXPORT, CF-OBSERVABILITY, CF-RUN-CONTROL, CF-OPERATOR-ACTIONS, CF-EVIDENCE-LIFECYCLE, CF-SECRET-ABSENCE, CF-DELEGATION, CF-CONSUMER, CF-ENVELOPE, CF-PROVIDER-PERMISSION, CF-SETUP-FRESHNESS, CF-PROVIDER-AUTHORITY, CF-BLOCK-SURFACING, CF-REVIEW-PUBLICATION, CF-MECH-LEDGER, CF-MECH-ARTIFACT, CF-MECH-SESSION, CF-MECH-WORKSPACE, CF-MECH-SOURCE, CF-MECH-VERIFY, CF-MECH-DELIVERY       | PC-README-1, PC-README-2, PC-README-3, PC-JIG-1, PC-JIG-2, PC-JIG-3, PC-JIG-4, PC-JIG-5, PC-JIG-6, PC-JIG-7, PC-JIG-8, PC-JIG-9, PC-JIG-10, PC-JIG-11, PC-JIG-12, PC-JIG-13, PC-JIG-14, PC-JIG-15, PC-JIG-16, PC-JIG-17, PC-JIG-18, PC-JIG-19, PC-JIG-20, PC-JIG-21, PC-JIG-22, PC-JIG-23, PC-JIG-24, PC-JIG-25, PC-CONCEPTS-1, PC-CONCEPTS-2, PC-CONCEPTS-3, PC-CONCEPTS-4, PC-CONCEPTS-5, PC-CONCEPTS-6, PC-CONCEPTS-7, PC-CONCEPTS-8, PC-CONCEPTS-9, PC-USE-1, PC-USE-2, PC-USE-3, PC-USE-4, PC-USE-5, PC-USE-6, PC-USE-7 | FENCE-1, FENCE-2, FENCE-3, EARN-1, EARN-2, GUARD-1, GUARD-2, DOOR-1, DOOR-2, DOOR-3, MERGE-1, MERGE-2, MERGE-3, MERGE-4, MERGE-5, SEC-1, SEC-2, SEC-3, CFG-1, CFG-2, CFG-3, CFG-4, CFG-5, CFG-6, CFG-7, CFG-8, CFG-9, CFG-10, RESUME-1, RESUME-2, RESUME-3, RESUME-4, RESUME-5, ISO-1, ISO-2, ISO-3, ISO-4, LIVE-1, LIVE-2, STACK-1, STACK-2, STACK-3, STACK-4, STACK-5, STACK-6, STACK-7, DRIVE-1, DRIVE-2, DRIVE-3, DRIVE-4, SEE-1, SEE-2, SEE-3, SEE-4, SEE-5, SEE-6 |
 
 ## Provider gate closure

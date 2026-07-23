@@ -1,6 +1,6 @@
 ---
 title: "Jig greenfield story index"
-purpose: "Phase-indexed entrypoint for the 47 mandatory greenfield story briefs."
+purpose: "Phase-indexed entrypoint for the 48 mandatory greenfield story briefs."
 audience: ["delivery implementers", "independent reviewers"]
 status: "active planning baseline; no implementation authorized"
 ---
@@ -86,6 +86,7 @@ separate exact Arye proposal and provider-manifest approvals before GF-024 can a
 
 ## Phase 6 — real-provider closure
 
+- [GF-057 — Qualified GitHub review-publication provider](./GF-057.md)
 - [GF-060 — Qualified Codex role-session provider](./GF-060.md)
-- [GF-061 — Qualified GitHub review and delivery provider](./GF-061.md)
+- [GF-061 — Qualified GitHub final-delivery provider](./GF-061.md)
 - [GF-062 — Supported local reference profile and closure](./GF-062.md)

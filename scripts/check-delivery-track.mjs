@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const TRACK_PATH = 'docs/delivery/greenfield/track.json';
 const STORY_IDS =
-  'GF-001 GF-002 GF-003 GF-004 GF-005 GF-010 GF-011 GF-012 GF-013 GF-014 GF-015 GF-019 GF-020 GF-021 GF-022 GF-023 GF-025 GF-026 GF-024 GF-030 GF-031 GF-032 GF-033 GF-034 GF-035 GF-036 GF-037 GF-038 GF-039 GF-040 GF-041 GF-042 GF-043 GF-044 GF-045 GF-046 GF-047 GF-050 GF-051 GF-052 GF-053 GF-054 GF-055 GF-056 GF-060 GF-061 GF-062'.split(
+  'GF-001 GF-002 GF-003 GF-004 GF-005 GF-010 GF-011 GF-012 GF-013 GF-014 GF-015 GF-019 GF-020 GF-021 GF-022 GF-023 GF-025 GF-026 GF-024 GF-030 GF-031 GF-032 GF-033 GF-034 GF-035 GF-036 GF-037 GF-038 GF-039 GF-040 GF-041 GF-042 GF-043 GF-044 GF-045 GF-046 GF-047 GF-050 GF-051 GF-052 GF-053 GF-054 GF-055 GF-056 GF-057 GF-060 GF-061 GF-062'.split(
     ' ',
   );
 const STORY_KEYS = [
@@ -28,7 +28,7 @@ const STORY_KEYS = [
   'imported_commitments',
 ];
 const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
-const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = '07d97124e659ed410c58d2abdba1c5883cc774f0b94982b2bf477c2ef9ca42eb';
+const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'd680053248f5e03186fd1b6d3030e93dd24b45132df231d72519ab1011edbc05';
 const APPROVED_PROVIDER_SPLITS_SHA256 = '12ee04a022c25f2113710bb9ad9315336c6349d6da5239402ce6b1974e25fb4d';
 const APPROVED_DELEGATED_CHOICES_SHA256 = 'e2eedc5d70386de86893e3ee8beb531736398a26ef9a370bcff61dd143bb78d3';
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = '4db2ec88712864823cb84b3f9609ef1dca9f6e35831eef6c3a61b4c2340ac3b0';
@@ -98,7 +98,7 @@ const PHASES = [
   {
     id: 6,
     name: 'real-provider closure',
-    stories: ['GF-060', 'GF-061', 'GF-062'],
+    stories: ['GF-057', 'GF-060', 'GF-061', 'GF-062'],
     exit_gate:
       "Before the broader supported-profile claim: all supported-provider gates/profile evidence and GF-062's audit of all 56 imported dispositions; CF-GATE-PRODUCT itself is the pure conjunction of the 39 recorded suite results and every named element of the 44 settled product proof routes.",
   },
@@ -111,7 +111,7 @@ const PARALLEL_LANES = [
   'GF-039 can qualify alongside candidate work after GF-033/GF-022.',
   'After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.',
   'After GF-054, CLI and private MCP lanes may proceed independently.',
-  'GF-060 and GF-061 qualify independently before GF-062.',
+  'GF-057, GF-060, and GF-061 qualify independently before GF-062.',
 ];
 const GATE_EDGES = [
   'No port traffic before DR-1 framing.',
@@ -439,7 +439,10 @@ function parseStrictFrontMatter(text) {
           }
           while (index + 1 < lines.length && /^ {4}[a-z_]+:\s*/.test(lines[index + 1])) {
             const next = lines[++index].trim().match(/^([a-z_]+):\s*(.*)$/);
-            if (Object.hasOwn(entry, next[1])) return { error: `duplicates nested front matter field ${next[1]}` };
+            if (Object.hasOwn(entry, next[1]))
+              return {
+                error: `duplicates nested front matter field ${next[1]}`,
+              };
             try {
               entry[next[1]] = parseScalar(next[2]);
             } catch (error) {
@@ -488,6 +491,17 @@ function delegationRegisterOwners(text) {
   }
   return owners;
 }
+function delegationRegisterScopes(text) {
+  const scopes = new Map();
+  for (const line of text.split('\n')) {
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.length >= 2 && /^DR-\d+$/.test(cells[0])) scopes.set(cells[0], cells[1]);
+  }
+  return scopes;
+}
 function deliveryScheduleOwners(text) {
   const owners = new Map();
   for (const [, id, cell] of text.matchAll(/^\|\s*(DR-\d+)\s*\|\s*([^|]+)\|/gm)) {
@@ -533,8 +547,71 @@ function coverageStoryRows(text, errors) {
       imported_commitments: cell(importedCommitments),
     });
   }
-  if (!eqSet([...parsed.keys()], STORY_IDS)) errors.push('coverage.md must contain the exact 47 story metadata rows');
+  if (!eqSet([...parsed.keys()], STORY_IDS)) errors.push('coverage.md must contain the exact 48 story metadata rows');
   return parsed;
+}
+function coverageSection(text, heading, errors) {
+  const headings = [...text.matchAll(new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'gm'))];
+  if (headings.length !== 1) {
+    errors.push(`coverage.md must contain exactly one ${heading.slice(3)} section`);
+    return '';
+  }
+  const remainder = text.slice(headings[0].index + heading.length);
+  const nextHeading = remainder.search(/^## /m);
+  return nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
+}
+function coverageCell(value) {
+  return value.trim() === 'none' ? [] : value.split(',').map((item) => item.trim());
+}
+function coverageTableRows(section, columns) {
+  return section
+    .split('\n')
+    .filter((line) => line.startsWith('|') && line.endsWith('|'))
+    .map((line) =>
+      line
+        .split('|')
+        .slice(1, -1)
+        .map((cell) => cell.trim()),
+    )
+    .filter(
+      (cells) =>
+        cells.length === columns &&
+        !cells.every((cell) => /^-+$/.test(cell)) &&
+        !['product route', 'id', 'exact item', 'semantic story'].includes(cells[0].toLowerCase()),
+    );
+}
+function coverageMatrixRows(text, heading, columns, errors) {
+  return coverageTableRows(coverageSection(text, heading, errors), columns);
+}
+function storyMappingSection(narrative) {
+  const heading = '## Governing paths and stable IDs';
+  const start = narrative.indexOf(heading);
+  if (start === -1) return '';
+  const remainder = narrative.slice(start + heading.length);
+  const nextHeading = remainder.search(/^## /m);
+  return nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
+}
+function containsMappedLiteral(text, literal) {
+  return new RegExp(`(^|[^A-Z0-9-])${literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^A-Z0-9-])`).test(text);
+}
+function delegationScopeMatchesAuthority(scope, authorityText, { strict = false } = {}) {
+  const ignored = new Set([
+    'below',
+    'cannot',
+    'choice',
+    'content',
+    'design',
+    'engineering',
+    'evidence',
+    'every',
+    'fixed',
+    'inside',
+    'owner',
+    'recorded',
+  ]);
+  if (strict) for (const term of ['after', 'provider', 'source', 'delivery', 'implementations']) ignored.add(term);
+  const terms = [...new Set((scope.toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((term) => !ignored.has(term)))];
+  return terms.filter((term) => new RegExp(`\\b${term}\\b`, 'i').test(authorityText)).length >= 2;
 }
 function exactKeys(value, keys) {
   return value && typeof value === 'object' && !Array.isArray(value) && eqSet(Object.keys(value), keys);
@@ -571,8 +648,8 @@ function candidatePackagePaths() {
     'scripts/check-delivery-track.test.mjs',
     'scripts/check-active-repository.mjs',
   ].sort();
-  if (new Set(paths).size !== 70)
-    throw new Error(`candidate package manifest requires exactly 70 paths, got ${paths.length}`);
+  if (new Set(paths).size !== 71)
+    throw new Error(`candidate package manifest requires exactly 71 paths, got ${paths.length}`);
   return paths;
 }
 export function candidatePackageManifest(rootDir = process.cwd()) {
@@ -715,7 +792,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     stories.map((story) => story?.id),
     STORY_IDS,
   );
-  if (!hasExactStorySet) errors.push('track must contain the exact 47 story IDs');
+  if (!hasExactStorySet) errors.push('track must contain the exact 48 story IDs');
   if (!exact(track?.phases, PHASES))
     errors.push('track phases must exactly preserve all seven IDs, names, ordered story sets, and exit gates');
   if (!exact(track?.parallel_lanes, PARALLEL_LANES))
@@ -743,6 +820,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       (path) => readText(path).match(/\b(?:[A-Z]{2,}-[A-Z0-9-]+|[DI]\d+|[a-z]+(?:_[a-z]+)+)\b/g) ?? [],
     ),
   );
+  const delegationScopes = rootDir
+    ? delegationRegisterScopes(readText('docs/redesign/design/delegation-register.md'))
+    : new Map();
   for (const story of storyRecords) {
     if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
     if (typeof story.title !== 'string' || story.title.trim() === '')
@@ -855,13 +935,40 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     else if (!exact(parsed.fields, story))
       errors.push(`${story.id} front matter must exactly match all 16 track fields`);
     if (!parsed.error) {
-      for (const literal of [...stableIds, ...productRoutes, ...importedCommitments])
-        if (
-          !new RegExp(`(^|[^A-Z0-9-])${literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^A-Z0-9-])`).test(
-            parsed.narrative,
-          )
-        )
-          errors.push(`${story.id} narrative lacks mapped literal ${literal}`);
+      const mappingSection = storyMappingSection(parsed.narrative);
+      const resolvedGoverningPaths = governingPaths.filter(
+        (path) => isCanonicalGoverningPath(path) && authorityPaths.has(path) && isFile(path),
+      );
+      const authorityText = resolvedGoverningPaths.map((path) => readText(path)).join('\n');
+      const hasDirectStableAuthorityAnchor = stableIds.some((literal) => containsMappedLiteral(authorityText, literal));
+      const hasDelegationScopeAuthorityAnchor = drGates.some(
+        (literal) =>
+          delegationScopes.has(literal) &&
+          delegationScopeMatchesAuthority(delegationScopes.get(literal), authorityText, { strict: true }),
+      );
+      const isMachineMappedInventoryLiteral = (literal) =>
+        Object.entries(track.inventories ?? {}).some(
+          ([, selectors]) => Array.isArray(selectors?.[literal]) && selectors[literal].includes(story.id),
+        );
+      const hasStableAuthorityMapping = (literal) =>
+        containsMappedLiteral(authorityText, literal) ||
+        isMachineMappedInventoryLiteral(literal) ||
+        (delegationScopes.has(literal) &&
+          delegationScopeMatchesAuthority(delegationScopes.get(literal), authorityText)) ||
+        (!literal.startsWith('DR-') &&
+          authorityStableIds.has(literal) &&
+          containsMappedLiteral(mappingSection, literal));
+      const unmappedNarrativeLiterals = [...stableIds, ...productRoutes, ...importedCommitments].filter(
+        (literal) => !containsMappedLiteral(parsed.narrative, literal),
+      );
+      for (const literal of unmappedNarrativeLiterals)
+        errors.push(`${story.id} narrative lacks mapped literal ${literal}`);
+      if (!stableIds.every(hasStableAuthorityMapping) || unmappedNarrativeLiterals.length > 0)
+        errors.push(
+          `${story.id} governing paths must explicitly map every claimed stable ID, product route, and import`,
+        );
+      if (!hasDirectStableAuthorityAnchor && !hasDelegationScopeAuthorityAnchor)
+        errors.push(`${story.id} governing paths must anchor a claimed stable ID or DR delegation scope`);
       for (const heading of HEADINGS) {
         const hits = [
           ...parsed.narrative.matchAll(new RegExp(`^## ${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'gm')),
@@ -939,7 +1046,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       (edge) => edge?.type === 'merge',
     )
   )
-    errors.push('GF-062 must merge exactly all other 46 stories');
+    errors.push('GF-062 must merge exactly all other 47 stories');
   if (
     !arrayOrEmpty(byId.get('GF-023')?.dependency_edges, 'GF-023 dependency_edges must be an array', errors).some(
       (edge) => edge?.from === 'GF-025' && edge.type === 'evidence',
@@ -963,7 +1070,21 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       forbidden: [],
     },
     'GF-061': {
-      required: ['PORT-DELIVERY', 'RP-REMOTE', 'OPC-DEL-OBSERVE', 'EV-TARGET-FACT', 'ID-OP', 'ID-TARGET', 'ID-AUTH'],
+      required: [
+        'PORT-DELIVERY',
+        'RP-REMOTE',
+        'OPC-DEL-ANCHOR',
+        'OPC-DEL-PUBLISH',
+        'OPC-DEL-REQUEST',
+        'OPC-DEL-STATUS',
+        'OPC-DEL-COMMENT',
+        'OPC-DEL-MERGE',
+        'OPC-DEL-OBSERVE',
+        'EV-TARGET-FACT',
+        'ID-OP',
+        'ID-TARGET',
+        'ID-AUTH',
+      ],
       forbidden: [],
     },
   };
@@ -1059,7 +1180,8 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
   if (!exact(track.counts, derivedCounts))
     errors.push('track counts must be independently recomputed from exact structural sets');
   if (rootDir) {
-    const coverageRows = coverageStoryRows(readText('docs/delivery/greenfield/coverage.md'), errors);
+    const coverage = readText('docs/delivery/greenfield/coverage.md');
+    const coverageRows = coverageStoryRows(coverage, errors);
     for (const story of byId.values()) {
       const row = coverageRows.get(story.id);
       if (
@@ -1089,6 +1211,21 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       if (!eqSet(productRouteRecords[id]?.stories, declaredByStories))
         errors.push(`product_routes.${id}.stories must exactly equal forward and reverse story route coverage`);
     }
+    const productRouteCoverage = coverageMatrixRows(coverage, '## Product route to story coverage', 3, errors);
+    const productRouteCoverageById = new Map(
+      productRouteCoverage.map(([id, proofRoute, stories]) => [id, { proofRoute, stories }]),
+    );
+    if (
+      productRouteCoverage.length !== routes.size ||
+      productRouteCoverageById.size !== productRouteCoverage.length ||
+      !eqSet([...productRouteCoverageById.keys()], [...routes.keys()]) ||
+      [...routes.keys()].some(
+        (id) =>
+          productRouteCoverageById.get(id)?.proofRoute !== productRouteRecords[id]?.proof_route ||
+          !eqSet(coverageCell(productRouteCoverageById.get(id)?.stories ?? ''), productRouteRecords[id]?.stories ?? []),
+      )
+    )
+      errors.push('coverage.md product-route matrix must exactly match track product-route coverage');
     const imported = tableRows(reconciliation, '## Guarantee 1');
     const dispositions = new Map(imported);
     const importedCommitments = arrayOrEmpty(
@@ -1128,6 +1265,72 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
         Array.isArray(story.imported_commitments) && story.imported_commitments.every((id) => dispositions.has(id)),
     );
     if (!reverseCoverage) errors.push('imported commitments contain an undeclared story assignment');
+    const importedCoverage = coverageMatrixRows(coverage, '## Imported commitment to story coverage', 4, errors);
+    const importedCoverageById = new Map(
+      importedCoverage.map(([id, family, disposition, stories]) => [id, { family, disposition, stories }]),
+    );
+    const importedRecordsById = new Map(records.map((row) => [row.id, row]));
+    if (
+      importedCoverage.length !== records.length ||
+      importedCoverageById.size !== importedCoverage.length ||
+      !eqSet([...importedCoverageById.keys()], [...importedRecordsById.keys()]) ||
+      [...importedRecordsById.keys()].some((id) => {
+        const rendered = importedCoverageById.get(id);
+        const expected = importedRecordsById.get(id);
+        return (
+          rendered?.family !== expected.family ||
+          rendered?.disposition.replaceAll('`', '') !== expected.disposition ||
+          !eqSet(coverageCell(rendered?.stories ?? ''), expected.stories)
+        );
+      })
+    )
+      errors.push('coverage.md imported-commitment matrix must exactly match track imported-commitment coverage');
+    const inventoryCoverage = coverageSection(coverage, '## Inventory item to story coverage', errors);
+    const inventoryHeadings = {
+      runtime_units: '### runtime units',
+      ports: '### ports',
+      events: '### events',
+      operations: '### operations',
+      identities: '### identities',
+      schema_families: '### schema families',
+      failure_classes: '### failure classes',
+      bound_classes: '### bound classes',
+      wait_progress_surfaces: '### wait/progress surfaces',
+      conformance_suites: '### conformance suites',
+    };
+    for (const [name, heading] of Object.entries(inventoryHeadings)) {
+      const start = inventoryCoverage.indexOf(heading);
+      const remainder = start === -1 ? '' : inventoryCoverage.slice(start + heading.length);
+      const nextHeading = remainder.search(/^### /m);
+      const rows = coverageTableRows(nextHeading === -1 ? remainder : remainder.slice(0, nextHeading), 2);
+      const byItem = new Map(rows.map(([id, stories]) => [id, stories]));
+      const expected = track.inventories?.[name] ?? {};
+      if (
+        start === -1 ||
+        rows.length !== Object.keys(expected).length ||
+        byItem.size !== rows.length ||
+        !eqSet([...byItem.keys()], Object.keys(expected)) ||
+        Object.keys(expected).some((id) => !eqSet(coverageCell(byItem.get(id) ?? ''), expected[id]))
+      )
+        errors.push('coverage.md inventory matrix must exactly match track inventory coverage');
+    }
+    const providerClosure = coverageMatrixRows(coverage, '## Provider gate closure', 4, errors);
+    const providerClosureBySemantic = new Map(
+      providerClosure.map(([semantic, provider, port, evidence]) => [semantic, { provider, port, evidence }]),
+    );
+    if (
+      providerClosure.length !== expectedSplits.length ||
+      providerClosureBySemantic.size !== providerClosure.length ||
+      expectedSplits.some(([semantic, provider, port, suite]) => {
+        const rendered = providerClosureBySemantic.get(semantic);
+        return (
+          rendered?.provider !== provider ||
+          rendered?.port !== port ||
+          !eqSet(coverageCell(rendered?.evidence ?? ''), [suite, 'CF-GATE-PROVIDER'])
+        );
+      })
+    )
+      errors.push('coverage.md provider-gate closure must exactly match mandatory provider splits');
     const owners = delegationRegisterOwners(readText('docs/redesign/design/delegation-register.md'));
     const scheduleOwners = deliveryScheduleOwners(readText('docs/delivery/greenfield/decisions.md'));
     const delegatedChoices = isRecord(track.delegated_choices) ? track.delegated_choices : Object.create(null);
@@ -1197,7 +1400,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const error of errors) console.error(`- ${error}`);
     process.exitCode = 1;
   } else {
-    console.log('Delivery track structural, source, two-way, and corpus validation passed (47 stories, 7 phases).');
+    console.log('Delivery track structural, source, two-way, and corpus validation passed (48 stories, 7 phases).');
     console.log(`Candidate package manifest (unpinned): ${candidatePackageManifest()}`);
   }
 }

@@ -27,7 +27,7 @@
   },
   "counts": {
     "phases": 7,
-    "stories": 47,
+    "stories": 48,
     "product_routes": 44,
     "imported_commitments": 56,
     "runtime_units": 6,
@@ -43,7 +43,7 @@
     "open_delegated_choices": 10
   },
   "global_definition_of_ready": [
-    "Dependencies are merged on the selected baseline and exact evidence is current.",
+    "Immutable planning provenance remains recorded; each story starts only after an independently verified exact owner-ratification/activation record binds principal/delegation, the reviewed package tuple and authoritative landing-equivalence record, provenance, target scope, realization tuple, and validity/expiry/revocation, plus its dynamically observed execution base with all predecessors contained and exact evidence current.",
     "Governing paths and stable IDs are named; applicable DR ownership, constraints, evidence, and fallback are recorded.",
     "Port, principal, authority, durable facts, failure paths, and conformance oracles are explicit.",
     "No unapproved capability or partial provider path is reachable."
@@ -136,7 +136,7 @@
     {
       "id": 6,
       "name": "real-provider closure",
-      "stories": ["GF-060", "GF-061", "GF-062"],
+      "stories": ["GF-057", "GF-060", "GF-061", "GF-062"],
       "exit_gate": "Before the broader supported-profile claim: all supported-provider gates/profile evidence and GF-062's audit of all 56 imported dispositions; CF-GATE-PRODUCT itself is the pure conjunction of the 39 recorded suite results and every named element of the 44 settled product proof routes."
     }
   ],
@@ -150,7 +150,8 @@
       "size": "M",
       "governing_paths": [
         "docs/redesign/design/runtime.md",
-        "docs/redesign/design/decisions/D10-runtime-decomposition.md"
+        "docs/redesign/design/decisions/D10-runtime-decomposition.md",
+        "docs/redesign/design/architecture-conformance.md"
       ],
       "stable_ids": ["DR-2", "DR-8"],
       "dr_gates": ["DR-2", "DR-8"],
@@ -477,7 +478,7 @@
       ],
       "dr_gates": ["DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-010.md",
-      "outcome": "Segmented file ledger with an independently trusted witness and five-way readback.",
+      "outcome": "Storage-agnostic witnessed conditional Run ledger with five-way readback.",
       "oracle": [
         "CF-MECH-LEDGER",
         "crash/readback corpus",
@@ -1843,18 +1844,22 @@
         "EV-RUN-SUSPEND-DECISION",
         "EV-RUN-RESUME-DECISION",
         "EV-RUN-TERMINAL-STOP-DECISION",
+        "SCH-SETTLEMENT",
+        "ID-SETTLEMENT",
+        "D16",
         "RT-CONTROLLER",
         "PORT-DECIDE",
         "EV-OWNER-DECISION",
         "SCH-RULE-SURFACE",
         "FC-RULES",
+        "FC-TRUST",
         "CF-RULE-SURFACE",
         "CF-RUN-CONTROL",
         "CF-FENCE"
       ],
       "dr_gates": ["DR-3", "DR-9"],
       "story_file": "docs/delivery/greenfield/stories/GF-037.md",
-      "outcome": "Frozen-input revalidation, suspend/resume/terminal-stop requests, and rule-surface invalidation without settlement duties.",
+      "outcome": "Frozen-input revalidation, suspend/resume, and an atomic D16 terminal-stop Settlement-overlay opening without settlement duties.",
       "oracle": ["CF-RULE-SURFACE", "CF-RUN-CONTROL", "CF-FENCE"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
@@ -3032,6 +3037,82 @@
       "imported_commitments": ["DRIVE-1", "DRIVE-2", "DRIVE-3", "DRIVE-4"]
     },
     {
+      "id": "GF-057",
+      "title": "Qualified GitHub review-publication provider",
+      "phase": 6,
+      "dependencies": ["GF-022", "GF-041", "GF-045", "GF-046"],
+      "dependency_edges": [
+        {
+          "from": "GF-022",
+          "type": "evidence"
+        },
+        {
+          "from": "GF-041",
+          "type": "implementation"
+        },
+        {
+          "from": "GF-045",
+          "type": "implementation"
+        },
+        {
+          "from": "GF-046",
+          "type": "implementation"
+        }
+      ],
+      "size": "L",
+      "governing_paths": [
+        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/forge-and-landing.md",
+        "docs/redesign/design/architecture-conformance.md",
+        "docs/redesign/design/product-guarantee-reconciliation.md",
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/delegation-register.md"
+      ],
+      "stable_ids": [
+        "PORT-DELIVERY",
+        "CB-REVIEW-PUBLICATION",
+        "DR-4",
+        "DR-5",
+        "FC-MECHANISM",
+        "BND-WAIT-MECHANISM",
+        "CF-SECRET-ABSENCE",
+        "CF-REVIEW-PUBLICATION",
+        "CF-BLOCK-SURFACING",
+        "CF-GATE-PROVIDER",
+        "EV-TARGET-FACT",
+        "OPC-REV-PUBLISH",
+        "OPC-REV-REQUEST",
+        "OPC-REV-STATUS",
+        "OPC-REV-COMMENT",
+        "OPC-REV-RETIRE-REF",
+        "OPC-REV-RETIRE-REQUEST",
+        "OPC-REV-RETIRE-STATUS",
+        "OPC-REV-RETIRE-COMMENT",
+        "ID-OP"
+      ],
+      "dr_gates": ["DR-4", "DR-5"],
+      "story_file": "docs/delivery/greenfield/stories/GF-057.md",
+      "outcome": "Qualified GitHub review-publication provider, limited to draft non-mergeable review operations and their retirement.",
+      "oracle": [
+        "CF-REVIEW-PUBLICATION",
+        "CF-BLOCK-SURFACING",
+        "CF-GATE-PROVIDER"
+      ],
+      "status": "proposed",
+      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
+      "product_routes": [
+        "PC-JIG-11",
+        "PC-JIG-15",
+        "PC-JIG-21",
+        "PC-CONCEPTS-5",
+        "PC-CONCEPTS-6",
+        "PC-USE-5"
+      ],
+      "imported_commitments": []
+    },
+    {
       "id": "GF-060",
       "title": "Qualified Codex role-session provider",
       "phase": 6,
@@ -3129,17 +3210,13 @@
     },
     {
       "id": "GF-061",
-      "title": "Qualified GitHub review and delivery provider",
+      "title": "Qualified GitHub final-delivery provider",
       "phase": 6,
-      "dependencies": ["GF-022", "GF-041", "GF-043", "GF-044", "GF-045"],
+      "dependencies": ["GF-022", "GF-043", "GF-044", "GF-045"],
       "dependency_edges": [
         {
           "from": "GF-022",
           "type": "evidence"
-        },
-        {
-          "from": "GF-041",
-          "type": "implementation"
         },
         {
           "from": "GF-043",
@@ -3156,9 +3233,7 @@
       ],
       "size": "L",
       "governing_paths": [
-        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md",
         "docs/redesign/design/mechanism-and-provider-contracts.md",
-        "docs/redesign/design/review-and-verification-execution.md",
         "docs/redesign/design/forge-and-landing.md",
         "docs/redesign/design/architecture-conformance.md"
       ],
@@ -3172,9 +3247,14 @@
         "CF-MECH-DELIVERY",
         "EV-TARGET-FACT",
         "RP-REMOTE",
-        "CF-REVIEW-PUBLICATION",
         "CF-BLOCK-SURFACING",
         "CF-GATE-PROVIDER",
+        "OPC-DEL-ANCHOR",
+        "OPC-DEL-PUBLISH",
+        "OPC-DEL-REQUEST",
+        "OPC-DEL-STATUS",
+        "OPC-DEL-COMMENT",
+        "OPC-DEL-MERGE",
         "OPC-DEL-OBSERVE",
         "ID-OP",
         "ID-TARGET",
@@ -3182,23 +3262,16 @@
       ],
       "dr_gates": ["DR-4", "DR-5"],
       "story_file": "docs/delivery/greenfield/stories/GF-061.md",
-      "outcome": "Qualified GitHub provider with disjoint review/final credentials; queue/held modes stay unconfigurable.",
-      "oracle": [
-        "CF-MECH-DELIVERY",
-        "CF-REVIEW-PUBLICATION",
-        "CF-BLOCK-SURFACING",
-        "CF-GATE-PROVIDER"
-      ],
+      "outcome": "Qualified GitHub final-delivery provider for authorized target-changing effects; review publication remains a separately qualified subject.",
+      "oracle": ["CF-MECH-DELIVERY", "CF-BLOCK-SURFACING", "CF-GATE-PROVIDER"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-8",
-        "PC-JIG-11",
         "PC-JIG-15",
         "PC-JIG-21",
         "PC-CONCEPTS-3",
         "PC-CONCEPTS-5",
-        "PC-CONCEPTS-6",
         "PC-USE-5"
       ],
       "imported_commitments": [
@@ -3272,6 +3345,7 @@
         "GF-054",
         "GF-055",
         "GF-056",
+        "GF-057",
         "GF-060",
         "GF-061"
       ],
@@ -3450,6 +3524,10 @@
         },
         {
           "from": "GF-056",
+          "type": "merge"
+        },
+        {
+          "from": "GF-057",
           "type": "merge"
         },
         {
@@ -3708,7 +3786,7 @@
     "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
     "After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.",
     "After GF-054, CLI and private MCP lanes may proceed independently.",
-    "GF-060 and GF-061 qualify independently before GF-062."
+    "GF-057, GF-060, and GF-061 qualify independently before GF-062."
   ],
   "gate_edges": [
     "No port traffic before DR-1 framing.",
@@ -3771,7 +3849,8 @@
         "GF-043",
         "GF-044",
         "GF-045",
-        "GF-061"
+        "GF-061",
+        "GF-057"
       ],
       "PORT-LEDGER": ["GF-003", "GF-010", "GF-012", "GF-025"],
       "PORT-ARTIFACT": [
@@ -3799,7 +3878,7 @@
       "EV-RULE-SURFACE-TOUCHED": ["GF-037"],
       "EV-LIVENESS-OBSERVED": ["GF-032"],
       "EV-CHECK-OBSERVATION": ["GF-042", "GF-047"],
-      "EV-TARGET-FACT": ["GF-041", "GF-043", "GF-044", "GF-061"],
+      "EV-TARGET-FACT": ["GF-041", "GF-043", "GF-044", "GF-061", "GF-057"],
       "EV-EFFECT-CERTAINTY": ["GF-015", "GF-044"],
       "EV-LANDING-OBSERVED": ["GF-044"],
       "EV-OWNER-DECISION": ["GF-036", "GF-037", "GF-050", "GF-053"],
@@ -3831,20 +3910,20 @@
       "OPC-WS-PRESERVE": ["GF-033", "GF-046"],
       "OPC-WS-RETIRE": ["GF-033", "GF-046"],
       "OPC-VERIFY-EXECUTE": ["GF-042", "GF-047"],
-      "OPC-REV-PUBLISH": ["GF-041"],
-      "OPC-REV-REQUEST": ["GF-041"],
-      "OPC-REV-STATUS": ["GF-041"],
-      "OPC-REV-COMMENT": ["GF-041"],
-      "OPC-REV-RETIRE-REF": ["GF-041", "GF-046"],
-      "OPC-REV-RETIRE-REQUEST": ["GF-041", "GF-046"],
-      "OPC-REV-RETIRE-STATUS": ["GF-041", "GF-046"],
-      "OPC-REV-RETIRE-COMMENT": ["GF-041", "GF-046"],
-      "OPC-DEL-ANCHOR": ["GF-043", "GF-044"],
-      "OPC-DEL-PUBLISH": ["GF-044"],
-      "OPC-DEL-REQUEST": ["GF-044"],
-      "OPC-DEL-STATUS": ["GF-044"],
-      "OPC-DEL-COMMENT": ["GF-044"],
-      "OPC-DEL-MERGE": ["GF-044"],
+      "OPC-REV-PUBLISH": ["GF-041", "GF-057"],
+      "OPC-REV-REQUEST": ["GF-041", "GF-057"],
+      "OPC-REV-STATUS": ["GF-041", "GF-057"],
+      "OPC-REV-COMMENT": ["GF-041", "GF-057"],
+      "OPC-REV-RETIRE-REF": ["GF-041", "GF-046", "GF-057"],
+      "OPC-REV-RETIRE-REQUEST": ["GF-041", "GF-046", "GF-057"],
+      "OPC-REV-RETIRE-STATUS": ["GF-041", "GF-046", "GF-057"],
+      "OPC-REV-RETIRE-COMMENT": ["GF-041", "GF-046", "GF-057"],
+      "OPC-DEL-ANCHOR": ["GF-043", "GF-044", "GF-061"],
+      "OPC-DEL-PUBLISH": ["GF-044", "GF-061"],
+      "OPC-DEL-REQUEST": ["GF-044", "GF-061"],
+      "OPC-DEL-STATUS": ["GF-044", "GF-061"],
+      "OPC-DEL-COMMENT": ["GF-044", "GF-061"],
+      "OPC-DEL-MERGE": ["GF-044", "GF-061"],
       "OPC-DEL-OBSERVE": ["GF-044", "GF-061"],
       "OPC-ART-PUT": ["GF-013", "GF-014", "GF-026"],
       "OPC-ART-GET": ["GF-013", "GF-014", "GF-026"],
@@ -3862,7 +3941,8 @@
         "GF-042",
         "GF-044",
         "GF-047",
-        "GF-061"
+        "GF-061",
+        "GF-057"
       ],
       "ID-CAND": ["GF-002", "GF-035", "GF-042", "GF-043", "GF-047"],
       "ID-GEN": ["GF-002", "GF-011"],
@@ -3878,7 +3958,7 @@
       "ID-AUTH": ["GF-002", "GF-012", "GF-043", "GF-044", "GF-061"],
       "ID-EVSUBJ": ["GF-002", "GF-014"],
       "ID-OBLIGATION": ["GF-002", "GF-038"],
-      "ID-SETTLEMENT": ["GF-002", "GF-050"],
+      "ID-SETTLEMENT": ["GF-002", "GF-050", "GF-037"],
       "ID-NOTICE": ["GF-002", "GF-052"],
       "ID-EXPORT": ["GF-002", "GF-053"]
     },
@@ -3907,7 +3987,7 @@
       "SCH-DELEGATION-GRANT": ["GF-036"],
       "SCH-DECISION": ["GF-036"],
       "SCH-OBLIGATION": ["GF-038"],
-      "SCH-SETTLEMENT": ["GF-050"],
+      "SCH-SETTLEMENT": ["GF-050", "GF-037"],
       "SCH-NOTICE": ["GF-052"],
       "SCH-AUDIT-EXPORT": ["GF-053"]
     },
@@ -3932,7 +4012,8 @@
         "GF-039",
         "GF-047",
         "GF-060",
-        "GF-061"
+        "GF-061",
+        "GF-057"
       ],
       "FC-EFFECT": ["GF-015", "GF-026", "GF-041", "GF-044"],
       "FC-CAPACITY": ["GF-031"],
@@ -3948,7 +4029,8 @@
         "GF-024",
         "GF-025",
         "GF-026",
-        "GF-050"
+        "GF-050",
+        "GF-037"
       ]
     },
     "bound_classes": {
@@ -3966,7 +4048,8 @@
         "GF-039",
         "GF-047",
         "GF-060",
-        "GF-061"
+        "GF-061",
+        "GF-057"
       ],
       "BND-WAIT-CAPACITY": ["GF-031", "GF-032", "GF-043"],
       "BND-WAIT-LEDGER": ["GF-010", "GF-024", "GF-025", "GF-026", "GF-032"],
@@ -4049,7 +4132,8 @@
         "GF-053",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ],
       "CF-DELEGATION": ["GF-004", "GF-036", "GF-062"],
       "CF-CONSUMER": [
@@ -4085,9 +4169,10 @@
         "GF-045",
         "GF-052",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ],
-      "CF-REVIEW-PUBLICATION": ["GF-004", "GF-041", "GF-061", "GF-062"],
+      "CF-REVIEW-PUBLICATION": ["GF-004", "GF-041", "GF-062", "GF-057"],
       "CF-MECH-LEDGER": [
         "GF-004",
         "GF-010",
@@ -4274,7 +4359,7 @@
       "proof_route": "`CF-ACCEPTANCE` pass + `CF-POLICY` pass"
     },
     "PC-JIG-11": {
-      "stories": ["GF-041", "GF-061", "GF-062"],
+      "stories": ["GF-041", "GF-062", "GF-057"],
       "proof_route": "`CF-REVIEW-PUBLICATION` pass"
     },
     "PC-JIG-12": {
@@ -4300,7 +4385,8 @@
         "GF-061",
         "GF-062",
         "GF-025",
-        "GF-026"
+        "GF-026",
+        "GF-057"
       ],
       "proof_route": "`CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass + Governance: D10/D12 mechanism records hold"
     },
@@ -4337,7 +4423,7 @@
       "proof_route": "Governance: D10 runtime-boundary records hold"
     },
     "PC-JIG-21": {
-      "stories": ["GF-022", "GF-060", "GF-061", "GF-062"],
+      "stories": ["GF-022", "GF-060", "GF-061", "GF-062", "GF-057"],
       "proof_route": "`CF-GATE-PROVIDER` pass + Governance: gate-record unproven-edge inventory holds"
     },
     "PC-JIG-22": {
@@ -4422,12 +4508,13 @@
         "GF-061",
         "GF-062",
         "GF-025",
-        "GF-026"
+        "GF-026",
+        "GF-057"
       ],
       "proof_route": "`CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass"
     },
     "PC-CONCEPTS-6": {
-      "stories": ["GF-041", "GF-061", "GF-062"],
+      "stories": ["GF-041", "GF-062", "GF-057"],
       "proof_route": "`CF-REVIEW-PUBLICATION` pass"
     },
     "PC-CONCEPTS-7": {
@@ -4478,7 +4565,8 @@
         "GF-061",
         "GF-062",
         "GF-025",
-        "GF-026"
+        "GF-026",
+        "GF-057"
       ],
       "proof_route": "`CF-GATE-PROVIDER` pass + `CF-PROVIDER-AUTHORITY` pass"
     },
