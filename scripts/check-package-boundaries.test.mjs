@@ -66,18 +66,58 @@ test('validatePackageBoundaries fails if package declares forbidden internal edg
       { recursive: true },
     );
     const pkgAPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-a', 'package.json');
-    const pkgAJson = JSON.parse(
-      JSON.stringify({
-        name: '@gf-001-fixture/pkg-a',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        dependencies: { '@gf-001-fixture/pkg-b': 'workspace:*' },
-      }),
-    );
+    const pkgAJson = {
+      name: '@gf-001-fixture/pkg-a',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      dependencies: { '@gf-001-fixture/pkg-b': 'workspace:*' },
+    };
     writeFileSync(pkgAPath, JSON.stringify(pkgAJson, null, 2));
   });
   assert.ok(errors.some((e) => e.includes('declares forbidden dependency @gf-001-fixture/pkg-b')));
+});
+
+test('validatePackageBoundaries fails if package declares forbidden edge in optionalDependencies', () => {
+  const errors = createTempWorkspace((dir) => {
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
+    const pkgCPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-c', 'package.json');
+    const pkgCJson = {
+      name: '@gf-001-fixture/pkg-c',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      optionalDependencies: { '@gf-001-fixture/pkg-a': 'workspace:*' },
+    };
+    writeFileSync(pkgCPath, JSON.stringify(pkgCJson, null, 2));
+  });
+  assert.ok(
+    errors.some((e) => e.includes('declares forbidden dependency @gf-001-fixture/pkg-a in optionalDependencies')),
+  );
+});
+
+test('validatePackageBoundaries fails if dependency does not use exact workspace:* protocol', () => {
+  const errors = createTempWorkspace((dir) => {
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
+    const pkgBPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-b', 'package.json');
+    const pkgBJson = {
+      name: '@gf-001-fixture/pkg-b',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      dependencies: { '@gf-001-fixture/pkg-a': '^1.0.0' },
+    };
+    writeFileSync(pkgBPath, JSON.stringify(pkgBJson, null, 2));
+  });
+  assert.ok(errors.some((e) => e.includes('must use exact "workspace:*" protocol')));
 });
 
 test('validatePackageBoundaries fails if package declares external dependency', () => {
@@ -88,15 +128,13 @@ test('validatePackageBoundaries fails if package declares external dependency', 
       { recursive: true },
     );
     const pkgCPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-c', 'package.json');
-    const pkgCJson = JSON.parse(
-      JSON.stringify({
-        name: '@gf-001-fixture/pkg-c',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        dependencies: { lodash: '^4.17.21' },
-      }),
-    );
+    const pkgCJson = {
+      name: '@gf-001-fixture/pkg-c',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      dependencies: { lodash: '^4.17.21' },
+    };
     writeFileSync(pkgCPath, JSON.stringify(pkgCJson, null, 2));
   });
   assert.ok(errors.some((e) => e.includes('declares forbidden dependency lodash')));

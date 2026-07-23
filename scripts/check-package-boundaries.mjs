@@ -20,6 +20,15 @@ function findPackages(dir) {
   return packages;
 }
 
+const ALL_DEPENDENCY_KEYS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+  'bundledDependencies',
+  'bundleDependencies',
+];
+
 const expectedGraph = {
   '@gf-001-fixture/pkg-a': {
     dependencies: [],
@@ -87,29 +96,52 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
     }
   }
 
-  // 3. Validate exact package adjacency graph, directionality, external dependencies, and tsconfig reference congruence
+  // Verify complete expected package-node set
+  const foundPackageNames = new Set(manifestMap.keys());
+  const expectedPackageNames = new Set(Object.keys(expectedGraph));
+
+  for (const reqName of expectedPackageNames) {
+    if (!foundPackageNames.has(reqName)) {
+      errors.push(`workspace missing expected package node ${reqName}`);
+    }
+  }
+  for (const foundName of foundPackageNames) {
+    if (!expectedPackageNames.has(foundName)) {
+      errors.push(`unexpected package ${foundName} found in fixture workspace`);
+    }
+  }
+
+  // 3. Validate exact package adjacency graph, directionality, external dependencies, exact workspace protocol, and tsconfig reference congruence
   for (const [name, { pkgPath, manifest }] of manifestMap) {
     const expected = expectedGraph[name];
-    if (!expected) {
-      errors.push(`unexpected package ${name} found in fixture workspace`);
-      continue;
-    }
+    if (!expected) continue;
 
-    // Collect all dependency declarations
-    const declaredDeps = Object.keys(manifest.dependencies || {})
-      .concat(Object.keys(manifest.devDependencies || {}))
-      .concat(Object.keys(manifest.peerDependencies || {}));
+    const declaredDeps = new Set();
 
-    // Check for external dependencies or forbidden internal dependency edges
-    for (const dep of declaredDeps) {
-      if (!expected.dependencies.includes(dep)) {
-        errors.push(`package ${name} declares forbidden dependency ${dep}`);
+    for (const depKey of ALL_DEPENDENCY_KEYS) {
+      if (depKey in manifest) {
+        if (typeof manifest[depKey] !== 'object' || manifest[depKey] === null) {
+          errors.push(`package ${name} has invalid ${depKey} record`);
+          continue;
+        }
+        const depsObj = manifest[depKey];
+        const entries = Array.isArray(depsObj) ? depsObj.map((d) => [d, '*']) : Object.entries(depsObj);
+        for (const [dep, spec] of entries) {
+          declaredDeps.add(dep);
+          if (!expected.dependencies.includes(dep)) {
+            errors.push(`package ${name} declares forbidden dependency ${dep} in ${depKey}`);
+          } else {
+            if (spec !== 'workspace:*') {
+              errors.push(`package ${name} dependency ${dep} must use exact "workspace:*" protocol, got "${spec}"`);
+            }
+          }
+        }
       }
     }
 
     // Check for missing expected internal dependencies
     for (const reqDep of expected.dependencies) {
-      if (!declaredDeps.includes(reqDep)) {
+      if (!declaredDeps.has(reqDep)) {
         errors.push(`package ${name} missing required dependency ${reqDep}`);
       }
     }

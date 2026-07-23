@@ -147,9 +147,51 @@ const representativeArchivePaths = [
 
 const immutableActions = {
   checkout: 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683',
-  pnpmSetup: 'pnpm/action-setup@a7487c7e49b092b630dc034e3415ef4eb5d064cf',
+  pnpmSetup: 'pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2',
   setupNode: 'actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af',
 };
+
+const expectedWorkflow = `name: check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+        with:
+          version: 11.9.0
+
+      - name: Set up Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Active repository preflight
+        run: node scripts/check-active-repository.mjs
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: check
+        run: pnpm check`;
 
 function git(rootDir, ...args) {
   return execFileSync('git', args, {
@@ -277,51 +319,23 @@ export function validateActiveRepository(rootDir = process.cwd()) {
   // Exact Bounded Workflow Contract Validation
   const workflowPath = join(rootDir, '.github/workflows/check.yml');
   const workflow = existsSync(workflowPath) ? readFileSync(workflowPath, 'utf8') : '';
-  const hasDisallowedKeywords = /^\s*(?:if|continue-on-error|shell):/m.test(workflow);
-  if (hasDisallowedKeywords) {
-    errors.push(
-      'check workflow must not contain conditional bypasses, shell overrides, or continue-on-error modifiers',
-    );
-    errors.push(
-      'check workflow must run the direct active-repository preflight before dependency installation and pnpm check',
-    );
-  }
 
-  if (!workflow.includes('permissions:\n  contents: read')) {
-    errors.push('check workflow must set read-only permissions (contents: read)');
-  }
-
-  if (!workflow.includes(`uses: ${immutableActions.checkout}`)) {
-    errors.push(`check workflow must use exact immutable SHA for checkout: ${immutableActions.checkout}`);
-  }
-  if (!workflow.includes(`uses: ${immutableActions.pnpmSetup}`)) {
-    errors.push(`check workflow must use exact immutable SHA for pnpm-setup: ${immutableActions.pnpmSetup}`);
-  }
-  if (!workflow.includes(`uses: ${immutableActions.setupNode}`)) {
-    errors.push(`check workflow must use exact immutable SHA for setup-node: ${immutableActions.setupNode}`);
-  }
-
-  const workflowLines = workflow.split('\n');
-  const preflightLine = '      - name: Active repository preflight';
-  const preflightRunLine = '        run: node scripts/check-active-repository.mjs';
-  const installRunLine = '        run: pnpm install --frozen-lockfile';
-  const checkRunLine = '        run: pnpm check';
-
-  const preflightIdx = workflowLines.indexOf(preflightLine);
-  const preflightRunIdx = workflowLines.indexOf(preflightRunLine);
-  const installRunIdx = workflowLines.indexOf(installRunLine);
-  const checkRunIdx = workflowLines.indexOf(checkRunLine);
-
-  const precedingLines = workflowLines.slice(0, preflightIdx).filter((line) => line.trim() !== '');
-  const precedingNonBlank = precedingLines.length >= 1 ? precedingLines[precedingLines.length - 1] : '';
-
-  if (
-    preflightIdx < 0 ||
-    preflightRunIdx !== preflightIdx + 1 ||
-    installRunIdx <= preflightRunIdx ||
-    checkRunIdx <= installRunIdx ||
-    !precedingNonBlank.includes('cache: pnpm')
-  ) {
+  if (workflow.trim() !== expectedWorkflow.trim()) {
+    errors.push('check workflow must strictly match the approved GF-001 workflow contract');
+    if (/^\s*(?:if|continue-on-error|shell):/m.test(workflow)) {
+      errors.push(
+        'check workflow must not contain conditional bypasses, shell overrides, or continue-on-error modifiers',
+      );
+    }
+    if (!workflow.includes(`uses: ${immutableActions.checkout}`)) {
+      errors.push(`check workflow must use exact immutable SHA for checkout: ${immutableActions.checkout}`);
+    }
+    if (!workflow.includes(`uses: ${immutableActions.pnpmSetup}`)) {
+      errors.push(`check workflow must use exact immutable SHA for pnpm-setup: ${immutableActions.pnpmSetup}`);
+    }
+    if (!workflow.includes(`uses: ${immutableActions.setupNode}`)) {
+      errors.push(`check workflow must use exact immutable SHA for setup-node: ${immutableActions.setupNode}`);
+    }
     errors.push(
       'check workflow must run the direct active-repository preflight before dependency installation and pnpm check',
     );
