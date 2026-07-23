@@ -36,7 +36,9 @@ function withTempRepo(run) {
     } catch {}
     run(tempDir);
   } finally {
-    rmSync(tempDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    try {
+      rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch {}
   }
 }
 

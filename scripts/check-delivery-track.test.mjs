@@ -73,7 +73,9 @@ function fixture(run) {
   try {
     return run(dir);
   } finally {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch {}
   }
 }
 function gitFixture(run) {
