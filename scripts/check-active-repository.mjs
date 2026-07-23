@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { deliveryAllowlist } from './check-delivery-track.mjs';
 
 const archiveRef = 'archive/jig-v0-pre-greenfield-2026-07-18';
@@ -150,31 +151,32 @@ const immutableActions = {
   setupNode: 'actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af',
 };
 
-function git(...args) {
+function git(rootDir, ...args) {
   return execFileSync('git', args, {
+    cwd: rootDir,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
 }
 
-export function validateActiveRepository(_rootDir = process.cwd()) {
+export function validateActiveRepository(rootDir = process.cwd()) {
   const errors = [];
   const allowedDeliveryPaths = deliveryAllowlist();
 
   for (const requiredPath of requiredPaths) {
-    if (!existsSync(requiredPath)) {
+    if (!existsSync(join(rootDir, requiredPath))) {
       errors.push(`required active path is missing: ${requiredPath}`);
     }
   }
 
   for (const forbiddenPath of forbiddenPaths) {
-    const activeEntries = git('ls-files', '--cached', '--others', '--exclude-standard', '--', forbiddenPath);
+    const activeEntries = git(rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', forbiddenPath);
     if (activeEntries.length > 0) {
       errors.push(`archived generation or product path remains active: ${forbiddenPath}`);
     }
   }
 
-  const activeRepositoryPaths = git('ls-files', '--cached', '--others', '--exclude-standard')
+  const activeRepositoryPaths = git(rootDir, 'ls-files', '--cached', '--others', '--exclude-standard')
     .split('\n')
     .filter(Boolean);
   for (const path of activeRepositoryPaths) {
@@ -194,11 +196,22 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
     if (!permitted) errors.push(`GF-001 substrate repository has unexpected active path: ${path}`);
   }
 
-  const activeDeliveryPaths = git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'docs/delivery')
+  const activeDeliveryPaths = git(
+    rootDir,
+    'ls-files',
+    '--cached',
+    '--others',
+    '--exclude-standard',
+    '--',
+    'docs/delivery',
+  )
     .split('\n')
     .filter(Boolean)
     .sort();
-  const deletedDeliveryPaths = git('ls-files', '--deleted', '--', 'docs/delivery').split('\n').filter(Boolean).sort();
+  const deletedDeliveryPaths = git(rootDir, 'ls-files', '--deleted', '--', 'docs/delivery')
+    .split('\n')
+    .filter(Boolean)
+    .sort();
   const expectedDeliveryPaths = [...deliveryAllowlist()].sort();
   if (
     activeDeliveryPaths.length !== expectedDeliveryPaths.length ||
@@ -210,7 +223,8 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
     errors.push(`active docs/delivery paths are deleted from the working tree: ${deletedDeliveryPaths.join(', ')}`);
   }
 
-  const parsedPackageManifest = JSON.parse(readFileSync('package.json', 'utf8'));
+  const packageJsonPath = join(rootDir, 'package.json');
+  const parsedPackageManifest = existsSync(packageJsonPath) ? JSON.parse(readFileSync(packageJsonPath, 'utf8')) : null;
   const packageManifest =
     parsedPackageManifest !== null && typeof parsedPackageManifest === 'object' && !Array.isArray(parsedPackageManifest)
       ? parsedPackageManifest
@@ -261,7 +275,8 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
       );
 
   // Exact Bounded Workflow Contract Validation
-  const workflow = readFileSync('.github/workflows/check.yml', 'utf8');
+  const workflowPath = join(rootDir, '.github/workflows/check.yml');
+  const workflow = existsSync(workflowPath) ? readFileSync(workflowPath, 'utf8') : '';
   const hasDisallowedKeywords = /^\s*(?:if|continue-on-error|shell):/m.test(workflow);
   if (hasDisallowedKeywords) {
     errors.push(
@@ -312,7 +327,8 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
     );
   }
 
-  const workspaceConfiguration = readFileSync('pnpm-workspace.yaml', 'utf8');
+  const workspaceConfigPath = join(rootDir, 'pnpm-workspace.yaml');
+  const workspaceConfiguration = existsSync(workspaceConfigPath) ? readFileSync(workspaceConfigPath, 'utf8') : '';
   const workspacePackageDeclarations = workspaceConfiguration.match(/^packages:.*$/gm) ?? [];
   const workspaceBuildDeclarations = workspaceConfiguration.match(/^allowBuilds:.*$/gm) ?? [];
   if (
@@ -327,9 +343,9 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
 
   // Mandatory Archive Anchor Verification
   try {
-    const resolvedTagObject = git('rev-parse', archiveRef);
-    const resolvedCommit = git('rev-parse', `${archiveRef}^{}`);
-    const resolvedTree = git('rev-parse', `${archiveRef}^{}^{tree}`);
+    const resolvedTagObject = git(rootDir, 'rev-parse', archiveRef);
+    const resolvedCommit = git(rootDir, 'rev-parse', `${archiveRef}^{}`);
+    const resolvedTree = git(rootDir, 'rev-parse', `${archiveRef}^{}^{tree}`);
     if (resolvedTagObject !== archiveTagObject) {
       errors.push(`archive tag object resolves to ${resolvedTagObject}, expected ${archiveTagObject}`);
     }
@@ -340,7 +356,7 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
       errors.push(`archive tree resolves to ${resolvedTree}, expected ${archiveTree}`);
     }
     for (const archivePath of representativeArchivePaths) {
-      git('cat-file', '-e', `${archiveRef}^{commit}:${archivePath}`);
+      git(rootDir, 'cat-file', '-e', `${archiveRef}^{commit}:${archivePath}`);
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

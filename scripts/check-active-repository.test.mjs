@@ -8,6 +8,11 @@ import { validateActiveRepository } from './check-active-repository.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 
+function isNotGitDir(src) {
+  const rel = src.slice(repoRoot.length);
+  return rel !== '/.git' && !rel.startsWith('/.git/');
+}
+
 test('validateActiveRepository passes on current active repository', () => {
   const errors = validateActiveRepository(repoRoot);
   assert.equal(errors.length, 0, `Expected 0 structure check errors, got: ${errors.join(', ')}`);
@@ -16,16 +21,25 @@ test('validateActiveRepository passes on current active repository', () => {
 test('validateActiveRepository fails when an unlisted file is added to test fixture workspace', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'active-repo-test-'));
   try {
-    // Copy active repo into tempDir
-    cpSync(repoRoot, tempDir, { recursive: true });
-    // Initialize git repo in tempDir and create archive ref
-    execFileSync('git', ['init'], { cwd: tempDir });
+    cpSync(repoRoot, tempDir, { recursive: true, filter: isNotGitDir });
+    execFileSync('git', ['init', '-q'], { cwd: tempDir });
     execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tempDir });
     execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tempDir });
     execFileSync('git', ['add', '.'], { cwd: tempDir });
-    execFileSync('git', ['commit', '-m', 'Initial commit'], { cwd: tempDir });
+    execFileSync('git', ['commit', '-q', '-m', 'Initial commit'], { cwd: tempDir });
+    try {
+      execFileSync(
+        'git',
+        [
+          'fetch',
+          '-q',
+          repoRoot,
+          'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
+        ],
+        { cwd: tempDir },
+      );
+    } catch {}
 
-    // Add forbidden runtime file in test fixture
     const unexpectedFile = join(
       tempDir,
       'tests',
@@ -52,7 +66,25 @@ test('validateActiveRepository fails when an unlisted file is added to test fixt
 test('validateActiveRepository fails when check.yml uses mutable action tags', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'active-repo-test-'));
   try {
-    cpSync(repoRoot, tempDir, { recursive: true });
+    cpSync(repoRoot, tempDir, { recursive: true, filter: isNotGitDir });
+    execFileSync('git', ['init', '-q'], { cwd: tempDir });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tempDir });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tempDir });
+    execFileSync('git', ['add', '.'], { cwd: tempDir });
+    execFileSync('git', ['commit', '-q', '-m', 'Initial commit'], { cwd: tempDir });
+    try {
+      execFileSync(
+        'git',
+        [
+          'fetch',
+          '-q',
+          repoRoot,
+          'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
+        ],
+        { cwd: tempDir },
+      );
+    } catch {}
+
     const workflowPath = join(tempDir, '.github', 'workflows', 'check.yml');
     writeFileSync(
       workflowPath,
