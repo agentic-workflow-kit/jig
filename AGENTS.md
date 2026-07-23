@@ -5,10 +5,12 @@ surface you touch before planning non-trivial work.
 
 ## Current repository posture
 
-Jig's approved product and architecture are implementation-ready. The active repository intentionally
-contains no product source, but it now has an active documentation-only greenfield delivery track.
-Do not create source or package scaffolds: the track sequences later implementation from the approved
-documents; it does not authorize it.
+Jig's approved product and architecture are implementation-ready. The active repository has entered
+GF-001 (private Node/TypeScript/pnpm/Turbo workspace substrate). It remains product-runtime-empty:
+no product package, runtime package, provider, adapter, controller, storage implementation, lifecycle
+behavior, port implementation, CLI, MCP surface, credential, or real external effect is authorized or
+implemented. GF-002 and later stories remain unimplemented. The greenfield delivery track remains
+authoritative, while archive material remains non-governing provenance.
 
 The retired implementation generation and its delivery track are recoverable through the immutable
 archive described in
@@ -25,7 +27,7 @@ design and retain provenance.
 | Approved architecture, authority, runtime, lifecycle, data, failure, and conformance contracts | `docs/redesign/design/`                                                             |
 | Architecture method and maintenance rules                                                      | `docs/redesign/guidelines/` and `docs/redesign/AGENTS.md`                           |
 | Final empty-repository readiness gate                                                          | `docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md` |
-| Active documentation-only delivery track                                                       | `docs/delivery/greenfield/`                                                         |
+| Active greenfield delivery track                                                               | `docs/delivery/greenfield/`                                                         |
 | Retired-generation recovery and lookup policy                                                  | `docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md`                      |
 
 Product owns what and why. The approved redesign owns how. Historical material under
@@ -36,15 +38,16 @@ Product owns what and why. The approved redesign owns how. Historical material u
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
+pnpm typecheck
+pnpm boundaries:check
+pnpm test
 pnpm format
 pnpm worktree:new <branch>
 pnpm worktree:clean <branch>
 ```
 
-`pnpm check` validates repository structure, the archive recovery anchor, the documentation-only
-delivery track, formatting, lint, and documentation links. Run `pnpm delivery:check` for the focused
-track validator. There is no build, runtime, package-boundary, or product-test command while the
-active source tree is intentionally empty.
+`pnpm check` validates GF-001 repository structure, typecheck, package boundaries, infrastructure tests,
+the archive recovery anchor, the greenfield delivery track, formatting, lint, and documentation links.
 
 ## Gate and conventions
 

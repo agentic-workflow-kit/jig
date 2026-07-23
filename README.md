@@ -9,10 +9,12 @@
 ## Status
 
 The approved product and redesign documents passed the final empty-repository implementation-
-readiness gate on 2026-07-18. The active repository intentionally contains no product source. Its
-documentation-only [greenfield delivery track](docs/delivery/README.md) now records 48 stories,
-seven phase gates, fixed inventories, and review contract needed for a later owner-authorized
-implementation phase.
+readiness gate on 2026-07-18. The active repository has entered GF-001 (private Node/TypeScript/pnpm/Turbo
+workspace substrate). It remains product-runtime-empty: no product package, runtime package, provider,
+adapter, controller, storage implementation, lifecycle behavior, port implementation, CLI, MCP surface,
+credential, or real external effect exists. GF-002 and later stories remain unimplemented. The
+[greenfield delivery track](docs/delivery/README.md) remains authoritative, while archive material remains
+non-governing.
 
 The retired implementation generation is preserved at
 `archive/jig-v0-pre-greenfield-2026-07-18`, which resolves to commit

@@ -43,13 +43,23 @@ const activeFixturePaths = [
   'README.md',
   'biome.json',
   'docs/README.md',
+  'docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md',
+  'docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
+  'turbo.json',
+  'tsconfig.json',
+  'tsconfig.base.json',
+  'tsconfig.tools.json',
   'scripts/check-doc-links.mjs',
   'scripts/check-delivery-track.mjs',
   'scripts/check-delivery-track.test.mjs',
   'scripts/check-active-repository.mjs',
+  'scripts/check-active-repository.test.mjs',
+  'scripts/check-package-boundaries.mjs',
+  'scripts/check-package-boundaries.test.mjs',
+  'tests/gf-001/workspace-substrate.test.mjs',
   ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
     markdownFiles(join(root, path)).map((file) => relative(root, file)),
   ),
@@ -878,13 +888,13 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(join(dir, 'src/unsafe.mjs'), 'export const unsafe = true;\n');
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /source-empty repository has unexpected active path: src\/unsafe\.mjs/);
+    assert.match(result.stderr, /GF-001 substrate repository has unexpected active path: src\/unsafe\.mjs/);
   });
   gitFixture((dir) => {
     writeFileSync(join(dir, 'docs/product/package.json'), '{"private":true}\n');
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /source-empty repository has unexpected active path: docs\/product\/package\.json/);
+    assert.match(result.stderr, /GF-001 substrate repository has unexpected active path: docs\/product\/package\.json/);
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -893,7 +903,7 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /scripts must contain exactly the approved non-lifecycle command set/);
+    assert.match(result.stderr, /scripts must contain exactly the approved GF-001 command set/);
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -911,7 +921,7 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /exactly the approved documentation-only manifest fields/);
+    assert.match(result.stderr, /approved GF-001 substrate manifest fields/);
   });
   gitFixture((dir) => {
     const p = join(dir, 'pnpm-workspace.yaml');

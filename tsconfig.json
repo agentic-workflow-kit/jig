@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.tools.json" },
+    { "path": "./tests/fixtures/gf-001-workspace/packages/pkg-a" },
+    { "path": "./tests/fixtures/gf-001-workspace/packages/pkg-b" },
+    { "path": "./tests/fixtures/gf-001-workspace/packages/pkg-c" }
+  ]
+}
