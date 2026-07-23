@@ -32,13 +32,14 @@ const outputDir = join(rootDir, 'artifacts', 'gf-001');
 mkdirSync(outputDir, { recursive: true });
 const fixtureEvidencePath = join(outputDir, 'fixture-evidence.json');
 const fixtureEvidence = existsSync(fixtureEvidencePath) ? readFileSync(fixtureEvidencePath, 'utf8') : null;
+const exitCode = result.signal === null ? (result.status ?? 1) : 1;
 const report = {
   schemaVersion: 2,
   subject: 'GF-001',
   command: 'node --test tests/gf-001/workspace-substrate.test.mjs then evidence.test.mjs',
   startedAt,
   finishedAt: new Date().toISOString(),
-  exitCode: result.status ?? 1,
+  exitCode,
   signal: result.signal,
   stdoutSha256: createHash('sha256')
     .update(result.stdout ?? '')
@@ -52,4 +53,4 @@ writeFileSync(join(outputDir, 'fixture-results.json'), `${JSON.stringify(report,
 if (result.error) throw result.error;
 if (result.status === 0 && fixtureEvidence === null)
   throw new Error('GF-001 fixture tests passed without producing fixture-evidence.json');
-if (result.status !== 0) process.exitCode = result.status ?? 1;
+if (exitCode !== 0) process.exitCode = exitCode;
