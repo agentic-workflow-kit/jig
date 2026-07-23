@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig product and architecture corpus awaiting a greenfield implementation track.",
+  "description": "Jig active documentation-only greenfield delivery track; implementation is not yet authorized.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -25,7 +25,8 @@
     "lint": "biome check .",
     "links:check": "node scripts/check-doc-links.mjs",
     "structure:check": "node scripts/check-active-repository.mjs",
-    "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm structure:check"
+    "delivery:check": "node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs",
+    "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",

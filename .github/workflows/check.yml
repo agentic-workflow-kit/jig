@@ -33,6 +33,9 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
 
+      - name: Active repository preflight
+        run: node scripts/check-active-repository.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

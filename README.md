@@ -9,9 +9,10 @@
 ## Status
 
 The approved product and redesign documents passed the final empty-repository implementation-
-readiness gate on 2026-07-18. The active repository intentionally contains no product source and no
-implementation delivery track. The replacement implementation must be planned greenfield in a
-separate owner-authorized session.
+readiness gate on 2026-07-18. The active repository intentionally contains no product source. Its
+documentation-only [greenfield delivery track](docs/delivery/README.md) now records 48 stories,
+seven phase gates, fixed inventories, and review contract needed for a later owner-authorized
+implementation phase.
 
 The retired implementation generation is preserved at
 `archive/jig-v0-pre-greenfield-2026-07-18`, which resolves to commit
@@ -25,6 +26,7 @@ historical reference only and does not govern the next implementation.
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [Product](docs/product/README.md)                                                                   | Audience, promise, workflows, guarantees, and boundaries.                                                |
 | [Approved redesign](docs/redesign/design/README.md)                                                 | Authorities, runtime units, ports, lifecycle, data, failure, operations, and conformance contracts.      |
+| [Greenfield delivery track](docs/delivery/README.md)                                                | Documentation-only sequencing, story contracts, fixed inventories, and independent review expectations.  |
 | [Readiness gate](docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md) | Exact reviewed subject, review coverage, findings, delegated choices, checks, and archive authorization. |
 | [Archive](docs/archive/README.md)                                                                   | Historical provenance and the retired-generation recovery manifest.                                      |
 
@@ -38,19 +40,36 @@ pnpm check
 ```
 
 The check validates formatting, lint, documentation links, the empty-source active-tree posture,
-and the immutable archive recovery anchor.
+the active delivery track, and the immutable archive recovery anchor. Run `pnpm delivery:check` for
+the focused delivery validator and its mutation tests.
 
 ## Next implementation prerequisite
 
-The next session may create a greenfield implementation track only after it:
+The next owner-authorized implementation session must use the active greenfield delivery track and:
 
-1. starts from current `main` after the archival PR is merged;
-2. treats `docs/product/` and `docs/redesign/design/` as governing;
-3. uses the readiness gate's 44 commitment routes, R1–R7 obligations, and constrained-choice
+1. resolve the approved delivery package `P = Q + durable R identifier + PASS` and verify that package's
+   landing on the target ref; when landing produced
+   a different commit, verify the authoritative landing-equivalence record without treating the
+   landed commit as the reviewed subject;
+2. resolve the target ref's then-current commit/tree as the story execution base rather than
+   treating immutable planning provenance as a rolling base;
+3. independently verify the exact external owner-ratification/activation record binding `P`,
+   planning/authority provenance, target scope, selected realization tuple, and expiry/revocation;
+4. freeze the final-verification posture, policy-selected required check-class set, verification
+   configuration/environment, and candidate binding for independent implementation review; after
+   `Accepted`, `deterministic` requires a passing, subject-matching `EV-CHECK-OBSERVATION` for every
+   required class and the complete set inside `Finalizing` before any target-changing Operation,
+   while `none` is an explicit no-op. Those unchanged-binding observations are authorized
+   continuation evidence, not a new review subject; drift requires a fresh tuple and review;
+5. treat `docs/product/` and `docs/redesign/design/` as governing;
+6. use the readiness gate's 44 commitment routes, R1–R7 obligations, and constrained-choice
    register as planning inputs; and
-4. avoids the retired generation unless an already-specified active story needs a bounded lookup.
+7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
-No implementation source or replacement track is included in this transition.
+No implementation source or product package scaffolding is included in this transition. The active
+track is a planning stop line: it does not authorize implementation until a story's merged
+predecessors, exact evidence, delegated-choice gate, external activation, and independent review
+requirements are met.
 
 ## License
 

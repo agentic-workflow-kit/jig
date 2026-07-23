@@ -1,0 +1,48 @@
+---
+title: "Jig greenfield delivery — research ledger"
+purpose: "Bound comparative research so it informs implementation mechanics without governing the plan."
+audience:
+  - delivery planners
+  - architecture reviewers
+status: non-governing reference ledger
+owner: Arye Kogan
+last_verified: 2026-07-22
+---
+
+# Research ledger
+
+## Rule of use
+
+Research is non-governing. The active product and redesign select all outcomes, authority,
+lifecycle, and delivery obligations. A research observation may be adopted only when it conforms to
+the named governing IDs, is recorded in a story's `DR-*` section, and has its own proof. It cannot
+fill a product/design gap, justify archive reuse, override an owner decision, or turn ignored
+remnants into a planning source.
+
+| Reference             | Inspected scope                                                                                                                                | May inform                                                                                                                                                                       | Explicitly not adopted                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `main` at `d124ea5`   | task/config/CI, driver registry, run journal/runner/completion gate, config schema/version                                                     | narrow driver-factory, journaling, schema/version discipline                                                                                                                     | tracker, PR, completion, lifecycle, and config behavior; Changesets/OIDC until public distribution is promised |
+| `v-next` at `716db2e` | pnpm/Turbo/TS/Vitest/dependency-cruiser tooling; package/SDK/testkit/provider contracts; reducer/replay/storage/leases; deferred provider docs | private SDK/provider/testkit separation, task graph/TS refs, pure reducer, dependency guards, hermetic/adversarial testkit, record/replay/fencing/typed failures through Jig IDs | exact lifecycle/events/durability/methods/package count and deferred provider behavior                         |
+
+## Inactive proposed realization posture
+
+This ledger proposes a private TypeScript/Node/pnpm/Turbo topology, strict JSON initially, D11 file
+stores with a genuinely independent witness trust root, and an initial provider set of file
+source/storage, local Git host, local verify, Codex, and GitHub. It proposes the DR-12
+terminal/file notice route as a presentation channel rather than a port provider, and a supported
+profile with both a private CLI and private MCP. These are inactive, bounded realization proposals,
+not a public-product expansion or an owner-approved planning source.
+
+No proposal is selectable or implementable until an external owner activates it through the exact
+ratification/activation record in the [delegated-choice schedule](./decisions.md#external-owner-ratification-and-activation-prerequisite).
+If activation is not recorded, the applicable realization remains unavailable.
+
+After external owner activation, pin CI actions immutably and place the selected
+realization/evidence/fallback in the applicable story contract. Unsupported GitHub modes and Codex
+postures remain unconfigurable.
+
+## Provenance rule
+
+The retired generation archive is not research for planning. It may be consulted only for a named,
+already-specified active story under the repository lookup policy, with ref/path recorded as
+provenance and fresh compliance evidence. It never supplies an accepted implementation algorithm.
