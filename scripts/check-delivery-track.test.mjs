@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   cpSync,
   lstatSync,
   mkdirSync,
@@ -34,11 +35,18 @@ function markdownFiles(dir) {
 }
 const activeFixturePaths = [
   ...deliveryAllowlist(),
+  '.github/workflows/check.yml',
   '.gitignore',
+  '.nvmrc',
+  '.prettierignore',
   'AGENTS.md',
   'README.md',
+  'biome.json',
   'docs/README.md',
   'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'scripts/check-doc-links.mjs',
   'scripts/check-delivery-track.mjs',
   'scripts/check-delivery-track.test.mjs',
   'scripts/check-active-repository.mjs',
@@ -84,8 +92,46 @@ function pairStoryField(dir, field, value) {
   const path = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
   writeFileSync(
     path,
-    readFileSync(path, 'utf8').replace(new RegExp(`^${field}:.*$`, 'm'), `${field}: ${JSON.stringify(value)}`),
+    readFileSync(path, 'utf8').replace(
+      new RegExp(`^${field}:[^\\n]*(?:\\n {2,}[^\\n]*)*`, 'm'),
+      `${field}: ${JSON.stringify(value)}`,
+    ),
   );
+}
+function replaceCoverageRowCell(dir, firstCell, columnIndex, value) {
+  const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+  const text = readFileSync(path, 'utf8');
+  const row = text.split('\n').find((line) => line.startsWith('|') && line.split('|')[1]?.trim() === firstCell);
+  assert.ok(row, `missing coverage row for ${firstCell}`);
+  const cells = row.split('|');
+  cells[columnIndex] = ` ${value} `;
+  writeFileSync(path, text.replace(row, cells.join('|')));
+}
+function pairStableIdsAndRenderedMappings(dir, id, mutate) {
+  let nextStableIds;
+  let operations;
+  edit(dir, (track) => {
+    const story = track.stories.find((candidate) => candidate.id === id);
+    nextStableIds = mutate([...story.stable_ids]);
+    story.stable_ids = nextStableIds;
+    for (const operation of Object.keys(track.inventories.operations)) {
+      track.inventories.operations[operation] = track.stories
+        .filter((candidate) => candidate.stable_ids.includes(operation))
+        .map((candidate) => candidate.id);
+    }
+    operations = track.inventories.operations;
+  });
+  const storyPath = join(dir, `docs/delivery/greenfield/stories/${id}.md`);
+  writeFileSync(
+    storyPath,
+    readFileSync(storyPath, 'utf8').replace(
+      /^stable_ids:\n\s+\[\n(?:\s+.*\n)+?\s+\]\n/m,
+      `stable_ids: ${JSON.stringify(nextStableIds)}\n`,
+    ),
+  );
+  replaceCoverageRowCell(dir, id, 2, nextStableIds.join(', '));
+  for (const [operation, stories] of Object.entries(operations))
+    replaceCoverageRowCell(dir, operation, 2, stories.join(', '));
 }
 function reject(mutate, expected) {
   fixture((dir) => {
@@ -339,7 +385,7 @@ test('immutable delivery authorities, choices, splits, families, critical path, 
   reject(
     (dir) =>
       edit(dir, (t) => {
-        delete t.baseline.current_main_commit;
+        delete t.baseline.planning_provenance_commit;
       }),
     'immutable authority and global-definition fields',
   );
@@ -485,9 +531,9 @@ test('track JSON rejects duplicate object keys before JSON parsing normalizes th
   }, 'delivery track has duplicate JSON object key kind');
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/track.json');
-    const value = '"current_main_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",';
+    const value = '"planning_provenance_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",';
     writeFileSync(p, readFileSync(p, 'utf8').replace(value, `${value}\n    ${value}`));
-  }, 'delivery track has duplicate JSON object key current_main_commit');
+  }, 'delivery track has duplicate JSON object key planning_provenance_commit');
 });
 test('track JSON rejects inputs above the strict 2 MiB limit', () => {
   reject((dir) => {
@@ -619,9 +665,13 @@ test('paired story schema matrix rejects every required scalar and collection mu
     ['status', 1, 'status must be proposed'],
     ['status', '', 'status must be proposed'],
     ['status', 'wrong', 'status must be proposed'],
-    ['baseline_commit', 1, 'baseline_commit must equal the selected baseline'],
-    ['baseline_commit', '', 'baseline_commit must equal the selected baseline'],
-    ['baseline_commit', '0123456789012345678901234567890123456789', 'baseline_commit must equal the selected baseline'],
+    ['baseline_commit', 1, 'baseline_commit must equal the immutable planning provenance'],
+    ['baseline_commit', '', 'baseline_commit must equal the immutable planning provenance'],
+    [
+      'baseline_commit',
+      '0123456789012345678901234567890123456789',
+      'baseline_commit must equal the immutable planning provenance',
+    ],
     ['dr_gates', 'DR-1', 'dr_gates must be an array'],
     ['dr_gates', [1], 'dr_gates must be a nonempty unique string array'],
     ['dr_gates', ['DR-999'], 'dr_gates must use only open DR IDs'],
@@ -830,6 +880,199 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /source-empty repository has unexpected active path: src\/unsafe\.mjs/);
   });
+  gitFixture((dir) => {
+    writeFileSync(join(dir, 'docs/product/package.json'), '{"private":true}\n');
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /source-empty repository has unexpected active path: docs\/product\/package\.json/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    manifest.scripts.preinstall = 'node scripts/unsafe.mjs';
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /scripts must contain exactly the approved non-lifecycle command set/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    manifest.scripts['links:check'] = 'true';
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /links:check must exactly preserve its repository validation command/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'package.json');
+    const manifest = JSON.parse(readFileSync(p, 'utf8'));
+    manifest.dependencies = { unsafe: '1.0.0' };
+    writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exactly the approved documentation-only manifest fields/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'pnpm-workspace.yaml');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('packages: []', 'packages: [docs/archive]'));
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /empty package set and deny all dependency lifecycle builds/);
+  });
+  gitFixture((dir) => {
+    const p = join(dir, 'pnpm-workspace.yaml');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('allowBuilds: {}', 'allowBuilds:\n  unsafe: true'));
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /empty package set and deny all dependency lifecycle builds/);
+  });
+});
+test('CI runs the immutable structure preflight before the mutable pipeline and the workflow is package-bound', () =>
+  gitFixture((dir) => {
+    const workflow = join(dir, '.github/workflows/check.yml');
+    const baseline = candidatePackageManifest(dir);
+    const result = runStructureCheck(dir);
+    assert.doesNotMatch(
+      result.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+
+    writeFileSync(
+      workflow,
+      readFileSync(workflow, 'utf8').replace(
+        '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile',
+        '      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n\n      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs',
+      ),
+    );
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    const mutated = runStructureCheck(dir);
+    assert.notEqual(mutated.status, 0);
+    assert.match(
+      mutated.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+  }));
+test('CI preflight must be unconditional, failure-blocking, and in the check job', () => {
+  for (const insertedLine of [
+    `        if: \${{ false }}\n`,
+    '        continue-on-error: true\n',
+    '        shell: echo {0}\n',
+  ])
+    gitFixture((dir) => {
+      const workflow = join(dir, '.github/workflows/check.yml');
+      writeFileSync(
+        workflow,
+        readFileSync(workflow, 'utf8').replace(
+          '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs',
+          `      - name: Active repository preflight\n${insertedLine}        run: node scripts/check-active-repository.mjs`,
+        ),
+      );
+      const result = runStructureCheck(dir);
+      assert.notEqual(result.status, 0);
+      assert.match(
+        result.stderr,
+        /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+      );
+    });
+
+  gitFixture((dir) => {
+    const workflow = join(dir, '.github/workflows/check.yml');
+    writeFileSync(
+      workflow,
+      readFileSync(workflow, 'utf8').replace(
+        '    runs-on: ubuntu-latest\n    steps:',
+        `    runs-on: ubuntu-latest\n    if: \${{ false }}\n    steps:`,
+      ),
+    );
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+  });
+
+  gitFixture((dir) => {
+    const workflow = join(dir, '.github/workflows/check.yml');
+    writeFileSync(
+      workflow,
+      readFileSync(workflow, 'utf8').replace(
+        '      - name: Active repository preflight',
+        '      - name: Rewrite active checker\n        run: cp package.json scripts/check-active-repository.mjs\n\n      - name: Active repository preflight',
+      ),
+    );
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+  });
+
+  gitFixture((dir) => {
+    const workflow = join(dir, '.github/workflows/check.yml');
+    writeFileSync(
+      workflow,
+      readFileSync(workflow, 'utf8').replace(
+        '      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n\n      - name: check\n        run: pnpm check',
+        '      - name: check\n        run: pnpm check\n\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile',
+      ),
+    );
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+  });
+
+  gitFixture((dir) => {
+    const workflow = join(dir, '.github/workflows/check.yml');
+    const text = readFileSync(workflow, 'utf8');
+    const withoutCheckPreflight = text.replace(
+      '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n',
+      '',
+    );
+    writeFileSync(
+      workflow,
+      withoutCheckPreflight.replace(
+        'jobs:\n  check:',
+        'jobs:\n  preflight:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n  check:',
+      ),
+    );
+    const result = runStructureCheck(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /check workflow must run the direct active-repository preflight before dependency installation and pnpm check/,
+    );
+  });
+});
+test('candidate package binds the document-link validator implementation', () =>
+  fixture((dir) => {
+    const baseline = candidatePackageManifest(dir);
+    const path = join(dir, 'scripts/check-doc-links.mjs');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\n// coherent validator mutation\n`);
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+  }));
+test('candidate package binds every validation, install, ignore, and local-runtime configuration input', () => {
+  for (const relativePath of [
+    '.gitignore',
+    '.nvmrc',
+    '.prettierignore',
+    'biome.json',
+    'pnpm-lock.yaml',
+    'pnpm-workspace.yaml',
+  ])
+    fixture((dir) => {
+      const baseline = candidatePackageManifest(dir);
+      const path = join(dir, relativePath);
+      writeFileSync(path, `${readFileSync(path, 'utf8')}\n# candidate-bound mutation\n`);
+      assert.notEqual(candidatePackageManifest(dir), baseline, relativePath);
+      assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+    });
 });
 test('malformed shape diagnostics are unique and invalid story roots short-circuit', () => {
   for (const field of ['dependencies', 'dependency_edges'])
@@ -856,6 +1099,24 @@ test('phase order places same-phase predecessors before their dependents', () =>
         [phase.stories[2], phase.stories[3]] = [phase.stories[3], phase.stories[2]];
       }),
     'same-phase predecessor after its position',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (track) => {
+        const acceptance = track.stories.find((story) => story.id === 'GF-040');
+        acceptance.dependencies = acceptance.dependencies.filter((id) => id !== 'GF-041');
+        acceptance.dependency_edges = acceptance.dependency_edges.filter((edge) => edge.from !== 'GF-041');
+      }),
+    'GF-041 review publication must precede and provide an implementation dependency to GF-040 acceptance',
+  );
+  reject(
+    (dir) =>
+      edit(dir, (track) => {
+        const finalizer = track.stories.find((story) => story.id === 'GF-043');
+        finalizer.dependencies = finalizer.dependencies.filter((id) => id !== 'GF-042');
+        finalizer.dependency_edges = finalizer.dependency_edges.filter((edge) => edge.from !== 'GF-042');
+      }),
+    'GF-043 must integrate accepted-subject finalization entry with deterministic verification authorization',
   );
 });
 test('phase records, story membership, parallel lanes, and gate edges are exact', () => {
@@ -918,6 +1179,25 @@ test('phase records, story membership, parallel lanes, and gate edges are exact'
 });
 test('candidate manifest is an unpinned exact-package digest', () =>
   assert.match(candidatePackageManifest(root), /^[a-f0-9]{64}$/));
+test('candidate manifest binds normalized regular-file mode as well as path and bytes', () =>
+  fixture((dir) => {
+    const baseline = candidatePackageManifest(dir);
+    chmodSync(join(dir, 'README.md'), 0o755);
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+  }));
+test('candidate manifest hashes raw bytes while package validation rejects invalid UTF-8', () =>
+  fixture((dir) => {
+    const path = join(dir, 'README.md');
+    writeFileSync(path, Buffer.from([0x23, 0x20, 0x80, 0x0a]));
+    const first = candidatePackageManifest(dir);
+    assert.ok(validateDeliveryTrackPackage(dir).includes('README.md is not valid UTF-8 text'));
+
+    writeFileSync(path, Buffer.from([0x23, 0x20, 0x81, 0x0a]));
+    const second = candidatePackageManifest(dir);
+    assert.ok(validateDeliveryTrackPackage(dir).includes('README.md is not valid UTF-8 text'));
+    assert.notEqual(first, second);
+  }));
 test('external review tuple rejects a coherent candidate after its package digest changes', () =>
   fixture((dir) => {
     const baseline = candidatePackageManifest(dir);
@@ -940,6 +1220,80 @@ test('source catalogs fail closed on missing headings and duplicate first-column
     const row = readFileSync(p, 'utf8').match(/^\| `RT-OPERATOR`.*$/m)[0];
     writeFileSync(p, readFileSync(p, 'utf8').replace(row, `${row}\n${row}`));
   }, 'source catalog docs/redesign/design/runtime.md must contain exactly 6 unique RT-* first-column rows');
+});
+test('coverage matrices strictly account for malformed, backticked, duplicate, and unexpected table rows', () => {
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('| GF-001 |', '| `GF-001` |'));
+  }, 'coverage.md Story metadata to covered items table has a noncanonical first cell');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    const text = readFileSync(path, 'utf8');
+    const separator = text.match(/^\| -+ \| -+ \| -+ \|$/m)[0];
+    writeFileSync(path, text.replace(separator, `${separator}\n${separator}`));
+  }, 'coverage.md Product route to story coverage table has a noncanonical first cell');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    const text = readFileSync(path, 'utf8');
+    const row = text.match(/^\| PC-README-1\s+\|.*$/m)[0];
+    writeFileSync(path, text.replace(row, `${row}\n${row}`));
+  }, 'coverage.md Product route to story coverage table duplicates first cell PC-README-1');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('| FENCE-1  | FENCE', '| FENCE-1 | extra | FENCE'));
+  }, 'coverage.md Imported commitment to story coverage table has a row with 5 columns; expected 4');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('| RT-OPERATOR   |', '| `RT-OPERATOR` |'));
+  }, 'coverage.md runtime units table has a noncanonical first cell');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('| GF-019         | GF-020', '| GF-999         | GF-020'));
+  }, 'coverage.md Provider gate closure table has an unexpected first cell GF-999');
+});
+test('approved story authority bindings reject coherent governing-path reduction', () =>
+  reject((dir) => {
+    pairStoryField(dir, 'governing_paths', ['docs/product/concepts.md']);
+  }, 'story authority bindings must exactly preserve approved per-story mappings'));
+test('operation-family ownership rejects coherent forward and reverse selector drift', () => {
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-041', (ids) => [...ids, 'OPC-DEL-OBSERVE']);
+  }, 'GF-041 violates exact review-publication operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-041', (ids) =>
+      ids.filter((candidate) => candidate !== 'OPC-REV-COMMENT'),
+    );
+  }, 'GF-041 violates exact review-publication operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-057', (ids) => [...ids, 'OPC-DEL-STATUS']);
+  }, 'GF-057 violates exact review-publication operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-057', (ids) =>
+      ids.filter((candidate) => candidate !== 'OPC-REV-COMMENT'),
+    );
+  }, 'GF-057 violates exact review-publication operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-044', (ids) => [...ids, 'OPC-REV-PUBLISH']);
+  }, 'GF-044 violates exact final-delivery operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-044', (ids) =>
+      ids.filter((candidate) => candidate !== 'OPC-DEL-COMMENT'),
+    );
+  }, 'GF-044 violates exact final-delivery operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-061', (ids) => [...ids, 'OPC-REV-REQUEST']);
+  }, 'GF-061 violates exact final-delivery operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-061', (ids) =>
+      ids.filter((candidate) => candidate !== 'OPC-DEL-COMMENT'),
+    );
+  }, 'GF-061 violates exact final-delivery operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-042', (ids) => [...ids, 'OPC-REV-STATUS']);
+  }, 'GF-042 violates verify-only operation-family ownership');
+  reject((dir) => {
+    pairStableIdsAndRenderedMappings(dir, 'GF-047', (ids) => [...ids, 'OPC-DEL-PUBLISH']);
+  }, 'GF-047 violates verify-only operation-family ownership');
 });
 test('story literals must remain members of the governing route and identifier catalogs', () => {
   reject((dir) => {
@@ -1039,7 +1393,7 @@ test('rejects malformed JSON, unknown/cyclic deps, critical non-edge, split remo
       edit(dir, (t) => {
         t.mandatory_provider_splits.pop();
       }),
-    'exactly five fixed rows',
+    'exactly eight fixed rows',
   );
   reject(
     (dir) =>
@@ -1141,7 +1495,7 @@ test('rejects authority route, imported-matrix, inventory, DR, R03, split, DAG, 
       edit(dir, (t) => {
         t.mandatory_provider_splits.pop();
       }),
-    'exactly five fixed rows',
+    'exactly eight fixed rows',
   );
   reject(
     (dir) =>
@@ -1233,6 +1587,16 @@ test('rejects exact forward and reverse route, import, inventory, and governing-
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/coverage.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('| GF-019         | GF-020', '| GF-019         | GF-999'));
+  }, 'coverage.md provider-gate closure must exactly match mandatory provider splits');
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/coverage.md');
+    const text = readFileSync(path, 'utf8');
+    const rows = text.split('\n').filter((line) => line.startsWith('|') && line.split('|')[1]?.trim() === 'GF-041');
+    assert.equal(rows.length, 2);
+    const providerRow = rows.at(-1);
+    const cells = providerRow.split('|');
+    cells[2] = ' GF-061 ';
+    writeFileSync(path, text.replace(providerRow, cells.join('|')));
   }, 'coverage.md provider-gate closure must exactly match mandatory provider splits');
   reject(
     (dir) =>

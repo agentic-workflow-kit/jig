@@ -47,15 +47,29 @@ the focused delivery validator and its mutation tests.
 
 The next owner-authorized implementation session must use the active greenfield delivery track and:
 
-1. start from current `main` after the archival PR is merged;
-2. treat `docs/product/` and `docs/redesign/design/` as governing;
-3. use the readiness gate's 44 commitment routes, R1–R7 obligations, and constrained-choice
+1. resolve the approved delivery package `P = Q + durable R identifier + PASS` and verify that package's
+   landing on the target ref; when landing produced
+   a different commit, verify the authoritative landing-equivalence record without treating the
+   landed commit as the reviewed subject;
+2. resolve the target ref's then-current commit/tree as the story execution base rather than
+   treating immutable planning provenance as a rolling base;
+3. independently verify the exact external owner-ratification/activation record binding `P`,
+   planning/authority provenance, target scope, selected realization tuple, and expiry/revocation;
+4. freeze the final-verification posture, policy-selected required check-class set, verification
+   configuration/environment, and candidate binding for independent implementation review; after
+   `Accepted`, `deterministic` requires a passing, subject-matching `EV-CHECK-OBSERVATION` for every
+   required class and the complete set inside `Finalizing` before any target-changing Operation,
+   while `none` is an explicit no-op. Those unchanged-binding observations are authorized
+   continuation evidence, not a new review subject; drift requires a fresh tuple and review;
+5. treat `docs/product/` and `docs/redesign/design/` as governing;
+6. use the readiness gate's 44 commitment routes, R1–R7 obligations, and constrained-choice
    register as planning inputs; and
-4. avoid the retired generation unless an already-specified active story needs a bounded lookup.
+7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
 No implementation source or product package scaffolding is included in this transition. The active
 track is a planning stop line: it does not authorize implementation until a story's merged
-predecessors, exact evidence, delegated-choice gate, and independent review requirements are met.
+predecessors, exact evidence, delegated-choice gate, external activation, and independent review
+requirements are met.
 
 ## License
 

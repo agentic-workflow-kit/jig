@@ -7,7 +7,7 @@ audience:
   - independent reviewers
 status: active planning track; no implementation authorized by this index
 owner: Arye Kogan
-last_verified: 2026-07-22
+last_verified: 2026-07-23
 ---
 
 # Jig greenfield delivery documentation
@@ -19,10 +19,12 @@ contains no product source. This is the durable planning package for a new gener
 
 **Background.** The final empty-repository readiness gate passed for immutable subject
 `1731251d866b15b63131a0c3c580e7b563226cf3`; the retired implementation was archived afterward.
-The current post-archive baseline is `b860891d9102e0bdda1d23def81b1b974a4a26ac` with tree
-`763fa777c62999795fb679cc05a61be1190d93b6`.
+The immutable post-archive planning/authority provenance is
+`b860891d9102e0bdda1d23def81b1b974a4a26ac` with tree
+`763fa777c62999795fb679cc05a61be1190d93b6`. It is not a rolling implementation base; each story
+must resolve its target ref's current commit/tree when its implementation candidate is frozen.
 
-**Goals.** Turn the approved corpus into 47 small, auditable implementation stories in seven gated
+**Goals.** Turn the approved corpus into 48 small, auditable implementation stories in seven gated
 phases; preserve product intent and design authority; make every effect, provider, recovery route,
 and review obligation explicit before code begins.
 
@@ -93,11 +95,23 @@ product gate.
 
 The local delivery validator proves governing-source projection, package consistency, and corpus
 integrity only; it does not semantically approve plan-authored outcomes or prose. An independent
-reviewer, outside the candidate, records the immutable candidate commit/tree and computed unpinned
-71-path package digest. Do not copy an expected candidate/package digest into `track.json`, validator
-constants, fixtures, or candidate-authored review prose. Any byte change invalidates that external
-tuple and requires fresh full review. The pre-existing 67-file normative digest remains corpus-drift
-evidence only, not a candidate approval digest.
+review begins from delivery-package candidate identity `Q`: the exact candidate commit/tree to be reviewed; exact
+package-only path set; each path's bytes/type/mode; and aggregate computed unpinned digest. External
+review record `R` records: protocol; reviewer identity/independence; exact `Q`; checked scope;
+checks/evidence; findings; verdict; and a durable external record identifier. Only `R` with `PASS`
+creates approved package `P = Q + durable R identifier + PASS`. Do not copy an expected candidate/package
+digest into `track.json`, validator constants, fixtures, or candidate-authored review prose. Any
+package byte or path-set change invalidates `Q` and requires a fresh full review. The pre-existing
+67-file normative digest remains corpus-drift evidence only, not a candidate approval digest.
+
+For a later implementation candidate, independent review freezes the candidate together with its
+final-verification posture, policy-selected required check-class set, verification
+configuration/environment, and subject binding. After `Accepted`, `deterministic` requires a
+passing, subject-matching `EV-CHECK-OBSERVATION` for every required class and the complete set
+inside `Finalizing` before any target-changing Operation; `none` is an explicit no-op. Recording
+those observations under the unchanged reviewed binding is authorized continuation evidence, not a
+review-invalidating edit. Candidate, posture, class-set, configuration/environment, or binding
+drift requires a fresh tuple and review.
 
 ## Focused track gate
 

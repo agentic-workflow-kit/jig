@@ -10,7 +10,10 @@ owner: "Arye Kogan"
 
 This schedule faithfully records the active delegation register. It does not reopen a design
 decision or create a new product promise. The machine-readable source is
-[track.json](./track.json); product and redesign documents remain authoritative.
+[track.json](./track.json); product and redesign documents remain authoritative. An owner label in
+this schedule identifies the principal allowed to make and record a bounded selection after the
+required external activation; it is not evidence that the proposed selection is already approved
+or active.
 
 | Choice | Owner / earliest story                                                                 | Fixed constraints                                                                                                                              | Alternatives and required evidence                                                                 | Fail-closed fallback                                 | Blocks                          |
 | ------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------- |
@@ -62,7 +65,8 @@ treated as activated implementation direction:
 - private modular Node/TypeScript/pnpm/Turbo tooling;
 - strict versioned JSON as an initial durable/public framing;
 - structured-file source, file storage, local Git workspace, local verifier, Codex sessions, and
-  GitHub delivery as the proposed initial provider/profile tuple;
+  disjoint GitHub review-publication and GitHub final-delivery providers with disjoint credentials
+  as the proposed initial provider/profile tuple;
 - terminal/file notice as the proposed DR-12 presentation channel, subject to its notice and
   block-surfacing proof rather than `CF-GATE-PROVIDER`; and
 - a private CLI and private MCP as proposed first-party consumer surfaces, with unsupported modes
@@ -80,14 +84,17 @@ The record must be independently retrievable and bind all of the following exact
    durable record identifier/URL, and an explicit authorization to activate implementation rather
    than merely review planning. A delegated principal also requires independently verifiable
    evidence of its delegation, scope, and current validity;
-2. original immutable package tuple `P`: approved delivery-package reviewed commit/tree, exact
-   package path set with per-path bytes/type/mode, aggregate external exact-path-set digest, and
-   independent `PASS`; the immutable planning/authority provenance it was checked against; and the
-   target base ref or scope the activation permits. If squash landing gives a different OID, the
-   record must also cite the external authoritative landing-equivalence record that binds `P` to
-   the target ref and landed commit/tree and proves full-tree equality or complete package-path
-   byte/type/mode equality reproducing `P`'s digest. Each story still resolves and records that
-   ref's current commit/tree in its own execution tuple;
+2. approved delivery package `P = Q + durable R identifier + PASS`, where delivery-package candidate identity `Q` is the
+   exact candidate commit/tree to be reviewed; exact package-only path set; each path's bytes/type/mode; and
+   aggregate computed unpinned digest, and external review record `R` records: protocol; reviewer
+   identity/independence; exact `Q`; checked scope; checks/evidence; findings; verdict; and a durable
+   external record identifier. The record also binds the immutable planning/authority provenance
+   against which `Q` was checked and the target base ref or scope the activation permits. If squash
+   landing gives a different OID, the record must cite the authoritative landing-equivalence
+   record binding approved `P` (and therefore exact `Q`) to the target ref and landed commit/tree
+   and proving full-tree equality or complete `Q` path-set byte/type/mode equality reproducing
+   `Q`'s digest. Each story still resolves and records that ref's current commit/tree in its own
+   execution tuple;
 3. the selected realization tuple: toolchain/workspace posture, framing/wire choice, D11's delegated
    segment-sizing/batching/directory-layout parameters, first-party consumer surfaces, and every
    provider/profile scope to be enabled; the record binds but does not reselect D11's

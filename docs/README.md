@@ -14,7 +14,7 @@ owner-authorized implementation phase.
 | ------------------------ | --------------------------------------------------------------------------------------------------- | ----------------------- |
 | [product/](./product/)   | Audience, promise, guarantees, workflows, and boundaries.                                           | governing product truth |
 | [redesign/](./redesign/) | Approved architecture, decisions, contracts, conformance obligations, and design method.            | governing design truth  |
-| [delivery/](./delivery/) | 47-story, seven-phase documentation-only delivery track, machine manifest, and mandatory contracts. | active planning track   |
+| [delivery/](./delivery/) | 48-story, seven-phase documentation-only delivery track, machine manifest, and mandatory contracts. | active planning track   |
 | [archive/](./archive/)   | Historical provenance, the final readiness record, and immutable generation recovery instructions.  | non-governing reference |
 
 The active track starts from the governing product/redesign corpus and the

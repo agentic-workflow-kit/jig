@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TextDecoder } from 'node:util';
 
 const TRACK_PATH = 'docs/delivery/greenfield/track.json';
 const STORY_IDS =
@@ -27,16 +28,33 @@ const STORY_KEYS = [
   'product_routes',
   'imported_commitments',
 ];
+const STORY_AUTHORITY_BINDING_KEYS = [
+  'id',
+  'governing_paths',
+  'stable_ids',
+  'dr_gates',
+  'product_routes',
+  'imported_commitments',
+];
 const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
-const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'd680053248f5e03186fd1b6d3030e93dd24b45132df231d72519ab1011edbc05';
-const APPROVED_PROVIDER_SPLITS_SHA256 = '12ee04a022c25f2113710bb9ad9315336c6349d6da5239402ce6b1974e25fb4d';
-const APPROVED_DELEGATED_CHOICES_SHA256 = 'e2eedc5d70386de86893e3ee8beb531736398a26ef9a370bcff61dd143bb78d3';
-const APPROVED_IMPORTED_COMMITMENTS_SHA256 = '4db2ec88712864823cb84b3f9609ef1dca9f6e35831eef6c3a61b4c2340ac3b0';
+const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'dcc06a79538354e7cfd7779c7ff16ab972e87780575a7bf2312c40678469e57f';
+const APPROVED_PROVIDER_SPLITS_SHA256 = 'aaac34c0612c51f08d11ab3c467a414966468057a1222def001624bc6ba95834';
+const APPROVED_DELEGATED_CHOICES_SHA256 = 'e8fb8713126d05bf59c850606d43af542e6214467e05bdd64402e822b5065746';
+const APPROVED_IMPORTED_COMMITMENTS_SHA256 = 'de7bdd92f248de65756a2cb6a2e3cb5d1eb098c8471121f084dd00b9d4f682b6';
+const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'f77d59c3fbfbb601977000c2950e61e6b45d26bdc66e9e54ff6d06a2ee48704e';
 const WAIT_PROGRESS_SURFACES =
   'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
     ' ',
   );
 const NORMALIZED_WAIT_PROGRESS = new Set(WAIT_PROGRESS_SURFACES);
+const REVIEW_PUBLICATION_OPERATIONS =
+  'OPC-REV-PUBLISH OPC-REV-REQUEST OPC-REV-STATUS OPC-REV-COMMENT OPC-REV-RETIRE-REF OPC-REV-RETIRE-REQUEST OPC-REV-RETIRE-STATUS OPC-REV-RETIRE-COMMENT'.split(
+    ' ',
+  );
+const FINAL_DELIVERY_OPERATIONS =
+  'OPC-DEL-ANCHOR OPC-DEL-PUBLISH OPC-DEL-REQUEST OPC-DEL-STATUS OPC-DEL-COMMENT OPC-DEL-MERGE OPC-DEL-OBSERVE'.split(
+    ' ',
+  );
 const HEADINGS = [
   'Outcome, value, and why now',
   'Governing paths and stable IDs',
@@ -85,7 +103,7 @@ const PHASES = [
   {
     id: 4,
     name: 'acceptance and delivery',
-    stories: ['GF-040', 'GF-041', 'GF-042', 'GF-043', 'GF-044', 'GF-045', 'GF-046', 'GF-047'],
+    stories: ['GF-041', 'GF-040', 'GF-042', 'GF-043', 'GF-044', 'GF-045', 'GF-046', 'GF-047'],
     exit_gate:
       'Scripted E2E for Landed, Blocked, Rejected, and NotRun plus crash points; cleanup cannot alter outcome; Stopped closure remains phase 5.',
   },
@@ -93,7 +111,8 @@ const PHASES = [
     id: 5,
     name: 'settlement and operator surfaces',
     stories: ['GF-050', 'GF-051', 'GF-052', 'GF-053', 'GF-054', 'GF-055', 'GF-056'],
-    exit_gate: 'Stopped-from-every-position, reconstruction/export, and SDK/CLI/MCP parity evidence.',
+    exit_gate:
+      'Both cataloged terminal-entry origins, every preserved Story-state permutation, reconstruction/export, and SDK/CLI/MCP parity evidence.',
   },
   {
     id: 6,
@@ -109,7 +128,7 @@ const PARALLEL_LANES = [
   'After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging at GF-023.',
   "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
   'GF-039 can qualify alongside candidate work after GF-033/GF-022.',
-  'After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.',
+  'GF-041 review publication may proceed after GF-015/GF-035; GF-040 acceptance then waits for GF-041 plus its other prerequisites, while GF-042 verification semantics may proceed independently before GF-043 joins GF-040/GF-042; GF-047 qualifies independently of final delivery.',
   'After GF-054, CLI and private MCP lanes may proceed independently.',
   'GF-057, GF-060, and GF-061 qualify independently before GF-062.',
 ];
@@ -132,10 +151,18 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 function sha(value) {
-  const source = typeof value === 'string' ? value : canonical(value);
+  const source = Buffer.isBuffer(value) ? value : typeof value === 'string' ? value : canonical(value);
   return createHash('sha256')
     .update(source === undefined ? 'undefined' : source)
     .digest('hex');
+}
+function readUtf8Text(rootDir, path) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(join(rootDir, path)));
+  } catch (error) {
+    if (error instanceof TypeError) throw new Error(`${path} is not valid UTF-8 text`);
+    throw error;
+  }
 }
 function eqSet(a, b) {
   return (
@@ -536,10 +563,16 @@ function coverageStoryRows(text, errors) {
   const remainder = text.slice(headings[0].index + heading.length);
   const nextHeading = remainder.search(/^## /m);
   const section = nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
-  const rows = [...section.matchAll(/^\|\s*(GF-\d{3})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gm)];
+  const rows = coverageTableRows(section, {
+    name: 'Story metadata to covered items',
+    headers: ['Story', 'Stable IDs', 'Product routes', 'Imported commitments'],
+    errors,
+    allowedFirstCells: new Set(STORY_IDS),
+    firstCellPattern: /^GF-\d{3}$/,
+  });
   const parsed = new Map();
   const cell = (value) => (value.trim() === 'none' ? [] : value.split(',').map((item) => item.trim()));
-  for (const [, id, stableIds, productRoutes, importedCommitments] of rows) {
+  for (const [id, stableIds, productRoutes, importedCommitments] of rows) {
     if (parsed.has(id)) errors.push(`coverage.md duplicates story metadata row ${id}`);
     parsed.set(id, {
       stable_ids: cell(stableIds),
@@ -563,25 +596,90 @@ function coverageSection(text, heading, errors) {
 function coverageCell(value) {
   return value.trim() === 'none' ? [] : value.split(',').map((item) => item.trim());
 }
-function coverageTableRows(section, columns) {
-  return section
+function coverageTableRows(
+  section,
+  { name, headers, errors, allowedFirstCells, firstCellPattern = /^[A-Z][A-Z0-9-]*$/ },
+) {
+  const tableLines = section
     .split('\n')
-    .filter((line) => line.startsWith('|') && line.endsWith('|'))
-    .map((line) =>
-      line
-        .split('|')
-        .slice(1, -1)
-        .map((cell) => cell.trim()),
-    )
-    .filter(
-      (cells) =>
-        cells.length === columns &&
-        !cells.every((cell) => /^-+$/.test(cell)) &&
-        !['product route', 'id', 'exact item', 'semantic story'].includes(cells[0].toLowerCase()),
-    );
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('|') || line.endsWith('|'));
+  if (tableLines.length < 2) {
+    errors.push(`coverage.md ${name} table must contain exactly one header and separator`);
+    return [];
+  }
+  const rows = [];
+  const seenFirstCells = new Set();
+  for (const [index, line] of tableLines.entries()) {
+    if (!line.startsWith('|') || !line.endsWith('|')) {
+      errors.push(`coverage.md ${name} table has a malformed table-shaped row`);
+      continue;
+    }
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.length !== headers.length) {
+      errors.push(`coverage.md ${name} table has a row with ${cells.length} columns; expected ${headers.length}`);
+      continue;
+    }
+    if (index === 0) {
+      if (!exact(cells, headers)) errors.push(`coverage.md ${name} table must contain its exact header once`);
+      continue;
+    }
+    if (index === 1) {
+      if (!cells.every((cell) => /^-{3,}$/.test(cell)))
+        errors.push(`coverage.md ${name} table must contain its exact separator once`);
+      continue;
+    }
+    if (cells[0].includes('`') || !firstCellPattern.test(cells[0])) {
+      errors.push(`coverage.md ${name} table has a noncanonical first cell`);
+      continue;
+    }
+    if (allowedFirstCells && !allowedFirstCells.has(cells[0])) {
+      errors.push(`coverage.md ${name} table has an unexpected first cell ${cells[0]}`);
+      continue;
+    }
+    if (seenFirstCells.has(cells[0])) {
+      errors.push(`coverage.md ${name} table duplicates first cell ${cells[0]}`);
+      continue;
+    }
+    if (cells.some((cell) => cell === '')) {
+      errors.push(`coverage.md ${name} table has an empty cell`);
+      continue;
+    }
+    seenFirstCells.add(cells[0]);
+    rows.push(cells);
+  }
+  return rows;
 }
-function coverageMatrixRows(text, heading, columns, errors) {
-  return coverageTableRows(coverageSection(text, heading, errors), columns);
+function coverageMatrixRows(text, heading, columns, errors, options = {}) {
+  const schemas = {
+    '## Product route to story coverage': {
+      headers: ['Product route', 'Settled minimal proof route', 'Story coverage'],
+      firstCellPattern: /^PC-(?:README|JIG|CONCEPTS|USE)-\d+$/,
+    },
+    '## Imported commitment to story coverage': {
+      headers: ['ID', 'Family', 'Authoritative disposition', 'Story coverage'],
+      firstCellPattern: /^[A-Z]+-\d+$/,
+    },
+    '## Provider gate closure': {
+      headers: ['Semantic story', 'Qualified provider story', 'Port', 'Required exact evidence'],
+      firstCellPattern: /^GF-\d{3}$/,
+      allowedFirstCells: new Set(STORY_IDS),
+    },
+  };
+  const schema = schemas[heading];
+  if (!schema || schema.headers.length !== columns) {
+    errors.push(`coverage.md ${heading.slice(3)} table validator schema is invalid`);
+    return [];
+  }
+  return coverageTableRows(coverageSection(text, heading, errors), {
+    name: heading.slice(3),
+    errors,
+    ...schema,
+    ...options,
+  });
 }
 function storyMappingSection(narrative) {
   const heading = '## Governing paths and stable IDs';
@@ -640,16 +738,24 @@ export function deliveryAllowlist() {
 function candidatePackagePaths() {
   const paths = [
     ...deliveryAllowlist(),
+    '.github/workflows/check.yml',
+    '.gitignore',
+    '.nvmrc',
+    '.prettierignore',
     'AGENTS.md',
     'README.md',
+    'biome.json',
     'docs/README.md',
     'package.json',
+    'pnpm-lock.yaml',
+    'pnpm-workspace.yaml',
+    'scripts/check-doc-links.mjs',
     'scripts/check-delivery-track.mjs',
     'scripts/check-delivery-track.test.mjs',
     'scripts/check-active-repository.mjs',
   ].sort();
-  if (new Set(paths).size !== 71)
-    throw new Error(`candidate package manifest requires exactly 71 paths, got ${paths.length}`);
+  if (paths.length !== 79 || new Set(paths).size !== paths.length)
+    throw new Error(`candidate package manifest requires exactly 79 paths, got ${paths.length}`);
   return paths;
 }
 export function candidatePackageManifest(rootDir = process.cwd()) {
@@ -657,7 +763,8 @@ export function candidatePackageManifest(rootDir = process.cwd()) {
   const rows = paths
     .map((path) => {
       assertOwnedRegularFile(rootDir, path);
-      return `${sha(readFileSync(join(rootDir, path), 'utf8'))}  ${path}\n`;
+      const mode = lstatSync(join(rootDir, path)).mode & 0o111 ? '100755' : '100644';
+      return `${mode} ${sha(readFileSync(join(rootDir, path)))}  ${path}\n`;
     })
     .join('');
   return sha(rows);
@@ -804,6 +911,12 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
   const storyIds = storyRecords.map((story) => story.id);
   if (new Set(storyIds).size !== storyIds.length) errors.push('track contains a duplicate story ID');
   const byId = new Map(storyRecords.filter((story) => STORY_IDS.includes(story.id)).map((story) => [story.id, story]));
+  const storyAuthorityBindings = STORY_IDS.map((id) => {
+    const story = byId.get(id) ?? {};
+    return Object.fromEntries(STORY_AUTHORITY_BINDING_KEYS.map((key) => [key, story[key]]));
+  });
+  if (sha(storyAuthorityBindings) !== APPROVED_STORY_AUTHORITY_BINDINGS_SHA256)
+    errors.push('story authority bindings must exactly preserve approved per-story mappings');
   const phaseRows = Array.isArray(track?.phases) ? track.phases : [];
   const phase = new Map(
     phaseRows.flatMap((item) => (Array.isArray(item?.stories) ? item.stories.map((id) => [id, item.id]) : [])),
@@ -831,7 +944,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       errors.push(`${story.id} outcome must be a nonempty string`);
     if (story.status !== 'proposed') errors.push(`${story.id} status must be proposed`);
     if (story.baseline_commit !== 'b860891d9102e0bdda1d23def81b1b974a4a26ac')
-      errors.push(`${story.id} baseline_commit must equal the selected baseline`);
+      errors.push(`${story.id} baseline_commit must equal the immutable planning provenance`);
     const governingPaths = nonemptyUniqueStringArray(
       story.governing_paths,
       `${story.id} governing_paths must be an array`,
@@ -1005,6 +1118,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     ['GF-013', 'GF-026', 'PORT-ARTIFACT', 'CF-MECH-ARTIFACT'],
     ['GF-033', 'GF-039', 'PORT-WORKSPACE', 'CF-MECH-WORKSPACE'],
     ['GF-042', 'GF-047', 'PORT-VERIFY', 'CF-MECH-VERIFY'],
+    ['GF-034', 'GF-060', 'PORT-SESSION', 'CF-MECH-SESSION'],
+    ['GF-041', 'GF-057', 'PORT-DELIVERY', 'CF-MECH-DELIVERY'],
+    ['GF-044', 'GF-061', 'PORT-DELIVERY', 'CF-MECH-DELIVERY'],
   ];
   const mandatoryProviderSplits = arrayOrEmpty(
     track?.mandatory_provider_splits,
@@ -1012,7 +1128,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     errors,
   );
   if (mandatoryProviderSplits.length !== expectedSplits.length)
-    errors.push('mandatory_provider_splits must contain exactly five fixed rows');
+    errors.push('mandatory_provider_splits must contain exactly eight fixed rows');
   for (const [semantic, provider, port, suite] of expectedSplits) {
     const row = mandatoryProviderSplits.find(
       (item) => item?.semantic_story === semantic && item?.provider_story === provider,
@@ -1056,6 +1172,40 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     )
   )
     errors.push('GF-023 must have evidence dependencies on GF-025 and GF-026');
+  const gf040Dependencies = arrayOrEmpty(
+    byId.get('GF-040')?.dependencies,
+    'GF-040 dependencies must be an array',
+    errors,
+  );
+  const gf040Edges = arrayOrEmpty(
+    byId.get('GF-040')?.dependency_edges,
+    'GF-040 dependency_edges must be an array',
+    errors,
+  );
+  const gf041Dependencies = arrayOrEmpty(
+    byId.get('GF-041')?.dependencies,
+    'GF-041 dependencies must be an array',
+    errors,
+  );
+  if (
+    !gf040Dependencies.includes('GF-041') ||
+    !gf040Edges.some((edge) => edge?.from === 'GF-041' && edge.type === 'implementation') ||
+    gf041Dependencies.includes('GF-040')
+  )
+    errors.push('GF-041 review publication must precede and provide an implementation dependency to GF-040 acceptance');
+  const gf043Dependencies = arrayOrEmpty(
+    byId.get('GF-043')?.dependencies,
+    'GF-043 dependencies must be an array',
+    errors,
+  );
+  const gf043Ids = arrayOrEmpty(byId.get('GF-043')?.stable_ids, 'GF-043 stable_ids must be an array', errors);
+  if (
+    !['GF-040', 'GF-042'].every((id) => gf043Dependencies.includes(id)) ||
+    !['PORT-VERIFY', 'OPC-VERIFY-EXECUTE', 'EV-CHECK-OBSERVATION'].every((id) => gf043Ids.includes(id))
+  )
+    errors.push(
+      'GF-043 must integrate accepted-subject finalization entry with deterministic verification authorization',
+    );
   const r03 = {
     'GF-042': {
       required: ['PORT-VERIFY', 'OPC-VERIFY-EXECUTE', 'EV-CHECK-OBSERVATION'],
@@ -1092,6 +1242,43 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     const ids = arrayOrEmpty(byId.get(id)?.stable_ids, `${id} stable_ids must be an array`, errors);
     if (!rule.required.every((value) => ids.includes(value)) || rule.forbidden.some((value) => ids.includes(value)))
       errors.push(`${id} violates R03 local/remote selector separation`);
+  }
+  const operationFamilyRules = {
+    'GF-041': {
+      required: REVIEW_PUBLICATION_OPERATIONS,
+      forbidden: FINAL_DELIVERY_OPERATIONS,
+      error: 'GF-041 violates exact review-publication operation-family ownership',
+    },
+    'GF-057': {
+      required: REVIEW_PUBLICATION_OPERATIONS,
+      forbidden: FINAL_DELIVERY_OPERATIONS,
+      error: 'GF-057 violates exact review-publication operation-family ownership',
+    },
+    'GF-044': {
+      required: FINAL_DELIVERY_OPERATIONS,
+      forbidden: REVIEW_PUBLICATION_OPERATIONS,
+      error: 'GF-044 violates exact final-delivery operation-family ownership',
+    },
+    'GF-061': {
+      required: FINAL_DELIVERY_OPERATIONS,
+      forbidden: REVIEW_PUBLICATION_OPERATIONS,
+      error: 'GF-061 violates exact final-delivery operation-family ownership',
+    },
+    'GF-042': {
+      required: [],
+      forbidden: [...REVIEW_PUBLICATION_OPERATIONS, ...FINAL_DELIVERY_OPERATIONS],
+      error: 'GF-042 violates verify-only operation-family ownership',
+    },
+    'GF-047': {
+      required: [],
+      forbidden: [...REVIEW_PUBLICATION_OPERATIONS, ...FINAL_DELIVERY_OPERATIONS],
+      error: 'GF-047 violates verify-only operation-family ownership',
+    },
+  };
+  for (const [id, rule] of Object.entries(operationFamilyRules)) {
+    const ids = arrayOrEmpty(byId.get(id)?.stable_ids, `${id} stable_ids must be an array`, errors);
+    if (!rule.required.every((value) => ids.includes(value)) || rule.forbidden.some((value) => ids.includes(value)))
+      errors.push(rule.error);
   }
   if (!Array.isArray(track?.critical_path) || track.critical_path.length === 0)
     errors.push('critical_path must be a nonempty actual maximum-length path');
@@ -1211,7 +1398,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       if (!eqSet(productRouteRecords[id]?.stories, declaredByStories))
         errors.push(`product_routes.${id}.stories must exactly equal forward and reverse story route coverage`);
     }
-    const productRouteCoverage = coverageMatrixRows(coverage, '## Product route to story coverage', 3, errors);
+    const productRouteCoverage = coverageMatrixRows(coverage, '## Product route to story coverage', 3, errors, {
+      allowedFirstCells: new Set(routes.keys()),
+    });
     const productRouteCoverageById = new Map(
       productRouteCoverage.map(([id, proofRoute, stories]) => [id, { proofRoute, stories }]),
     );
@@ -1265,7 +1454,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
         Array.isArray(story.imported_commitments) && story.imported_commitments.every((id) => dispositions.has(id)),
     );
     if (!reverseCoverage) errors.push('imported commitments contain an undeclared story assignment');
-    const importedCoverage = coverageMatrixRows(coverage, '## Imported commitment to story coverage', 4, errors);
+    const importedCoverage = coverageMatrixRows(coverage, '## Imported commitment to story coverage', 4, errors, {
+      allowedFirstCells: new Set(records.map((row) => row.id)),
+    });
     const importedCoverageById = new Map(
       importedCoverage.map(([id, family, disposition, stories]) => [id, { family, disposition, stories }]),
     );
@@ -1302,9 +1493,15 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       const start = inventoryCoverage.indexOf(heading);
       const remainder = start === -1 ? '' : inventoryCoverage.slice(start + heading.length);
       const nextHeading = remainder.search(/^### /m);
-      const rows = coverageTableRows(nextHeading === -1 ? remainder : remainder.slice(0, nextHeading), 2);
-      const byItem = new Map(rows.map(([id, stories]) => [id, stories]));
       const expected = track.inventories?.[name] ?? {};
+      const rows = coverageTableRows(nextHeading === -1 ? remainder : remainder.slice(0, nextHeading), {
+        name: heading.slice(4),
+        headers: ['Exact item', 'Stories'],
+        errors,
+        allowedFirstCells: new Set(Object.keys(expected)),
+        firstCellPattern: name === 'wait_progress_surfaces' ? /^[a-z]+(?:_[a-z]+)*$/ : /^[A-Z]{2,}(?:-[A-Z0-9]+)+$/,
+      });
+      const byItem = new Map(rows.map(([id, stories]) => [id, stories]));
       if (
         start === -1 ||
         rows.length !== Object.keys(expected).length ||
@@ -1314,7 +1511,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       )
         errors.push('coverage.md inventory matrix must exactly match track inventory coverage');
     }
-    const providerClosure = coverageMatrixRows(coverage, '## Provider gate closure', 4, errors);
+    const providerClosure = coverageMatrixRows(coverage, '## Provider gate closure', 4, errors, {
+      allowedFirstCells: new Set(expectedSplits.map(([semantic]) => semantic)),
+    });
     const providerClosureBySemantic = new Map(
       providerClosure.map(([semantic, provider, port, evidence]) => [semantic, { provider, port, evidence }]),
     );
@@ -1366,12 +1565,15 @@ export function validateDeliveryTrackPackage(rootDir = process.cwd()) {
   };
   const readText = (path) => {
     assertOwnedRegularFile(rootDir, path);
-    return readFileSync(join(rootDir, path), 'utf8');
+    return readUtf8Text(rootDir, path);
   };
   if (!exists(TRACK_PATH)) return ['delivery track is missing'];
   if (!isFile(TRACK_PATH)) return ['docs/delivery/greenfield/track.json is not an owned regular file'];
   try {
-    for (const path of candidatePackagePaths()) assertOwnedRegularFile(rootDir, path);
+    for (const path of candidatePackagePaths()) {
+      assertOwnedRegularFile(rootDir, path);
+      readText(path);
+    }
   } catch (error) {
     return [error instanceof Error ? error.message : 'candidate package ownership preflight failed'];
   }

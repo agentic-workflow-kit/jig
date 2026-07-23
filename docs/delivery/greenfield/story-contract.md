@@ -7,7 +7,7 @@ audience:
   - independent reviewers
 status: mandatory template
 owner: Arye Kogan
-last_verified: 2026-07-22
+last_verified: 2026-07-23
 ---
 
 # Mandatory greenfield story contract
@@ -59,19 +59,22 @@ invent an ID absent from the governing source and manifest.
 
 Name every predecessor and the exact merged commit/evidence needed to start. `baseline_commit` is
 immutable planning/authority provenance, not a rolling implementation base. Prove the approved
-original delivery-package tuple `P` (reviewed commit/tree, exact package path set with per-path
-bytes/type/mode, aggregate digest, and independent `PASS`) being executed; any required external
-authoritative landing-equivalence record; the current implementation candidate base; package/runtime boundary; prerequisite gate;
-required owner decision; and any provider qualification. A dependency is not satisfied by an
-unreviewed branch or an assertion.
+delivery package `P` being executed. Its canonical identity is: delivery-package candidate identity `Q` (the exact
+candidate commit/tree to be reviewed; exact package-only path set; each path's bytes/type/mode; and aggregate
+computed unpinned digest); external review record `R` (protocol; reviewer identity/independence;
+exact `Q`; checked scope; checks/evidence; findings; verdict; and a durable external record
+identifier); and, only when `R` records `PASS`, `P = Q + durable R identifier + PASS`. Prove any required
+authoritative landing-equivalence record; the dynamically observed target base ref/commit/tree and
+predecessor containment; package/runtime boundary; prerequisite gate; required owner decision; and
+any provider qualification. A dependency is not satisfied by an unreviewed branch or an assertion.
 `dependencies` and `dependency_edges` must exactly match the manifest, including edge type and
 `semantic-to-provider` split where present.
 
 ## Implementation candidate tuple and review binding
 
 For each implementation attempt, record an external, immutable tuple: story ID; the approved
-original delivery-package tuple `P` (reviewed commit/tree, exact package path set with per-path
-bytes/type/mode, aggregate digest, and independent `PASS`); any required external authoritative
+delivery package `P = Q + durable R identifier + PASS`, where `Q` and `R` have exactly the canonical fields
+above; any required external authoritative
 landing-equivalence record; the exact external owner-ratification/activation record (authenticated owner or
 explicitly named delegated principal with independently verifiable delegation and current validity,
 durable record ID/URL, immutable planning/authority provenance, activation target scope, selected
@@ -80,18 +83,27 @@ commit and tree; proof that `merge-base(candidate, base) == base`; and target-co
 every required predecessor landing is contained in that base. Record a current path-by-path
 comparison of the candidate's 67 normative authority files against immutable authority provenance,
 the exact owned source/config/test/evidence path set, applicable `DR-*` choices, available
-pre-review evidence/check digests, and selected final-verification posture. The tuple is dynamic
-per story and is never written back into this planning
-package merely because a predecessor merges.
+pre-review evidence/check digests, selected final-verification posture, policy-selected required
+check-class set, verification configuration/environment, and exact subject binding. The
+implementation tuple is dynamic per story and is never written back into this planning package
+merely because a predecessor merges.
+
+The implementation review consumes already-approved `P`; its exact-candidate verdict binds only
+this implementation tuple and never mints or redefines `Q`, `R`, or `P`.
 
 If the target ref moves, or the candidate is rebased, refreshed, or otherwise changes, resolve the
 new base commit/tree, re-prove merge-base equality and predecessor containment, regenerate the
 current normative-corpus comparison and affected evidence, and bind a new independent
-implementation-candidate review. A changed delivery-package tuple first requires a new package
-`PASS`, then a new implementation tuple. Under D15, a recorded transition into `Reviewing` may
-authorize only fenced `OPC-REV-*` draft/non-mergeable review publication for the frozen subject
-before independent review or acceptance. It grants no acceptance, finalization, landing, or
-dependency-release power; hosted CI may occur before review.
+implementation-candidate review. Changed delivery-package identity first requires a new `Q`,
+external `R`, and approved `P`, then a new implementation tuple. After `Accepted`, recording the
+final-verification observations already authorized by the unchanged reviewed candidate, posture,
+required check-class set, verification configuration/environment, and subject binding is
+continuation evidence, not a candidate or review-package edit, and does not itself invalidate the
+verdict. Any drift in those values does require a fresh tuple, evidence, and independent review.
+Under D15, a recorded transition into `Reviewing` may authorize only fenced `OPC-REV-*`
+draft/non-mergeable review publication for the frozen subject before independent review or
+acceptance. It grants no acceptance, finalization, landing, or dependency-release power; hosted CI
+may occur before review.
 
 ## In-scope and non-goals
 
@@ -117,10 +129,13 @@ which transitions are impossible for this story.
 
 Enumerate typed `FC-*` failures, fault boundaries, each `BND-*` start/deadline/exhaustion result,
 and stale/fenced/replayed input behavior. Record intent before effect. For uncertain effects, name
-the stable effect identity and reconciliation observation. **Never blindly retry an uncertain
-effect:** only confirmed absence plus recorded reauthorization permits same-effect retry; otherwise
-park/preserve/escalate. Explain recovery from durable facts, resume fencing, cleanup/preservation,
-and residual-obligation behavior.
+the stable effect identity and reconciliation observation. Applicable runtime failures use
+cataloged typed `FC-*` failure classes; non-runtime failures remain typed under their bounded story
+contract. **Never blindly retry an uncertain effect:** same-identity retry is effectful-only after
+confirmed absence and recorded reauthorization; an effect-free replacement uses a new Operation
+identity. Otherwise park/preserve/escalate. Timers wake work; durable facts decide. Explain
+recovery from durable facts, resume fencing, cleanup/preservation, and residual-obligation
+behavior.
 
 ## Security and trust: validation, credentials, redaction, and authority widening
 
@@ -147,15 +162,23 @@ metadata, and required repository/CI checks. State why omitted categories cannot
 ## Exact acceptance
 
 State the reviewer principal and independence, the applicable review protocol, complete exact
-candidate tuple (including approved delivery-package `PASS` binding, target basis, merge-base
+candidate tuple (including approved package `P = Q + durable R identifier + PASS`, target basis, merge-base
 equality, predecessor-containment proof, current normative-corpus comparison, owned paths,
-evidence, delivery metadata, original `P`, and any required authoritative landing-equivalence record), required findings state, selected final-verification posture and
-its applicable exact-candidate checks/evidence, acceptance transition, and the separate
-authoritative landing proof. If the selected posture runs verification after `Accepted`, record its
-successful check before finalization or landing. Use the delivery-package
-protocol only for a delivery-package subject; use the implementation-candidate protocol for
-story-owned source, configuration, tests, and evidence. Partial, self-authored, stale, or
-differently bound verdicts fail closed. Approval is not landing.
+evidence, delivery metadata, and any required authoritative landing-equivalence record), required
+findings state, selected final-verification posture and its applicable exact-candidate
+checks/evidence, acceptance transition, and the separate authoritative landing proof. After
+`Accepted`, record the selected verification intent on the authorized `Waiting` → `Finalizing` or
+retained-authority `Accepted` → `Finalizing` transition. The `deterministic` posture authorizes
+`OPC-VERIFY-EXECUTE`; every policy-selected required check class must produce a passing,
+subject-matching `EV-CHECK-OBSERVATION`, and the complete required set must be satisfied inside
+`Finalizing` before any target-changing `OPC-DEL-*`, merge, delivery, landing, or other
+target-changing Operation. The `none` posture is an explicit no-op and authorizes no verification
+Operation. The post-`Accepted` observations are authorized continuation evidence and do not
+invalidate the review while the candidate, posture, required class set, verification
+configuration/environment, and subject binding remain unchanged; drift in any one requires a fresh
+tuple and review. Use the delivery-package protocol only for a delivery-package subject; use the
+implementation-candidate protocol for story-owned source, configuration, tests, and evidence.
+Partial, self-authored, stale, or differently bound verdicts fail closed. Approval is not landing.
 
 ## DR choices
 
@@ -175,12 +198,12 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 
 - The exact external owner-ratification/activation record is recorded: authenticated owner or
   explicitly named delegated principal with independently verifiable delegation and current
-  validity; durable record ID/URL; original approved delivery-package tuple `P`, any required
+  validity; durable record ID/URL; approved delivery package `P = Q + durable R identifier + PASS`, any required
   authoritative landing-equivalence record, and immutable planning/authority provenance; activation target scope;
   selected realization tuple; and expiry/revocation. A generic
   authorization, planning `PASS`, reviewer verdict, branch, or PR cannot substitute for it.
 - Dependencies are landed in the observed implementation base with exact target-content proof.
-- Original delivery-package tuple `P` and any required authoritative landing-equivalence record are recorded
+- Approved delivery package `P = Q + durable R identifier + PASS` and any required authoritative landing-equivalence record are recorded
   outside this planning package. A different squash OID never means that landed commit was
   reviewed; it is usable only through the authoritative equivalence proof defined in the delivery
   policy.
@@ -188,6 +211,8 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
   planned owned paths, and applicable `DR-*` choices are recorded outside this planning package.
 - A current comparison of the 67 normative authority files against immutable authority provenance is
   recorded; it must be clean before implementation starts.
+- The selected final-verification posture, policy-selected required check-class set, verification
+  configuration/environment, and exact subject binding are frozen for later finalization.
 - Candidate commit/tree are intentionally absent until post-implementation candidate freeze.
 - Governing paths, stable IDs, ports, principals, authority, durable facts, failures, and oracles
   are named.
@@ -204,11 +229,16 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 - No uncertain effect was blindly retried; reconciliation and recovery use durable facts.
 - Required unit, contract, adversarial, replay, crash, provider, and E2E proof plus `CF-*` catalog
   updates pass on the exact candidate.
-- Exact-subject evidence, `git diff --check`, required repository checks, selected
-  final-verification posture (including applicable hosted CI), and independent
-  implementation-candidate review pass on the same candidate before finalization or landing; its
-  merge-base equality, approved package `PASS` binding, and normative-corpus comparison are
-  current; no partial provider becomes configurable.
+- Exact-subject evidence, `git diff --check`, required repository checks, and independent
+  implementation-candidate review pass on the same candidate; its merge-base equality, approved
+  package `P` binding, and normative-corpus comparison are current. After `Accepted`, the
+  verification intent is recorded on the authorized entry into `Finalizing`: under
+  `deterministic`, every policy-selected required check class has a passing, subject-matching
+  `EV-CHECK-OBSERVATION`, and the complete required set is satisfied there before any
+  target-changing Operation; `none` is an explicit no-op. Recording those observations is
+  authorized continuation evidence rather than a review-invalidating edit while candidate,
+  posture, class set, configuration/environment, and subject binding stay unchanged; drift requires
+  a fresh tuple and review. No partial provider becomes configurable.
 ```
 
 ## Universal fail-closed rules

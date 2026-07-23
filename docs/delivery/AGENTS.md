@@ -33,10 +33,13 @@ records the lookup as non-governing provenance.
   blindly retry an effect whose outcome is uncertain.
 - Preserve exact IDs, authority boundaries, and immutable bindings from the governing design. Raise
   `OWNER_DECISION_REQUIRED` for a material gap rather than inventing a behavior.
-- The five mandatory semantic-to-provider splits are GF-019→GF-020 (`PORT-SOURCE`),
+- The eight mandatory semantic-to-provider splits are GF-019→GF-020 (`PORT-SOURCE`),
   GF-010→GF-025 (`PORT-LEDGER`), GF-013→GF-026 (`PORT-ARTIFACT`), GF-033→GF-039
-  (`PORT-WORKSPACE`), and GF-042→GF-047 (`PORT-VERIFY`). Each provider stays unconfigurable until
-  its exact mechanism evidence is admitted.
+  (`PORT-WORKSPACE`), GF-042→GF-047 (`PORT-VERIFY`), GF-034→GF-060 (`PORT-SESSION`),
+  GF-041→GF-057 (review-publication `PORT-DELIVERY`), and GF-044→GF-061 (final-delivery
+  `PORT-DELIVERY`). Each provider stays unconfigurable until its exact mechanism evidence is
+  admitted. The two delivery splits retain disjoint credentials, Operations, evidence, and
+  authority subjects despite sharing a port and suite family.
 - Product code, product package manifests/scaffolding, and hosted state are outside this
   documentation track. Minimal repository navigation, status, or validation wiring that solely
   supports this documentation track is allowed.

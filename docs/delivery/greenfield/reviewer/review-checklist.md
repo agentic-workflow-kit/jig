@@ -21,15 +21,19 @@ Use this section only when reviewing the delivery package itself.
 
 ### Subject and authority
 
-- [ ] Immutable package tuple `P` is recorded: reviewed commit/tree, exact package-only path set,
-      each path's bytes/type/mode, aggregate digest, `PASS`, content/evidence digests, and
-      environment; all resolve exactly.
-- [ ] The independent reviewer computes and records the unpinned digest of the exact package path
-      set outside the candidate; no expected package digest is copied into `track.json`, validator
-      constants, fixtures, or candidate-authored review prose. A different squash OID requires an
-      external authoritative landing-equivalence record binding `P` to target ref and landed
-      commit/tree and proving full-tree equality or complete package-path byte/type/mode equality
-      reproducing `P`'s digest; it does not make that landed commit reviewed.
+- [ ] Pre-verdict delivery-package candidate identity `Q` is recorded outside the candidate: the exact candidate
+      commit/tree to be reviewed; exact package-only path set; each path's bytes/type/mode; and aggregate computed
+      unpinned digest. The coordinator supplies `Q` and available checks/evidence separately; `Q`
+      contains neither `PASS` nor a review record.
+- [ ] The independent reviewer verifies/computes the unpinned digest over `Q`'s exact path set and
+      records external review record `R`: protocol; reviewer identity/independence; exact `Q`;
+      checked scope; checks/evidence; findings; verdict; and a durable external record identifier.
+      Only `R` with `PASS` creates `P = Q + durable R identifier + PASS`. No expected package digest is
+      copied into `track.json`, validator constants, fixtures, or candidate-authored review prose.
+      A different squash OID requires an authoritative landing-equivalence record binding approved
+      `P`/`Q` to target ref and landed commit/tree and proving full-tree equality or complete `Q`
+      path-set byte/type/mode equality reproducing `Q`'s digest; it does not make that landed commit
+      reviewed.
 - [ ] The checkout and review scope are clean; no unrecorded path, generated residue, or moving
       branch changes the frozen subject.
 - [ ] The live 67-file normative path set and aggregate SHA-256 manifest match the passed subject
@@ -69,10 +73,11 @@ Use this section only when reviewing the delivery package itself.
 
 ### Delivery-package verdict record
 
-Record: protocol; original `P` (reviewed package commit/tree, package path set with per-path
-bytes/type/mode, aggregate digest, and `PASS`); any required authoritative landing-equivalence
-record; reviewer identity/independence; paths and IDs reviewed; checks/evidence; verdict; and
-findings. Each finding
+Record external `R`: protocol; reviewer identity/independence; exact `Q` (the exact candidate
+commit/tree to be reviewed, exact package-only path set, each path's bytes/type/mode, and aggregate computed
+unpinned digest); checked scope; checks/evidence; findings; verdict; and a durable external record
+identifier. When the verdict is `PASS`, record approved `P = Q + durable R identifier + PASS` and any
+required authoritative landing-equivalence record. Each finding
 states `F-NNN`, severity, governing path/ID, exact evidence, affected observable behavior, required
 correction/result, and re-review scope.
 
@@ -82,23 +87,25 @@ Use this section only for one implementation attempt of one `GF-*` story whose e
 owner-ratification/activation record is verified.
 It permits the bounded story-owned source, configuration, test, and evidence paths. It does not
 require a fresh package-digest computation, full delivery-corpus review, delivery-package path
-allowlist, or a full package closure review.
+allowlist, or a full package closure review. It consumes already-approved `P`; its verdict binds
+only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
 
 ### Subject, base, and authorization
 
 - [ ] The exact external owner-ratification/activation record is recorded and independently
       verified: authenticated owner or explicitly named delegated principal, independently
-      verifiable delegation/current validity, durable record ID/URL, original package tuple `P`,
+      verifiable delegation/current validity, durable record ID/URL, approved package `P`,
       any required authoritative landing-equivalence record, immutable planning/authority provenance, activation
       target scope, realization tuple, and
       expiry/revocation. Generic authorization cannot pass. The observed target base ref, resolved
       base commit/tree, candidate commit/tree, clean scope, and owned path set also resolve exactly;
       planning provenance is not the presumed execution base.
-- [ ] Original package tuple `P` is recorded and resolves exactly. Where a squash-produced landed
-      OID differs, the authoritative landing-equivalence record binds `P` to target ref and landed
-      commit/tree and proves full-tree equality or complete package-path byte/type/mode equality
-      reproducing `P`'s digest. Add/remove/rename/mode/byte drift, or missing/ambiguous evidence,
-      requires a new tuple and `PASS`; the landed commit is not itself treated as reviewed.
+- [ ] Approved package `P = Q + durable R identifier + PASS` is recorded and resolves exactly. Where a
+      squash-produced landed OID differs, the authoritative landing-equivalence record binds
+      approved `P`/`Q` to target ref and landed commit/tree and proves full-tree equality or complete
+      `Q` path-set byte/type/mode equality reproducing `Q`'s digest. Add/remove/rename/mode/byte
+      drift, or missing/ambiguous evidence, requires a new `Q`, external `R`, and approved `P`; the
+      landed commit is not itself treated as reviewed.
 - [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content evidence proves
       every required predecessor landing is contained in that base; an unreviewed branch does not
       satisfy a dependency.
@@ -107,11 +114,16 @@ allowlist, or a full package closure review.
 - [ ] The changed paths are limited to the contract's bounded story ownership and may include
       product source/configuration. No unrelated authority, behavior, or configuration is smuggled
       into the candidate.
-- [ ] A target-ref move, refresh, rebase, source/configuration/evidence change, or candidate change
-      has produced a new tuple with refreshed merge-base/containment proof, normative-corpus
-      comparison, affected evidence, CI, and review. A changed package tuple `P`, or missing,
-      ambiguous, or drifting authoritative landing-equivalence evidence, has its own new independent package
-      `PASS` before implementation review.
+- [ ] A target-ref move, refresh, rebase, source/configuration/pre-acceptance-evidence change,
+      candidate change, or drift in selected posture, required check-class set, verification
+      configuration/environment, or subject binding has produced a new tuple with refreshed
+      merge-base/containment proof, normative-corpus comparison, affected evidence, CI, and review.
+      A changed package identity `Q`, or missing, ambiguous, or drifting authoritative
+      landing-equivalence evidence, has its own new independent package review record `R` and
+      approved `P` before implementation review. Recording after `Accepted` only the
+      final-verification observations authorized by the unchanged reviewed candidate, posture,
+      required class set, configuration/environment, and binding is continuation evidence, not a
+      tuple change.
 
 ### Governing behavior and evidence
 
@@ -124,10 +136,18 @@ allowlist, or a full package closure review.
 - [ ] No boundary, provider, reviewer, evidence, timer, retry, cleanup, acceptance, landing, or
       dependency-release rule widens authority or violates the story's fail-closed contract.
 - [ ] The selected final-verification posture binds to the immutable candidate. Pre-review hosted
-      CI may be present, but review does not wait for verification selected to run after `Accepted`;
-      that applicable check/evidence passes before finalization or landing. Publication used only
-      D15's recorded `Reviewing` transition and fenced `OPC-REV-*` draft/non-mergeable review
-      publication, never approval or a substitute owner-ratification/activation record.
+      CI may be present. After `Accepted`, the authorized `Waiting` → `Finalizing` or
+      retained-authority `Accepted` → `Finalizing` transition records verification intent. The
+      `deterministic` posture authorizes `OPC-VERIFY-EXECUTE`; every policy-selected required check
+      class has a passing, subject-matching `EV-CHECK-OBSERVATION`, and the complete required set is
+      satisfied inside `Finalizing` before any target-changing `OPC-DEL-*`, merge, delivery,
+      landing, or other target-changing Operation. `none` is an explicit no-op and authorizes no
+      verification Operation. The post-`Accepted` observations are authorized continuation evidence
+      and do not invalidate review while candidate, posture, required class set, verification
+      configuration/environment, and subject binding stay unchanged; drift requires a fresh tuple
+      and review. Publication used only D15's recorded `Reviewing` transition and fenced
+      `OPC-REV-*` draft/non-mergeable review publication, never approval or a substitute
+      owner-ratification/activation record.
 - [ ] The reviewer is independent; findings, acceptance metadata, and final-verification posture
       bind exactly to this tuple. No partial, stale, or differently based verdict is accepted.
 
@@ -135,12 +155,15 @@ allowlist, or a full package closure review.
 
 Record: protocol; story ID; exact external owner-ratification/activation record (authenticated
 owner or explicitly named delegated principal, independently verifiable delegation/current
-validity, durable record ID/URL, original package tuple `P`, any required authoritative landing-equivalence
+validity, durable record ID/URL, approved package `P = Q + durable R identifier + PASS`, any required authoritative landing-equivalence
 record, immutable provenance, activation target scope, realization tuple, and expiry/revocation);
 base ref/commit/tree; candidate commit/tree; merge-base equality and
 predecessor-containment proof; current normative-corpus comparison; owned paths; selected
-final-verification posture and checks/CI/evidence digests; reviewer identity/independence; verdict;
-and findings. Do not require a fresh package-path-set digest computation for this protocol.
+final-verification posture, required check-class set, verification configuration/environment,
+subject binding, and pre-review checks/CI/evidence digests; reviewer identity/independence; verdict;
+and findings. For this protocol, resolve `P`; do not require a fresh package-path-set digest
+computation or rewrite delivery-package `R`. Final-verification observations recorded after
+`Accepted` are separately appended continuation evidence under the unchanged binding.
 
 ## Verdict rule
 

@@ -7,7 +7,7 @@ audience:
   - independent reviewers
 status: planning baseline; no candidate implementation reviewed
 owner: Arye Kogan
-last_verified: 2026-07-22
+last_verified: 2026-07-23
 ---
 
 # Greenfield delivery overview
@@ -24,9 +24,10 @@ closure before effects and qualification before configuration.
 Each ID below has an included completed full brief in [stories/](./stories/) and an entry in the
 machine-readable [track manifest](./track.json). The table is an overview, never a substitute for
 those contracts. Before implementation, revalidate its merged dependencies, selected exact
-baseline, applicable `DR-*` gates, and provider qualification. A phase may start only when those
-facts and its phase gate have exact evidence. A failing gate parks the track; it does not authorize
-a workaround or later-phase feature.
+immutable planning provenance, dynamically observed target ref/commit/tree, applicable `DR-*`
+gates, and provider qualification. A phase may start only when those facts and its phase gate have
+exact evidence. A failing gate parks the track; it does not authorize a workaround or later-phase
+feature.
 
 ## Cold-start navigation
 
@@ -41,27 +42,27 @@ a workaround or later-phase feature.
   owner calls.
 - [Reviewer packet](./reviewer/README.md) — independent frozen-candidate review procedure.
 
-| Phase                                | Stories                                                        | What it establishes                                                                                                         | Exit gate                                                                                 |
-| ------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 0 — substrate                        | GF-001–005                                                     | private workspace, IDs, topology, evidence harness, pure authority kernel                                                   | hermetic graph and first deterministic replay; no effect path                             |
-| 1 — durable core                     | GF-010–015                                                     | witnessed ledger/registry/artifacts, recovery, evidence, effect mediation                                                   | recovery and uncertainty evidence; no provider bypass                                     |
-| 2 — envelope and intake              | GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, GF-024 | source, policy, provider proofs, qualified stores, preview, approvals, witnessed intake                                     | exact accepted/rejected acknowledgement; no Run on rejection                              |
-| 3 — lifecycle and execution          | GF-030–039                                                     | lifecycle, bounds, workspace/session, Doorbell, obligations                                                                 | scripted intake-to-park path plus qualified local workspace; no landing claim             |
-| 4 — acceptance and delivery          | GF-040–047                                                     | review, publication, verification, finalization, landing, retirement                                                        | scripted E2E for every product outcome and crash points                                   |
-| 5 — settlement and operator surfaces | GF-050–056                                                     | terminal settlement, projections, notices, export, private consumers                                                        | stop/reconstruct/export/parity evidence                                                   |
-| 6 — real-provider closure            | GF-057, GF-060–062                                             | GitHub review publication, Codex, and GitHub final-delivery qualification; GF-062 joins both in the supported local profile | product gate: 39 suite results plus 44 settled PC routes; separate profile coverage audit |
+| Phase                                | Stories                                                        | What it establishes                                                                                                              | Exit gate                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 0 — substrate                        | GF-001–005                                                     | private workspace, IDs, topology, evidence harness, pure authority kernel                                                        | hermetic graph and first deterministic replay; no effect path                             |
+| 1 — durable core                     | GF-010–015                                                     | witnessed ledger/registry/artifacts, recovery, evidence, effect mediation                                                        | recovery and uncertainty evidence; no provider bypass                                     |
+| 2 — envelope and intake              | GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, GF-024 | source, policy, provider proofs, qualified stores, preview, approvals, witnessed intake                                          | exact accepted/rejected acknowledgement; no Run on rejection                              |
+| 3 — lifecycle and execution          | GF-030–039                                                     | lifecycle, bounds, workspace/session, Doorbell, obligations                                                                      | scripted intake-to-park path plus qualified local workspace; no landing claim             |
+| 4 — acceptance and delivery          | GF-041, GF-040, GF-042–047                                     | review publication, acceptance, verification, finalization, landing, retirement                                                  | scripted E2E for every product outcome and crash points                                   |
+| 5 — settlement and operator surfaces | GF-050–056                                                     | terminal settlement, projections, notices, export, private consumers                                                             | stop/reconstruct/export/parity evidence                                                   |
+| 6 — real-provider closure            | GF-057, GF-060–062                                             | GitHub review publication, Codex, and GitHub final-delivery qualification; GF-062 joins all three in the supported local profile | product gate: 39 suite results plus 44 settled PC routes; separate profile coverage audit |
 
 ## 48-story map
 
-| Phase | Story IDs                                                                                                                                                                                                  | Intent                                                                        |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 0     | GF-001 workspace; GF-002 identity codec; GF-003 runtime topology; GF-004 conformance harness; GF-005 authority kernel                                                                                      | establish an executable but effect-free semantic base                         |
-| 1     | GF-010 ledger; GF-011 replay/recovery; GF-012 registry; GF-013 artifacts; GF-014 evidence; GF-015 operation reconciliation                                                                                 | make durable truth and uncertain-effect containment real                      |
-| 2     | GF-019 Work Source; GF-021 policy/setup; GF-022 provider proofs; GF-020 file source; GF-025 ledger/registry/witness file provider; GF-026 artifact file provider; GF-023 preview/approvals; GF-024 intake  | close provider evidence before preview and admit one exact Execution Envelope |
-| 3     | GF-030 lifecycle; GF-031 scheduler; GF-032 bounds; GF-033 workspace contract; GF-034 sessions; GF-035 candidates; GF-036 Doorbell; GF-037 run control; GF-038 obligations; GF-039 local workspace provider | execute bounded work without acceptance or landing                            |
-| 4     | GF-040 acceptance; GF-041 review publication; GF-042 verification; GF-043 finalizer; GF-044 delivery; GF-045 block surfacing; GF-046 retirement; GF-047 verifier provider                                  | accept, prove, land, block, and retire under fenced authority                 |
-| 5     | GF-050 Settlement; GF-051 projections; GF-052 notices; GF-053 audit export; GF-054 private SDK; GF-055 CLI; GF-056 private MCP                                                                             | close terminal duties and provide parity-preserving operator access           |
-| 6     | GF-057 GitHub review-publication provider; GF-060 Codex provider; GF-061 GitHub final-delivery provider; GF-062 joins both in the reference profile                                                        | qualify real mechanisms and close the full product conjunction                |
+| Phase | Story IDs                                                                                                                                                                                                  | Intent                                                                            |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 0     | GF-001 workspace; GF-002 identity codec; GF-003 runtime topology; GF-004 conformance harness; GF-005 authority kernel                                                                                      | establish an executable but effect-free semantic base                             |
+| 1     | GF-010 ledger; GF-011 replay/recovery; GF-012 registry; GF-013 artifacts; GF-014 evidence; GF-015 operation reconciliation                                                                                 | make durable truth and uncertain-effect containment real                          |
+| 2     | GF-019 Work Source; GF-021 policy/setup; GF-022 provider proofs; GF-020 file source; GF-025 ledger/registry/witness file provider; GF-026 artifact file provider; GF-023 preview/approvals; GF-024 intake  | close provider evidence before preview and admit one exact Execution Envelope     |
+| 3     | GF-030 lifecycle; GF-031 scheduler; GF-032 bounds; GF-033 workspace contract; GF-034 sessions; GF-035 candidates; GF-036 Doorbell; GF-037 run control; GF-038 obligations; GF-039 local workspace provider | execute bounded work without acceptance or landing                                |
+| 4     | GF-041 review publication; GF-040 acceptance; GF-042 verification; GF-043 finalizer; GF-044 delivery; GF-045 block surfacing; GF-046 retirement; GF-047 verifier provider                                  | publish for review, accept, prove, land, block, and retire under fenced authority |
+| 5     | GF-050 Settlement; GF-051 projections; GF-052 notices; GF-053 audit export; GF-054 private SDK; GF-055 CLI; GF-056 private MCP                                                                             | close terminal duties and provide parity-preserving operator access               |
+| 6     | GF-057 GitHub review-publication provider; GF-060 Codex provider; GF-061 GitHub final-delivery provider; GF-062 joins all three in the reference profile                                                   | qualify real mechanisms and close the full product conjunction                    |
 
 ## Cross-phase invariants
 
@@ -69,8 +70,15 @@ a workaround or later-phase feature.
   manifest are admitted.
 - Every external input is validated; unknown, stale, malformed, ambiguous, or unverifiable input
   fails closed.
-- Intent is durable before dispatch; only confirmed absence plus recorded reauthorization permits
-  same-effect retry. Otherwise reconcile or park.
+- Intent is durable before dispatch. Same-identity retry is effectful-only after confirmed absence
+  and recorded reauthorization; an effect-free replacement uses a new Operation identity.
+  Otherwise reconcile or park.
+- Under deterministic final verification, every policy-selected required check class must have a
+  passing, subject-matching `EV-CHECK-OBSERVATION`, and the complete required set must be satisfied
+  inside `Finalizing` before any target-changing Operation. `none` is an explicit no-op.
+  Post-`Accepted` observations under the unchanged reviewed candidate, posture, check-class set,
+  verification configuration/environment, and binding are authorized continuation evidence; drift
+  requires a fresh tuple and review.
 - Product outcome, acceptance, landing, and retirement remain distinct. Cleanup cannot alter an
   outcome or release a dependency.
 - Each story identifies its applicable `DR-*`; a choice that changes a governing constraint is an
@@ -78,10 +86,13 @@ a workaround or later-phase feature.
 
 ## Mandatory semantic-to-provider closure
 
-The manifest fixes five splits: GF-019→GF-020 (`PORT-SOURCE`), GF-010→GF-025 (`PORT-LEDGER`),
-GF-013→GF-026 (`PORT-ARTIFACT`), GF-033→GF-039 (`PORT-WORKSPACE`), and GF-042→GF-047
-(`PORT-VERIFY`). The semantic half can be green but its provider stays unreachable and
-unconfigurable until its exact `CF-MECH-*` evidence passes. In phase 2, GF-019, GF-021, and
+The manifest fixes eight splits: GF-019→GF-020 (`PORT-SOURCE`), GF-010→GF-025 (`PORT-LEDGER`),
+GF-013→GF-026 (`PORT-ARTIFACT`), GF-033→GF-039 (`PORT-WORKSPACE`), GF-042→GF-047
+(`PORT-VERIFY`), GF-034→GF-060 (`PORT-SESSION`), GF-041→GF-057 (review-publication
+`PORT-DELIVERY`), and GF-044→GF-061 (final-delivery `PORT-DELIVERY`). The two delivery splits
+retain disjoint credentials, Operations, evidence, and authority subjects. Every semantic half can
+be green while its provider stays unreachable and unconfigurable until its exact `CF-MECH-*`
+evidence passes. In phase 2, GF-019, GF-021, and
 GF-022 establish the topological prefix; GF-020, GF-025, and GF-026 may then proceed in parallel
 after GF-022 and their own prerequisites. GF-023 follows their evidence closures as an
 evidence-gated, effect-free preview and two-approval step; only then can GF-024 create a witnessed

@@ -10,8 +10,8 @@
     "this delivery track"
   ],
   "baseline": {
-    "current_main_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
-    "current_main_tree": "763fa777c62999795fb679cc05a61be1190d93b6",
+    "planning_provenance_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
+    "planning_provenance_tree": "763fa777c62999795fb679cc05a61be1190d93b6",
     "passing_subject_commit": "1731251d866b15b63131a0c3c580e7b563226cf3",
     "passing_subject_tree": "dcd0c1f8a5616283cafbcf54694fcd37dd4888c1",
     "normative_file_count": 67,
@@ -43,20 +43,22 @@
     "open_delegated_choices": 10
   },
   "global_definition_of_ready": [
-    "Immutable planning provenance remains recorded; each story starts only after an independently verified exact owner-ratification/activation record binds principal/delegation, the reviewed package tuple and authoritative landing-equivalence record, provenance, target scope, realization tuple, and validity/expiry/revocation, plus its dynamically observed execution base with all predecessors contained and exact evidence current.",
+    "Immutable planning provenance remains recorded; each story starts only after an independently verified exact owner-ratification/activation record binds principal/delegation, approved package P = Q + durable R identifier + PASS, its authoritative landing-equivalence record, provenance, target scope, realization tuple, and validity/expiry/revocation, plus its dynamically observed execution base with all predecessors contained and exact evidence current.",
     "Governing paths and stable IDs are named; applicable DR ownership, constraints, evidence, and fallback are recorded.",
     "Port, principal, authority, durable facts, failure paths, and conformance oracles are explicit.",
     "No unapproved capability or partial provider path is reachable."
   ],
   "global_definition_of_done": [
     "Boundary values are immutable/versioned; external inputs validate and unknown values fail closed.",
-    "Transitions are explicit, failures are typed cataloged typed failure codes values, and uncertain effects reconcile or park rather than retry blindly.",
+    "Transitions are explicit. Applicable runtime failures use cataloged typed FC-* failure classes; non-runtime failures remain typed under their bounded story contract. Uncertain effects reconcile or park rather than retry blindly.",
     "Applicable timeout, retry, recovery, resume, preservation, and cleanup proof is recorded against the exact subject.",
-    "Applicable unit, contract, adversarial, replay, crash, provider, and E2E evidence is recorded; pnpm check, git diff --check, CI, and independent exact-candidate review pass."
+    "Applicable unit, contract, adversarial, replay, crash, provider, and E2E evidence is recorded; pnpm check, git diff --check, CI, and independent exact-candidate review pass.",
+    "Under deterministic final verification, every policy-selected required check class has a passing subject-matching EV-CHECK-OBSERVATION and the complete required set is satisfied inside Finalizing before any target-changing Operation; none is an explicit no-op.",
+    "Post-Accepted final-verification observations are authorized continuation evidence, not a review-invalidating edit, while the reviewed candidate, posture, required check-class set, verification configuration/environment, and subject binding remain unchanged; drift requires a fresh tuple and independent review."
   ],
   "universal_constraints": {
     "security": "Least authority; credential names resolve only in memory; secrets never enter durable records, logs, evidence, or exports; hostile-input and redaction limits apply at every port; provider output never widens authority.",
-    "retry_recovery": "Only named cataloged bound classes controls apply. Retry a same-effect identity only after confirmed absence and recorded reauthorization; otherwise reconcile or park. Timers wake but durable facts decide.",
+    "retry_recovery": "Only named cataloged bound controls apply. Same-identity retry is effectful-only after confirmed absence and recorded reauthorization; an effect-free replacement uses a new ID-OP. Otherwise reconcile or park. Timers wake; durable facts decide.",
     "split_rule": "Split contract/core from realization when external mechanism families, primary authority seams, independent provider qualification, or semantic acceptance oracles differ. The semantic half remains useful and green but unconfigurable until realization qualifies."
   },
   "phases": [
@@ -108,8 +110,8 @@
       "id": 4,
       "name": "acceptance and delivery",
       "stories": [
-        "GF-040",
         "GF-041",
+        "GF-040",
         "GF-042",
         "GF-043",
         "GF-044",
@@ -131,7 +133,7 @@
         "GF-055",
         "GF-056"
       ],
-      "exit_gate": "Stopped-from-every-position, reconstruction/export, and SDK/CLI/MCP parity evidence."
+      "exit_gate": "Both cataloged terminal-entry origins, every preserved Story-state permutation, reconstruction/export, and SDK/CLI/MCP parity evidence."
     },
     {
       "id": 6,
@@ -450,12 +452,14 @@
       "size": "L",
       "governing_paths": [
         "docs/redesign/design/persistence-and-projections.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
         "docs/redesign/design/decisions/D11-ledger-realization.md"
       ],
       "stable_ids": [
         "RT-LEDGER",
         "RT-WITNESS",
         "PORT-LEDGER",
+        "CB-STORE",
         "DR-6",
         "LG-ACK",
         "LG-APPEND",
@@ -604,11 +608,13 @@
       "size": "L",
       "governing_paths": [
         "docs/redesign/design/evidence-handling.md",
-        "docs/redesign/design/runtime.md"
+        "docs/redesign/design/runtime.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md"
       ],
       "stable_ids": [
         "RT-EVIDENCE",
         "PORT-ARTIFACT",
+        "CB-STORE",
         "EV-ARTIFACT-FACT",
         "DR-6",
         "OPC-ART-PUT",
@@ -1178,6 +1184,7 @@
         "RT-REGISTRY",
         "RT-WITNESS",
         "PORT-LEDGER",
+        "CB-STORE",
         "LG-APPEND",
         "LG-READ",
         "LG-RECORD",
@@ -1241,6 +1248,7 @@
       "stable_ids": [
         "RT-EVIDENCE",
         "PORT-ARTIFACT",
+        "CB-STORE",
         "OPC-ART-PUT",
         "OPC-ART-GET",
         "OPC-ART-DISPOSE",
@@ -1587,6 +1595,7 @@
       ],
       "stable_ids": [
         "PORT-WORKSPACE",
+        "CB-WORKSPACE",
         "DR-4",
         "OPC-WS-PROVISION",
         "OPC-WS-SETUP",
@@ -1638,6 +1647,7 @@
       ],
       "stable_ids": [
         "PORT-SESSION",
+        "CB-SESSION",
         "ID-SESSION",
         "SCH-SESSION",
         "DR-4",
@@ -1836,6 +1846,7 @@
       ],
       "size": "M",
       "governing_paths": [
+        "docs/redesign/design/decisions/D16-final-readiness-contract-closure.md",
         "docs/redesign/design/lifecycle-catalogs.md",
         "docs/redesign/design/flows/run-and-story-lifecycle.md"
       ],
@@ -1859,7 +1870,7 @@
       ],
       "dr_gates": ["DR-3", "DR-9"],
       "story_file": "docs/delivery/greenfield/stories/GF-037.md",
-      "outcome": "Frozen-input revalidation, suspend/resume, and an atomic D16 terminal-stop Settlement-overlay opening without settlement duties.",
+      "outcome": "Frozen-input revalidation, suspend/resume, and an atomic D16 terminal-stop Settlement-overlay opening with complete duties and first permitted intent bases, but no duty progress or completion.",
       "oracle": ["CF-RULE-SURFACE", "CF-RUN-CONTROL", "CF-FENCE"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
@@ -1959,6 +1970,7 @@
       ],
       "stable_ids": [
         "PORT-WORKSPACE",
+        "CB-WORKSPACE",
         "CF-MECH-WORKSPACE",
         "DR-5",
         "FC-MECHANISM",
@@ -2002,7 +2014,7 @@
       "id": "GF-040",
       "title": "Independent exact-candidate acceptance",
       "phase": 4,
-      "dependencies": ["GF-014", "GF-034", "GF-035", "GF-037"],
+      "dependencies": ["GF-014", "GF-034", "GF-035", "GF-037", "GF-041"],
       "dependency_edges": [
         {
           "from": "GF-014",
@@ -2018,6 +2030,10 @@
         },
         {
           "from": "GF-037",
+          "type": "implementation"
+        },
+        {
+          "from": "GF-041",
           "type": "implementation"
         }
       ],
@@ -2069,7 +2085,7 @@
       "id": "GF-041",
       "title": "Pre-acceptance review publication",
       "phase": 4,
-      "dependencies": ["GF-015", "GF-035", "GF-040"],
+      "dependencies": ["GF-015", "GF-035"],
       "dependency_edges": [
         {
           "from": "GF-015",
@@ -2078,15 +2094,15 @@
         {
           "from": "GF-035",
           "type": "implementation"
-        },
-        {
-          "from": "GF-040",
-          "type": "implementation"
         }
       ],
       "size": "L",
       "governing_paths": [
-        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md"
+        "docs/redesign/design/decisions/D15-pre-acceptance-review-publication.md",
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/data-and-identity.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
       ],
       "stable_ids": [
         "CF-REVIEW-PUBLICATION",
@@ -2100,13 +2116,18 @@
         "OPC-REV-RETIRE-COMMENT",
         "RT-CONTROLLER",
         "PORT-DELIVERY",
+        "CB-REVIEW-PUBLICATION",
         "EV-TARGET-FACT",
+        "FC-MECHANISM",
         "FC-EFFECT",
+        "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-RECOVERY",
         "CF-MECH-DELIVERY"
       ],
       "dr_gates": ["DR-4", "DR-5"],
       "story_file": "docs/delivery/greenfield/stories/GF-041.md",
-      "outcome": "Scripted review publication with a dedicated non-mergeable draft and no acceptance/landing power.",
+      "outcome": "A typed fixed pre-assignment review-publication observation, or canonical explicit absence, with no acceptance/landing power.",
       "oracle": ["CF-REVIEW-PUBLICATION", "CF-MECH-DELIVERY"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
@@ -2148,10 +2169,14 @@
       ],
       "size": "M",
       "governing_paths": [
-        "docs/redesign/design/review-and-verification-execution.md"
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
       ],
       "stable_ids": [
         "PORT-VERIFY",
+        "CB-VERIFY",
         "OPC-VERIFY-EXECUTE",
         "EV-CHECK-OBSERVATION",
         "DR-4",
@@ -2164,6 +2189,9 @@
         "RP-VERIFY",
         "RT-CONTROLLER",
         "FC-SUBJECT",
+        "FC-MECHANISM",
+        "BND-WAIT-MECHANISM",
+        "BND-RETRY",
         "CF-POLICY",
         "CF-MECH-VERIFY",
         "ID-OP",
@@ -2230,6 +2258,7 @@
       "governing_paths": [
         "docs/redesign/design/concurrency-and-finalization.md",
         "docs/redesign/design/forge-and-landing.md",
+        "docs/redesign/design/review-and-verification-execution.md",
         "docs/redesign/design/lifecycle-catalogs.md",
         "docs/redesign/design/data-and-identity.md"
       ],
@@ -2241,10 +2270,14 @@
         "RC-FINALIZER",
         "RT-CONTROLLER",
         "RT-REGISTRY",
+        "PORT-VERIFY",
         "PORT-DELIVERY",
         "EV-TARGET-FACT",
         "EV-WAKE-AUTHORITY",
         "EV-WAKE-FINALIZATION",
+        "OPC-VERIFY-EXECUTE",
+        "EV-CHECK-OBSERVATION",
+        "RP-VERIFY",
         "OPC-DEL-ANCHOR",
         "FC-AUTHORITY",
         "FC-BOUND",
@@ -2262,7 +2295,7 @@
       ],
       "dr_gates": ["DR-3", "DR-9"],
       "story_file": "docs/delivery/greenfield/stories/GF-043.md",
-      "outcome": "Comparator-least serialized finalization, target anchor, refresh/rebind, and mandatory re-review on change.",
+      "outcome": "Comparator-least serialized finalization, target anchor, refresh/rebind/re-review, and a mode-bound in-Finalizing verification gate before target-changing delivery.",
       "oracle": ["CF-ORDER", "CF-FENCE", "CF-CAPACITY"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
@@ -2300,9 +2333,11 @@
       ],
       "size": "L",
       "governing_paths": [
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
         "docs/redesign/design/forge-and-landing.md",
         "docs/redesign/design/review-and-verification-execution.md",
-        "docs/redesign/design/lifecycle-catalogs.md"
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
       ],
       "stable_ids": [
         "EV-TARGET-FACT",
@@ -2324,7 +2359,12 @@
         "LP-RESOLVE",
         "RT-CONTROLLER",
         "PORT-DELIVERY",
+        "CB-DELIVERY",
+        "FC-MECHANISM",
         "FC-EFFECT",
+        "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-RECOVERY",
         "BND-WAIT-TARGET",
         "CF-RELEASE",
         "CF-DOUBLE-EFFECT",
@@ -2462,7 +2502,10 @@
         "OPC-REV-RETIRE-REQUEST",
         "OPC-REV-RETIRE-STATUS",
         "OPC-REV-RETIRE-COMMENT",
+        "OPC-ART-DISPOSE",
         "FC-BOUND",
+        "FC-EVIDENCE",
+        "FC-TRUST",
         "CF-SEPARATION",
         "CF-PRESERVATION",
         "CF-EVIDENCE-LIFECYCLE",
@@ -2503,10 +2546,12 @@
       "governing_paths": [
         "docs/redesign/design/mechanism-and-provider-contracts.md",
         "docs/redesign/design/review-and-verification-execution.md",
+        "docs/redesign/design/scheduling-and-bounds.md",
         "docs/redesign/design/architecture-conformance.md"
       ],
       "stable_ids": [
         "PORT-VERIFY",
+        "CB-VERIFY",
         "OPC-VERIFY-EXECUTE",
         "CF-MECH-VERIFY",
         "DR-5",
@@ -2514,6 +2559,7 @@
         "FC-SUBJECT",
         "FC-MECHANISM",
         "BND-WAIT-MECHANISM",
+        "BND-RETRY",
         "CF-GATE-PROVIDER",
         "ID-OP",
         "ID-CAND"
@@ -2616,7 +2662,7 @@
       ],
       "dr_gates": ["DR-3", "DR-6", "DR-9"],
       "story_file": "docs/delivery/greenfield/stories/GF-050.md",
-      "outcome": "One phase-preserving Stopped overlay with deterministic duty/no-settlement semantics and no false terminal append.",
+      "outcome": "Progress and seal of one existing phase-preserving Stopped overlay with deterministic duty/no-settlement semantics and no terminal-entry authority.",
       "oracle": ["CF-RUN-CONTROL", "CF-PRESERVATION", "CF-TRUST-STOP"],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
@@ -3048,7 +3094,8 @@
         },
         {
           "from": "GF-041",
-          "type": "implementation"
+          "type": "implementation",
+          "split": "semantic-to-provider"
         },
         {
           "from": "GF-045",
@@ -3068,6 +3115,7 @@
         "docs/redesign/design/architecture-conformance.md",
         "docs/redesign/design/product-guarantee-reconciliation.md",
         "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/scheduling-and-bounds.md",
         "docs/redesign/design/delegation-register.md"
       ],
       "stable_ids": [
@@ -3076,10 +3124,14 @@
         "DR-4",
         "DR-5",
         "FC-MECHANISM",
+        "FC-EFFECT",
         "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-RECOVERY",
         "CF-SECRET-ABSENCE",
         "CF-REVIEW-PUBLICATION",
         "CF-BLOCK-SURFACING",
+        "CF-MECH-DELIVERY",
         "CF-GATE-PROVIDER",
         "EV-TARGET-FACT",
         "OPC-REV-PUBLISH",
@@ -3098,19 +3150,38 @@
       "oracle": [
         "CF-REVIEW-PUBLICATION",
         "CF-BLOCK-SURFACING",
+        "CF-MECH-DELIVERY",
         "CF-GATE-PROVIDER"
       ],
       "status": "proposed",
       "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
+        "PC-JIG-8",
         "PC-JIG-11",
         "PC-JIG-15",
         "PC-JIG-21",
+        "PC-CONCEPTS-3",
         "PC-CONCEPTS-5",
         "PC-CONCEPTS-6",
         "PC-USE-5"
       ],
-      "imported_commitments": []
+      "imported_commitments": [
+        "EARN-1",
+        "EARN-2",
+        "MERGE-2",
+        "MERGE-5",
+        "SEC-1",
+        "SEC-3",
+        "STACK-1",
+        "STACK-2",
+        "STACK-4",
+        "STACK-5",
+        "STACK-6",
+        "STACK-7",
+        "DRIVE-1",
+        "DRIVE-2",
+        "DRIVE-4"
+      ]
     },
     {
       "id": "GF-060",
@@ -3131,7 +3202,8 @@
         },
         {
           "from": "GF-034",
-          "type": "implementation"
+          "type": "implementation",
+          "split": "semantic-to-provider"
         },
         {
           "from": "GF-035",
@@ -3153,14 +3225,19 @@
       "size": "L",
       "governing_paths": [
         "docs/redesign/design/decisions/D14-agent-provider-permission-boundary.md",
-        "docs/redesign/design/mechanism-and-provider-contracts.md"
+        "docs/redesign/design/mechanism-and-provider-contracts.md",
+        "docs/redesign/design/scheduling-and-bounds.md"
       ],
       "stable_ids": [
         "PORT-SESSION",
+        "CB-SESSION",
         "DR-4",
         "DR-5",
         "FC-MECHANISM",
+        "FC-EFFECT",
         "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-RECOVERY",
         "CF-SECRET-ABSENCE",
         "CF-PROVIDER-PERMISSION",
         "CF-MECH-SESSION",
@@ -3224,7 +3301,8 @@
         },
         {
           "from": "GF-044",
-          "type": "implementation"
+          "type": "implementation",
+          "split": "semantic-to-provider"
         },
         {
           "from": "GF-045",
@@ -3235,14 +3313,21 @@
       "governing_paths": [
         "docs/redesign/design/mechanism-and-provider-contracts.md",
         "docs/redesign/design/forge-and-landing.md",
+        "docs/redesign/design/lifecycle-catalogs.md",
+        "docs/redesign/design/data-and-identity.md",
+        "docs/redesign/design/scheduling-and-bounds.md",
         "docs/redesign/design/architecture-conformance.md"
       ],
       "stable_ids": [
         "PORT-DELIVERY",
+        "CB-DELIVERY",
         "DR-4",
         "DR-5",
         "FC-MECHANISM",
+        "FC-EFFECT",
         "BND-WAIT-MECHANISM",
+        "BND-RETRY",
+        "BND-RECOVERY",
         "CF-SECRET-ABSENCE",
         "CF-MECH-DELIVERY",
         "EV-TARGET-FACT",
@@ -3258,7 +3343,8 @@
         "OPC-DEL-OBSERVE",
         "ID-OP",
         "ID-TARGET",
-        "ID-AUTH"
+        "ID-AUTH",
+        "ID-OBLIGATION"
       ],
       "dr_gates": ["DR-4", "DR-5"],
       "story_file": "docs/delivery/greenfield/stories/GF-061.md",
@@ -3745,6 +3831,24 @@
       "provider_story": "GF-047",
       "port": "PORT-VERIFY",
       "rule": "Local command verifier remains unconfigurable until its exact CF-MECH-VERIFY result passes."
+    },
+    {
+      "semantic_story": "GF-034",
+      "provider_story": "GF-060",
+      "port": "PORT-SESSION",
+      "rule": "Codex role-session provider remains unconfigurable until its exact CF-MECH-SESSION result passes."
+    },
+    {
+      "semantic_story": "GF-041",
+      "provider_story": "GF-057",
+      "port": "PORT-DELIVERY",
+      "rule": "GitHub review-publication provider remains unconfigurable until its review-only exact CF-MECH-DELIVERY result passes."
+    },
+    {
+      "semantic_story": "GF-044",
+      "provider_story": "GF-061",
+      "port": "PORT-DELIVERY",
+      "rule": "GitHub final-delivery provider remains unconfigurable until its final-authority exact CF-MECH-DELIVERY result passes."
     }
   ],
   "critical_path": [
@@ -3784,7 +3888,7 @@
     "After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging at GF-023.",
     "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
     "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
-    "After GF-040, review-publication and verify/finalizer lanes may proceed independently; GF-047 qualifies independently of final delivery.",
+    "GF-041 review publication may proceed after GF-015/GF-035; GF-040 acceptance then waits for GF-041 plus its other prerequisites, while GF-042 verification semantics may proceed independently before GF-043 joins GF-040/GF-042; GF-047 qualifies independently of final delivery.",
     "After GF-054, CLI and private MCP lanes may proceed independently.",
     "GF-057, GF-060, and GF-061 qualify independently before GF-062."
   ],
@@ -3842,7 +3946,7 @@
       "PORT-DECIDE": ["GF-003", "GF-036", "GF-037", "GF-038"],
       "PORT-SESSION": ["GF-003", "GF-034", "GF-060"],
       "PORT-WORKSPACE": ["GF-003", "GF-033", "GF-039"],
-      "PORT-VERIFY": ["GF-003", "GF-042", "GF-047"],
+      "PORT-VERIFY": ["GF-003", "GF-042", "GF-047", "GF-043"],
       "PORT-DELIVERY": [
         "GF-003",
         "GF-041",
@@ -3877,7 +3981,7 @@
       "EV-ARTIFACT-FACT": ["GF-013", "GF-014", "GF-026", "GF-053"],
       "EV-RULE-SURFACE-TOUCHED": ["GF-037"],
       "EV-LIVENESS-OBSERVED": ["GF-032"],
-      "EV-CHECK-OBSERVATION": ["GF-042", "GF-047"],
+      "EV-CHECK-OBSERVATION": ["GF-042", "GF-047", "GF-043"],
       "EV-TARGET-FACT": ["GF-041", "GF-043", "GF-044", "GF-061", "GF-057"],
       "EV-EFFECT-CERTAINTY": ["GF-015", "GF-044"],
       "EV-LANDING-OBSERVED": ["GF-044"],
@@ -3909,7 +4013,7 @@
       "OPC-WS-OBSERVE": ["GF-033"],
       "OPC-WS-PRESERVE": ["GF-033", "GF-046"],
       "OPC-WS-RETIRE": ["GF-033", "GF-046"],
-      "OPC-VERIFY-EXECUTE": ["GF-042", "GF-047"],
+      "OPC-VERIFY-EXECUTE": ["GF-042", "GF-047", "GF-043"],
       "OPC-REV-PUBLISH": ["GF-041", "GF-057"],
       "OPC-REV-REQUEST": ["GF-041", "GF-057"],
       "OPC-REV-STATUS": ["GF-041", "GF-057"],
@@ -3927,7 +4031,7 @@
       "OPC-DEL-OBSERVE": ["GF-044", "GF-061"],
       "OPC-ART-PUT": ["GF-013", "GF-014", "GF-026"],
       "OPC-ART-GET": ["GF-013", "GF-014", "GF-026"],
-      "OPC-ART-DISPOSE": ["GF-013", "GF-026", "GF-053"]
+      "OPC-ART-DISPOSE": ["GF-013", "GF-026", "GF-046", "GF-053"]
     },
     "identities": {
       "ID-RUN": ["GF-002", "GF-024"],
@@ -3957,7 +4061,7 @@
       "ID-TARGET": ["GF-002", "GF-012", "GF-043", "GF-044", "GF-061"],
       "ID-AUTH": ["GF-002", "GF-012", "GF-043", "GF-044", "GF-061"],
       "ID-EVSUBJ": ["GF-002", "GF-014"],
-      "ID-OBLIGATION": ["GF-002", "GF-038"],
+      "ID-OBLIGATION": ["GF-002", "GF-038", "GF-061"],
       "ID-SETTLEMENT": ["GF-002", "GF-050", "GF-037"],
       "ID-NOTICE": ["GF-002", "GF-052"],
       "ID-EXPORT": ["GF-002", "GF-053"]
@@ -4004,18 +4108,29 @@
       "FC-AUTHORITY": ["GF-003", "GF-012", "GF-022", "GF-036", "GF-043"],
       "FC-SUBJECT": ["GF-002", "GF-035", "GF-040", "GF-042", "GF-047"],
       "FC-FENCE": ["GF-011", "GF-015", "GF-034"],
-      "FC-EVIDENCE": ["GF-014", "GF-040"],
+      "FC-EVIDENCE": ["GF-014", "GF-040", "GF-046"],
       "FC-MECHANISM": [
         "GF-015",
         "GF-020",
         "GF-026",
         "GF-039",
+        "GF-041",
+        "GF-042",
+        "GF-044",
         "GF-047",
+        "GF-057",
         "GF-060",
-        "GF-061",
-        "GF-057"
+        "GF-061"
       ],
-      "FC-EFFECT": ["GF-015", "GF-026", "GF-041", "GF-044"],
+      "FC-EFFECT": [
+        "GF-015",
+        "GF-026",
+        "GF-041",
+        "GF-044",
+        "GF-057",
+        "GF-060",
+        "GF-061"
+      ],
       "FC-CAPACITY": ["GF-031"],
       "FC-LIVENESS": ["GF-032", "GF-034"],
       "FC-RULES": ["GF-037"],
@@ -4030,12 +4145,27 @@
         "GF-025",
         "GF-026",
         "GF-050",
-        "GF-037"
+        "GF-037",
+        "GF-046"
       ]
     },
     "bound_classes": {
       "BND-REWORK": ["GF-032", "GF-035"],
-      "BND-RETRY": ["GF-015", "GF-019", "GF-020", "GF-022", "GF-026", "GF-032"],
+      "BND-RETRY": [
+        "GF-015",
+        "GF-019",
+        "GF-020",
+        "GF-022",
+        "GF-026",
+        "GF-032",
+        "GF-041",
+        "GF-042",
+        "GF-044",
+        "GF-047",
+        "GF-057",
+        "GF-060",
+        "GF-061"
+      ],
       "BND-REFRESH": ["GF-032", "GF-043"],
       "BND-WAIT-DECISION": ["GF-032", "GF-036", "GF-038"],
       "BND-WAIT-MECHANISM": [
@@ -4046,17 +4176,30 @@
         "GF-026",
         "GF-032",
         "GF-039",
+        "GF-041",
+        "GF-042",
+        "GF-044",
         "GF-047",
+        "GF-057",
         "GF-060",
-        "GF-061",
-        "GF-057"
+        "GF-061"
       ],
       "BND-WAIT-CAPACITY": ["GF-031", "GF-032", "GF-043"],
       "BND-WAIT-LEDGER": ["GF-010", "GF-024", "GF-025", "GF-026", "GF-032"],
       "BND-WAIT-TARGET": ["GF-032", "GF-043", "GF-044"],
       "BND-IDLE": ["GF-032"],
       "BND-SILENCE": ["GF-032", "GF-034"],
-      "BND-RECOVERY": ["GF-011", "GF-015", "GF-026", "GF-032"],
+      "BND-RECOVERY": [
+        "GF-011",
+        "GF-015",
+        "GF-026",
+        "GF-032",
+        "GF-041",
+        "GF-044",
+        "GF-057",
+        "GF-060",
+        "GF-061"
+      ],
       "BND-RETIRE": ["GF-032", "GF-046", "GF-050"]
     },
     "wait_progress_surfaces": {
@@ -4193,7 +4336,8 @@
         "GF-044",
         "GF-045",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     "cf_gate_product_inputs": [
@@ -4346,7 +4490,8 @@
         "GF-047",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ],
       "proof_route": "`CF-BINDING` pass + `EV-SESSION-VERDICT` independence validation holds + `CF-PROVIDER-AUTHORITY` pass + `CF-SECRET-ABSENCE` pass + `CF-MECH-SESSION`/`CF-MECH-WORKSPACE`/`CF-MECH-VERIFY`/`CF-MECH-DELIVERY` passes"
     },
@@ -4492,7 +4637,8 @@
         "GF-047",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ],
       "proof_route": "`CF-BINDING` pass + `EV-SESSION-VERDICT` independence validation holds + `CF-PROVIDER-AUTHORITY` pass + `CF-SECRET-ABSENCE` pass + `CF-MECH-SESSION`/`CF-MECH-WORKSPACE`/`CF-MECH-VERIFY`/`CF-MECH-DELIVERY` passes"
     },
@@ -4610,13 +4756,13 @@
       "id": "EARN-1",
       "family": "EARN",
       "disposition": "satisfied",
-      "stories": ["GF-036", "GF-040", "GF-042", "GF-047", "GF-062"]
+      "stories": ["GF-036", "GF-040", "GF-042", "GF-047", "GF-062", "GF-057"]
     },
     {
       "id": "EARN-2",
       "family": "EARN",
       "disposition": "note",
-      "stories": ["GF-036", "GF-040", "GF-042", "GF-047", "GF-062"]
+      "stories": ["GF-036", "GF-040", "GF-042", "GF-047", "GF-062", "GF-057"]
     },
     {
       "id": "GUARD-1",
@@ -4677,7 +4823,8 @@
         "GF-045",
         "GF-046",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -4725,14 +4872,15 @@
         "GF-045",
         "GF-046",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
       "id": "SEC-1",
       "family": "SEC",
       "disposition": "satisfied",
-      "stories": ["GF-014", "GF-022", "GF-060", "GF-061", "GF-062"]
+      "stories": ["GF-014", "GF-022", "GF-060", "GF-061", "GF-062", "GF-057"]
     },
     {
       "id": "SEC-2",
@@ -4744,7 +4892,7 @@
       "id": "SEC-3",
       "family": "SEC",
       "disposition": "satisfied",
-      "stories": ["GF-014", "GF-022", "GF-060", "GF-061", "GF-062"]
+      "stories": ["GF-014", "GF-022", "GF-060", "GF-061", "GF-062", "GF-057"]
     },
     {
       "id": "CFG-1",
@@ -4967,7 +5115,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -4985,7 +5134,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5021,7 +5171,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5039,7 +5190,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5057,7 +5209,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5075,7 +5228,8 @@
         "GF-061",
         "GF-025",
         "GF-026",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5091,7 +5245,8 @@
         "GF-056",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5107,7 +5262,8 @@
         "GF-056",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5139,7 +5295,8 @@
         "GF-056",
         "GF-060",
         "GF-061",
-        "GF-062"
+        "GF-062",
+        "GF-057"
       ]
     },
     {
@@ -5219,8 +5376,8 @@
       },
       "DR-5": {
         "owner": "Configuration",
-        "earliest_story": "GF-022 then GF-020/GF-025/GF-026/GF-039/GF-047/GF-060/GF-061",
-        "constraints": "Initial qualified providers are structured-file source, file stores, local Git workspace, local verifier, Codex sessions, and GitHub delivery.",
+        "earliest_story": "GF-022 then GF-020/GF-025/GF-026/GF-039/GF-047/GF-057/GF-060/GF-061",
+        "constraints": "Initial qualified providers are structured-file source, file stores, local Git workspace, local verifier, Codex sessions, a GitHub review-publication provider, and a disjoint GitHub final-delivery provider with separate credentials.",
         "alternatives": "Unsupported provider mode omitted, never waived or inferred.",
         "evidence": "Exact real-provider mechanism conformance suite and provider gate.",
         "fallback": "Unconfigurable provider.",
