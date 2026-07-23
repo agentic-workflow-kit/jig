@@ -80,6 +80,18 @@ function gitFixture(run) {
   return fixture((dir) => {
     execFileSync('git', ['init', '-q'], { cwd: dir });
     execFileSync('git', ['add', '.'], { cwd: dir });
+    try {
+      execFileSync(
+        'git',
+        [
+          'fetch',
+          '-q',
+          root,
+          'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
+        ],
+        { cwd: dir },
+      );
+    } catch {}
     return run(dir);
   });
 }

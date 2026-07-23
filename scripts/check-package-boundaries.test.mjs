@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { validatePackageBoundaries } from './check-package-boundaries.mjs';
+
+const repoRoot = resolve(import.meta.dirname, '..');
 
 function createTempWorkspace(setup) {
   const dir = join(tmpdir(), `gf001-boundary-test-${Math.random().toString(36).slice(2)}`);
@@ -37,6 +39,11 @@ test('validatePackageBoundaries fails if root src/ exists', () => {
 
 test('validatePackageBoundaries fails if a workspace package is non-private', () => {
   const errors = createTempWorkspace((dir) => {
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
     const pkgDir = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-pub');
     mkdirSync(pkgDir, { recursive: true });
     writeFileSync(
@@ -51,36 +58,78 @@ test('validatePackageBoundaries fails if a workspace package is non-private', ()
   assert.ok(errors.some((e) => e.includes('must set "private": true')));
 });
 
-test('validatePackageBoundaries fails if package depends on unknown workspace package', () => {
+test('validatePackageBoundaries fails if package declares forbidden internal edge or reverse dependency', () => {
   const errors = createTempWorkspace((dir) => {
-    const pkgDir = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-bad');
-    mkdirSync(pkgDir, { recursive: true });
-    writeFileSync(
-      join(pkgDir, 'package.json'),
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
+    const pkgAPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-a', 'package.json');
+    const pkgAJson = JSON.parse(
       JSON.stringify({
-        name: '@gf-001-fixture/pkg-bad',
+        name: '@gf-001-fixture/pkg-a',
         version: '0.0.0',
         private: true,
-        dependencies: { '@gf-001-fixture/unknown': 'workspace:*' },
+        type: 'module',
+        dependencies: { '@gf-001-fixture/pkg-b': 'workspace:*' },
+      }),
+    );
+    writeFileSync(pkgAPath, JSON.stringify(pkgAJson, null, 2));
+  });
+  assert.ok(errors.some((e) => e.includes('declares forbidden dependency @gf-001-fixture/pkg-b')));
+});
+
+test('validatePackageBoundaries fails if package declares external dependency', () => {
+  const errors = createTempWorkspace((dir) => {
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
+    const pkgCPath = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-c', 'package.json');
+    const pkgCJson = JSON.parse(
+      JSON.stringify({
+        name: '@gf-001-fixture/pkg-c',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        dependencies: { lodash: '^4.17.21' },
+      }),
+    );
+    writeFileSync(pkgCPath, JSON.stringify(pkgCJson, null, 2));
+  });
+  assert.ok(errors.some((e) => e.includes('declares forbidden dependency lodash')));
+});
+
+test('validatePackageBoundaries fails if dependency and tsconfig project reference mismatch', () => {
+  const errors = createTempWorkspace((dir) => {
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
+    );
+    const pkgBTsconfig = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-b', 'tsconfig.json');
+    writeFileSync(
+      pkgBTsconfig,
+      JSON.stringify({
+        extends: '../../tsconfig.base.json',
+        compilerOptions: { outDir: 'dist', rootDir: 'src' },
+        references: [],
       }),
     );
   });
-  assert.ok(errors.some((e) => e.includes('depends on unknown workspace package')));
+  assert.ok(errors.some((e) => e.includes('tsconfig missing required project reference ../pkg-a')));
 });
 
 test('validatePackageBoundaries fails if package contains forbidden provider/adapter/credential files', () => {
   const errors = createTempWorkspace((dir) => {
-    const pkgDir = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-forbidden');
-    const srcDir = join(pkgDir, 'src');
-    mkdirSync(srcDir, { recursive: true });
-    writeFileSync(
-      join(pkgDir, 'package.json'),
-      JSON.stringify({
-        name: '@gf-001-fixture/pkg-forbidden',
-        version: '0.0.0',
-        private: true,
-      }),
+    cpSync(
+      join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace'),
+      join(dir, 'tests', 'fixtures', 'gf-001-workspace'),
+      { recursive: true },
     );
+    const srcDir = join(dir, 'tests', 'fixtures', 'gf-001-workspace', 'packages', 'pkg-a', 'src');
     writeFileSync(join(srcDir, 'provider.ts'), 'export const provider = {};');
   });
   assert.ok(errors.some((e) => e.includes('forbidden runtime concept file')));

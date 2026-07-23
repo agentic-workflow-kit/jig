@@ -62,6 +62,7 @@ const allowedRootFiles = new Set([
   'tsconfig.base.json',
   'tsconfig.tools.json',
 ]);
+
 const allowedScriptPaths = new Set([
   'scripts/check-active-repository.mjs',
   'scripts/check-active-repository.test.mjs',
@@ -74,8 +75,26 @@ const allowedScriptPaths = new Set([
   'scripts/worktree-clean.sh',
   'scripts/worktree-new.sh',
 ]);
+
 const allowedGithubPaths = new Set(['.github/workflows/check.yml']);
 const allowedArchiveExtensions = new Set(['.json', '.jsonl', '.md', '.txt']);
+
+const allowedFixturePaths = new Set([
+  'tests/fixtures/gf-001-workspace/package.json',
+  'tests/fixtures/gf-001-workspace/pnpm-workspace.yaml',
+  'tests/fixtures/gf-001-workspace/tsconfig.base.json',
+  'tests/fixtures/gf-001-workspace/tsconfig.json',
+  'tests/fixtures/gf-001-workspace/turbo.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-a/package.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-a/src/index.ts',
+  'tests/fixtures/gf-001-workspace/packages/pkg-a/tsconfig.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-b/package.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-b/src/index.ts',
+  'tests/fixtures/gf-001-workspace/packages/pkg-b/tsconfig.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-c/package.json',
+  'tests/fixtures/gf-001-workspace/packages/pkg-c/src/index.ts',
+  'tests/fixtures/gf-001-workspace/packages/pkg-c/tsconfig.json',
+]);
 
 const expectedCheckScript =
   'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test';
@@ -97,9 +116,6 @@ const expectedScripts = {
   check: expectedCheckScript,
 };
 
-const directWorkflowPreflight = '        run: node scripts/check-active-repository.mjs';
-const dependencyInstall = '        run: pnpm install --frozen-lockfile';
-const mutableWorkflowPipeline = '        run: pnpm check';
 const expectedPackageKeys = new Set([
   'name',
   'version',
@@ -112,6 +128,7 @@ const expectedPackageKeys = new Set([
   'scripts',
   'devDependencies',
 ]);
+
 const expectedDevDependencies = {
   '@biomejs/biome': '^2.5.1',
   prettier: '^3.9.3',
@@ -126,6 +143,12 @@ const representativeArchivePaths = [
   'docs/delivery/target-state-implementation/README.md',
   'skills/orchestrate-jig/SKILL.md',
 ];
+
+const immutableActions = {
+  checkout: 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683',
+  pnpmSetup: 'pnpm/action-setup@a7487c7e49b092b630dc034e3415ef4eb5d064cf',
+  setupNode: 'actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af',
+};
 
 function git(...args) {
   return execFileSync('git', args, {
@@ -161,8 +184,7 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
       allowedDeliveryPaths.has(path) ||
       ((path.startsWith('docs/product/') || path.startsWith('docs/redesign/')) && extension === '.md') ||
       (path.startsWith('docs/archive/') && allowedArchiveExtensions.has(extension));
-    const permittedTestPath =
-      path === 'tests/gf-001/workspace-substrate.test.mjs' || path.startsWith('tests/fixtures/gf-001-workspace/');
+    const permittedTestPath = path === 'tests/gf-001/workspace-substrate.test.mjs' || allowedFixturePaths.has(path);
     const permitted =
       allowedRootFiles.has(path) ||
       allowedScriptPaths.has(path) ||
@@ -238,27 +260,52 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
           : `${name} must exactly preserve its repository validation command`,
       );
 
+  // Exact Bounded Workflow Contract Validation
   const workflow = readFileSync('.github/workflows/check.yml', 'utf8');
-  const workflowLines = workflow.split('\n');
-  const preflightIndex = workflowLines.indexOf(directWorkflowPreflight);
-  const installIndex = workflowLines.indexOf(dependencyInstall);
-  const pipelineIndex = workflowLines.indexOf(mutableWorkflowPipeline);
-  const directPreflights = workflowLines.filter((line) => line === directWorkflowPreflight);
-  const dependencyInstalls = workflowLines.filter((line) => line === dependencyInstall);
-  const mutablePipelines = workflowLines.filter((line) => line === mutableWorkflowPipeline);
-  const precedingLines = workflowLines.slice(0, preflightIndex).filter((line) => line.trim() !== '');
-  const precedingNonBlank = precedingLines.length >= 2 ? precedingLines[precedingLines.length - 2] : '';
   const hasDisallowedKeywords = /^\s*(?:if|continue-on-error|shell):/m.test(workflow);
+  if (hasDisallowedKeywords) {
+    errors.push(
+      'check workflow must not contain conditional bypasses, shell overrides, or continue-on-error modifiers',
+    );
+    errors.push(
+      'check workflow must run the direct active-repository preflight before dependency installation and pnpm check',
+    );
+  }
+
+  if (!workflow.includes('permissions:\n  contents: read')) {
+    errors.push('check workflow must set read-only permissions (contents: read)');
+  }
+
+  if (!workflow.includes(`uses: ${immutableActions.checkout}`)) {
+    errors.push(`check workflow must use exact immutable SHA for checkout: ${immutableActions.checkout}`);
+  }
+  if (!workflow.includes(`uses: ${immutableActions.pnpmSetup}`)) {
+    errors.push(`check workflow must use exact immutable SHA for pnpm-setup: ${immutableActions.pnpmSetup}`);
+  }
+  if (!workflow.includes(`uses: ${immutableActions.setupNode}`)) {
+    errors.push(`check workflow must use exact immutable SHA for setup-node: ${immutableActions.setupNode}`);
+  }
+
+  const workflowLines = workflow.split('\n');
+  const preflightLine = '      - name: Active repository preflight';
+  const preflightRunLine = '        run: node scripts/check-active-repository.mjs';
+  const installRunLine = '        run: pnpm install --frozen-lockfile';
+  const checkRunLine = '        run: pnpm check';
+
+  const preflightIdx = workflowLines.indexOf(preflightLine);
+  const preflightRunIdx = workflowLines.indexOf(preflightRunLine);
+  const installRunIdx = workflowLines.indexOf(installRunLine);
+  const checkRunIdx = workflowLines.indexOf(checkRunLine);
+
+  const precedingLines = workflowLines.slice(0, preflightIdx).filter((line) => line.trim() !== '');
+  const precedingNonBlank = precedingLines.length >= 1 ? precedingLines[precedingLines.length - 1] : '';
 
   if (
-    directPreflights.length !== 1 ||
-    dependencyInstalls.length !== 1 ||
-    mutablePipelines.length !== 1 ||
-    preflightIndex <= 0 ||
-    workflowLines[preflightIndex - 1] !== '      - name: Active repository preflight' ||
-    precedingNonBlank !== '          cache: pnpm' ||
-    !(preflightIndex < installIndex && installIndex < pipelineIndex) ||
-    hasDisallowedKeywords
+    preflightIdx < 0 ||
+    preflightRunIdx !== preflightIdx + 1 ||
+    installRunIdx <= preflightRunIdx ||
+    checkRunIdx <= installRunIdx ||
+    !precedingNonBlank.includes('cache: pnpm')
   ) {
     errors.push(
       'check workflow must run the direct active-repository preflight before dependency installation and pnpm check',
@@ -278,35 +325,22 @@ export function validateActiveRepository(_rootDir = process.cwd()) {
     errors.push('pnpm workspace must retain an empty package set and deny all dependency lifecycle builds');
   }
 
+  // Mandatory Archive Anchor Verification
   try {
-    let hasArchiveRef = false;
-    try {
-      hasArchiveRef = Boolean(
-        execFileSync('git', ['rev-parse', '--verify', '--quiet', archiveRef], {
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'ignore'],
-        }).trim(),
-      );
-    } catch {
-      hasArchiveRef = false;
+    const resolvedTagObject = git('rev-parse', archiveRef);
+    const resolvedCommit = git('rev-parse', `${archiveRef}^{}`);
+    const resolvedTree = git('rev-parse', `${archiveRef}^{}^{tree}`);
+    if (resolvedTagObject !== archiveTagObject) {
+      errors.push(`archive tag object resolves to ${resolvedTagObject}, expected ${archiveTagObject}`);
     }
-
-    if (hasArchiveRef) {
-      const resolvedTagObject = git('rev-parse', archiveRef);
-      const resolvedCommit = git('rev-parse', `${archiveRef}^{}`);
-      const resolvedTree = git('rev-parse', `${archiveRef}^{}^{tree}`);
-      if (resolvedTagObject !== archiveTagObject) {
-        errors.push(`archive tag object resolves to ${resolvedTagObject}, expected ${archiveTagObject}`);
-      }
-      if (resolvedCommit !== archiveCommit) {
-        errors.push(`archive ref resolves to ${resolvedCommit}, expected ${archiveCommit}`);
-      }
-      if (resolvedTree !== archiveTree) {
-        errors.push(`archive tree resolves to ${resolvedTree}, expected ${archiveTree}`);
-      }
-      for (const archivePath of representativeArchivePaths) {
-        git('cat-file', '-e', `${archiveRef}^{commit}:${archivePath}`);
-      }
+    if (resolvedCommit !== archiveCommit) {
+      errors.push(`archive ref resolves to ${resolvedCommit}, expected ${archiveCommit}`);
+    }
+    if (resolvedTree !== archiveTree) {
+      errors.push(`archive tree resolves to ${resolvedTree}, expected ${archiveTree}`);
+    }
+    for (const archivePath of representativeArchivePaths) {
+      git('cat-file', '-e', `${archiveRef}^{commit}:${archivePath}`);
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

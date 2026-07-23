@@ -20,6 +20,21 @@ function findPackages(dir) {
   return packages;
 }
 
+const expectedGraph = {
+  '@gf-001-fixture/pkg-a': {
+    dependencies: [],
+    references: [],
+  },
+  '@gf-001-fixture/pkg-b': {
+    dependencies: ['@gf-001-fixture/pkg-a'],
+    references: ['../pkg-a'],
+  },
+  '@gf-001-fixture/pkg-c': {
+    dependencies: [],
+    references: [],
+  },
+};
+
 export function validatePackageBoundaries(rootDir = process.cwd()) {
   const errors = [];
 
@@ -72,32 +87,64 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
     }
   }
 
-  // 3. Validate dependency edges and project references
+  // 3. Validate exact package adjacency graph, directionality, external dependencies, and tsconfig reference congruence
   for (const [name, { pkgPath, manifest }] of manifestMap) {
-    const deps = Object.keys(manifest.dependencies || {});
-    for (const dep of deps) {
-      if (dep.startsWith('@gf-001-fixture/')) {
-        if (!manifestMap.has(dep)) {
-          errors.push(`package ${name} depends on unknown workspace package ${dep}`);
-        }
+    const expected = expectedGraph[name];
+    if (!expected) {
+      errors.push(`unexpected package ${name} found in fixture workspace`);
+      continue;
+    }
+
+    // Collect all dependency declarations
+    const declaredDeps = Object.keys(manifest.dependencies || {})
+      .concat(Object.keys(manifest.devDependencies || {}))
+      .concat(Object.keys(manifest.peerDependencies || {}));
+
+    // Check for external dependencies or forbidden internal dependency edges
+    for (const dep of declaredDeps) {
+      if (!expected.dependencies.includes(dep)) {
+        errors.push(`package ${name} declares forbidden dependency ${dep}`);
       }
     }
 
-    // Check TypeScript project references if tsconfig.json exists
+    // Check for missing expected internal dependencies
+    for (const reqDep of expected.dependencies) {
+      if (!declaredDeps.includes(reqDep)) {
+        errors.push(`package ${name} missing required dependency ${reqDep}`);
+      }
+    }
+
+    // Read tsconfig.json references
     const tsconfigPath = join(pkgPath, 'tsconfig.json');
+    let declaredRefs = [];
     if (existsSync(tsconfigPath)) {
       try {
         const tsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf8'));
-        const refs = tsconfig.references || [];
-        for (const ref of refs) {
-          const refPath = resolve(pkgPath, ref.path);
-          if (!existsSync(refPath)) {
-            errors.push(`package ${name} tsconfig references non-existent path ${ref.path}`);
-          }
-        }
+        declaredRefs = (tsconfig.references || []).map((r) => r.path);
       } catch {
         errors.push(`invalid tsconfig.json in package ${name}`);
       }
+    }
+
+    for (const refPath of declaredRefs) {
+      const resolvedRef = resolve(pkgPath, refPath);
+      if (!existsSync(resolvedRef)) {
+        errors.push(`package ${name} tsconfig references non-existent path ${refPath}`);
+      }
+      if (!expected.references.includes(refPath)) {
+        errors.push(`package ${name} tsconfig declares forbidden project reference ${refPath}`);
+      }
+    }
+
+    for (const reqRef of expected.references) {
+      if (!declaredRefs.includes(reqRef)) {
+        errors.push(`package ${name} tsconfig missing required project reference ${reqRef}`);
+      }
+    }
+
+    // Congruence check: number of dependencies must equal number of project references
+    if (expected.dependencies.length !== expected.references.length) {
+      errors.push(`package ${name} dependency and project reference specification count mismatch`);
     }
   }
 
