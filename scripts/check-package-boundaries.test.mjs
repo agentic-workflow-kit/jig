@@ -30,13 +30,45 @@ function withFixture(mutate) {
   return result;
 }
 
+function withCodec(mutate) {
+  return withFixture((root) => {
+    const codecRoot = join(root, 'packages', 'codec');
+    cpSync(join(repoRoot, 'packages', 'codec'), codecRoot, { recursive: true, verbatimSymlinks: true });
+    rmSync(join(codecRoot, 'dist'), { recursive: true, force: true });
+    rmSync(join(codecRoot, 'tsconfig.tsbuildinfo'), { force: true });
+    mutate(root);
+  });
+}
+
 test('validatePackageBoundaries passes on the exact approved fixture', () => {
   assert.deepEqual(validatePackageBoundaries(repoRoot), []);
 });
 
-test('rejects product source roots', () => {
-  const errors = withFixture((root) => mkdirSync(join(root, 'packages'), { recursive: true }));
-  assert.ok(errors.some((error) => error.includes('root packages/')));
+test('rejects product source roots and extra runtime packages', () => {
+  const sourceErrors = withFixture((root) => mkdirSync(join(root, 'src'), { recursive: true }));
+  assert.ok(sourceErrors.some((error) => error.includes('root src/')));
+  const packageErrors = withFixture((root) => {
+    mkdirSync(join(root, 'packages', 'runtime'), { recursive: true });
+    writeFileSync(join(root, 'packages', 'runtime', 'package.json'), '{"name":"runtime"}\n');
+  });
+  assert.ok(packageErrors.some((error) => error.includes('exactly one private pure codec')));
+});
+
+test('rejects codec effects and dependencies', () => {
+  const dependencyErrors = withCodec((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'package.json'),
+      '{"name":"@agentic-workflow-kit/jig-codec","private":true,"dependencies":{"example":"1.0.0"}}\n',
+    ),
+  );
+  assert.ok(dependencyErrors.some((error) => error.includes('dependency-free pure boundary')));
+  const effectErrors = withCodec((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "export const request = fetch('https://example.invalid');\n",
+    ),
+  );
+  assert.ok(effectErrors.some((error) => error.includes('must not add an effect')));
 });
 
 test('rejects runtime-capable package entrypoints and lifecycle scripts', () => {

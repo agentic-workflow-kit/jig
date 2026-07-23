@@ -60,20 +60,23 @@ jobs:
       - name: check
         run: pnpm check
 
-      - name: Write GF-001 evidence
+      - name: Write Greenfield Phase 0 evidence
         run: pnpm evidence:write
 
-      - name: Retain GF-001 evidence
+      - name: Retain Greenfield Phase 0 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gf-001-evidence-${githubCandidateShaExpression}
-          path: artifacts/gf-001/evidence.json
+          name: greenfield-phase-0-evidence-${githubCandidateShaExpression}
+          path: |
+            artifacts/gf-001/evidence.json
+            artifacts/gf-002/evidence.json
           if-no-files-found: error
           retention-days: 90`;
 
 const expectedWorkspaceConfig = `# pnpm settings live here in pnpm 11: the package.json \`pnpm\` field is no longer read, and
 # \`.npmrc\` is auth-only.
-packages: []
+packages:
+  - "packages/*"
 
 # --- Supply-chain / toolchain baseline (every archetype) ---
 allowBuilds: {} # no dependency runs install/build scripts until reviewed and listed here
@@ -124,8 +127,8 @@ const expectedScripts = {
   typecheck: 'tsc --build tsconfig.json',
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
-  test: 'node scripts/run-gf-001-tests.mjs',
-  'evidence:write': 'node scripts/write-gf-001-evidence.mjs',
+  test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs',
+  'evidence:write': 'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs',
   check:
     'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
 };
@@ -133,7 +136,8 @@ const expectedScripts = {
 const expectedManifest = {
   name: '@agentic-workflow-kit/jig-repo',
   version: '0.0.0',
-  description: 'Jig active GF-001 private tooling substrate; product runtime behavior remains unimplemented.',
+  description:
+    'Jig active GF-001 substrate plus GF-002 pure canonical identity codec; product runtime behavior remains unimplemented.',
   private: true,
   type: 'module',
   packageManager: 'pnpm@11.9.0',
@@ -176,10 +180,20 @@ const requiredPaths = [
   'scripts/check-package-boundaries.mjs',
   'scripts/check-package-boundaries.test.mjs',
   'scripts/run-gf-001-tests.mjs',
+  'scripts/run-gf-002-tests.mjs',
+  'scripts/finalize-gf-002-evidence.mjs',
   'scripts/write-gf-001-evidence.mjs',
+  'scripts/write-gf-002-evidence.mjs',
   'tests/gf-001/evidence-contract.json',
   'tests/gf-001/evidence.test.mjs',
   'tests/gf-001/workspace-substrate.test.mjs',
+  'tests/gf-002/codec.test.mjs',
+  'tests/gf-002/corpus.test.mjs',
+  'tests/gf-002/evidence.test.mjs',
+  'tests/gf-002/golden-consumer.mjs',
+  'packages/codec/package.json',
+  'packages/codec/tsconfig.json',
+  'packages/codec/src/index.ts',
 ];
 
 const allowedRootFiles = new Set([
@@ -222,16 +236,11 @@ const allowedFixturePaths = new Set([
   'tests/fixtures/gf-001-workspace/packages/pkg-c/package.json',
   'tests/fixtures/gf-001-workspace/packages/pkg-c/src/index.ts',
   'tests/fixtures/gf-001-workspace/packages/pkg-c/tsconfig.json',
+  'tests/fixtures/gf-002/vectors.json',
+  'tests/fixtures/gf-002/corpus.json',
 ]);
 
-const forbiddenPaths = [
-  'packages',
-  'src',
-  'skills',
-  'tools/n1a',
-  'vitest.config.ts',
-  'scripts/check-delivery-foundation.mjs',
-];
+const forbiddenPaths = ['src', 'skills', 'tools/n1a', 'vitest.config.ts', 'scripts/check-delivery-foundation.mjs'];
 const representativeArchivePaths = [
   'packages/jig-sdk/src/sdk.ts',
   'packages/jig-cli/tests/cli.unit.test.ts',
@@ -333,6 +342,38 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     errors.push('.npmrc is forbidden: GF-001 fixtures accept no registry credentials or ambient auth configuration');
   if (readFileSync(join(rootDir, 'pnpm-workspace.yaml'), 'utf8') !== expectedWorkspaceConfig)
     errors.push('pnpm-workspace.yaml must exactly preserve every approved workspace and supply-chain safety setting');
+  const solution = JSON.parse(readFileSync(join(rootDir, 'tsconfig.json'), 'utf8'));
+  if (
+    canonical(solution) !==
+    canonical({ files: [], references: [{ path: './tsconfig.tools.json' }, { path: './packages/codec' }] })
+  )
+    errors.push('tsconfig.json must bind exactly the tooling substrate and pure GF-002 codec');
+  const codecManifest = JSON.parse(readFileSync(join(rootDir, 'packages/codec/package.json'), 'utf8'));
+  if (
+    canonical(codecManifest) !==
+    canonical({
+      name: '@agentic-workflow-kit/jig-codec',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      exports: './dist/index.js',
+      types: './dist/index.d.ts',
+      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+    })
+  )
+    errors.push('GF-002 codec manifest must expose only the private pure-codec build and typecheck surface');
+  const codecConfig = JSON.parse(readFileSync(join(rootDir, 'packages/codec/tsconfig.json'), 'utf8'));
+  if (
+    canonical(codecConfig) !==
+    canonical({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: { outDir: 'dist', rootDir: 'src', lib: ['ES2022', 'DOM'] },
+      include: ['src/**/*.ts'],
+    })
+  )
+    errors.push(
+      'GF-002 codec TypeScript configuration must remain isolated and browser-free except for encoding primitives',
+    );
   if (readFileSync(join(rootDir, 'turbo.json'), 'utf8') !== expectedTurbo)
     errors.push('turbo.json must exactly preserve the canonical active GF-001 task, input, output, and cache graph');
   if (readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').trim() !== expectedWorkflow.trim()) {
@@ -369,6 +410,6 @@ if (process.argv[1]?.endsWith('check-active-repository.mjs')) {
     process.exitCode = 1;
   } else
     console.log(
-      `Active repository structure check passed (GF-001 private tooling substrate; archive ${archiveRef} -> ${archiveCommit}).`,
+      `Active repository structure check passed (GF-001 substrate plus GF-002 pure codec; archive ${archiveRef} -> ${archiveCommit}).`,
     );
 }

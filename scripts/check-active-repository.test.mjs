@@ -48,7 +48,7 @@ function withTempRepo(mutate) {
   return result;
 }
 
-test('validateActiveRepository passes on the active GF-001 contract', () => {
+test('validateActiveRepository passes on the active GF-001/GF-002 contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
 });
 

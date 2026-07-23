@@ -9,8 +9,9 @@ Jig's approved product and architecture are implementation-ready. The active rep
 GF-001 (private Node/TypeScript/pnpm/Turbo workspace substrate). It remains product-runtime-empty:
 no product package, runtime package, provider, adapter, controller, storage implementation, lifecycle
 behavior, port implementation, CLI, MCP surface, credential, or real external effect is authorized or
-implemented. GF-002 and later stories remain unimplemented. The greenfield delivery track remains
-authoritative, while archive material remains non-governing provenance.
+implemented. GF-002 is implemented only as the pure canonical identity and boundary codec; GF-003
+and later stories remain unimplemented. The greenfield delivery track remains authoritative, while
+archive material remains non-governing provenance.
 
 The retired implementation generation and its delivery track are recoverable through the immutable
 archive described in

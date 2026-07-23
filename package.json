@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig active GF-001 private tooling substrate; product runtime behavior remains unimplemented.",
+  "description": "Jig active GF-001 substrate plus GF-002 pure canonical identity codec; product runtime behavior remains unimplemented.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -28,8 +28,8 @@
     "delivery:check": "node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs",
     "typecheck": "tsc --build tsconfig.json",
     "boundaries:check": "node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs",
-    "test": "node scripts/run-gf-001-tests.mjs",
-    "evidence:write": "node scripts/write-gf-001-evidence.mjs",
+    "test": "node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs",
+    "evidence:write": "node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test"
   },
   "devDependencies": {

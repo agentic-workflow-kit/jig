@@ -60,10 +60,22 @@ const activeFixturePaths = [
   'scripts/check-package-boundaries.mjs',
   'scripts/check-package-boundaries.test.mjs',
   'scripts/run-gf-001-tests.mjs',
+  'scripts/run-gf-002-tests.mjs',
+  'scripts/finalize-gf-002-evidence.mjs',
   'scripts/write-gf-001-evidence.mjs',
+  'scripts/write-gf-002-evidence.mjs',
   'tests/gf-001/evidence-contract.json',
   'tests/gf-001/evidence.test.mjs',
   'tests/gf-001/workspace-substrate.test.mjs',
+  'tests/gf-002/codec.test.mjs',
+  'tests/gf-002/corpus.test.mjs',
+  'tests/gf-002/evidence.test.mjs',
+  'tests/gf-002/golden-consumer.mjs',
+  'tests/fixtures/gf-002/vectors.json',
+  'tests/fixtures/gf-002/corpus.json',
+  'packages/codec/package.json',
+  'packages/codec/tsconfig.json',
+  'packages/codec/src/index.ts',
   ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
     markdownFiles(join(root, path)).map((file) => relative(root, file)),
   ),
@@ -938,7 +950,7 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
   });
   gitFixture((dir) => {
     const p = join(dir, 'pnpm-workspace.yaml');
-    writeFileSync(p, readFileSync(p, 'utf8').replace('packages: []', 'packages: [docs/archive]'));
+    writeFileSync(p, readFileSync(p, 'utf8').replace('  - "packages/*"', '  - "docs/archive"'));
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
     assert.match(

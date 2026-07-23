@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const fixtureRoot = 'tests/fixtures/gf-001-workspace';
 const expectedPackageNames = ['@gf-001-fixture/pkg-a', '@gf-001-fixture/pkg-b', '@gf-001-fixture/pkg-c'];
+const expectedCodecFiles = ['package.json', 'src/index.ts', 'tsconfig.json'];
 const prettyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const expectedFixtureFiles = new Map([
   ['.gitignore', '.turbo/\n**/dist/\n**/*.tsbuildinfo\n'],
@@ -148,9 +149,51 @@ function sameMembers(actual, expected) {
 
 export function validatePackageBoundaries(rootDir = process.cwd()) {
   const errors = [];
-  for (const forbidden of ['packages', 'src'])
+  for (const forbidden of ['src'])
     if (existsSync(join(rootDir, forbidden)))
       errors.push(`root ${forbidden}/ product source directory is forbidden in GF-001`);
+
+  const packagesRoot = join(rootDir, 'packages');
+  if (existsSync(packagesRoot)) {
+    const packageEntries = readdirSync(packagesRoot).sort();
+    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec']))
+      errors.push('GF-002 permits exactly one private pure codec package and no runtime package');
+    const codecRoot = join(packagesRoot, 'codec');
+    const codecFiles = listFiles(codecRoot)
+      .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
+      .sort();
+    if (!sameMembers(codecFiles, expectedCodecFiles))
+      errors.push(`GF-002 codec file set must stay exact; got ${codecFiles.join(', ')}`);
+    const codecManifestPath = join(codecRoot, 'package.json');
+    if (existsSync(codecManifestPath)) {
+      const codecManifest = JSON.parse(readFileSync(codecManifestPath, 'utf8'));
+      if (
+        codecManifest.name !== '@agentic-workflow-kit/jig-codec' ||
+        codecManifest.private !== true ||
+        codecManifest.dependencies ||
+        codecManifest.devDependencies ||
+        codecManifest.optionalDependencies ||
+        codecManifest.peerDependencies ||
+        codecManifest.bin ||
+        codecManifest.main ||
+        codecManifest.module ||
+        codecManifest.browser ||
+        codecManifest.publishConfig ||
+        codecManifest.scripts?.start ||
+        Object.keys(codecManifest.scripts ?? {}).some((name) => /^(pre|post)(install|pack|publish|prepare)$/.test(name))
+      )
+        errors.push('GF-002 codec must remain a dependency-free pure boundary library with no runtime entrypoint');
+    }
+    const codecSourcePath = join(codecRoot, 'src', 'index.ts');
+    if (existsSync(codecSourcePath)) {
+      const codecSource = readFileSync(codecSourcePath, 'utf8');
+      if (
+        /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(codecSource) ||
+        /\b(fetch|process|require)\b/.test(codecSource)
+      )
+        errors.push('GF-002 codec must not add an effect, provider, filesystem, process, or network dependency');
+    }
+  }
 
   const fixtureDir = join(rootDir, fixtureRoot);
   const expectedFiles = [...expectedFixtureFiles.keys()].sort();
@@ -246,5 +289,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     for (const error of errors) console.error(`- ${error}`);
     process.exitCode = 1;
   } else
-    console.log('Package boundary check passed (all workspace packages are private, bounded, exact, and hermetic).');
+    console.log(
+      'Package boundary check passed (GF-001 fixture substrate and GF-002 pure codec are bounded and hermetic).',
+    );
 }

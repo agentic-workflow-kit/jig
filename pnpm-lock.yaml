@@ -21,6 +21,8 @@ importers:
         specifier: 5.8.2
         version: 5.8.2
 
+  packages/codec: {}
+
 packages:
 
   '@biomejs/biome@2.5.2':
