@@ -66,7 +66,7 @@ test('rejects root manifest, local Node line, and pnpm safety drift', () => {
   assert.ok(pnpmErrors.some((error) => error.includes('supply-chain safety')));
 });
 
-test('rejects active Turbo graph drift and exact configuration symlinks', () => {
+test('rejects active Turbo graph drift and every approved-file symlink substitution', () => {
   const graphErrors = withTempRepo((root) => writeFileSync(join(root, 'turbo.json'), '{}\n'));
   assert.ok(graphErrors.some((error) => error.includes('canonical active GF-001 task')));
   const symlinkErrors = withTempRepo((root) => {
@@ -75,6 +75,12 @@ test('rejects active Turbo graph drift and exact configuration symlinks', () => 
     symlinkSync('tsconfig.json', config);
   });
   assert.ok(symlinkErrors.some((error) => error.includes('regular non-symlink')));
+  const scriptSymlinkErrors = withTempRepo((root) => {
+    const script = join(root, 'scripts', 'dev-setup.sh');
+    rmSync(script);
+    symlinkSync('worktree-new.sh', script);
+  });
+  assert.ok(scriptSymlinkErrors.some((error) => error.includes('regular non-symlink')));
 });
 
 test('rejects mutable Actions, credential persistence, and extra workflow behavior', () => {

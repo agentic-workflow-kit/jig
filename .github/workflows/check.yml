@@ -20,6 +20,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
@@ -47,7 +48,7 @@ jobs:
       - name: Retain GF-001 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gf-001-evidence-${{ github.sha }}
+          name: gf-001-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: artifacts/gf-001/evidence.json
           if-no-files-found: error
           retention-days: 90

@@ -80,6 +80,16 @@ test('rejects fixture workspace membership and solution-reference graph drift', 
   );
 });
 
+test('rejects even a lockfile-only fixture dependency drift', () => {
+  const errors = withFixture((root) =>
+    writeFileSync(
+      join(root, 'tests/fixtures/gf-001-workspace/pnpm-lock.yaml'),
+      "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('fixture file set') || error.includes('bounded content')));
+});
+
 test('rejects forbidden dependency direction and non-workspace binding', () => {
   const errors = withFixture((root) =>
     writeFileSync(

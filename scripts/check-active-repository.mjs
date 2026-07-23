@@ -14,7 +14,7 @@ const immutableActions = {
   setupNode: 'actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af',
   uploadArtifact: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
 };
-const githubShaExpression = `\${{ github.sha }}`;
+const githubCandidateShaExpression = `\${{ github.event.pull_request.head.sha || github.sha }}`;
 
 const expectedWorkflow = `name: check
 
@@ -38,6 +38,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+          ref: ${githubCandidateShaExpression}
 
       - name: Install pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
@@ -65,7 +66,7 @@ jobs:
       - name: Retain GF-001 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gf-001-evidence-${githubShaExpression}
+          name: gf-001-evidence-${githubCandidateShaExpression}
           path: artifacts/gf-001/evidence.json
           if-no-files-found: error
           retention-days: 90`;
@@ -90,21 +91,21 @@ strictPeerDependencies: true # surface peer mismatches early
 
 const expectedTurbo = `{
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
+  "globalDependencies": ["package.json", "tsconfig.base.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
+      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["dist/**", "tsconfig.tsbuildinfo"]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"],
-      "inputs": ["src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
+      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["tsconfig.tsbuildinfo"]
     },
     "test": {
       "dependsOn": ["build"],
-      "inputs": ["src/**/*.ts", "$TURBO_ROOT$/tsconfig.base.json"]
+      "inputs": ["package.json", "src/**/*.ts", "$TURBO_ROOT$/tsconfig.base.json"]
     }
   }
 }
@@ -253,13 +254,14 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-function assertRegularTrackedInput(rootDir, path, errors) {
+function assertRegularTrackedInput(rootDir, path, errors, allowedModes = ['100644']) {
   const absolute = join(rootDir, path);
   if (!existsSync(absolute)) return;
   const stat = lstatSync(absolute);
   if (!stat.isFile() || stat.isSymbolicLink()) errors.push(`GF-001 input must be a regular non-symlink file: ${path}`);
   const mode = git(rootDir, 'ls-files', '--stage', '--', path).split(/\s+/)[0];
-  if (mode && mode !== '100644') errors.push(`GF-001 input must be tracked as mode 100644: ${path}`);
+  if (mode && !allowedModes.includes(mode))
+    errors.push(`GF-001 input must be tracked as an approved regular-file mode: ${path}`);
 }
 
 export function validateActiveRepository(rootDir = process.cwd()) {
@@ -271,6 +273,8 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     assertRegularTrackedInput(rootDir, requiredPath, errors);
   }
   for (const fixturePath of allowedFixturePaths) assertRegularTrackedInput(rootDir, fixturePath, errors);
+  for (const scriptPath of allowedScriptPaths)
+    assertRegularTrackedInput(rootDir, scriptPath, errors, ['100644', '100755']);
   for (const forbiddenPath of forbiddenPaths) {
     const activeEntries = git(rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', forbiddenPath);
     if (activeEntries) errors.push(`archived generation or product path remains active: ${forbiddenPath}`);

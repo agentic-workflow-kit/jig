@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
@@ -9,6 +19,51 @@ import test from 'node:test';
 const repoRoot = resolve(import.meta.dirname, '../..');
 const fixtureSource = join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace');
 const sourceDigest = digestTree(fixtureSource);
+const fixtureObservations = [];
+
+function git(...args) {
+  return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim();
+}
+
+function summarizeTasks(summary) {
+  return summary.tasks.map(({ cache, execution, hash, taskId }) => ({
+    taskId,
+    hash,
+    cacheStatus: cache.status,
+    exitCode: execution.exitCode,
+  }));
+}
+
+function recordObservation(name, summaries) {
+  fixtureObservations.push({
+    name,
+    summaries: Object.fromEntries(
+      Object.entries(summaries).map(([label, summary]) => [label, summarizeTasks(summary)]),
+    ),
+  });
+}
+
+process.on('exit', (exitCode) => {
+  if (exitCode !== 0) return;
+  const outputDir = join(repoRoot, 'artifacts', 'gf-001');
+  mkdirSync(outputDir, { recursive: true });
+  const candidate = git('rev-parse', 'HEAD');
+  const base = git('rev-parse', 'origin/main');
+  const evidence = {
+    schemaVersion: 1,
+    subject: 'GF-001',
+    candidate: { commit: candidate, tree: git('rev-parse', 'HEAD^{tree}') },
+    base: { commit: base, mergeBase: git('merge-base', 'HEAD', 'origin/main') },
+    fixture: {
+      inputTreeSha256: sourceDigest,
+      lockfileSha256: createHash('sha256')
+        .update(readFileSync(join(fixtureSource, 'pnpm-lock.yaml')))
+        .digest('hex'),
+    },
+    observations: fixtureObservations,
+  };
+  writeFileSync(join(outputDir, 'fixture-evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
+});
 
 function digestTree(root, current = root) {
   const hash = createHash('sha256');
@@ -121,6 +176,8 @@ function withWorkspace(runCase) {
       true,
       'the frozen root install must provide the exact TypeScript binary',
     );
+    const install = run('pnpm', ['install', '--frozen-lockfile', '--offline', '--ignore-scripts'], workspace, env);
+    assert.equal(install.error, null, `fixture install must be frozen, offline, and script-free: ${install.output}`);
     initializeFixtureHistory(workspace);
     runCase({ workspace, env });
     assert.equal(digestTree(fixtureSource), sourceDigest, 'fixture source inputs must remain unchanged after the test');
@@ -148,6 +205,7 @@ test('GF-001: cold isolated cache executes the canonical active task graph', { c
     const result = runTurboWithSummary(['run', 'build'], workspace, env);
     assert.equal(result.error, null, `cold Turbo run must succeed: ${result.output}`);
     for (const packageName of ['pkg-a', 'pkg-b', 'pkg-c']) assertExecutedSuccess(result.summary, packageName, 'MISS');
+    recordObservation('cold-isolated-cache', { cold: result.summary });
   });
 });
 
@@ -158,6 +216,7 @@ test('GF-001: unchanged isolated warm run hits only local cache', { concurrency:
     const warm = runTurboWithSummary(['run', 'build'], workspace, env);
     assert.equal(warm.error, null, warm.output);
     for (const packageName of ['pkg-a', 'pkg-b', 'pkg-c']) assertExecutedSuccess(warm.summary, packageName, 'HIT');
+    recordObservation('warm-local-cache', { cold: cold.summary, warm: warm.summary });
   });
 });
 
@@ -180,6 +239,7 @@ test('GF-001: reproducible Git-history affected selection runs only the changed 
       ['@gf-001-fixture/pkg-a#build', '@gf-001-fixture/pkg-b#build'],
       'affected-only selection must exclude the unrelated pkg-c lane',
     );
+    recordObservation('affected-selection', { seed: seed.summary, affected: affected.summary });
   });
 });
 
@@ -199,6 +259,11 @@ test('GF-001: shared compiler configuration invalidates every warm task and cann
     const changed = runTurboWithSummary(['run', 'build'], workspace, env);
     assert.equal(changed.error, null, changed.output);
     for (const packageName of ['pkg-a', 'pkg-b', 'pkg-c']) assertExecutedSuccess(changed.summary, packageName, 'MISS');
+    recordObservation('shared-compiler-config-invalidation', {
+      cold: cold.summary,
+      warm: warm.summary,
+      changed: changed.summary,
+    });
   });
 });
 
@@ -224,5 +289,25 @@ test('GF-001: uncached failure isolates a successful unrelated lane while preser
       '@gf-001-fixture/pkg-c#build',
       'unrelated success evidence must remain subject-bound',
     );
+    recordObservation('uncached-failure-isolation', { failed: failed.summary });
+  });
+});
+
+test('GF-001: a package script change invalidates that package cache entry', { concurrency: false }, () => {
+  withWorkspace(({ workspace, env }) => {
+    const cold = runTurboWithSummary(['run', 'build'], workspace, env);
+    assert.equal(cold.error, null, cold.output);
+    const warm = runTurboWithSummary(['run', 'build'], workspace, env);
+    assert.equal(warm.error, null, warm.output);
+    const manifest = join(workspace, 'packages/pkg-c/package.json');
+    writeFileSync(manifest, readFileSync(manifest, 'utf8').replace('tsc --build', 'tsc --build --verbose'));
+    const changed = runTurboWithSummary(['run', 'build'], workspace, env);
+    assert.equal(changed.error, null, changed.output);
+    assertExecutedSuccess(changed.summary, 'pkg-c', 'MISS');
+    recordObservation('package-script-invalidation', {
+      cold: cold.summary,
+      warm: warm.summary,
+      changed: changed.summary,
+    });
   });
 });

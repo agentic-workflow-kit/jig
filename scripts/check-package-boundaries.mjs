@@ -8,6 +8,29 @@ const prettyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const expectedFixtureFiles = new Map([
   ['.gitignore', '.turbo/\n**/dist/\n**/*.tsbuildinfo\n'],
   [
+    'pnpm-lock.yaml',
+    `lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  packages/pkg-a: {}
+
+  packages/pkg-b:
+    dependencies:
+      '@gf-001-fixture/pkg-a':
+        specifier: workspace:*
+        version: link:../pkg-a
+
+  packages/pkg-c: {}
+`,
+  ],
+  [
     'package.json',
     prettyJson({
       name: '@gf-001-fixture/root',
@@ -130,7 +153,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       errors.push(`root ${forbidden}/ product source directory is forbidden in GF-001`);
 
   const fixtureDir = join(rootDir, fixtureRoot);
-  const expectedFiles = [...expectedFixtureFiles.keys(), 'pnpm-lock.yaml'].sort();
+  const expectedFiles = [...expectedFixtureFiles.keys()].sort();
   const actualFiles = listFiles(fixtureDir).sort();
   if (!sameMembers(actualFiles, expectedFiles))
     errors.push(`fixture file set must be exact and tooling-only; got ${actualFiles.join(', ')}`);

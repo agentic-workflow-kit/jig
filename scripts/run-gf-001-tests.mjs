@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const rootDir = resolve(import.meta.dirname, '..');
@@ -16,8 +16,10 @@ process.stderr.write(result.stderr ?? '');
 
 const outputDir = join(rootDir, 'artifacts', 'gf-001');
 mkdirSync(outputDir, { recursive: true });
+const fixtureEvidencePath = join(outputDir, 'fixture-evidence.json');
+const fixtureEvidence = existsSync(fixtureEvidencePath) ? readFileSync(fixtureEvidencePath, 'utf8') : null;
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   subject: 'GF-001',
   command: 'node --test tests/gf-001',
   startedAt,
@@ -30,7 +32,10 @@ const report = {
   stderrSha256: createHash('sha256')
     .update(result.stderr ?? '')
     .digest('hex'),
+  fixtureEvidenceSha256: fixtureEvidence === null ? null : createHash('sha256').update(fixtureEvidence).digest('hex'),
 };
 writeFileSync(join(outputDir, 'fixture-results.json'), `${JSON.stringify(report, null, 2)}\n`);
 if (result.error) throw result.error;
+if (result.status === 0 && fixtureEvidence === null)
+  throw new Error('GF-001 fixture tests passed without producing fixture-evidence.json');
 if (result.status !== 0) process.exitCode = result.status ?? 1;
