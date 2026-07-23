@@ -1,0 +1,11 @@
+{
+  "name": "@gf-001-fixture/pkg-c",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --noEmit",
+    "test": "node --test"
+  }
+}
