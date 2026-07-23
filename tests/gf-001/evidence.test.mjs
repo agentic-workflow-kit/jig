@@ -40,6 +40,38 @@ function expectRejected(tempDir, fixturePayload, mutateResult) {
   );
 }
 
+function readBinding(value, binding) {
+  return binding.split('.').reduce((current, key) => current?.[key], value);
+}
+
+test('GF-001 evidence exposes every declared GF-004 binding', () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'gf001-evidence-contract-test-'));
+  let failure;
+  try {
+    const captured = JSON.parse(readFileSync(capturedFixtureEvidence, 'utf8'));
+    const { fixtureEvidencePath, fixtureResultsPath } = writeFixturePair(tempDir, captured);
+    const evidence = writeEvidence({
+      outputPath: join(tempDir, 'evidence.json'),
+      fixtureResultsPath,
+      fixtureEvidencePath,
+      requireClean: false,
+    });
+    const contract = JSON.parse(readFileSync(join(rootDir, 'tests', 'gf-001', 'evidence-contract.json'), 'utf8'));
+    for (const binding of contract.requiredBindings)
+      assert.notEqual(readBinding(evidence, binding), undefined, `generated evidence must expose ${binding}`);
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    rmSync(tempDir, { recursive: true, maxRetries: 5, retryDelay: 50 });
+  } catch (cleanupError) {
+    throw failure
+      ? new AggregateError([failure, cleanupError], 'GF-001 evidence contract test and cleanup failed')
+      : cleanupError;
+  }
+  if (failure) throw failure;
+});
+
 test('GF-001 evidence rejects tampered captured Turbo proof', () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'gf001-evidence-test-'));
   let failure;

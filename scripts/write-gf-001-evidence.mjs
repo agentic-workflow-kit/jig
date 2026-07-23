@@ -182,7 +182,7 @@ export function writeEvidence({ outputPath, fixtureResultsPath, fixtureEvidenceP
     },
     fixture: {
       inputTreeSha256: digestTree(fixtureRoot),
-      resultReport: fixtureResults,
+      results: fixtureResults,
       evidenceSha256: fixtureResults.fixtureEvidenceSha256,
       observations: fixtureEvidence.observations,
     },
