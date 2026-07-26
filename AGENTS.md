@@ -5,13 +5,13 @@ surface you touch before planning non-trivial work.
 
 ## Current repository posture
 
-Jig's approved product and architecture are implementation-ready. The active repository has entered
-GF-001 (private Node/TypeScript/pnpm/Turbo workspace substrate). It remains product-runtime-empty:
-no product package, runtime package, provider, adapter, controller, storage implementation, lifecycle
-behavior, port implementation, CLI, MCP surface, credential, or real external effect is authorized or
-implemented. GF-002 is implemented only as the pure canonical identity and boundary codec; GF-003
-and later stories remain unimplemented. The greenfield delivery track remains authoritative, while
-archive material remains non-governing provenance.
+Jig's approved product and architecture are implementation-ready. This local Phase 0 implementation
+candidate contains four private, pure packages: the GF-002 canonical identity and boundary codec;
+the GF-003 runtime topology and semantic port contracts; the GF-004 private conformance harness; and
+the GF-005 private pure authority kernel. It does not establish landing, acceptance, activation, or
+release. No provider, adapter, storage or ledger implementation, controller process, transport, CLI,
+MCP surface, credential, real external effect, or public package is authorized or implemented. The
+greenfield delivery track remains authoritative, while archive material remains non-governing provenance.
 
 The retired implementation generation and its delivery track are recoverable through the immutable
 archive described in
