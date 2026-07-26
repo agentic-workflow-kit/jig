@@ -46,6 +46,11 @@ const sameFields = (left, right) =>
   Object.keys(left).every((key) => Object.hasOwn(right, key) && left[key] === right[key]);
 
 export const GF004_OPERANDS = Object.freeze(['CF-DETERMINISM', 'CF-BINDING', 'CF-ORDERING']);
+export const PHASE0_RECORDER_IDENTITY = 'phase0-no-provenance-envelope';
+export const OPERAND_STATUS = 'not-recordable';
+export const OPERAND_RESULT_STATUS = 'operands-not-recordable-no-independent-recorder';
+export const OPERAND_NOT_RECORDABLE_REASON = 'missing:independent-recorder-provenance';
+export const OPERAND_FAILURE_CLASS = 'FC-TRUST';
 const kernel = await import(kernelPath);
 const codec = await import(join(root, 'packages/codec/dist/index.js'));
 const conformance = await import(join(root, 'packages/conformance/dist/index.js'));
@@ -116,7 +121,7 @@ export function deriveGf004Subject(candidate) {
     fixtureDigest: hash(fixtureText),
     clockId: 'gf005-no-clock',
     seed: EVIDENCE_CONTRACT.seed,
-    recorderIdentity: 'gf005-independent-recorder',
+    recorderIdentity: PHASE0_RECORDER_IDENTITY,
     recordedAt: 0,
   });
 }
@@ -128,16 +133,16 @@ export function createGf004OperandRecords(candidate) {
       key: `gf005-${ordinal + 1}`,
       bytes: JSON.stringify({ candidate, candidateContentDigest: subject.candidateContentDigest, suite }),
       suite,
-      status: 'pass',
+      status: OPERAND_STATUS,
       subject,
-      independentRecorder: 'gf005-independent-recorder',
+      independentRecorder: PHASE0_RECORDER_IDENTITY,
       complete: true,
       attempt: 1,
     });
     const parsed = encoded.ok ? conformance.parseRecordFrame(encoded.value) : undefined;
     if (!encoded.ok || parsed === undefined || !parsed.ok) throw new Error('GF-005 GF-004 operand frame failed');
     const appended = conformance.append([], encoded.value);
-    if (appended.status !== 'pass' || appended.records.length !== 1)
+    if (appended.status !== OPERAND_STATUS || appended.records.length !== 1)
       throw new Error('GF-005 GF-004 operand recorder failed');
     return Object.freeze({
       suite,
@@ -199,7 +204,11 @@ export function verifyPreFinalizationArtifacts({
   if (evidence.resultsSha256 !== receipt.resultsSha256 || evidence.observationsSha256 !== receipt.observationsSha256)
     return 'evidence-link';
   if (receipt.readback !== 'pass') return 'readback';
-  if (results.status !== 'operands-recorded-not-gate-pass') return 'gate-claim';
+  if (results.status !== OPERAND_RESULT_STATUS || evidence.status !== OPERAND_RESULT_STATUS) return 'gate-claim';
+  if (results.reason !== OPERAND_NOT_RECORDABLE_REASON || evidence.reason !== OPERAND_NOT_RECORDABLE_REASON)
+    return 'not-recordable-reason';
+  if (results.failureClass !== OPERAND_FAILURE_CLASS || evidence.failureClass !== OPERAND_FAILURE_CLASS)
+    return 'not-recordable-classification';
   if (JSON.stringify(results.operands) !== JSON.stringify(GF004_OPERANDS)) return 'operand-list';
   if (JSON.stringify(evidence.operands) !== JSON.stringify(GF004_OPERANDS)) return 'operand-list';
   if (
@@ -224,13 +233,14 @@ export function verifyPreFinalizationArtifacts({
     const parsed = conformance.parseRecordFrame(frame);
     if (!parsed.ok) return 'operand-frame-parse';
     const appended = conformance.append([], frame);
-    if (appended.status !== 'pass' || appended.records.length !== 1) return 'operand-record';
+    if (appended.status !== OPERAND_STATUS || appended.records.length !== 1) return 'operand-record';
     const record = appended.records[0];
     if (
       record.suite !== entry.suite ||
-      record.status !== 'pass' ||
+      record.status !== OPERAND_STATUS ||
       record.complete !== true ||
-      record.independentRecorder !== expectedSubject.recorderIdentity
+      record.independentRecorder !== PHASE0_RECORDER_IDENTITY ||
+      record.subject.recorderIdentity !== PHASE0_RECORDER_IDENTITY
     )
       return 'operand-record';
     if (!sameFields(record.subject, expectedSubject)) return 'operand-subject';
@@ -254,7 +264,13 @@ export async function finalizeEvidence(run = spawnSync) {
   const candidate = deriveFrozenCandidate();
   const observed = run(process.execPath, ['scripts/run-gf-005-tests.mjs'], { cwd: root, encoding: 'utf8' });
   if (observed.status !== 0 || observed.error) throw new Error('GF-005 targeted observation failed');
-  const results = { candidate, status: 'operands-recorded-not-gate-pass', operands: GF004_OPERANDS };
+  const results = {
+    candidate,
+    status: OPERAND_RESULT_STATUS,
+    operands: GF004_OPERANDS,
+    reason: OPERAND_NOT_RECORDABLE_REASON,
+    failureClass: OPERAND_FAILURE_CLASS,
+  };
   const observations = {
     candidate,
     seed: contract.seed,
@@ -268,6 +284,9 @@ export async function finalizeEvidence(run = spawnSync) {
   const evidence = {
     schemaVersion: 1,
     subject: 'GF-005',
+    status: OPERAND_RESULT_STATUS,
+    reason: OPERAND_NOT_RECORDABLE_REASON,
+    failureClass: OPERAND_FAILURE_CLASS,
     candidate,
     catalog: contract.catalog,
     catalogInventory: CATALOG_INVENTORY,
