@@ -116,6 +116,52 @@ test('GF-002: formatter validates all 22 supplied canonical forms without alloca
   );
 });
 
+test('GF-002: identity formatter snapshots exact ordinary components and rejects hostile reflection', () => {
+  const validRun = corpus.constructors.find((entry) => entry.kind === 'ID-RUN').components;
+  const hostilePrototype = new Proxy(validRun, {
+    getPrototypeOf() {
+      throw new Error('hostile prototype reflection');
+    },
+  });
+  assert.doesNotThrow(() => formatIdentity('ID-RUN', hostilePrototype));
+  expectError(formatIdentity('ID-RUN', hostilePrototype), 'FC-SUBJECT', 'INVALID_SCOPE');
+  expectError(formatIdentity('ID-RUN', { ...validRun, ignored: 'smuggled' }), 'FC-SUBJECT', 'INVALID_SCOPE');
+});
+
+test('GF-002: boundary codec snapshots caller data once and rejects accessors', () => {
+  let reads = 0;
+  const changingAccessor = {};
+  Object.defineProperty(changingAccessor, 'value', {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return reads;
+    },
+  });
+  const encoded = encodeFrame(changingAccessor);
+  expectError(encoded, 'FC-INPUT', 'MALFORMED');
+  assert.equal(reads, 0, 'accessors must be rejected without invocation');
+  const symbolKeyed = { value: 1 };
+  symbolKeyed[Symbol('smuggled')] = 'ignored';
+  expectError(encodeFrame(symbolKeyed), 'FC-INPUT', 'MALFORMED');
+  expectError(encodeFrame(new Array(1)), 'FC-INPUT', 'MALFORMED');
+  let stagedReads = 0;
+  const stagedAccessor = {};
+  Object.defineProperty(stagedAccessor, 'value', {
+    enumerable: true,
+    get() {
+      stagedReads += 1;
+      return 1;
+    },
+  });
+  expectError(
+    stageDigest({ domain: 'LG-RECORD', value: stagedAccessor, excludePaths: [] }),
+    'FC-SUBJECT',
+    'INVALID_STAGED_DIGEST',
+  );
+  assert.equal(stagedReads, 0, 'staged digest accessors must be rejected without invocation');
+});
+
 test('GF-002: staged digest hashes exactly the canonical pre-identity representation', () => {
   const subject = { digest: 'ignored', nested: { digest: 'ignored-too', value: 3 }, type: 'record' };
   const staged = stageDigest({ domain: 'LG-RECORD', value: subject, excludePaths: ['digest', 'nested.digest'] });
@@ -145,6 +191,23 @@ test('GF-002: staged digest hashes exactly the canonical pre-identity representa
     'FC-SUBJECT',
     'INVALID_STAGED_DIGEST',
   );
+});
+
+test('GF-002: staged-digest validation contains hostile input reflection and reads', () => {
+  const subject = { type: 'record' };
+  const staged = stageDigest({ domain: 'LG-RECORD', value: subject, excludePaths: [] });
+  assert.equal(staged.ok, true);
+  const hostileDigest = new Proxy(
+    { ...staged.value, value: subject },
+    {
+      get(target, property, receiver) {
+        if (property === 'digest') throw new Error('hostile digest read');
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  assert.doesNotThrow(() => validateStagedDigest(hostileDigest));
+  expectError(validateStagedDigest(hostileDigest), 'FC-SUBJECT', 'INVALID_STAGED_DIGEST');
 });
 
 test('GF-002: parsing is pure and cannot mint commitment or authority', () => {

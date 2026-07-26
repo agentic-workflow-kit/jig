@@ -82,12 +82,16 @@ function codePoints(value: string): number {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype
-  );
+  try {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      Object.getPrototypeOf(value) === Object.prototype
+    );
+  } catch {
+    return false;
+  }
 }
 
 function compareKeys(left: string, right: string): number {
@@ -115,27 +119,70 @@ function validateString(value: string): void {
   }
 }
 
-function validateValue(value: unknown, depth = 0): asserts value is CanonicalJson {
+function sameReflectedKeys(left: readonly PropertyKey[], right: readonly PropertyKey[]): boolean {
+  return left.length === right.length && left.every((key) => right.includes(key));
+}
+
+function snapshotCanonical(value: unknown, depth = 0): CanonicalJson {
   if (depth > CANONICAL_LIMITS.maxDepth) throw new Error('OVERSIZED:maximum nesting depth exceeded');
-  if (value === null || typeof value === 'boolean') return;
-  if (typeof value === 'string') return validateString(value);
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    validateString(value);
+    return value;
+  }
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value) || Object.is(value, -0))
       throw new Error('MALFORMED:only non-negative or negative safe integer JSON numbers are supported');
-    return;
+    return value;
   }
   if (Array.isArray(value)) {
-    if (value.length > CANONICAL_LIMITS.maxCollectionEntries) throw new Error('OVERSIZED:array exceeds entry limit');
-    for (const entry of value) validateValue(entry, depth + 1);
-    return;
+    if (Object.getPrototypeOf(value) !== Array.prototype)
+      throw new Error('MALFORMED:array must have the ordinary Array prototype');
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key !== 'string')) throw new Error('MALFORMED:arrays must not contain symbol keys');
+    const descriptors = Object.getOwnPropertyDescriptors(value) as unknown as Record<string, PropertyDescriptor>;
+    const descriptorKeys = Reflect.ownKeys(descriptors);
+    if (!sameReflectedKeys(keys, descriptorKeys)) throw new Error('MALFORMED:array reflection is inconsistent');
+    const length = descriptors.length;
+    if (!length || !('value' in length) || !Number.isSafeInteger(length.value) || length.value < 0)
+      throw new Error('MALFORMED:array length must be an ordinary data property');
+    if (length.value > CANONICAL_LIMITS.maxCollectionEntries) throw new Error('OVERSIZED:array exceeds entry limit');
+    if (keys.length !== length.value + 1 || !keys.includes('length'))
+      throw new Error('MALFORMED:arrays must be dense and free of extra properties');
+    const snapshot: CanonicalJson[] = [];
+    for (let index = 0; index < length.value; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor?.enumerable || !('value' in descriptor))
+        throw new Error('MALFORMED:array entries must be enumerable data properties');
+      snapshot.push(snapshotCanonical(descriptor.value, depth + 1));
+    }
+    return snapshot;
   }
   if (!isPlainObject(value)) throw new Error('MALFORMED:value must be a JSON primitive, array, or plain object');
-  const entries = Object.entries(value);
-  if (entries.length > CANONICAL_LIMITS.maxCollectionEntries) throw new Error('OVERSIZED:object exceeds entry limit');
-  for (const [entryKey, entryValue] of entries) {
-    validateString(entryKey);
-    validateValue(entryValue, depth + 1);
+  const keys = Reflect.ownKeys(value);
+  if (keys.some((key) => typeof key !== 'string')) throw new Error('MALFORMED:objects must not contain symbol keys');
+  if (keys.length > CANONICAL_LIMITS.maxCollectionEntries) throw new Error('OVERSIZED:object exceeds entry limit');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (!sameReflectedKeys(keys, Reflect.ownKeys(descriptors)))
+    throw new Error('MALFORMED:object reflection is inconsistent');
+  const snapshot: Record<string, CanonicalJson> = {};
+  for (const entryKey of keys) {
+    const descriptor = descriptors[entryKey as string];
+    if (!descriptor?.enumerable || !('value' in descriptor))
+      throw new Error('MALFORMED:object entries must be enumerable data properties');
+    validateString(entryKey as string);
+    Object.defineProperty(snapshot, entryKey, {
+      configurable: true,
+      enumerable: true,
+      value: snapshotCanonical(descriptor.value, depth + 1),
+      writable: true,
+    });
   }
+  return snapshot;
+}
+
+function validateValue(value: unknown, depth = 0): asserts value is CanonicalJson {
+  snapshotCanonical(value, depth);
 }
 
 function canonicalText(value: CanonicalJson): string {
@@ -150,8 +197,8 @@ function canonicalText(value: CanonicalJson): string {
 }
 
 export function canonicalBytes(value: CanonicalJson): Uint8Array {
-  validateValue(value);
-  const bytes = encoder.encode(canonicalText(value));
+  const snapshot = snapshotCanonical(value);
+  const bytes = encoder.encode(canonicalText(snapshot));
   if (bytes.byteLength > CANONICAL_LIMITS.maxFrameBytes)
     throw new Error('OVERSIZED:canonical value exceeds byte limit');
   return bytes;
@@ -263,7 +310,12 @@ class StrictJsonParser {
       seen.add(entryKey);
       this.space();
       if (this.text[this.index++] !== ':') throw new Error('MALFORMED:missing object separator');
-      result[entryKey] = this.value(depth);
+      Object.defineProperty(result, entryKey, {
+        configurable: true,
+        enumerable: true,
+        value: this.value(depth),
+        writable: true,
+      });
       if (seen.size > CANONICAL_LIMITS.maxCollectionEntries) throw new Error('OVERSIZED:object exceeds entry limit');
       this.space();
       const delimiter = this.text[this.index++];
@@ -351,6 +403,60 @@ const patterns: Record<Exclude<IdentityKind, 'ID-EVSUBJ'>, RegExp> = {
   'ID-EXPORT': regex(`${run}/export/${ordinal}/${digest}`),
 };
 
+const componentKeys: Readonly<Record<IdentityKind, readonly string[]>> = {
+  'ID-RUN': ['runSequence', 'runNonce'],
+  'ID-STORY': ['runSequence', 'runNonce', 'storyKey'],
+  'ID-TXN': [
+    'runSequence',
+    'runNonce',
+    'transactionOrdinal',
+    'generationRunSequence',
+    'generationRunNonce',
+    'generationOrdinal',
+    'generationToken',
+    'generationDigest',
+  ],
+  'ID-EVENT': ['runSequence', 'runNonce', 'eventOrdinal'],
+  'ID-OP': [
+    'runSequence',
+    'runNonce',
+    'transactionOrdinal',
+    'generationRunSequence',
+    'generationRunNonce',
+    'generationOrdinal',
+    'generationToken',
+    'generationDigest',
+    'operationOrdinal',
+  ],
+  'ID-CAND': ['runSequence', 'runNonce', 'storyKey', 'candidateOrdinal', 'candidateDigest'],
+  'ID-GEN': ['runSequence', 'runNonce', 'generationOrdinal', 'generationToken'],
+  'ID-PRINCIPAL': ['principalKey'],
+  'ID-MANIFEST': ['providerDigest', 'authorityDigest'],
+  'ID-SESSION': ['runSequence', 'runNonce', 'storyKey', 'sessionKey', 'sessionOrdinal'],
+  'ID-FINDING': ['runSequence', 'runNonce', 'storyKey', 'findingOrdinal'],
+  'ID-GRANT': ['runSequence', 'runNonce', 'grantOrdinal'],
+  'ID-PARK': ['runSequence', 'runNonce', 'parkOrdinal'],
+  'ID-SOURCE-REQ': ['sourceDigest', 'requestDigest'],
+  'ID-REGISTRY': ['registryDigest'],
+  'ID-TARGET': ['targetKey'],
+  'ID-AUTH': ['targetKey', 'authorityOrdinal'],
+  'ID-EVSUBJ': ['subjectKind', 'subjectComponents', 'claimKey'],
+  'ID-OBLIGATION': ['runSequence', 'runNonce', 'obligationOrdinal'],
+  'ID-SETTLEMENT': ['runSequence', 'runNonce'],
+  'ID-NOTICE': ['runSequence', 'runNonce', 'noticeKey', 'noticeDigest'],
+  'ID-EXPORT': ['runSequence', 'runNonce', 'exportOrdinal', 'exportDigest'],
+};
+
+function exactComponentKeys(kind: unknown, components: Record<string, unknown>): boolean {
+  if (typeof kind !== 'string' || !Object.hasOwn(componentKeys, kind)) return false;
+  const expected = componentKeys[kind as IdentityKind];
+  const supplied = Object.keys(components).sort(compareKeys);
+  return (
+    supplied.length === expected.length &&
+    supplied.every((key, index) => key === [...expected].sort(compareKeys)[index])
+  );
+}
+
 function evidenceSubject(value: string): boolean {
   const prefix = 'evidence://';
   if (!value.startsWith(prefix)) return false;
@@ -373,31 +479,35 @@ export function parseIdentity(
   kind: IdentityKind | string,
   value: string,
 ): Result<Readonly<{ kind: string; value: string }>> {
-  if (
-    typeof value !== 'string' ||
-    value.normalize('NFC') !== value ||
-    codePoints(value) > CANONICAL_LIMITS.maxStringCodePoints
-  )
-    return subjectFailure('INVALID_SCOPE', 'identity must be a bounded NFC string');
-  if (kind === 'ID-EVSUBJ') {
-    if (!evidenceSubject(value))
-      return subjectFailure('INVALID_SCOPE', 'evidence subject must embed one allowed identity and one claim');
+  try {
+    if (
+      typeof value !== 'string' ||
+      value.normalize('NFC') !== value ||
+      codePoints(value) > CANONICAL_LIMITS.maxStringCodePoints
+    )
+      return subjectFailure('INVALID_SCOPE', 'identity must be a bounded NFC string');
+    if (kind === 'ID-EVSUBJ') {
+      if (!evidenceSubject(value))
+        return subjectFailure('INVALID_SCOPE', 'evidence subject must embed one allowed identity and one claim');
+      return { ok: true, value: { kind, value } };
+    }
+    if (!Object.hasOwn(patterns, kind)) return subjectFailure('INVALID_SCOPE', 'identity kind is unknown');
+    if (!patterns[kind as Exclude<IdentityKind, 'ID-EVSUBJ'>].test(value)) {
+      const fitsOtherScope = Object.values(patterns).some((pattern) => pattern.test(value));
+      return subjectFailure(
+        fitsOtherScope ? 'CROSS_SCOPE' : 'INVALID_SCOPE',
+        'identity does not satisfy its exact governed scope',
+      );
+    }
+    if (kind === 'ID-TXN' || kind === 'ID-OP') {
+      const runs = /^(run-[0-9]{12}-[0-9a-f]{16})\/txn\/[0-9]+\/(run-[0-9]{12}-[0-9a-f]{16})\/gen\//.exec(value);
+      if (!runs || runs[1] !== runs[2])
+        return subjectFailure('INVALID_SCOPE', 'transaction generation must belong to the same run');
+    }
     return { ok: true, value: { kind, value } };
+  } catch {
+    return subjectFailure('INVALID_SCOPE', 'identity must be a bounded canonical subject');
   }
-  if (!Object.hasOwn(patterns, kind)) return subjectFailure('INVALID_SCOPE', 'identity kind is unknown');
-  if (!patterns[kind as Exclude<IdentityKind, 'ID-EVSUBJ'>].test(value)) {
-    const fitsOtherScope = Object.values(patterns).some((pattern) => pattern.test(value));
-    return subjectFailure(
-      fitsOtherScope ? 'CROSS_SCOPE' : 'INVALID_SCOPE',
-      'identity does not satisfy its exact governed scope',
-    );
-  }
-  if (kind === 'ID-TXN' || kind === 'ID-OP') {
-    const runs = /^(run-[0-9]{12}-[0-9a-f]{16})\/txn\/[0-9]+\/(run-[0-9]{12}-[0-9a-f]{16})\/gen\//.exec(value);
-    if (!runs || runs[1] !== runs[2])
-      return subjectFailure('INVALID_SCOPE', 'transaction generation must belong to the same run');
-  }
-  return { ok: true, value: { kind, value } };
 }
 
 function component(components: IdentityComponents, name: string): string | undefined {
@@ -578,19 +688,38 @@ export function formatIdentity(
   kind: IdentityKind | string,
   components: IdentityComponents,
 ): Result<Readonly<{ kind: string; value: string }>> {
-  if (!isPlainObject(components))
-    return subjectFailure('INVALID_SCOPE', 'identity components must be a bounded object');
-  const value = composeIdentity(kind, components as IdentityComponents);
-  if (value === undefined)
-    return subjectFailure('INVALID_SCOPE', 'identity components do not satisfy the governed grammar');
-  return parseIdentity(kind, value);
+  try {
+    const snapshot = snapshotCanonical(components);
+    if (!isPlainObject(snapshot) || !exactComponentKeys(kind, snapshot))
+      return subjectFailure('INVALID_SCOPE', 'identity components must have the exact governed component keys');
+    if (kind === 'ID-EVSUBJ') {
+      const subjectKind = snapshot.subjectKind;
+      const subjectComponents = snapshot.subjectComponents;
+      if (
+        typeof subjectKind !== 'string' ||
+        !['ID-RUN', 'ID-STORY', 'ID-CAND', 'ID-OP', 'ID-TARGET'].includes(subjectKind) ||
+        !isPlainObject(subjectComponents) ||
+        !exactComponentKeys(subjectKind, subjectComponents)
+      )
+        return subjectFailure(
+          'INVALID_SCOPE',
+          'evidence subject components must have the exact governed component keys',
+        );
+    }
+    const value = composeIdentity(kind, snapshot as IdentityComponents);
+    if (value === undefined)
+      return subjectFailure('INVALID_SCOPE', 'identity components do not satisfy the governed grammar');
+    return parseIdentity(kind, value);
+  } catch {
+    return subjectFailure('INVALID_SCOPE', 'identity components must be a bounded ordinary object');
+  }
 }
 
 export type StagedDigestInput = Readonly<{ domain: string; value: CanonicalJson; excludePaths: readonly string[] }>;
 export type StagedDigest = Readonly<{ domain: string; excludePaths: readonly string[]; digest: string }>;
 
 function cloneWithout(value: CanonicalJson, excludePaths: readonly string[]): CanonicalJson {
-  const result = structuredClone(value) as CanonicalJson;
+  const result = snapshotCanonical(value);
   const normalizedPaths = [...excludePaths];
   const seen = new Set<string>();
   for (const path of normalizedPaths) {
@@ -681,17 +810,46 @@ function sha256(bytes: Uint8Array): string {
   return hash.map((part) => part.toString(16).padStart(8, '0')).join('');
 }
 
+function stagedDigestFields(
+  input: unknown,
+  requiredKeys: readonly string[],
+): Readonly<{ domain: string; value: CanonicalJson; excludePaths: readonly string[]; digest?: string }> {
+  if (requiredKeys.includes('digest') && isPlainObject(input)) {
+    const digestDescriptor = Object.getOwnPropertyDescriptor(input, 'digest');
+    if (!digestDescriptor || !('value' in digestDescriptor) || Reflect.get(input, 'digest') !== digestDescriptor.value)
+      throw new Error('INVALID_STAGED_DIGEST:digest must be an ordinary stable data property');
+  }
+  const snapshot = snapshotCanonical(input);
+  if (!isPlainObject(snapshot)) throw new Error('INVALID_STAGED_DIGEST:staged digest input must be an ordinary object');
+  const supplied = Object.keys(snapshot).sort(compareKeys);
+  const expected = [...requiredKeys].sort(compareKeys);
+  if (supplied.length !== expected.length || supplied.some((key, index) => key !== expected[index]))
+    throw new Error('INVALID_STAGED_DIGEST:staged digest input must have exact fields');
+  const { domain, excludePaths, value } = snapshot;
+  if (typeof domain !== 'string' || !Array.isArray(excludePaths))
+    throw new Error('INVALID_STAGED_DIGEST:staged digest input fields are malformed');
+  if (excludePaths.some((path) => typeof path !== 'string'))
+    throw new Error('INVALID_STAGED_DIGEST:exclude paths must be strings');
+  return {
+    domain,
+    excludePaths: [...excludePaths] as readonly string[],
+    value,
+    ...(typeof snapshot.digest === 'string' ? { digest: snapshot.digest } : {}),
+  };
+}
+
 export function stageDigest(input: StagedDigestInput): Result<StagedDigest> {
   try {
-    if (!/^[A-Z][A-Z0-9-]{1,63}$/.test(input.domain)) throw new Error('INVALID_STAGED_DIGEST:domain is not canonical');
-    validateValue(input.value);
-    const excluded = cloneWithout(input.value, input.excludePaths);
+    const stagedInput = stagedDigestFields(input, ['domain', 'excludePaths', 'value']);
+    if (!/^[A-Z][A-Z0-9-]{1,63}$/.test(stagedInput.domain))
+      throw new Error('INVALID_STAGED_DIGEST:domain is not canonical');
+    const excluded = cloneWithout(stagedInput.value, stagedInput.excludePaths);
     return {
       ok: true,
       value: {
-        domain: input.domain,
-        excludePaths: [...input.excludePaths].sort(compareKeys),
-        digest: sha256(canonicalBytes({ domain: input.domain, value: excluded })),
+        domain: stagedInput.domain,
+        excludePaths: [...stagedInput.excludePaths].sort(compareKeys),
+        digest: sha256(canonicalBytes({ domain: stagedInput.domain, value: excluded })),
       },
     };
   } catch (caught) {
@@ -703,14 +861,26 @@ export function stageDigest(input: StagedDigestInput): Result<StagedDigest> {
 }
 
 export function validateStagedDigest(input: StagedDigest & Readonly<{ value: CanonicalJson }>): Result<string> {
-  if (!regex(digest).test(input.digest))
-    return subjectFailure('INVALID_STAGED_DIGEST', 'digest must be lowercase SHA-256 hex');
-  const staged = stageDigest(input);
-  if (!staged.ok) return staged;
-  if (
-    staged.value.digest !== input.digest ||
-    staged.value.excludePaths.join('\0') !== [...input.excludePaths].sort(compareKeys).join('\0')
-  )
-    return subjectFailure('STAGED_DIGEST_MISMATCH', 'digest does not match the exact staged canonical bytes');
-  return { ok: true, value: input.digest };
+  try {
+    const stagedInput = stagedDigestFields(input, ['digest', 'domain', 'excludePaths', 'value']);
+    if (!stagedInput.digest || !regex(digest).test(stagedInput.digest))
+      return subjectFailure('INVALID_STAGED_DIGEST', 'digest must be lowercase SHA-256 hex');
+    const staged = stageDigest({
+      domain: stagedInput.domain,
+      excludePaths: stagedInput.excludePaths,
+      value: stagedInput.value,
+    });
+    if (!staged.ok) return staged;
+    if (
+      staged.value.digest !== stagedInput.digest ||
+      staged.value.excludePaths.join('\0') !== [...stagedInput.excludePaths].sort(compareKeys).join('\0')
+    )
+      return subjectFailure('STAGED_DIGEST_MISMATCH', 'digest does not match the exact staged canonical bytes');
+    return { ok: true, value: stagedInput.digest };
+  } catch (caught) {
+    return subjectFailure(
+      'INVALID_STAGED_DIGEST',
+      caught instanceof Error ? caught.message : 'invalid staged digest input',
+    );
+  }
 }
