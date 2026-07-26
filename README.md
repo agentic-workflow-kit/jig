@@ -10,9 +10,9 @@
 
 The approved product and redesign documents passed the final empty-repository implementation-
 readiness gate on 2026-07-18. This local Phase 0 implementation candidate contains four private,
-pure packages: the GF-002 canonical identity and boundary codec; the GF-003 runtime topology and
-semantic port contracts; the GF-004 private conformance harness; and the GF-005 private pure authority
-kernel. It does not establish landing, acceptance, activation, or release. No provider, adapter, storage
+pure packages: the canonical identity and boundary codec; the runtime topology and semantic port contracts;
+the private conformance harness; and the pure authority kernel. It does not establish landing, acceptance,
+activation, or release. No provider, adapter, storage
 or ledger implementation, controller process, transport, CLI, MCP surface, credential, real external
 effect, or public package is authorized or implemented. The [greenfield delivery track](docs/delivery/README.md)
 remains authoritative, while archive material remains non-governing.

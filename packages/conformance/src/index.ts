@@ -503,7 +503,7 @@ export function parseRecordFrame(
   frame: unknown,
 ): Readonly<{ ok: true; value: RecordInput }> | Readonly<{ ok: false; reason: string }> {
   if (!(typeof frame === 'string' || (ArrayBuffer.isView(frame) && frame instanceof Uint8Array)))
-    return { ok: false, reason: 'FC-INPUT: canonical GF-002 frame required' };
+    return { ok: false, reason: 'FC-INPUT: canonical codec frame required' };
   const decoded = decodeFrame(typeof frame === 'string' ? new TextEncoder().encode(frame) : frame);
   const decodedValue = decoded.ok ? decoded.value : undefined;
   const payload = snapshotExactObject(decodedValue, [

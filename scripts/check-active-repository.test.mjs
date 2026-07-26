@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { validateActiveRepository } from './check-active-repository.mjs';
 
@@ -59,21 +59,7 @@ function withTempRepo(mutate, { includeArchive = true } = {}) {
   return result;
 }
 
-function snapshotFiles(paths) {
-  return new Map(
-    paths.map((path) => [path, existsSync(join(repoRoot, path)) ? readFileSync(join(repoRoot, path)) : null]),
-  );
-}
-
-function restoreFiles(snapshot) {
-  for (const [path, bytes] of snapshot) {
-    const absolutePath = join(repoRoot, path);
-    if (bytes === null) rmSync(absolutePath, { force: true });
-    else writeFileSync(absolutePath, bytes);
-  }
-}
-
-test('validateActiveRepository passes on the active GF-001/GF-002 contract', () => {
+test('validateActiveRepository passes on the active package contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
 });
 
@@ -93,7 +79,7 @@ test('rejects root manifest, local Node line, and pnpm safety drift', () => {
 
 test('rejects active Turbo graph drift and every approved-file symlink substitution', () => {
   const graphErrors = withTempRepo((root) => writeFileSync(join(root, 'turbo.json'), '{}\n'));
-  assert.ok(graphErrors.some((error) => error.includes('canonical active GF-001 task')));
+  assert.ok(graphErrors.some((error) => error.includes('canonical active workspace task')));
   const symlinkErrors = withTempRepo((root) => {
     const config = join(root, 'turbo.json');
     rmSync(config);
@@ -128,7 +114,7 @@ test('rejects mutable Actions, credential persistence, and extra workflow behavi
 
 test('rejects unlisted fixture files and an absent archive anchor', () => {
   const fixtureErrors = withTempRepo((root) =>
-    writeFileSync(join(root, 'tests/fixtures/gf-001-workspace/packages/pkg-a/src/runtime.ts'), 'export {};\n'),
+    writeFileSync(join(root, 'tests/fixtures/workspace/packages/pkg-a/src/runtime.ts'), 'export {};\n'),
   );
   assert.ok(
     fixtureErrors.some((error) => error.includes('unexpected active path') || error.includes('fixture file set')),
@@ -137,11 +123,11 @@ test('rejects unlisted fixture files and an absent archive anchor', () => {
   assert.ok(missingAnchorErrors.some((error) => error.includes('archive ref or representative recovery path')));
 });
 
-test('requires the exact GF-005 kernel, root wiring, and retained evidence surface', () => {
+test('requires the exact authority kernel, root wiring, and generic evidence surface', () => {
   const missingKernelErrors = withTempRepo((root) => rmSync(join(root, 'packages/authority-kernel/src/index.ts')));
   assert.ok(missingKernelErrors.some((error) => error.includes('required active path is missing')));
   const unlistedSiblingErrors = withTempRepo((root) =>
-    writeFileSync(join(root, 'tests/gf-005/unlisted-sibling.test.mjs'), 'export {};\n'),
+    writeFileSync(join(root, 'tests/authority-kernel/unlisted-sibling.test.mjs'), 'export {};\n'),
   );
   assert.ok(unlistedSiblingErrors.some((error) => error.includes('unexpected active path')));
   const privateErrors = withTempRepo((root) =>
@@ -153,7 +139,7 @@ test('requires the exact GF-005 kernel, root wiring, and retained evidence surfa
       ),
     ),
   );
-  assert.ok(privateErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
+  assert.ok(privateErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
   const dependencyErrors = withTempRepo((root) =>
     writeFileSync(
       join(root, 'packages/authority-kernel/package.json'),
@@ -163,7 +149,7 @@ test('requires the exact GF-005 kernel, root wiring, and retained evidence surfa
       ),
     ),
   );
-  assert.ok(dependencyErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
+  assert.ok(dependencyErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
   const exportErrors = withTempRepo((root) =>
     writeFileSync(
       join(root, 'packages/authority-kernel/package.json'),
@@ -173,97 +159,21 @@ test('requires the exact GF-005 kernel, root wiring, and retained evidence surfa
       ),
     ),
   );
-  assert.ok(exportErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
-  const rootTestErrors = withTempRepo((root) =>
+  assert.ok(exportErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
+  const rootEvidenceErrors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
     writeFileSync(
-      join(root, 'package.json'),
-      readFileSync(join(root, 'package.json'), 'utf8').replace(' && node scripts/run-gf-005-tests.mjs', ''),
-    ),
-  );
-  assert.ok(rootTestErrors.some((error) => error.includes('package.json must exactly preserve')));
-  const rootEvidenceErrors = withTempRepo((root) =>
-    writeFileSync(
-      join(root, 'package.json'),
-      readFileSync(join(root, 'package.json'), 'utf8').replace(' && node scripts/finalize-gf-005-evidence.mjs', ''),
-    ),
-  );
+      path,
+      readFileSync(path, 'utf8').replace('node scripts/write-evidence.mjs phase-0', 'node scripts/write-evidence.mjs'),
+    );
+  });
   assert.ok(rootEvidenceErrors.some((error) => error.includes('package.json must exactly preserve')));
   const workflowErrors = withTempRepo((root) => {
     const path = join(root, '.github/workflows/check.yml');
     writeFileSync(
       path,
-      readFileSync(path, 'utf8').replace('            artifacts/gf-005/finalization-receipt.json\n', ''),
+      readFileSync(path, 'utf8').replace('          path: artifacts/\n', '          path: artifacts/evidence.json\n'),
     );
   });
-  assert.ok(workflowErrors.some((error) => error.includes('GF-005 evidence retention')));
-});
-
-test('requires GF-002 evidence finalization after every other Phase 0 evidence producer', () => {
-  const expectedEvidenceWrite =
-    'node scripts/run-gf-001-tests.mjs && node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs';
-  const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
-  assert.equal(manifest.scripts['evidence:write'], expectedEvidenceWrite);
-
-  const orderingErrors = withTempRepo((root) => {
-    const path = join(root, 'package.json');
-    writeFileSync(
-      path,
-      readFileSync(path, 'utf8').replace(
-        'node scripts/finalize-gf-005-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs',
-        'node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs',
-      ),
-    );
-  });
-  assert.ok(orderingErrors.some((error) => error.includes('package.json must exactly preserve')));
-
-  const runnerErrors = withTempRepo((root) => {
-    const path = join(root, 'package.json');
-    writeFileSync(path, readFileSync(path, 'utf8').replace('node scripts/run-gf-001-tests.mjs && ', ''));
-  });
-  assert.ok(runnerErrors.some((error) => error.includes('package.json must exactly preserve')));
-});
-
-test('nested verification runs every artifact-producing story runner without rewriting retained bytes', () => {
-  const paths = [
-    'artifacts/gf-001/evidence.json',
-    'artifacts/gf-001/fixture-evidence.json',
-    'artifacts/gf-001/fixture-results.json',
-    'artifacts/gf-002/results.json',
-    'artifacts/gf-003/results.json',
-  ];
-  const original = snapshotFiles(paths);
-  const { NODE_TEST_CONTEXT: _testContext, ...environment } = process.env;
-  try {
-    for (const path of paths) {
-      const absolutePath = join(repoRoot, path);
-      mkdirSync(dirname(absolutePath), { recursive: true });
-      writeFileSync(absolutePath, `nested-verification-sentinel:${path}\n`);
-    }
-    const baseline = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
-    const result = spawnSync(process.execPath, ['scripts/run-phase-0-verification-tests.mjs'], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: environment,
-    });
-    assert.equal(result.status, 0, `Phase 0 verification runner failed: ${result.stderr}`);
-    for (const [path, bytes] of baseline) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
-  } finally {
-    restoreFiles(original);
-  }
-});
-
-test('requires every embedded full-check finalizer to enable nested verification', () => {
-  const errors = withTempRepo((root) => {
-    const path = join(root, 'scripts', 'finalize-gf-003-evidence.mjs');
-    writeFileSync(path, readFileSync(path, 'utf8').replace('JIG_NESTED_VERIFICATION', 'NESTED_VERIFICATION_REMOVED'));
-  });
-  assert.ok(errors.some((error) => error.includes('embedded full-check finalizer must set JIG_NESTED_VERIFICATION')));
-});
-
-test('requires check to use the non-writing Phase 0 verification runner', () => {
-  const errors = withTempRepo((root) => {
-    const path = join(root, 'package.json');
-    writeFileSync(path, readFileSync(path, 'utf8').replace(' && pnpm verification:test', ' && pnpm test'));
-  });
-  assert.ok(errors.some((error) => error.includes('package.json must exactly preserve')));
+  assert.ok(workflowErrors.some((error) => error.includes('evidence-retention contract')));
 });

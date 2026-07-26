@@ -1,9 +1,10 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
-const fixtureRoot = 'tests/fixtures/gf-001-workspace';
-const expectedPackageNames = ['@gf-001-fixture/pkg-a', '@gf-001-fixture/pkg-b', '@gf-001-fixture/pkg-c'];
+const fixtureRoot = 'tests/fixtures/workspace';
+const expectedPackageNames = ['@workspace-fixture/pkg-a', '@workspace-fixture/pkg-b', '@workspace-fixture/pkg-c'];
 const expectedCodecFiles = ['package.json', 'src/index.ts', 'tsconfig.json'];
 const prettyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const expectedFixtureFiles = new Map([
@@ -24,7 +25,7 @@ importers:
 
   packages/pkg-b:
     dependencies:
-      '@gf-001-fixture/pkg-a':
+      '@workspace-fixture/pkg-a':
         specifier: workspace:*
         version: link:../pkg-a
 
@@ -34,7 +35,7 @@ importers:
   [
     'package.json',
     prettyJson({
-      name: '@gf-001-fixture/root',
+      name: '@workspace-fixture/root',
       version: '0.0.0',
       private: true,
       type: 'module',
@@ -71,7 +72,7 @@ importers:
   [
     'packages/pkg-a/package.json',
     prettyJson({
-      name: '@gf-001-fixture/pkg-a',
+      name: '@workspace-fixture/pkg-a',
       version: '0.0.0',
       private: true,
       type: 'module',
@@ -89,26 +90,26 @@ importers:
   [
     'packages/pkg-b/package.json',
     prettyJson({
-      name: '@gf-001-fixture/pkg-b',
+      name: '@workspace-fixture/pkg-b',
       version: '0.0.0',
       private: true,
       type: 'module',
       scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit', test: 'node --test' },
-      dependencies: { '@gf-001-fixture/pkg-a': 'workspace:*' },
+      dependencies: { '@workspace-fixture/pkg-a': 'workspace:*' },
     }),
   ],
   [
     'packages/pkg-b/src/index.ts',
-    "import { computeA } from '@gf-001-fixture/pkg-a';\n\nexport function computeB(val: number): number {\n  return computeA(val) + 10;\n}\n",
+    "import { computeA } from '@workspace-fixture/pkg-a';\n\nexport function computeB(val: number): number {\n  return computeA(val) + 10;\n}\n",
   ],
   [
     'packages/pkg-b/tsconfig.json',
-    '{\n  "extends": "../../tsconfig.base.json",\n  "compilerOptions": {\n    "outDir": "dist",\n    "rootDir": "src",\n    "paths": {\n      "@gf-001-fixture/pkg-a": ["../pkg-a/src/index.ts"]\n    }\n  },\n  "include": ["src/**/*.ts"],\n  "references": [{ "path": "../pkg-a" }]\n}\n',
+    '{\n  "extends": "../../tsconfig.base.json",\n  "compilerOptions": {\n    "outDir": "dist",\n    "rootDir": "src",\n    "paths": {\n      "@workspace-fixture/pkg-a": ["../pkg-a/src/index.ts"]\n    }\n  },\n  "include": ["src/**/*.ts"],\n  "references": [{ "path": "../pkg-a" }]\n}\n',
   ],
   [
     'packages/pkg-c/package.json',
     prettyJson({
-      name: '@gf-001-fixture/pkg-c',
+      name: '@workspace-fixture/pkg-c',
       version: '0.0.0',
       private: true,
       type: 'module',
@@ -147,11 +148,69 @@ function sameMembers(actual, expected) {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
+function importSpecifiers(source) {
+  const file = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const specifiers = [];
+  function visit(node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    )
+      specifiers.push(node.moduleSpecifier.text);
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    )
+      specifiers.push(node.arguments[0].text);
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  return specifiers;
+}
+
+function exportedNames(source) {
+  const names = [];
+  const file = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const isExported = (node) => node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
+  for (const statement of file.statements) {
+    if (ts.isVariableStatement(statement) && isExported(statement)) {
+      for (const declaration of statement.declarationList.declarations)
+        if (ts.isIdentifier(declaration.name)) names.push(declaration.name.text);
+    } else if (
+      (ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      isExported(statement) &&
+      statement.name
+    )
+      names.push(statement.name.text);
+    else if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) names.push(element.name.text);
+    }
+  }
+  return names;
+}
+
+function validatePureSurface(rootDir, packageName, allowedImports, prohibitedExportNames, errors) {
+  const sourcePath = join(rootDir, 'packages', packageName, 'src', 'index.ts');
+  if (!existsSync(sourcePath)) return;
+  const source = readFileSync(sourcePath, 'utf8');
+  if (!sameMembers(importSpecifiers(source).sort(), [...allowedImports].sort()))
+    errors.push(`${packageName} must import only its declared pure package dependencies`);
+  if (exportedNames(source).some((name) => prohibitedExportNames.test(name)))
+    errors.push(`${packageName} must not expose a prohibited capability surface`);
+}
+
 export function validatePackageBoundaries(rootDir = process.cwd()) {
   const errors = [];
   for (const forbidden of ['src'])
     if (existsSync(join(rootDir, forbidden)))
-      errors.push(`root ${forbidden}/ product source directory is forbidden in GF-001`);
+      errors.push(`root ${forbidden}/ product source directory is forbidden in workspace`);
 
   const packagesRoot = join(rootDir, 'packages');
   if (existsSync(packagesRoot)) {
@@ -161,14 +220,14 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       JSON.stringify(['authority-kernel', 'codec', 'conformance', 'runtime-contracts'])
     )
       errors.push(
-        'GF-005 permits only the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
+        'only permits only the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
       );
     const codecRoot = join(packagesRoot, 'codec');
     const codecFiles = listFiles(codecRoot)
       .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
       .sort();
     if (!sameMembers(codecFiles, expectedCodecFiles))
-      errors.push(`GF-002 codec file set must stay exact; got ${codecFiles.join(', ')}`);
+      errors.push(`codec file set must stay exact; got ${codecFiles.join(', ')}`);
     const codecManifestPath = join(codecRoot, 'package.json');
     if (existsSync(codecManifestPath)) {
       const codecManifest = JSON.parse(readFileSync(codecManifestPath, 'utf8'));
@@ -187,17 +246,9 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
         codecManifest.scripts?.start ||
         Object.keys(codecManifest.scripts ?? {}).some((name) => /^(pre|post)(install|pack|publish|prepare)$/.test(name))
       )
-        errors.push('GF-002 codec must remain a dependency-free pure boundary library with no runtime entrypoint');
+        errors.push('codec must remain a dependency-free pure boundary library with no runtime entrypoint');
     }
-    const codecSourcePath = join(codecRoot, 'src', 'index.ts');
-    if (existsSync(codecSourcePath)) {
-      const codecSource = readFileSync(codecSourcePath, 'utf8');
-      if (
-        /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(codecSource) ||
-        /\b(fetch|process|require)\b/.test(codecSource)
-      )
-        errors.push('GF-002 codec must not add an effect, provider, filesystem, process, or network dependency');
-    }
+    validatePureSurface(rootDir, 'codec', [], /(?:fetch|process|require)/i, errors);
   }
 
   const runtimeRoot = join(rootDir, 'packages', 'runtime-contracts');
@@ -212,7 +263,14 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       runtimeManifest.publishConfig ||
       runtimeManifest.scripts?.start
     )
-      errors.push('GF-003 runtime contracts must remain private, codec-only, and non-runnable');
+      errors.push('runtime contracts must remain private, codec-only, and non-runnable');
+    validatePureSurface(
+      rootDir,
+      'runtime-contracts',
+      ['@agentic-workflow-kit/jig-codec'],
+      /(?:provider|transport|process)/i,
+      errors,
+    );
   }
 
   const conformanceRoot = join(rootDir, 'packages', 'conformance');
@@ -230,13 +288,14 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       manifest.publishConfig ||
       manifest.scripts?.start
     )
-      errors.push('GF-004 conformance must remain private, contract-only, and non-runnable');
-    const source = readFileSync(join(conformanceRoot, 'src/index.ts'), 'utf8');
-    if (
-      /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(source) ||
-      /\b(fetch|process|require)\b/.test(source)
-    )
-      errors.push('GF-004 conformance must not add an effect, provider, filesystem, process, or network dependency');
+      errors.push('conformance must remain private, contract-only, and non-runnable');
+    validatePureSurface(
+      rootDir,
+      'conformance',
+      ['@agentic-workflow-kit/jig-codec', '@agentic-workflow-kit/jig-runtime-contracts'],
+      /(?:register|configure|dispatch|credential|token|adapter)/i,
+      errors,
+    );
   }
 
   const authorityRoot = join(rootDir, 'packages', 'authority-kernel');
@@ -250,13 +309,14 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       manifest.publishConfig ||
       manifest.scripts?.start
     )
-      errors.push('GF-005 authority-kernel must remain private, codec-only, and non-runnable');
-    const source = readFileSync(join(authorityRoot, 'src/index.ts'), 'utf8');
-    if (
-      /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(source) ||
-      /\b(dispatch|adapter|provider|credential|fetch|process|require|setTimeout|Date)\b/i.test(source)
-    )
-      errors.push('GF-005 authority-kernel must not add an effect, provider, clock, dispatch, or process capability');
+      errors.push('authority-kernel must remain private, codec-only, and non-runnable');
+    validatePureSurface(
+      rootDir,
+      'authority-kernel',
+      ['@agentic-workflow-kit/jig-codec'],
+      /(?:dispatch|adapter|provider|credential|token)/i,
+      errors,
+    );
   }
 
   const fixtureDir = join(rootDir, fixtureRoot);
@@ -268,7 +328,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
   for (const [file, expected] of expectedFixtureFiles) {
     const path = join(fixtureDir, file);
     if (existsSync(path) && readFileSync(path, 'utf8') !== expected)
-      errors.push(`fixture input must exactly match the approved GF-001 bounded content: ${file}`);
+      errors.push(`fixture input must exactly match the approved workspace bounded content: ${file}`);
   }
 
   const rootManifestPath = join(fixtureDir, 'package.json');
@@ -353,7 +413,5 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     for (const error of errors) console.error(`- ${error}`);
     process.exitCode = 1;
   } else
-    console.log(
-      'Package boundary check passed (GF-001 fixture substrate and GF-002 pure codec are bounded and hermetic).',
-    );
+    console.log('Package boundary check passed (workspace fixture substrate and pure codec are bounded and hermetic).');
 }

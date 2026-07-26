@@ -1,5 +1,0 @@
-{
-  "schemaVersion": 1,
-  "fixtureVersion": "gf-003-fakes.v1",
-  "ports": ["PORT-SESSION", "PORT-WORKSPACE", "PORT-VERIFY", "PORT-DELIVERY"]
-}

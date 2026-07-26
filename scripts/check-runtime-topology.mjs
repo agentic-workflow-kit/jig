@@ -29,12 +29,12 @@ const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
 export function validateRuntimeTopology(rootDir = process.cwd()) {
   const errors = [];
-  const fixturePath = resolve(rootDir, 'tests/fixtures/gf-003/topology.json');
-  const fakePath = resolve(rootDir, 'tests/fixtures/gf-003/fake-script.json');
+  const fixturePath = resolve(rootDir, 'tests/fixtures/runtime-topology.json');
+  const fakePath = resolve(rootDir, 'tests/fixtures/runtime-fakes.json');
   const sourcePath = resolve(rootDir, 'packages/runtime-contracts/src/index.ts');
   const manifestPath = resolve(rootDir, 'packages/runtime-contracts/package.json');
   for (const path of [fixturePath, fakePath, sourcePath, manifestPath])
-    if (!existsSync(path)) errors.push(`GF-003 required input is missing: ${path}`);
+    if (!existsSync(path)) errors.push(`runtime topology required input is missing: ${path}`);
   if (errors.length) return errors;
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
   if (
@@ -48,15 +48,15 @@ export function validateRuntimeTopology(rootDir = process.cwd()) {
     fixture.allowedCrossings.length !== 20
   )
     errors.push(
-      'GF-003 immutable topology oracle must bind exactly six units, eleven ports, and the denied-edge corpus',
+      'runtime topology immutable topology oracle must bind exactly six units, eleven ports, and the denied-edge corpus',
     );
   const fake = JSON.parse(readFileSync(fakePath, 'utf8'));
   if (
     fake.schemaVersion !== 1 ||
-    fake.fixtureVersion !== 'gf-003-fakes.v1' ||
+    fake.fixtureVersion !== 'runtime-topology-fakes.v1' ||
     !same(fake.ports, ['PORT-SESSION', 'PORT-WORKSPACE', 'PORT-VERIFY', 'PORT-DELIVERY'])
   )
-    errors.push('GF-003 scripted fake fixture must remain a fixed pure mechanism oracle');
+    errors.push('runtime topology scripted fake fixture must remain a fixed pure mechanism oracle');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   if (
     manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts' ||
@@ -67,14 +67,16 @@ export function validateRuntimeTopology(rootDir = process.cwd()) {
     manifest.publishConfig ||
     manifest.scripts?.start
   )
-    errors.push('GF-003 runtime contracts must remain private, codec-only, and non-runnable');
+    errors.push('runtime topology runtime contracts must remain private, codec-only, and non-runnable');
   const source = readFileSync(sourcePath, 'utf8');
   if (/from ['"](?!@agentic-workflow-kit\/jig-codec['"])/.test(source) || /\b(fetch|process|require)\b/.test(source))
-    errors.push('GF-003 runtime contracts must not import a provider, transport, process, or effect capability');
+    errors.push(
+      'runtime topology runtime contracts must not import a provider, transport, process, or effect capability',
+    );
   for (const unit of expectedUnits)
-    if (!source.includes(`'${unit}'`)) errors.push(`GF-003 source omits required unit: ${unit}`);
+    if (!source.includes(`'${unit}'`)) errors.push(`runtime topology source omits required unit: ${unit}`);
   for (const port of expectedPorts)
-    if (!source.includes(`'${port}'`)) errors.push(`GF-003 source omits required port: ${port}`);
+    if (!source.includes(`'${port}'`)) errors.push(`runtime topology source omits required port: ${port}`);
   return errors;
 }
 

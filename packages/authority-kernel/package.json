@@ -7,8 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --build --noEmit",
-    "evidence:check": "node ../../scripts/check-gf-005-evidence.mjs"
+    "typecheck": "tsc --build --noEmit"
   },
   "dependencies": {
     "@agentic-workflow-kit/jig-codec": "workspace:*"

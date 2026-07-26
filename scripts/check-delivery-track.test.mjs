@@ -61,31 +61,31 @@ const activeFixturePaths = [
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
-  'scripts/check-gf-004-conformance.mjs',
-  'scripts/check-gf-004-conformance.test.mjs',
-  'scripts/run-gf-001-tests.mjs',
-  'scripts/run-gf-002-tests.mjs',
-  'scripts/finalize-gf-002-evidence.mjs',
-  'scripts/write-gf-001-evidence.mjs',
-  'scripts/write-gf-002-evidence.mjs',
-  'scripts/run-gf-003-tests.mjs',
-  'scripts/run-gf-004-tests.mjs',
-  'scripts/finalize-gf-003-evidence.mjs',
-  'scripts/finalize-gf-004-evidence.mjs',
-  'tests/gf-001/evidence-contract.json',
-  'tests/gf-001/evidence.test.mjs',
-  'tests/gf-001/workspace-substrate.test.mjs',
-  'tests/gf-002/codec.test.mjs',
-  'tests/gf-002/corpus.test.mjs',
-  'tests/gf-002/evidence.test.mjs',
-  'tests/gf-002/golden-consumer.mjs',
-  'tests/gf-003/topology.test.mjs',
-  'tests/gf-003/evidence-contract.test.mjs',
-  'tests/gf-004/conformance.test.mjs',
-  'tests/gf-004/evidence-contract.test.mjs',
-  'tests/fixtures/gf-002/vectors.json',
-  'tests/fixtures/gf-002/corpus.json',
-  'tests/fixtures/gf-004/oracle.json',
+  'scripts/write-evidence.mjs',
+  'tests/workspace/workspace-substrate.test.mjs',
+  'tests/codec/codec.test.mjs',
+  'tests/codec/corpus.test.mjs',
+  'tests/codec/golden-consumer.mjs',
+  'tests/runtime-contracts/topology.test.mjs',
+  'tests/conformance/conformance.test.mjs',
+  'tests/authority-kernel/authority-kernel.test.mjs',
+  'tests/fixtures/codec-vectors.json',
+  'tests/fixtures/codec-corpus.json',
+  'tests/fixtures/runtime-topology.json',
+  'tests/fixtures/runtime-fakes.json',
+  'tests/fixtures/conformance-oracle.json',
+  'tests/fixtures/authority-oracle.json',
+  'tests/fixtures/workspace/.gitignore',
+  'tests/fixtures/workspace/package.json',
+  'tests/fixtures/workspace/pnpm-lock.yaml',
+  'tests/fixtures/workspace/pnpm-workspace.yaml',
+  'tests/fixtures/workspace/tsconfig.base.json',
+  'tests/fixtures/workspace/tsconfig.json',
+  ...['pkg-a', 'pkg-b', 'pkg-c'].flatMap((name) => [
+    `tests/fixtures/workspace/packages/${name}/package.json`,
+    `tests/fixtures/workspace/packages/${name}/src/index.ts`,
+    `tests/fixtures/workspace/packages/${name}/tsconfig.json`,
+  ]),
   'packages/codec/package.json',
   'packages/codec/tsconfig.json',
   'packages/codec/src/index.ts',
@@ -95,6 +95,9 @@ const activeFixturePaths = [
   'packages/runtime-contracts/package.json',
   'packages/runtime-contracts/tsconfig.json',
   'packages/runtime-contracts/src/index.ts',
+  'packages/authority-kernel/package.json',
+  'packages/authority-kernel/tsconfig.json',
+  'packages/authority-kernel/src/index.ts',
   ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
     markdownFiles(join(root, path)).map((file) => relative(root, file)),
   ),
@@ -590,8 +593,10 @@ test('track JSON rejects duplicate object keys before JSON parsing normalizes th
   }, 'delivery track has duplicate JSON object key kind');
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/track.json');
-    const value = '"planning_provenance_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",';
-    writeFileSync(p, readFileSync(p, 'utf8').replace(value, `${value}\n    ${value}`));
+    const track = readFileSync(p, 'utf8');
+    const value = track.match(/"planning_provenance_commit": "[0-9a-f]{40}",/)?.[0];
+    assert.ok(value, 'fixture must contain planning provenance');
+    writeFileSync(p, track.replace(value, `${value}\n    ${value}`));
   }, 'delivery track has duplicate JSON object key planning_provenance_commit');
 });
 test('track JSON rejects inputs above the strict 2 MiB limit', () => {

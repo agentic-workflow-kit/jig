@@ -8,10 +8,10 @@ import { validateRuntimeTopology } from './check-runtime-topology.mjs';
 const rootDir = resolve(import.meta.dirname, '..');
 
 function withCopy(mutate) {
-  const tempDir = mkdtempSync(join(tmpdir(), 'gf003-topology-test-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'runtime-topology-test-'));
   try {
     cpSync(join(rootDir, 'packages'), join(tempDir, 'packages'), { recursive: true });
-    cpSync(join(rootDir, 'tests/fixtures/gf-003'), join(tempDir, 'tests/fixtures/gf-003'), { recursive: true });
+    cpSync(join(rootDir, 'tests/fixtures'), join(tempDir, 'tests/fixtures'), { recursive: true });
     mutate(tempDir);
     return validateRuntimeTopology(tempDir);
   } finally {
@@ -19,9 +19,10 @@ function withCopy(mutate) {
   }
 }
 
-test('GF-003 topology guard accepts the fixed oracle', () => assert.deepEqual(validateRuntimeTopology(rootDir), []));
+test('runtime topology topology guard accepts the fixed oracle', () =>
+  assert.deepEqual(validateRuntimeTopology(rootDir), []));
 
-test('GF-003 topology guard rejects every forbidden capability edge', () => {
+test('runtime topology topology guard rejects every forbidden capability edge', () => {
   const errors = withCopy((root) => {
     const path = join(root, 'packages/runtime-contracts/src/index.ts');
     writeFileSync(path, `${readFileSync(path, 'utf8')}\nimport { readFileSync } from 'node:fs';\n`);
@@ -29,9 +30,9 @@ test('GF-003 topology guard rejects every forbidden capability edge', () => {
   assert.ok(errors.some((error) => error.includes('provider, transport, process, or effect')));
 });
 
-test('GF-003 topology guard rejects oracle permutation', () => {
+test('runtime topology topology guard rejects oracle permutation', () => {
   const errors = withCopy((root) => {
-    const path = join(root, 'tests/fixtures/gf-003/topology.json');
+    const path = join(root, 'tests/fixtures/runtime-topology.json');
     const fixture = JSON.parse(readFileSync(path, 'utf8'));
     fixture.ports = [...fixture.ports].reverse();
     writeFileSync(path, `${JSON.stringify(fixture)}\n`);
