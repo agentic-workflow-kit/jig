@@ -20,6 +20,8 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 const fixtureSource = join(repoRoot, 'tests', 'fixtures', 'gf-001-workspace');
 const sourceDigest = digestTree(fixtureSource);
 const fixtureObservations = [];
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
+const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
 
 function git(...args) {
   return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim();
@@ -31,7 +33,8 @@ const testStart = {
   status: git('status', '--porcelain', '--untracked-files=no'),
 };
 
-if (testStart.status) throw new Error('GF-001 fixture tests require a clean tracked candidate checkout');
+if (testStart.status && !nestedVerification)
+  throw new Error('GF-001 fixture tests require a clean tracked candidate checkout');
 
 function recordObservation(name, summaries) {
   fixtureObservations.push({
@@ -49,7 +52,7 @@ function recordObservation(name, summaries) {
 }
 
 process.on('exit', (exitCode) => {
-  if (exitCode !== 0) return;
+  if (exitCode !== 0 || nestedVerification) return;
   const testEnd = {
     candidate: git('rev-parse', 'HEAD'),
     tree: git('rev-parse', 'HEAD^{tree}'),

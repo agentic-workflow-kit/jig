@@ -31,7 +31,8 @@ export const LOCAL_OBSERVATIONS = Object.freeze([
 export function observeLocalCommands(run = spawnSync) {
   return LOCAL_OBSERVATIONS.map((definition, ordinal) => {
     const startedAt = new Date().toISOString();
-    const outcome = run(definition.command, definition.args, { cwd: root, encoding: 'utf8', env: process.env });
+    const env = definition.id === 'full-pnpm-check' ? { ...process.env, JIG_NESTED_VERIFICATION: '1' } : process.env;
+    const outcome = run(definition.command, definition.args, { cwd: root, encoding: 'utf8', env });
     const stdout = outcome.stdout ?? '';
     const stderr = outcome.stderr ?? '';
     const exitCode = outcome.error ? null : outcome.status;

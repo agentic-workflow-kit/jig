@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
@@ -211,4 +211,41 @@ test('requires GF-002 evidence finalization after every other Phase 0 evidence p
     );
   });
   assert.ok(orderingErrors.some((error) => error.includes('package.json must exactly preserve')));
+});
+
+test('nested verification runs every artifact-producing story runner without rewriting retained bytes', () => {
+  const paths = [
+    'artifacts/gf-001/evidence.json',
+    'artifacts/gf-001/fixture-evidence.json',
+    'artifacts/gf-001/fixture-results.json',
+    'artifacts/gf-002/results.json',
+    'artifacts/gf-003/results.json',
+  ];
+  const before = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
+  const { NODE_TEST_CONTEXT: _testContext, ...environment } = process.env;
+  try {
+    for (const script of [
+      'scripts/run-gf-001-tests.mjs',
+      'scripts/run-gf-002-tests.mjs',
+      'scripts/run-gf-003-tests.mjs',
+    ]) {
+      const result = spawnSync(process.execPath, [script], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...environment, JIG_NESTED_VERIFICATION: '1' },
+      });
+      assert.equal(result.status, 0, `${script} failed: ${result.stderr}`);
+    }
+    for (const [path, bytes] of before) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
+  } finally {
+    for (const [path, bytes] of before) writeFileSync(join(repoRoot, path), bytes);
+  }
+});
+
+test('requires every embedded full-check finalizer to enable nested verification', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'scripts', 'finalize-gf-003-evidence.mjs');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('JIG_NESTED_VERIFICATION', 'NESTED_VERIFICATION_REMOVED'));
+  });
+  assert.ok(errors.some((error) => error.includes('embedded full-check finalizer must set JIG_NESTED_VERIFICATION')));
 });

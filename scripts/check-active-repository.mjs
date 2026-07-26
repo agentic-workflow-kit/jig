@@ -141,6 +141,12 @@ const expectedScripts = {
     'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
 };
 
+const nestedVerificationFinalizers = [
+  'scripts/finalize-gf-002-evidence.mjs',
+  'scripts/finalize-gf-003-evidence.mjs',
+  'scripts/finalize-gf-004-evidence.mjs',
+];
+
 const expectedManifest = {
   name: '@agentic-workflow-kit/jig-repo',
   version: '0.0.0',
@@ -379,6 +385,10 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     errors.push(
       'package.json must exactly preserve the activated GF-001 manifest, scripts, and owned toolchain, including the exact GF-005 surface',
     );
+  for (const path of nestedVerificationFinalizers) {
+    if (!readFileSync(join(rootDir, path), 'utf8').includes('JIG_NESTED_VERIFICATION'))
+      errors.push(`embedded full-check finalizer must set JIG_NESTED_VERIFICATION: ${path}`);
+  }
   if (readFileSync(join(rootDir, '.nvmrc'), 'utf8') !== '26\n')
     errors.push('.nvmrc must exactly preserve the approved local Node 26 line');
   if (existsSync(join(rootDir, '.npmrc')))

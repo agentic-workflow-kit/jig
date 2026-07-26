@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const rootDir = resolve(import.meta.dirname, '..');
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const git = (...args) => execFileSync('git', args, { cwd: rootDir, encoding: 'utf8' }).trim();
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
+const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
 const approvedStoryIds = Object.freeze(
   'GF-001 GF-002 GF-003 GF-004 GF-005 GF-010 GF-011 GF-012 GF-013 GF-014 GF-015 GF-019 GF-020 GF-021 GF-022 GF-023 GF-024 GF-025 GF-026 GF-030 GF-031 GF-032 GF-033 GF-034 GF-035 GF-036 GF-037 GF-038 GF-039 GF-040 GF-041 GF-042 GF-043 GF-044 GF-045 GF-046 GF-047 GF-050 GF-051 GF-052 GF-053 GF-054 GF-055 GF-056 GF-057 GF-060 GF-061 GF-062'.split(
     ' ',
@@ -167,51 +169,53 @@ export function runGf002Tests() {
       : null;
   const result = tests ?? build;
   const exitCode = result.signal === null ? (result.status ?? 1) : 1;
-  const outputDir = join(rootDir, 'artifacts', 'gf-002');
-  mkdirSync(outputDir, { recursive: true });
-  writeFileSync(
-    join(outputDir, 'results.json'),
-    `${JSON.stringify(
-      {
-        schemaVersion: 2,
-        subject: 'GF-002',
-        activation: verifyApprovedActivation(),
-        predecessor: { story: 'GF-001', containedInExecutionBase: true },
-        observationManifest: OBSERVATION_MANIFEST,
-        candidate: { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') },
-        base: {
-          ref: 'origin/main',
-          commit: git('rev-parse', 'origin/main'),
-          tree: git('rev-parse', 'origin/main^{tree}'),
-          mergeBase: git('merge-base', 'HEAD', 'origin/main'),
+  if (!nestedVerification) {
+    const outputDir = join(rootDir, 'artifacts', 'gf-002');
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(
+      join(outputDir, 'results.json'),
+      `${JSON.stringify(
+        {
+          schemaVersion: 2,
+          subject: 'GF-002',
+          activation: verifyApprovedActivation(),
+          predecessor: { story: 'GF-001', containedInExecutionBase: true },
+          observationManifest: OBSERVATION_MANIFEST,
+          candidate: { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') },
+          base: {
+            ref: 'origin/main',
+            commit: git('rev-parse', 'origin/main'),
+            tree: git('rev-parse', 'origin/main^{tree}'),
+            mergeBase: git('merge-base', 'HEAD', 'origin/main'),
+          },
+          command:
+            'pnpm exec tsc --build tsconfig.json then node --test tests/gf-002/codec.test.mjs tests/gf-002/corpus.test.mjs tests/gf-002/evidence.test.mjs',
+          requiredClassSet: corpus.requiredClassSet,
+          corpus: {
+            path: 'tests/fixtures/gf-002/corpus.json',
+            sha256: sha256(corpusText),
+            seed: corpus.seed,
+            oracleSha256: corpus.oracle.sha256,
+          },
+          environment: { node: process.version, platform: process.platform, arch: process.arch },
+          toolchain: {
+            packageJsonSha256: sha256(readFileSync(join(rootDir, 'package.json'))),
+            lockfileSha256: sha256(readFileSync(join(rootDir, 'pnpm-lock.yaml'))),
+            workspaceConfigSha256: sha256(readFileSync(join(rootDir, 'pnpm-workspace.yaml'))),
+            tsconfigSha256: sha256(readFileSync(join(rootDir, 'tsconfig.json'))),
+          },
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          exitCode,
+          signal: result.signal,
+          stdoutSha256: sha256(`${build.stdout ?? ''}${tests?.stdout ?? ''}`),
+          stderrSha256: sha256(`${build.stderr ?? ''}${tests?.stderr ?? ''}`),
         },
-        command:
-          'pnpm exec tsc --build tsconfig.json then node --test tests/gf-002/codec.test.mjs tests/gf-002/corpus.test.mjs tests/gf-002/evidence.test.mjs',
-        requiredClassSet: corpus.requiredClassSet,
-        corpus: {
-          path: 'tests/fixtures/gf-002/corpus.json',
-          sha256: sha256(corpusText),
-          seed: corpus.seed,
-          oracleSha256: corpus.oracle.sha256,
-        },
-        environment: { node: process.version, platform: process.platform, arch: process.arch },
-        toolchain: {
-          packageJsonSha256: sha256(readFileSync(join(rootDir, 'package.json'))),
-          lockfileSha256: sha256(readFileSync(join(rootDir, 'pnpm-lock.yaml'))),
-          workspaceConfigSha256: sha256(readFileSync(join(rootDir, 'pnpm-workspace.yaml'))),
-          tsconfigSha256: sha256(readFileSync(join(rootDir, 'tsconfig.json'))),
-        },
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        exitCode,
-        signal: result.signal,
-        stdoutSha256: sha256(`${build.stdout ?? ''}${tests?.stdout ?? ''}`),
-        stderrSha256: sha256(`${build.stderr ?? ''}${tests?.stderr ?? ''}`),
-      },
-      null,
-      2,
-    )}\n`,
-  );
+        null,
+        2,
+      )}\n`,
+    );
+  }
   if (result.error) throw result.error;
   if (exitCode !== 0) process.exitCode = exitCode;
 }

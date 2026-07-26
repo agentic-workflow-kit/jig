@@ -99,8 +99,8 @@ export function verifyEvidenceContract() {
   return contract;
 }
 
-function observe(id, command, args) {
-  const result = spawnSync(command, args, { cwd: rootDir, encoding: 'utf8' });
+function observe(id, command, args, env = process.env) {
+  const result = spawnSync(command, args, { cwd: rootDir, encoding: 'utf8', env });
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
   if (result.status !== 0 || result.signal || result.error)
@@ -125,7 +125,7 @@ export function finalizeEvidence() {
     observe('typecheck', 'pnpm', ['typecheck']),
     observe('boundaries', 'pnpm', ['boundaries:check']),
     observe('git-diff-check', 'git', ['diff', '--check']),
-    observe('full-pnpm-check', 'pnpm', ['check']),
+    observe('full-pnpm-check', 'pnpm', ['check'], { ...process.env, JIG_NESTED_VERIFICATION: '1' }),
   ];
   const resultsText = readFileSync(join(artifactDir, 'results.json'), 'utf8');
   const results = JSON.parse(resultsText);

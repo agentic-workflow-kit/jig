@@ -11,8 +11,8 @@ const git = (...args) => execFileSync('git', args, { cwd: rootDir, encoding: 'ut
 if (git('status', '--porcelain', '--untracked-files=no'))
   throw new Error('GF-002 finalization requires a clean tracked candidate checkout');
 
-function observe(id, command, args) {
-  const result = spawnSync(command, args, { cwd: rootDir, encoding: 'utf8' });
+function observe(id, command, args, env = process.env) {
+  const result = spawnSync(command, args, { cwd: rootDir, encoding: 'utf8', env });
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
   if (result.status !== 0 || result.signal || result.error)
@@ -25,7 +25,7 @@ const required = [
   observe('typecheck', 'pnpm', ['typecheck']),
   observe('boundaries', 'pnpm', ['boundaries:check']),
   observe('git-diff-check', 'git', ['diff', '--check']),
-  observe('full-pnpm-check', 'pnpm', ['check']),
+  observe('full-pnpm-check', 'pnpm', ['check'], { ...process.env, JIG_NESTED_VERIFICATION: '1' }),
   { id: 'evidence-readback', command: 'node scripts/write-gf-002-evidence.mjs', status: 'pass' },
 ];
 const resultsText = readFileSync(join(artifactDir, 'results.json'), 'utf8');

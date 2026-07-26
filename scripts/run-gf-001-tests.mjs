@@ -7,6 +7,8 @@ const rootDir = resolve(import.meta.dirname, '..');
 const startedAt = new Date().toISOString();
 const fixtureHarness = join('tests', 'gf-001', 'workspace-substrate.test.mjs');
 const evidenceContract = join('tests', 'gf-001', 'evidence.test.mjs');
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
+const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
 
 function runTestFile(testFile) {
   const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', testFile], {
@@ -28,29 +30,31 @@ const result = {
   stdout: results.map((entry) => entry.stdout ?? '').join(''),
 };
 
-const outputDir = join(rootDir, 'artifacts', 'gf-001');
-mkdirSync(outputDir, { recursive: true });
-const fixtureEvidencePath = join(outputDir, 'fixture-evidence.json');
-const fixtureEvidence = existsSync(fixtureEvidencePath) ? readFileSync(fixtureEvidencePath, 'utf8') : null;
 const exitCode = result.signal === null ? (result.status ?? 1) : 1;
-const report = {
-  schemaVersion: 2,
-  subject: 'GF-001',
-  command: 'node --test tests/gf-001/workspace-substrate.test.mjs then evidence.test.mjs',
-  startedAt,
-  finishedAt: new Date().toISOString(),
-  exitCode,
-  signal: result.signal,
-  stdoutSha256: createHash('sha256')
-    .update(result.stdout ?? '')
-    .digest('hex'),
-  stderrSha256: createHash('sha256')
-    .update(result.stderr ?? '')
-    .digest('hex'),
-  fixtureEvidenceSha256: fixtureEvidence === null ? null : createHash('sha256').update(fixtureEvidence).digest('hex'),
-};
-writeFileSync(join(outputDir, 'fixture-results.json'), `${JSON.stringify(report, null, 2)}\n`);
+if (!nestedVerification) {
+  const outputDir = join(rootDir, 'artifacts', 'gf-001');
+  mkdirSync(outputDir, { recursive: true });
+  const fixtureEvidencePath = join(outputDir, 'fixture-evidence.json');
+  const fixtureEvidence = existsSync(fixtureEvidencePath) ? readFileSync(fixtureEvidencePath, 'utf8') : null;
+  const report = {
+    schemaVersion: 2,
+    subject: 'GF-001',
+    command: 'node --test tests/gf-001/workspace-substrate.test.mjs then evidence.test.mjs',
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    exitCode,
+    signal: result.signal,
+    stdoutSha256: createHash('sha256')
+      .update(result.stdout ?? '')
+      .digest('hex'),
+    stderrSha256: createHash('sha256')
+      .update(result.stderr ?? '')
+      .digest('hex'),
+    fixtureEvidenceSha256: fixtureEvidence === null ? null : createHash('sha256').update(fixtureEvidence).digest('hex'),
+  };
+  writeFileSync(join(outputDir, 'fixture-results.json'), `${JSON.stringify(report, null, 2)}\n`);
+  if (result.status === 0 && fixtureEvidence === null)
+    throw new Error('GF-001 fixture tests passed without producing fixture-evidence.json');
+}
 if (result.error) throw result.error;
-if (result.status === 0 && fixtureEvidence === null)
-  throw new Error('GF-001 fixture tests passed without producing fixture-evidence.json');
 if (exitCode !== 0) process.exitCode = exitCode;

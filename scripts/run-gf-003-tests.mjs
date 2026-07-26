@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = resolve(import.meta.dirname, '..');
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
+const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
 
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: rootDir, encoding: 'utf8' });
@@ -24,47 +26,49 @@ if (!process.exitCode)
 
 const topologyText = readFileSync(join(rootDir, 'tests/fixtures/gf-003/topology.json'), 'utf8');
 const fakeText = readFileSync(join(rootDir, 'tests/fixtures/gf-003/fake-script.json'), 'utf8');
-mkdirSync(join(rootDir, 'artifacts/gf-003'), { recursive: true });
-writeFileSync(
-  join(rootDir, 'artifacts/gf-003/results.json'),
-  `${JSON.stringify(
-    {
-      schemaVersion: 1,
-      subject: 'GF-003',
-      candidate: {
-        commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).stdout.trim(),
-        tree: spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: rootDir, encoding: 'utf8' }).stdout.trim(),
-      },
-      topology: {
-        version: 'jig.runtime-topology.v1',
-        fixtureSha256: createHash('sha256').update(topologyText).digest('hex'),
-      },
-      fakes: { version: 'gf-003-fakes.v1', fixtureSha256: createHash('sha256').update(fakeText).digest('hex') },
-      codec: {
-        version: 'jig.codec.v1',
-        packageJsonSha256: createHash('sha256')
-          .update(readFileSync(join(rootDir, 'packages/codec/package.json')))
-          .digest('hex'),
-        sourceSha256: createHash('sha256')
-          .update(readFileSync(join(rootDir, 'packages/codec/src/index.ts')))
-          .digest('hex'),
-      },
-      deniedEdgeCorpus: JSON.parse(topologyText).deniedEdges,
-      toolchain: Object.fromEntries(
-        ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json'].map((path) => [
-          path,
-          createHash('sha256')
-            .update(readFileSync(join(rootDir, path)))
+if (!nestedVerification) {
+  mkdirSync(join(rootDir, 'artifacts/gf-003'), { recursive: true });
+  writeFileSync(
+    join(rootDir, 'artifacts/gf-003/results.json'),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        subject: 'GF-003',
+        candidate: {
+          commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).stdout.trim(),
+          tree: spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: rootDir, encoding: 'utf8' }).stdout.trim(),
+        },
+        topology: {
+          version: 'jig.runtime-topology.v1',
+          fixtureSha256: createHash('sha256').update(topologyText).digest('hex'),
+        },
+        fakes: { version: 'gf-003-fakes.v1', fixtureSha256: createHash('sha256').update(fakeText).digest('hex') },
+        codec: {
+          version: 'jig.codec.v1',
+          packageJsonSha256: createHash('sha256')
+            .update(readFileSync(join(rootDir, 'packages/codec/package.json')))
             .digest('hex'),
-        ]),
-      ),
-      environment: { node: process.version, platform: process.platform, arch: process.arch },
-      exitCode: process.exitCode ?? 0,
-    },
-    null,
-    2,
-  )}\n`,
-);
+          sourceSha256: createHash('sha256')
+            .update(readFileSync(join(rootDir, 'packages/codec/src/index.ts')))
+            .digest('hex'),
+        },
+        deniedEdgeCorpus: JSON.parse(topologyText).deniedEdges,
+        toolchain: Object.fromEntries(
+          ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json'].map((path) => [
+            path,
+            createHash('sha256')
+              .update(readFileSync(join(rootDir, path)))
+              .digest('hex'),
+          ]),
+        ),
+        environment: { node: process.version, platform: process.platform, arch: process.arch },
+        exitCode: process.exitCode ?? 0,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.exitCode)
   process.exitCode = 1;
