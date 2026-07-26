@@ -235,18 +235,12 @@ test('nested verification runs every artifact-producing story runner without rew
     );
     assert.equal(bootstrap.status, 0, `GF-001 fixture bootstrap failed: ${bootstrap.stderr}`);
     const baseline = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
-    for (const script of [
-      'scripts/run-gf-001-tests.mjs',
-      'scripts/run-gf-002-tests.mjs',
-      'scripts/run-gf-003-tests.mjs',
-    ]) {
-      const result = spawnSync(process.execPath, [script], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: { ...environment, JIG_NESTED_VERIFICATION: '1' },
-      });
-      assert.equal(result.status, 0, `${script} failed: ${result.stderr}`);
-    }
+    const result = spawnSync(process.execPath, ['scripts/run-phase-0-verification-tests.mjs'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: environment,
+    });
+    assert.equal(result.status, 0, `Phase 0 verification runner failed: ${result.stderr}`);
     for (const [path, bytes] of baseline) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
   } finally {
     for (const [path, bytes] of original) writeFileSync(join(repoRoot, path), bytes);
@@ -259,4 +253,12 @@ test('requires every embedded full-check finalizer to enable nested verification
     writeFileSync(path, readFileSync(path, 'utf8').replace('JIG_NESTED_VERIFICATION', 'NESTED_VERIFICATION_REMOVED'));
   });
   assert.ok(errors.some((error) => error.includes('embedded full-check finalizer must set JIG_NESTED_VERIFICATION')));
+});
+
+test('requires check to use the non-writing Phase 0 verification runner', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(path, readFileSync(path, 'utf8').replace(' && pnpm verification:test', ' && pnpm test'));
+  });
+  assert.ok(errors.some((error) => error.includes('package.json must exactly preserve')));
 });

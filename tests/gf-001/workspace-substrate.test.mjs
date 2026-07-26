@@ -22,6 +22,9 @@ const sourceDigest = digestTree(fixtureSource);
 const fixtureObservations = [];
 // biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
 const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
+const fixtureEvidencePath = nestedVerification
+  ? join(tmpdir(), 'gf-001-nested-fixture-evidence.json')
+  : join(repoRoot, 'artifacts', 'gf-001', 'fixture-evidence.json');
 
 function git(...args) {
   return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim();
@@ -52,17 +55,20 @@ function recordObservation(name, summaries) {
 }
 
 process.on('exit', (exitCode) => {
-  if (exitCode !== 0 || nestedVerification) return;
+  if (exitCode !== 0) return;
   const testEnd = {
     candidate: git('rev-parse', 'HEAD'),
     tree: git('rev-parse', 'HEAD^{tree}'),
     status: git('status', '--porcelain', '--untracked-files=no'),
   };
-  if (testEnd.status || testEnd.candidate !== testStart.candidate || testEnd.tree !== testStart.tree) {
+  if (
+    !nestedVerification &&
+    (testEnd.status || testEnd.candidate !== testStart.candidate || testEnd.tree !== testStart.tree)
+  ) {
     process.exitCode = 1;
     return;
   }
-  const outputDir = join(repoRoot, 'artifacts', 'gf-001');
+  const outputDir = resolve(fixtureEvidencePath, '..');
   mkdirSync(outputDir, { recursive: true });
   const base = git('rev-parse', 'origin/main');
   const evidence = {
@@ -83,7 +89,7 @@ process.on('exit', (exitCode) => {
     toolchain: observedToolchain(),
     observations: fixtureObservations,
   };
-  writeFileSync(join(outputDir, 'fixture-evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
+  writeFileSync(fixtureEvidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
 });
 
 function digestTree(root, current = root) {

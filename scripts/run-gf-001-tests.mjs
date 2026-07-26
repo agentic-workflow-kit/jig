@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const rootDir = resolve(import.meta.dirname, '..');
@@ -9,19 +10,26 @@ const fixtureHarness = join('tests', 'gf-001', 'workspace-substrate.test.mjs');
 const evidenceContract = join('tests', 'gf-001', 'evidence.test.mjs');
 // biome-ignore lint/suspicious/noUndeclaredEnvVars: finalizers set this only for their nested full-check observation.
 const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
+const nestedTempDir = nestedVerification ? mkdtempSync(join(tmpdir(), 'jig-gf-001-nested-')) : undefined;
 
 function runTestFile(testFile) {
   const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', testFile], {
     cwd: rootDir,
     encoding: 'utf8',
+    env: nestedTempDir === undefined ? process.env : { ...process.env, TMPDIR: nestedTempDir },
   });
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
   return result;
 }
 
-const results = [runTestFile(fixtureHarness)];
-if (results[0].status === 0 && !results[0].error) results.push(runTestFile(evidenceContract));
+let results;
+try {
+  results = [runTestFile(fixtureHarness)];
+  if (results[0].status === 0 && !results[0].error) results.push(runTestFile(evidenceContract));
+} finally {
+  if (nestedTempDir !== undefined) rmSync(nestedTempDir, { recursive: true, force: true });
+}
 const result = {
   error: results.find((entry) => entry.error)?.error ?? null,
   signal: results.find((entry) => entry.signal)?.signal ?? null,

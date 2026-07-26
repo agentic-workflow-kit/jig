@@ -7,7 +7,11 @@ import test from 'node:test';
 import { writeEvidence } from '../../scripts/write-gf-001-evidence.mjs';
 
 const rootDir = resolve(import.meta.dirname, '../..');
-const capturedFixtureEvidence = join(rootDir, 'artifacts', 'gf-001', 'fixture-evidence.json');
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: the nested runner supplies an isolated temporary fixture output.
+const nestedVerification = process.env.JIG_NESTED_VERIFICATION === '1';
+const capturedFixtureEvidence = nestedVerification
+  ? join(tmpdir(), 'gf-001-nested-fixture-evidence.json')
+  : join(rootDir, 'artifacts', 'gf-001', 'fixture-evidence.json');
 
 function writeFixturePair(tempDir, fixturePayload, fixtureText = `${JSON.stringify(fixturePayload)}\n`) {
   const fixtureEvidencePath = join(tempDir, 'fixture-evidence.json');
