@@ -59,7 +59,7 @@ test('rejects root manifest, local Node line, and pnpm safety drift', () => {
       readFileSync(join(root, 'package.json'), 'utf8').replace('"private": true', '"private": false'),
     ),
   );
-  assert.ok(manifestErrors.some((error) => error.includes('activated GF-001 manifest')));
+  assert.ok(manifestErrors.some((error) => error.includes('package.json must exactly preserve')));
   const nodeErrors = withTempRepo((root) => writeFileSync(join(root, '.nvmrc'), '22\n'));
   assert.ok(nodeErrors.some((error) => error.includes('local Node 26')));
   const pnpmErrors = withTempRepo((root) => writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages: []\n'));
@@ -131,4 +131,65 @@ test('rejects unlisted fixture files and an absent archive anchor', () => {
     throw failure ? new AggregateError([failure, cleanupError], 'archive mutation and cleanup failed') : cleanupError;
   }
   if (failure) throw failure;
+});
+
+test('requires the exact GF-005 kernel, root wiring, and retained evidence surface', () => {
+  const missingKernelErrors = withTempRepo((root) => rmSync(join(root, 'packages/authority-kernel/src/index.ts')));
+  assert.ok(missingKernelErrors.some((error) => error.includes('required active path is missing')));
+  const unlistedSiblingErrors = withTempRepo((root) =>
+    writeFileSync(join(root, 'tests/gf-005/unlisted-sibling.test.mjs'), 'export {};\n'),
+  );
+  assert.ok(unlistedSiblingErrors.some((error) => error.includes('unexpected active path')));
+  const privateErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"private": true',
+        '"private": false',
+      ),
+    ),
+  );
+  assert.ok(privateErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
+  const dependencyErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"@agentic-workflow-kit/jig-codec": "workspace:*"',
+        '"@agentic-workflow-kit/jig-codec": "workspace:*", "node:fs": "workspace:*"',
+      ),
+    ),
+  );
+  assert.ok(dependencyErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
+  const exportErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"exports": "./dist/index.js"',
+        '"exports": "./src/index.ts"',
+      ),
+    ),
+  );
+  assert.ok(exportErrors.some((error) => error.includes('GF-005 authority-kernel manifest')));
+  const rootTestErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'package.json'),
+      readFileSync(join(root, 'package.json'), 'utf8').replace(' && node scripts/run-gf-005-tests.mjs', ''),
+    ),
+  );
+  assert.ok(rootTestErrors.some((error) => error.includes('package.json must exactly preserve')));
+  const rootEvidenceErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'package.json'),
+      readFileSync(join(root, 'package.json'), 'utf8').replace(' && node scripts/finalize-gf-005-evidence.mjs', ''),
+    ),
+  );
+  assert.ok(rootEvidenceErrors.some((error) => error.includes('package.json must exactly preserve')));
+  const workflowErrors = withTempRepo((root) => {
+    const path = join(root, '.github/workflows/check.yml');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('            artifacts/gf-005/finalization-receipt.json\n', ''),
+    );
+  });
+  assert.ok(workflowErrors.some((error) => error.includes('GF-005 evidence retention')));
 });

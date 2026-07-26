@@ -72,6 +72,10 @@ jobs:
             artifacts/gf-002/evidence.json
             artifacts/gf-003/evidence.json
             artifacts/gf-004/evidence.json
+            artifacts/gf-005/results.json
+            artifacts/gf-005/observations.json
+            artifacts/gf-005/evidence.json
+            artifacts/gf-005/finalization-receipt.json
           if-no-files-found: error
           retention-days: 90`;
 
@@ -130,9 +134,9 @@ const expectedScripts = {
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
-  test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs',
+  test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs && node scripts/run-gf-005-tests.mjs',
   'evidence:write':
-    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs',
+    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs',
   check:
     'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
 };
@@ -141,7 +145,7 @@ const expectedManifest = {
   name: '@agentic-workflow-kit/jig-repo',
   version: '0.0.0',
   description:
-    'Jig active GF-001 substrate, GF-002 canonical codec, GF-003 topology contracts, and GF-004 private conformance harness; product runtime behavior remains unimplemented.',
+    'Jig active GF-001 substrate, GF-002 canonical codec, GF-003 topology contracts, GF-004 private conformance harness, and GF-005 private pure authority kernel; product runtime behavior remains unimplemented.',
   private: true,
   type: 'module',
   packageManager: 'pnpm@11.9.0',
@@ -194,6 +198,11 @@ const requiredPaths = [
   'scripts/finalize-gf-004-evidence.mjs',
   'scripts/finalize-gf-002-evidence.mjs',
   'scripts/finalize-gf-003-evidence.mjs',
+  'scripts/run-gf-005-tests.mjs',
+  'scripts/check-gf-005-authority.mjs',
+  'scripts/check-gf-005-authority.test.mjs',
+  'scripts/check-gf-005-evidence.mjs',
+  'scripts/finalize-gf-005-evidence.mjs',
   'scripts/write-gf-001-evidence.mjs',
   'scripts/write-gf-002-evidence.mjs',
   'tests/gf-001/evidence-contract.json',
@@ -217,6 +226,13 @@ const requiredPaths = [
   'tests/gf-004/conformance.test.mjs',
   'tests/gf-004/evidence-contract.test.mjs',
   'tests/fixtures/gf-004/oracle.json',
+  'tests/gf-005/authority-kernel.test.mjs',
+  'tests/gf-005/evidence-contract.test.mjs',
+  'tests/fixtures/gf-005/authority-oracle.json',
+  'tests/fixtures/gf-005/evidence-contract.json',
+  'packages/authority-kernel/package.json',
+  'packages/authority-kernel/tsconfig.json',
+  'packages/authority-kernel/src/index.ts',
 ];
 
 const allowedRootFiles = new Set([
@@ -360,7 +376,9 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     manifest = null;
   }
   if (canonical(manifest) !== canonical(expectedManifest))
-    errors.push('package.json must exactly preserve the activated GF-001 manifest, scripts, and owned toolchain');
+    errors.push(
+      'package.json must exactly preserve the activated GF-001 manifest, scripts, and owned toolchain, including the exact GF-005 surface',
+    );
   if (readFileSync(join(rootDir, '.nvmrc'), 'utf8') !== '26\n')
     errors.push('.nvmrc must exactly preserve the approved local Node 26 line');
   if (existsSync(join(rootDir, '.npmrc')))
@@ -377,11 +395,12 @@ export function validateActiveRepository(rootDir = process.cwd()) {
         { path: './packages/codec' },
         { path: './packages/runtime-contracts' },
         { path: './packages/conformance' },
+        { path: './packages/authority-kernel' },
       ],
     })
   )
     errors.push(
-      'tsconfig.json must bind exactly the tooling substrate, GF-002 codec, GF-003 topology, and GF-004 conformance contracts',
+      'tsconfig.json must bind exactly the tooling substrate and GF-002 through GF-005 private pure contracts',
     );
   const runtimeManifestPath = join(rootDir, 'packages/runtime-contracts/package.json');
   if (existsSync(runtimeManifestPath)) {
@@ -419,6 +438,57 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     })
   )
     errors.push('GF-004 conformance manifest must remain a private codec/runtime-contract-only harness');
+  const authorityManifestPath = join(rootDir, 'packages/authority-kernel/package.json');
+  if (existsSync(authorityManifestPath)) {
+    const authorityManifest = JSON.parse(readFileSync(authorityManifestPath, 'utf8'));
+    if (
+      canonical(authorityManifest) !==
+      canonical({
+        name: '@agentic-workflow-kit/jig-authority-kernel',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        exports: './dist/index.js',
+        types: './dist/index.d.ts',
+        scripts: {
+          build: 'tsc --build',
+          typecheck: 'tsc --build --noEmit',
+          'evidence:check': 'node ../../scripts/check-gf-005-evidence.mjs',
+        },
+        dependencies: { '@agentic-workflow-kit/jig-codec': 'workspace:*' },
+      })
+    )
+      errors.push('GF-005 authority-kernel manifest must remain a private codec-only pure contract package');
+  }
+  const authorityConfigPath = join(rootDir, 'packages/authority-kernel/tsconfig.json');
+  if (existsSync(authorityConfigPath)) {
+    const authorityConfig = JSON.parse(readFileSync(authorityConfigPath, 'utf8'));
+    if (
+      canonical(authorityConfig) !==
+      canonical({
+        extends: '../../tsconfig.base.json',
+        compilerOptions: {
+          outDir: 'dist',
+          rootDir: 'src',
+          lib: ['ES2022', 'DOM'],
+          paths: { '@agentic-workflow-kit/jig-codec': ['../codec/src/index.ts'] },
+        },
+        include: ['src/**/*.ts'],
+        references: [{ path: '../codec' }],
+      })
+    )
+      errors.push('GF-005 authority-kernel TypeScript configuration must remain an isolated codec-only pure package');
+  }
+  const authoritySourcePath = join(rootDir, 'packages/authority-kernel/src/index.ts');
+  if (existsSync(authoritySourcePath)) {
+    const authoritySource = readFileSync(authoritySourcePath, 'utf8');
+    const authorityImports = [...authoritySource.matchAll(/^import .* from '([^']+)';$/gm)].map((match) => match[1]);
+    if (
+      canonical(authorityImports) !== canonical(['@agentic-workflow-kit/jig-codec']) ||
+      /from ['"]node:|\b(?:fetch|readFile|writeFile|spawn)\s*\(/i.test(authoritySource)
+    )
+      errors.push('GF-005 authority-kernel source must retain the no-provider, no-adapter, no-I/O pure import surface');
+  }
   const codecManifest = JSON.parse(readFileSync(join(rootDir, 'packages/codec/package.json'), 'utf8'));
   if (
     canonical(codecManifest) !==
@@ -449,11 +519,17 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     errors.push('turbo.json must exactly preserve the canonical active GF-001 task, input, output, and cache graph');
   if (readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').trim() !== expectedWorkflow.trim()) {
     errors.push(
-      'check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract',
+      'check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract, including exact GF-005 retention',
     );
     for (const [name, action] of Object.entries(immutableActions))
       if (!readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').includes(action))
         errors.push(`check workflow is missing immutable ${name} action pin`);
+    if (
+      !readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').includes(
+        'artifacts/gf-005/finalization-receipt.json',
+      )
+    )
+      errors.push('check workflow is missing exact GF-005 evidence retention');
   }
 
   try {
@@ -481,6 +557,6 @@ if (process.argv[1]?.endsWith('check-active-repository.mjs')) {
     process.exitCode = 1;
   } else
     console.log(
-      `Active repository structure check passed (GF-001 substrate plus GF-002 pure codec; archive ${archiveRef} -> ${archiveCommit}).`,
+      `Active repository structure check passed (GF-001 substrate through GF-005 pure contracts; archive ${archiveRef} -> ${archiveCommit}).`,
     );
 }

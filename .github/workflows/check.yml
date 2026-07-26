@@ -54,5 +54,9 @@ jobs:
             artifacts/gf-002/evidence.json
             artifacts/gf-003/evidence.json
             artifacts/gf-004/evidence.json
+            artifacts/gf-005/results.json
+            artifacts/gf-005/observations.json
+            artifacts/gf-005/evidence.json
+            artifacts/gf-005/finalization-receipt.json
           if-no-files-found: error
           retention-days: 90

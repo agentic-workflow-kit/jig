@@ -52,7 +52,9 @@ test('rejects product source roots and extra runtime packages', () => {
     writeFileSync(join(root, 'packages', 'runtime', 'package.json'), '{"name":"runtime"}\n');
   });
   assert.ok(
-    packageErrors.some((error) => error.includes('pure codec, private runtime-contracts, and private conformance')),
+    packageErrors.some((error) =>
+      error.includes('pure codec, private runtime-contracts, private conformance, and private authority-kernel'),
+    ),
   );
 });
 

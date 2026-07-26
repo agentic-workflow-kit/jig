@@ -21,13 +21,13 @@ importers:
         specifier: 5.8.2
         version: 5.8.2
 
-  packages/codec: {}
-
-  packages/runtime-contracts:
+  packages/authority-kernel:
     dependencies:
       '@agentic-workflow-kit/jig-codec':
         specifier: workspace:*
         version: link:../codec
+
+  packages/codec: {}
 
   packages/conformance:
     dependencies:
@@ -37,6 +37,12 @@ importers:
       '@agentic-workflow-kit/jig-runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
+
+  packages/runtime-contracts:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
 
 packages:
 

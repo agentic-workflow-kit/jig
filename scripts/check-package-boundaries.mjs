@@ -156,8 +156,13 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
   const packagesRoot = join(rootDir, 'packages');
   if (existsSync(packagesRoot)) {
     const packageEntries = readdirSync(packagesRoot).sort();
-    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec', 'conformance', 'runtime-contracts']))
-      errors.push('GF-004 permits only the pure codec, private runtime-contracts, and private conformance packages');
+    if (
+      JSON.stringify(packageEntries) !==
+      JSON.stringify(['authority-kernel', 'codec', 'conformance', 'runtime-contracts'])
+    )
+      errors.push(
+        'GF-005 permits only the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
+      );
     const codecRoot = join(packagesRoot, 'codec');
     const codecFiles = listFiles(codecRoot)
       .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
@@ -232,6 +237,26 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       /\b(fetch|process|require)\b/.test(source)
     )
       errors.push('GF-004 conformance must not add an effect, provider, filesystem, process, or network dependency');
+  }
+
+  const authorityRoot = join(rootDir, 'packages', 'authority-kernel');
+  if (existsSync(authorityRoot)) {
+    const manifest = JSON.parse(readFileSync(join(authorityRoot, 'package.json'), 'utf8'));
+    if (
+      manifest.name !== '@agentic-workflow-kit/jig-authority-kernel' ||
+      manifest.private !== true ||
+      JSON.stringify(manifest.dependencies) !== JSON.stringify({ '@agentic-workflow-kit/jig-codec': 'workspace:*' }) ||
+      manifest.bin ||
+      manifest.publishConfig ||
+      manifest.scripts?.start
+    )
+      errors.push('GF-005 authority-kernel must remain private, codec-only, and non-runnable');
+    const source = readFileSync(join(authorityRoot, 'src/index.ts'), 'utf8');
+    if (
+      /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(source) ||
+      /\b(dispatch|adapter|provider|credential|fetch|process|require|setTimeout|Date)\b/i.test(source)
+    )
+      errors.push('GF-005 authority-kernel must not add an effect, provider, clock, dispatch, or process capability');
   }
 
   const fixtureDir = join(rootDir, fixtureRoot);

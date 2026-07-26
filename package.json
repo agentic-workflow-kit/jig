@@ -1,7 +1,7 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig active GF-001 substrate, GF-002 canonical codec, GF-003 topology contracts, and GF-004 private conformance harness; product runtime behavior remains unimplemented.",
+  "description": "Jig active GF-001 substrate, GF-002 canonical codec, GF-003 topology contracts, GF-004 private conformance harness, and GF-005 private pure authority kernel; product runtime behavior remains unimplemented.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -29,8 +29,8 @@
     "typecheck": "tsc --build tsconfig.json",
     "boundaries:check": "node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs",
     "runtime:check": "node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs",
-    "test": "node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs",
-    "evidence:write": "node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs",
+    "test": "node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs && node scripts/run-gf-005-tests.mjs",
+    "evidence:write": "node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test"
   },
   "devDependencies": {
