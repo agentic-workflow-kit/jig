@@ -136,7 +136,7 @@ const expectedScripts = {
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
   test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs && node scripts/run-gf-005-tests.mjs',
   'evidence:write':
-    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs',
+    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs',
   check:
     'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
 };

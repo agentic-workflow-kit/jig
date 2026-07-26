@@ -193,3 +193,22 @@ test('requires the exact GF-005 kernel, root wiring, and retained evidence surfa
   });
   assert.ok(workflowErrors.some((error) => error.includes('GF-005 evidence retention')));
 });
+
+test('requires GF-002 evidence finalization after every other Phase 0 evidence producer', () => {
+  const expectedEvidenceWrite =
+    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs';
+  const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  assert.equal(manifest.scripts['evidence:write'], expectedEvidenceWrite);
+
+  const orderingErrors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace(
+        'node scripts/finalize-gf-005-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs',
+        'node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-005-evidence.mjs',
+      ),
+    );
+  });
+  assert.ok(orderingErrors.some((error) => error.includes('package.json must exactly preserve')));
+});
