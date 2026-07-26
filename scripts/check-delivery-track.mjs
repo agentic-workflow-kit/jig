@@ -24,7 +24,6 @@ const STORY_KEYS = [
   'outcome',
   'oracle',
   'status',
-  'baseline_commit',
   'product_routes',
   'imported_commitments',
 ];
@@ -937,14 +936,12 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     ? delegationRegisterScopes(readText('docs/redesign/design/delegation-register.md'))
     : new Map();
   for (const story of storyRecords) {
-    if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 16 story fields`);
+    if (!exactKeys(story, STORY_KEYS)) errors.push(`${story.id} must have exactly the 15 story fields`);
     if (typeof story.title !== 'string' || story.title.trim() === '')
       errors.push(`${story.id} title must be a nonempty string`);
     if (typeof story.outcome !== 'string' || story.outcome.trim() === '')
       errors.push(`${story.id} outcome must be a nonempty string`);
     if (story.status !== 'proposed') errors.push(`${story.id} status must be proposed`);
-    if (story.baseline_commit !== 'b860891d9102e0bdda1d23def81b1b974a4a26ac')
-      errors.push(`${story.id} baseline_commit must equal the immutable planning provenance`);
     const governingPaths = nonemptyUniqueStringArray(
       story.governing_paths,
       `${story.id} governing_paths must be an array`,
@@ -1044,9 +1041,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     const parsed = parseStrictFrontMatter(readText(story.story_file));
     if (parsed.error) errors.push(`${story.id} ${parsed.error}`);
     else if (!exactKeys(parsed.fields, STORY_KEYS))
-      errors.push(`${story.id} front matter must use exactly the 16 canonical fields`);
+      errors.push(`${story.id} front matter must use exactly the 15 canonical fields`);
     else if (!exact(parsed.fields, story))
-      errors.push(`${story.id} front matter must exactly match all 16 track fields`);
+      errors.push(`${story.id} front matter must exactly match all 15 track fields`);
     if (!parsed.error) {
       const mappingSection = storyMappingSection(parsed.narrative);
       const resolvedGoverningPaths = governingPaths.filter(

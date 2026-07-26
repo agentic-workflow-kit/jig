@@ -165,7 +165,6 @@
         "failure-isolation fixture"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-16", "PC-JIG-20"],
       "imported_commitments": []
     },
@@ -218,7 +217,6 @@
         "reject noncanonical/ambiguous/oversized input"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": []
     },
@@ -274,7 +272,6 @@
         "validated fake transports"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-2",
         "PC-JIG-8",
@@ -372,7 +369,6 @@
         "evidence freshness rejection"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-15", "PC-JIG-16", "PC-CONCEPTS-5", "PC-USE-5"],
       "imported_commitments": [
         "STACK-1",
@@ -430,7 +426,6 @@
         "replay permutations"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": []
     },
@@ -489,7 +484,6 @@
         "FC-TRUST on fork/rollback"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": []
     },
@@ -530,7 +524,6 @@
       "outcome": "Generation fencing, deterministic replay, optional projections, and verified recovery observation.",
       "oracle": ["CF-FENCE", "CF-RUN-CONTROL", "CF-ORDERING"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-2", "PC-USE-4"],
       "imported_commitments": [
         "FENCE-1",
@@ -582,7 +575,6 @@
       "outcome": "Deterministic waiter/grant/rebind/release under an independently witnessed registry.",
       "oracle": ["CF-ORDER", "CF-MECH-LEDGER", "concurrency/crash tests"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": []
     },
@@ -636,7 +628,6 @@
         "protected/disposable guard corpus"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-USE-6"],
       "imported_commitments": []
     },
@@ -685,7 +676,6 @@
         "hostile evidence corpus"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-USE-6"],
       "imported_commitments": ["SEC-1", "SEC-2", "SEC-3"]
     },
@@ -748,7 +738,6 @@
         "crash-at-boundary corpus"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-2", "PC-USE-4"],
       "imported_commitments": [
         "FENCE-1",
@@ -801,7 +790,6 @@
       "outcome": "Exact Work Source contract and validation using a scripted fixture only.",
       "oracle": ["CF-ENVELOPE", "CF-MECH-SOURCE", "hostile source corpus"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-2",
         "PC-README-3",
@@ -868,7 +856,6 @@
       "outcome": "The initial structured JSON file source becomes configurable only after exact provider evidence.",
       "oracle": ["CF-MECH-SOURCE", "CF-GATE-PROVIDER"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-3",
         "PC-JIG-1",
@@ -954,7 +941,6 @@
       "outcome": "Immutable policy floors, work profiles, setup declarations, composition, and validated bound ranges.",
       "oracle": ["CF-POLICY", "CF-SETUP-FRESHNESS"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-3",
         "PC-JIG-1",
@@ -1030,7 +1016,6 @@
       "outcome": "Owner-approved manifests and bounded proof production/admission; unsupported provider modes remain unconfigurable.",
       "oracle": ["CF-PROVIDER-AUTHORITY", "CF-SECRET-ABSENCE"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-3",
         "PC-JIG-1",
@@ -1129,7 +1114,6 @@
       "outcome": "Preview plus separate exact Arye approvals for proposal and provider manifest without creating a Run or dispatch.",
       "oracle": ["CF-ENVELOPE", "CF-CONSUMER", "negative authority corpus"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-3",
         "PC-JIG-1",
@@ -1211,7 +1195,6 @@
         "five-way readback and witness-independence probes"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-15", "PC-JIG-16", "PC-CONCEPTS-5", "PC-USE-5"],
       "imported_commitments": [
         "STACK-1",
@@ -1276,7 +1259,6 @@
         "protected/disposable routing and pin-witness probes"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-15", "PC-JIG-16", "PC-CONCEPTS-5", "PC-USE-5"],
       "imported_commitments": [
         "STACK-1",
@@ -1351,7 +1333,6 @@
         "successor crash/second-winner corpus"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-2",
         "PC-README-3",
@@ -1428,7 +1409,6 @@
         "CF-RUN-CONTROL"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-1",
         "PC-JIG-6",
@@ -1486,7 +1466,6 @@
       "outcome": "Deterministic capacity admission, seven RC classes, reserves, and immutable comparator order.",
       "oracle": ["CF-CAPACITY", "CF-ORDER", "starvation/property corpus"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-CONCEPTS-2", "PC-CONCEPTS-9", "PC-USE-1"],
       "imported_commitments": ["ISO-1", "ISO-2", "ISO-3", "ISO-4"]
     },
@@ -1554,7 +1533,6 @@
         "boundary/exhaustion/replay corpus"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-23", "PC-JIG-25", "PC-USE-1"],
       "imported_commitments": [
         "ISO-1",
@@ -1613,7 +1591,6 @@
       "outcome": "Scripted workspace contract with stable host/workspace/basis/cleanliness/setup/preservation facts.",
       "oracle": ["CF-MECH-WORKSPACE", "CF-SETUP-FRESHNESS"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-8", "PC-JIG-18", "PC-CONCEPTS-3", "PC-USE-1"],
       "imported_commitments": ["ISO-1", "ISO-2", "ISO-3", "ISO-4"]
     },
@@ -1672,7 +1649,6 @@
       "outcome": "Logical session lifecycle and scripted provider with fenced assignment/reconnect semantics.",
       "oracle": ["CF-MECH-SESSION", "CF-PROVIDER-PERMISSION"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-8", "PC-JIG-9", "PC-CONCEPTS-3", "PC-USE-2"],
       "imported_commitments": [
         "FENCE-1",
@@ -1746,7 +1722,6 @@
       "outcome": "Exact Candidate minting and fresh logical assignment for every bounded rework turn.",
       "oracle": ["CF-BINDING", "CF-RUN-CONTROL", "crash/replay corpus"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-8", "PC-CONCEPTS-3"],
       "imported_commitments": []
     },
@@ -1807,7 +1782,6 @@
         "CF-PROVIDER-PERMISSION"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-5",
         "PC-JIG-6",
@@ -1873,7 +1847,6 @@
       "outcome": "Frozen-input revalidation, suspend/resume, and an atomic D16 terminal-stop Settlement-overlay opening with complete duties and first permitted intent bases, but no duty progress or completion.",
       "oracle": ["CF-RULE-SURFACE", "CF-RUN-CONTROL", "CF-FENCE"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-1",
         "PC-JIG-2",
@@ -1943,7 +1916,6 @@
       "outcome": "Bounded absent/open/accepted-handoff/resolved obligations with durable overdue re-escalation.",
       "oracle": ["CF-OPERATOR-ACTIONS", "CF-BOUNDS", "CF-PRESERVATION"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-5", "PC-USE-7"],
       "imported_commitments": []
     },
@@ -1983,7 +1955,6 @@
       "outcome": "Initial qualified local Git worktree host; remote and Windows modes remain unconfigurable.",
       "oracle": ["CF-MECH-WORKSPACE", "CF-GATE-PROVIDER"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-8",
         "PC-JIG-15",
@@ -2061,7 +2032,6 @@
       "outcome": "Independent review package/findings/verdict and Accepted only on exact valid approval.",
       "oracle": ["CF-ACCEPTANCE", "CF-BINDING", "CF-POLICY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-1",
         "PC-JIG-8",
@@ -2130,7 +2100,6 @@
       "outcome": "A typed fixed pre-assignment review-publication observation, or canonical explicit absence, with no acceptance/landing power.",
       "oracle": ["CF-REVIEW-PUBLICATION", "CF-MECH-DELIVERY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-11", "PC-CONCEPTS-6"],
       "imported_commitments": [
         "MERGE-1",
@@ -2202,7 +2171,6 @@
       "outcome": "Exact-subject, effect-free verification contract and scripted fixture; policy cannot choose sufficiency here.",
       "oracle": ["CF-MECH-VERIFY", "CF-POLICY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-8", "PC-JIG-10", "PC-CONCEPTS-3"],
       "imported_commitments": [
         "EARN-1",
@@ -2298,7 +2266,6 @@
       "outcome": "Comparator-least serialized finalization, target anchor, refresh/rebind/re-review, and a mode-bound in-Finalizing verification gate before target-changing delivery.",
       "oracle": ["CF-ORDER", "CF-FENCE", "CF-CAPACITY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": [
         "MERGE-1",
@@ -2380,7 +2347,6 @@
       "outcome": "Scripted final delivery with effect certainty, content-equivalent landing proof, and release only after authoritative landing.",
       "oracle": ["CF-RELEASE", "CF-DOUBLE-EFFECT", "CF-MECH-DELIVERY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-1", "PC-JIG-25", "PC-CONCEPTS-2"],
       "imported_commitments": [
         "MERGE-1",
@@ -2421,7 +2387,6 @@
       "outcome": "One authorized block marker and durable notice/obligation basis; failure leaves Blocked and releases no dependent.",
       "oracle": ["CF-BLOCK-SURFACING"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [],
       "imported_commitments": [
         "MERGE-1",
@@ -2516,7 +2481,6 @@
       "outcome": "Preserve-before-destroy retirement of sessions, workspaces, review refs, authority, artifacts, and controller; cleanup cannot alter business outcome.",
       "oracle": ["CF-SEPARATION", "CF-PRESERVATION"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-USE-6"],
       "imported_commitments": [
         "MERGE-1",
@@ -2569,7 +2533,6 @@
       "outcome": "The initial local command verifier becomes configurable only after exact effect-free verification evidence; remote-gate facts remain on PORT-DELIVERY.",
       "oracle": ["CF-MECH-VERIFY", "CF-GATE-PROVIDER"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-8", "PC-JIG-15", "PC-CONCEPTS-3", "PC-USE-5"],
       "imported_commitments": [
         "EARN-1",
@@ -2665,7 +2628,6 @@
       "outcome": "Progress and seal of one existing phase-preserving Stopped overlay with deterministic duty/no-settlement semantics and no terminal-entry authority.",
       "oracle": ["CF-RUN-CONTROL", "CF-PRESERVATION", "CF-TRUST-STOP"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-1",
         "PC-JIG-6",
@@ -2763,7 +2725,6 @@
       "outcome": "Read-only projections rebuildable from a stated ledger position; no controller-memory-only explanation.",
       "oracle": ["CF-OBSERVABILITY"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-1",
         "PC-JIG-4",
@@ -2830,7 +2791,6 @@
       "outcome": "Terminal/append-only-file notice channel whose durable facts, not channel behavior, determine urgency/content.",
       "oracle": ["CF-NOTICE-EXPORT", "CF-BLOCK-SURFACING"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-1", "PC-USE-6"],
       "imported_commitments": [
         "SEE-1",
@@ -2915,7 +2875,6 @@
         "CF-SECRET-ABSENCE"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": ["PC-JIG-1", "PC-USE-6"],
       "imported_commitments": [
         "SEE-1",
@@ -2982,7 +2941,6 @@
       "outcome": "Stable private SDK delegates to owning ports without direct controller/store access or a public semver promise.",
       "oracle": ["CF-CONSUMER"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-3",
         "PC-JIG-4",
@@ -3040,7 +2998,6 @@
       "outcome": "Thin operator-initiated CLI with redacted human/machine results and SDK-equivalent authority.",
       "oracle": ["CF-CONSUMER", "CLI E2E parity"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-3",
         "PC-JIG-4",
@@ -3072,7 +3029,6 @@
       "outcome": "Private stdio MCP adapter preserving SDK schemas, principal binding, and terminal semantics.",
       "oracle": ["CF-CONSUMER", "SDK/CLI/MCP parity"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-3",
         "PC-JIG-4",
@@ -3154,7 +3110,6 @@
         "CF-GATE-PROVIDER"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-8",
         "PC-JIG-11",
@@ -3253,7 +3208,6 @@
         "CF-GATE-PROVIDER"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-8",
         "PC-JIG-9",
@@ -3351,7 +3305,6 @@
       "outcome": "Qualified GitHub final-delivery provider for authorized target-changing effects; review publication remains a separately qualified subject.",
       "oracle": ["CF-MECH-DELIVERY", "CF-BLOCK-SURFACING", "CF-GATE-PROVIDER"],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-JIG-8",
         "PC-JIG-15",
@@ -3694,7 +3647,6 @@
         "exact CER bundle"
       ],
       "status": "proposed",
-      "baseline_commit": "b860891d9102e0bdda1d23def81b1b974a4a26ac",
       "product_routes": [
         "PC-README-1",
         "PC-README-2",

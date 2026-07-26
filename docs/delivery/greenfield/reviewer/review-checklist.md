@@ -106,6 +106,10 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
       `Q` path-set byte/type/mode equality reproducing `Q`'s digest. Add/remove/rename/mode/byte
       drift, or missing/ambiguous evidence, requires a new `Q`, external `R`, and approved `P`; the
       landed commit is not itself treated as reviewed.
+- [ ] The candidate carries no pinned delivery-process constants in source, tests, fixtures, or CI
+      config (commit SHAs, tree hashes, branch names, PR/issue URLs, verdicts, approval records,
+      package digests, or story IDs used as identifiers). Exact-subject evidence is present as a
+      generated artifact, not a committed assertion.
 - [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content evidence proves
       every required predecessor landing is contained in that base; an unreviewed branch does not
       satisfy a dependency.

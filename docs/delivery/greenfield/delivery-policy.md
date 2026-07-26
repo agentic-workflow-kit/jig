@@ -38,11 +38,10 @@ independent review rather than speculative scaffolding or retrospective proof.
    approved package `P` and immutable planning/authority provenance; any required external
    authoritative landing-equivalence record; activation target scope; selected realization tuple; and
    expiry/revocation. Generic authorization cannot pass. Its predecessors
-   must have verified landing evidence contained in the observed
-   implementation-candidate base. The front-matter `baseline_commit` remains immutable planning/
-   authority provenance; it is not a rolling execution base. The attempt must identify the
-   approved delivery package `P` it executes and any required authoritative landing-equivalence
-   record.
+   must have verified landing evidence contained in the observed implementation-candidate base.
+   Record that provenance in the external durable activation record, reviewer packet, or PR review
+   record, and verify it at readiness. The attempt must identify the approved delivery package `P`
+   it executes and any required authoritative landing-equivalence record.
 2. Treat the product and approved redesign as authority. The delivery track may select only an
    explicitly delegated `DR-*` realization choice, record its owner/constraints/evidence/fallback,
    and stop for `OWNER_DECISION_REQUIRED` outside that grant.
@@ -77,8 +76,9 @@ independent review rather than speculative scaffolding or retrospective proof.
 10. A passing local check is evidence, not approval. Every implementation candidate needs an
     independent implementation-candidate review under the reviewer packet; that protocol reviews
     the story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
-    corpus review or digest computation. It still binds approved `P` and records a current 67-file
-    normative-corpus comparison.
+    corpus review or digest computation. At candidate freeze, record approved `P`, the current
+    67-file normative-corpus comparison, and exact-subject evidence in the external reviewer
+    packet or PR review record; the independent reviewer verifies them at review.
 11. Every correction loop searches sibling occurrences of the same defect across the exact
     manifest, briefs, inventories, routes, and evidence before reporting it fixed.
 12. A post-edit re-review always freezes a new subject: any edit to candidate source,
@@ -88,14 +88,17 @@ independent review rather than speculative scaffolding or retrospective proof.
     the authorized recording after `Accepted` of final-verification observations already required
     by that unchanged reviewed candidate, posture, check-class set, configuration/environment, and
     binding. Those observations are continuation evidence, not an edit to the reviewed subject, and
-    do not by themselves reopen review.
+    do not by themselves reopen review. Record and verify each replacement tuple only at its
+    candidate freeze and review in the external durable reviewer record; do not encode it as a
+    permanent repo-resident assertion.
 13. Keep the two review protocols distinct. For delivery-package review, the coordinator freezes
     pre-verdict `Q` and supplies checks/evidence separately. An independent reviewer verifies the
     manifest's full story corpus and writes external `R`; only `PASS` creates `P`. An
     implementation-candidate review freezes one story tuple: observed base ref/commit/tree,
     candidate commit/tree, merge-base equality, predecessor containment, approved `P` binding,
-    current normative-corpus comparison, owned path set, and exact evidence. It permits story-owned
-    source and configuration paths and does not require a fresh package digest or full corpus
+    current normative-corpus comparison, owned path set, and exact evidence in the external
+    reviewer packet; the independent reviewer verifies that tuple at review. It permits
+    story-owned source and configuration paths and does not require a fresh package digest or full corpus
     review. Its verdict binds only that implementation tuple; it never mints or redefines `P`. A
     squash-produced landed commit may have a different OID without fresh package review
     only when an external authoritative landing-equivalence record binds approved `P` (and thus its
@@ -130,6 +133,14 @@ independent review rather than speculative scaffolding or retrospective proof.
     package digest into `track.json`, validator constants, fixtures, or candidate-authored review
     prose. Any package byte or path-set change invalidates `Q` and requires fresh package review;
     the 67-file normative digest is corpus-drift evidence only.
+16. Keep delivery-process state out of repository source, tests, fixtures, and CI configuration.
+    Do not commit commit SHAs, tree hashes, branch names, PR or issue URLs, review verdicts,
+    approval records, package digests, or story IDs used as identifiers in file, directory, or
+    script names. Tests remain per-story work named and organized by the package or behavior under
+    test; oracle fixtures remain named for the oracle; and one generic evidence writer may accept
+    a story ID as a CI-time argument and write artifacts uploaded by the workflow. Provenance facts
+    are verified when asserted; re-verifying them forever produces no information and creates
+    failures on ordinary squash-merge.
 
 ## Required evidence ladder
 
