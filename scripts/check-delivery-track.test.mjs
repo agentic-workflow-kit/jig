@@ -908,7 +908,10 @@ test('structure check reports deleted governed paths and malformed package scrip
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
     assert.doesNotMatch(result.stderr, /TypeError/);
   });
 });
@@ -920,7 +923,10 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -930,20 +936,26 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
   });
   gitFixture((dir) => {
     mkdirSync(join(dir, 'src'));
     writeFileSync(join(dir, 'src/unsafe.mjs'), 'export const unsafe = true;\n');
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /GF-001 substrate repository has unexpected active path: src\/unsafe\.mjs/);
+    assert.match(result.stderr, /workspace substrate repository has unexpected active path: src\/unsafe\.mjs/);
   });
   gitFixture((dir) => {
     writeFileSync(join(dir, 'docs/product/package.json'), '{"private":true}\n');
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /GF-001 substrate repository has unexpected active path: docs\/product\/package\.json/);
+    assert.match(
+      result.stderr,
+      /workspace substrate repository has unexpected active path: docs\/product\/package\.json/,
+    );
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -952,7 +964,10 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -961,7 +976,10 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
   });
   gitFixture((dir) => {
     const p = join(dir, 'package.json');
@@ -970,7 +988,10 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
     writeFileSync(p, `${JSON.stringify(manifest, null, 2)}\n`);
     const result = runStructureCheck(dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package\.json must exactly preserve the activated GF-001 manifest/);
+    assert.match(
+      result.stderr,
+      /package\.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface/,
+    );
   });
   gitFixture((dir) => {
     const p = join(dir, 'pnpm-workspace.yaml');
@@ -1000,7 +1021,7 @@ test('CI runs the immutable structure preflight before the mutable pipeline and 
     const result = runStructureCheck(dir);
     assert.doesNotMatch(
       result.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
 
     writeFileSync(
@@ -1015,7 +1036,7 @@ test('CI runs the immutable structure preflight before the mutable pipeline and 
     assert.notEqual(mutated.status, 0);
     assert.match(
       mutated.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
   }));
 test('CI preflight must be unconditional, failure-blocking, and in the check job', () => {
@@ -1037,7 +1058,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
       assert.notEqual(result.status, 0);
       assert.match(
         result.stderr,
-        /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+        /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
       );
     });
 
@@ -1054,7 +1075,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
   });
 
@@ -1071,7 +1092,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
   });
 
@@ -1088,7 +1109,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
   });
 
@@ -1110,7 +1131,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract/,
+      /check workflow must strictly match the approved least-privilege and evidence-retention contract/,
     );
   });
 });

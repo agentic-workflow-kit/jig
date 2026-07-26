@@ -130,6 +130,39 @@ test('rejects effectful imports and prohibited exported surfaces without scannin
   );
 });
 
+test('rejects unbound prohibited ambient capability reads without rejecting local bindings', () => {
+  const ambientErrors = withPurePackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'authority-kernel', 'src', 'index.ts'),
+      `${readFileSync(join(root, 'packages', 'authority-kernel', 'src', 'index.ts'), 'utf8')}\nexport const observedAt = Date.now();\nexport const hostProcess = globalThis.process;\n`,
+    ),
+  );
+  assert.ok(
+    ambientErrors.some((error) => error.includes('authority-kernel must not read prohibited ambient capability: Date')),
+  );
+  assert.ok(
+    ambientErrors.some((error) =>
+      error.includes('authority-kernel must not read prohibited ambient capability: globalThis'),
+    ),
+  );
+
+  const locallyBoundErrors = withPurePackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'authority-kernel', 'src', 'index.ts'),
+      "import { parseIdentity } from '@agentic-workflow-kit/jig-codec';\nconst Date = { now: () => 0 };\nconst globalThis = { process: null };\nexport const observedAt = Date.now();\nexport const hostProcess = globalThis.process;\nexport const kernel = parseIdentity;\n",
+    ),
+  );
+  assert.equal(
+    locallyBoundErrors.some((error) => error.includes('must not read prohibited ambient capability')),
+    false,
+  );
+});
+
+test('fails closed when a pure package source entry point is missing', () => {
+  const errors = withPurePackages((root) => rmSync(join(root, 'packages', 'authority-kernel', 'src', 'index.ts')));
+  assert.ok(errors.some((error) => error.includes('authority-kernel source entry point is missing')));
+});
+
 test('rejects runtime-capable package entrypoints and lifecycle scripts', () => {
   const errors = withFixture((root) => {
     const manifest = join(root, 'tests/fixtures/workspace/packages/pkg-a/package.json');

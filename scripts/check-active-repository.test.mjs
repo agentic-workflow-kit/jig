@@ -63,6 +63,28 @@ test('validateActiveRepository passes on the active package contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
 });
 
+test('rejects evidence writing when it is reachable from the check script', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test && pnpm evidence:write"\n  },'),
+    );
+  });
+  assert.ok(errors.includes('check script transitively resolves to an evidence-writing command'));
+});
+
+test('rejects artifact output when it is reachable from the check script', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test > artifacts/check.log"\n  },'),
+    );
+  });
+  assert.ok(errors.includes('check script transitively resolves to a command that writes under artifacts/'));
+});
+
 test('rejects root manifest, local Node line, and pnpm safety drift', () => {
   const manifestErrors = withTempRepo((root) =>
     writeFileSync(

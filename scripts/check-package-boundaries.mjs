@@ -196,14 +196,61 @@ function exportedNames(source) {
   return names;
 }
 
-function validatePureSurface(rootDir, packageName, allowedImports, prohibitedExportNames, errors) {
+function unboundIdentifierReads(sourcePath, prohibitedCapabilities) {
+  const program = ts.createProgram({
+    rootNames: [sourcePath],
+    options: { noLib: true, noResolve: true, target: ts.ScriptTarget.Latest },
+  });
+  const source = program.getSourceFile(sourcePath);
+  if (!source) return [];
+  const checker = program.getTypeChecker();
+  const reads = new Set();
+  const isWriteOnly = (node) =>
+    ts.isBinaryExpression(node.parent) &&
+    node.parent.left === node &&
+    node.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken;
+  const isTypeOnly = (node) => {
+    for (let current = node.parent; current && current !== source; current = current.parent)
+      if (ts.isTypeNode(current) || ts.isTypeQueryNode(current)) return true;
+    return false;
+  };
+  const visit = (node) => {
+    if (
+      ts.isIdentifier(node) &&
+      prohibitedCapabilities.has(node.text) &&
+      !isWriteOnly(node) &&
+      !isTypeOnly(node) &&
+      !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+    ) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (!symbol?.declarations?.some((declaration) => declaration.getSourceFile() === source)) reads.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...reads].sort();
+}
+
+function validatePureSurface(
+  rootDir,
+  packageName,
+  allowedImports,
+  prohibitedExportNames,
+  prohibitedAmbientCapabilities,
+  errors,
+) {
   const sourcePath = join(rootDir, 'packages', packageName, 'src', 'index.ts');
-  if (!existsSync(sourcePath)) return;
+  if (!existsSync(sourcePath)) {
+    errors.push(`${packageName} source entry point is missing`);
+    return;
+  }
   const source = readFileSync(sourcePath, 'utf8');
   if (!sameMembers(importSpecifiers(source).sort(), [...allowedImports].sort()))
     errors.push(`${packageName} must import only its declared pure package dependencies`);
   if (exportedNames(source).some((name) => prohibitedExportNames.test(name)))
     errors.push(`${packageName} must not expose a prohibited capability surface`);
+  for (const capability of unboundIdentifierReads(sourcePath, prohibitedAmbientCapabilities))
+    errors.push(`${packageName} must not read prohibited ambient capability: ${capability}`);
 }
 
 export function validatePackageBoundaries(rootDir = process.cwd()) {
@@ -220,7 +267,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       JSON.stringify(['authority-kernel', 'codec', 'conformance', 'runtime-contracts'])
     )
       errors.push(
-        'only permits only the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
+        'only permits the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
       );
     const codecRoot = join(packagesRoot, 'codec');
     const codecFiles = listFiles(codecRoot)
@@ -248,7 +295,14 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       )
         errors.push('codec must remain a dependency-free pure boundary library with no runtime entrypoint');
     }
-    validatePureSurface(rootDir, 'codec', [], /(?:fetch|process|require)/i, errors);
+    validatePureSurface(
+      rootDir,
+      'codec',
+      [],
+      /(?:fetch|process|require)/i,
+      new Set(['fetch', 'process', 'require']),
+      errors,
+    );
   }
 
   const runtimeRoot = join(rootDir, 'packages', 'runtime-contracts');
@@ -269,6 +323,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       'runtime-contracts',
       ['@agentic-workflow-kit/jig-codec'],
       /(?:provider|transport|process)/i,
+      new Set(),
       errors,
     );
   }
@@ -294,6 +349,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       'conformance',
       ['@agentic-workflow-kit/jig-codec', '@agentic-workflow-kit/jig-runtime-contracts'],
       /(?:register|configure|dispatch|credential|token|adapter)/i,
+      new Set(['fetch', 'process', 'require']),
       errors,
     );
   }
@@ -315,6 +371,19 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       'authority-kernel',
       ['@agentic-workflow-kit/jig-codec'],
       /(?:dispatch|adapter|provider|credential|token)/i,
+      new Set([
+        'Date',
+        'adapter',
+        'credential',
+        'dispatch',
+        'fetch',
+        'globalThis',
+        'process',
+        'provider',
+        'require',
+        'setInterval',
+        'setTimeout',
+      ]),
       errors,
     );
   }

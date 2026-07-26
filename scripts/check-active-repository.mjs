@@ -126,10 +126,10 @@ const expectedScripts = {
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
-  test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 tests/**/*.test.mjs',
+  test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 "tests/**/*.test.mjs"',
   'evidence:write': 'node scripts/write-evidence.mjs phase-0',
   check:
-    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
+    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
 };
 
 const expectedManifest = {
@@ -273,6 +273,25 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
+function resolvePnpmScriptCommands(scripts, scriptName, resolvedScripts = new Set()) {
+  if (resolvedScripts.has(scriptName)) return [];
+  const command = scripts?.[scriptName];
+  if (typeof command !== 'string') return [];
+
+  const nextResolvedScripts = new Set(resolvedScripts).add(scriptName);
+  const commands = [command];
+  const pnpmScriptReferences =
+    /\bpnpm(?:\s+--[A-Za-z0-9-]+(?:=[^\s;&|]+)?)*\s+(?:run\s+)?(?:--[A-Za-z0-9-]+(?:=[^\s;&|]+)?\s+)*([A-Za-z0-9:_-]+)/g;
+  for (const match of command.matchAll(pnpmScriptReferences))
+    commands.push(...resolvePnpmScriptCommands(scripts, match[1], nextResolvedScripts));
+  return commands;
+}
+
+function writesUnderArtifacts(command) {
+  // A shell command reference does not reveal whether the path is an input or output, so the gate fails closed.
+  return /\bartifacts\//.test(command);
+}
+
 function assertRegularTrackedInput(rootDir, path, errors, allowedModes = ['100644']) {
   const absolute = join(rootDir, path);
   if (!existsSync(absolute)) return;
@@ -349,6 +368,11 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     errors.push(
       'package.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface',
     );
+  const checkCommands = resolvePnpmScriptCommands(manifest?.scripts, 'check');
+  if (checkCommands.some((command) => command.includes('scripts/write-evidence.mjs')))
+    errors.push('check script transitively resolves to an evidence-writing command');
+  if (checkCommands.some(writesUnderArtifacts))
+    errors.push('check script transitively resolves to a command that writes under artifacts/');
   if (readFileSync(join(rootDir, '.nvmrc'), 'utf8') !== '26\n')
     errors.push('.nvmrc must exactly preserve the approved local Node 26 line');
   if (existsSync(join(rootDir, '.npmrc')))
