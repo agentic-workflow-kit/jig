@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -25,7 +26,9 @@ import {
   EVIDENCE_CONTRACT,
   LOCAL_OBSERVATIONS,
   verifyArtifactHashes,
+  verifyEvidenceContract,
   verifyFinalizationArtifacts,
+  verifyIntegrationBase,
 } from '../../scripts/finalize-gf-004-evidence.mjs';
 
 test('GF-004 evidence contract fixes activation, integration, predecessor chain, corpus, and pending publication', () => {
@@ -59,6 +62,37 @@ test('GF-004 evidence contract fixes activation, integration, predecessor chain,
   assert.equal(corpus.pathCount, 67);
   assert.equal(corpus.digest, 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c');
   assert.equal(corpus.paths.length, 67);
+});
+
+test('GF-004 evidence contract preserves its immutable historical integration base after the phase branch advances', () => {
+  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+  const base = EVIDENCE_CONTRACT.integrationBase;
+  assert.notEqual(git('rev-parse', base.ref), base.commit);
+  assert.equal(git('rev-parse', base.commit), base.commit);
+  assert.equal(git('rev-parse', `${base.commit}^{tree}`), base.tree);
+  assert.equal(git('merge-base', 'HEAD', base.commit), base.commit);
+  assert.doesNotThrow(() => verifyEvidenceContract());
+});
+
+test('GF-004 immutable integration-base verifier rejects wrong object resolution and non-ancestry', () => {
+  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+  const base = EVIDENCE_CONTRACT.integrationBase;
+  const override =
+    (expectedArgs, value) =>
+    (...args) =>
+      args.join('\u0000') === expectedArgs.join('\u0000') ? value : git(...args);
+  assert.throws(
+    () => verifyIntegrationBase(override(['rev-parse', base.commit], EVIDENCE_CONTRACT.targetMain.commit)),
+    /GF-004 integration base mismatch/,
+  );
+  assert.throws(
+    () => verifyIntegrationBase(override(['rev-parse', `${base.commit}^{tree}`], EVIDENCE_CONTRACT.targetMain.tree)),
+    /GF-004 integration base mismatch/,
+  );
+  assert.throws(
+    () => verifyIntegrationBase(override(['merge-base', 'HEAD', base.commit], EVIDENCE_CONTRACT.targetMain.commit)),
+    /GF-004 candidate merge base mismatch/,
+  );
 });
 
 test('GF-004 pure evidence cross-binding verifier rejects nine fixed mutations', () => {

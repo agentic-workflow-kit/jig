@@ -156,6 +156,14 @@ export const EVIDENCE_CONTRACT = Object.freeze({
   localObservations: LOCAL_OBSERVATIONS,
 });
 
+export function verifyIntegrationBase(readGit = git, candidate = 'HEAD') {
+  const base = EVIDENCE_CONTRACT.integrationBase;
+  if (readGit('rev-parse', base.commit) !== base.commit || readGit('rev-parse', `${base.commit}^{tree}`) !== base.tree)
+    throw new Error('GF-004 integration base mismatch');
+  if (readGit('merge-base', candidate, base.commit) !== base.commit)
+    throw new Error('GF-004 candidate merge base mismatch');
+}
+
 export function verifyEvidenceContract() {
   verifyApprovedActivation();
   const c = EVIDENCE_CONTRACT;
@@ -164,13 +172,7 @@ export function verifyEvidenceContract() {
     git('rev-parse', `${c.targetMain.ref}^{tree}`) !== c.targetMain.tree
   )
     throw new Error('GF-004 target main anchor mismatch');
-  if (
-    git('rev-parse', c.integrationBase.ref) !== c.integrationBase.commit ||
-    git('rev-parse', `${c.integrationBase.ref}^{tree}`) !== c.integrationBase.tree
-  )
-    throw new Error('GF-004 integration base mismatch');
-  if (git('merge-base', 'HEAD', c.integrationBase.ref) !== c.integrationBase.commit)
-    throw new Error('GF-004 candidate merge base mismatch');
+  verifyIntegrationBase();
   for (const predecessor of [c.predecessors.gf002, c.predecessors.gf003])
     if (
       git('rev-parse', `${predecessor.candidate}^{tree}`) !== predecessor.tree ||
