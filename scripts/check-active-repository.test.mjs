@@ -221,9 +221,20 @@ test('nested verification runs every artifact-producing story runner without rew
     'artifacts/gf-002/results.json',
     'artifacts/gf-003/results.json',
   ];
-  const before = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
+  const original = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
   const { NODE_TEST_CONTEXT: _testContext, ...environment } = process.env;
   try {
+    const bootstrap = spawnSync(
+      process.execPath,
+      ['--test', '--test-concurrency=1', 'tests/gf-001/workspace-substrate.test.mjs'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: environment,
+      },
+    );
+    assert.equal(bootstrap.status, 0, `GF-001 fixture bootstrap failed: ${bootstrap.stderr}`);
+    const baseline = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
     for (const script of [
       'scripts/run-gf-001-tests.mjs',
       'scripts/run-gf-002-tests.mjs',
@@ -236,9 +247,9 @@ test('nested verification runs every artifact-producing story runner without rew
       });
       assert.equal(result.status, 0, `${script} failed: ${result.stderr}`);
     }
-    for (const [path, bytes] of before) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
+    for (const [path, bytes] of baseline) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
   } finally {
-    for (const [path, bytes] of before) writeFileSync(join(repoRoot, path), bytes);
+    for (const [path, bytes] of original) writeFileSync(join(repoRoot, path), bytes);
   }
 });
 
