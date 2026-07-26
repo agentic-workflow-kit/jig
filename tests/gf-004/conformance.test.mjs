@@ -181,6 +181,215 @@ test('GF-004 hostile frame inputs are rejected without reflecting on a Proxy', (
   assert.equal(conformance.parseRecordFrame(hostile).ok, false);
   assert.deepEqual(traps, { get: 0, getPrototypeOf: 0, has: 0, ownKeys: 0, getOwnPropertyDescriptor: 0 });
 });
+test('GF-004 public recorder and gates close hostile caller containers without escape', () => {
+  const throwingGetArray = new Proxy([], {
+    get() {
+      throw new Error('caller array get');
+    },
+  });
+  let appendResult;
+  assert.doesNotThrow(() => {
+    appendResult = conformance.append(throwingGetArray, input('CF-DETERMINISM'));
+  });
+  assert.equal(appendResult.status, 'not-recordable');
+  assert.equal(appendResult.failureClass, 'FC-INPUT');
+
+  let realization;
+  let provider;
+  assert.doesNotThrow(() => {
+    realization = conformance.evaluateRealization(throwingGetArray, subject);
+    provider = conformance.evaluateProvider('PORT-LEDGER', throwingGetArray, subject);
+  });
+  for (const result of [realization, provider]) {
+    assert.equal(result.passed, false);
+    assert.equal(result.failureClass, 'FC-INPUT');
+  }
+
+  const record = conformance.append([], input('CF-DETERMINISM')).records[0];
+  const throwingPrototypeRecord = new Proxy(record, {
+    getPrototypeOf() {
+      throw new Error('record prototype');
+    },
+  });
+  let recordResult;
+  assert.doesNotThrow(() => {
+    recordResult = conformance.evaluateRealization([throwingPrototypeRecord], subject);
+  });
+  assert.equal(recordResult.passed, false);
+  assert.equal(recordResult.failureClass, 'FC-EVIDENCE');
+
+  const records = conformance.SUITES.map((suite) => conformance.append([], input(suite)).records[0]);
+  const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
+    route: route.id,
+    elements: route.elements.map((element) => ({ ...element, status: 'pass' })),
+  }));
+  const throwingRoutes = new Proxy(routes, {
+    get() {
+      throw new Error('routes get');
+    },
+  });
+  let product;
+  assert.doesNotThrow(() => {
+    product = conformance.evaluateProduct(records, throwingRoutes, subject);
+  });
+  assert.equal(product.passed, false);
+  assert.equal(product.failureClass, 'FC-INPUT');
+});
+test('GF-004 public entrypoints snapshot hostile arrays and nested caller values before evaluation', () => {
+  const record = conformance.append([], input('CF-DETERMINISM')).records[0];
+  const records = conformance.SUITES.map((suite) => conformance.append([], input(suite)).records[0]);
+  const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
+    route: route.id,
+    elements: route.elements.map((element) => ({ ...element, status: 'pass' })),
+  }));
+  const throwingGet = (value) =>
+    new Proxy(value, {
+      get() {
+        throw new Error('caller get');
+      },
+    });
+  const inconsistentGet = (value) =>
+    new Proxy(value, {
+      get(target, key, receiver) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(target, key);
+        if (descriptor && Object.hasOwn(descriptor, 'value')) return Symbol('inconsistent');
+        return Reflect.get(target, key, receiver);
+      },
+    });
+  const throwingPrototype = (value) =>
+    new Proxy(value, {
+      getPrototypeOf() {
+        throw new Error('caller prototype');
+      },
+    });
+  const sparse = [];
+  sparse[1] = record;
+  const accessor = [];
+  Object.defineProperty(accessor, '0', {
+    enumerable: true,
+    get() {
+      throw new Error('array accessor');
+    },
+  });
+  const iterator = [record];
+  Object.defineProperty(iterator, Symbol.iterator, {
+    value() {
+      throw new Error('iterator');
+    },
+  });
+  const hostileOuterArrays = [throwingGet([record]), throwingPrototype([record]), sparse, accessor, iterator];
+  for (const hostile of hostileOuterArrays) {
+    let appended;
+    assert.doesNotThrow(() => {
+      appended = conformance.append(hostile, input('CF-DETERMINISM'));
+    });
+    assert.equal(appended.status, 'not-recordable');
+    assert.equal(appended.failureClass, 'FC-INPUT');
+    for (const gate of [
+      () => conformance.evaluateRealization(hostile, subject),
+      () => conformance.evaluateProvider('PORT-LEDGER', hostile, subject),
+    ]) {
+      let result;
+      assert.doesNotThrow(() => {
+        result = gate();
+      });
+      assert.equal(result.passed, false);
+      assert.equal(result.failureClass, 'FC-INPUT');
+    }
+  }
+
+  const nestedRecords = [
+    [throwingGet(record)],
+    [inconsistentGet(record)],
+    [throwingPrototype(record)],
+    [{ ...record, subject: throwingGet(subject) }],
+    [{ ...record, subject: inconsistentGet(subject) }],
+    [{ ...record, subject: throwingPrototype(subject) }],
+    [{ ...record, extra: true }],
+    [(({ subject: ignored, ...rest }) => rest)(record)],
+  ];
+  for (const hostile of nestedRecords) {
+    let result;
+    assert.doesNotThrow(() => {
+      result = conformance.evaluateRealization(hostile, subject);
+    });
+    assert.equal(result.passed, false);
+    assert.equal(result.failureClass, 'FC-EVIDENCE');
+  }
+
+  const routeCases = [
+    throwingGet(routes),
+    throwingPrototype(routes),
+    [throwingGet(routes[0]), ...routes.slice(1)],
+    [throwingPrototype(routes[0]), ...routes.slice(1)],
+    [{ ...routes[0], elements: throwingGet(routes[0].elements) }, ...routes.slice(1)],
+    [
+      { ...routes[0], elements: [throwingGet(routes[0].elements[0]), ...routes[0].elements.slice(1)] },
+      ...routes.slice(1),
+    ],
+    [
+      { ...routes[0], elements: [inconsistentGet(routes[0].elements[0]), ...routes[0].elements.slice(1)] },
+      ...routes.slice(1),
+    ],
+    [
+      { ...routes[0], elements: [throwingPrototype(routes[0].elements[0]), ...routes[0].elements.slice(1)] },
+      ...routes.slice(1),
+    ],
+    [{ ...routes[0], extra: true }, ...routes.slice(1)],
+    [(({ elements: ignored, ...rest }) => rest)(routes[0]), ...routes.slice(1)],
+  ];
+  for (const hostile of routeCases) {
+    let result;
+    assert.doesNotThrow(() => {
+      result = conformance.evaluateProduct(records, hostile, subject);
+    });
+    assert.equal(result.passed, false);
+    assert.equal(result.failureClass, 'FC-INPUT');
+  }
+});
+test('GF-004 remaining public helpers never reread hostile caller values or render a forged green result', () => {
+  const throwingGet = new Proxy([], {
+    get() {
+      throw new Error('caller get');
+    },
+  });
+  let attempt;
+  assert.doesNotThrow(() => {
+    attempt = conformance.runAttempt(throwingGet, 'key', 'bytes');
+  });
+  assert.deepEqual(attempt, [{ attempt: 1, key: 'key', bytes: 'bytes', state: 'evaluated' }]);
+
+  const hostileValue = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('caller get');
+      },
+    },
+  );
+  let harness;
+  assert.doesNotThrow(() => {
+    harness = conformance.deterministicHarness(hostileValue, hostileValue);
+    harness.nextId(hostileValue);
+  });
+  assert.equal(harness.clock, 0);
+  assert.equal(harness.seed, '');
+  assert.equal(conformance.classifyGateReason(hostileValue), 'FC-INPUT');
+
+  const forgedGreen = new Proxy(
+    { gate: 'CF-GATE-REALIZATION', passed: true, reasons: [] },
+    {
+      get() {
+        throw new Error('forged gate get');
+      },
+    },
+  );
+  assert.doesNotThrow(() => conformance.renderGate(forgedGreen));
+  assert.equal(conformance.renderGate(forgedGreen), 'closed');
+
+  const records = conformance.REALIZATION_SUITES.map((suite) => conformance.append([], input(suite)).records[0]);
+  assert.equal(conformance.renderGate(conformance.evaluateRealization(records, subject)), 'green');
+});
 test('GF-004 exact subjects reject extra, missing, partial, and malformed field values', () => {
   const { providerId, providerBuildDigest, manifestDigest, environmentDigest, ...realizationSubject } = subject;
   const { candidateCommit, ...subjectWithoutCommit } = subject;

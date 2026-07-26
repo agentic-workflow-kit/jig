@@ -280,7 +280,13 @@ export type GateResult = Readonly<{
 }>;
 export type HarnessFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-EVIDENCE' | 'FC-TRUST';
 export function classifyGateReason(reason: string): HarnessFailureFamily {
-  if (reason.startsWith('unknown:') || reason.startsWith('duplicate:') || reason.startsWith('order:'))
+  if (typeof reason !== 'string') return 'FC-INPUT';
+  if (
+    reason.startsWith('input:') ||
+    reason.startsWith('unknown:') ||
+    reason.startsWith('duplicate:') ||
+    reason.startsWith('order:')
+  )
     return 'FC-INPUT';
   if (reason.endsWith(':environmentDigest') || reason.endsWith(':clockId')) return 'FC-TRUST';
   if (reason.startsWith('mismatched:')) return 'FC-SUBJECT';
@@ -312,13 +318,16 @@ export type AttemptLog = Readonly<{
   state: 'incomplete' | 'recorded' | 'evaluated';
   bytes: string;
 }>;
+const gateResults = new WeakSet<object>();
 export function deterministicHarness(clock: number, seed: string): DeterministicHarness {
   let ordinal = 0;
+  const safeClock = nonnegativeSafeInteger(clock) ? clock : 0;
+  const safeSeed = typeof seed === 'string' ? seed : '';
   return Object.freeze({
     version: CONFORMANCE_VERSION,
-    clock,
-    seed,
-    nextId: (namespace) => `${namespace}:${seed}:${clock}:${++ordinal}`,
+    clock: safeClock,
+    seed: safeSeed,
+    nextId: (namespace) => `${typeof namespace === 'string' ? namespace : ''}:${safeSeed}:${safeClock}:${++ordinal}`,
   });
 }
 export function runAttempt(
@@ -327,15 +336,18 @@ export function runAttempt(
   bytes: string,
   crash?: CrashPoint,
 ): readonly AttemptLog[] {
-  const attempt = (log.filter((entry) => entry.key === key).at(-1)?.attempt ?? 0) + 1;
-  const incomplete: AttemptLog = Object.freeze({ attempt, key, bytes, state: 'incomplete' });
-  if (crash === 'before-record') return Object.freeze([...log, incomplete]);
-  const recorded: AttemptLog = Object.freeze({ attempt, key, bytes, state: 'recorded' });
-  if (crash === 'after-record' || crash === 'before-evaluation') return Object.freeze([...log, recorded]);
-  return Object.freeze([...log, Object.freeze({ attempt, key, bytes, state: 'evaluated' })]);
+  const safeLog = snapshotAttemptLog(log);
+  const safeKey = typeof key === 'string' ? key : '';
+  const safeBytes = typeof bytes === 'string' ? bytes : '';
+  const attempt = (safeLog.filter((entry) => entry.key === safeKey).at(-1)?.attempt ?? 0) + 1;
+  const incomplete: AttemptLog = Object.freeze({ attempt, key: safeKey, bytes: safeBytes, state: 'incomplete' });
+  if (crash === 'before-record') return Object.freeze([...safeLog, incomplete]);
+  const recorded: AttemptLog = Object.freeze({ attempt, key: safeKey, bytes: safeBytes, state: 'recorded' });
+  if (crash === 'after-record' || crash === 'before-evaluation') return Object.freeze([...safeLog, recorded]);
+  return Object.freeze([...safeLog, Object.freeze({ attempt, key: safeKey, bytes: safeBytes, state: 'evaluated' })]);
 }
 export function renderGate(result: GateResult): 'green' | 'closed' {
-  return result.passed ? 'green' : 'closed';
+  return typeof result === 'object' && result !== null && gateResults.has(result) && result.passed ? 'green' : 'closed';
 }
 
 const digest = /^[0-9a-f]{64}$/;
@@ -343,7 +355,82 @@ const isSuite = (value: string): value is SuiteId => (SUITES as readonly string[
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]) =>
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 function plain(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+  try {
+    return typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+  } catch {
+    return false;
+  }
+}
+const dataDescriptor = (value: PropertyDescriptor) =>
+  Object.hasOwn(value, 'value') && !Object.hasOwn(value, 'get') && !Object.hasOwn(value, 'set');
+function snapshotDataObject(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  if (!plain(value)) return undefined;
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<string, PropertyDescriptor>;
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.some((key) => typeof key !== 'string')) return undefined;
+    const snapshot = {} as Record<string, unknown>;
+    for (const key of keys) {
+      const descriptor = descriptors[key as string];
+      if (!dataDescriptor(descriptor) || !Object.is(Reflect.get(value, key), descriptor.value)) return undefined;
+      Object.defineProperty(snapshot, key, { value: descriptor.value, enumerable: true });
+    }
+    return Object.freeze(snapshot);
+  } catch {
+    return undefined;
+  }
+}
+function snapshotExactObject(value: unknown, keys: readonly string[]): Readonly<Record<string, unknown>> | undefined {
+  const snapshot = snapshotDataObject(value);
+  return snapshot && hasExactKeys(snapshot, keys) ? snapshot : undefined;
+}
+function snapshotArray(value: unknown): readonly unknown[] | undefined {
+  try {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<string, PropertyDescriptor>;
+    const length = descriptors.length;
+    if (!dataDescriptor(length) || !Number.isSafeInteger(length.value) || length.value < 0 || length.value > 256)
+      return undefined;
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.length !== length.value + 1 || !Object.is(Reflect.get(value, 'length'), length.value)) return undefined;
+    const snapshot: unknown[] = [];
+    for (let index = 0; index < length.value; index += 1) {
+      const key = String(index);
+      const descriptor = descriptors[key];
+      if (!descriptor || !dataDescriptor(descriptor) || !Object.is(Reflect.get(value, key), descriptor.value))
+        return undefined;
+      snapshot.push(descriptor.value);
+    }
+    return Object.freeze(snapshot);
+  } catch {
+    return undefined;
+  }
+}
+function snapshotAttemptLog(log: unknown): readonly AttemptLog[] {
+  const values = snapshotArray(log);
+  if (!values) return Object.freeze([]);
+  const snapshots: AttemptLog[] = [];
+  for (const value of values) {
+    const snapshot = snapshotExactObject(value, ['attempt', 'key', 'state', 'bytes']);
+    if (
+      !snapshot ||
+      !nonnegativeSafeInteger(snapshot.attempt) ||
+      snapshot.attempt >= Number.MAX_SAFE_INTEGER ||
+      typeof snapshot.key !== 'string' ||
+      typeof snapshot.bytes !== 'string' ||
+      !['incomplete', 'recorded', 'evaluated'].includes(String(snapshot.state))
+    )
+      return Object.freeze([]);
+    snapshots.push(
+      Object.freeze({
+        attempt: snapshot.attempt,
+        key: snapshot.key,
+        state: snapshot.state as AttemptLog['state'],
+        bytes: snapshot.bytes,
+      }),
+    );
+  }
+  return Object.freeze(snapshots);
 }
 const REALIZATION_SUBJECT_FIELDS = Object.freeze([
   'candidateContentDigest',
@@ -374,42 +461,44 @@ const nonEmptyString = (value: unknown): value is string => typeof value === 'st
 const validDigest = (value: unknown): value is string => typeof value === 'string' && digest.test(value);
 const nonnegativeSafeInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-function validSubject(subject: unknown): subject is Subject {
-  if (!plain(subject)) return false;
-  const hasProviderBinding = PROVIDER_SUBJECT_FIELDS.some((field) => Object.hasOwn(subject, field));
+function snapshotSubject(subject: unknown): Subject | undefined {
+  const snapshot = snapshotDataObject(subject);
+  if (!snapshot) return undefined;
+  const hasProviderBinding = PROVIDER_SUBJECT_FIELDS.some((field) => Object.hasOwn(snapshot, field));
   const fields = hasProviderBinding
     ? [...REALIZATION_SUBJECT_FIELDS, ...PROVIDER_SUBJECT_FIELDS]
     : REALIZATION_SUBJECT_FIELDS;
-  if (!hasExactKeys(subject, fields)) return false;
+  if (!hasExactKeys(snapshot, fields)) return undefined;
   if (
     ![
-      subject.candidateContentDigest,
-      subject.candidateTree,
-      subject.executionBaseTree,
-      subject.buildDigest,
-      subject.toolchainDigest,
-      subject.catalogDigest,
-      subject.fixtureDigest,
+      snapshot.candidateContentDigest,
+      snapshot.candidateTree,
+      snapshot.executionBaseTree,
+      snapshot.buildDigest,
+      snapshot.toolchainDigest,
+      snapshot.catalogDigest,
+      snapshot.fixtureDigest,
     ].every(validDigest)
   )
-    return false;
-  if (![subject.candidateCommit, subject.executionBaseCommit, subject.mergeBaseCommit].every(nonEmptyString))
-    return false;
+    return undefined;
+  if (![snapshot.candidateCommit, snapshot.executionBaseCommit, snapshot.mergeBaseCommit].every(nonEmptyString))
+    return undefined;
   if (
-    subject.topologyVersion !== TOPOLOGY_VERSION ||
-    ![subject.suiteVersion, subject.probeVersion, subject.clockId, subject.seed, subject.recorderIdentity].every(
+    snapshot.topologyVersion !== TOPOLOGY_VERSION ||
+    ![snapshot.suiteVersion, snapshot.probeVersion, snapshot.clockId, snapshot.seed, snapshot.recorderIdentity].every(
       nonEmptyString,
     ) ||
-    !nonnegativeSafeInteger(subject.recordedAt)
+    !nonnegativeSafeInteger(snapshot.recordedAt)
   )
-    return false;
-  return (
+    return undefined;
+  if (
     !hasProviderBinding ||
-    (nonEmptyString(subject.providerId) &&
-      [subject.providerBuildDigest, subject.manifestDigest, subject.environmentDigest].every(validDigest))
-  );
+    (nonEmptyString(snapshot.providerId) &&
+      [snapshot.providerBuildDigest, snapshot.manifestDigest, snapshot.environmentDigest].every(validDigest))
+  )
+    return Object.freeze({ ...snapshot }) as Subject;
+  return undefined;
 }
-
 export function parseRecordFrame(
   frame: unknown,
 ): Readonly<{ ok: true; value: RecordInput }> | Readonly<{ ok: false; reason: string }> {
@@ -417,22 +506,17 @@ export function parseRecordFrame(
     return { ok: false, reason: 'FC-INPUT: canonical GF-002 frame required' };
   const decoded = decodeFrame(typeof frame === 'string' ? new TextEncoder().encode(frame) : frame);
   const decodedValue = decoded.ok ? decoded.value : undefined;
-  if (!decoded.ok || !plain(decodedValue)) return { ok: false, reason: 'FC-INPUT: malformed canonical frame' };
-  const payload: Record<string, unknown> = decodedValue;
-  if (
-    !hasExactKeys(payload, [
-      'key',
-      'bytes',
-      'suite',
-      'status',
-      'subject',
-      'independentRecorder',
-      'complete',
-      'attempt',
-    ]) ||
-    !plain(payload.subject)
-  )
-    return { ok: false, reason: 'FC-INPUT: exact record schema required' };
+  const payload = snapshotExactObject(decodedValue, [
+    'key',
+    'bytes',
+    'suite',
+    'status',
+    'subject',
+    'independentRecorder',
+    'complete',
+    'attempt',
+  ]);
+  if (!decoded.ok || !payload) return { ok: false, reason: 'FC-INPUT: exact record schema required' };
   if (
     typeof payload.key !== 'string' ||
     typeof payload.bytes !== 'string' ||
@@ -445,8 +529,8 @@ export function parseRecordFrame(
     payload.attempt < 1
   )
     return { ok: false, reason: 'FC-INPUT: invalid record values' };
-  const subject = payload.subject as Subject;
-  if (!validSubject(subject)) return { ok: false, reason: 'FC-SUBJECT: invalid exact subject' };
+  const subject = snapshotSubject(payload.subject);
+  if (!subject) return { ok: false, reason: 'FC-SUBJECT: invalid exact subject' };
   return {
     ok: true,
     value: {
@@ -471,21 +555,45 @@ export function append(
   reason?: string;
   failureClass?: HarnessFailureFamily;
 }> {
+  const prepared = prepareRecords(records);
+  if (prepared.reasons.length)
+    return {
+      status: 'not-recordable',
+      records: Object.freeze([]),
+      reason: 'input:records',
+      failureClass: 'FC-INPUT',
+    };
   const parsed = parseRecordFrame(frame);
-  if (!parsed.ok) return { status: 'not-recordable', records, reason: parsed.reason, failureClass: 'FC-INPUT' };
+  if (!parsed.ok)
+    return { status: 'not-recordable', records: prepared.records, reason: parsed.reason, failureClass: 'FC-INPUT' };
   const input = parsed.value;
-  if (!validSubject(input.subject) || !input.complete)
-    return { status: 'not-recordable', records, reason: 'incomplete:subject', failureClass: 'FC-EVIDENCE' };
+  if (!input.complete)
+    return {
+      status: 'not-recordable',
+      records: prepared.records,
+      reason: 'incomplete:subject',
+      failureClass: 'FC-EVIDENCE',
+    };
   if (input.independentRecorder === input.subject.providerId)
-    return { status: 'not-recordable', records, reason: 'self-attestation:provider', failureClass: 'FC-EVIDENCE' };
-  const duplicate = records.find((record) => record.key === input.key);
+    return {
+      status: 'not-recordable',
+      records: prepared.records,
+      reason: 'self-attestation:provider',
+      failureClass: 'FC-EVIDENCE',
+    };
+  const duplicate = prepared.records.find((record) => record.key === input.key);
   if (duplicate)
     return duplicate.bytes === input.bytes
-      ? { status: duplicate.status, records }
-      : { status: 'not-recordable', records, reason: 'duplicate:key-bytes', failureClass: 'FC-INPUT' };
+      ? { status: duplicate.status, records: prepared.records }
+      : {
+          status: 'not-recordable',
+          records: prepared.records,
+          reason: 'duplicate:key-bytes',
+          failureClass: 'FC-INPUT',
+        };
   return {
     status: input.status,
-    records: Object.freeze([...records, Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION })]),
+    records: Object.freeze([...prepared.records, Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION })]),
   };
 }
 
@@ -523,8 +631,14 @@ const EVIDENCE_RECORD_FIELDS = Object.freeze([
   'attempt',
   'schemaVersion',
 ] as const);
-function recordValidationIssue(record: unknown): 'invalid' | 'self-attestation' | undefined {
-  if (!plain(record) || !hasExactKeys(record, EVIDENCE_RECORD_FIELDS)) return 'invalid';
+function snapshotRecord(record: unknown): Readonly<Record<string, unknown>> | undefined {
+  const snapshot = snapshotExactObject(record, EVIDENCE_RECORD_FIELDS);
+  if (!snapshot) return undefined;
+  const subject = snapshotDataObject(snapshot.subject);
+  return subject ? Object.freeze({ ...snapshot, subject }) : undefined;
+}
+function recordValidationIssue(record: Readonly<Record<string, unknown>>): 'invalid' | 'self-attestation' | undefined {
+  const subject = snapshotSubject(record.subject);
   if (
     record.schemaVersion !== CONFORMANCE_VERSION ||
     typeof record.key !== 'string' ||
@@ -536,29 +650,72 @@ function recordValidationIssue(record: unknown): 'invalid' | 'self-attestation' 
     typeof record.attempt !== 'number' ||
     !Number.isSafeInteger(record.attempt) ||
     record.attempt < 1 ||
-    !validSubject(record.subject)
+    !subject
   )
     return 'invalid';
-  return record.independentRecorder === record.subject.providerId ? 'self-attestation' : undefined;
+  return record.independentRecorder === subject.providerId ? 'self-attestation' : undefined;
 }
-function recordValidationReasons(records: readonly EvidenceRecord[]): string[] {
+function prepareRecords(
+  records: unknown,
+): Readonly<{ records: readonly EvidenceRecord[]; reasons: readonly string[] }> {
+  const values = snapshotArray(records);
+  if (!values) return Object.freeze({ records: Object.freeze([]), reasons: Object.freeze(['input:records']) });
+  const snapshots = values.map(snapshotRecord);
+  const reasons = recordValidationReasons(snapshots);
+  return Object.freeze({ records: Object.freeze(snapshots) as readonly EvidenceRecord[], reasons });
+}
+function recordValidationReasons(
+  records: readonly (Readonly<Record<string, unknown>> | undefined)[],
+): readonly string[] {
   const reasons: string[] = [];
   for (const [index, record] of records.entries()) {
-    const issue = recordValidationIssue(record);
+    const issue = record ? recordValidationIssue(record) : 'invalid';
     if (issue) reasons.push(`${issue}:record:${index}`);
   }
-  return reasons;
+  return Object.freeze(reasons);
+}
+function snapshotRoutes(routes: unknown): readonly RouteEvidence[] | undefined {
+  const values = snapshotArray(routes);
+  if (!values) return undefined;
+  const snapshots: RouteEvidence[] = [];
+  for (const route of values) {
+    const routeSnapshot = snapshotExactObject(route, ['route', 'elements']);
+    const elements = routeSnapshot ? snapshotArray(routeSnapshot.elements) : undefined;
+    if (!routeSnapshot || typeof routeSnapshot.route !== 'string' || !elements) return undefined;
+    const elementSnapshots: Array<RouteEvidence['elements'][number]> = [];
+    for (const element of elements) {
+      const snapshot = snapshotExactObject(element, ['kind', 'id', 'status']);
+      if (!snapshot || typeof snapshot.kind !== 'string' || typeof snapshot.id !== 'string') return undefined;
+      if (!['pass', 'fail', 'not-run'].includes(String(snapshot.status))) return undefined;
+      elementSnapshots.push(
+        Object.freeze({
+          kind: snapshot.kind,
+          id: snapshot.id,
+          status: snapshot.status,
+        }) as RouteEvidence['elements'][number],
+      );
+    }
+    snapshots.push(
+      Object.freeze({
+        route: routeSnapshot.route as ProductRouteId,
+        elements: Object.freeze(elementSnapshots),
+      }),
+    );
+  }
+  return Object.freeze(snapshots);
 }
 function subjectMismatch(left: Subject, right: Subject): string | undefined {
   return SUBJECT_FIELDS.find((field) => left[field] !== right[field]);
 }
 function gateResult(gate: GateId, reasons: string[]): GateResult {
-  return {
+  const result = Object.freeze({
     gate,
     passed: reasons.length === 0,
     reasons: Object.freeze(reasons),
     ...(reasons.length ? { failureClass: classifyGateReason(reasons[0]) } : {}),
-  };
+  });
+  gateResults.add(result);
+  return result;
 }
 function suiteGate(
   gate: GateId,
@@ -566,15 +723,17 @@ function suiteGate(
   records: readonly EvidenceRecord[],
   subject: Subject,
 ): GateResult {
-  if (!validSubject(subject)) return gateResult(gate, ['invalid:subject']);
-  const reasons = recordValidationReasons(records);
+  const expectedSubject = snapshotSubject(subject);
+  if (!expectedSubject) return gateResult(gate, ['invalid:subject']);
+  const prepared = prepareRecords(records);
+  const reasons = [...prepared.reasons];
   if (reasons.length) return gateResult(gate, reasons);
   const seen = new Set<string>();
-  for (const [index, record] of records.entries()) {
+  for (const [index, record] of prepared.records.entries()) {
     if (record.suite !== expected[index]) reasons.push(`order:${record.suite}`);
     if (seen.has(record.suite)) reasons.push(`duplicate:${record.suite}`);
     seen.add(record.suite);
-    const field = subjectMismatch(record.subject, subject);
+    const field = subjectMismatch(record.subject, expectedSubject);
     if (field) reasons.push(`mismatched:${record.suite}:${field}`);
     if (!record.complete || record.status !== 'pass') reasons.push(`not-passing:${record.suite}`);
   }
@@ -586,18 +745,24 @@ export function evaluateRealization(records: readonly EvidenceRecord[], subject:
   return suiteGate('CF-GATE-REALIZATION', REALIZATION_SUITES, records, subject);
 }
 export function evaluateProvider(port: PortId, records: readonly EvidenceRecord[], subject: Subject): GateResult {
-  if (!validSubject(subject)) return gateResult('CF-GATE-PROVIDER', ['invalid:subject']);
-  const validationReasons = recordValidationReasons(records);
-  if (validationReasons.length) return gateResult('CF-GATE-PROVIDER', validationReasons);
+  const expectedSubject = snapshotSubject(subject);
+  if (!expectedSubject) return gateResult('CF-GATE-PROVIDER', ['invalid:subject']);
+  const prepared = prepareRecords(records);
+  if (prepared.reasons.length) return gateResult('CF-GATE-PROVIDER', [...prepared.reasons]);
   const suite = (Object.entries(MECHANISM_PORTS).find(([, value]) => value === port)?.[0] ?? '') as SuiteId;
   const result = suiteGate(
     'CF-GATE-PROVIDER',
     [suite],
-    records.filter((record) => record.suite === suite),
-    subject,
+    prepared.records.filter((record) => record.suite === suite),
+    expectedSubject,
   );
   const reasons = [...result.reasons];
-  if (!subject.providerId || !subject.providerBuildDigest || !subject.manifestDigest || !subject.environmentDigest)
+  if (
+    !expectedSubject.providerId ||
+    !expectedSubject.providerBuildDigest ||
+    !expectedSubject.manifestDigest ||
+    !expectedSubject.environmentDigest
+  )
     reasons.push('missing:provider-binding');
   // Phase 0 records carry fixture labels but no authenticated recorder-provenance primitive.
   reasons.push('missing:independent-recorder-provenance');
@@ -608,15 +773,21 @@ export function evaluateProduct(
   routes: readonly RouteEvidence[],
   subject: Subject,
 ): GateResult {
-  const result = suiteGate('CF-GATE-PRODUCT', SUITES, records, subject);
+  const expectedSubject = snapshotSubject(subject);
+  if (!expectedSubject) return gateResult('CF-GATE-PRODUCT', ['invalid:subject']);
+  const prepared = prepareRecords(records);
+  if (prepared.reasons.length) return gateResult('CF-GATE-PRODUCT', [...prepared.reasons]);
+  const safeRoutes = snapshotRoutes(routes);
+  if (!safeRoutes) return gateResult('CF-GATE-PRODUCT', ['input:routes']);
+  const result = suiteGate('CF-GATE-PRODUCT', SUITES, prepared.records, expectedSubject);
   const reasons = [...result.reasons];
   for (const port of Object.values(MECHANISM_PORTS)) {
-    const provider = evaluateProvider(port, records, subject);
+    const provider = evaluateProvider(port, prepared.records, expectedSubject);
     if (!provider.passed) reasons.push(`provider-proof:${port}`);
   }
-  if (routes.length !== PRODUCT_ROUTE_ORACLE.length) reasons.push('routes:length');
+  if (safeRoutes.length !== PRODUCT_ROUTE_ORACLE.length) reasons.push('routes:length');
   for (const [index, expected] of PRODUCT_ROUTE_ORACLE.entries()) {
-    const actual = routes[index];
+    const actual = safeRoutes[index];
     if (!actual || actual.route !== expected.id) {
       reasons.push(`route:${expected.id}`);
       continue;
@@ -631,10 +802,5 @@ export function evaluateProduct(
         reasons.push(`route-element:${expected.id}:${elementIndex}`);
     }
   }
-  return {
-    gate: 'CF-GATE-PRODUCT',
-    passed: reasons.length === 0,
-    reasons: Object.freeze(reasons),
-    ...(reasons.length ? { failureClass: classifyGateReason(reasons[0]) } : {}),
-  };
+  return gateResult('CF-GATE-PRODUCT', reasons);
 }
