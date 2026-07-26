@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { validateActiveRepository } from './check-active-repository.mjs';
 
@@ -14,38 +14,63 @@ function copyFilter(source) {
   return !rel.split('/').some((part) => excluded.has(part));
 }
 
-function withTempRepo(mutate) {
+function withTempRepo(mutate, { includeArchive = true } = {}) {
   const tempDir = mkdtempSync(join(tmpdir(), 'active-repo-test-'));
   let failure;
   let result;
   try {
-    cpSync(repoRoot, tempDir, { recursive: true, filter: copyFilter, verbatimSymlinks: true });
+    cpSync(repoRoot, tempDir, {
+      recursive: true,
+      filter: copyFilter,
+      verbatimSymlinks: true,
+    });
     for (const args of [
       ['init', '-q'],
       ['config', 'user.name', 'Test'],
       ['config', 'user.email', 'test@example.invalid'],
+      ['config', 'gc.auto', '0'],
+      ['config', 'maintenance.auto', 'false'],
       ['add', '.'],
       ['commit', '-q', '-m', 'Initial'],
-      [
-        'fetch',
-        '-q',
-        repoRoot,
-        'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
-      ],
     ])
       execFileSync('git', args, { cwd: tempDir });
+    if (includeArchive)
+      execFileSync(
+        'git',
+        [
+          'fetch',
+          '-q',
+          repoRoot,
+          'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
+        ],
+        { cwd: tempDir },
+      );
     mutate(tempDir);
     result = validateActiveRepository(tempDir);
   } catch (error) {
     failure = error;
   }
   try {
-    rmSync(tempDir, { recursive: true, maxRetries: 5, retryDelay: 50 });
+    rmSync(tempDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   } catch (cleanupError) {
     throw failure ? new AggregateError([failure, cleanupError], 'structure test and cleanup failed') : cleanupError;
   }
   if (failure) throw failure;
   return result;
+}
+
+function snapshotFiles(paths) {
+  return new Map(
+    paths.map((path) => [path, existsSync(join(repoRoot, path)) ? readFileSync(join(repoRoot, path)) : null]),
+  );
+}
+
+function restoreFiles(snapshot) {
+  for (const [path, bytes] of snapshot) {
+    const absolutePath = join(repoRoot, path);
+    if (bytes === null) rmSync(absolutePath, { force: true });
+    else writeFileSync(absolutePath, bytes);
+  }
 }
 
 test('validateActiveRepository passes on the active GF-001/GF-002 contract', () => {
@@ -108,29 +133,8 @@ test('rejects unlisted fixture files and an absent archive anchor', () => {
   assert.ok(
     fixtureErrors.some((error) => error.includes('unexpected active path') || error.includes('fixture file set')),
   );
-  const missingAnchor = mkdtempSync(join(tmpdir(), 'missing-archive-test-'));
-  let failure;
-  try {
-    cpSync(repoRoot, missingAnchor, { recursive: true, filter: copyFilter, verbatimSymlinks: true });
-    for (const args of [
-      ['init', '-q'],
-      ['config', 'user.name', 'Test'],
-      ['config', 'user.email', 'test@example.invalid'],
-      ['add', '.'],
-      ['commit', '-q', '-m', 'Initial'],
-    ])
-      execFileSync('git', args, { cwd: missingAnchor });
-    const errors = validateActiveRepository(missingAnchor);
-    assert.ok(errors.some((error) => error.includes('archive ref or representative recovery path')));
-  } catch (error) {
-    failure = error;
-  }
-  try {
-    rmSync(missingAnchor, { recursive: true, maxRetries: 5, retryDelay: 50 });
-  } catch (cleanupError) {
-    throw failure ? new AggregateError([failure, cleanupError], 'archive mutation and cleanup failed') : cleanupError;
-  }
-  if (failure) throw failure;
+  const missingAnchorErrors = withTempRepo(() => {}, { includeArchive: false });
+  assert.ok(missingAnchorErrors.some((error) => error.includes('archive ref or representative recovery path')));
 });
 
 test('requires the exact GF-005 kernel, root wiring, and retained evidence surface', () => {
@@ -227,19 +231,14 @@ test('nested verification runs every artifact-producing story runner without rew
     'artifacts/gf-002/results.json',
     'artifacts/gf-003/results.json',
   ];
-  const original = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
+  const original = snapshotFiles(paths);
   const { NODE_TEST_CONTEXT: _testContext, ...environment } = process.env;
   try {
-    const bootstrap = spawnSync(
-      process.execPath,
-      ['--test', '--test-concurrency=1', 'tests/gf-001/workspace-substrate.test.mjs'],
-      {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: environment,
-      },
-    );
-    assert.equal(bootstrap.status, 0, `GF-001 fixture bootstrap failed: ${bootstrap.stderr}`);
+    for (const path of paths) {
+      const absolutePath = join(repoRoot, path);
+      mkdirSync(dirname(absolutePath), { recursive: true });
+      writeFileSync(absolutePath, `nested-verification-sentinel:${path}\n`);
+    }
     const baseline = new Map(paths.map((path) => [path, readFileSync(join(repoRoot, path))]));
     const result = spawnSync(process.execPath, ['scripts/run-phase-0-verification-tests.mjs'], {
       cwd: repoRoot,
@@ -249,7 +248,7 @@ test('nested verification runs every artifact-producing story runner without rew
     assert.equal(result.status, 0, `Phase 0 verification runner failed: ${result.stderr}`);
     for (const [path, bytes] of baseline) assert.deepEqual(readFileSync(join(repoRoot, path)), bytes, path);
   } finally {
-    for (const [path, bytes] of original) writeFileSync(join(repoRoot, path), bytes);
+    restoreFiles(original);
   }
 });
 

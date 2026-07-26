@@ -35,7 +35,7 @@ historical reference only and does not govern the next implementation.
 
 ## Repository checks
 
-Requires Node `>=22.13.0` and pnpm `>=11.9.0`.
+Requires Node `>=22` and pnpm `>=11.9.0`.
 
 ```bash
 pnpm install --frozen-lockfile

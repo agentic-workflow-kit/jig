@@ -22,6 +22,9 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Fetch GF-002 activation provenance
+        run: git fetch --no-tags origin refs/pull/104/head
+
       - name: Install pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
         with:

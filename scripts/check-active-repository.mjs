@@ -40,6 +40,9 @@ jobs:
           persist-credentials: false
           ref: ${githubCandidateShaExpression}
 
+      - name: Fetch GF-002 activation provenance
+        run: git fetch --no-tags origin refs/pull/104/head
+
       - name: Install pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
         with:
@@ -156,8 +159,8 @@ const expectedManifest = {
   private: true,
   type: 'module',
   packageManager: 'pnpm@11.9.0',
-  engines: { node: '>=22.13.0', pnpm: '>=11.9.0' },
-  devEngines: { runtime: { name: 'node', version: '^26', onFail: 'warn' } },
+  engines: { node: '>=22', pnpm: '>=11.9.0' },
+  devEngines: { runtime: { name: 'node', version: '>=22', onFail: 'warn' } },
   scripts: expectedScripts,
   devDependencies: {
     '@biomejs/biome': '2.5.2',
