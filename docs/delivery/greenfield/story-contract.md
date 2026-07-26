@@ -14,7 +14,7 @@ last_verified: 2026-07-23
 
 Every `GF-*` story must instantiate every section below before implementation. “N/A” is valid only
 with a reason, proof that the subject cannot reach the omitted concern, and reviewer agreement.
-Its front matter is a literal, machine-parseable projection of the 16 canonical `track.json` story
+Its front matter is a literal, machine-parseable projection of the 15 canonical `track.json` story
 fields; use no aliases, wildcards, or invented IDs. Link to governing relative paths and stable IDs
 rather than copying or weakening their meaning.
 
@@ -25,7 +25,6 @@ title: "<bounded outcome>"
 phase: <0-6 integer>
 size: "S | M | L"
 status: "proposed"
-baseline_commit: "<exact 40-hex immutable planning/authority provenance commit>"
 story_file: "docs/delivery/greenfield/stories/GF-NNN.md"
 governing_paths: ["docs/redesign/design/<exact-path>.md"]
 stable_ids: ["<literal track.json stable ID>"]
@@ -57,8 +56,7 @@ invent an ID absent from the governing source and manifest.
 
 ## Dependencies plus start evidence
 
-Name every predecessor and the exact merged commit/evidence needed to start. `baseline_commit` is
-immutable planning/authority provenance, not a rolling implementation base. Prove the approved
+Name every predecessor and the exact merged commit/evidence needed to start. Prove the approved
 delivery package `P` being executed. Its canonical identity is: delivery-package candidate identity `Q` (the exact
 candidate commit/tree to be reviewed; exact package-only path set; each path's bytes/type/mode; and aggregate
 computed unpinned digest); external review record `R` (protocol; reviewer identity/independence;
@@ -72,7 +70,8 @@ any provider qualification. A dependency is not satisfied by an unreviewed branc
 
 ## Implementation candidate tuple and review binding
 
-For each implementation attempt, record an external, immutable tuple: story ID; the approved
+For each implementation attempt, record an external, immutable tuple in the reviewer packet or PR
+review record: story ID; the approved
 delivery package `P = Q + durable R identifier + PASS`, where `Q` and `R` have exactly the canonical fields
 above; any required external authoritative
 landing-equivalence record; the exact external owner-ratification/activation record (authenticated owner or
@@ -157,7 +156,10 @@ protocol, policy, authority, or product behavior may be invented by implication.
 Name deterministic unit/schema, contract, negative-authority, hostile-input, replay,
 permutation/concurrency, crash/fault, timeout/reconciliation, recovery/resume, provider, and E2E
 tests as applicable. Name `CF-*` suites, oracles, fixture/source identities, exact evidence
-metadata, and required repository/CI checks. State why omitted categories cannot apply.
+metadata, and required repository/CI checks. Named tests live with the package or behavior under
+test, and oracle fixtures are named for the oracle. Exact-subject evidence is a generated CI
+artifact retained by the workflow, not a committed assertion. State why omitted categories cannot
+apply.
 
 ## Exact acceptance
 
@@ -178,7 +180,8 @@ invalidate the review while the candidate, posture, required class set, verifica
 configuration/environment, and subject binding remain unchanged; drift in any one requires a fresh
 tuple and review. Use the delivery-package protocol only for a delivery-package subject; use the
 implementation-candidate protocol for story-owned source, configuration, tests, and evidence.
-Partial, self-authored, stale, or differently bound verdicts fail closed. Approval is not landing.
+Record and verify this proof in the external durable reviewer record at candidate freeze and review;
+partial, self-authored, stale, or differently bound verdicts fail closed. Approval is not landing.
 
 ## DR choices
 
@@ -229,7 +232,8 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 - No uncertain effect was blindly retried; reconciliation and recovery use durable facts.
 - Required unit, contract, adversarial, replay, crash, provider, and E2E proof plus `CF-*` catalog
   updates pass on the exact candidate.
-- Exact-subject evidence, `git diff --check`, required repository checks, and independent
+- Exact-subject evidence is retained as a generated CI artifact, and `git diff --check`, required
+  repository checks, and independent
   implementation-candidate review pass on the same candidate; its merge-base equality, approved
   package `P` binding, and normative-corpus comparison are current. After `Accepted`, the
   verification intent is recorded on the authorized entry into `Finalizing`: under
@@ -238,7 +242,9 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
   target-changing Operation; `none` is an explicit no-op. Recording those observations is
   authorized continuation evidence rather than a review-invalidating edit while candidate,
   posture, class set, configuration/environment, and subject binding stay unchanged; drift requires
-  a fresh tuple and review. No partial provider becomes configurable.
+  a fresh tuple and review. No partial provider becomes configurable. The external durable reviewer
+  record carries and the reviewer verifies the proof at candidate freeze and review; it is not a
+  committed assertion.
 ```
 
 ## Universal fail-closed rules

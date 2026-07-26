@@ -194,7 +194,7 @@ test('front-matter parser rejects empty inline elements and noncanonical keys', 
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('phase: 0', 'phase: 0\n__proto__: ignored'));
-  }, 'front matter must use exactly the 16 canonical fields');
+  }, 'front matter must use exactly the 15 canonical fields');
 });
 test('front-matter rejects recursive unquoted YAML alias, tag, and anchor scalars', () => {
   for (const value of ['[*oracle]', '[!unsafe value]', '[&oracle value]'])
@@ -271,7 +271,7 @@ test('front-matter fallback preserves falsy elements for validation', () => {
       p,
       readFileSync(p, 'utf8').replace('"static dependency checks",', 'static dependency checks,\n    0,'),
     );
-  }, 'front matter must exactly match all 16 track fields');
+  }, 'front matter must exactly match all 15 track fields');
 });
 test('front-matter JSON preserves comma-delimiter text inside quoted strings', () =>
   reject((dir) => {
@@ -280,7 +280,7 @@ test('front-matter JSON preserves comma-delimiter text inside quoted strings', (
     });
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('"static dependency checks"', '"Probe,}"'));
-  }, 'front matter must exactly match all 16 track fields'));
+  }, 'front matter must exactly match all 15 track fields'));
 test('malformed structural values return curated errors instead of throwing', () => {
   for (const id of ['GF-020', 'GF-023', 'GF-062'])
     malformed(
@@ -534,7 +534,7 @@ test('front matter exposes nested prototype keys in block and inline dependency 
         '    type: "implementation"\n    split: "semantic-to-provider"\n    __proto__: "ignored"',
       ),
     );
-  }, 'front matter must exactly match all 16 track fields');
+  }, 'front matter must exactly match all 15 track fields');
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-020.md');
     writeFileSync(
@@ -544,7 +544,7 @@ test('front matter exposes nested prototype keys in block and inline dependency 
         'dependency_edges: [{from: GF-019, type: implementation, split: semantic-to-provider, __proto__: ignored}, {from: GF-022, type: evidence}]',
       ),
     );
-  }, 'front matter must exactly match all 16 track fields');
+  }, 'front matter must exactly match all 15 track fields');
 });
 test('track JSON rejects duplicate object keys before JSON parsing normalizes them', () => {
   reject((dir) => {
@@ -688,18 +688,13 @@ test('paired story schema matrix rejects every required scalar and collection mu
   for (const [field, value, expected] of [
     ['title', 1, 'title must be a nonempty string'],
     ['title', '', 'title must be a nonempty string'],
+    ['title', ' ', 'title must be a nonempty string'],
     ['outcome', 1, 'outcome must be a nonempty string'],
     ['outcome', '', 'outcome must be a nonempty string'],
+    ['outcome', ' ', 'outcome must be a nonempty string'],
     ['status', 1, 'status must be proposed'],
     ['status', '', 'status must be proposed'],
     ['status', 'wrong', 'status must be proposed'],
-    ['baseline_commit', 1, 'baseline_commit must equal the immutable planning provenance'],
-    ['baseline_commit', '', 'baseline_commit must equal the immutable planning provenance'],
-    [
-      'baseline_commit',
-      '0123456789012345678901234567890123456789',
-      'baseline_commit must equal the immutable planning provenance',
-    ],
     ['dr_gates', 'DR-1', 'dr_gates must be an array'],
     ['dr_gates', [1], 'dr_gates must be a nonempty unique string array'],
     ['dr_gates', ['DR-999'], 'dr_gates must use only open DR IDs'],
@@ -1451,11 +1446,11 @@ test('rejects every front matter scalar, array, duplicate, and alias drift direc
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('status: proposed', 'status: changed'));
-  }, 'front matter must exactly match all 16');
+  }, 'front matter must exactly match all 15');
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('dependencies: []', 'dependencies: ["GF-002"]'));
-  }, 'front matter must exactly match all 16');
+  }, 'front matter must exactly match all 15');
   reject((dir) => {
     const p = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(p, readFileSync(p, 'utf8').replace('phase: 0', 'phase: 0\nphase: 0'));

@@ -9,8 +9,9 @@ owner: "Arye Kogan"
 # Verification accumulation
 
 Every result is exact-subject evidence: realization build, provider build where applicable,
-suite/probe versions, manifest digest, and environment fingerprint. A passing baseline is not
-evidence for a later candidate.
+suite/probe versions, manifest digest, and environment fingerprint. Each phase's accumulated
+evidence is a retained CI artifact bound to the exact candidate, not a permanent repo-resident
+check. A passing baseline is not evidence for a later candidate.
 
 | Phase | Accumulated evidence                                                                                                                                                                                                                                         | Exit condition                                                                                                    |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -56,5 +57,7 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   recorded reauthorization; otherwise reconcile or park.
 - Provider evidence is not transferable across build, manifest, environment, posture, or suite
   version changes.
+- Retain per-phase accumulated evidence as CI artifacts bound to the exact candidate. Do not turn
+  delivery-process provenance into pinned repository checks; review it when the claim is made.
 - Final evidence must include `pnpm check`, `git diff --check`, CI, and independent review of the
   exact candidate. These delivery documents do not claim that any implementation candidate passed.
