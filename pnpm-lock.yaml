@@ -29,6 +29,15 @@ importers:
         specifier: workspace:*
         version: link:../codec
 
+  packages/conformance:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
+      '@agentic-workflow-kit/jig-runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+
 packages:
 
   '@biomejs/biome@2.5.2':

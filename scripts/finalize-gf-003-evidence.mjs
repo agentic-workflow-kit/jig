@@ -9,6 +9,8 @@ import { APPROVED_ACTIVATION, verifyApprovedActivation } from './run-gf-002-test
 const rootDir = resolve(import.meta.dirname, '..');
 const artifactDir = join(rootDir, 'artifacts/gf-003');
 const git = (...args) => execFileSync('git', args, { cwd: rootDir, encoding: 'utf8' }).trim();
+const isAncestor = (ancestor, descendant) =>
+  spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: rootDir }).status === 0;
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 export const EVIDENCE_CONTRACT = Object.freeze({
@@ -27,6 +29,11 @@ export const EVIDENCE_CONTRACT = Object.freeze({
     ref: 'feat/greenfield-phase-0-substrate',
     commit: '816024def188ef7e8aaad2cb789d80e8fd8fa8eb',
     tree: '46a9217249f2ec5fb923bb59ddb8602074e4f3ac',
+  }),
+  landed: Object.freeze({
+    candidate: '6bbcc4b52944e0dcd8f7ba01857f12df9d6ebe6e',
+    tree: '1e9434a9157b063ccf2aa3af1fc54d13278fa23f',
+    integration: '86c32022fe2ff1c3ebd8b8d22578fc9b4db08fa0',
   }),
   predecessors: Object.freeze({
     gf001: Object.freeze({
@@ -67,12 +74,22 @@ export function verifyEvidenceContract() {
   )
     throw new Error('GF-003 target-main anchor does not resolve to its exact immutable tuple');
   if (
-    git('rev-parse', contract.integrationBase.ref) !== contract.integrationBase.commit ||
-    git('rev-parse', `${contract.integrationBase.ref}^{tree}`) !== contract.integrationBase.tree
+    git('rev-parse', contract.integrationBase.commit) !== contract.integrationBase.commit ||
+    git('rev-parse', `${contract.integrationBase.commit}^{tree}`) !== contract.integrationBase.tree
   )
-    throw new Error('GF-003 story integration base does not resolve to its exact immutable tuple');
-  if (git('merge-base', 'HEAD', contract.integrationBase.ref) !== contract.integrationBase.commit)
-    throw new Error('GF-003 candidate merge-base does not equal the declared story integration base');
+    throw new Error('GF-003 historical integration base does not resolve to its exact immutable tuple');
+  if (
+    git('rev-parse', `${contract.landed.candidate}^{tree}`) !== contract.landed.tree ||
+    git('rev-parse', `${contract.landed.integration}^{tree}`) !== contract.landed.tree
+  )
+    throw new Error('GF-003 landed candidate and integration trees do not preserve exact equality');
+  const head = git('rev-parse', 'HEAD');
+  if (head === contract.landed.candidate) {
+    if (git('merge-base', head, contract.integrationBase.commit) !== contract.integrationBase.commit)
+      throw new Error('GF-003 exact candidate merge-base does not equal the historical integration base');
+  } else if (!isAncestor(contract.landed.integration, head)) {
+    throw new Error('GF-003 downstream candidate does not contain the exact landed integration commit');
+  }
   if (
     git('rev-parse', `${contract.predecessors.gf002.candidate.commit}^{tree}`) !==
       contract.predecessors.gf002.candidate.tree ||

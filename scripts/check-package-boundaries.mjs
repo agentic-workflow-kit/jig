@@ -156,8 +156,8 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
   const packagesRoot = join(rootDir, 'packages');
   if (existsSync(packagesRoot)) {
     const packageEntries = readdirSync(packagesRoot).sort();
-    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec', 'runtime-contracts']))
-      errors.push('GF-003 permits only the pure codec and private runtime-contracts packages');
+    if (JSON.stringify(packageEntries) !== JSON.stringify(['codec', 'conformance', 'runtime-contracts']))
+      errors.push('GF-004 permits only the pure codec, private runtime-contracts, and private conformance packages');
     const codecRoot = join(packagesRoot, 'codec');
     const codecFiles = listFiles(codecRoot)
       .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
@@ -208,6 +208,30 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       runtimeManifest.scripts?.start
     )
       errors.push('GF-003 runtime contracts must remain private, codec-only, and non-runnable');
+  }
+
+  const conformanceRoot = join(rootDir, 'packages', 'conformance');
+  if (existsSync(conformanceRoot)) {
+    const manifest = JSON.parse(readFileSync(join(conformanceRoot, 'package.json'), 'utf8'));
+    if (
+      manifest.name !== '@agentic-workflow-kit/jig-conformance' ||
+      manifest.private !== true ||
+      JSON.stringify(manifest.dependencies) !==
+        JSON.stringify({
+          '@agentic-workflow-kit/jig-codec': 'workspace:*',
+          '@agentic-workflow-kit/jig-runtime-contracts': 'workspace:*',
+        }) ||
+      manifest.bin ||
+      manifest.publishConfig ||
+      manifest.scripts?.start
+    )
+      errors.push('GF-004 conformance must remain private, contract-only, and non-runnable');
+    const source = readFileSync(join(conformanceRoot, 'src/index.ts'), 'utf8');
+    if (
+      /from ['"](?:node:|https?:|net|tls|child_process|fs|path)/.test(source) ||
+      /\b(fetch|process|require)\b/.test(source)
+    )
+      errors.push('GF-004 conformance must not add an effect, provider, filesystem, process, or network dependency');
   }
 
   const fixtureDir = join(rootDir, fixtureRoot);

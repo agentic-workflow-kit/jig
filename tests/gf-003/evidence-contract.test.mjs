@@ -26,6 +26,11 @@ test('GF-003 evidence contract binds activation, predecessors, topology, and pre
   });
   assert.equal(EVIDENCE_CONTRACT.predecessors.gf002.candidate.commit, '48794c07abe6996b17c10f9b12179347e3d88dbb');
   assert.equal(EVIDENCE_CONTRACT.predecessors.gf002.integration.commit, EVIDENCE_CONTRACT.integrationBase.commit);
+  assert.deepEqual(EVIDENCE_CONTRACT.landed, {
+    candidate: '6bbcc4b52944e0dcd8f7ba01857f12df9d6ebe6e',
+    tree: '1e9434a9157b063ccf2aa3af1fc54d13278fa23f',
+    integration: '86c32022fe2ff1c3ebd8b8d22578fc9b4db08fa0',
+  });
   assert.deepEqual(EVIDENCE_CONTRACT.prePublication, [
     { id: 'hosted-check', disposition: 'pending-not-yet-applicable' },
     { id: 'independent-review', disposition: 'pending-not-yet-applicable' },

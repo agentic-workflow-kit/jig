@@ -71,6 +71,7 @@ jobs:
             artifacts/gf-001/evidence.json
             artifacts/gf-002/evidence.json
             artifacts/gf-003/evidence.json
+            artifacts/gf-004/evidence.json
           if-no-files-found: error
           retention-days: 90`;
 
@@ -129,9 +130,9 @@ const expectedScripts = {
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
-  test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs',
+  test: 'node scripts/run-gf-001-tests.mjs && node scripts/run-gf-002-tests.mjs && node scripts/run-gf-003-tests.mjs && node scripts/run-gf-004-tests.mjs',
   'evidence:write':
-    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs',
+    'node scripts/write-gf-001-evidence.mjs && node scripts/finalize-gf-002-evidence.mjs && node scripts/finalize-gf-003-evidence.mjs && node scripts/finalize-gf-004-evidence.mjs',
   check:
     'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
 };
@@ -140,7 +141,7 @@ const expectedManifest = {
   name: '@agentic-workflow-kit/jig-repo',
   version: '0.0.0',
   description:
-    'Jig active GF-001 substrate, GF-002 canonical codec, and GF-003 runtime topology contracts; product runtime behavior remains unimplemented.',
+    'Jig active GF-001 substrate, GF-002 canonical codec, GF-003 topology contracts, and GF-004 private conformance harness; product runtime behavior remains unimplemented.',
   private: true,
   type: 'module',
   packageManager: 'pnpm@11.9.0',
@@ -187,6 +188,10 @@ const requiredPaths = [
   'scripts/run-gf-001-tests.mjs',
   'scripts/run-gf-002-tests.mjs',
   'scripts/run-gf-003-tests.mjs',
+  'scripts/run-gf-004-tests.mjs',
+  'scripts/check-gf-004-conformance.mjs',
+  'scripts/check-gf-004-conformance.test.mjs',
+  'scripts/finalize-gf-004-evidence.mjs',
   'scripts/finalize-gf-002-evidence.mjs',
   'scripts/finalize-gf-003-evidence.mjs',
   'scripts/write-gf-001-evidence.mjs',
@@ -206,6 +211,12 @@ const requiredPaths = [
   'packages/runtime-contracts/package.json',
   'packages/runtime-contracts/tsconfig.json',
   'packages/runtime-contracts/src/index.ts',
+  'packages/conformance/package.json',
+  'packages/conformance/tsconfig.json',
+  'packages/conformance/src/index.ts',
+  'tests/gf-004/conformance.test.mjs',
+  'tests/gf-004/evidence-contract.test.mjs',
+  'tests/fixtures/gf-004/oracle.json',
 ];
 
 const allowedRootFiles = new Set([
@@ -365,10 +376,13 @@ export function validateActiveRepository(rootDir = process.cwd()) {
         { path: './tsconfig.tools.json' },
         { path: './packages/codec' },
         { path: './packages/runtime-contracts' },
+        { path: './packages/conformance' },
       ],
     })
   )
-    errors.push('tsconfig.json must bind exactly the tooling substrate, GF-002 codec, and GF-003 topology contracts');
+    errors.push(
+      'tsconfig.json must bind exactly the tooling substrate, GF-002 codec, GF-003 topology, and GF-004 conformance contracts',
+    );
   const runtimeManifestPath = join(rootDir, 'packages/runtime-contracts/package.json');
   if (existsSync(runtimeManifestPath)) {
     const runtimeManifest = JSON.parse(readFileSync(runtimeManifestPath, 'utf8'));
@@ -387,6 +401,24 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     )
       errors.push('GF-003 runtime-contracts manifest must remain a private codec-only contract package');
   }
+  const conformanceManifest = JSON.parse(readFileSync(join(rootDir, 'packages/conformance/package.json'), 'utf8'));
+  if (
+    canonical(conformanceManifest) !==
+    canonical({
+      name: '@agentic-workflow-kit/jig-conformance',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      exports: './dist/index.js',
+      types: './dist/index.d.ts',
+      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+      dependencies: {
+        '@agentic-workflow-kit/jig-codec': 'workspace:*',
+        '@agentic-workflow-kit/jig-runtime-contracts': 'workspace:*',
+      },
+    })
+  )
+    errors.push('GF-004 conformance manifest must remain a private codec/runtime-contract-only harness');
   const codecManifest = JSON.parse(readFileSync(join(rootDir, 'packages/codec/package.json'), 'utf8'));
   if (
     canonical(codecManifest) !==
