@@ -134,13 +134,16 @@ independent review rather than speculative scaffolding or retrospective proof.
     prose. Any package byte or path-set change invalidates `Q` and requires fresh package review;
     the 67-file normative digest is corpus-drift evidence only.
 16. Keep delivery-process state out of repository source, tests, fixtures, and CI configuration.
-    Do not commit commit SHAs, tree hashes, branch names, PR or issue URLs, review verdicts,
-    approval records, package digests, or story IDs used as identifiers in file, directory, or
-    script names. Tests remain per-story work named and organized by the package or behavior under
-    test; oracle fixtures remain named for the oracle; and one generic evidence writer may accept
-    a story ID as a CI-time argument and write artifacts uploaded by the workflow. Provenance facts
-    are verified when asserted; re-verifying them forever produces no information and creates
-    failures on ordinary squash-merge.
+    Within those places, do not commit delivery-process provenance or review state — commit SHAs,
+    tree hashes, candidate or story branch refs, PR or issue URLs, review verdicts, approval
+    records, or package digests — and do not use a story ID as an identifier in a source, test,
+    fixture, or script file or directory name. Canonical story files under
+    `docs/delivery/greenfield/stories/` and ordinary CI branch triggers are unaffected. Tests remain
+    per-story work named and organized by the package or behavior under test; oracle fixtures remain
+    named for the oracle; and one generic evidence writer may accept a story ID as a CI-time
+    argument and write artifacts uploaded by the workflow. Provenance facts are verified when
+    asserted; re-verifying them forever produces no information and creates failures on ordinary
+    squash-merge.
 
 ## Required evidence ladder
 
