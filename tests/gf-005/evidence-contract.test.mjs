@@ -4,15 +4,13 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   createGf004OperandRecords,
+  DELIVERY_FLOW_REVIEW_BASIS,
+  DELIVERY_FLOW_REVIEW_RECORDER,
   deriveFrozenCandidate,
   deriveGf004Subject,
   EVIDENCE_CONTRACT,
   GF004_OPERANDS,
-  OPERAND_FAILURE_CLASS,
-  OPERAND_NOT_RECORDABLE_REASON,
   OPERAND_RESULT_STATUS,
-  OPERAND_STATUS,
-  PHASE0_RECORDER_IDENTITY,
   verifyEvidenceContract,
   verifyPreFinalizationArtifacts,
 } from '../../scripts/finalize-gf-005-evidence.mjs';
@@ -26,8 +24,7 @@ const closedResults = () => ({
   candidate,
   status: OPERAND_RESULT_STATUS,
   operands: GF004_OPERANDS,
-  reason: OPERAND_NOT_RECORDABLE_REASON,
-  failureClass: OPERAND_FAILURE_CLASS,
+  reviewBasis: DELIVERY_FLOW_REVIEW_BASIS,
 });
 
 const artifacts = (evidence, results = closedResults()) => {
@@ -45,14 +42,18 @@ const artifacts = (evidence, results = closedResults()) => {
   return { resultsText, observationsText, evidenceText, receiptText: `${JSON.stringify(receipt)}\n`, candidate };
 };
 
-const evidenceFor = (records, qualification = {}, results = closedResults()) => {
+const evidenceFor = (
+  records,
+  status = OPERAND_RESULT_STATUS,
+  results = closedResults(),
+  reviewBasis = DELIVERY_FLOW_REVIEW_BASIS,
+) => {
   const observations = { candidate, prePublication: EVIDENCE_CONTRACT.prePublication };
   const resultsText = `${JSON.stringify(results)}\n`;
   const observationsText = `${JSON.stringify(observations)}\n`;
   return {
-    status: qualification.status ?? OPERAND_RESULT_STATUS,
-    reason: qualification.reason ?? OPERAND_NOT_RECORDABLE_REASON,
-    failureClass: qualification.failureClass ?? OPERAND_FAILURE_CLASS,
+    status,
+    reviewBasis,
     candidate,
     operands: GF004_OPERANDS,
     catalogVersion: EVIDENCE_CONTRACT.catalogVersion,
@@ -109,20 +110,35 @@ test('GF-005 evidence contract binds only the three structural GF-004 operands',
   );
 });
 
-test('GF-005 Phase 0 artifacts fail closed without independent-recorder provenance', () => {
+test('GF-005 records completed delivery-flow review as structural operands only', () => {
   const records = createGf004OperandRecords(candidate);
   assert.equal(
-    records.every((record) => record.record.status === OPERAND_STATUS),
+    records.every((record) => record.record.status === 'pass'),
     true,
   );
   assert.equal(
-    records.every((record) => record.record.independentRecorder === PHASE0_RECORDER_IDENTITY),
+    records.every((record) => record.record.independentRecorder === DELIVERY_FLOW_REVIEW_RECORDER),
     true,
   );
   assert.equal(
-    records.every((record) => record.record.subject.recorderIdentity === PHASE0_RECORDER_IDENTITY),
+    records.every((record) => record.record.subject.recorderIdentity === DELIVERY_FLOW_REVIEW_RECORDER),
     true,
   );
+});
+
+test('GF-005 structural operands bind the completed reviewed candidate, not this integration candidate', () => {
+  assert.deepEqual(DELIVERY_FLOW_REVIEW_BASIS, {
+    verdict: 'APPROVE',
+    reviewedCandidateCommit: 'b65722c1394b7a2c00d59f0565b6c53519c6933f',
+    reviewedCandidateTree: '22c56ba9f4dee7b6f7f44b122ef4d744d97ac528',
+    integrationCommit: '8cf53adf5d26a6cd6a7f0799d713ce8c2bb67d3b',
+    integrationTree: '22c56ba9f4dee7b6f7f44b122ef4d744d97ac528',
+    scope: 'GF-005-structural-operands-only',
+  });
+});
+
+test('GF-005 delivery-review operands remain structural and cannot claim a gate', () => {
+  const records = createGf004OperandRecords(candidate);
   assert.equal(verifyPreFinalizationArtifacts(artifacts(evidenceFor(records))), 'pass');
   const subject = deriveGf004Subject(candidate);
   const provider = conformance.evaluateProvider(
@@ -137,27 +153,31 @@ test('GF-005 Phase 0 artifacts fail closed without independent-recorder provenan
   );
   assert.equal(provider.passed, false);
   assert.equal(product.passed, false);
-  assert.ok(provider.reasons.includes(OPERAND_NOT_RECORDABLE_REASON));
-  assert.ok(product.reasons.some((reason) => reason.startsWith('not-passing:')));
-  for (const status of ['operands-recorded-not-gate-pass', 'gate-pass', 'accepted']) {
+  assert.ok(provider.reasons.includes('missing:independent-recorder-provenance'));
+  assert.ok(product.reasons.some((reason) => reason.startsWith('missing:')));
+  for (const status of ['gate-pass', 'accepted', 'provider-pass', 'product-pass']) {
     const upgradedResults = { ...closedResults(), status };
     assert.equal(
-      verifyPreFinalizationArtifacts(artifacts(evidenceFor(records, {}, upgradedResults), upgradedResults)),
+      verifyPreFinalizationArtifacts(
+        artifacts(evidenceFor(records, OPERAND_RESULT_STATUS, upgradedResults), upgradedResults),
+      ),
       'gate-claim',
     );
-    assert.equal(verifyPreFinalizationArtifacts(artifacts(evidenceFor(records, { status }))), 'gate-claim');
+    assert.equal(verifyPreFinalizationArtifacts(artifacts(evidenceFor(records, status))), 'gate-claim');
   }
-  for (const qualification of [{ reason: 'missing:recorder' }, { failureClass: 'FC-EVIDENCE' }])
-    assert.equal(
-      verifyPreFinalizationArtifacts(artifacts(evidenceFor(records, qualification))),
-      qualification.reason ? 'not-recordable-reason' : 'not-recordable-classification',
-    );
-  const { reason: _reason, ...evidenceWithoutReason } = evidenceFor(records);
-  assert.equal(verifyPreFinalizationArtifacts(artifacts(evidenceWithoutReason)), 'not-recordable-reason');
-  const { reason: _resultReason, ...resultsWithoutReason } = closedResults();
+  const alteredReviewBasis = { ...DELIVERY_FLOW_REVIEW_BASIS, verdict: 'REJECT' };
   assert.equal(
-    verifyPreFinalizationArtifacts(artifacts(evidenceFor(records, {}, resultsWithoutReason), resultsWithoutReason)),
-    'not-recordable-reason',
+    verifyPreFinalizationArtifacts(
+      artifacts(evidenceFor(records, OPERAND_RESULT_STATUS, closedResults(), alteredReviewBasis)),
+    ),
+    'review-basis',
+  );
+  const { reviewBasis: _reviewBasis, ...resultsWithoutReviewBasis } = closedResults();
+  assert.equal(
+    verifyPreFinalizationArtifacts(
+      artifacts(evidenceFor(records, OPERAND_RESULT_STATUS, resultsWithoutReviewBasis), resultsWithoutReviewBasis),
+    ),
+    'review-basis',
   );
 });
 
@@ -198,9 +218,9 @@ test('GF-005 readback proves parsed GF-004 frames and rejects every provenance b
   };
   for (const changes of [
     { suite: 'CF-MECH-LEDGER' },
-    { status: 'pass' },
+    { status: 'not-recordable' },
     { status: 'fail' },
-    { independentRecorder: 'gf005-independent-recorder' },
+    { independentRecorder: 'phase0-no-provenance-envelope' },
   ]) {
     const altered = mutateFrame(changes);
     assert.equal(

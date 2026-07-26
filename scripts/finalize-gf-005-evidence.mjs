@@ -46,11 +46,31 @@ const sameFields = (left, right) =>
   Object.keys(left).every((key) => Object.hasOwn(right, key) && left[key] === right[key]);
 
 export const GF004_OPERANDS = Object.freeze(['CF-DETERMINISM', 'CF-BINDING', 'CF-ORDERING']);
-export const PHASE0_RECORDER_IDENTITY = 'phase0-no-provenance-envelope';
-export const OPERAND_STATUS = 'not-recordable';
-export const OPERAND_RESULT_STATUS = 'operands-not-recordable-no-independent-recorder';
-export const OPERAND_NOT_RECORDABLE_REASON = 'missing:independent-recorder-provenance';
-export const OPERAND_FAILURE_CLASS = 'FC-TRUST';
+export const DELIVERY_FLOW_REVIEW_RECORDER = 'gf005-delivery-flow-independent-review';
+export const OPERAND_STATUS = 'pass';
+export const OPERAND_RESULT_STATUS = 'operands-recorded-not-gate-pass';
+export const DELIVERY_FLOW_REVIEW_BASIS = Object.freeze({
+  verdict: 'APPROVE',
+  reviewedCandidateCommit: 'b65722c1394b7a2c00d59f0565b6c53519c6933f',
+  reviewedCandidateTree: '22c56ba9f4dee7b6f7f44b122ef4d744d97ac528',
+  integrationCommit: '8cf53adf5d26a6cd6a7f0799d713ce8c2bb67d3b',
+  integrationTree: '22c56ba9f4dee7b6f7f44b122ef4d744d97ac528',
+  scope: 'GF-005-structural-operands-only',
+});
+const hasExactDeliveryFlowReviewBasis = (value) => {
+  try {
+    return (
+      sameFields(value, DELIVERY_FLOW_REVIEW_BASIS) &&
+      git('rev-parse', `${DELIVERY_FLOW_REVIEW_BASIS.reviewedCandidateCommit}^{tree}`) ===
+        DELIVERY_FLOW_REVIEW_BASIS.reviewedCandidateTree &&
+      git('rev-parse', `${DELIVERY_FLOW_REVIEW_BASIS.integrationCommit}^{tree}`) ===
+        DELIVERY_FLOW_REVIEW_BASIS.integrationTree &&
+      DELIVERY_FLOW_REVIEW_BASIS.reviewedCandidateTree === DELIVERY_FLOW_REVIEW_BASIS.integrationTree
+    );
+  } catch {
+    return false;
+  }
+};
 const kernel = await import(kernelPath);
 const codec = await import(join(root, 'packages/codec/dist/index.js'));
 const conformance = await import(join(root, 'packages/conformance/dist/index.js'));
@@ -121,7 +141,7 @@ export function deriveGf004Subject(candidate) {
     fixtureDigest: hash(fixtureText),
     clockId: 'gf005-no-clock',
     seed: EVIDENCE_CONTRACT.seed,
-    recorderIdentity: PHASE0_RECORDER_IDENTITY,
+    recorderIdentity: DELIVERY_FLOW_REVIEW_RECORDER,
     recordedAt: 0,
   });
 }
@@ -135,7 +155,7 @@ export function createGf004OperandRecords(candidate) {
       suite,
       status: OPERAND_STATUS,
       subject,
-      independentRecorder: PHASE0_RECORDER_IDENTITY,
+      independentRecorder: DELIVERY_FLOW_REVIEW_RECORDER,
       complete: true,
       attempt: 1,
     });
@@ -205,10 +225,8 @@ export function verifyPreFinalizationArtifacts({
     return 'evidence-link';
   if (receipt.readback !== 'pass') return 'readback';
   if (results.status !== OPERAND_RESULT_STATUS || evidence.status !== OPERAND_RESULT_STATUS) return 'gate-claim';
-  if (results.reason !== OPERAND_NOT_RECORDABLE_REASON || evidence.reason !== OPERAND_NOT_RECORDABLE_REASON)
-    return 'not-recordable-reason';
-  if (results.failureClass !== OPERAND_FAILURE_CLASS || evidence.failureClass !== OPERAND_FAILURE_CLASS)
-    return 'not-recordable-classification';
+  if (!hasExactDeliveryFlowReviewBasis(results.reviewBasis) || !hasExactDeliveryFlowReviewBasis(evidence.reviewBasis))
+    return 'review-basis';
   if (JSON.stringify(results.operands) !== JSON.stringify(GF004_OPERANDS)) return 'operand-list';
   if (JSON.stringify(evidence.operands) !== JSON.stringify(GF004_OPERANDS)) return 'operand-list';
   if (
@@ -239,8 +257,8 @@ export function verifyPreFinalizationArtifacts({
       record.suite !== entry.suite ||
       record.status !== OPERAND_STATUS ||
       record.complete !== true ||
-      record.independentRecorder !== PHASE0_RECORDER_IDENTITY ||
-      record.subject.recorderIdentity !== PHASE0_RECORDER_IDENTITY
+      record.independentRecorder !== DELIVERY_FLOW_REVIEW_RECORDER ||
+      record.subject.recorderIdentity !== DELIVERY_FLOW_REVIEW_RECORDER
     )
       return 'operand-record';
     if (!sameFields(record.subject, expectedSubject)) return 'operand-subject';
@@ -268,8 +286,7 @@ export async function finalizeEvidence(run = spawnSync) {
     candidate,
     status: OPERAND_RESULT_STATUS,
     operands: GF004_OPERANDS,
-    reason: OPERAND_NOT_RECORDABLE_REASON,
-    failureClass: OPERAND_FAILURE_CLASS,
+    reviewBasis: DELIVERY_FLOW_REVIEW_BASIS,
   };
   const observations = {
     candidate,
@@ -285,8 +302,7 @@ export async function finalizeEvidence(run = spawnSync) {
     schemaVersion: 1,
     subject: 'GF-005',
     status: OPERAND_RESULT_STATUS,
-    reason: OPERAND_NOT_RECORDABLE_REASON,
-    failureClass: OPERAND_FAILURE_CLASS,
+    reviewBasis: DELIVERY_FLOW_REVIEW_BASIS,
     candidate,
     catalog: contract.catalog,
     catalogInventory: CATALOG_INVENTORY,
