@@ -126,10 +126,12 @@ const expectedScripts = {
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
+  'candidate:seal': 'node scripts/seal-candidate.mjs',
+  'candidate:seal:test': 'node --test scripts/seal-candidate.test.mjs',
   test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 "tests/**/*.test.mjs"',
   'evidence:write': 'node scripts/write-evidence.mjs phase-0',
   check:
-    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
+    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm candidate:seal:test && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
 };
 
 const expectedManifest = {
@@ -180,6 +182,8 @@ const requiredPaths = [
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
+  'scripts/seal-candidate.mjs',
+  'scripts/seal-candidate.test.mjs',
   'scripts/write-evidence.mjs',
   'tests/workspace/workspace-substrate.test.mjs',
   'tests/codec/codec.test.mjs',

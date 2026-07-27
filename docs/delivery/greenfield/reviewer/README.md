@@ -23,6 +23,17 @@ to passing subject `1731251d866b15b63131a0c3c580e7b563226cf3` and aggregate SHA-
 subject faithfully against governing contracts—not to select architecture, invent a solution, or
 trust a branch name, prior verdict, or author narrative.
 
+## Reviewer operation boundary
+
+The reviewer performs semantic and evidence review only. Read-only inspection is permitted,
+including files, exact commits/trees/diffs/manifests, logs, hosted check results, and evidence using
+`git show`, `git diff`, `rg`, and `sed`. Do not execute `pnpm` tests/checks/builds, direct
+validators, formatters, installers, evidence writers, or GitHub/repository mutations. Treat
+missing, stale, contradictory, or incorrectly bound verification evidence as a finding; never
+repair it by rerunning a check. The implementation owner runs local verification exactly once per
+frozen candidate, hosted CI independently executes required checks, and the coordinator validates
+only orchestration facts/evidence bindings.
+
 ## Choose the review protocol
 
 The coordinator declares one protocol before review. Never apply a delivery-package requirement to
@@ -86,6 +97,16 @@ a fresh exact review. After `Accepted`, recording only the final-verification ob
 authorized by the unchanged reviewed candidate, posture, required class set,
 configuration/environment, and subject binding is continuation evidence and does not itself create
 a new tuple or review loop.
+
+Before requesting review, the implementation owner must have committed the candidate, recorded the
+candidate/base-ref/base-commit/base-tree/merge-base tuple, run required verification against that exact `HEAD`, and created an
+external, non-candidate seal envelope. It contains exact commands, timestamps, exit codes, output
+log digests or durable log identities, automatic candidate-bound `git diff --check
+<base-commit>...<candidate-commit>` evidence, base-ancestry proof, and a final proof that the
+original candidate commit/tree did not change and the worktree is clean. Commands ran in a local
+exact-candidate clone whose clean state is recorded after each command; a non-ancestor base,
+subject drift/residue, or original-candidate edit invalidates the seal. Review the envelope by
+inspection; do not rerun its commands.
 
 ## Publication, CI, and verdict boundaries
 

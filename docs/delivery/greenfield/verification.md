@@ -59,5 +59,16 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   version changes.
 - Retain per-phase accumulated evidence as CI artifacts bound to the exact candidate. Do not turn
   delivery-process provenance into pinned repository checks; review it when the claim is made.
-- Final evidence must include `pnpm check`, `git diff --check`, CI, and independent review of the
-  exact candidate. These delivery documents do not claim that any implementation candidate passed.
+- The implementation owner commits before verification, records candidate/base-ref/base-commit/base-tree/merge-base identity,
+  runs each required local check/direct validator once against that exact `HEAD`, and emits an
+  external seal envelope containing commands, timestamps, exit codes, log digests or durable log
+  identities, automatic `git diff --check <base-commit>...<candidate-commit>` output,
+  base-ancestry proof, and final unchanged-`HEAD`/tree/clean-worktree proof. Commands execute in a
+  local exact-candidate clone; it records clean subject state after each command, and any original-candidate edit,
+  subject drift/residue, or non-ancestor base invalidates
+  that seal. Hosted CI independently executes required checks; the coordinator inspects bindings
+  only, and the semantic reviewer reads evidence rather than rerunning it.
+- Final evidence must include `pnpm check`, `git diff --check <base-commit>...<candidate-commit>`,
+  CI, a valid exact-candidate seal,
+  and independent read-only review of the exact candidate. These delivery documents do not claim
+  that any implementation candidate passed.
