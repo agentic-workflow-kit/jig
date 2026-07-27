@@ -455,6 +455,7 @@
         "RT-WITNESS",
         "PORT-LEDGER",
         "CB-STORE",
+        "DR-2",
         "DR-6",
         "LG-ACK",
         "LG-APPEND",
@@ -475,7 +476,7 @@
         "CF-MECH-LEDGER",
         "ledger_acknowledgement"
       ],
-      "dr_gates": ["DR-6"],
+      "dr_gates": ["DR-2", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-010.md",
       "outcome": "Storage-agnostic witnessed conditional Run ledger with five-way readback.",
       "oracle": [
@@ -508,6 +509,7 @@
         "docs/redesign/design/persistence-and-projections.md"
       ],
       "stable_ids": [
+        "DR-2",
         "RT-CONTROLLER",
         "ID-GEN",
         "BND-RECOVERY",
@@ -519,7 +521,7 @@
         "CF-TRUST-STOP",
         "CF-RUN-CONTROL"
       ],
-      "dr_gates": ["DR-3", "DR-6"],
+      "dr_gates": ["DR-2", "DR-3", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-011.md",
       "outcome": "Generation fencing, deterministic replay, optional projections, and verified recovery observation.",
       "oracle": ["CF-FENCE", "CF-RUN-CONTROL", "CF-ORDERING"],
@@ -557,6 +559,7 @@
         "docs/redesign/design/persistence-and-projections.md"
       ],
       "stable_ids": [
+        "DR-2",
         "RT-REGISTRY",
         "ID-REGISTRY",
         "ID-TARGET",
@@ -570,9 +573,9 @@
         "CF-TRUST-STOP",
         "CF-MECH-LEDGER"
       ],
-      "dr_gates": ["DR-3", "DR-6"],
+      "dr_gates": ["DR-2", "DR-3", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-012.md",
-      "outcome": "Deterministic waiter/grant/rebind/release under an independently witnessed registry.",
+      "outcome": "Deterministic waiter/grant/rebind/release under a scripted, unapproved, logically separate control/fault-surface registry-witness fixture.",
       "oracle": ["CF-ORDER", "CF-MECH-LEDGER", "concurrency/crash tests"],
       "status": "proposed",
       "product_routes": [],
@@ -608,6 +611,7 @@
         "PORT-ARTIFACT",
         "CB-STORE",
         "EV-ARTIFACT-FACT",
+        "DR-2",
         "DR-6",
         "OPC-ART-PUT",
         "OPC-ART-GET",
@@ -619,7 +623,7 @@
         "CF-MECH-ARTIFACT",
         "CF-MECH-LEDGER"
       ],
-      "dr_gates": ["DR-6"],
+      "dr_gates": ["DR-2", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-013.md",
       "outcome": "Five protected and six disposable artifact classes with two-pin lookup and independent witness.",
       "oracle": [
@@ -653,6 +657,7 @@
       "size": "M",
       "governing_paths": ["docs/redesign/design/evidence-handling.md"],
       "stable_ids": [
+        "DR-2",
         "SCH-EVIDENCE",
         "ID-EVSUBJ",
         "ID-MANIFEST",
@@ -667,7 +672,7 @@
         "CF-EVIDENCE-LIFECYCLE",
         "CF-SECRET-ABSENCE"
       ],
-      "dr_gates": ["DR-1", "DR-6"],
+      "dr_gates": ["DR-1", "DR-2", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-014.md",
       "outcome": "Immutable attribution, redaction, quarantine, and retention holds without acceptance or disposal authority.",
       "oracle": [
@@ -708,6 +713,7 @@
         "docs/redesign/design/state-and-recovery.md"
       ],
       "stable_ids": [
+        "DR-2",
         "CP-MEDIATOR",
         "CP-RECOVERY",
         "ID-OP",
@@ -729,7 +735,7 @@
         "effect_reconciliation",
         "CF-CONTAINMENT"
       ],
-      "dr_gates": ["DR-3", "DR-6"],
+      "dr_gates": ["DR-2", "DR-3", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-015.md",
       "outcome": "Intent-before-dispatch operation state machine, result validation, and conservative uncertainty recovery.",
       "oracle": [
