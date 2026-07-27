@@ -11,8 +11,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join, relative, resolve, sep } from 'node:path';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
 
@@ -144,7 +144,7 @@ function seal() {
   mkdirSync(output, { recursive: false });
   let subject;
   let observations;
-  let subjectStates = [];
+  const subjectStates = [];
   let setupError = null;
   try {
     if (mergeBase !== baseCommit) {
