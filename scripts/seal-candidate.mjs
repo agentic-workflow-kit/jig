@@ -20,6 +20,19 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 
 const defaultRepository = resolve(import.meta.dirname, '..');
 const defaultTimeoutMs = 30 * 60 * 1000;
+const verificationEnvironmentKeys = [
+  'CI',
+  'FORCE_COLOR',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'NO_COLOR',
+  'PATH',
+  'TEMP',
+  'TERM',
+  'TMP',
+  'TMPDIR',
+];
 
 function fail(message) {
   throw new Error(message);
@@ -41,11 +54,27 @@ function gitOutput(repository, timeoutMs, ...args) {
   return result.stdout.trim();
 }
 
-function state(repository, timeoutMs) {
+function state(repository, timeoutMs, { includeIgnored = false } = {}) {
   return {
     commit: git(repository, timeoutMs, 'rev-parse', 'HEAD'),
     tree: git(repository, timeoutMs, 'rev-parse', 'HEAD^{tree}'),
-    status: git(repository, timeoutMs, 'status', '--porcelain=v1', '--untracked-files=all'),
+    status: git(
+      repository,
+      timeoutMs,
+      'status',
+      '--porcelain=v1',
+      '--untracked-files=all',
+      ...(includeIgnored ? ['--ignored=matching'] : []),
+    ),
+  };
+}
+
+function verificationEnvironment() {
+  return {
+    ...Object.fromEntries(
+      verificationEnvironmentKeys.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
+    ),
+    GIT_TERMINAL_PROMPT: '0',
   };
 }
 
@@ -153,6 +182,7 @@ function runCommand(repository, command, logPath, timeoutMs) {
       shell: true,
       stdio: ['ignore', logFile, logFile],
       timeout: timeoutMs,
+      env: verificationEnvironment(),
     });
   } finally {
     closeSync(logFile);
@@ -207,11 +237,12 @@ function verificationSubject(repository, candidateCommit, timeoutMs) {
   }
 }
 
-function subjectState(subject, candidate, timeoutMs) {
-  const observed = state(subject, timeoutMs);
+function subjectState(subject, candidate, baselineStatus, timeoutMs) {
+  const observed = state(subject, timeoutMs, { includeIgnored: true });
   return {
     ...observed,
-    unchangedAndClean: observed.commit === candidate.commit && observed.tree === candidate.tree && !observed.status,
+    unchangedAndClean:
+      observed.commit === candidate.commit && observed.tree === candidate.tree && observed.status === baselineStatus,
   };
 }
 
@@ -231,6 +262,7 @@ function seal() {
   let subject;
   let observations;
   let dependencySetup = null;
+  let subjectBaselineStatus = null;
   let recordedCommandCount = 0;
   const subjectStates = [];
   let setupError = null;
@@ -256,13 +288,17 @@ function seal() {
           fail('clone-local dependency setup failed');
         verifyWorkspaceLinks(repository, subject);
       }
+      subjectBaselineStatus = state(subject, timeoutMs, { includeIgnored: true }).status;
       const preflight = commandObservation(
         subject,
         `git diff --check ${baseCommit}...${initial.commit}`,
         resolve(output, '01.log'),
         timeoutMs,
       );
-      subjectStates.push({ after: 'candidate-bound whitespace check', ...subjectState(subject, initial, timeoutMs) });
+      subjectStates.push({
+        after: 'candidate-bound whitespace check',
+        ...subjectState(subject, initial, subjectBaselineStatus, timeoutMs),
+      });
       observations = [preflight];
       for (const [index, command] of commands.entries()) {
         if (preflight.exitCode !== 0 || !subjectStates.at(-1).unchangedAndClean) {
@@ -273,7 +309,7 @@ function seal() {
           commandObservation(subject, command, resolve(output, `${String(index + 2).padStart(2, '0')}.log`), timeoutMs),
         );
         recordedCommandCount = index + 1;
-        subjectStates.push({ after: command, ...subjectState(subject, initial, timeoutMs) });
+        subjectStates.push({ after: command, ...subjectState(subject, initial, subjectBaselineStatus, timeoutMs) });
       }
     }
   } catch (error) {
@@ -303,6 +339,7 @@ function seal() {
       localClone: true,
       timeoutMs,
       dependencySetup,
+      baselineStatus: subjectBaselineStatus,
       states: subjectStates,
       setupError,
     },

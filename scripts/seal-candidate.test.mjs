@@ -28,7 +28,7 @@ function fixture(run) {
   }
 }
 
-function seal(repository, output, command, { base = 'HEAD~1', timeoutMs, withPnpmSeparator = false } = {}) {
+function seal(repository, output, command, { base = 'HEAD~1', env, timeoutMs, withPnpmSeparator = false } = {}) {
   return spawnSync(
     process.execPath,
     [
@@ -44,7 +44,7 @@ function seal(repository, output, command, { base = 'HEAD~1', timeoutMs, withPnp
       '--command',
       command,
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', env },
   );
 }
 
@@ -129,6 +129,40 @@ test('invalidates a caller command that dirties the cloned verification subject'
     assert.equal(envelope.seal.valid, false);
   }));
 
+test('invalidates ignored residue in the cloned verification subject', () =>
+  fixture((repository, outputParent) => {
+    writeFileSync(join(repository, '.gitignore'), '.env\n');
+    execFileSync('git', ['add', '.gitignore'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'ignore-env'], { cwd: repository });
+    const output = join(outputParent, 'ignored-subject-residue');
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "require('node:fs').writeFileSync('.env', 'residue')"`,
+    );
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.match(envelope.verificationSubject.states.at(-1).status, /!! .env/);
+    assert.equal(envelope.verificationSubject.states.at(-1).unchangedAndClean, false);
+    assert.equal(envelope.seal.valid, false);
+  }));
+
+test('does not expose owner environment secrets to verification commands or logs', () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'sanitized-environment');
+    const secret = 'jig-seal-test-secret';
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "if (process.env.JIG_SEAL_TEST_SECRET) { console.log(process.env.JIG_SEAL_TEST_SECRET); process.exit(9) }"`,
+      { env: { ...process.env, JIG_SEAL_TEST_SECRET: secret } },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.seal.valid, true);
+    assert.doesNotMatch(readFileSync(envelope.commands[1].log.path, 'utf8'), new RegExp(secret));
+  }));
+
 test('keeps a verification command node_modules write out of the original candidate', () =>
   fixture((repository, outputParent) => {
     const sourceResidue = join(repository, 'node_modules', 'verification-residue.txt');
@@ -139,10 +173,11 @@ test('keeps a verification command node_modules write out of the original candid
       output,
       `${process.execPath} -e "require('node:fs').mkdirSync('node_modules', { recursive: true });require('node:fs').writeFileSync('node_modules/verification-residue.txt', 'subject-only')"`,
     );
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 1);
     assert.equal(existsSync(sourceResidue), false);
     const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
-    assert.equal(envelope.seal.valid, true);
+    assert.equal(envelope.verificationSubject.states.at(-1).unchangedAndClean, false);
+    assert.equal(envelope.seal.valid, false);
   }));
 
 test('seals successfully when invoked from a linked worktree', () =>
