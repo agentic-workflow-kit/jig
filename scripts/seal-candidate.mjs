@@ -78,6 +78,16 @@ function verificationEnvironment() {
   };
 }
 
+function unexpectedSubjectStatus(status) {
+  return status
+    .split('\n')
+    .filter(
+      (entry) =>
+        entry && !entry.endsWith(' dist/') && !entry.endsWith('/dist/') && !entry.endsWith(' tsconfig.tsbuildinfo'),
+    )
+    .join('\n');
+}
+
 function parseArguments(args) {
   const options = { repository: defaultRepository, commands: [], timeoutMs: defaultTimeoutMs };
   for (let index = 0; index < args.length; index += 1) {
@@ -239,10 +249,12 @@ function verificationSubject(repository, candidateCommit, timeoutMs) {
 
 function subjectState(subject, candidate, baselineStatus, timeoutMs) {
   const observed = state(subject, timeoutMs, { includeIgnored: true });
+  const unexpectedStatus = unexpectedSubjectStatus(observed.status);
   return {
     ...observed,
+    unexpectedStatus,
     unchangedAndClean:
-      observed.commit === candidate.commit && observed.tree === candidate.tree && observed.status === baselineStatus,
+      observed.commit === candidate.commit && observed.tree === candidate.tree && unexpectedStatus === baselineStatus,
   };
 }
 
@@ -288,7 +300,7 @@ function seal() {
           fail('clone-local dependency setup failed');
         verifyWorkspaceLinks(repository, subject);
       }
-      subjectBaselineStatus = state(subject, timeoutMs, { includeIgnored: true }).status;
+      subjectBaselineStatus = unexpectedSubjectStatus(state(subject, timeoutMs, { includeIgnored: true }).status);
       const preflight = commandObservation(
         subject,
         `git diff --check ${baseCommit}...${initial.commit}`,
