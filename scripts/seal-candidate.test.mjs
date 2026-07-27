@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 
 const root = resolve(import.meta.dirname, '..');
 const script = join(root, 'scripts', 'seal-candidate.mjs');
+
+function environmentValue(key) {
+  return process.env[key];
+}
 
 function fixture(run) {
   const repository = mkdtempSync(join(tmpdir(), 'jig-seal-repository-'));
@@ -197,6 +201,36 @@ test('runs verification commands with an isolated home that cannot read inherite
       const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
       assert.equal(envelope.seal.valid, true);
       assert.doesNotMatch(readFileSync(envelope.commands[1].log.path, 'utf8'), new RegExp(secret));
+    } finally {
+      rmSync(ownerHome, { recursive: true, force: true });
+    }
+  }));
+
+test('stages the pinned Corepack package manager without exposing owner home credentials', () =>
+  fixture((repository, outputParent) => {
+    const ownerHome = mkdtempSync(join(tmpdir(), 'jig-seal-owner-home-'));
+    const cacheHome = environmentValue('XDG_CACHE_HOME') ?? join(environmentValue('HOME'), '.cache');
+    const source = join(cacheHome, 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+    const secret = 'jig-seal-owner-corepack-secret';
+    try {
+      assert.equal(existsSync(source), true, `expected cached Corepack pnpm at ${source}`);
+      const destination = join(ownerHome, '.cache', 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+      mkdirSync(dirname(destination), { recursive: true });
+      cpSync(source, destination, { recursive: true });
+      writeFileSync(join(ownerHome, '.npmrc'), `//registry.example.invalid/:_authToken=${secret}\n`);
+      const output = join(outputParent, 'staged-corepack');
+      const result = seal(
+        repository,
+        output,
+        `${process.execPath} -e "const fs=require('node:fs');const path=require('node:path');const config=path.join(process.env.HOME, '.npmrc');if(fs.existsSync(config)){process.stdout.write(fs.readFileSync(config, 'utf8'));process.exit(9)}" && corepack pnpm@11.9.0 --version`,
+        { env: { ...process.env, HOME: ownerHome, XDG_CACHE_HOME: join(ownerHome, '.cache') } },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+      const log = readFileSync(envelope.commands[1].log.path, 'utf8');
+      assert.equal(envelope.seal.valid, true);
+      assert.match(log, /11\.9\.0/);
+      assert.doesNotMatch(log, new RegExp(secret));
     } finally {
       rmSync(ownerHome, { recursive: true, force: true });
     }

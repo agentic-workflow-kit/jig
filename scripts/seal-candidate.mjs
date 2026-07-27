@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -81,6 +82,19 @@ function verificationEnvironment(home) {
     NPM_CONFIG_USERCONFIG: join(home, '.npmrc'),
     GIT_TERMINAL_PROMPT: '0',
   };
+}
+
+function environmentValue(key) {
+  return process.env[key];
+}
+
+function stageCorepackPnpm(home) {
+  const cacheHome = environmentValue('XDG_CACHE_HOME') ?? join(environmentValue('HOME') ?? tmpdir(), '.cache');
+  const source = join(cacheHome, 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+  if (!existsSync(source)) return;
+  const destination = join(home, '.cache', 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+  mkdirSync(dirname(destination), { recursive: true });
+  cpSync(source, destination, { recursive: true });
 }
 
 function unexpectedSubjectStatus(status) {
@@ -196,6 +210,7 @@ function runCommand(repository, command, logPath, timeoutMs) {
   const home = mkdtempSync(join(tmpdir(), 'jig-seal-home-'));
   let result;
   try {
+    stageCorepackPnpm(home);
     result = spawnSync(command, {
       cwd: repository,
       encoding: 'utf8',
