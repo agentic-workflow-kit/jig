@@ -4,15 +4,19 @@ import {
   appendFileSync,
   closeSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
 
@@ -61,8 +65,28 @@ function parseArguments(args) {
 }
 
 function isOutsideRepository(repository, output) {
-  const path = relative(repository, output);
+  const canonicalRepository = realpathSync(repository);
+  const canonicalParent = realpathSync(dirname(output));
+  const path = relative(canonicalRepository, join(canonicalParent, basename(output)));
   return path === '..' || path.startsWith(`..${sep}`);
+}
+
+function copyWorkspaceLinks(repository, subject) {
+  const namespace = '@agentic-workflow-kit';
+  const packages = join(repository, 'packages');
+  if (!existsSync(packages)) return;
+  for (const packageEntry of readdirSync(packages, { withFileTypes: true })) {
+    if (!packageEntry.isDirectory()) continue;
+    const sourceNamespace = join(repository, 'packages', packageEntry.name, 'node_modules', namespace);
+    if (!existsSync(sourceNamespace)) continue;
+    const targetNamespace = join(subject, 'packages', packageEntry.name, 'node_modules', namespace);
+    mkdirSync(targetNamespace, { recursive: true });
+    for (const entry of readdirSync(sourceNamespace)) {
+      const source = join(sourceNamespace, entry);
+      if (!lstatSync(source).isSymbolicLink()) continue;
+      symlinkSync(readlinkSync(source), join(targetNamespace, entry));
+    }
+  }
 }
 
 function runCommand(repository, command, logPath) {
@@ -113,8 +137,9 @@ function verificationSubject(repository, candidateCommit) {
     const sourceModules = join(repository, 'node_modules');
     if (existsSync(sourceModules)) {
       symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
-      appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules\n');
+      appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules\n/packages/*/node_modules\n');
     }
+    copyWorkspaceLinks(repository, path);
     return path;
   } catch (error) {
     rmSync(path, { recursive: true, force: true });

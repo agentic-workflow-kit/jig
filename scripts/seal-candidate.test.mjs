@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -142,6 +142,17 @@ test('seals successfully when invoked from a linked worktree', () =>
     } finally {
       execFileSync('git', ['worktree', 'remove', '--force', linked], { cwd: repository });
     }
+  }));
+
+test('rejects an output whose symlinked parent resolves inside the candidate', () =>
+  fixture((repository, outputParent) => {
+    const inside = join(repository, 'artifacts');
+    const parent = join(outputParent, 'outside-link');
+    mkdirSync(inside);
+    symlinkSync(inside, parent, 'dir');
+    const result = seal(repository, join(parent, 'envelope'), `${process.execPath} -e "process.stdout.write('proof')"`);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /output directory must be outside/);
   }));
 
 test('accepts the argument separator forwarded by pnpm scripts', () =>
