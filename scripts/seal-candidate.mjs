@@ -6,6 +6,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
@@ -23,7 +24,6 @@ const defaultTimeoutMs = 30 * 60 * 1000;
 const verificationEnvironmentKeys = [
   'CI',
   'FORCE_COLOR',
-  'HOME',
   'LANG',
   'LC_ALL',
   'NO_COLOR',
@@ -69,11 +69,16 @@ function state(repository, timeoutMs, { includeIgnored = false } = {}) {
   };
 }
 
-function verificationEnvironment() {
+function verificationEnvironment(home) {
   return {
     ...Object.fromEntries(
       verificationEnvironmentKeys.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
     ),
+    HOME: home,
+    XDG_CACHE_HOME: join(home, '.cache'),
+    XDG_CONFIG_HOME: join(home, '.config'),
+    GIT_CONFIG_GLOBAL: join(home, '.gitconfig'),
+    NPM_CONFIG_USERCONFIG: join(home, '.npmrc'),
     GIT_TERMINAL_PROMPT: '0',
   };
 }
@@ -188,6 +193,7 @@ function copyWorkspaceLinksForManifestFreeFixture(repository, subject) {
 function runCommand(repository, command, logPath, timeoutMs) {
   const startedAt = new Date().toISOString();
   const logFile = openSync(logPath, 'wx');
+  const home = mkdtempSync(join(tmpdir(), 'jig-seal-home-'));
   let result;
   try {
     result = spawnSync(command, {
@@ -196,10 +202,11 @@ function runCommand(repository, command, logPath, timeoutMs) {
       shell: true,
       stdio: ['ignore', logFile, logFile],
       timeout: timeoutMs,
-      env: verificationEnvironment(),
+      env: verificationEnvironment(home),
     });
   } finally {
     closeSync(logFile);
+    rmSync(home, { recursive: true, force: true });
   }
   const endedAt = new Date().toISOString();
   return {

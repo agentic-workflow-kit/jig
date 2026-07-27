@@ -180,6 +180,28 @@ test('does not expose owner environment secrets to verification commands or logs
     assert.doesNotMatch(readFileSync(envelope.commands[1].log.path, 'utf8'), new RegExp(secret));
   }));
 
+test('runs verification commands with an isolated home that cannot read inherited owner credentials', () =>
+  fixture((repository, outputParent) => {
+    const ownerHome = mkdtempSync(join(tmpdir(), 'jig-seal-owner-home-'));
+    const secret = 'jig-seal-owner-npmrc-secret';
+    try {
+      writeFileSync(join(ownerHome, '.npmrc'), `//registry.example.invalid/:_authToken=${secret}\n`);
+      const output = join(outputParent, 'isolated-home');
+      const result = seal(
+        repository,
+        output,
+        `${process.execPath} -e "const fs=require('node:fs');const path=require('node:path');const config=path.join(process.env.HOME, '.npmrc');if(fs.existsSync(config)){process.stdout.write(fs.readFileSync(config, 'utf8'));process.exit(9)}"`,
+        { env: { ...process.env, HOME: ownerHome } },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+      assert.equal(envelope.seal.valid, true);
+      assert.doesNotMatch(readFileSync(envelope.commands[1].log.path, 'utf8'), new RegExp(secret));
+    } finally {
+      rmSync(ownerHome, { recursive: true, force: true });
+    }
+  }));
+
 test('keeps a verification command node_modules write out of the original candidate', () =>
   fixture((repository, outputParent) => {
     const sourceResidue = join(repository, 'node_modules', 'verification-residue.txt');
