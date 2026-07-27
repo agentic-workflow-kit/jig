@@ -236,11 +236,68 @@ function runCommand(repository, command, logPath, timeoutMs) {
   };
 }
 
+function yamlRootMappingKey(line) {
+  const mapping = line.trimEnd();
+  if (['?', '&', '*', '!', '{', '[', '-'].includes(mapping[0])) return null;
+  if (mapping.startsWith('"')) {
+    let escaped = false;
+    for (let index = 1; index < mapping.length; index += 1) {
+      const character = mapping[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (character !== '"') continue;
+      if (!/^\s*:/.test(mapping.slice(index + 1))) return null;
+      try {
+        return JSON.parse(mapping.slice(0, index + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+  if (mapping.startsWith("'")) {
+    for (let index = 1; index < mapping.length; index += 1) {
+      if (mapping[index] !== "'") continue;
+      if (mapping[index + 1] === "'") {
+        index += 1;
+        continue;
+      }
+      if (!/^\s*:/.test(mapping.slice(index + 1))) return null;
+      return mapping.slice(1, index).replaceAll("''", "'");
+    }
+    return null;
+  }
+  const separator = mapping.indexOf(':');
+  if (separator <= 0) return null;
+  const key = mapping.slice(0, separator).trim();
+  return key && key !== '<<' && !/\s/.test(key) ? key : null;
+}
+
 function assertSetupDoesNotUseConfigDependencies(repository) {
   const workspace = join(repository, 'pnpm-workspace.yaml');
   if (!existsSync(workspace)) return;
-  if (/^\s*configDependencies\s*:/m.test(readFileSync(workspace, 'utf8')))
-    fail('OWNER_DECISION_REQUIRED: dependency setup cannot inherit owner environment with configDependencies');
+  const lines = readFileSync(workspace, 'utf8')
+    .split('\n')
+    .map((line) => ({ line, indentation: line.match(/^\s*/)[0].length }))
+    .filter(
+      ({ line }) => line.trim() && !line.trimStart().startsWith('#') && !/^(---|\.\.\.)\s*(?:#.*)?$/.test(line.trim()),
+    );
+  if (lines.length === 0) return;
+  const rootIndentation = Math.min(...lines.map(({ indentation }) => indentation));
+  for (const { line, indentation } of lines) {
+    if (indentation !== rootIndentation) continue;
+    const key = yamlRootMappingKey(line.slice(rootIndentation));
+    if (key === null)
+      fail('OWNER_DECISION_REQUIRED: dependency setup cannot safely inspect an ambiguous top-level pnpm workspace key');
+    if (key === 'configDependencies')
+      fail('OWNER_DECISION_REQUIRED: dependency setup cannot inherit owner environment with configDependencies');
+  }
 }
 
 function dependencySetupObservation(repository, timeoutMs) {

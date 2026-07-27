@@ -74,6 +74,23 @@ function addLockedLocalDependency(repository) {
   execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts', '--ignore-pnpmfile'], { cwd: repository });
 }
 
+function assertConfigDependenciesRequireOwnerDecision(repository, outputParent, workspace) {
+  addLockedLocalDependency(repository);
+  execFileSync('git', ['add', 'package.json', 'pnpm-lock.yaml', 'fixture-dependency'], { cwd: repository });
+  execFileSync('git', ['commit', '-qm', 'locked local dependency'], { cwd: repository });
+  writeFileSync(join(repository, 'pnpm-workspace.yaml'), workspace);
+  execFileSync('git', ['add', 'pnpm-workspace.yaml'], { cwd: repository });
+  execFileSync('git', ['commit', '-qm', 'candidate config dependency'], { cwd: repository });
+  const output = join(outputParent, 'config-dependencies');
+  const result = seal(repository, output, `${process.execPath} -e "process.stdout.write('proof')"`, {
+    base: 'HEAD~2',
+  });
+  assert.equal(result.status, 1);
+  const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+  assert.match(envelope.verificationSubject.setupError, /^OWNER_DECISION_REQUIRED:/);
+  assert.equal(envelope.commands[0].skipped, 'verification subject setup failed');
+}
+
 test('seals a clean exact candidate and records its command log digest', () =>
   fixture((repository, outputParent) => {
     const output = join(outputParent, 'success');
@@ -301,20 +318,39 @@ test('runs locked offline dependency setup without candidate hooks and keeps own
 
 test('requires an owner decision before inherited setup accepts candidate config dependencies', () =>
   fixture((repository, outputParent) => {
-    addLockedLocalDependency(repository);
-    execFileSync('git', ['add', 'package.json', 'pnpm-lock.yaml', 'fixture-dependency'], { cwd: repository });
-    execFileSync('git', ['commit', '-qm', 'locked local dependency'], { cwd: repository });
-    writeFileSync(join(repository, 'pnpm-workspace.yaml'), 'configDependencies:\n  example: 1.0.0\n');
-    execFileSync('git', ['add', 'pnpm-workspace.yaml'], { cwd: repository });
-    execFileSync('git', ['commit', '-qm', 'candidate config dependency'], { cwd: repository });
-    const output = join(outputParent, 'config-dependencies');
-    const result = seal(repository, output, `${process.execPath} -e "process.stdout.write('proof')"`, {
-      base: 'HEAD~2',
-    });
-    assert.equal(result.status, 1);
-    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
-    assert.match(envelope.verificationSubject.setupError, /^OWNER_DECISION_REQUIRED:/);
-    assert.equal(envelope.commands[0].skipped, 'verification subject setup failed');
+    assertConfigDependenciesRequireOwnerDecision(repository, outputParent, 'configDependencies:\n  example: 1.0.0\n');
+  }));
+
+test('requires an owner decision before inherited setup accepts quoted or escaped config dependency keys', () =>
+  fixture((repository, outputParent) => {
+    assertConfigDependenciesRequireOwnerDecision(repository, outputParent, '"configDependencies":\n  example: 1.0.0\n');
+  }));
+
+test('requires an owner decision before inherited setup accepts a decoded config dependency key', () =>
+  fixture((repository, outputParent) => {
+    assertConfigDependenciesRequireOwnerDecision(
+      repository,
+      outputParent,
+      '"config\\u0044ependencies":\n  example: 1.0.0\n',
+    );
+  }));
+
+test('fails closed when a quoted top-level key cannot be safely decoded', () =>
+  fixture((repository, outputParent) => {
+    assertConfigDependenciesRequireOwnerDecision(
+      repository,
+      outputParent,
+      '"config\\x44ependencies":\n  example: 1.0.0\n',
+    );
+  }));
+
+test('fails closed when a top-level merge key could import config dependencies', () =>
+  fixture((repository, outputParent) => {
+    assertConfigDependenciesRequireOwnerDecision(
+      repository,
+      outputParent,
+      'defaults: &defaults\n  configDependencies:\n    example: 1.0.0\n<<: *defaults\n',
+    );
   }));
 
 test('keeps a verification command node_modules write out of the original candidate', () =>
