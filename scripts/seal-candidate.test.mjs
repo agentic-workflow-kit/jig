@@ -85,3 +85,14 @@ test('accepts the argument separator forwarded by pnpm scripts', () =>
     );
     assert.equal(result.status, 0, result.stderr);
   }));
+
+test('records a failed verification command in an invalid envelope', () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'failed-command');
+    const result = seal(repository, output, `${process.execPath} -e "process.exit(7)"`);
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.commands[0].exitCode, 7);
+    assert.equal(envelope.final.unchangedAndClean, true);
+    assert.equal(envelope.seal.valid, false);
+  }));
