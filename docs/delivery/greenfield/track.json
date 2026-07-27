@@ -572,7 +572,7 @@
       ],
       "dr_gates": ["DR-3", "DR-6"],
       "story_file": "docs/delivery/greenfield/stories/GF-012.md",
-      "outcome": "Deterministic waiter/grant/rebind/release under an independently witnessed registry.",
+      "outcome": "Deterministic waiter/grant/rebind/release under a scripted, unapproved, logically separate control/fault-surface registry-witness fixture.",
       "oracle": ["CF-ORDER", "CF-MECH-LEDGER", "concurrency/crash tests"],
       "status": "proposed",
       "product_routes": [],
