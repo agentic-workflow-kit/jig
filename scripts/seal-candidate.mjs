@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
 
@@ -70,6 +70,11 @@ function parseArguments(args) {
   return options;
 }
 
+function isInside(root, candidate) {
+  const path = relative(root, candidate);
+  return path === '' || (!isAbsolute(path) && path !== '..' && !path.startsWith(`..${sep}`));
+}
+
 function isOutsideRepository(repository, output) {
   const canonicalParent = realpathSync(dirname(output));
   const destination = join(canonicalParent, basename(output));
@@ -84,10 +89,7 @@ function isOutsideRepository(repository, output) {
       .filter((line) => line.startsWith('worktree '))
       .map((line) => realpathSync(line.slice('worktree '.length))),
   ];
-  return protectedRoots.every((root) => {
-    const path = relative(root, destination);
-    return path === '..' || path.startsWith(`..${sep}`);
-  });
+  return protectedRoots.every((root) => !isInside(root, destination));
 }
 
 function copyWorkspaceLinks(repository, subject) {
@@ -108,10 +110,8 @@ function copyWorkspaceLinks(repository, subject) {
       const resolved = realpathSync(target);
       const clonePackages = realpathSync(join(subject, 'packages'));
       const sourceRepository = realpathSync(repository);
-      const clonePath = relative(clonePackages, resolved);
-      const sourcePath = relative(sourceRepository, resolved);
-      const insideClonePackages = clonePath === '' || !clonePath.startsWith(`..${sep}`);
-      const insideSourceRepository = sourcePath === '' || !sourcePath.startsWith(`..${sep}`);
+      const insideClonePackages = isInside(clonePackages, resolved);
+      const insideSourceRepository = isInside(sourceRepository, resolved);
       if (!insideClonePackages || insideSourceRepository)
         fail(`workspace link ${source} does not resolve inside clone packages`);
     }

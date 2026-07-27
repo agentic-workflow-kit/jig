@@ -183,6 +183,25 @@ test('recreates package-local workspace links to clone candidate bytes', () =>
     assert.equal(result.status, 0, readFileSync(join(output, 'envelope.json'), 'utf8'));
   }));
 
+test('rejects a workspace link that resolves to the clone root before caller verification', () =>
+  fixture((repository, outputParent) => {
+    const codec = join(repository, 'packages', 'codec');
+    const namespace = join(repository, 'packages', 'consumer', 'node_modules', '@agentic-workflow-kit');
+    mkdirSync(codec, { recursive: true });
+    writeFileSync(join(codec, 'index.js'), 'export const candidate = true;\n');
+    execFileSync('git', ['add', 'packages'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'packages'], { cwd: repository });
+    mkdirSync(namespace, { recursive: true });
+    writeFileSync(join(repository, '.git', 'info', 'exclude'), '\n/packages/*/node_modules\n');
+    symlinkSync('../../../../', join(namespace, 'jig-root'));
+    const output = join(outputParent, 'workspace-root');
+    const result = seal(repository, output, `${process.execPath} -e "process.exit(9)"`);
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.match(envelope.verificationSubject.setupError, /does not resolve inside clone packages/);
+    assert.equal(envelope.commands[0].skipped, 'verification subject setup failed');
+  }));
+
 test('accepts the argument separator forwarded by pnpm scripts', () =>
   fixture((repository, outputParent) => {
     const result = seal(
