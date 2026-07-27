@@ -124,8 +124,10 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
       every required predecessor landing is contained in that base; an unreviewed branch does not
       satisfy a dependency.
 - [ ] The external, non-candidate seal envelope records the candidate/base/tree/merge-base tuple,
-      exact commands, timestamps, exit codes, output-log digests or durable log identities, and
-      final proof that `HEAD`/tree are unchanged and the worktree is clean. It was created after
+      exact commands, timestamps, exit codes, output-log digests or durable log identities,
+      automatic `git diff --check <base-commit>...<candidate-commit>` result, base-ancestry proof,
+      and final proof that the original `HEAD`/tree are unchanged and the worktree is clean. Commands
+      ran in a detached exact-candidate worktree. It was created after
       the candidate was committed and before review; every required local command ran against that
       exact `HEAD` once. A missing or invalid seal is a finding, not a reason to rerun a command.
 - [ ] A current path-by-path comparison shows the candidate's 67 normative authority files match

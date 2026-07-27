@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
-import { relative, resolve, sep } from 'node:path';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
 
@@ -80,6 +81,41 @@ function runCommand(repository, command, logPath) {
   };
 }
 
+function commandObservation(repository, command, logPath) {
+  const observation = runCommand(repository, command, logPath);
+  return {
+    command: observation.command,
+    startedAt: observation.startedAt,
+    endedAt: observation.endedAt,
+    exitCode: observation.exitCode,
+    signal: observation.signal,
+    error: observation.error,
+    log: { path: logPath, sha256: digest(observation.log) },
+  };
+}
+
+function verificationWorktree(repository, candidateCommit) {
+  const path = join(tmpdir(), `jig-seal-${candidateCommit.slice(0, 12)}-${process.pid}`);
+  git(repository, 'worktree', 'add', '--detach', '--no-checkout', path, candidateCommit);
+  try {
+    git(path, 'checkout', '--detach', candidateCommit);
+    const sourceModules = join(repository, 'node_modules');
+    if (existsSync(sourceModules)) symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
+    return path;
+  } catch (error) {
+    git(repository, 'worktree', 'remove', '--force', path);
+    throw error;
+  }
+}
+
+function removeVerificationWorktree(repository, path) {
+  try {
+    if (existsSync(path)) git(repository, 'worktree', 'remove', '--force', path);
+  } finally {
+    rmSync(path, { recursive: true, force: true });
+  }
+}
+
 function seal() {
   const { repository, output, base, commands } = parseArguments(process.argv.slice(2));
   if (!isOutsideRepository(repository, output)) fail('output directory must be outside the candidate repository');
@@ -92,19 +128,18 @@ function seal() {
   const mergeBase = git(repository, 'merge-base', initial.commit, baseCommit);
 
   mkdirSync(output, { recursive: false });
-  const observations = commands.map((command, index) => {
-    const logPath = resolve(output, `${String(index + 1).padStart(2, '0')}.log`);
-    const observation = runCommand(repository, command, logPath);
-    return {
-      command: observation.command,
-      startedAt: observation.startedAt,
-      endedAt: observation.endedAt,
-      exitCode: observation.exitCode,
-      signal: observation.signal,
-      error: observation.error,
-      log: { path: logPath, sha256: digest(observation.log) },
-    };
-  });
+  const subject = verificationWorktree(repository, initial.commit);
+  let observations;
+  try {
+    observations = [
+      commandObservation(subject, `git diff --check ${baseCommit}...${initial.commit}`, resolve(output, '01.log')),
+      ...commands.map((command, index) =>
+        commandObservation(subject, command, resolve(output, `${String(index + 2).padStart(2, '0')}.log`)),
+      ),
+    ];
+  } finally {
+    removeVerificationWorktree(repository, subject);
+  }
   const final = state(repository);
   const unchanged = final.commit === initial.commit && final.tree === initial.tree && !final.status;
   const allCommandsPassed = observations.every(
@@ -117,7 +152,8 @@ function seal() {
     base: { ref: base, commit: baseCommit, tree: baseTree, mergeBase, matchesMergeBase: mergeBase === baseCommit },
     commands: observations,
     final: { ...final, unchangedAndClean: unchanged },
-    seal: { valid: allCommandsPassed && unchanged },
+    verificationSubject: { commit: initial.commit, tree: initial.tree, detachedWorktree: true },
+    seal: { valid: allCommandsPassed && unchanged && mergeBase === baseCommit },
   };
   const envelopePath = resolve(output, 'envelope.json');
   writeFileSync(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`);

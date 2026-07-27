@@ -88,10 +88,11 @@ implementation tuple is dynamic per story and is never written back into this pl
 merely because a predecessor merges.
 
 The implementation owner must commit before verification, record this tuple, run every required
-local proof/repository check/direct validator exactly once against that committed `HEAD`, and then
-prove `HEAD`/tree unchanged and the worktree clean. The external, non-candidate seal envelope must
-include exact commands, timestamps, exit codes, output-log digests or durable log identities, and
-the final unchanged/clean proof. Hosted CI independently executes required checks; the coordinator
+local proof/repository check/direct validator exactly once in a detached worktree at that committed
+`HEAD`, automatically record `git diff --check <base-commit>...<candidate-commit>`, and then prove
+the original candidate `HEAD`/tree unchanged and the worktree clean. The external, non-candidate seal envelope must
+include exact commands, timestamps, exit codes, output-log digests or durable log identities,
+base-ancestry proof, and the final unchanged/clean proof. Hosted CI independently executes required checks; the coordinator
 only verifies orchestration facts and evidence bindings. The reviewer consumes this evidence
 read-only and never reruns a suite to repair or replace it.
 
@@ -242,7 +243,8 @@ green and unconfigurable; multiple `CF-*` results alone do not force a split.
 - No uncertain effect was blindly retried; reconciliation and recovery use durable facts.
 - Required unit, contract, adversarial, replay, crash, provider, and E2E proof plus `CF-*` catalog
   updates pass on the exact candidate.
-- Exact-subject evidence is retained as a generated CI artifact, and `git diff --check`, required
+- Exact-subject evidence is retained as a generated CI artifact, and `git diff --check
+<base-commit>...<candidate-commit>`, required
   repository checks, and independent
   implementation-candidate review pass on the same candidate; its merge-base equality, approved
   package `P` binding, and normative-corpus comparison are current. After `Accepted`, the

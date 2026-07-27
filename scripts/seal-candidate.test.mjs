@@ -28,7 +28,7 @@ function fixture(run) {
   }
 }
 
-function seal(repository, output, command, withPnpmSeparator = false) {
+function seal(repository, output, command, { base = 'HEAD~1', withPnpmSeparator = false } = {}) {
   return spawnSync(
     process.execPath,
     [
@@ -39,7 +39,7 @@ function seal(repository, output, command, withPnpmSeparator = false) {
       '--output',
       output,
       '--base',
-      'HEAD~1',
+      base,
       '--command',
       command,
     ],
@@ -57,6 +57,7 @@ test('seals a clean exact candidate and records its command log digest', () =>
     assert.equal(envelope.base.matchesMergeBase, true);
     assert.equal(envelope.final.unchangedAndClean, true);
     assert.equal(envelope.commands[0].exitCode, 0);
+    assert.equal(envelope.commands[1].exitCode, 0);
     assert.match(envelope.commands[0].log.sha256, /^[a-f0-9]{64}$/);
   }));
 
@@ -66,12 +67,48 @@ test('invalidates the seal when a verification command changes the candidate wor
     const result = seal(
       repository,
       output,
-      `${process.execPath} -e "require('node:fs').writeFileSync('verification-residue.txt', 'bad')"`,
+      `${process.execPath} -e 'require("node:fs").writeFileSync("${join(repository, 'verification-residue.txt')}", "bad")'`,
     );
     assert.equal(result.status, 1);
     const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
     assert.equal(envelope.commands[0].exitCode, 0);
     assert.equal(envelope.final.unchangedAndClean, false);
+    assert.equal(envelope.seal.valid, false);
+  }));
+
+test('invalidates the seal when the supplied base is not an ancestor of the candidate', () =>
+  fixture((repository, outputParent) => {
+    execFileSync('git', ['branch', 'other', 'HEAD~1'], { cwd: repository });
+    execFileSync('git', ['checkout', '-q', 'other'], { cwd: repository });
+    writeFileSync(join(repository, 'other.txt'), 'other\n');
+    execFileSync('git', ['add', '.'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'other'], { cwd: repository });
+    execFileSync('git', ['checkout', '-q', '-'], { cwd: repository });
+    const output = join(outputParent, 'divergent-base');
+    const result = seal(repository, output, `${process.execPath} -e "process.stdout.write('proof')"`, {
+      base: 'other',
+    });
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.base.matchesMergeBase, false);
+    assert.equal(envelope.seal.valid, false);
+  }));
+
+test('records candidate-bound whitespace damage before caller commands', () =>
+  fixture((repository, outputParent) => {
+    writeFileSync(join(repository, 'whitespace.txt'), 'trailing space \n');
+    execFileSync('git', ['add', '.'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'whitespace'], { cwd: repository });
+    const output = join(outputParent, 'whitespace');
+    const result = seal(repository, output, `${process.execPath} -e "process.stdout.write('proof')"`);
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(
+      envelope.commands[0].command,
+      `git diff --check ${envelope.base.commit}...${envelope.candidate.commit}`,
+    );
+    assert.equal(envelope.commands[0].exitCode, 2);
+    assert.equal(envelope.commands[1].exitCode, 0);
     assert.equal(envelope.seal.valid, false);
   }));
 
@@ -92,7 +129,7 @@ test('records a failed verification command in an invalid envelope', () =>
     const result = seal(repository, output, `${process.execPath} -e "process.exit(7)"`);
     assert.equal(result.status, 1);
     const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
-    assert.equal(envelope.commands[0].exitCode, 7);
+    assert.equal(envelope.commands[1].exitCode, 7);
     assert.equal(envelope.final.unchangedAndClean, true);
     assert.equal(envelope.seal.valid, false);
   }));
@@ -108,5 +145,5 @@ test("streams a verification log larger than Node's default command buffer", () 
     assert.equal(result.status, 0, result.stderr);
     const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
     assert.equal(envelope.seal.valid, true);
-    assert.equal(readFileSync(envelope.commands[0].log.path, 'utf8').length, 1024 * 1024 + 1);
+    assert.equal(readFileSync(envelope.commands[1].log.path, 'utf8').length, 1024 * 1024 + 1);
   }));

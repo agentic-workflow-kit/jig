@@ -101,8 +101,10 @@ a new tuple or review loop.
 Before requesting review, the implementation owner must have committed the candidate, recorded the
 candidate/base/merge-base tuple, run required verification against that exact `HEAD`, and created an
 external, non-candidate seal envelope. It contains exact commands, timestamps, exit codes, output
-log digests or durable log identities, and a final proof that the candidate commit/tree did not
-change and the worktree is clean. A seal is invalid after any candidate edit. Review the envelope by
+log digests or durable log identities, automatic candidate-bound `git diff --check
+<base-commit>...<candidate-commit>` evidence, base-ancestry proof, and a final proof that the
+original candidate commit/tree did not change and the worktree is clean. Commands ran in a detached
+exact-candidate worktree; a non-ancestor base or original-candidate edit invalidates the seal. Review the envelope by
 inspection; do not rerun its commands.
 
 ## Publication, CI, and verdict boundaries
