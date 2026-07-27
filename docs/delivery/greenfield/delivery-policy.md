@@ -86,7 +86,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     exact candidate commit/tree, observed base commit/tree, and merge-base; run the required
     verification against that exact `HEAD`; then prove that `HEAD` and its tree are unchanged and
     the worktree is clean. A seal is valid only when `merge-base(candidate, base) == base`. The
-    sealer runs every supplied command in a temporary detached worktree at the candidate commit,
+    sealer runs every supplied command in a temporary local clone checked out at the candidate commit,
     automatically records `git diff --check <base-commit>...<candidate-commit>`, and checks the
     original candidate again afterward. The implementation owner produces an external, non-candidate evidence
     envelope with the exact commands, start/end timestamps, exit codes, output-log digests or durable
@@ -95,7 +95,8 @@ independent review rather than speculative scaffolding or retrospective proof.
     fits the story. The command refuses a dirty start, records every supplied command once, and marks
     the seal invalid if any command fails, its base is not an ancestor, or the original candidate
     changes. Commands must be non-mutating and operate only through their detached verification
-    subject; an edit to candidate source,
+    subject; it records subject commit/tree/status after the automatic preflight and every command,
+    and invalidates on drift or residue. An edit to candidate source,
     configuration, evidence, metadata, review package, verification posture/configuration, or
     subject binding invalidates the seal and its verification evidence; do not report an earlier
     green result for a later candidate.
@@ -197,7 +198,7 @@ manifest, environment, suite, probe, and output digests.
    commit/tree, and merge-base before executing any required local verification.
 6. The implementation owner runs every required local proof, repository check, and direct validator
    exactly once against that committed `HEAD`; hosted CI independently supplies execution
-   verification. Run them in the detached exact-candidate subject, record the automatic
+   verification. Run them in the cloned exact-candidate subject, record its clean state after each command and the automatic
    `git diff --check <base-commit>...<candidate-commit>` result, then prove the original candidate
    `HEAD`/tree remained unchanged and its worktree is clean. The coordinator checks only the resulting bindings and
    orchestration facts; it does not rerun checks.

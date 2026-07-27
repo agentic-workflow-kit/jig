@@ -91,6 +91,7 @@ test('invalidates the seal when the supplied base is not an ancestor of the cand
     assert.equal(result.status, 1);
     const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
     assert.equal(envelope.base.matchesMergeBase, false);
+    assert.equal(envelope.commands[1].skipped, 'base ancestry failed before verification');
     assert.equal(envelope.seal.valid, false);
   }));
 
@@ -108,8 +109,39 @@ test('records candidate-bound whitespace damage before caller commands', () =>
       `git diff --check ${envelope.base.commit}...${envelope.candidate.commit}`,
     );
     assert.equal(envelope.commands[0].exitCode, 2);
-    assert.equal(envelope.commands[1].exitCode, 0);
+    assert.equal(envelope.commands[1].skipped, 'candidate-bound whitespace or subject-cleanliness preflight failed');
     assert.equal(envelope.seal.valid, false);
+  }));
+
+test('invalidates a caller command that dirties the cloned verification subject', () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'subject-residue');
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "require('node:fs').writeFileSync('residue.txt', 'bad')"`,
+    );
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.commands[1].exitCode, 0);
+    assert.equal(envelope.verificationSubject.states.at(-1).unchangedAndClean, false);
+    assert.equal(envelope.seal.valid, false);
+  }));
+
+test('seals successfully when invoked from a linked worktree', () =>
+  fixture((repository, outputParent) => {
+    const linked = join(outputParent, 'linked');
+    execFileSync('git', ['worktree', 'add', '-q', '-b', 'linked', linked, 'HEAD'], { cwd: repository });
+    try {
+      const output = join(outputParent, 'linked-output');
+      const result = seal(linked, output, `${process.execPath} -e "process.stdout.write('proof')"`);
+      assert.equal(result.status, 0, result.stderr);
+      const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+      assert.equal(envelope.seal.valid, true);
+      assert.equal(envelope.verificationSubject.setupError, null);
+    } finally {
+      execFileSync('git', ['worktree', 'remove', '--force', linked], { cwd: repository });
+    }
   }));
 
 test('accepts the argument separator forwarded by pnpm scripts', () =>

@@ -88,7 +88,7 @@ implementation tuple is dynamic per story and is never written back into this pl
 merely because a predecessor merges.
 
 The implementation owner must commit before verification, record this tuple, run every required
-local proof/repository check/direct validator exactly once in a detached worktree at that committed
+local proof/repository check/direct validator exactly once in a temporary local clone at that committed
 `HEAD`, automatically record `git diff --check <base-commit>...<candidate-commit>`, and then prove
 the original candidate `HEAD`/tree unchanged and the worktree clean. The external, non-candidate seal envelope must
 include exact commands, timestamps, exit codes, output-log digests or durable log identities,

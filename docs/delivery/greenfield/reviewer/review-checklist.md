@@ -127,7 +127,8 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
       exact commands, timestamps, exit codes, output-log digests or durable log identities,
       automatic `git diff --check <base-commit>...<candidate-commit>` result, base-ancestry proof,
       and final proof that the original `HEAD`/tree are unchanged and the worktree is clean. Commands
-      ran in a detached exact-candidate worktree. It was created after
+      ran in a local exact-candidate clone and its commit/tree/status remained clean after every
+      command. It was created after
       the candidate was committed and before review; every required local command ran against that
       exact `HEAD` once. A missing or invalid seal is a finding, not a reason to rerun a command.
 - [ ] A current path-by-path comparison shows the candidate's 67 normative authority files match

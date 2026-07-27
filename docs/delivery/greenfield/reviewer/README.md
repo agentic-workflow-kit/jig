@@ -103,8 +103,9 @@ candidate/base/merge-base tuple, run required verification against that exact `H
 external, non-candidate seal envelope. It contains exact commands, timestamps, exit codes, output
 log digests or durable log identities, automatic candidate-bound `git diff --check
 <base-commit>...<candidate-commit>` evidence, base-ancestry proof, and a final proof that the
-original candidate commit/tree did not change and the worktree is clean. Commands ran in a detached
-exact-candidate worktree; a non-ancestor base or original-candidate edit invalidates the seal. Review the envelope by
+original candidate commit/tree did not change and the worktree is clean. Commands ran in a local
+exact-candidate clone whose clean state is recorded after each command; a non-ancestor base,
+subject drift/residue, or original-candidate edit invalidates the seal. Review the envelope by
 inspection; do not rerun its commands.
 
 ## Publication, CI, and verdict boundaries

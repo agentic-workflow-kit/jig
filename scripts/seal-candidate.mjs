@@ -94,26 +94,27 @@ function commandObservation(repository, command, logPath) {
   };
 }
 
-function verificationWorktree(repository, candidateCommit) {
+function verificationSubject(repository, candidateCommit) {
   const path = join(tmpdir(), `jig-seal-${candidateCommit.slice(0, 12)}-${process.pid}`);
-  git(repository, 'worktree', 'add', '--detach', '--no-checkout', path, candidateCommit);
+  const clone = spawnSync('git', ['clone', '--no-local', '--no-checkout', repository, path], { encoding: 'utf8' });
+  if (clone.status !== 0) fail(`git clone verification subject failed: ${clone.stderr.trim()}`);
   try {
     git(path, 'checkout', '--detach', candidateCommit);
     const sourceModules = join(repository, 'node_modules');
     if (existsSync(sourceModules)) symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
     return path;
   } catch (error) {
-    git(repository, 'worktree', 'remove', '--force', path);
+    rmSync(path, { recursive: true, force: true });
     throw error;
   }
 }
 
-function removeVerificationWorktree(repository, path) {
-  try {
-    if (existsSync(path)) git(repository, 'worktree', 'remove', '--force', path);
-  } finally {
-    rmSync(path, { recursive: true, force: true });
-  }
+function subjectState(subject, candidate) {
+  const observed = state(subject);
+  return {
+    ...observed,
+    unchangedAndClean: observed.commit === candidate.commit && observed.tree === candidate.tree && !observed.status,
+  };
 }
 
 function seal() {
@@ -128,17 +129,44 @@ function seal() {
   const mergeBase = git(repository, 'merge-base', initial.commit, baseCommit);
 
   mkdirSync(output, { recursive: false });
-  const subject = verificationWorktree(repository, initial.commit);
+  let subject;
   let observations;
+  let subjectStates = [];
+  let setupError = null;
   try {
-    observations = [
-      commandObservation(subject, `git diff --check ${baseCommit}...${initial.commit}`, resolve(output, '01.log')),
-      ...commands.map((command, index) =>
-        commandObservation(subject, command, resolve(output, `${String(index + 2).padStart(2, '0')}.log`)),
-      ),
-    ];
+    if (mergeBase !== baseCommit) {
+      observations = [
+        {
+          command: `git diff --check ${baseCommit}...${initial.commit}`,
+          skipped: 'base is not an ancestor of candidate',
+        },
+        ...commands.map((command) => ({ command, skipped: 'base ancestry failed before verification' })),
+      ];
+    } else {
+      subject = verificationSubject(repository, initial.commit);
+      const preflight = commandObservation(
+        subject,
+        `git diff --check ${baseCommit}...${initial.commit}`,
+        resolve(output, '01.log'),
+      );
+      subjectStates.push({ after: 'candidate-bound whitespace check', ...subjectState(subject, initial) });
+      observations = [preflight];
+      for (const [index, command] of commands.entries()) {
+        if (preflight.exitCode !== 0 || !subjectStates.at(-1).unchangedAndClean) {
+          observations.push({ command, skipped: 'candidate-bound whitespace or subject-cleanliness preflight failed' });
+          continue;
+        }
+        observations.push(
+          commandObservation(subject, command, resolve(output, `${String(index + 2).padStart(2, '0')}.log`)),
+        );
+        subjectStates.push({ after: command, ...subjectState(subject, initial) });
+      }
+    }
+  } catch (error) {
+    setupError = error instanceof Error ? error.message : String(error);
+    observations ??= commands.map((command) => ({ command, skipped: 'verification subject setup failed' }));
   } finally {
-    removeVerificationWorktree(repository, subject);
+    if (subject) rmSync(subject, { recursive: true, force: true });
   }
   const final = state(repository);
   const unchanged = final.commit === initial.commit && final.tree === initial.tree && !final.status;
@@ -152,8 +180,21 @@ function seal() {
     base: { ref: base, commit: baseCommit, tree: baseTree, mergeBase, matchesMergeBase: mergeBase === baseCommit },
     commands: observations,
     final: { ...final, unchangedAndClean: unchanged },
-    verificationSubject: { commit: initial.commit, tree: initial.tree, detachedWorktree: true },
-    seal: { valid: allCommandsPassed && unchanged && mergeBase === baseCommit },
+    verificationSubject: {
+      commit: initial.commit,
+      tree: initial.tree,
+      localClone: true,
+      states: subjectStates,
+      setupError,
+    },
+    seal: {
+      valid:
+        allCommandsPassed &&
+        unchanged &&
+        mergeBase === baseCommit &&
+        !setupError &&
+        subjectStates.every((entry) => entry.unchangedAndClean),
+    },
   };
   const envelopePath = resolve(output, 'envelope.json');
   writeFileSync(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`);

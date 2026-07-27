@@ -64,7 +64,8 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   external seal envelope containing commands, timestamps, exit codes, log digests or durable log
   identities, automatic `git diff --check <base-commit>...<candidate-commit>` output,
   base-ancestry proof, and final unchanged-`HEAD`/tree/clean-worktree proof. Commands execute in a
-  detached exact-candidate worktree; any original-candidate edit or non-ancestor base invalidates
+  local exact-candidate clone; it records clean subject state after each command, and any original-candidate edit,
+  subject drift/residue, or non-ancestor base invalidates
   that seal. Hosted CI independently executes required checks; the coordinator inspects bindings
   only, and the semantic reviewer reads evidence rather than rerunning it.
 - Final evidence must include `pnpm check`, `git diff --check <base-commit>...<candidate-commit>`,
