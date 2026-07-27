@@ -52,6 +52,28 @@ function seal(repository, output, command, { base = 'HEAD~1', env, timeoutMs, wi
   );
 }
 
+function addLockedLocalDependency(repository) {
+  const dependency = join(repository, 'fixture-dependency');
+  mkdirSync(dependency);
+  writeFileSync(join(dependency, 'package.json'), '{"name":"fixture-dependency","version":"1.0.0"}\n');
+  writeFileSync(
+    join(repository, 'package.json'),
+    `${JSON.stringify({
+      name: 'seal-fixture',
+      private: true,
+      packageManager: 'pnpm@11.9.0',
+      dependencies: { 'fixture-dependency': 'file:./fixture-dependency' },
+      scripts: {
+        preinstall:
+          "node -e \"require('node:fs').writeFileSync(require('node:path').join(process.env.HOME, 'lifecycle-ran.txt'), 'bad')\"",
+        'pnpm:devPreinstall':
+          "node -e \"require('node:fs').writeFileSync(require('node:path').join(process.env.HOME, 'lifecycle-ran.txt'), 'bad')\"",
+      },
+    })}\n`,
+  );
+  execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts', '--ignore-pnpmfile'], { cwd: repository });
+}
+
 test('seals a clean exact candidate and records its command log digest', () =>
   fixture((repository, outputParent) => {
     const output = join(outputParent, 'success');
@@ -234,6 +256,65 @@ test('stages the pinned Corepack package manager without exposing owner home cre
     } finally {
       rmSync(ownerHome, { recursive: true, force: true });
     }
+  }));
+
+test('runs locked offline dependency setup without candidate hooks and keeps owner data out of caller evidence', () =>
+  fixture((repository, outputParent) => {
+    addLockedLocalDependency(repository);
+    execFileSync('git', ['add', 'package.json', 'pnpm-lock.yaml', 'fixture-dependency'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'locked local dependency'], { cwd: repository });
+    const ownerHome = mkdtempSync(join(tmpdir(), 'jig-seal-owner-home-'));
+    const source = join(environmentValue('HOME'), '.cache', 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+    const secret = 'jig-seal-owner-setup-secret';
+    try {
+      assert.equal(existsSync(source), true, `expected cached Corepack pnpm at ${source}`);
+      const corepack = join(ownerHome, '.cache', 'node', 'corepack', 'v1', 'pnpm', '11.9.0');
+      mkdirSync(dirname(corepack), { recursive: true });
+      cpSync(source, corepack, { recursive: true });
+      writeFileSync(join(ownerHome, '.npmrc'), `//registry.example.invalid/:_authToken=${secret}\n`);
+      writeFileSync(
+        join(repository, '.pnpmfile.cjs'),
+        `throw new Error(require('node:fs').readFileSync(require('node:path').join(process.env.HOME, '.npmrc'), 'utf8'));\n`,
+      );
+      execFileSync('git', ['add', '.pnpmfile.cjs'], { cwd: repository });
+      execFileSync('git', ['commit', '-qm', 'hostile pnpm hook'], { cwd: repository });
+      const env = { ...process.env, HOME: ownerHome };
+      delete env.XDG_CACHE_HOME;
+      const output = join(outputParent, 'isolated-dependency-setup');
+      const result = seal(
+        repository,
+        output,
+        `${process.execPath} -e "const fs=require('node:fs');const path=require('node:path');const config=path.join(process.env.HOME, '.npmrc');if(fs.existsSync(config)){process.stdout.write(fs.readFileSync(config, 'utf8'));process.exit(9)}"`,
+        { base: 'HEAD~2', env },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+      assert.equal(envelope.verificationSubject.dependencySetup.exitCode, 0);
+      assert.equal(envelope.seal.valid, true);
+      assert.equal(existsSync(join(ownerHome, 'lifecycle-ran.txt')), false);
+      assert.equal(existsSync(join(output, '00-dependency-setup.log')), false);
+      assert.doesNotMatch(readFileSync(envelope.commands[1].log.path, 'utf8'), new RegExp(secret));
+    } finally {
+      rmSync(ownerHome, { recursive: true, force: true });
+    }
+  }));
+
+test('requires an owner decision before inherited setup accepts candidate config dependencies', () =>
+  fixture((repository, outputParent) => {
+    addLockedLocalDependency(repository);
+    execFileSync('git', ['add', 'package.json', 'pnpm-lock.yaml', 'fixture-dependency'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'locked local dependency'], { cwd: repository });
+    writeFileSync(join(repository, 'pnpm-workspace.yaml'), 'configDependencies:\n  example: 1.0.0\n');
+    execFileSync('git', ['add', 'pnpm-workspace.yaml'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'candidate config dependency'], { cwd: repository });
+    const output = join(outputParent, 'config-dependencies');
+    const result = seal(repository, output, `${process.execPath} -e "process.stdout.write('proof')"`, {
+      base: 'HEAD~2',
+    });
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.match(envelope.verificationSubject.setupError, /^OWNER_DECISION_REQUIRED:/);
+    assert.equal(envelope.commands[0].skipped, 'verification subject setup failed');
   }));
 
 test('keeps a verification command node_modules write out of the original candidate', () =>

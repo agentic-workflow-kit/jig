@@ -236,6 +236,37 @@ function runCommand(repository, command, logPath, timeoutMs) {
   };
 }
 
+function assertSetupDoesNotUseConfigDependencies(repository) {
+  const workspace = join(repository, 'pnpm-workspace.yaml');
+  if (!existsSync(workspace)) return;
+  if (/^\s*configDependencies\s*:/m.test(readFileSync(workspace, 'utf8')))
+    fail('OWNER_DECISION_REQUIRED: dependency setup cannot inherit owner environment with configDependencies');
+}
+
+function dependencySetupObservation(repository, timeoutMs) {
+  assertSetupDoesNotUseConfigDependencies(repository);
+  const startedAt = new Date().toISOString();
+  const result = spawnSync(
+    'pnpm',
+    ['install', '--frozen-lockfile', '--offline', '--ignore-scripts', '--ignore-pnpmfile'],
+    {
+      cwd: repository,
+      stdio: 'ignore',
+      timeout: timeoutMs,
+    },
+  );
+  const endedAt = new Date().toISOString();
+  return {
+    command: 'pnpm install --frozen-lockfile --offline --ignore-scripts --ignore-pnpmfile',
+    startedAt,
+    endedAt,
+    exitCode: result.status,
+    signal: result.signal,
+    error:
+      result.error?.code === 'ETIMEDOUT' ? `command timed out after ${timeoutMs}ms` : (result.error?.message ?? null),
+  };
+}
+
 function commandObservation(repository, command, logPath, timeoutMs) {
   const observation = runCommand(repository, command, logPath, timeoutMs);
   return {
@@ -316,12 +347,7 @@ function seal() {
     } else {
       subject = verificationSubject(repository, initial.commit, timeoutMs);
       if (existsSync(join(subject, 'package.json'))) {
-        dependencySetup = commandObservation(
-          subject,
-          'pnpm install --frozen-lockfile --offline --ignore-scripts',
-          resolve(output, '00-dependency-setup.log'),
-          timeoutMs,
-        );
+        dependencySetup = dependencySetupObservation(subject, timeoutMs);
         if (dependencySetup.exitCode !== 0 || dependencySetup.signal !== null || dependencySetup.error !== null)
           fail('clone-local dependency setup failed');
         verifyWorkspaceLinks(repository, subject);
