@@ -1,6 +1,16 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -101,7 +111,10 @@ function verificationSubject(repository, candidateCommit) {
   try {
     git(path, 'checkout', '--detach', candidateCommit);
     const sourceModules = join(repository, 'node_modules');
-    if (existsSync(sourceModules)) symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
+    if (existsSync(sourceModules)) {
+      symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
+      appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules\n');
+    }
     return path;
   } catch (error) {
     rmSync(path, { recursive: true, force: true });
