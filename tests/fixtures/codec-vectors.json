@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "frameVersion": "jig.codec.v1",
+  "identities": {
+    "ID-RUN": "run-000000000001-0123456789abcdef",
+    "ID-STORY": "run-000000000001-0123456789abcdef/story/plan-a",
+    "ID-TXN": "run-000000000001-0123456789abcdef/txn/9/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "ID-EVENT": "run-000000000001-0123456789abcdef/event/9",
+    "ID-OP": "run-000000000001-0123456789abcdef/txn/9/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/op/1",
+    "ID-CAND": "run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "ID-GEN": "run-000000000001-0123456789abcdef/gen/2|controller-token-1",
+    "ID-PRINCIPAL": "principal/arya",
+    "ID-MANIFEST": "provider/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/authority/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+    "ID-SESSION": "run-000000000001-0123456789abcdef/story/plan-a/session/reviewer/1",
+    "ID-FINDING": "run-000000000001-0123456789abcdef/story/plan-a/finding/1",
+    "ID-GRANT": "run-000000000001-0123456789abcdef/grant/1",
+    "ID-PARK": "run-000000000001-0123456789abcdef/park/1",
+    "ID-SOURCE-REQ": "source/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/request/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+    "ID-REGISTRY": "registry/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "ID-TARGET": "target/repository-main",
+    "ID-AUTH": "target/repository-main/auth/1",
+    "ID-EVSUBJ": "evidence://run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/claim/candidate-content",
+    "ID-OBLIGATION": "run-000000000001-0123456789abcdef/obligation/1",
+    "ID-SETTLEMENT": "run-000000000001-0123456789abcdef/settlement/terminal-stop",
+    "ID-NOTICE": "run-000000000001-0123456789abcdef/notice/review-needed/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "ID-EXPORT": "run-000000000001-0123456789abcdef/export/9/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}

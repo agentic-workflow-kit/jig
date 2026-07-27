@@ -42,13 +42,13 @@ jobs:
       - name: check
         run: pnpm check
 
-      - name: Write GF-001 evidence
+      - name: Write Greenfield Phase 0 evidence
         run: pnpm evidence:write
 
-      - name: Retain GF-001 evidence
+      - name: Retain Greenfield Phase 0 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gf-001-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: artifacts/gf-001/evidence.json
+          name: greenfield-phase-0-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/
           if-no-files-found: error
           retention-days: 90

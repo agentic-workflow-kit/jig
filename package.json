@@ -1,18 +1,18 @@
 {
   "name": "@agentic-workflow-kit/jig-repo",
   "version": "0.0.0",
-  "description": "Jig active GF-001 private tooling substrate; product runtime behavior remains unimplemented.",
+  "description": "Jig contains a workspace substrate, canonical codec, runtime topology contracts, private conformance harness, and pure authority kernel; product runtime behavior remains unimplemented.",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "engines": {
-    "node": ">=22.13.0",
+    "node": ">=22",
     "pnpm": ">=11.9.0"
   },
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": "^26",
+      "version": ">=22",
       "onFail": "warn"
     }
   },
@@ -28,9 +28,10 @@
     "delivery:check": "node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs",
     "typecheck": "tsc --build tsconfig.json",
     "boundaries:check": "node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs",
-    "test": "node scripts/run-gf-001-tests.mjs",
-    "evidence:write": "node scripts/write-gf-001-evidence.mjs",
-    "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test"
+    "runtime:check": "node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs",
+    "test": "tsc --build tsconfig.json && node --test --test-concurrency=1 \"tests/**/*.test.mjs\"",
+    "evidence:write": "node scripts/write-evidence.mjs phase-0",
+    "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",

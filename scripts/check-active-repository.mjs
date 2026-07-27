@@ -60,20 +60,21 @@ jobs:
       - name: check
         run: pnpm check
 
-      - name: Write GF-001 evidence
+      - name: Write Greenfield Phase 0 evidence
         run: pnpm evidence:write
 
-      - name: Retain GF-001 evidence
+      - name: Retain Greenfield Phase 0 evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gf-001-evidence-${githubCandidateShaExpression}
-          path: artifacts/gf-001/evidence.json
+          name: greenfield-phase-0-evidence-${githubCandidateShaExpression}
+          path: artifacts/
           if-no-files-found: error
           retention-days: 90`;
 
 const expectedWorkspaceConfig = `# pnpm settings live here in pnpm 11: the package.json \`pnpm\` field is no longer read, and
 # \`.npmrc\` is auth-only.
-packages: []
+packages:
+  - "packages/*"
 
 # --- Supply-chain / toolchain baseline (every archetype) ---
 allowBuilds: {} # no dependency runs install/build scripts until reviewed and listed here
@@ -124,21 +125,23 @@ const expectedScripts = {
   typecheck: 'tsc --build tsconfig.json',
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
-  test: 'node scripts/run-gf-001-tests.mjs',
-  'evidence:write': 'node scripts/write-gf-001-evidence.mjs',
+  'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
+  test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 "tests/**/*.test.mjs"',
+  'evidence:write': 'node scripts/write-evidence.mjs phase-0',
   check:
-    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm test',
+    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
 };
 
 const expectedManifest = {
   name: '@agentic-workflow-kit/jig-repo',
   version: '0.0.0',
-  description: 'Jig active GF-001 private tooling substrate; product runtime behavior remains unimplemented.',
+  description:
+    'Jig contains a workspace substrate, canonical codec, runtime topology contracts, private conformance harness, and pure authority kernel; product runtime behavior remains unimplemented.',
   private: true,
   type: 'module',
   packageManager: 'pnpm@11.9.0',
-  engines: { node: '>=22.13.0', pnpm: '>=11.9.0' },
-  devEngines: { runtime: { name: 'node', version: '^26', onFail: 'warn' } },
+  engines: { node: '>=22', pnpm: '>=11.9.0' },
+  devEngines: { runtime: { name: 'node', version: '>=22', onFail: 'warn' } },
   scripts: expectedScripts,
   devDependencies: {
     '@biomejs/biome': '2.5.2',
@@ -175,11 +178,30 @@ const requiredPaths = [
   'scripts/check-delivery-track.test.mjs',
   'scripts/check-package-boundaries.mjs',
   'scripts/check-package-boundaries.test.mjs',
-  'scripts/run-gf-001-tests.mjs',
-  'scripts/write-gf-001-evidence.mjs',
-  'tests/gf-001/evidence-contract.json',
-  'tests/gf-001/evidence.test.mjs',
-  'tests/gf-001/workspace-substrate.test.mjs',
+  'scripts/check-runtime-topology.mjs',
+  'scripts/check-runtime-topology.test.mjs',
+  'scripts/write-evidence.mjs',
+  'tests/workspace/workspace-substrate.test.mjs',
+  'tests/codec/codec.test.mjs',
+  'tests/codec/corpus.test.mjs',
+  'tests/codec/golden-consumer.mjs',
+  'tests/runtime-contracts/topology.test.mjs',
+  'packages/codec/package.json',
+  'packages/codec/tsconfig.json',
+  'packages/codec/src/index.ts',
+  'packages/runtime-contracts/package.json',
+  'packages/runtime-contracts/tsconfig.json',
+  'packages/runtime-contracts/src/index.ts',
+  'packages/conformance/package.json',
+  'packages/conformance/tsconfig.json',
+  'packages/conformance/src/index.ts',
+  'tests/conformance/conformance.test.mjs',
+  'tests/fixtures/conformance-oracle.json',
+  'tests/authority-kernel/authority-kernel.test.mjs',
+  'tests/fixtures/authority-oracle.json',
+  'packages/authority-kernel/package.json',
+  'packages/authority-kernel/tsconfig.json',
+  'packages/authority-kernel/src/index.ts',
 ];
 
 const allowedRootFiles = new Set([
@@ -207,31 +229,28 @@ const allowedScriptPaths = new Set(
 const allowedGithubPaths = new Set(['.github/workflows/check.yml']);
 const allowedArchiveExtensions = new Set(['.json', '.jsonl', '.md', '.txt']);
 const allowedFixturePaths = new Set([
-  'tests/fixtures/gf-001-workspace/.gitignore',
-  'tests/fixtures/gf-001-workspace/package.json',
-  'tests/fixtures/gf-001-workspace/pnpm-lock.yaml',
-  'tests/fixtures/gf-001-workspace/pnpm-workspace.yaml',
-  'tests/fixtures/gf-001-workspace/tsconfig.base.json',
-  'tests/fixtures/gf-001-workspace/tsconfig.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-a/package.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-a/src/index.ts',
-  'tests/fixtures/gf-001-workspace/packages/pkg-a/tsconfig.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-b/package.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-b/src/index.ts',
-  'tests/fixtures/gf-001-workspace/packages/pkg-b/tsconfig.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-c/package.json',
-  'tests/fixtures/gf-001-workspace/packages/pkg-c/src/index.ts',
-  'tests/fixtures/gf-001-workspace/packages/pkg-c/tsconfig.json',
+  'tests/fixtures/workspace/.gitignore',
+  'tests/fixtures/workspace/package.json',
+  'tests/fixtures/workspace/pnpm-lock.yaml',
+  'tests/fixtures/workspace/pnpm-workspace.yaml',
+  'tests/fixtures/workspace/tsconfig.base.json',
+  'tests/fixtures/workspace/tsconfig.json',
+  'tests/fixtures/workspace/packages/pkg-a/package.json',
+  'tests/fixtures/workspace/packages/pkg-a/src/index.ts',
+  'tests/fixtures/workspace/packages/pkg-a/tsconfig.json',
+  'tests/fixtures/workspace/packages/pkg-b/package.json',
+  'tests/fixtures/workspace/packages/pkg-b/src/index.ts',
+  'tests/fixtures/workspace/packages/pkg-b/tsconfig.json',
+  'tests/fixtures/workspace/packages/pkg-c/package.json',
+  'tests/fixtures/workspace/packages/pkg-c/src/index.ts',
+  'tests/fixtures/workspace/packages/pkg-c/tsconfig.json',
+  'tests/fixtures/codec-vectors.json',
+  'tests/fixtures/codec-corpus.json',
+  'tests/fixtures/runtime-topology.json',
+  'tests/fixtures/runtime-fakes.json',
 ]);
 
-const forbiddenPaths = [
-  'packages',
-  'src',
-  'skills',
-  'tools/n1a',
-  'vitest.config.ts',
-  'scripts/check-delivery-foundation.mjs',
-];
+const forbiddenPaths = ['src', 'skills', 'tools/n1a', 'vitest.config.ts', 'scripts/check-delivery-foundation.mjs'];
 const representativeArchivePaths = [
   'packages/jig-sdk/src/sdk.ts',
   'packages/jig-cli/tests/cli.unit.test.ts',
@@ -254,14 +273,58 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
+function resolvePnpmScriptCommands(scripts, scriptName, resolvedScripts = new Set()) {
+  if (resolvedScripts.has(scriptName)) return [];
+  const command = scripts?.[scriptName];
+  if (typeof command !== 'string') return [];
+
+  const nextResolvedScripts = new Set(resolvedScripts).add(scriptName);
+  const commands = [command];
+  const pnpmScriptReferences =
+    /\bpnpm(?:\s+--[A-Za-z0-9-]+(?:=[^\s;&|]+)?)*\s+(?:run\s+)?(?:--[A-Za-z0-9-]+(?:=[^\s;&|]+)?\s+)*([A-Za-z0-9:_-]+)/g;
+  for (const match of command.matchAll(pnpmScriptReferences))
+    commands.push(...resolvePnpmScriptCommands(scripts, match[1], nextResolvedScripts));
+  return commands;
+}
+
+function writesUnderArtifacts(command) {
+  // A shell command reference does not reveal whether the path is an input or output, so the gate fails closed.
+  return /\bartifacts\//.test(command);
+}
+
 function assertRegularTrackedInput(rootDir, path, errors, allowedModes = ['100644']) {
   const absolute = join(rootDir, path);
   if (!existsSync(absolute)) return;
-  const stat = lstatSync(absolute);
-  if (!stat.isFile() || stat.isSymbolicLink()) errors.push(`GF-001 input must be a regular non-symlink file: ${path}`);
-  const mode = git(rootDir, 'ls-files', '--stage', '--', path).split(/\s+/)[0];
-  if (mode && !allowedModes.includes(mode))
-    errors.push(`GF-001 input must be tracked as an approved regular-file mode: ${path}`);
+  try {
+    const stat = lstatSync(absolute);
+    if (!stat.isFile() || stat.isSymbolicLink())
+      errors.push(`workspace input must be a regular non-symlink file: ${path}`);
+    const mode = git(rootDir, 'ls-files', '--stage', '--', path).split(/\s+/)[0];
+    if (mode && !allowedModes.includes(mode))
+      errors.push(`workspace input must be tracked as an approved regular-file mode: ${path}`);
+  } catch {
+    errors.push(`workspace input could not be inspected: ${path}`);
+  }
+}
+
+function readRequiredText(rootDir, path, errors, failureMessage) {
+  try {
+    return readFileSync(join(rootDir, path), 'utf8');
+  } catch {
+    errors.push(failureMessage);
+    return null;
+  }
+}
+
+function readRequiredJson(rootDir, path, errors, failureMessage) {
+  const text = readRequiredText(rootDir, path, errors, failureMessage);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    errors.push(failureMessage);
+    return null;
+  }
 }
 
 export function validateActiveRepository(rootDir = process.cwd()) {
@@ -297,7 +360,7 @@ export function validateActiveRepository(rootDir = process.cwd()) {
       permittedDocumentationPath ||
       allowedFixturePaths.has(path) ||
       requiredPaths.includes(path);
-    if (!permitted) errors.push(`GF-001 substrate repository has unexpected active path: ${path}`);
+    if (!permitted) errors.push(`workspace substrate repository has unexpected active path: ${path}`);
   }
 
   const activeDeliveryPaths = git(
@@ -319,29 +382,210 @@ export function validateActiveRepository(rootDir = process.cwd()) {
   if (deletedDeliveryPaths)
     errors.push(`active docs/delivery paths are deleted from the working tree: ${deletedDeliveryPaths}`);
 
-  let manifest;
-  try {
-    manifest = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
-  } catch {
-    manifest = null;
-  }
+  const manifestFailure =
+    'package.json must exactly preserve the activated workspace manifest, scripts, and owned toolchain, including the exact authority kernel surface';
+  const manifest = readRequiredJson(rootDir, 'package.json', errors, manifestFailure);
   if (canonical(manifest) !== canonical(expectedManifest))
-    errors.push('package.json must exactly preserve the activated GF-001 manifest, scripts, and owned toolchain');
-  if (readFileSync(join(rootDir, '.nvmrc'), 'utf8') !== '26\n')
-    errors.push('.nvmrc must exactly preserve the approved local Node 26 line');
+    if (!errors.includes(manifestFailure)) errors.push(manifestFailure);
+  const checkCommands = resolvePnpmScriptCommands(manifest?.scripts, 'check');
+  if (checkCommands.some((command) => command.includes('scripts/write-evidence.mjs')))
+    errors.push('check script transitively resolves to an evidence-writing command');
+  if (checkCommands.some(writesUnderArtifacts))
+    errors.push('check script transitively resolves to a command that writes under artifacts/');
+  const nodeVersionFailure = '.nvmrc must exactly preserve the approved local Node 26 line';
+  if (
+    readRequiredText(rootDir, '.nvmrc', errors, nodeVersionFailure) !== '26\n' &&
+    !errors.includes(nodeVersionFailure)
+  )
+    errors.push(nodeVersionFailure);
   if (existsSync(join(rootDir, '.npmrc')))
-    errors.push('.npmrc is forbidden: GF-001 fixtures accept no registry credentials or ambient auth configuration');
-  if (readFileSync(join(rootDir, 'pnpm-workspace.yaml'), 'utf8') !== expectedWorkspaceConfig)
-    errors.push('pnpm-workspace.yaml must exactly preserve every approved workspace and supply-chain safety setting');
-  if (readFileSync(join(rootDir, 'turbo.json'), 'utf8') !== expectedTurbo)
-    errors.push('turbo.json must exactly preserve the canonical active GF-001 task, input, output, and cache graph');
-  if (readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').trim() !== expectedWorkflow.trim()) {
-    errors.push(
-      'check workflow must strictly match the approved GF-001 least-privilege and evidence-retention contract',
+    errors.push('.npmrc is forbidden: workspace fixtures accept no registry credentials or ambient auth configuration');
+  const workspaceFailure =
+    'pnpm-workspace.yaml must exactly preserve every approved workspace and supply-chain safety setting';
+  if (
+    readRequiredText(rootDir, 'pnpm-workspace.yaml', errors, workspaceFailure) !== expectedWorkspaceConfig &&
+    !errors.includes(workspaceFailure)
+  )
+    errors.push(workspaceFailure);
+  const solutionFailure =
+    'tsconfig.json must bind exactly the tooling substrate and codec through authority kernel private pure contracts';
+  const solution = readRequiredJson(rootDir, 'tsconfig.json', errors, solutionFailure);
+  if (
+    canonical(solution) !==
+    canonical({
+      files: [],
+      references: [
+        { path: './tsconfig.tools.json' },
+        { path: './packages/codec' },
+        { path: './packages/runtime-contracts' },
+        { path: './packages/conformance' },
+        { path: './packages/authority-kernel' },
+      ],
+    })
+  )
+    if (!errors.includes(solutionFailure)) errors.push(solutionFailure);
+  const runtimeManifestPath = join(rootDir, 'packages/runtime-contracts/package.json');
+  if (existsSync(runtimeManifestPath)) {
+    const runtimeManifestFailure =
+      'runtime contracts runtime-contracts manifest must remain a private codec-only contract package';
+    const runtimeManifest = readRequiredJson(
+      rootDir,
+      'packages/runtime-contracts/package.json',
+      errors,
+      runtimeManifestFailure,
     );
+    if (
+      canonical(runtimeManifest) !==
+      canonical({
+        name: '@agentic-workflow-kit/jig-runtime-contracts',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        exports: './dist/index.js',
+        types: './dist/index.d.ts',
+        scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+        dependencies: { '@agentic-workflow-kit/jig-codec': 'workspace:*' },
+      })
+    )
+      if (!errors.includes(runtimeManifestFailure)) errors.push(runtimeManifestFailure);
+  }
+  const conformanceManifestFailure =
+    'conformance conformance manifest must remain a private codec/runtime-contract-only harness';
+  const conformanceManifest = readRequiredJson(
+    rootDir,
+    'packages/conformance/package.json',
+    errors,
+    conformanceManifestFailure,
+  );
+  if (
+    canonical(conformanceManifest) !==
+    canonical({
+      name: '@agentic-workflow-kit/jig-conformance',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      exports: './dist/index.js',
+      types: './dist/index.d.ts',
+      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+      dependencies: {
+        '@agentic-workflow-kit/jig-codec': 'workspace:*',
+        '@agentic-workflow-kit/jig-runtime-contracts': 'workspace:*',
+      },
+    })
+  )
+    if (!errors.includes(conformanceManifestFailure)) errors.push(conformanceManifestFailure);
+  const authorityManifestPath = join(rootDir, 'packages/authority-kernel/package.json');
+  if (existsSync(authorityManifestPath)) {
+    const authorityManifestFailure =
+      'authority kernel authority-kernel manifest must remain a private codec-only pure contract package';
+    const authorityManifest = readRequiredJson(
+      rootDir,
+      'packages/authority-kernel/package.json',
+      errors,
+      authorityManifestFailure,
+    );
+    if (
+      canonical(authorityManifest) !==
+      canonical({
+        name: '@agentic-workflow-kit/jig-authority-kernel',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        exports: './dist/index.js',
+        types: './dist/index.d.ts',
+        scripts: {
+          build: 'tsc --build',
+          typecheck: 'tsc --build --noEmit',
+        },
+        dependencies: { '@agentic-workflow-kit/jig-codec': 'workspace:*' },
+      })
+    )
+      if (!errors.includes(authorityManifestFailure)) errors.push(authorityManifestFailure);
+  }
+  const authorityConfigPath = join(rootDir, 'packages/authority-kernel/tsconfig.json');
+  if (existsSync(authorityConfigPath)) {
+    const authorityConfigFailure =
+      'authority kernel authority-kernel TypeScript configuration must remain an isolated codec-only pure package';
+    const authorityConfig = readRequiredJson(
+      rootDir,
+      'packages/authority-kernel/tsconfig.json',
+      errors,
+      authorityConfigFailure,
+    );
+    if (
+      canonical(authorityConfig) !==
+      canonical({
+        extends: '../../tsconfig.base.json',
+        compilerOptions: {
+          outDir: 'dist',
+          rootDir: 'src',
+          lib: ['ES2022', 'DOM'],
+          paths: { '@agentic-workflow-kit/jig-codec': ['../codec/src/index.ts'] },
+        },
+        include: ['src/**/*.ts'],
+        references: [{ path: '../codec' }],
+      })
+    )
+      if (!errors.includes(authorityConfigFailure)) errors.push(authorityConfigFailure);
+  }
+  const authoritySourcePath = join(rootDir, 'packages/authority-kernel/src/index.ts');
+  if (existsSync(authoritySourcePath)) {
+    const authoritySource = readRequiredText(
+      rootDir,
+      'packages/authority-kernel/src/index.ts',
+      errors,
+      'authority kernel authority-kernel source must retain the no-provider, no-adapter, no-I/O pure import surface',
+    );
+    const authorityImports = [...(authoritySource ?? '').matchAll(/^import .* from '([^']+)';$/gm)].map(
+      (match) => match[1],
+    );
+    if (
+      canonical(authorityImports) !== canonical(['@agentic-workflow-kit/jig-codec']) ||
+      /from ['"]node:|\b(?:fetch|readFile|writeFile|spawn)\s*\(/i.test(authoritySource ?? '')
+    )
+      errors.push(
+        'authority kernel authority-kernel source must retain the no-provider, no-adapter, no-I/O pure import surface',
+      );
+  }
+  const codecManifestFailure =
+    'codec codec manifest must expose only the private pure-codec build and typecheck surface';
+  const codecManifest = readRequiredJson(rootDir, 'packages/codec/package.json', errors, codecManifestFailure);
+  if (
+    canonical(codecManifest) !==
+    canonical({
+      name: '@agentic-workflow-kit/jig-codec',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      exports: './dist/index.js',
+      types: './dist/index.d.ts',
+      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+    })
+  )
+    if (!errors.includes(codecManifestFailure)) errors.push(codecManifestFailure);
+  const codecConfigFailure =
+    'codec codec TypeScript configuration must remain isolated and browser-free except for encoding primitives';
+  const codecConfig = readRequiredJson(rootDir, 'packages/codec/tsconfig.json', errors, codecConfigFailure);
+  if (
+    canonical(codecConfig) !==
+    canonical({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: { outDir: 'dist', rootDir: 'src', lib: ['ES2022', 'DOM'] },
+      include: ['src/**/*.ts'],
+    })
+  )
+    if (!errors.includes(codecConfigFailure)) errors.push(codecConfigFailure);
+  const turboFailure =
+    'turbo.json must exactly preserve the canonical active workspace task, input, output, and cache graph';
+  if (readRequiredText(rootDir, 'turbo.json', errors, turboFailure) !== expectedTurbo && !errors.includes(turboFailure))
+    errors.push(turboFailure);
+  const workflowFailure =
+    'check workflow must strictly match the approved least-privilege and evidence-retention contract';
+  const workflow = readRequiredText(rootDir, '.github/workflows/check.yml', errors, workflowFailure);
+  if (workflow?.trim() !== expectedWorkflow.trim()) {
+    if (!errors.includes(workflowFailure)) errors.push(workflowFailure);
     for (const [name, action] of Object.entries(immutableActions))
-      if (!readFileSync(join(rootDir, '.github/workflows/check.yml'), 'utf8').includes(action))
-        errors.push(`check workflow is missing immutable ${name} action pin`);
+      if (!workflow?.includes(action)) errors.push(`check workflow is missing immutable ${name} action pin`);
   }
 
   try {
@@ -369,6 +613,6 @@ if (process.argv[1]?.endsWith('check-active-repository.mjs')) {
     process.exitCode = 1;
   } else
     console.log(
-      `Active repository structure check passed (GF-001 private tooling substrate; archive ${archiveRef} -> ${archiveCommit}).`,
+      `Active repository structure check passed (workspace substrate through authority kernel pure contracts; archive ${archiveRef} -> ${archiveCommit}).`,
     );
 }

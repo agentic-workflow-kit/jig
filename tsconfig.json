@@ -1,4 +1,10 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.tools.json" }]
+  "references": [
+    { "path": "./tsconfig.tools.json" },
+    { "path": "./packages/codec" },
+    { "path": "./packages/runtime-contracts" },
+    { "path": "./packages/conformance" },
+    { "path": "./packages/authority-kernel" }
+  ]
 }

@@ -1,0 +1,15 @@
+{
+  "name": "@agentic-workflow-kit/jig-runtime-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --noEmit"
+  },
+  "dependencies": {
+    "@agentic-workflow-kit/jig-codec": "workspace:*"
+  }
+}

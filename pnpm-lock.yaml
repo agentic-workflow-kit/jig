@@ -21,6 +21,29 @@ importers:
         specifier: 5.8.2
         version: 5.8.2
 
+  packages/authority-kernel:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
+
+  packages/codec: {}
+
+  packages/conformance:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
+      '@agentic-workflow-kit/jig-runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+
+  packages/runtime-contracts:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
+
 packages:
 
   '@biomejs/biome@2.5.2':

@@ -9,12 +9,13 @@
 ## Status
 
 The approved product and redesign documents passed the final empty-repository implementation-
-readiness gate on 2026-07-18. The active repository has entered GF-001 (private Node/TypeScript/pnpm/Turbo
-workspace substrate). It remains product-runtime-empty: no product package, runtime package, provider,
-adapter, controller, storage implementation, lifecycle behavior, port implementation, CLI, MCP surface,
-credential, or real external effect exists. GF-002 and later stories remain unimplemented. The
-[greenfield delivery track](docs/delivery/README.md) remains authoritative, while archive material remains
-non-governing.
+readiness gate on 2026-07-18. This local Phase 0 implementation candidate contains four private,
+pure packages: the canonical identity and boundary codec; the runtime topology and semantic port contracts;
+the private conformance harness; and the pure authority kernel. It does not establish landing, acceptance,
+activation, or release. No provider, adapter, storage
+or ledger implementation, controller process, transport, CLI, MCP surface, credential, real external
+effect, or public package is authorized or implemented. The [greenfield delivery track](docs/delivery/README.md)
+remains authoritative, while archive material remains non-governing.
 
 The retired implementation generation is preserved at
 `archive/jig-v0-pre-greenfield-2026-07-18`, which resolves to commit
@@ -34,15 +35,15 @@ historical reference only and does not govern the next implementation.
 
 ## Repository checks
 
-Requires Node `>=22.13.0` and pnpm `>=11.9.0`.
+Requires Node `>=22` and pnpm `>=11.9.0`.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
 ```
 
-The check validates formatting, lint, documentation links, the empty-source active-tree posture,
-the active delivery track, and the immutable archive recovery anchor. Run `pnpm delivery:check` for
+The check runs lint, formatting, documentation-link, delivery-track, repository-structure,
+typecheck, package-boundary, runtime-topology, and test validation. Run `pnpm delivery:check` for
 the focused delivery validator and its mutation tests.
 
 ## Next implementation prerequisite
@@ -68,10 +69,10 @@ The next owner-authorized implementation session must use the active greenfield 
    register as planning inputs; and
 7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
-No implementation source or product package scaffolding is included in this transition. The active
-track is a planning stop line: it does not authorize implementation until a story's merged
-predecessors, exact evidence, delegated-choice gate, external activation, and independent review
-requirements are met.
+The four private packages above are local-candidate implementation only; they do not establish a
+landed or activated story and do not authorize downstream implementation. The active track remains a
+planning stop line until a story's merged predecessors, exact evidence, delegated-choice gate, external
+activation, and independent review requirements are met.
 
 ## License
 

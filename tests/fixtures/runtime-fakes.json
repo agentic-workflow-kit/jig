@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "runtime-topology-fakes.v1",
+  "ports": ["PORT-SESSION", "PORT-WORKSPACE", "PORT-VERIFY", "PORT-DELIVERY"]
+}

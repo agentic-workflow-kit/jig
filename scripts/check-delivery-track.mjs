@@ -177,12 +177,17 @@ function allFiles(dir) {
     entry.isDirectory() ? allFiles(join(dir, entry.name)) : [join(dir, entry.name)],
   );
 }
-function normativeCorpusPaths(rootDir) {
+export function normativeCorpusPaths(rootDir) {
   return ['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((dir) =>
     activeFiles(rootDir, dir)
       .filter((path) => path.endsWith('.md'))
       .sort(),
   );
+}
+export function normativeCorpusManifest(rootDir = process.cwd()) {
+  const paths = normativeCorpusPaths(rootDir);
+  const rows = paths.map((path) => `${sha(readFileSync(join(rootDir, path)))}  ${path}\n`).join('');
+  return { pathCount: paths.length, digest: sha(rows), paths };
 }
 function activeFiles(rootDir, path) {
   // Synthetic fixtures without repository metadata deliberately use filesystem enumeration.

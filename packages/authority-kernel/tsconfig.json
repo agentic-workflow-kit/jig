@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "lib": ["ES2022", "DOM"],
+    "paths": { "@agentic-workflow-kit/jig-codec": ["../codec/src/index.ts"] }
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../codec" }]
+}

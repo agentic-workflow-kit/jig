@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 2,
+  "corpusVersion": "codec-corpus.v2",
+  "frameVersion": "jig.codec.v1",
+  "seed": "codec-property-v1-7f3a",
+  "cases": [
+    {
+      "id": "valid-canonical",
+      "class": "valid",
+      "frame": "{\"payload\":{\"a\":1},\"version\":\"jig.codec.v1\"}",
+      "expected": {
+        "result": { "ok": true, "value": { "a": 1 } },
+        "canonicalBytesUtf8": "{\"payload\":{\"a\":1},\"version\":\"jig.codec.v1\"}",
+        "canonicalBytesSha256": "23deb2b6437342b911d75b111239cda29913ec503e3ff7f795f4c7f32ebc7a1f"
+      }
+    },
+    {
+      "id": "malformed",
+      "class": "invalid",
+      "frame": "{",
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": { "family": "FC-INPUT", "code": "MALFORMED", "message": "MALFORMED:object key must be a string" }
+        }
+      }
+    },
+    {
+      "id": "duplicate-key",
+      "class": "duplicate",
+      "frame": "{\"payload\":{},\"payload\":{},\"version\":\"jig.codec.v1\"}",
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": { "family": "FC-INPUT", "code": "DUPLICATE_KEY", "message": "DUPLICATE_KEY:duplicate object key" }
+        }
+      }
+    },
+    {
+      "id": "noncanonical-key-order",
+      "class": "ambiguous",
+      "frame": "{\"version\":\"jig.codec.v1\",\"payload\":{}}",
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": {
+            "family": "FC-INPUT",
+            "code": "NONCANONICAL",
+            "message": "NONCANONICAL:frame bytes are not canonical"
+          }
+        }
+      }
+    },
+    {
+      "id": "unknown-version",
+      "class": "invalid",
+      "frame": "{\"payload\":{},\"version\":\"jig.codec.v2\"}",
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": {
+            "family": "FC-INPUT",
+            "code": "UNKNOWN_VERSION",
+            "message": "UNKNOWN_VERSION:frame version is not supported"
+          }
+        }
+      }
+    },
+    {
+      "id": "oversized-string",
+      "class": "oversized",
+      "generator": { "kind": "repeat-frame-string", "character": "x", "count": 4097 },
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": { "family": "FC-INPUT", "code": "OVERSIZED", "message": "OVERSIZED:string exceeds code point limit" }
+        }
+      }
+    },
+    {
+      "id": "cross-scope",
+      "class": "cross-scope",
+      "identity": { "kind": "ID-OP", "value": "run-000000000001-0123456789abcdef/event/9" },
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": {
+            "family": "FC-SUBJECT",
+            "code": "CROSS_SCOPE",
+            "message": "identity does not satisfy its exact governed scope"
+          }
+        }
+      }
+    },
+    {
+      "id": "digest-bound",
+      "class": "digest-bound",
+      "staged": {
+        "domain": "LG-RECORD",
+        "value": { "digest": "ignored", "value": 3 },
+        "excludePaths": ["digest"],
+        "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "result": {
+          "ok": false,
+          "error": {
+            "family": "FC-SUBJECT",
+            "code": "STAGED_DIGEST_MISMATCH",
+            "message": "digest does not match the exact staged canonical bytes"
+          }
+        },
+        "stagedDigest": "feb0e39702fcfef2ca01dadc652c40a3573e84176e0a07c354978bfb37abbefa"
+      }
+    }
+  ],
+  "constructors": [
+    {
+      "kind": "ID-RUN",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef" },
+      "value": "run-000000000001-0123456789abcdef"
+    },
+    {
+      "kind": "ID-STORY",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef", "storyKey": "plan-a" },
+      "value": "run-000000000001-0123456789abcdef/story/plan-a"
+    },
+    {
+      "kind": "ID-TXN",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "transactionOrdinal": "9",
+        "generationRunSequence": "000000000001",
+        "generationRunNonce": "0123456789abcdef",
+        "generationOrdinal": "2",
+        "generationToken": "controller-token-1",
+        "generationDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "value": "run-000000000001-0123456789abcdef/txn/9/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    {
+      "kind": "ID-EVENT",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef", "eventOrdinal": "9" },
+      "value": "run-000000000001-0123456789abcdef/event/9"
+    },
+    {
+      "kind": "ID-OP",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "transactionOrdinal": "9",
+        "generationRunSequence": "000000000001",
+        "generationRunNonce": "0123456789abcdef",
+        "generationOrdinal": "2",
+        "generationToken": "controller-token-1",
+        "generationDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "operationOrdinal": "1"
+      },
+      "value": "run-000000000001-0123456789abcdef/txn/9/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/op/1"
+    },
+    {
+      "kind": "ID-CAND",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "storyKey": "plan-a",
+        "candidateOrdinal": "1",
+        "candidateDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "value": "run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    {
+      "kind": "ID-GEN",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "generationOrdinal": "2",
+        "generationToken": "controller-token-1"
+      },
+      "value": "run-000000000001-0123456789abcdef/gen/2|controller-token-1"
+    },
+    { "kind": "ID-PRINCIPAL", "components": { "principalKey": "arya" }, "value": "principal/arya" },
+    {
+      "kind": "ID-MANIFEST",
+      "components": {
+        "providerDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "authorityDigest": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+      },
+      "value": "provider/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/authority/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+    },
+    {
+      "kind": "ID-SESSION",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "storyKey": "plan-a",
+        "sessionKey": "reviewer",
+        "sessionOrdinal": "1"
+      },
+      "value": "run-000000000001-0123456789abcdef/story/plan-a/session/reviewer/1"
+    },
+    {
+      "kind": "ID-FINDING",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "storyKey": "plan-a",
+        "findingOrdinal": "1"
+      },
+      "value": "run-000000000001-0123456789abcdef/story/plan-a/finding/1"
+    },
+    {
+      "kind": "ID-GRANT",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef", "grantOrdinal": "1" },
+      "value": "run-000000000001-0123456789abcdef/grant/1"
+    },
+    {
+      "kind": "ID-PARK",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef", "parkOrdinal": "1" },
+      "value": "run-000000000001-0123456789abcdef/park/1"
+    },
+    {
+      "kind": "ID-SOURCE-REQ",
+      "components": {
+        "sourceDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "requestDigest": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+      },
+      "value": "source/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/request/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+    },
+    {
+      "kind": "ID-REGISTRY",
+      "components": { "registryDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" },
+      "value": "registry/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    { "kind": "ID-TARGET", "components": { "targetKey": "repository-main" }, "value": "target/repository-main" },
+    {
+      "kind": "ID-AUTH",
+      "components": { "targetKey": "repository-main", "authorityOrdinal": "1" },
+      "value": "target/repository-main/auth/1"
+    },
+    {
+      "kind": "ID-EVSUBJ",
+      "components": {
+        "subjectKind": "ID-CAND",
+        "subjectComponents": {
+          "runSequence": "000000000001",
+          "runNonce": "0123456789abcdef",
+          "storyKey": "plan-a",
+          "candidateOrdinal": "1",
+          "candidateDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        "claimKey": "candidate-content"
+      },
+      "value": "evidence://run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/claim/candidate-content"
+    },
+    {
+      "kind": "ID-OBLIGATION",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef", "obligationOrdinal": "1" },
+      "value": "run-000000000001-0123456789abcdef/obligation/1"
+    },
+    {
+      "kind": "ID-SETTLEMENT",
+      "components": { "runSequence": "000000000001", "runNonce": "0123456789abcdef" },
+      "value": "run-000000000001-0123456789abcdef/settlement/terminal-stop"
+    },
+    {
+      "kind": "ID-NOTICE",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "noticeKey": "review-needed",
+        "noticeDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "value": "run-000000000001-0123456789abcdef/notice/review-needed/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    {
+      "kind": "ID-EXPORT",
+      "components": {
+        "runSequence": "000000000001",
+        "runNonce": "0123456789abcdef",
+        "exportOrdinal": "9",
+        "exportDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "value": "run-000000000001-0123456789abcdef/export/9/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ],
+  "oracle": {
+    "algorithm": "sha256(JSON.stringify({cases: cases.map(({id, expected}) => ({id, expected})), constructors}))",
+    "sha256": "4f96bb81af5ab41a899d4b16fa49adf2809eb0e5c5d9e3845057211af92a17d4"
+  }
+}

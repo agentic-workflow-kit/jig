@@ -5,12 +5,13 @@ surface you touch before planning non-trivial work.
 
 ## Current repository posture
 
-Jig's approved product and architecture are implementation-ready. The active repository has entered
-GF-001 (private Node/TypeScript/pnpm/Turbo workspace substrate). It remains product-runtime-empty:
-no product package, runtime package, provider, adapter, controller, storage implementation, lifecycle
-behavior, port implementation, CLI, MCP surface, credential, or real external effect is authorized or
-implemented. GF-002 and later stories remain unimplemented. The greenfield delivery track remains
-authoritative, while archive material remains non-governing provenance.
+Jig's approved product and architecture are implementation-ready. This local Phase 0 implementation
+candidate contains four private, pure packages: the canonical identity and boundary codec; the runtime
+topology and semantic port contracts; the private conformance harness; and the pure authority kernel. It
+does not establish landing, acceptance, activation, or
+release. No provider, adapter, storage or ledger implementation, controller process, transport, CLI,
+MCP surface, credential, real external effect, or public package is authorized or implemented. The
+greenfield delivery track remains authoritative, while archive material remains non-governing provenance.
 
 The retired implementation generation and its delivery track are recoverable through the immutable
 archive described in
@@ -46,7 +47,7 @@ pnpm worktree:new <branch>
 pnpm worktree:clean <branch>
 ```
 
-`pnpm check` validates GF-001 repository structure, typecheck, package boundaries, infrastructure tests,
+`pnpm check` validates repository structure, typecheck, package boundaries, infrastructure tests,
 the archive recovery anchor, the greenfield delivery track, formatting, lint, and documentation links.
 
 ## Gate and conventions

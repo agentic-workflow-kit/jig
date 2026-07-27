@@ -14,33 +14,44 @@ function copyFilter(source) {
   return !rel.split('/').some((part) => excluded.has(part));
 }
 
-function withTempRepo(mutate) {
+function withTempRepo(mutate, { includeArchive = true } = {}) {
   const tempDir = mkdtempSync(join(tmpdir(), 'active-repo-test-'));
   let failure;
   let result;
   try {
-    cpSync(repoRoot, tempDir, { recursive: true, filter: copyFilter, verbatimSymlinks: true });
+    cpSync(repoRoot, tempDir, {
+      recursive: true,
+      filter: copyFilter,
+      verbatimSymlinks: true,
+    });
     for (const args of [
       ['init', '-q'],
       ['config', 'user.name', 'Test'],
       ['config', 'user.email', 'test@example.invalid'],
+      ['config', 'gc.auto', '0'],
+      ['config', 'maintenance.auto', 'false'],
       ['add', '.'],
       ['commit', '-q', '-m', 'Initial'],
-      [
-        'fetch',
-        '-q',
-        repoRoot,
-        'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
-      ],
     ])
       execFileSync('git', args, { cwd: tempDir });
+    if (includeArchive)
+      execFileSync(
+        'git',
+        [
+          'fetch',
+          '-q',
+          repoRoot,
+          'refs/tags/archive/jig-v0-pre-greenfield-2026-07-18:refs/tags/archive/jig-v0-pre-greenfield-2026-07-18',
+        ],
+        { cwd: tempDir },
+      );
     mutate(tempDir);
     result = validateActiveRepository(tempDir);
   } catch (error) {
     failure = error;
   }
   try {
-    rmSync(tempDir, { recursive: true, maxRetries: 5, retryDelay: 50 });
+    rmSync(tempDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   } catch (cleanupError) {
     throw failure ? new AggregateError([failure, cleanupError], 'structure test and cleanup failed') : cleanupError;
   }
@@ -48,8 +59,30 @@ function withTempRepo(mutate) {
   return result;
 }
 
-test('validateActiveRepository passes on the active GF-001 contract', () => {
+test('validateActiveRepository passes on the active package contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
+});
+
+test('rejects evidence writing when it is reachable from the check script', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test && pnpm evidence:write"\n  },'),
+    );
+  });
+  assert.ok(errors.includes('check script transitively resolves to an evidence-writing command'));
+});
+
+test('rejects artifact output when it is reachable from the check script', () => {
+  const errors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test > artifacts/check.log"\n  },'),
+    );
+  });
+  assert.ok(errors.includes('check script transitively resolves to a command that writes under artifacts/'));
 });
 
 test('rejects root manifest, local Node line, and pnpm safety drift', () => {
@@ -59,16 +92,31 @@ test('rejects root manifest, local Node line, and pnpm safety drift', () => {
       readFileSync(join(root, 'package.json'), 'utf8').replace('"private": true', '"private": false'),
     ),
   );
-  assert.ok(manifestErrors.some((error) => error.includes('activated GF-001 manifest')));
+  assert.ok(manifestErrors.some((error) => error.includes('package.json must exactly preserve')));
   const nodeErrors = withTempRepo((root) => writeFileSync(join(root, '.nvmrc'), '22\n'));
   assert.ok(nodeErrors.some((error) => error.includes('local Node 26')));
   const pnpmErrors = withTempRepo((root) => writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages: []\n'));
   assert.ok(pnpmErrors.some((error) => error.includes('supply-chain safety')));
 });
 
+test('fails closed for missing or malformed required configuration inputs', () => {
+  const missingNodeErrors = withTempRepo((root) => rmSync(join(root, '.nvmrc')));
+  assert.ok(missingNodeErrors.some((error) => error.includes('local Node 26')));
+
+  const malformedSolutionErrors = withTempRepo((root) => writeFileSync(join(root, 'tsconfig.json'), '{"files": [}\n'));
+  assert.ok(malformedSolutionErrors.some((error) => error.includes('tsconfig.json must bind exactly')));
+
+  const missingConformanceManifestErrors = withTempRepo((root) =>
+    rmSync(join(root, 'packages/conformance/package.json')),
+  );
+  assert.ok(
+    missingConformanceManifestErrors.some((error) => error.includes('conformance conformance manifest must remain')),
+  );
+});
+
 test('rejects active Turbo graph drift and every approved-file symlink substitution', () => {
   const graphErrors = withTempRepo((root) => writeFileSync(join(root, 'turbo.json'), '{}\n'));
-  assert.ok(graphErrors.some((error) => error.includes('canonical active GF-001 task')));
+  assert.ok(graphErrors.some((error) => error.includes('canonical active workspace task')));
   const symlinkErrors = withTempRepo((root) => {
     const config = join(root, 'turbo.json');
     rmSync(config);
@@ -103,32 +151,66 @@ test('rejects mutable Actions, credential persistence, and extra workflow behavi
 
 test('rejects unlisted fixture files and an absent archive anchor', () => {
   const fixtureErrors = withTempRepo((root) =>
-    writeFileSync(join(root, 'tests/fixtures/gf-001-workspace/packages/pkg-a/src/runtime.ts'), 'export {};\n'),
+    writeFileSync(join(root, 'tests/fixtures/workspace/packages/pkg-a/src/runtime.ts'), 'export {};\n'),
   );
   assert.ok(
     fixtureErrors.some((error) => error.includes('unexpected active path') || error.includes('fixture file set')),
   );
-  const missingAnchor = mkdtempSync(join(tmpdir(), 'missing-archive-test-'));
-  let failure;
-  try {
-    cpSync(repoRoot, missingAnchor, { recursive: true, filter: copyFilter, verbatimSymlinks: true });
-    for (const args of [
-      ['init', '-q'],
-      ['config', 'user.name', 'Test'],
-      ['config', 'user.email', 'test@example.invalid'],
-      ['add', '.'],
-      ['commit', '-q', '-m', 'Initial'],
-    ])
-      execFileSync('git', args, { cwd: missingAnchor });
-    const errors = validateActiveRepository(missingAnchor);
-    assert.ok(errors.some((error) => error.includes('archive ref or representative recovery path')));
-  } catch (error) {
-    failure = error;
-  }
-  try {
-    rmSync(missingAnchor, { recursive: true, maxRetries: 5, retryDelay: 50 });
-  } catch (cleanupError) {
-    throw failure ? new AggregateError([failure, cleanupError], 'archive mutation and cleanup failed') : cleanupError;
-  }
-  if (failure) throw failure;
+  const missingAnchorErrors = withTempRepo(() => {}, { includeArchive: false });
+  assert.ok(missingAnchorErrors.some((error) => error.includes('archive ref or representative recovery path')));
+});
+
+test('requires the exact authority kernel, root wiring, and generic evidence surface', () => {
+  const missingKernelErrors = withTempRepo((root) => rmSync(join(root, 'packages/authority-kernel/src/index.ts')));
+  assert.ok(missingKernelErrors.some((error) => error.includes('required active path is missing')));
+  const unlistedSiblingErrors = withTempRepo((root) =>
+    writeFileSync(join(root, 'tests/authority-kernel/unlisted-sibling.test.mjs'), 'export {};\n'),
+  );
+  assert.ok(unlistedSiblingErrors.some((error) => error.includes('unexpected active path')));
+  const privateErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"private": true',
+        '"private": false',
+      ),
+    ),
+  );
+  assert.ok(privateErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
+  const dependencyErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"@agentic-workflow-kit/jig-codec": "workspace:*"',
+        '"@agentic-workflow-kit/jig-codec": "workspace:*", "node:fs": "workspace:*"',
+      ),
+    ),
+  );
+  assert.ok(dependencyErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
+  const exportErrors = withTempRepo((root) =>
+    writeFileSync(
+      join(root, 'packages/authority-kernel/package.json'),
+      readFileSync(join(root, 'packages/authority-kernel/package.json'), 'utf8').replace(
+        '"exports": "./dist/index.js"',
+        '"exports": "./src/index.ts"',
+      ),
+    ),
+  );
+  assert.ok(exportErrors.some((error) => error.includes('authority kernel authority-kernel manifest')));
+  const rootEvidenceErrors = withTempRepo((root) => {
+    const path = join(root, 'package.json');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('node scripts/write-evidence.mjs phase-0', 'node scripts/write-evidence.mjs'),
+    );
+  });
+  assert.ok(rootEvidenceErrors.some((error) => error.includes('package.json must exactly preserve')));
+  const workflowErrors = withTempRepo((root) => {
+    const path = join(root, '.github/workflows/check.yml');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8').replace('          path: artifacts/\n', '          path: artifacts/evidence.json\n'),
+    );
+  });
+  assert.ok(workflowErrors.some((error) => error.includes('evidence-retention contract')));
 });

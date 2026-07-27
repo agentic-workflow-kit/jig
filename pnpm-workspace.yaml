@@ -1,6 +1,7 @@
 # pnpm settings live here in pnpm 11: the package.json `pnpm` field is no longer read, and
 # `.npmrc` is auth-only.
-packages: []
+packages:
+  - "packages/*"
 
 # --- Supply-chain / toolchain baseline (every archetype) ---
 allowBuilds: {} # no dependency runs install/build scripts until reviewed and listed here
