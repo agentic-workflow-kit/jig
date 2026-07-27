@@ -83,7 +83,11 @@ function unexpectedSubjectStatus(status) {
     .split('\n')
     .filter(
       (entry) =>
-        entry && !entry.endsWith(' dist/') && !entry.endsWith('/dist/') && !entry.endsWith(' tsconfig.tsbuildinfo'),
+        entry &&
+        !entry.endsWith(' dist/') &&
+        !entry.endsWith('/dist/') &&
+        !entry.endsWith(' tsconfig.tsbuildinfo') &&
+        !entry.endsWith('/tsconfig.tsbuildinfo'),
     )
     .join('\n');
 }

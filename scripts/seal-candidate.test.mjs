@@ -147,6 +147,23 @@ test('invalidates ignored residue in the cloned verification subject', () =>
     assert.equal(envelope.seal.valid, false);
   }));
 
+test('preserves declared TypeScript build output as expected subject state', () =>
+  fixture((repository, outputParent) => {
+    writeFileSync(join(repository, '.gitignore'), '*.tsbuildinfo\n');
+    execFileSync('git', ['add', '.gitignore'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'ignore-build-info'], { cwd: repository });
+    const output = join(outputParent, 'typescript-build-output');
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "require('node:fs').writeFileSync('tsconfig.tsbuildinfo', 'expected')"`,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.verificationSubject.states.at(-1).unexpectedStatus, '');
+    assert.equal(envelope.seal.valid, true);
+  }));
+
 test('does not expose owner environment secrets to verification commands or logs', () =>
   fixture((repository, outputParent) => {
     const output = join(outputParent, 'sanitized-environment');
