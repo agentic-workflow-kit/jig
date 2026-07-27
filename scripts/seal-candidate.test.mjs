@@ -28,10 +28,21 @@ function fixture(run) {
   }
 }
 
-function seal(repository, output, command) {
+function seal(repository, output, command, withPnpmSeparator = false) {
   return spawnSync(
     process.execPath,
-    [script, '--repo', repository, '--output', output, '--base', 'HEAD~1', '--command', command],
+    [
+      script,
+      ...(withPnpmSeparator ? ['--'] : []),
+      '--repo',
+      repository,
+      '--output',
+      output,
+      '--base',
+      'HEAD~1',
+      '--command',
+      command,
+    ],
     { encoding: 'utf8' },
   );
 }
@@ -62,4 +73,15 @@ test('invalidates the seal when a verification command changes the candidate wor
     assert.equal(envelope.commands[0].exitCode, 0);
     assert.equal(envelope.final.unchangedAndClean, false);
     assert.equal(envelope.seal.valid, false);
+  }));
+
+test('accepts the argument separator forwarded by pnpm scripts', () =>
+  fixture((repository, outputParent) => {
+    const result = seal(
+      repository,
+      join(outputParent, 'separator'),
+      `${process.execPath} -e "process.stdout.write('proof')"`,
+      true,
+    );
+    assert.equal(result.status, 0, result.stderr);
   }));

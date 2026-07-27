@@ -31,6 +31,7 @@ function parseArguments(args) {
   const options = { repository: defaultRepository, commands: [] };
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
+    if (option === '--') continue;
     if (option === '--output' || option === '--base' || option === '--repo' || option === '--command') {
       const value = args[index + 1];
       if (!value) fail(`${option} requires a value`);
