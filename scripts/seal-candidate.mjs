@@ -54,7 +54,13 @@ function parseArguments(args) {
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
     if (option === '--') continue;
-    if (option === '--output' || option === '--base' || option === '--repo' || option === '--command' || option === '--timeout-ms') {
+    if (
+      option === '--output' ||
+      option === '--base' ||
+      option === '--repo' ||
+      option === '--command' ||
+      option === '--timeout-ms'
+    ) {
       const value = args[index + 1];
       if (!value) fail(`${option} requires a value`);
       index += 1;
@@ -65,8 +71,7 @@ function parseArguments(args) {
         const timeoutMs = Number(value);
         if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) fail('--timeout-ms must be a positive integer');
         options.timeoutMs = timeoutMs;
-      }
-      else options.commands.push(value);
+      } else options.commands.push(value);
     } else fail(`unknown option: ${option}`);
   }
   if (!options.output || !options.base || options.commands.length === 0)
@@ -159,7 +164,8 @@ function runCommand(repository, command, logPath, timeoutMs) {
     endedAt,
     exitCode: result.status,
     signal: result.signal,
-    error: result.error?.code === 'ETIMEDOUT' ? `command timed out after ${timeoutMs}ms` : (result.error?.message ?? null),
+    error:
+      result.error?.code === 'ETIMEDOUT' ? `command timed out after ${timeoutMs}ms` : (result.error?.message ?? null),
     log: readFileSync(logPath),
   };
 }
@@ -211,7 +217,8 @@ function subjectState(subject, candidate, timeoutMs) {
 
 function seal() {
   const { repository, output, base, commands, timeoutMs } = parseArguments(process.argv.slice(2));
-  if (!isOutsideRepository(repository, output, timeoutMs)) fail('output directory must be outside the candidate repository');
+  if (!isOutsideRepository(repository, output, timeoutMs))
+    fail('output directory must be outside the candidate repository');
   if (existsSync(output)) fail(`output directory already exists: ${output}`);
 
   const initial = state(repository, timeoutMs);
