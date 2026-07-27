@@ -164,7 +164,10 @@ function verificationSubject(repository, candidateCommit) {
   try {
     git(path, 'checkout', '--detach', candidateCommit);
     const sourceModules = join(repository, 'node_modules');
-    appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules/\n/packages/*/node_modules/\n');
+    appendFileSync(
+      join(path, '.git', 'info', 'exclude'),
+      '\n/node_modules\n/node_modules/\n/packages/*/node_modules\n/packages/*/node_modules/\n',
+    );
     if (existsSync(sourceModules)) {
       symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
     }
