@@ -139,6 +139,17 @@ test('seals successfully when invoked from a linked worktree', () =>
       const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
       assert.equal(envelope.seal.valid, true);
       assert.equal(envelope.verificationSubject.setupError, null);
+      const commonGitDirectory = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+        cwd: linked,
+        encoding: 'utf8',
+      }).trim();
+      const rejected = seal(
+        linked,
+        join(commonGitDirectory, 'seal-evidence'),
+        `${process.execPath} -e "process.stdout.write('proof')"`,
+      );
+      assert.equal(rejected.status, 1);
+      assert.match(rejected.stderr, /output directory must be outside/);
     } finally {
       execFileSync('git', ['worktree', 'remove', '--force', linked], { cwd: repository });
     }
@@ -153,6 +164,23 @@ test('rejects an output whose symlinked parent resolves inside the candidate', (
     const result = seal(repository, join(parent, 'envelope'), `${process.execPath} -e "process.stdout.write('proof')"`);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /output directory must be outside/);
+  }));
+
+test('recreates package-local workspace links to clone candidate bytes', () =>
+  fixture((repository, outputParent) => {
+    const codec = join(repository, 'packages', 'codec');
+    const namespace = join(repository, 'packages', 'consumer', 'node_modules', '@agentic-workflow-kit');
+    mkdirSync(codec, { recursive: true });
+    writeFileSync(join(codec, 'index.js'), 'export const candidate = true;\n');
+    execFileSync('git', ['add', 'packages'], { cwd: repository });
+    execFileSync('git', ['commit', '-qm', 'packages'], { cwd: repository });
+    mkdirSync(namespace, { recursive: true });
+    writeFileSync(join(repository, '.git', 'info', 'exclude'), '\n/packages/*/node_modules\n');
+    symlinkSync('../../../codec', join(namespace, 'jig-codec'));
+    const command = `${process.execPath} -e 'const fs=require("node:fs");const p=fs.realpathSync("packages/consumer/node_modules/@agentic-workflow-kit/jig-codec");if(p.startsWith("${repository}")||!p.endsWith("packages/codec"))process.exit(1)'`;
+    const output = join(outputParent, 'workspace-link');
+    const result = seal(repository, output, command);
+    assert.equal(result.status, 0, readFileSync(join(output, 'envelope.json'), 'utf8'));
   }));
 
 test('accepts the argument separator forwarded by pnpm scripts', () =>

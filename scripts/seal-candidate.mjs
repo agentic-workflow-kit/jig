@@ -34,6 +34,12 @@ function git(repository, ...args) {
   return result.stdout.trim();
 }
 
+function gitOutput(repository, ...args) {
+  const result = spawnSync('git', args, { cwd: repository, encoding: 'utf8' });
+  if (result.status !== 0) fail(`git ${args.join(' ')} failed: ${result.stderr.trim()}`);
+  return result.stdout.trim();
+}
+
 function state(repository) {
   return {
     commit: git(repository, 'rev-parse', 'HEAD'),
@@ -65,10 +71,23 @@ function parseArguments(args) {
 }
 
 function isOutsideRepository(repository, output) {
-  const canonicalRepository = realpathSync(repository);
   const canonicalParent = realpathSync(dirname(output));
-  const path = relative(canonicalRepository, join(canonicalParent, basename(output)));
-  return path === '..' || path.startsWith(`..${sep}`);
+  const destination = join(canonicalParent, basename(output));
+  const commonGitDirectory = realpathSync(
+    gitOutput(repository, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
+  );
+  const protectedRoots = [
+    realpathSync(repository),
+    commonGitDirectory,
+    ...gitOutput(repository, 'worktree', 'list', '--porcelain')
+      .split('\n')
+      .filter((line) => line.startsWith('worktree '))
+      .map((line) => realpathSync(line.slice('worktree '.length))),
+  ];
+  return protectedRoots.every((root) => {
+    const path = relative(root, destination);
+    return path === '..' || path.startsWith(`..${sep}`);
+  });
 }
 
 function copyWorkspaceLinks(repository, subject) {
@@ -84,7 +103,17 @@ function copyWorkspaceLinks(repository, subject) {
     for (const entry of readdirSync(sourceNamespace)) {
       const source = join(sourceNamespace, entry);
       if (!lstatSync(source).isSymbolicLink()) continue;
-      symlinkSync(readlinkSync(source), join(targetNamespace, entry));
+      const target = join(targetNamespace, entry);
+      symlinkSync(readlinkSync(source), target);
+      const resolved = realpathSync(target);
+      const clonePackages = realpathSync(join(subject, 'packages'));
+      const sourceRepository = realpathSync(repository);
+      const clonePath = relative(clonePackages, resolved);
+      const sourcePath = relative(sourceRepository, resolved);
+      const insideClonePackages = clonePath === '' || !clonePath.startsWith(`..${sep}`);
+      const insideSourceRepository = sourcePath === '' || !sourcePath.startsWith(`..${sep}`);
+      if (!insideClonePackages || insideSourceRepository)
+        fail(`workspace link ${source} does not resolve inside clone packages`);
     }
   }
 }
@@ -135,9 +164,9 @@ function verificationSubject(repository, candidateCommit) {
   try {
     git(path, 'checkout', '--detach', candidateCommit);
     const sourceModules = join(repository, 'node_modules');
+    appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules/\n/packages/*/node_modules/\n');
     if (existsSync(sourceModules)) {
       symlinkSync(sourceModules, join(path, 'node_modules'), 'dir');
-      appendFileSync(join(path, '.git', 'info', 'exclude'), '\n/node_modules\n/packages/*/node_modules\n');
     }
     copyWorkspaceLinks(repository, path);
     return path;
