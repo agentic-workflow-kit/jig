@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
+const commandLogMaxBytes = 8 * 1024 * 1024;
 
 function fail(message) {
   throw new Error(message);
@@ -56,7 +57,12 @@ function isOutsideRepository(repository, output) {
 
 function runCommand(repository, command) {
   const startedAt = new Date().toISOString();
-  const result = spawnSync(command, { cwd: repository, encoding: 'utf8', shell: true });
+  const result = spawnSync(command, {
+    cwd: repository,
+    encoding: 'utf8',
+    shell: true,
+    maxBuffer: commandLogMaxBytes,
+  });
   const endedAt = new Date().toISOString();
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? '';

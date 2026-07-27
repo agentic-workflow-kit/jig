@@ -96,3 +96,17 @@ test('records a failed verification command in an invalid envelope', () =>
     assert.equal(envelope.final.unchangedAndClean, true);
     assert.equal(envelope.seal.valid, false);
   }));
+
+test("retains a verification log larger than Node's default command buffer", () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'large-log');
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "process.stdout.write('x'.repeat(1024 * 1024 + 1))"`,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.seal.valid, true);
+    assert.equal(readFileSync(envelope.commands[0].log.path, 'utf8').length, 1024 * 1024 + 1);
+  }));
