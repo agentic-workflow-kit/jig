@@ -5,13 +5,14 @@ surface you touch before planning non-trivial work.
 
 ## Current repository posture
 
-Jig's approved product and architecture are implementation-ready. This local Phase 0 implementation
-candidate contains four private, pure packages: the canonical identity and boundary codec; the runtime
-topology and semantic port contracts; the private conformance harness; and the pure authority kernel. It
-does not establish landing, acceptance, activation, or
-release. No provider, adapter, storage or ledger implementation, controller process, transport, CLI,
+Jig's approved product and architecture are implementation-ready. Phase 0 is merged and landed as four
+private, pure packages: the canonical identity and boundary codec; the runtime topology and semantic port
+contracts; the private conformance harness; and the pure authority kernel. That landing does not activate
+Phase 1 or establish acceptance or release. No provider, adapter, storage or ledger implementation,
+controller process, transport, CLI,
 MCP surface, credential, real external effect, or public package is authorized or implemented. The
-greenfield delivery track remains authoritative, while archive material remains non-governing provenance.
+greenfield delivery track remains authoritative and its active stop line remains in force, while archive
+material remains non-governing provenance.
 
 The retired implementation generation and its delivery track are recoverable through the immutable
 archive described in

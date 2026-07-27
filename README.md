@@ -9,13 +9,14 @@
 ## Status
 
 The approved product and redesign documents passed the final empty-repository implementation-
-readiness gate on 2026-07-18. This local Phase 0 implementation candidate contains four private,
-pure packages: the canonical identity and boundary codec; the runtime topology and semantic port contracts;
-the private conformance harness; and the pure authority kernel. It does not establish landing, acceptance,
-activation, or release. No provider, adapter, storage
+readiness gate on 2026-07-18. Phase 0 is merged and landed as four private, pure packages: the canonical
+identity and boundary codec; the runtime topology and semantic port contracts; the private conformance
+harness; and the pure authority kernel. That landing does not activate Phase 1 or establish acceptance or
+release. No provider, adapter, storage
 or ledger implementation, controller process, transport, CLI, MCP surface, credential, real external
 effect, or public package is authorized or implemented. The [greenfield delivery track](docs/delivery/README.md)
-remains authoritative, while archive material remains non-governing.
+remains authoritative and its active delivery-track stop line remains in force, while archive material
+remains non-governing.
 
 The retired implementation generation is preserved at
 `archive/jig-v0-pre-greenfield-2026-07-18`, which resolves to commit
@@ -69,10 +70,10 @@ The next owner-authorized implementation session must use the active greenfield 
    register as planning inputs; and
 7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
-The four private packages above are local-candidate implementation only; they do not establish a
-landed or activated story and do not authorize downstream implementation. The active track remains a
-planning stop line until a story's merged predecessors, exact evidence, delegated-choice gate, external
-activation, and independent review requirements are met.
+The four landed private packages establish only Phase 0; they do not activate a Phase 1 story or authorize
+downstream implementation. The active track remains a planning stop line until a story's merged
+predecessors, exact evidence, delegated-choice gate, external activation, and independent review
+requirements are met.
 
 ## License
 
