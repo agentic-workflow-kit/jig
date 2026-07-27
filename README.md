@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-The check validates formatting, lint, documentation links, the Phase 0 private-package posture, the
-active delivery track, and the immutable archive recovery anchor. Run `pnpm delivery:check` for
+The check runs lint, formatting, documentation-link, delivery-track, repository-structure,
+typecheck, package-boundary, runtime-topology, and test validation. Run `pnpm delivery:check` for
 the focused delivery validator and its mutation tests.
 
 ## Next implementation prerequisite

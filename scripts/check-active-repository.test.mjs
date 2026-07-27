@@ -99,6 +99,21 @@ test('rejects root manifest, local Node line, and pnpm safety drift', () => {
   assert.ok(pnpmErrors.some((error) => error.includes('supply-chain safety')));
 });
 
+test('fails closed for missing or malformed required configuration inputs', () => {
+  const missingNodeErrors = withTempRepo((root) => rmSync(join(root, '.nvmrc')));
+  assert.ok(missingNodeErrors.some((error) => error.includes('local Node 26')));
+
+  const malformedSolutionErrors = withTempRepo((root) => writeFileSync(join(root, 'tsconfig.json'), '{"files": [}\n'));
+  assert.ok(malformedSolutionErrors.some((error) => error.includes('tsconfig.json must bind exactly')));
+
+  const missingConformanceManifestErrors = withTempRepo((root) =>
+    rmSync(join(root, 'packages/conformance/package.json')),
+  );
+  assert.ok(
+    missingConformanceManifestErrors.some((error) => error.includes('conformance conformance manifest must remain')),
+  );
+});
+
 test('rejects active Turbo graph drift and every approved-file symlink substitution', () => {
   const graphErrors = withTempRepo((root) => writeFileSync(join(root, 'turbo.json'), '{}\n'));
   assert.ok(graphErrors.some((error) => error.includes('canonical active workspace task')));

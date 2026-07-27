@@ -294,6 +294,7 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
     !event.startsWith(`${subject.run}/event/`) ||
     !operation.startsWith(`${transaction}/op/`) ||
     !fence.generation.startsWith(`${subject.run}/gen/`) ||
+    !transaction.includes(`/${fence.generation}|`) ||
     subject.basis !== fence.basis ||
     !sameLedgerPosition(transaction, event)
   )
@@ -344,6 +345,29 @@ export const LEGAL_EDGES: readonly LegalEdge[] = freeze([
   edge('retiring-closed', 'Retiring', 'EV-WAKE-SETTLEMENT', 'Closed'),
   edge('retiring-closed-owner', 'Retiring', 'EV-OWNER-DECISION', 'Closed'),
   edge('not-run-closed', 'NotRun', 'EV-WAKE-DEPENDENCY', 'Closed'),
+  edge('preparing-workspace-fact', 'Preparing', 'EV-WORKSPACE-FACT', 'Preparing'),
+  edge('preparing-setup-fact', 'Preparing', 'EV-SETUP-FACT', 'Preparing'),
+  edge('preparing-session-fact', 'Preparing', 'EV-SESSION-FACT', 'Preparing'),
+  edge('implementing-session-fact', 'Implementing', 'EV-SESSION-FACT', 'Implementing'),
+  edge('implementing-artifact-fact', 'Implementing', 'EV-ARTIFACT-FACT', 'Implementing'),
+  edge('reviewing-session-fact', 'Reviewing', 'EV-SESSION-FACT', 'Reviewing'),
+  edge('reviewing-target-fact', 'Reviewing', 'EV-TARGET-FACT', 'Reviewing'),
+  edge('reviewing-artifact-fact', 'Reviewing', 'EV-ARTIFACT-FACT', 'Reviewing'),
+  edge('refreshing-session-fact', 'Refreshing', 'EV-SESSION-FACT', 'Refreshing'),
+  edge('refreshing-workspace-fact', 'Refreshing', 'EV-WORKSPACE-FACT', 'Refreshing'),
+  edge('finalizing-check-observation', 'Finalizing', 'EV-CHECK-OBSERVATION', 'Finalizing'),
+  edge('finalizing-target-fact', 'Finalizing', 'EV-TARGET-FACT', 'Finalizing'),
+  edge('finalizing-artifact-fact', 'Finalizing', 'EV-ARTIFACT-FACT', 'Finalizing'),
+  edge('finalizing-effect-certainty', 'Finalizing', 'EV-EFFECT-CERTAINTY', 'Finalizing'),
+  edge('finalizing-recovery-observation', 'Finalizing', 'EV-RECOVERY-OBSERVATION', 'Finalizing'),
+  edge('retiring-wake-settlement', 'Retiring', 'EV-WAKE-SETTLEMENT', 'Retiring'),
+  edge('retiring-workspace-preserved', 'Retiring', 'EV-WORKSPACE-PRESERVED', 'Retiring'),
+  edge('retiring-session-fact', 'Retiring', 'EV-SESSION-FACT', 'Retiring'),
+  edge('retiring-target-fact', 'Retiring', 'EV-TARGET-FACT', 'Retiring'),
+  edge('retiring-artifact-fact', 'Retiring', 'EV-ARTIFACT-FACT', 'Retiring'),
+  ...STORY_STATES.filter((from) => from !== 'Closed').map((from) =>
+    edge(`${from.toLowerCase()}-owner-decision`, from, 'EV-OWNER-DECISION', from, 'OPC-SESSION-RESPOND'),
+  ),
   ...(
     [
       'Preparing',
@@ -451,7 +475,6 @@ export function validateEvent(value: unknown): KernelResult<AuthorityEvent> {
   if (
     !parseIdentity('ID-EVENT', id).ok ||
     !id.startsWith(`${subject.run}/event/`) ||
-    !sameBinding(subject, { ...subject }) ||
     subject.basis !== fence.basis ||
     !fence.generation.startsWith(`${subject.run}/gen/`)
   )

@@ -144,6 +144,15 @@ function assertRegular(rootDir, relativePath, errors) {
     errors.push(`fixture input must be a regular non-symlink file: ${relativePath}`);
 }
 
+function readJson(path, errors, failureMessage) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    errors.push(failureMessage);
+    return null;
+  }
+}
+
 function sameMembers(actual, expected) {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
@@ -277,21 +286,23 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       errors.push(`codec file set must stay exact; got ${codecFiles.join(', ')}`);
     const codecManifestPath = join(codecRoot, 'package.json');
     if (existsSync(codecManifestPath)) {
-      const codecManifest = JSON.parse(readFileSync(codecManifestPath, 'utf8'));
+      const codecManifest = readJson(codecManifestPath, errors, 'codec manifest must be readable JSON');
       if (
-        codecManifest.name !== '@agentic-workflow-kit/jig-codec' ||
-        codecManifest.private !== true ||
-        codecManifest.dependencies ||
-        codecManifest.devDependencies ||
-        codecManifest.optionalDependencies ||
-        codecManifest.peerDependencies ||
-        codecManifest.bin ||
-        codecManifest.main ||
-        codecManifest.module ||
-        codecManifest.browser ||
-        codecManifest.publishConfig ||
-        codecManifest.scripts?.start ||
-        Object.keys(codecManifest.scripts ?? {}).some((name) => /^(pre|post)(install|pack|publish|prepare)$/.test(name))
+        codecManifest?.name !== '@agentic-workflow-kit/jig-codec' ||
+        codecManifest?.private !== true ||
+        codecManifest?.dependencies ||
+        codecManifest?.devDependencies ||
+        codecManifest?.optionalDependencies ||
+        codecManifest?.peerDependencies ||
+        codecManifest?.bin ||
+        codecManifest?.main ||
+        codecManifest?.module ||
+        codecManifest?.browser ||
+        codecManifest?.publishConfig ||
+        codecManifest?.scripts?.start ||
+        Object.keys(codecManifest?.scripts ?? {}).some((name) =>
+          /^(pre|post)(install|pack|publish|prepare)$/.test(name),
+        )
       )
         errors.push('codec must remain a dependency-free pure boundary library with no runtime entrypoint');
     }
@@ -307,15 +318,19 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
 
   const runtimeRoot = join(rootDir, 'packages', 'runtime-contracts');
   if (existsSync(runtimeRoot)) {
-    const runtimeManifest = JSON.parse(readFileSync(join(runtimeRoot, 'package.json'), 'utf8'));
+    const runtimeManifest = readJson(
+      join(runtimeRoot, 'package.json'),
+      errors,
+      'runtime-contracts manifest must be readable JSON',
+    );
     if (
-      runtimeManifest.name !== '@agentic-workflow-kit/jig-runtime-contracts' ||
-      runtimeManifest.private !== true ||
-      JSON.stringify(runtimeManifest.dependencies) !==
+      runtimeManifest?.name !== '@agentic-workflow-kit/jig-runtime-contracts' ||
+      runtimeManifest?.private !== true ||
+      JSON.stringify(runtimeManifest?.dependencies) !==
         JSON.stringify({ '@agentic-workflow-kit/jig-codec': 'workspace:*' }) ||
-      runtimeManifest.bin ||
-      runtimeManifest.publishConfig ||
-      runtimeManifest.scripts?.start
+      runtimeManifest?.bin ||
+      runtimeManifest?.publishConfig ||
+      runtimeManifest?.scripts?.start
     )
       errors.push('runtime contracts must remain private, codec-only, and non-runnable');
     validatePureSurface(
@@ -323,25 +338,29 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       'runtime-contracts',
       ['@agentic-workflow-kit/jig-codec'],
       /(?:provider|transport|process)/i,
-      new Set(),
+      new Set(['fetch', 'process', 'require']),
       errors,
     );
   }
 
   const conformanceRoot = join(rootDir, 'packages', 'conformance');
   if (existsSync(conformanceRoot)) {
-    const manifest = JSON.parse(readFileSync(join(conformanceRoot, 'package.json'), 'utf8'));
+    const manifest = readJson(
+      join(conformanceRoot, 'package.json'),
+      errors,
+      'conformance manifest must be readable JSON',
+    );
     if (
-      manifest.name !== '@agentic-workflow-kit/jig-conformance' ||
-      manifest.private !== true ||
-      JSON.stringify(manifest.dependencies) !==
+      manifest?.name !== '@agentic-workflow-kit/jig-conformance' ||
+      manifest?.private !== true ||
+      JSON.stringify(manifest?.dependencies) !==
         JSON.stringify({
           '@agentic-workflow-kit/jig-codec': 'workspace:*',
           '@agentic-workflow-kit/jig-runtime-contracts': 'workspace:*',
         }) ||
-      manifest.bin ||
-      manifest.publishConfig ||
-      manifest.scripts?.start
+      manifest?.bin ||
+      manifest?.publishConfig ||
+      manifest?.scripts?.start
     )
       errors.push('conformance must remain private, contract-only, and non-runnable');
     validatePureSurface(
@@ -356,14 +375,18 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
 
   const authorityRoot = join(rootDir, 'packages', 'authority-kernel');
   if (existsSync(authorityRoot)) {
-    const manifest = JSON.parse(readFileSync(join(authorityRoot, 'package.json'), 'utf8'));
+    const manifest = readJson(
+      join(authorityRoot, 'package.json'),
+      errors,
+      'authority-kernel manifest must be readable JSON',
+    );
     if (
-      manifest.name !== '@agentic-workflow-kit/jig-authority-kernel' ||
-      manifest.private !== true ||
-      JSON.stringify(manifest.dependencies) !== JSON.stringify({ '@agentic-workflow-kit/jig-codec': 'workspace:*' }) ||
-      manifest.bin ||
-      manifest.publishConfig ||
-      manifest.scripts?.start
+      manifest?.name !== '@agentic-workflow-kit/jig-authority-kernel' ||
+      manifest?.private !== true ||
+      JSON.stringify(manifest?.dependencies) !== JSON.stringify({ '@agentic-workflow-kit/jig-codec': 'workspace:*' }) ||
+      manifest?.bin ||
+      manifest?.publishConfig ||
+      manifest?.scripts?.start
     )
       errors.push('authority-kernel must remain private, codec-only, and non-runnable');
     validatePureSurface(
@@ -402,17 +425,17 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
 
   const rootManifestPath = join(fixtureDir, 'package.json');
   if (existsSync(rootManifestPath)) {
-    const rootManifest = JSON.parse(readFileSync(rootManifestPath, 'utf8'));
+    const rootManifest = readJson(rootManifestPath, errors, 'fixture root manifest must be readable JSON');
     if (
-      rootManifest.private !== true ||
-      rootManifest.bin ||
-      rootManifest.exports ||
-      rootManifest.main ||
-      rootManifest.module ||
-      rootManifest.types ||
-      rootManifest.publishConfig ||
-      rootManifest.start ||
-      rootManifest.lifecycle
+      rootManifest?.private !== true ||
+      rootManifest?.bin ||
+      rootManifest?.exports ||
+      rootManifest?.main ||
+      rootManifest?.module ||
+      rootManifest?.types ||
+      rootManifest?.publishConfig ||
+      rootManifest?.start ||
+      rootManifest?.lifecycle
     )
       errors.push('fixture root manifest exposes a forbidden runtime or publishing entrypoint');
   }
@@ -425,7 +448,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       errors.push(`workspace missing expected package node ${packageName}`);
       continue;
     }
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const manifest = readJson(manifestPath, errors, `workspace package ${packageName} manifest must be readable JSON`);
     const forbiddenFields = [
       'bin',
       'exports',
@@ -437,12 +460,12 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
       'files',
       'workspaces',
     ];
-    if (manifest.private !== true) errors.push(`workspace package ${packageName} must set "private": true`);
-    if (forbiddenFields.some((field) => Object.hasOwn(manifest, field)))
+    if (manifest?.private !== true) errors.push(`workspace package ${packageName} must set "private": true`);
+    if (forbiddenFields.some((field) => Object.hasOwn(manifest ?? {}, field)))
       errors.push(`workspace package ${packageName} exposes a forbidden runtime or publishing surface`);
     if (
-      Object.hasOwn(manifest.scripts ?? {}, 'start') ||
-      Object.keys(manifest.scripts ?? {}).some((name) => /^(pre|post)(install|pack|publish|prepare)$/.test(name))
+      Object.hasOwn(manifest?.scripts ?? {}, 'start') ||
+      Object.keys(manifest?.scripts ?? {}).some((name) => /^(pre|post)(install|pack|publish|prepare)$/.test(name))
     )
       errors.push(`workspace package ${packageName} exposes a forbidden lifecycle or start script`);
   }
@@ -453,20 +476,28 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
   if (workspace !== 'packages:\n  - "packages/*"\n')
     errors.push('fixture workspace membership must exactly declare the approved fixture graph');
   const solution = existsSync(join(fixtureDir, 'tsconfig.json'))
-    ? JSON.parse(readFileSync(join(fixtureDir, 'tsconfig.json'), 'utf8'))
+    ? readJson(
+        join(fixtureDir, 'tsconfig.json'),
+        errors,
+        'fixture solution TypeScript configuration must be readable JSON',
+      )
     : {};
-  const solutionReferences = (solution.references ?? []).map((reference) => reference.path);
+  const solutionReferences = (solution?.references ?? []).map((reference) => reference.path);
   if (!sameMembers(solutionReferences, ['./packages/pkg-a', './packages/pkg-b', './packages/pkg-c']))
     errors.push('fixture solution TypeScript references must exactly bind the declared workspace graph');
   for (const reference of solutionReferences)
     if (!existsSync(resolve(fixtureDir, reference)))
       errors.push(`fixture solution TypeScript reference is missing: ${reference}`);
   const pkgBConfig = existsSync(join(fixtureDir, 'packages/pkg-b/tsconfig.json'))
-    ? JSON.parse(readFileSync(join(fixtureDir, 'packages/pkg-b/tsconfig.json'), 'utf8'))
+    ? readJson(
+        join(fixtureDir, 'packages/pkg-b/tsconfig.json'),
+        errors,
+        'fixture package dependency TypeScript configuration must be readable JSON',
+      )
     : {};
   if (
     !sameMembers(
-      (pkgBConfig.references ?? []).map((reference) => reference.path),
+      (pkgBConfig?.references ?? []).map((reference) => reference.path),
       ['../pkg-a'],
     )
   )

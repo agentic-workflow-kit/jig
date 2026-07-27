@@ -98,6 +98,27 @@ test('conformance red contract: catalog is fixed, literal, and exactly 39 entrie
   );
   assert.notEqual(`${oracle.routeElementsBatch1[0].digest.slice(0, -1)}0`, oracle.routeElementsBatch1[0].digest);
 });
+test('conformance authority catalogs reject nested writes without weakening route checks', () => {
+  assert.equal(Object.isFrozen(conformance.REALIZATION_SUITES), true);
+  assert.equal(Object.isFrozen(conformance.PRODUCT_ROUTE_ORACLE), true);
+  assert.equal(Object.isFrozen(conformance.PRODUCT_ROUTE_ORACLE[0]), true);
+  assert.equal(Object.isFrozen(conformance.PRODUCT_ROUTE_ORACLE[0].elements), true);
+  assert.equal(Object.isFrozen(conformance.PRODUCT_ROUTE_ORACLE[0].elements[0]), true);
+  assert.throws(() => {
+    conformance.REALIZATION_SUITES[0] = 'CF-MECH-DELIVERY';
+  }, TypeError);
+  assert.throws(() => {
+    conformance.PRODUCT_ROUTE_ORACLE[0].elements[0].id = 'CF-FENCE';
+  }, TypeError);
+
+  const records = conformance.SUITES.map((suite) => conformance.append([], input(suite)).records[0]);
+  const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
+    route: route.id,
+    elements: route.elements.map((element) => ({ ...element, status: 'pass' })),
+  }));
+  routes[0].elements = [];
+  assert.ok(conformance.evaluateProduct(records, routes, subject).reasons.includes('route-elements:PC-README-1'));
+});
 test('conformance recorder rejects non-frame, proxy-adjacent object, self-attestation, collision, and incomplete artifacts', () => {
   assert.equal(conformance.parseRecordFrame({}).ok, false);
   const encoded = input('CF-DETERMINISM');

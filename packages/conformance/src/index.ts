@@ -1,6 +1,14 @@
 import { decodeFrame } from '@agentic-workflow-kit/jig-codec';
 import { TOPOLOGY_VERSION } from '@agentic-workflow-kit/jig-runtime-contracts';
 
+function freezeCatalog<T>(catalog: T): T {
+  if (typeof catalog === 'object' && catalog !== null && !Object.isFrozen(catalog)) {
+    for (const value of Object.values(catalog as object)) freezeCatalog(value);
+    Object.freeze(catalog);
+  }
+  return catalog;
+}
+
 export const CONFORMANCE_VERSION = 'jig.conformance.v1';
 export const GATE_IDS = Object.freeze(['CF-GATE-REALIZATION', 'CF-GATE-PROVIDER', 'CF-GATE-PRODUCT'] as const);
 export type GateId = (typeof GATE_IDS)[number];
@@ -63,7 +71,7 @@ export const MECHANISM_PORTS: Readonly<Record<Extract<SuiteId, `CF-MECH-${string
   'CF-MECH-VERIFY': 'PORT-VERIFY',
   'CF-MECH-DELIVERY': 'PORT-DELIVERY',
 });
-export const REALIZATION_SUITES = SUITES.slice(0, 32);
+export const REALIZATION_SUITES = freezeCatalog(SUITES.slice(0, 32));
 export const PRODUCT_ROUTE_IDS = Object.freeze([
   'PC-README-1',
   'PC-README-2',
@@ -121,7 +129,7 @@ const gate = (id: string): RouteElement => ({ kind: 'gate', id });
 const governance = (id: string): RouteElement => ({ kind: 'governance', id });
 const validation = (id: string): RouteElement => ({ kind: 'validation', id });
 const group = (id: string): RouteElement => ({ kind: 'suite-group', id });
-export const PRODUCT_ROUTE_ORACLE: readonly ProductRoute[] = Object.freeze([
+export const PRODUCT_ROUTE_ORACLE: readonly ProductRoute[] = freezeCatalog([
   { id: 'PC-README-1', elements: [governance('D1 source scope'), governance('Layer 1/2 gate records')] },
   { id: 'PC-README-2', elements: [governance('D2 boundary'), governance('D13 Envelope Builder boundary')] },
   { id: 'PC-README-3', elements: [suite('CF-ENVELOPE'), governance('D2/D13 boundary records')] },

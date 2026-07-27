@@ -3,14 +3,6 @@
   "corpusVersion": "codec-corpus.v2",
   "frameVersion": "jig.codec.v1",
   "seed": "codec-property-v1-7f3a",
-  "requiredClassSet": [
-    "unit-schema",
-    "golden-cross-runtime",
-    "property-fuzz",
-    "hostile-input",
-    "negative-authority",
-    "replay"
-  ],
   "cases": [
     {
       "id": "valid-canonical",

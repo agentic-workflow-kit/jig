@@ -112,6 +112,7 @@ function validateString(value: string): void {
   for (let index = 0; index < value.length; index += 1) {
     const point = value.charCodeAt(index);
     if (point >= 0xd800 && point <= 0xdbff) {
+      if (index + 1 >= value.length) throw new Error('MALFORMED:unpaired surrogate');
       const next = value.charCodeAt(index + 1);
       if (next < 0xdc00 || next > 0xdfff) throw new Error('MALFORMED:unpaired surrogate');
       index += 1;

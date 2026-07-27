@@ -11,6 +11,14 @@ declare const TextDecoder: {
   new (label?: string, options?: { fatal?: boolean }): { decode(input?: Uint8Array): string };
 };
 
+function freezeCatalog<T>(catalog: T): T {
+  if (typeof catalog === 'object' && catalog !== null && !Object.isFrozen(catalog)) {
+    for (const value of Object.values(catalog as object)) freezeCatalog(value);
+    Object.freeze(catalog);
+  }
+  return catalog;
+}
+
 export const TOPOLOGY_VERSION = 'jig.runtime-topology.v1';
 export const CODEC_VERSION = FRAME_VERSION;
 
@@ -74,7 +82,7 @@ export type Crossing = Readonly<{
   readOnly: boolean;
 }>;
 
-const ports: readonly PortContract[] = Object.freeze([
+const ports: readonly PortContract[] = freezeCatalog([
   { id: 'PORT-CONSUMER', owner: 'RT-OPERATOR', direction: 'private-consumer-delegation', controllerReachable: false },
   { id: 'PORT-INTAKE', owner: 'RT-OPERATOR', direction: 'external-to-operator', controllerReachable: false },
   { id: 'PORT-DECIDE', owner: 'RT-CONTROLLER', direction: 'controller-to-external', controllerReachable: true },
@@ -88,13 +96,13 @@ const ports: readonly PortContract[] = Object.freeze([
   { id: 'PORT-SOURCE', owner: 'X-ENVELOPE', direction: 'external-builder-to-source', controllerReachable: false },
 ]);
 
-export const TOPOLOGY = Object.freeze({
+export const TOPOLOGY = freezeCatalog({
   version: TOPOLOGY_VERSION,
   units: RUNTIME_UNITS,
   ports,
 });
 
-export const ALLOWED_CROSSINGS: readonly Crossing[] = Object.freeze([
+export const ALLOWED_CROSSINGS: readonly Crossing[] = freezeCatalog([
   {
     port: 'PORT-CONSUMER',
     source: 'X-CONSUMER',
@@ -345,7 +353,7 @@ export function validateTopologyCrossing(serialized: unknown): AuthorityResult<C
     CROSSING_FIELDS.every((field) => allowed[field] === candidate[field]),
   );
   if (!match) return denied('DENIED_EDGE', { edge: `${candidate.source}->${candidate.port}->${candidate.target}` });
-  return { ok: true, value: match };
+  return { ok: true, value: freezeCatalog({ ...match }) };
 }
 
 export function validateCrossing(port: string, target: RuntimeUnitId): AuthorityResult<never> {

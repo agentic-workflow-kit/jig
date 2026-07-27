@@ -5,6 +5,8 @@ import { join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const subject = process.argv[2];
+const safeSubject = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const testTimeoutMs = 120_000;
 
 function digestFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -24,8 +26,18 @@ function git(...args) {
 }
 
 function writeEvidence() {
-  if (!subject) throw new Error('usage: node scripts/write-evidence.mjs <subject>');
-  const test = spawnSync('pnpm', ['test'], { cwd: root, encoding: 'utf8' });
+  if (!subject || !safeSubject.test(subject)) {
+    throw new Error(
+      'usage: node scripts/write-evidence.mjs <subject>; subject must use lowercase letters, digits, and single hyphens',
+    );
+  }
+
+  const test = spawnSync('pnpm', ['test'], { cwd: root, encoding: 'utf8', timeout: testTimeoutMs });
+  if (test.error || test.status === null || test.signal !== null) {
+    const reason = test.error?.message ?? `status=${test.status}; signal=${test.signal}`;
+    throw new Error(`pnpm test did not complete: ${reason}`);
+  }
+
   const artifact = {
     schemaVersion: 1,
     subject,

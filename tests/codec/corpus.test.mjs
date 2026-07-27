@@ -25,14 +25,6 @@ function expectOracle(result, oracle) {
 test('codec: runner-neutral golden corpus supplies exact inputs and oracles', () => {
   assert.equal(corpus.schemaVersion, 2);
   assert.equal(corpus.corpusVersion, 'codec-corpus.v2');
-  assert.deepEqual(corpus.requiredClassSet, [
-    'unit-schema',
-    'golden-cross-runtime',
-    'property-fuzz',
-    'hostile-input',
-    'negative-authority',
-    'replay',
-  ]);
   assert.equal(corpus.oracle.sha256, '4f96bb81af5ab41a899d4b16fa49adf2809eb0e5c5d9e3845057211af92a17d4');
   for (const entry of corpus.cases) {
     if (entry.frame) expectOracle(decodeFrame(utf8(entry.frame)), entry.expected.result);

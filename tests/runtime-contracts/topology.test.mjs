@@ -25,6 +25,32 @@ test('runtime topology: fixed topology has exactly six units and eleven semantic
   assert.deepEqual(runtime.ALLOWED_CROSSINGS, fixture.allowedCrossings);
 });
 
+test('runtime topology: authority catalogs and validator results reject mutation', () => {
+  assert.equal(Object.isFrozen(runtime.TOPOLOGY), true);
+  assert.equal(Object.isFrozen(runtime.TOPOLOGY.ports), true);
+  assert.equal(Object.isFrozen(runtime.TOPOLOGY.ports[0]), true);
+  assert.equal(Object.isFrozen(runtime.ALLOWED_CROSSINGS), true);
+  assert.equal(Object.isFrozen(runtime.ALLOWED_CROSSINGS[0]), true);
+  assert.throws(() => {
+    runtime.TOPOLOGY.ports[0].owner = 'RT-CONTROLLER';
+  }, TypeError);
+  assert.throws(() => {
+    runtime.ALLOWED_CROSSINGS[0].target = 'RT-LEDGER';
+  }, TypeError);
+
+  const result = runtime.validateTopologyCrossing(encodedCrossing(fixture.allowedCrossings[0]));
+  assert.equal(result.ok, true);
+  assert.notStrictEqual(result.value, runtime.ALLOWED_CROSSINGS[0]);
+  assert.equal(Object.isFrozen(result.value), true);
+  assert.throws(() => {
+    result.value.target = 'RT-LEDGER';
+  }, TypeError);
+  assert.equal(
+    runtime.validateTopologyCrossing(encodedCrossing({ ...fixture.allowedCrossings[0], target: 'RT-LEDGER' })).ok,
+    false,
+  );
+});
+
 test('runtime topology: source is builder-owned and cannot cross to the controller', () => {
   const source = runtime.TOPOLOGY.ports.find((port) => port.id === 'PORT-SOURCE');
   assert.deepEqual(source, {

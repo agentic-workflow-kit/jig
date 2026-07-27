@@ -158,6 +158,21 @@ test('rejects unbound prohibited ambient capability reads without rejecting loca
   );
 });
 
+test('rejects runtime-contract ambient process and fetch reads', () => {
+  const errors = withPurePackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "import { parseIdentity } from '@agentic-workflow-kit/jig-codec';\nexport const pid = process.pid;\nexport const request = fetch;\nexport const runtime = parseIdentity;\n",
+    ),
+  );
+  assert.ok(
+    errors.some((error) => error.includes('runtime-contracts must not read prohibited ambient capability: process')),
+  );
+  assert.ok(
+    errors.some((error) => error.includes('runtime-contracts must not read prohibited ambient capability: fetch')),
+  );
+});
+
 test('fails closed when a pure package source entry point is missing', () => {
   const errors = withPurePackages((root) => rmSync(join(root, 'packages', 'authority-kernel', 'src', 'index.ts')));
   assert.ok(errors.some((error) => error.includes('authority-kernel source entry point is missing')));

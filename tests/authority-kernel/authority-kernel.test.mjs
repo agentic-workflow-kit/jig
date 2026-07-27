@@ -156,6 +156,17 @@ test('authority kernel reducer is total, deterministic, immutable, and fail clos
   );
 });
 
+test('authority kernel rejects bindings whose transaction was proposed by a stale generation', () => {
+  const staleGeneration = `${run}/gen/2|replacement`;
+  const staleFence = { ...fence, generation: staleGeneration };
+  const staleState = { ...state, fence: staleFence };
+  const staleEvent = { ...event, fence: staleFence };
+  const staleBindings = { ...bindings, fence: staleFence };
+  const result = kernel.reduceAuthority(staleState, staleEvent, staleBindings);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.failure, 'FC-INPUT');
+});
+
 test('authority kernel fixed-field bindings accept semantically identical insertion-order variants', () => {
   const reorderedSubject = { basis: digest, story: ids.story, run };
   const reorderedFence = { basis: digest, generation: ids.generation };
@@ -477,7 +488,7 @@ test('authority kernel transition rejects a hostile operations array without esc
 
 test('authority kernel accepts every explicit legal edge and rejects its event complement', () => {
   const trace = (edge) => [edge.id, edge.from, edge.event, edge.to, edge.operation ?? ''].join('|');
-  assert.equal(oracle.storyEdges.length, 44);
+  assert.equal(oracle.storyEdges.length, 80);
   assert.deepEqual(kernel.LEGAL_EDGES.map(trace), oracle.storyEdges);
   for (const edge of kernel.LEGAL_EDGES) {
     const input = { ...state, storyState: edge.from };
@@ -491,6 +502,57 @@ test('authority kernel accepts every explicit legal edge and rejects its event c
         false,
         `${edge.from}/${illegal}`,
       );
+  }
+});
+
+test('authority kernel covers the normative phase-preserving lifecycle catalog', () => {
+  const phasePreserving = [
+    ['preparing-workspace-fact', 'Preparing', 'EV-WORKSPACE-FACT'],
+    ['preparing-setup-fact', 'Preparing', 'EV-SETUP-FACT'],
+    ['preparing-session-fact', 'Preparing', 'EV-SESSION-FACT'],
+    ['implementing-session-fact', 'Implementing', 'EV-SESSION-FACT'],
+    ['implementing-artifact-fact', 'Implementing', 'EV-ARTIFACT-FACT'],
+    ['reviewing-session-fact', 'Reviewing', 'EV-SESSION-FACT'],
+    ['reviewing-target-fact', 'Reviewing', 'EV-TARGET-FACT'],
+    ['reviewing-artifact-fact', 'Reviewing', 'EV-ARTIFACT-FACT'],
+    ['reworking-open', 'Reworking', 'EV-WAKE-CAPACITY'],
+    ['reworking-assign', 'Reworking', 'EV-SESSION-FACT'],
+    ['refreshing-session-fact', 'Refreshing', 'EV-SESSION-FACT'],
+    ['refreshing-workspace-fact', 'Refreshing', 'EV-WORKSPACE-FACT'],
+    ['finalizing-check-observation', 'Finalizing', 'EV-CHECK-OBSERVATION'],
+    ['finalizing-target-fact', 'Finalizing', 'EV-TARGET-FACT'],
+    ['finalizing-artifact-fact', 'Finalizing', 'EV-ARTIFACT-FACT'],
+    ['finalizing-effect-certainty', 'Finalizing', 'EV-EFFECT-CERTAINTY'],
+    ['finalizing-recovery-observation', 'Finalizing', 'EV-RECOVERY-OBSERVATION'],
+    ['retiring-wake-settlement', 'Retiring', 'EV-WAKE-SETTLEMENT'],
+    ['retiring-workspace-preserved', 'Retiring', 'EV-WORKSPACE-PRESERVED'],
+    ['retiring-session-fact', 'Retiring', 'EV-SESSION-FACT'],
+    ['retiring-target-fact', 'Retiring', 'EV-TARGET-FACT'],
+    ['retiring-artifact-fact', 'Retiring', 'EV-ARTIFACT-FACT'],
+  ];
+  for (const [id, storyState, type] of phasePreserving) {
+    const result = kernel.reduceAuthority(
+      { ...state, storyState },
+      { ...event, id: `${run}/event/2`, edge: id, type },
+      ordered(2, type, id).bindings,
+    );
+    assert.equal(result.ok, true, id);
+    assert.equal(result.value.next.storyState, storyState, id);
+  }
+  for (const storyState of kernel.STORY_STATES.filter((candidate) => candidate !== 'Closed')) {
+    const id = `${storyState.toLowerCase()}-owner-decision`;
+    const result = kernel.reduceAuthority(
+      { ...state, storyState },
+      { ...event, id: `${run}/event/2`, edge: id, type: 'EV-OWNER-DECISION' },
+      ordered(2, 'EV-OWNER-DECISION', id).bindings,
+    );
+    assert.equal(result.ok, true, id);
+    assert.equal(result.value.next.storyState, storyState, id);
+    assert.deepEqual(
+      result.value.operations.map((operation) => operation.type),
+      ['OPC-SESSION-RESPOND'],
+      id,
+    );
   }
 });
 

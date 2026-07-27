@@ -52,6 +52,8 @@ test('codec: framing rejects malformed, duplicate-key, unknown-version, and boun
   expectError(decodeFrame(Buffer.alloc(CANONICAL_LIMITS.maxFrameBytes + 1, 0x20)), 'FC-INPUT', 'OVERSIZED');
   expectError(encodeFrame({ number: Number.POSITIVE_INFINITY }), 'FC-INPUT', 'MALFORMED');
   expectError(encodeFrame({ unicode: 'e\u0301' }), 'FC-INPUT', 'NONCANONICAL');
+  expectError(encodeFrame({ unicode: '\ud800' }), 'FC-INPUT', 'MALFORMED');
+  expectError(decodeFrame(Buffer.from('{"payload":"\\ud800","version":"jig.codec.v1"}')), 'FC-INPUT', 'MALFORMED');
 });
 
 test('codec: numeric codec bounds are signed safe integers with no alternate spellings', () => {
