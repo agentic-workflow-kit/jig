@@ -40,7 +40,7 @@ const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'dcc06a79538354e7cfd7779c7ff16ab972e
 const APPROVED_PROVIDER_SPLITS_SHA256 = 'aaac34c0612c51f08d11ab3c467a414966468057a1222def001624bc6ba95834';
 const APPROVED_DELEGATED_CHOICES_SHA256 = 'e8fb8713126d05bf59c850606d43af542e6214467e05bdd64402e822b5065746';
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = 'de7bdd92f248de65756a2cb6a2e3cb5d1eb098c8471121f084dd00b9d4f682b6';
-const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'f77d59c3fbfbb601977000c2950e61e6b45d26bdc66e9e54ff6d06a2ee48704e';
+const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'c1545bdfa9547700b8dffb340b2d1bc21c9c4c8fc22a4b2ce2baf206784c6524';
 const WAIT_PROGRESS_SURFACES =
   'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
     ' ',
