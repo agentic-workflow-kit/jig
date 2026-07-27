@@ -1,10 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 
 const defaultRepository = resolve(import.meta.dirname, '..');
-const commandLogMaxBytes = 8 * 1024 * 1024;
 
 function fail(message) {
   throw new Error(message);
@@ -55,17 +54,21 @@ function isOutsideRepository(repository, output) {
   return path === '..' || path.startsWith(`..${sep}`);
 }
 
-function runCommand(repository, command) {
+function runCommand(repository, command, logPath) {
   const startedAt = new Date().toISOString();
-  const result = spawnSync(command, {
-    cwd: repository,
-    encoding: 'utf8',
-    shell: true,
-    maxBuffer: commandLogMaxBytes,
-  });
+  const logFile = openSync(logPath, 'wx');
+  let result;
+  try {
+    result = spawnSync(command, {
+      cwd: repository,
+      encoding: 'utf8',
+      shell: true,
+      stdio: ['ignore', logFile, logFile],
+    });
+  } finally {
+    closeSync(logFile);
+  }
   const endedAt = new Date().toISOString();
-  const stdout = result.stdout ?? '';
-  const stderr = result.stderr ?? '';
   return {
     command,
     startedAt,
@@ -73,7 +76,7 @@ function runCommand(repository, command) {
     exitCode: result.status,
     signal: result.signal,
     error: result.error?.message ?? null,
-    log: `${stdout}${stderr ? `\n[stderr]\n${stderr}` : ''}`,
+    log: readFileSync(logPath),
   };
 }
 
@@ -90,9 +93,8 @@ function seal() {
 
   mkdirSync(output, { recursive: false });
   const observations = commands.map((command, index) => {
-    const observation = runCommand(repository, command);
     const logPath = resolve(output, `${String(index + 1).padStart(2, '0')}.log`);
-    writeFileSync(logPath, observation.log);
+    const observation = runCommand(repository, command, logPath);
     return {
       command: observation.command,
       startedAt: observation.startedAt,

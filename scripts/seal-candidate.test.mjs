@@ -97,7 +97,7 @@ test('records a failed verification command in an invalid envelope', () =>
     assert.equal(envelope.seal.valid, false);
   }));
 
-test("retains a verification log larger than Node's default command buffer", () =>
+test("streams a verification log larger than Node's default command buffer", () =>
   fixture((repository, outputParent) => {
     const output = join(outputParent, 'large-log');
     const result = seal(
