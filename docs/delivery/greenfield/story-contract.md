@@ -87,6 +87,14 @@ check-class set, verification configuration/environment, and exact subject bindi
 implementation tuple is dynamic per story and is never written back into this planning package
 merely because a predecessor merges.
 
+The implementation owner must commit before verification, record this tuple, run every required
+local proof/repository check/direct validator exactly once against that committed `HEAD`, and then
+prove `HEAD`/tree unchanged and the worktree clean. The external, non-candidate seal envelope must
+include exact commands, timestamps, exit codes, output-log digests or durable log identities, and
+the final unchanged/clean proof. Hosted CI independently executes required checks; the coordinator
+only verifies orchestration facts and evidence bindings. The reviewer consumes this evidence
+read-only and never reruns a suite to repair or replace it.
+
 The implementation review consumes already-approved `P`; its exact-candidate verdict binds only
 this implementation tuple and never mints or redefines `Q`, `R`, or `P`.
 
@@ -99,7 +107,9 @@ final-verification observations already authorized by the unchanged reviewed can
 required check-class set, verification configuration/environment, and subject binding is
 continuation evidence, not a candidate or review-package edit, and does not itself invalidate the
 verdict. Any drift in those values does require a fresh tuple, evidence, and independent review.
-Under D15, a recorded transition into `Reviewing` may authorize only fenced `OPC-REV-*`
+The correction owner creates a new committed and sealed subject. Re-review covers changed hunks,
+sibling occurrences, affected invariants, and the new seal/evidence binding; conclusions may carry
+forward only for unchanged path hashes. Under D15, a recorded transition into `Reviewing` may authorize only fenced `OPC-REV-*`
 draft/non-mergeable review publication for the frozen subject before independent review or
 acceptance. It grants no acceptance, finalization, landing, or dependency-release power; hosted CI
 may occur before review.

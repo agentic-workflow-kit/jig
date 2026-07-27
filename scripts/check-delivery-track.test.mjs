@@ -61,6 +61,8 @@ const activeFixturePaths = [
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
+  'scripts/seal-candidate.mjs',
+  'scripts/seal-candidate.test.mjs',
   'scripts/write-evidence.mjs',
   'tests/workspace/workspace-substrate.test.mjs',
   'tests/codec/codec.test.mjs',

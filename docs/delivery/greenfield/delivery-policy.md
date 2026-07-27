@@ -73,15 +73,38 @@ independent review rather than speculative scaffolding or retrospective proof.
    release, and cleanup. Every wait has a named finite `BND-*` outcome.
 9. Acceptance, landing, product outcome, and retirement are separate. Only authoritative target
    proof makes `Landed` and releases dependents; cleanup cannot change business outcome or release.
-10. A passing local check is evidence, not approval. Every implementation candidate needs an
-    independent implementation-candidate review under the reviewer packet; that protocol reviews
-    the story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
+10. A passing local check is evidence, not approval. The implementation owner runs every required
+    local proof, repository check, and direct validator exactly once for the frozen candidate; hosted
+    CI independently executes its required checks. The coordinator verifies only orchestration facts
+    and evidence bindings. Every implementation candidate needs an independent
+    implementation-candidate review under the reviewer packet; that protocol reviews the
+    story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
     corpus review or digest computation. At candidate freeze, record approved `P`, the current
     67-file normative-corpus comparison, and exact-subject evidence in the external reviewer
     packet or PR review record; the independent reviewer verifies them at review.
-11. Every correction loop searches sibling occurrences of the same defect across the exact
+11. Seal an implementation candidate only in this order: complete edits and commit; record the
+    exact candidate commit/tree, observed base commit/tree, and merge-base; run the required
+    verification against that exact `HEAD`; then prove that `HEAD` and its tree are unchanged and
+    the worktree is clean. The implementation owner produces an external, non-candidate evidence
+    envelope with the exact commands, start/end timestamps, exit codes, output-log digests or durable
+    log identities, tuple, and final unchanged/clean proof. Use `pnpm candidate:seal` with an
+    external output directory, base ref, and one or more commands when its generic capture format
+    fits the story. The command refuses a dirty start, records every supplied command once, and marks
+    the seal invalid if any command fails or changes the candidate. An edit to candidate source,
+    configuration, evidence, metadata, review package, verification posture/configuration, or
+    subject binding invalidates the seal and its verification evidence; do not report an earlier
+    green result for a later candidate.
+12. The independent reviewer is read-only and performs semantic and evidence review only. The
+    reviewer may read files and inspect exact commits, trees, diffs, manifests, logs, hosted check
+    results, and evidence with read-only operations such as `git show`, `git diff`, `rg`, and `sed`.
+    The reviewer must not execute `pnpm` tests/checks/builds, direct validators, formatters,
+    installers, evidence writers, or GitHub/repository mutations. Missing, stale, contradictory, or
+    incorrectly bound verification evidence is a finding; the reviewer must not repair it by
+    rerunning a check. This preserves independent semantic authority and does not weaken required
+    review or hosted CI.
+13. Every correction loop searches sibling occurrences of the same defect across the exact
     manifest, briefs, inventories, routes, and evidence before reporting it fixed.
-12. A post-edit re-review always freezes a new subject: any edit to candidate source,
+14. A post-edit re-review always freezes a new subject: any edit to candidate source,
     configuration, pre-acceptance evidence, metadata, review package, selected verification
     posture, policy-selected required check-class set, verification configuration/environment, or
     subject binding invalidates the prior candidate tuple and verdict. The sole continuation case is
@@ -91,7 +114,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     do not by themselves reopen review. Record and verify each replacement tuple only at its
     candidate freeze and review in the external durable reviewer record; do not encode it as a
     permanent repo-resident assertion.
-13. Keep the two review protocols distinct. For delivery-package review, the coordinator freezes
+15. Keep the two review protocols distinct. For delivery-package review, the coordinator freezes
     pre-verdict `Q` and supplies checks/evidence separately. An independent reviewer verifies the
     manifest's full story corpus and writes external `R`; only `PASS` creates `P`. An
     implementation-candidate review freezes one story tuple: observed base ref/commit/tree,
@@ -107,7 +130,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     set reproducing `Q`'s aggregate digest. That record does not make the landed commit reviewed.
     Missing, ambiguous, or drifting add/remove/rename/mode/byte evidence requires a new `Q`, `R`,
     and `P`; the 67-file normative-corpus comparison remains separate.
-14. Under D15, the recorded transition into `Reviewing` and only its fenced `OPC-REV-*`
+16. Under D15, the recorded transition into `Reviewing` and only its fenced `OPC-REV-*`
     draft/non-mergeable review-publication Operations may occur before independent review or
     acceptance. They are not approval, acceptance, finalization, landing, or dependency release.
     Hosted CI may run before review. Bind the selected final-verification posture to the immutable
@@ -125,7 +148,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     CI/evidence must bind the same candidate before target-changing delivery. The exact external
     owner-ratification/activation record remains required and cannot be inferred from publication,
     CI, or a reviewer verdict.
-15. The local validator proves governing-source projection, package consistency, and corpus
+17. The local validator proves governing-source projection, package consistency, and corpus
     integrity only; it does not semantically approve plan-authored outcomes or prose. For a
     delivery-package subject, the coordinator records immutable pre-verdict `Q` outside the
     candidate and supplies checks/evidence separately; the independent reviewer records external
@@ -133,7 +156,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     package digest into `track.json`, validator constants, fixtures, or candidate-authored review
     prose. Any package byte or path-set change invalidates `Q` and requires fresh package review;
     the 67-file normative digest is corpus-drift evidence only.
-16. Keep delivery-process state out of repository source, tests, fixtures, and CI configuration.
+18. Keep delivery-process state out of repository source, tests, fixtures, and CI configuration.
     Within those places, do not commit delivery-process provenance or review state — commit SHAs,
     tree hashes, candidate or story branch refs, PR or issue URLs, review verdicts, approval
     records, or package digests — and do not use a story ID as an identifier in a source, test,
@@ -165,15 +188,24 @@ manifest, environment, suite, probe, and output digests.
    then-current target base ref/commit/tree; predecessor containment; and a clean current 67-file
    normative-corpus comparison against immutable authority provenance.
 4. Implement the smallest closed subject; retain fail-closed adapters until qualified.
-5. Run the contract's local proof and repository checks; under D15, record the transition into
-   `Reviewing` and publish only the fenced `OPC-REV-*` draft/non-mergeable review subject as needed
-   for hosted CI or review, and record exact evidence.
-6. Freeze the implementation candidate tuple, including proof that
-   `merge-base(candidate, base) == base`, and request independent review. If target movement or any
-   edit changes the tuple, refresh/rebase as necessary and repeat merge-base/containment proof,
-   normative-corpus comparison, evidence, CI, and review. If delivery-package identity `Q` changes,
-   obtain a new external `R` and approved `P` before the next implementation review.
-7. Resolve findings in a new candidate tuple; re-review until `PASS`, or escalate unresolved owner
+5. Complete the edits and commit the candidate. Record its exact commit/tree, the observed base
+   commit/tree, and merge-base before executing any required local verification.
+6. The implementation owner runs every required local proof, repository check, and direct validator
+   exactly once against that committed `HEAD`; hosted CI independently supplies execution
+   verification. Produce the external seal envelope, then prove the candidate `HEAD`/tree remained
+   unchanged and its worktree is clean. The coordinator checks only the resulting bindings and
+   orchestration facts; it does not rerun checks.
+7. Under D15, record the transition into `Reviewing` and publish only the fenced `OPC-REV-*`
+   draft/non-mergeable review subject as needed for hosted CI or review. Supply the sealed tuple and
+   evidence envelope for read-only independent semantic/evidence review. If target movement or any
+   edit changes the tuple, refresh/rebase as necessary, create a new seal, and repeat affected
+   evidence, CI, and review. If delivery-package identity `Q` changes, obtain a new external `R`
+   and approved `P` before the next implementation review.
+8. Resolve findings in a new candidate tuple; the implementation owner corrects, commits, seals, and
+   re-submits it. The reviewer rechecks changed hunks, sibling occurrences, affected invariants, and
+   the new seal/evidence binding. Unchanged conclusions may carry forward only through unchanged
+   path hashes; a full manual corpus reread and reviewer-run check suite are not required. Re-review
+   until `PASS`, or escalate unresolved owner
    decisions. After `Accepted`, enter `Finalizing` through the authorized transition and record the
    selected verification intent there. Under `deterministic`, every policy-selected required check
    class must have a passing, subject-matching `EV-CHECK-OBSERVATION`, and the complete set must be

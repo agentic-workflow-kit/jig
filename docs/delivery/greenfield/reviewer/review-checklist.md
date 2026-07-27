@@ -15,6 +15,16 @@ Select either the delivery-package or implementation-candidate protocol in the
 evidence`; `N/A` never means “not yet considered.” Do not impose package-corpus checks on a
 story implementation candidate.
 
+## Reviewer operation boundary
+
+- [ ] I performed semantic/evidence review with read-only inspection only. I did not execute `pnpm`
+      tests/checks/builds, direct validators, formatters, installers, evidence writers, or
+      GitHub/repository mutations.
+- [ ] Missing, stale, contradictory, or incorrectly bound verification evidence is recorded as a
+      finding; I did not repair it by rerunning a check. The implementation owner owns local
+      execution, hosted CI independently executes required checks, and the coordinator verifies
+      only orchestration facts/evidence bindings.
+
 ## A. Delivery-package review
 
 Use this section only when reviewing the delivery package itself.
@@ -113,6 +123,11 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
 - [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content evidence proves
       every required predecessor landing is contained in that base; an unreviewed branch does not
       satisfy a dependency.
+- [ ] The external, non-candidate seal envelope records the candidate/base/tree/merge-base tuple,
+      exact commands, timestamps, exit codes, output-log digests or durable log identities, and
+      final proof that `HEAD`/tree are unchanged and the worktree is clean. It was created after
+      the candidate was committed and before review; every required local command ran against that
+      exact `HEAD` once. A missing or invalid seal is a finding, not a reason to rerun a command.
 - [ ] A current path-by-path comparison shows the candidate's 67 normative authority files match
       immutable authority provenance; its recorded result binds to this candidate tuple.
 - [ ] The changed paths are limited to the contract's bounded story ownership and may include
@@ -128,6 +143,10 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
       final-verification observations authorized by the unchanged reviewed candidate, posture,
       required class set, configuration/environment, and binding is continuation evidence, not a
       tuple change.
+- [ ] For a correction, the reviewer rechecked changed hunks, sibling occurrences, affected
+      invariants, and the new seal/evidence binding. An unchanged conclusion carried forward only
+      where the path hash is unchanged; neither a full manual corpus reread nor a reviewer-run
+      check suite was required.
 
 ### Governing behavior and evidence
 
