@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -28,7 +28,7 @@ function fixture(run) {
   }
 }
 
-function seal(repository, output, command, { base = 'HEAD~1', withPnpmSeparator = false } = {}) {
+function seal(repository, output, command, { base = 'HEAD~1', timeoutMs, withPnpmSeparator = false } = {}) {
   return spawnSync(
     process.execPath,
     [
@@ -40,6 +40,7 @@ function seal(repository, output, command, { base = 'HEAD~1', withPnpmSeparator 
       output,
       '--base',
       base,
+      ...(timeoutMs ? ['--timeout-ms', String(timeoutMs)] : []),
       '--command',
       command,
     ],
@@ -128,6 +129,22 @@ test('invalidates a caller command that dirties the cloned verification subject'
     assert.equal(envelope.seal.valid, false);
   }));
 
+test('keeps a verification command node_modules write out of the original candidate', () =>
+  fixture((repository, outputParent) => {
+    const sourceResidue = join(repository, 'node_modules', 'verification-residue.txt');
+    mkdirSync(join(repository, 'node_modules'));
+    const output = join(outputParent, 'isolated-dependencies');
+    const result = seal(
+      repository,
+      output,
+      `${process.execPath} -e "require('node:fs').mkdirSync('node_modules', { recursive: true });require('node:fs').writeFileSync('node_modules/verification-residue.txt', 'subject-only')"`,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(sourceResidue), false);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.seal.valid, true);
+  }));
+
 test('seals successfully when invoked from a linked worktree', () =>
   fixture((repository, outputParent) => {
     const linked = join(outputParent, 'linked');
@@ -208,9 +225,50 @@ test('accepts the argument separator forwarded by pnpm scripts', () =>
       repository,
       join(outputParent, 'separator'),
       `${process.execPath} -e "process.stdout.write('proof')"`,
-      true,
+      { withPnpmSeparator: true },
     );
     assert.equal(result.status, 0, result.stderr);
+  }));
+
+test('records every unattempted command after a mid-loop subject-state failure', () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'partial-observations');
+    const result = spawnSync(
+      process.execPath,
+      [
+        script,
+        '--repo',
+        repository,
+        '--output',
+        output,
+        '--base',
+        'HEAD~1',
+        '--command',
+        `${process.execPath} -e "require('node:fs').rmSync('.git', { recursive: true, force: true })"`,
+        '--command',
+        `${process.execPath} -e "process.exit(9)"`,
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.commands.length, 3);
+    assert.equal(envelope.commands[1].exitCode, 0);
+    assert.equal(envelope.commands[2].skipped, 'verification subject setup failed');
+    assert.equal(envelope.seal.valid, false);
+  }));
+
+test('invalidates a command that exceeds the recorded timeout', () =>
+  fixture((repository, outputParent) => {
+    const output = join(outputParent, 'timeout');
+    const result = seal(repository, output, `${process.execPath} -e "setTimeout(() => {}, 1000)"`, {
+      timeoutMs: 250,
+    });
+    assert.equal(result.status, 1);
+    const envelope = JSON.parse(readFileSync(join(output, 'envelope.json'), 'utf8'));
+    assert.equal(envelope.verificationSubject.timeoutMs, 250);
+    assert.match(envelope.commands[1].error ?? '', /timed out/i);
+    assert.equal(envelope.seal.valid, false);
   }));
 
 test('records a failed verification command in an invalid envelope', () =>

@@ -123,7 +123,7 @@ only the implementation tuple and never mints or redefines `Q`, `R`, or `P`.
 - [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content evidence proves
       every required predecessor landing is contained in that base; an unreviewed branch does not
       satisfy a dependency.
-- [ ] The external, non-candidate seal envelope records the candidate/base/tree/merge-base tuple,
+- [ ] The external, non-candidate seal envelope records the candidate/base-ref/base-commit/base-tree/merge-base tuple,
       exact commands, timestamps, exit codes, output-log digests or durable log identities,
       automatic `git diff --check <base-commit>...<candidate-commit>` result, base-ancestry proof,
       and final proof that the original `HEAD`/tree are unchanged and the worktree is clean. Commands

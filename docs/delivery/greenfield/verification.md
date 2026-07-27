@@ -59,7 +59,7 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   version changes.
 - Retain per-phase accumulated evidence as CI artifacts bound to the exact candidate. Do not turn
   delivery-process provenance into pinned repository checks; review it when the claim is made.
-- The implementation owner commits before verification, records candidate/base/merge-base identity,
+- The implementation owner commits before verification, records candidate/base-ref/base-commit/base-tree/merge-base identity,
   runs each required local check/direct validator once against that exact `HEAD`, and emits an
   external seal envelope containing commands, timestamps, exit codes, log digests or durable log
   identities, automatic `git diff --check <base-commit>...<candidate-commit>` output,

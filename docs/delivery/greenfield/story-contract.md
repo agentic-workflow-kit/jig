@@ -87,12 +87,12 @@ check-class set, verification configuration/environment, and exact subject bindi
 implementation tuple is dynamic per story and is never written back into this planning package
 merely because a predecessor merges.
 
-The implementation owner must commit before verification, record this tuple, run every required
+The implementation owner must commit before verification, record the candidate/base-ref/base-commit/base-tree/merge-base tuple, run every required
 local proof/repository check/direct validator exactly once in a temporary local clone at that committed
 `HEAD`, automatically record `git diff --check <base-commit>...<candidate-commit>`, and then prove
 the original candidate `HEAD`/tree unchanged and the worktree clean. The external, non-candidate seal envelope must
-include exact commands, timestamps, exit codes, output-log digests or durable log identities,
-base-ancestry proof, and the final unchanged/clean proof. Hosted CI independently executes required checks; the coordinator
+include exact commands, timestamps, exit codes, output-log digests or durable log identities, the observed base ref and resolved
+base commit/tree, base-ancestry proof, and the final unchanged/clean proof. Hosted CI independently executes required checks; the coordinator
 only verifies orchestration facts and evidence bindings. The reviewer consumes this evidence
 read-only and never reruns a suite to repair or replace it.
 

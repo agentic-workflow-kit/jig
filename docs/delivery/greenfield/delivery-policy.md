@@ -83,7 +83,7 @@ independent review rather than speculative scaffolding or retrospective proof.
     67-file normative-corpus comparison, and exact-subject evidence in the external reviewer
     packet or PR review record; the independent reviewer verifies them at review.
 11. Seal an implementation candidate only in this order: complete edits and commit; record the
-    exact candidate commit/tree, observed base commit/tree, and merge-base; run the required
+    exact candidate commit/tree, observed base ref and its resolved commit/tree, and merge-base; run the required
     verification against that exact `HEAD`; then prove that `HEAD` and its tree are unchanged and
     the worktree is clean. A seal is valid only when `merge-base(candidate, base) == base`. The
     sealer runs every supplied command in a temporary local clone checked out at the candidate commit,
@@ -195,7 +195,7 @@ manifest, environment, suite, probe, and output digests.
    normative-corpus comparison against immutable authority provenance.
 4. Implement the smallest closed subject; retain fail-closed adapters until qualified.
 5. Complete the edits and commit the candidate. Record its exact commit/tree, the observed base
-   commit/tree, and merge-base before executing any required local verification.
+   ref and its resolved commit/tree, and merge-base before executing any required local verification.
 6. The implementation owner runs every required local proof, repository check, and direct validator
    exactly once against that committed `HEAD`; hosted CI independently supplies execution
    verification. Run them in the cloned exact-candidate subject, record its clean state after each command and the automatic

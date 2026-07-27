@@ -99,7 +99,7 @@ configuration/environment, and subject binding is continuation evidence and does
 a new tuple or review loop.
 
 Before requesting review, the implementation owner must have committed the candidate, recorded the
-candidate/base/merge-base tuple, run required verification against that exact `HEAD`, and created an
+candidate/base-ref/base-commit/base-tree/merge-base tuple, run required verification against that exact `HEAD`, and created an
 external, non-candidate seal envelope. It contains exact commands, timestamps, exit codes, output
 log digests or durable log identities, automatic candidate-bound `git diff --check
 <base-commit>...<candidate-commit>` evidence, base-ancestry proof, and a final proof that the
