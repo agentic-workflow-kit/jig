@@ -15,9 +15,11 @@ are under [`evals/`](./evals/).
 
 Validate locally:
 
+Prerequisite: set `OPEN_SKILL_CREATOR_DIR` to the installed `open-skill-creator` skill root.
+
 ```bash
 python3 .agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py
-python3 <open-skill-creator>/scripts/validate_skill.py .agents/skills/orchestrate-phase-delivery
+python3 "$OPEN_SKILL_CREATOR_DIR/scripts/validate_skill.py" .agents/skills/orchestrate-phase-delivery
 ```
 
 Packaging is a release/readiness check, not a tracked artifact. Write any `.skill` archive to an

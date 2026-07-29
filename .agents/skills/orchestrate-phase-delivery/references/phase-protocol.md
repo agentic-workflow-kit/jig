@@ -64,7 +64,9 @@ exact approved cleanup scope.
 Recover by running `git worktree list --porcelain`, then reconcile registered paths, branches,
 HEADs, bases, and clean states to the ledger. Reuse a matching worktree. Reattach a missing path
 only after verifying its recorded branch/object exists, the destination path is the registered
-missing path, and ledger/base/evidence/clean facts reconcile: `git worktree add <registered-path>
-<recorded-branch>`. `pnpm worktree:new` creates a new branch and is not recovery. Any missing,
-ambiguous, dirty, mismatched, or irreconcilable branch/object/path/base/evidence fact stops
-`OWNER_DECISION_REQUIRED`. Never use a local clone.
+missing path, and ledger/base/evidence/clean facts reconcile:
+`git worktree add --force <registered-path> <recorded-branch>`. `--force` overrides only the stale
+missing-worktree registration already reconciled by those prerequisites; it is not permission to
+replace a live or mismatched worktree. `pnpm worktree:new` creates a new branch and is not recovery.
+Any missing, ambiguous, dirty, mismatched, or irreconcilable branch/object/path/base/evidence fact
+stops `OWNER_DECISION_REQUIRED`. Never use a local clone.

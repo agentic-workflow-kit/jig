@@ -224,7 +224,8 @@ PR. The phase produces one final PR after all required stories integrate and clo
 - Required unit, contract, adversarial, replay, crash/fault, provider, E2E, and `CF-*` proof passes
   on the exact committed candidate in its registered worktree.
 - The continuous independent reviewer records `PASS` on that exact candidate; corrections and
-  target changes received affected checks and incremental re-review by the same reviewer.
+  target changes require and receive affected checks and incremental re-review by the same
+  reviewer.
 - Approved integration preserves the reviewed story commit as an ancestor. Required integration
   checks, independent closure review, normal hosted CI, approval, and DoD pass on the one final
   phase PR; authoritative landing proof remains separate.

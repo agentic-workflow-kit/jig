@@ -33,10 +33,10 @@ def main() -> int:
     cases = evals.get("evals")
     if not isinstance(cases, list) or len(cases) != 3:
         fail("evals must contain exactly 3 output cases")
-    required = ("id", "prompt", "expected_output", "assertions")
+    required_text = ("id", "prompt", "expected_output")
     if any(
         not isinstance(case, dict)
-        or any(not case.get(field) for field in required)
+        or any(not isinstance(case.get(field), str) or not case[field] for field in required_text)
         or not isinstance(case.get("files"), list)
         or any(not isinstance(path, str) or not path for path in case["files"])
         or not isinstance(case.get("assertions"), list)
@@ -51,7 +51,11 @@ def main() -> int:
     if not isinstance(queries, list) or len(queries) != 20:
         fail("trigger queries must contain exactly 20 cases")
     ids = [query.get("id") for query in queries if isinstance(query, dict)]
-    if len(ids) != 20 or len(set(ids)) != 20 or any(not isinstance(value, str) or not value for value in ids):
+    if (
+        len(ids) != 20
+        or any(not isinstance(value, str) or not value for value in ids)
+        or len(set(ids)) != 20
+    ):
         fail("trigger query IDs must be unique nonempty strings")
     if any(
         not isinstance(q, dict)

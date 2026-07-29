@@ -1173,6 +1173,7 @@ test('candidate package binds every validation, install, ignore, and local-runti
     'biome.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
+    'scripts/check-active-repository.test.mjs',
   ])
     fixture((dir) => {
       const baseline = candidatePackageManifest(dir);

@@ -5,9 +5,12 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 
 # Orchestrate phase delivery
 
-1. Read `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
-   `phase-orchestration.md`. Confirm current external activation and ledger records; ordinary Git
-   evidence identifies a candidate but never grants authority.
+1. Resolve the current approved product package from `docs/product/` and approved architecture
+   package from `docs/redesign/design/`. Only then read
+   `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
+   `phase-orchestration.md`. Confirm current external activation and ledger records; delivery-track
+   or ordinary Git evidence identifies a candidate but never overrides product/design authority or
+   grants authority.
 2. Establish or reconcile one registered phase integration worktree and one registered story
    worktree per admitted story. Use Git worktrees for every local delivery, check, review, and
    recovery operation; no fresh clone is an exception. Read `references/phase-protocol.md` before

@@ -759,6 +759,7 @@ function candidatePackagePaths() {
     'scripts/check-delivery-track.mjs',
     'scripts/check-delivery-track.test.mjs',
     'scripts/check-active-repository.mjs',
+    'scripts/check-active-repository.test.mjs',
     '.agents/skills/orchestrate-phase-delivery/README.md',
     '.agents/skills/orchestrate-phase-delivery/SKILL.md',
     '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
@@ -766,8 +767,8 @@ function candidatePackagePaths() {
     '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
     '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   ].sort();
-  if (paths.length !== 87 || new Set(paths).size !== paths.length)
-    throw new Error(`candidate package manifest requires exactly 87 paths, got ${paths.length}`);
+  if (paths.length !== 88 || new Set(paths).size !== paths.length)
+    throw new Error(`candidate package manifest requires exactly 88 paths, got ${paths.length}`);
   return paths;
 }
 export function candidatePackageManifest(rootDir = process.cwd()) {
