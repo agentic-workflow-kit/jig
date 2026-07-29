@@ -53,9 +53,9 @@ pnpm worktree:new <branch>
 pnpm worktree:clean <branch>
 ```
 
-Turbo owns the task graph. Every workspace package declares the same `build`, `lint`, and `test`
-tasks, and `check` aggregates them; repository-level gates live in `tools/repo-guard` as the
-`guard:*` tasks. `pnpm check` therefore runs package build, lint, and test plus repository
+Turbo owns the task graph. Every compiled package under `packages/` declares the same `build`,
+`lint`, and `test` tasks, and `check` aggregates them. `tools/repo-guard` compiles nothing, so it
+declares `lint`, `test`, and the repository-level `guard:*` gates instead of a build. `pnpm check` therefore runs package build, lint, and test plus repository
 structure, package boundaries, runtime topology, the greenfield delivery track, documentation
 links, and formatting. `pnpm check:affected` restricts the same graph to what the current branch
 changed, using each task's declared inputs.

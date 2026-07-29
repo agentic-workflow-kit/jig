@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { repoRoot } from './repo-root.mjs';
 
 const root = repoRoot;
@@ -60,17 +60,22 @@ function writeEvidence() {
     subject,
     candidate: { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') },
     toolchainDigests: Object.fromEntries(
-      ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'turbo.json'].map((path) => [
-        path,
-        digestFile(join(root, path)),
-      ]),
+      [
+        'package.json',
+        'pnpm-lock.yaml',
+        'pnpm-workspace.yaml',
+        'tsconfig.base.json',
+        'turbo.json',
+        'tools/repo-guard/package.json',
+        'tools/repo-guard/turbo.json',
+      ].map((path) => [path, digestFile(join(root, path))]),
     ),
     fixtureDigests: workspaceFixtureDigests(),
     environment: { node: process.version, platform: process.platform, arch: process.arch },
     test: { command: 'pnpm test', exitCode: test.status },
   };
   const destination = join(root, 'artifacts', subject, 'evidence.json');
-  mkdirSync(resolve(destination, '..'), { recursive: true });
+  mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(destination);
 }

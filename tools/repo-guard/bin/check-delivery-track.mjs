@@ -758,6 +758,8 @@ function candidatePackagePaths() {
     'pnpm-workspace.yaml',
     'tools/repo-guard/bin/check-doc-links.mjs',
     'tools/repo-guard/bin/check-delivery-track.mjs',
+    'tools/repo-guard/bin/repo-root.mjs',
+    'tools/repo-guard/bin/check-formatting.mjs',
     'tools/repo-guard/tests/check-delivery-track.test.mjs',
     'tools/repo-guard/bin/check-active-repository.mjs',
     'tools/repo-guard/tests/check-active-repository.test.mjs',
@@ -768,8 +770,8 @@ function candidatePackagePaths() {
     '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
     '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   ].sort();
-  if (paths.length !== 88 || new Set(paths).size !== paths.length)
-    throw new Error(`candidate package manifest requires exactly 88 paths, got ${paths.length}`);
+  if (paths.length !== 90 || new Set(paths).size !== paths.length)
+    throw new Error(`candidate package manifest requires exactly 90 paths, got ${paths.length}`);
   return paths;
 }
 export function candidatePackageManifest(rootDir = repoRoot) {
