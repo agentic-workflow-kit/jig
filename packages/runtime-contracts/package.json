@@ -6,10 +6,15 @@
   "exports": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc --build",
-    "typecheck": "tsc --build --noEmit"
+    "build": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "test": "node --test"
   },
   "dependencies": {
     "@agentic-workflow-kit/jig-codec": "workspace:*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "typescript": "catalog:"
   }
 }

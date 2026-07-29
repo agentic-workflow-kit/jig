@@ -43,9 +43,11 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-The check runs lint, formatting, documentation-link, delivery-track, repository-structure,
-typecheck, package-boundary, runtime-topology, and test validation. Run `pnpm delivery:check` for
-the focused delivery validator and its mutation tests.
+The check is a single Turbo run: every workspace package builds, lints, and tests itself, and the
+`tools/repo-guard` package runs the repository-level gates — structure, package boundaries, runtime
+topology, delivery track, documentation links, and formatting. Use `pnpm check:affected` to restrict
+the same graph to what the current branch changed, and `pnpm delivery:check` for the focused
+delivery validator and its mutation tests.
 
 ## Next implementation prerequisite
 

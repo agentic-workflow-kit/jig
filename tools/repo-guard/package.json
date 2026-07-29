@@ -1,0 +1,21 @@
+{
+  "name": "@agentic-workflow-kit/jig-repo-guard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "biome check .",
+    "test": "node --test --test-concurrency=1",
+    "guard:structure": "node bin/check-active-repository.mjs",
+    "guard:delivery": "node bin/check-delivery-track.mjs",
+    "guard:links": "node bin/check-doc-links.mjs",
+    "guard:boundaries": "node bin/check-package-boundaries.mjs",
+    "guard:topology": "node bin/check-runtime-topology.mjs",
+    "guard:format": "node bin/check-formatting.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -7,9 +7,9 @@ import {
   parseIdentity,
   stageDigest,
   validateStagedDigest,
-} from '../../packages/codec/dist/index.js';
+} from '../dist/index.js';
 
-const corpusPath = process.argv[2] ?? new URL('../fixtures/codec-corpus.json', import.meta.url);
+const corpusPath = process.argv[2] ?? new URL('./fixtures/codec-corpus.json', import.meta.url);
 const corpus = JSON.parse(readFileSync(corpusPath, 'utf8'));
 const utf8 = (value) => Buffer.from(value, 'utf8');
 const sha256 = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');

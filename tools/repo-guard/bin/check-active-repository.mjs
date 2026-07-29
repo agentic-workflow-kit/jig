@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deliveryAllowlist } from './check-delivery-track.mjs';
+import { repoRoot } from './repo-root.mjs';
 
 const archiveRef = 'archive/jig-v0-pre-greenfield-2026-07-18';
 const archiveTagObject = '1834c58c1485d2be13e32f6e437a2625e6043042';
@@ -26,6 +27,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
 
 jobs:
   check:
@@ -52,7 +56,7 @@ jobs:
           cache: pnpm
 
       - name: Active repository preflight
-        run: node scripts/check-active-repository.mjs
+        run: node tools/repo-guard/bin/check-active-repository.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -75,6 +79,13 @@ const expectedWorkspaceConfig = `# pnpm settings live here in pnpm 11: the packa
 # \`.npmrc\` is auth-only.
 packages:
   - "packages/*"
+  - "tools/*"
+
+# --- Single-sourced toolchain versions consumed by workspace packages via \`catalog:\` ---
+catalog:
+  "@biomejs/biome": 2.5.2
+  prettier: 3.9.3
+  typescript: 5.8.2
 
 # --- Supply-chain / toolchain baseline (every archetype) ---
 allowBuilds: {} # no dependency runs install/build scripts until reviewed and listed here
@@ -92,44 +103,89 @@ strictPeerDependencies: true # surface peer mismatches early
 
 const expectedTurbo = `{
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["package.json", "tsconfig.base.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
+  "ui": "stream",
+  "globalDependencies": ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json"],
+  "futureFlags": { "affectedUsingTaskInputs": true },
   "tasks": {
+    "topo": { "dependsOn": ["^topo"] },
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
-      "outputs": ["dist/**", "tsconfig.tsbuildinfo"]
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**"],
+      "outputs": ["dist/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
-      "outputs": ["tsconfig.tsbuildinfo"]
+    "lint": {
+      "dependsOn": ["topo"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
+      "outputs": []
     },
-    "test": {
-      "dependsOn": ["build"],
-      "inputs": ["package.json", "src/**/*.ts", "$TURBO_ROOT$/tsconfig.base.json"]
+    "test": { "dependsOn": ["build"], "outputs": [] },
+    "check": { "dependsOn": ["lint", "build", "test"] }
+  }
+}
+`;
+
+const packageTaskScripts = { build: 'tsc -p tsconfig.json', lint: 'biome check .', test: 'node --test' };
+const packageToolchain = { '@biomejs/biome': 'catalog:', typescript: 'catalog:' };
+
+const expectedGuardTurbo = `{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "guard": {
+      "dependsOn": [
+        "guard:structure",
+        "guard:delivery",
+        "guard:links",
+        "guard:boundaries",
+        "guard:topology",
+        "guard:format"
+      ]
+    },
+    "guard:structure": { "cache": false },
+    "guard:delivery": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "outputs": []
+    },
+    "guard:links": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**", "$TURBO_ROOT$/*.md"],
+      "outputs": []
+    },
+    "guard:boundaries": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/**", "$TURBO_ROOT$/tools/**"],
+      "outputs": []
+    },
+    "guard:topology": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/runtime-contracts/**"],
+      "outputs": []
+    },
+    "guard:format": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/**/*.md",
+        "$TURBO_ROOT$/**/*.yml",
+        "$TURBO_ROOT$/**/*.yaml",
+        "$TURBO_ROOT$/*.json",
+        "$TURBO_ROOT$/.prettierignore"
+      ],
+      "outputs": []
     }
   }
 }
 `;
 
 const expectedScripts = {
+  build: 'turbo run build',
+  lint: 'turbo run lint',
+  test: 'turbo run test',
+  guard: 'turbo run guard',
+  check: 'turbo run check guard',
+  'check:affected': 'turbo run check guard --affected',
+  format: 'biome check --write . && prettier --write "**/*.{md,yml,yaml}"',
+  'delivery:check': 'turbo run guard:delivery',
+  'evidence:write': 'node tools/repo-guard/bin/write-evidence.mjs phase-0',
   'dev:setup': 'bash scripts/dev-setup.sh',
   'worktree:new': 'bash scripts/worktree-new.sh',
   'worktree:clean': 'bash scripts/worktree-clean.sh',
-  format: 'biome check --write . && prettier --write "**/*.{md,yml,yaml}"',
-  'format:check': 'prettier --check "**/*.{md,yml,yaml}"',
-  lint: 'biome check .',
-  'links:check': 'node scripts/check-doc-links.mjs',
-  'structure:check': 'node --test scripts/check-active-repository.test.mjs && node scripts/check-active-repository.mjs',
-  'delivery:check': 'node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs',
-  typecheck: 'tsc --build tsconfig.json',
-  'boundaries:check':
-    'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
-  'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
-  test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 "tests/**/*.test.mjs"',
-  'evidence:write': 'node scripts/write-evidence.mjs phase-0',
-  check:
-    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
 };
 
 const expectedManifest = {
@@ -144,10 +200,9 @@ const expectedManifest = {
   devEngines: { runtime: { name: 'node', version: '>=22', onFail: 'warn' } },
   scripts: expectedScripts,
   devDependencies: {
-    '@biomejs/biome': '2.5.2',
-    prettier: '3.9.3',
+    '@biomejs/biome': 'catalog:',
+    prettier: 'catalog:',
     turbo: '2.10.5',
-    typescript: '5.8.2',
   },
 };
 
@@ -176,40 +231,40 @@ const requiredPaths = [
   'pnpm-workspace.yaml',
   '.nvmrc',
   'turbo.json',
-  'tsconfig.json',
   'tsconfig.base.json',
-  'tsconfig.tools.json',
-  'scripts/check-active-repository.mjs',
-  'scripts/check-active-repository.test.mjs',
-  'scripts/check-doc-links.mjs',
-  'scripts/check-delivery-track.mjs',
-  'scripts/check-delivery-track.test.mjs',
-  'scripts/check-package-boundaries.mjs',
-  'scripts/check-package-boundaries.test.mjs',
-  'scripts/check-runtime-topology.mjs',
-  'scripts/check-runtime-topology.test.mjs',
-  'scripts/write-evidence.mjs',
-  'tests/workspace/workspace-substrate.test.mjs',
-  'tests/codec/codec.test.mjs',
-  'tests/codec/corpus.test.mjs',
-  'tests/codec/golden-consumer.mjs',
-  'tests/runtime-contracts/topology.test.mjs',
+  'tools/repo-guard/package.json',
+  'tools/repo-guard/turbo.json',
+  'tools/repo-guard/bin/repo-root.mjs',
+  'tools/repo-guard/bin/check-active-repository.mjs',
+  'tools/repo-guard/bin/check-doc-links.mjs',
+  'tools/repo-guard/bin/check-delivery-track.mjs',
+  'tools/repo-guard/bin/check-formatting.mjs',
+  'tools/repo-guard/bin/check-package-boundaries.mjs',
+  'tools/repo-guard/bin/check-runtime-topology.mjs',
+  'tools/repo-guard/bin/write-evidence.mjs',
+  'tools/repo-guard/tests/check-active-repository.test.mjs',
+  'tools/repo-guard/tests/check-delivery-track.test.mjs',
+  'tools/repo-guard/tests/check-package-boundaries.test.mjs',
+  'tools/repo-guard/tests/check-runtime-topology.test.mjs',
+  'tools/repo-guard/tests/workspace-substrate.test.mjs',
   'packages/codec/package.json',
   'packages/codec/tsconfig.json',
   'packages/codec/src/index.ts',
+  'packages/codec/tests/codec.test.mjs',
+  'packages/codec/tests/corpus.test.mjs',
+  'packages/codec/tests/golden-consumer.mjs',
   'packages/runtime-contracts/package.json',
   'packages/runtime-contracts/tsconfig.json',
   'packages/runtime-contracts/src/index.ts',
+  'packages/runtime-contracts/tests/topology.test.mjs',
   'packages/conformance/package.json',
   'packages/conformance/tsconfig.json',
   'packages/conformance/src/index.ts',
-  'tests/conformance/conformance.test.mjs',
-  'tests/fixtures/conformance-oracle.json',
-  'tests/authority-kernel/authority-kernel.test.mjs',
-  'tests/fixtures/authority-oracle.json',
+  'packages/conformance/tests/conformance.test.mjs',
   'packages/authority-kernel/package.json',
   'packages/authority-kernel/tsconfig.json',
   'packages/authority-kernel/src/index.ts',
+  'packages/authority-kernel/tests/authority-kernel.test.mjs',
 ];
 
 const allowedRootFiles = new Set([
@@ -225,37 +280,37 @@ const allowedRootFiles = new Set([
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
   'turbo.json',
-  'tsconfig.json',
   'tsconfig.base.json',
-  'tsconfig.tools.json',
 ]);
-const allowedScriptPaths = new Set(
+const allowedToolPaths = new Set(
   requiredPaths
-    .filter((path) => path.startsWith('scripts/'))
+    .filter((path) => path.startsWith('tools/repo-guard/'))
     .concat(['scripts/dev-setup.sh', 'scripts/worktree-clean.sh', 'scripts/worktree-new.sh']),
 );
 const allowedGithubPaths = new Set(['.github/workflows/check.yml']);
 const allowedArchiveExtensions = new Set(['.json', '.jsonl', '.md', '.txt']);
 const allowedFixturePaths = new Set([
-  'tests/fixtures/workspace/.gitignore',
-  'tests/fixtures/workspace/package.json',
-  'tests/fixtures/workspace/pnpm-lock.yaml',
-  'tests/fixtures/workspace/pnpm-workspace.yaml',
-  'tests/fixtures/workspace/tsconfig.base.json',
-  'tests/fixtures/workspace/tsconfig.json',
-  'tests/fixtures/workspace/packages/pkg-a/package.json',
-  'tests/fixtures/workspace/packages/pkg-a/src/index.ts',
-  'tests/fixtures/workspace/packages/pkg-a/tsconfig.json',
-  'tests/fixtures/workspace/packages/pkg-b/package.json',
-  'tests/fixtures/workspace/packages/pkg-b/src/index.ts',
-  'tests/fixtures/workspace/packages/pkg-b/tsconfig.json',
-  'tests/fixtures/workspace/packages/pkg-c/package.json',
-  'tests/fixtures/workspace/packages/pkg-c/src/index.ts',
-  'tests/fixtures/workspace/packages/pkg-c/tsconfig.json',
-  'tests/fixtures/codec-vectors.json',
-  'tests/fixtures/codec-corpus.json',
-  'tests/fixtures/runtime-topology.json',
-  'tests/fixtures/runtime-fakes.json',
+  'tools/repo-guard/tests/fixtures/workspace/.gitignore',
+  'tools/repo-guard/tests/fixtures/workspace/package.json',
+  'tools/repo-guard/tests/fixtures/workspace/pnpm-lock.yaml',
+  'tools/repo-guard/tests/fixtures/workspace/pnpm-workspace.yaml',
+  'tools/repo-guard/tests/fixtures/workspace/tsconfig.base.json',
+  'tools/repo-guard/tests/fixtures/workspace/tsconfig.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/package.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/src/index.ts',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/tsconfig.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-b/package.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-b/src/index.ts',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-b/tsconfig.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-c/package.json',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-c/src/index.ts',
+  'tools/repo-guard/tests/fixtures/workspace/packages/pkg-c/tsconfig.json',
+  'packages/codec/tests/fixtures/codec-vectors.json',
+  'packages/codec/tests/fixtures/codec-corpus.json',
+  'packages/runtime-contracts/tests/fixtures/runtime-topology.json',
+  'packages/runtime-contracts/tests/fixtures/runtime-fakes.json',
+  'packages/conformance/tests/fixtures/conformance-oracle.json',
+  'packages/authority-kernel/tests/fixtures/authority-oracle.json',
 ]);
 
 const forbiddenPaths = ['src', 'skills', 'tools/n1a', 'vitest.config.ts', 'scripts/check-delivery-foundation.mjs'];
@@ -335,7 +390,7 @@ function readRequiredJson(rootDir, path, errors, failureMessage) {
   }
 }
 
-export function validateActiveRepository(rootDir = process.cwd()) {
+export function validateActiveRepository(rootDir = repoRoot) {
   const errors = [];
   const allowedDeliveryPaths = deliveryAllowlist();
 
@@ -344,7 +399,7 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     assertRegularTrackedInput(rootDir, requiredPath, errors);
   }
   for (const fixturePath of allowedFixturePaths) assertRegularTrackedInput(rootDir, fixturePath, errors);
-  for (const scriptPath of allowedScriptPaths)
+  for (const scriptPath of allowedToolPaths)
     assertRegularTrackedInput(rootDir, scriptPath, errors, ['100644', '100755']);
   for (const forbiddenPath of forbiddenPaths) {
     const activeEntries = git(rootDir, 'ls-files', '--cached', '--others', '--exclude-standard', '--', forbiddenPath);
@@ -363,7 +418,7 @@ export function validateActiveRepository(rootDir = process.cwd()) {
       (path.startsWith('docs/archive/') && allowedArchiveExtensions.has(extension));
     const permitted =
       allowedRootFiles.has(path) ||
-      allowedScriptPaths.has(path) ||
+      allowedToolPaths.has(path) ||
       allowedGithubPaths.has(path) ||
       permittedDocumentationPath ||
       allowedFixturePaths.has(path) ||
@@ -396,7 +451,7 @@ export function validateActiveRepository(rootDir = process.cwd()) {
   if (canonical(manifest) !== canonical(expectedManifest))
     if (!errors.includes(manifestFailure)) errors.push(manifestFailure);
   const checkCommands = resolvePnpmScriptCommands(manifest?.scripts, 'check');
-  if (checkCommands.some((command) => command.includes('scripts/write-evidence.mjs')))
+  if (checkCommands.some((command) => command.includes('write-evidence.mjs')))
     errors.push('check script transitively resolves to an evidence-writing command');
   if (checkCommands.some(writesUnderArtifacts))
     errors.push('check script transitively resolves to a command that writes under artifacts/');
@@ -415,23 +470,37 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     !errors.includes(workspaceFailure)
   )
     errors.push(workspaceFailure);
-  const solutionFailure =
-    'tsconfig.json must bind exactly the tooling substrate and codec through authority kernel private pure contracts';
-  const solution = readRequiredJson(rootDir, 'tsconfig.json', errors, solutionFailure);
+  const guardManifestFailure =
+    'tools/repo-guard manifest must expose exactly the repository lint, test, and gate task surface';
+  const guardManifest = readRequiredJson(rootDir, 'tools/repo-guard/package.json', errors, guardManifestFailure);
   if (
-    canonical(solution) !==
+    canonical(guardManifest) !==
     canonical({
-      files: [],
-      references: [
-        { path: './tsconfig.tools.json' },
-        { path: './packages/codec' },
-        { path: './packages/runtime-contracts' },
-        { path: './packages/conformance' },
-        { path: './packages/authority-kernel' },
-      ],
+      name: '@agentic-workflow-kit/jig-repo-guard',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      scripts: {
+        lint: 'biome check .',
+        test: 'node --test --test-concurrency=1',
+        'guard:structure': 'node bin/check-active-repository.mjs',
+        'guard:delivery': 'node bin/check-delivery-track.mjs',
+        'guard:links': 'node bin/check-doc-links.mjs',
+        'guard:boundaries': 'node bin/check-package-boundaries.mjs',
+        'guard:topology': 'node bin/check-runtime-topology.mjs',
+        'guard:format': 'node bin/check-formatting.mjs',
+      },
+      devDependencies: { '@biomejs/biome': 'catalog:', prettier: 'catalog:', typescript: 'catalog:' },
     })
   )
-    if (!errors.includes(solutionFailure)) errors.push(solutionFailure);
+    if (!errors.includes(guardManifestFailure)) errors.push(guardManifestFailure);
+  const guardTurboFailure =
+    'tools/repo-guard/turbo.json must exactly preserve the repository-level gate task graph and its inputs';
+  if (
+    readRequiredText(rootDir, 'tools/repo-guard/turbo.json', errors, guardTurboFailure) !== expectedGuardTurbo &&
+    !errors.includes(guardTurboFailure)
+  )
+    errors.push(guardTurboFailure);
   const runtimeManifestPath = join(rootDir, 'packages/runtime-contracts/package.json');
   if (existsSync(runtimeManifestPath)) {
     const runtimeManifestFailure =
@@ -451,7 +520,8 @@ export function validateActiveRepository(rootDir = process.cwd()) {
         type: 'module',
         exports: './dist/index.js',
         types: './dist/index.d.ts',
-        scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+        scripts: packageTaskScripts,
+        devDependencies: packageToolchain,
         dependencies: { '@agentic-workflow-kit/jig-codec': 'workspace:*' },
       })
     )
@@ -474,7 +544,8 @@ export function validateActiveRepository(rootDir = process.cwd()) {
       type: 'module',
       exports: './dist/index.js',
       types: './dist/index.d.ts',
-      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+      scripts: packageTaskScripts,
+      devDependencies: packageToolchain,
       dependencies: {
         '@agentic-workflow-kit/jig-codec': 'workspace:*',
         '@agentic-workflow-kit/jig-runtime-contracts': 'workspace:*',
@@ -501,10 +572,8 @@ export function validateActiveRepository(rootDir = process.cwd()) {
         type: 'module',
         exports: './dist/index.js',
         types: './dist/index.d.ts',
-        scripts: {
-          build: 'tsc --build',
-          typecheck: 'tsc --build --noEmit',
-        },
+        scripts: packageTaskScripts,
+        devDependencies: packageToolchain,
         dependencies: { '@agentic-workflow-kit/jig-codec': 'workspace:*' },
       })
     )
@@ -528,10 +597,9 @@ export function validateActiveRepository(rootDir = process.cwd()) {
           outDir: 'dist',
           rootDir: 'src',
           lib: ['ES2022', 'DOM'],
-          paths: { '@agentic-workflow-kit/jig-codec': ['../codec/src/index.ts'] },
+          tsBuildInfoFile: 'dist/.tsbuildinfo',
         },
         include: ['src/**/*.ts'],
-        references: [{ path: '../codec' }],
       })
     )
       if (!errors.includes(authorityConfigFailure)) errors.push(authorityConfigFailure);
@@ -567,7 +635,8 @@ export function validateActiveRepository(rootDir = process.cwd()) {
       type: 'module',
       exports: './dist/index.js',
       types: './dist/index.d.ts',
-      scripts: { build: 'tsc --build', typecheck: 'tsc --build --noEmit' },
+      scripts: packageTaskScripts,
+      devDependencies: packageToolchain,
     })
   )
     if (!errors.includes(codecManifestFailure)) errors.push(codecManifestFailure);
@@ -578,7 +647,7 @@ export function validateActiveRepository(rootDir = process.cwd()) {
     canonical(codecConfig) !==
     canonical({
       extends: '../../tsconfig.base.json',
-      compilerOptions: { outDir: 'dist', rootDir: 'src', lib: ['ES2022', 'DOM'] },
+      compilerOptions: { outDir: 'dist', rootDir: 'src', lib: ['ES2022', 'DOM'], tsBuildInfoFile: 'dist/.tsbuildinfo' },
       include: ['src/**/*.ts'],
     })
   )

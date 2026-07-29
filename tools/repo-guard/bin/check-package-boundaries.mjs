@@ -2,10 +2,24 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { repoRoot } from './repo-root.mjs';
 
-const fixtureRoot = 'tests/fixtures/workspace';
+const fixtureRoot = 'tools/repo-guard/tests/fixtures/workspace';
+// Every workspace package consumes the same cataloged toolchain; nothing else may enter a package.
+const packageToolchain = { '@biomejs/biome': 'catalog:', typescript: 'catalog:' };
 const expectedPackageNames = ['@workspace-fixture/pkg-a', '@workspace-fixture/pkg-b', '@workspace-fixture/pkg-c'];
-const expectedCodecFiles = ['package.json', 'src/index.ts', 'tsconfig.json'];
+const expectedCodecFiles = [
+  'package.json',
+  'src/index.ts',
+  'tests/codec.test.mjs',
+  'tests/corpus.test.mjs',
+  'tests/fixtures/codec-corpus.json',
+  'tests/fixtures/codec-vectors.json',
+  'tests/golden-consumer.mjs',
+  'tsconfig.json',
+];
+// Build output, task logs, and the workspace install are generated inputs, never package contents.
+const generatedPackageEntries = new Set(['dist', 'node_modules', '.turbo']);
 const prettyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const expectedFixtureFiles = new Map([
   ['.gitignore', '.turbo/\n**/dist/\n**/*.tsbuildinfo\n'],
@@ -128,6 +142,7 @@ function listFiles(rootDir, current = rootDir) {
   const entries = readdirSync(current, { withFileTypes: true });
   return entries.flatMap((entry) => {
     const path = join(current, entry.name);
+    if (generatedPackageEntries.has(entry.name)) return [];
     if (entry.isDirectory()) return listFiles(rootDir, path);
     return [relative(rootDir, path)];
   });
@@ -262,7 +277,7 @@ function validatePureSurface(
     errors.push(`${packageName} must not read prohibited ambient capability: ${capability}`);
 }
 
-export function validatePackageBoundaries(rootDir = process.cwd()) {
+export function validatePackageBoundaries(rootDir = repoRoot) {
   const errors = [];
   for (const forbidden of ['src'])
     if (existsSync(join(rootDir, forbidden)))
@@ -279,9 +294,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
         'only permits the pure codec, private runtime-contracts, private conformance, and private authority-kernel packages',
       );
     const codecRoot = join(packagesRoot, 'codec');
-    const codecFiles = listFiles(codecRoot)
-      .filter((path) => !path.startsWith('dist/') && path !== 'tsconfig.tsbuildinfo')
-      .sort();
+    const codecFiles = listFiles(codecRoot).sort();
     if (!sameMembers(codecFiles, expectedCodecFiles))
       errors.push(`codec file set must stay exact; got ${codecFiles.join(', ')}`);
     const codecManifestPath = join(codecRoot, 'package.json');
@@ -291,7 +304,7 @@ export function validatePackageBoundaries(rootDir = process.cwd()) {
         codecManifest?.name !== '@agentic-workflow-kit/jig-codec' ||
         codecManifest?.private !== true ||
         codecManifest?.dependencies ||
-        codecManifest?.devDependencies ||
+        JSON.stringify(codecManifest?.devDependencies) !== JSON.stringify(packageToolchain) ||
         codecManifest?.optionalDependencies ||
         codecManifest?.peerDependencies ||
         codecManifest?.bin ||

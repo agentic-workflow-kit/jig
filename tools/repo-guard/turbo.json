@@ -1,0 +1,44 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "guard": {
+      "dependsOn": [
+        "guard:structure",
+        "guard:delivery",
+        "guard:links",
+        "guard:boundaries",
+        "guard:topology",
+        "guard:format"
+      ]
+    },
+    "guard:structure": { "cache": false },
+    "guard:delivery": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "outputs": []
+    },
+    "guard:links": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**", "$TURBO_ROOT$/*.md"],
+      "outputs": []
+    },
+    "guard:boundaries": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/**", "$TURBO_ROOT$/tools/**"],
+      "outputs": []
+    },
+    "guard:topology": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/runtime-contracts/**"],
+      "outputs": []
+    },
+    "guard:format": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/**/*.md",
+        "$TURBO_ROOT$/**/*.yml",
+        "$TURBO_ROOT$/**/*.yaml",
+        "$TURBO_ROOT$/*.json",
+        "$TURBO_ROOT$/.prettierignore"
+      ],
+      "outputs": []
+    }
+  }
+}

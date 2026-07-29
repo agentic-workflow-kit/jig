@@ -28,8 +28,9 @@ corepack enable >/dev/null 2>&1 || echo "- warn: could not enable Corepack; ensu
 # 3. Install dependencies with a frozen lockfile.
 pnpm install --frozen-lockfile
 
-# 4. Repo-specific setup goes here (env/seed copies, cache links, browser installs).
-#    Keep it idempotent and never overwrite an existing env file.
+# 4. Repo-specific setup: packages resolve each other through their published `dist` types, so one
+#    build makes cross-package types available to editors and to `node --test` suites.
+pnpm build
 
 # 5. Report.
 echo "- package manager: $(node -p "require('./package.json').packageManager || 'unset'")"

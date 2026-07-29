@@ -6,8 +6,12 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
 
-const repoRoot = resolve(import.meta.dirname, '../..');
-const fixtureSource = join(repoRoot, 'tests', 'fixtures', 'workspace');
+const repoRoot = resolve(import.meta.dirname, '../../..');
+// Turbo is the repository-level tool; TypeScript is declared by the packages that compile, so the
+// fixture toolchain is assembled from both bin directories the workspace install produces.
+const rootBin = join(repoRoot, 'node_modules', '.bin');
+const guardBin = resolve(import.meta.dirname, '..', 'node_modules', '.bin');
+const fixtureSource = join(import.meta.dirname, 'fixtures', 'workspace');
 const sourceDigest = digestTree(fixtureSource);
 
 function digestTree(root, current = root) {
@@ -33,10 +37,9 @@ function digestTree(root, current = root) {
 }
 
 function sanitizedEnvironment(home) {
-  // biome-ignore lint/suspicious/noUndeclaredEnvVars: Corepack's pinned pnpm cache is an explicit immutable toolchain input.
   const corepackHome = process.env.COREPACK_HOME ?? join(process.env.HOME ?? home, '.cache', 'node', 'corepack');
   return {
-    PATH: `${join(repoRoot, 'node_modules', '.bin')}:${process.env.PATH ?? ''}`,
+    PATH: `${rootBin}:${guardBin}:${process.env.PATH ?? ''}`,
     HOME: home,
     TMPDIR: tmpdir(),
     LANG: 'C',
@@ -76,7 +79,7 @@ function initializeFixtureHistory(workspace) {
 function runTurboWithSummary(args, workspace, env) {
   const runsDir = join(workspace, '.turbo', 'runs');
   const before = existsSync(runsDir) ? new Set(readdirSync(runsDir)) : new Set();
-  const turbo = join(repoRoot, 'node_modules', '.bin', 'turbo');
+  const turbo = join(rootBin, 'turbo');
   const result = run(turbo, [...args, '--summarize', '--cache-dir=.turbo/cache'], workspace, env);
   const after = readdirSync(runsDir).sort();
   const newSummary = after.find((file) => !before.has(file)) ?? after.at(-1);
@@ -118,14 +121,14 @@ function withWorkspace(runCase) {
     const env = sanitizedEnvironment(home);
     assert.equal(existsSync(join(workspace, 'node_modules')), false, 'cold fixture must not inherit an install state');
     assert.equal(
-      existsSync(join(repoRoot, 'node_modules', '.bin', 'turbo')),
+      existsSync(join(rootBin, 'turbo')),
       true,
       'the frozen root install must provide the exact Turbo binary',
     );
     assert.equal(
-      existsSync(join(repoRoot, 'node_modules', '.bin', 'tsc')),
+      existsSync(join(guardBin, 'tsc')),
       true,
-      'the frozen root install must provide the exact TypeScript binary',
+      'the frozen workspace install must provide the exact cataloged TypeScript binary',
     );
     const install = run('pnpm', ['install', '--frozen-lockfile', '--offline', '--ignore-scripts'], workspace, env);
     assert.equal(install.error, null, `fixture install must be frozen, offline, and script-free: ${install.output}`);

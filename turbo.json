@@ -1,20 +1,21 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["package.json", "tsconfig.base.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
+  "ui": "stream",
+  "globalDependencies": ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json"],
+  "futureFlags": { "affectedUsingTaskInputs": true },
   "tasks": {
+    "topo": { "dependsOn": ["^topo"] },
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
-      "outputs": ["dist/**", "tsconfig.tsbuildinfo"]
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**"],
+      "outputs": ["dist/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["package.json", "src/**/*.ts", "tsconfig.json", "$TURBO_ROOT$/tsconfig.base.json"],
-      "outputs": ["tsconfig.tsbuildinfo"]
+    "lint": {
+      "dependsOn": ["topo"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
+      "outputs": []
     },
-    "test": {
-      "dependsOn": ["build"],
-      "inputs": ["package.json", "src/**/*.ts", "$TURBO_ROOT$/tsconfig.base.json"]
-    }
+    "test": { "dependsOn": ["build"], "outputs": [] },
+    "check": { "dependsOn": ["lint", "build", "test"] }
   }
 }

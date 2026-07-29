@@ -4,9 +4,9 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writ
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
-import { validateActiveRepository } from './check-active-repository.mjs';
+import { validateActiveRepository } from '../bin/check-active-repository.mjs';
 
-const repoRoot = resolve(import.meta.dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '../../..');
 const excluded = new Set(['.git', 'node_modules', '.turbo', 'artifacts', 'dist', '.pnpm-store']);
 
 function copyFilter(source) {
@@ -90,7 +90,7 @@ test('rejects evidence writing when it is reachable from the check script', () =
     const path = join(root, 'package.json');
     writeFileSync(
       path,
-      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test && pnpm evidence:write"\n  },'),
+      readFileSync(path, 'utf8').replace('"turbo run check guard"', '"turbo run check guard && pnpm evidence:write"'),
     );
   });
   assert.ok(errors.includes('check script transitively resolves to an evidence-writing command'));
@@ -101,7 +101,7 @@ test('rejects artifact output when it is reachable from the check script', () =>
     const path = join(root, 'package.json');
     writeFileSync(
       path,
-      readFileSync(path, 'utf8').replace('pnpm test"\n  },', 'pnpm test > artifacts/check.log"\n  },'),
+      readFileSync(path, 'utf8').replace('"turbo run check guard"', '"turbo run check guard > artifacts/check.log"'),
     );
   });
   assert.ok(errors.includes('check script transitively resolves to a command that writes under artifacts/'));
@@ -125,8 +125,13 @@ test('fails closed for missing or malformed required configuration inputs', () =
   const missingNodeErrors = withTempRepo((root) => rmSync(join(root, '.nvmrc')));
   assert.ok(missingNodeErrors.some((error) => error.includes('local Node 26')));
 
-  const malformedSolutionErrors = withTempRepo((root) => writeFileSync(join(root, 'tsconfig.json'), '{"files": [}\n'));
-  assert.ok(malformedSolutionErrors.some((error) => error.includes('tsconfig.json must bind exactly')));
+  const malformedGuardTaskErrors = withTempRepo((root) =>
+    writeFileSync(join(root, 'tools/repo-guard/package.json'), '{"name": [}\n'),
+  );
+  assert.ok(malformedGuardTaskErrors.some((error) => error.includes('tools/repo-guard manifest must expose')));
+
+  const guardGraphErrors = withTempRepo((root) => writeFileSync(join(root, 'tools/repo-guard/turbo.json'), '{}\n'));
+  assert.ok(guardGraphErrors.some((error) => error.includes('repository-level gate task graph')));
 
   const missingConformanceManifestErrors = withTempRepo((root) =>
     rmSync(join(root, 'packages/conformance/package.json')),
@@ -142,7 +147,7 @@ test('rejects active Turbo graph drift and every approved-file symlink substitut
   const symlinkErrors = withTempRepo((root) => {
     const config = join(root, 'turbo.json');
     rmSync(config);
-    symlinkSync('tsconfig.json', config);
+    symlinkSync('package.json', config);
   });
   assert.ok(symlinkErrors.some((error) => error.includes('regular non-symlink')));
   const scriptSymlinkErrors = withTempRepo((root) => {
@@ -173,7 +178,10 @@ test('rejects mutable Actions, credential persistence, and extra workflow behavi
 
 test('rejects unlisted fixture files and an absent archive anchor', () => {
   const fixtureErrors = withTempRepo((root) =>
-    writeFileSync(join(root, 'tests/fixtures/workspace/packages/pkg-a/src/runtime.ts'), 'export {};\n'),
+    writeFileSync(
+      join(root, 'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/src/runtime.ts'),
+      'export {};\n',
+    ),
   );
   assert.ok(
     fixtureErrors.some((error) => error.includes('unexpected active path') || error.includes('fixture file set')),
@@ -186,7 +194,7 @@ test('requires the exact authority kernel, root wiring, and generic evidence sur
   const missingKernelErrors = withTempRepo((root) => rmSync(join(root, 'packages/authority-kernel/src/index.ts')));
   assert.ok(missingKernelErrors.some((error) => error.includes('required active path is missing')));
   const unlistedSiblingErrors = withTempRepo((root) =>
-    writeFileSync(join(root, 'tests/authority-kernel/unlisted-sibling.test.mjs'), 'export {};\n'),
+    writeFileSync(join(root, 'packages/authority-kernel/tests/unlisted-sibling.test.mjs'), 'export {};\n'),
   );
   assert.ok(unlistedSiblingErrors.some((error) => error.includes('unexpected active path')));
   const privateErrors = withTempRepo((root) =>
@@ -223,7 +231,10 @@ test('requires the exact authority kernel, root wiring, and generic evidence sur
     const path = join(root, 'package.json');
     writeFileSync(
       path,
-      readFileSync(path, 'utf8').replace('node scripts/write-evidence.mjs phase-0', 'node scripts/write-evidence.mjs'),
+      readFileSync(path, 'utf8').replace(
+        'node tools/repo-guard/bin/write-evidence.mjs phase-0',
+        'node tools/repo-guard/bin/write-evidence.mjs',
+      ),
     );
   });
   assert.ok(rootEvidenceErrors.some((error) => error.includes('package.json must exactly preserve')));

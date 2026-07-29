@@ -4,8 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "lib": ["ES2022", "DOM"],
-    "paths": { "@agentic-workflow-kit/jig-codec": ["../codec/src/index.ts"] }
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../codec" }]
+  "include": ["src/**/*.ts"]
 }
