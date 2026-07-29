@@ -141,8 +141,14 @@ const expectedGuardTurbo = `{
         "guard:format"
       ]
     },
-    "guard:structure": { "cache": false },
+    "guard:structure": {
+      "cache": false
+    },
     "guard:delivery": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "outputs": []
+    },
+    "test:delivery": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
       "outputs": []
     },
@@ -181,7 +187,9 @@ const expectedScripts = {
   check: 'turbo run check guard',
   'check:affected': 'turbo run check guard --affected',
   format: 'biome check --write . && prettier --write "**/*.{md,yml,yaml}"',
-  'delivery:check': 'turbo run guard:delivery',
+  'format:check': 'turbo run guard:format',
+  'links:check': 'turbo run guard:links',
+  'delivery:check': 'turbo run guard:delivery test:delivery',
   'evidence:write': 'node tools/repo-guard/bin/write-evidence.mjs phase-0',
   'dev:setup': 'bash scripts/dev-setup.sh',
   'worktree:new': 'bash scripts/worktree-new.sh',
@@ -483,6 +491,7 @@ export function validateActiveRepository(rootDir = repoRoot) {
       scripts: {
         lint: 'biome check .',
         test: 'node --test --test-concurrency=1',
+        'test:delivery': 'node --test tests/check-delivery-track.test.mjs',
         'guard:structure': 'node bin/check-active-repository.mjs',
         'guard:delivery': 'node bin/check-delivery-track.mjs',
         'guard:links': 'node bin/check-doc-links.mjs',

@@ -46,6 +46,9 @@ pnpm lint
 pnpm test
 pnpm guard
 pnpm format
+pnpm format:check
+pnpm links:check
+pnpm delivery:check
 pnpm worktree:new <branch>
 pnpm worktree:clean <branch>
 ```

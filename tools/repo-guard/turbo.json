@@ -12,8 +12,14 @@
         "guard:format"
       ]
     },
-    "guard:structure": { "cache": false },
+    "guard:structure": {
+      "cache": false
+    },
     "guard:delivery": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "outputs": []
+    },
+    "test:delivery": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
       "outputs": []
     },

@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "biome check .",
     "test": "node --test --test-concurrency=1",
+    "test:delivery": "node --test tests/check-delivery-track.test.mjs",
     "guard:structure": "node bin/check-active-repository.mjs",
     "guard:delivery": "node bin/check-delivery-track.mjs",
     "guard:links": "node bin/check-doc-links.mjs",
