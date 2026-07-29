@@ -57,12 +57,16 @@ const activeFixturePaths = [
   'scripts/check-delivery-track.test.mjs',
   'scripts/check-active-repository.mjs',
   'scripts/check-active-repository.test.mjs',
+  '.agents/skills/orchestrate-phase-delivery/README.md',
+  '.agents/skills/orchestrate-phase-delivery/SKILL.md',
+  '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
+  '.agents/skills/orchestrate-phase-delivery/evals/trigger_queries.json',
+  '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
+  '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   'scripts/check-package-boundaries.mjs',
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
-  'scripts/seal-candidate.mjs',
-  'scripts/seal-candidate.test.mjs',
   'scripts/write-evidence.mjs',
   'tests/workspace/workspace-substrate.test.mjs',
   'tests/codec/codec.test.mjs',
@@ -1142,6 +1146,14 @@ test('candidate package binds the document-link validator implementation', () =>
     const baseline = candidatePackageManifest(dir);
     const path = join(dir, 'scripts/check-doc-links.mjs');
     writeFileSync(path, `${readFileSync(path, 'utf8')}\n// coherent validator mutation\n`);
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+  }));
+test('candidate package binds the repository-local phase skill', () =>
+  fixture((dir) => {
+    const baseline = candidatePackageManifest(dir);
+    const path = join(dir, '.agents/skills/orchestrate-phase-delivery/SKILL.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\n`);
     assert.notEqual(candidatePackageManifest(dir), baseline);
     assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
   }));

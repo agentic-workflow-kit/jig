@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
@@ -61,6 +61,28 @@ function withTempRepo(mutate, { includeArchive = true } = {}) {
 
 test('validateActiveRepository passes on the active package contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
+});
+
+test('rejects an unlisted repository-local skill path', () => {
+  const errors = withTempRepo((root) => {
+    const dir = join(root, '.agents', 'skills', 'other');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), '---\nname: other\ndescription: other\n---\n');
+  });
+  assert.ok(
+    errors.some((error) =>
+      error.includes('workspace substrate repository has unexpected active path: .agents/skills/other/SKILL.md'),
+    ),
+  );
+});
+
+test('rejects a top-level skill package', () => {
+  const errors = withTempRepo((root) => {
+    const dir = join(root, 'skills', 'orchestrate-phase-delivery');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), '---\nname: orchestrate-phase-delivery\ndescription: duplicate\n---\n');
+  });
+  assert.ok(errors.includes('archived generation or product path remains active: skills'));
 });
 
 test('rejects evidence writing when it is reachable from the check script', () => {

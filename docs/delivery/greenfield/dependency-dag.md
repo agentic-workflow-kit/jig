@@ -110,6 +110,10 @@ final-delivery authority subjects.
 
 ## Critical and parallel lanes
 
+The DAG is the declared `track.json` graph. Phase orchestration may inspect it at phase start and
+terminal story boundaries to derive a ready set, but it must not author edges, reinterpret edge
+types, or wait for an unrelated blocked story. See [phase orchestration](./phase-orchestration.md).
+
 There are exactly 18 maximum-length paths of 29 stories. One representative is `GF-001 → 002 →
 003 → 004 → 005 → 010 → 013 → 022 → 020 → 023 → 024 → 030 → 031 → 032 → 035 → 036 → 037 →
 040 → 043 → 044 → 045 → 046 → 050 → 051 → 052 → 053 → 054 → 055 → 062`. The 18 paths are the

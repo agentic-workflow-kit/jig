@@ -38,6 +38,10 @@ feature.
 - [Dependency DAG](./dependency-dag.md) — critical path, parallel lanes, and non-negotiable gates.
 - [Coverage](./coverage.md) — route, guarantee, and conformance coverage.
 - [Verification](./verification.md) — exact-subject evidence and phase/candidate verification.
+- [Phase orchestration](./phase-orchestration.md) — declared-DAG coordination, mandatory
+  worktrees, continuous pairs, recovery, and one final phase PR.
+- [Phase handoff template](./phase-handoff-template.md) — state-free resume pointer to the external
+  live ledger.
 - [Risks and owner decisions](./risks-and-owner-decisions.md) — unresolved risks and required
   owner calls.
 - [Reviewer packet](./reviewer/README.md) — independent frozen-candidate review procedure.

@@ -43,6 +43,10 @@ records the lookup as non-governing provenance.
 - Product code, product package manifests/scaffolding, and hosted state are outside this
   documentation track. Minimal repository navigation, status, or validation wiring that solely
   supports this documentation track is allowed.
+- Phase coordination is local to this repository: use `greenfield/phase-orchestration.md` and the
+  Codex-discoverable repository-local `.agents/skills/orchestrate-phase-delivery/` skill. They
+  coordinate the declared
+  `track.json` DAG and external ledger only; they cannot add dependencies or grant activation.
 
 ## Focused track gate
 
