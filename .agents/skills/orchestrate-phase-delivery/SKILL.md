@@ -22,8 +22,11 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 4. Keep each pair stable through implementation, committed-candidate checks, read-only review,
    fixes, and incremental re-review. Before each check, enforce the policy's minimal non-secret
    environment-name allowlist and record exact ignored-state inventories/allowlist decisions. Bind
-   the reviewer verdict to the exact candidate in the external ledger. A changed candidate or
-   target requires affected checks and re-review by that same reviewer.
+   the reviewer verdict to the exact candidate in the external ledger. After final review and before
+   merge, record tracked/untracked status and the exact
+   `git ls-files --others --ignored --exclude-standard` output; bind that final residue snapshot to
+   the reviewed candidate alongside the pre-check inventories and allowlist decisions. A changed
+   candidate or target requires affected checks and re-review by that same reviewer.
 5. Merge only approved story commits into the integration branch while preserving them as
    ancestors. Do not resolve integration conflicts as coordinator; return them to the owning pair.
 6. Retain story worktrees/pairs through final PR feedback. Run integration checks, obtain closure
