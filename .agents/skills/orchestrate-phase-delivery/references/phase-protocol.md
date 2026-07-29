@@ -9,10 +9,13 @@ only.
 Before admission verify active owner activation/`P`, phase target, `track.json`, safe-overlap facts,
 and external ledger. Record per story: ID; phase integration ref; registered worktree path/branch;
 base commit/tree and candidate commit/tree; merge-base and declared-predecessor containment;
-required check command/set, result, timestamp and durable log; clean status before/after review;
-continuous implementer and independent reviewer identities; findings/verdict/timestamp; integration
-result/commit; current state and terminal boundary. Pair replacement is exceptional and records
-reason plus handoff. Live facts never enter repository files.
+required check command/set, result, timestamp and durable log; minimal non-secret environment-name
+allowlist; tracked/untracked clean status and exact
+`git ls-files --others --ignored --exclude-standard` inventories before checks and after review;
+ignored-state allowlist decision; continuous implementer and independent reviewer identities;
+findings/verdict/timestamp; integration result/commit; current state and terminal boundary. Pair
+replacement is exceptional and records reason plus handoff. Live facts never enter repository
+files.
 
 ## Ready-set and ownership loop
 
@@ -24,11 +27,15 @@ guard applies, launch every ready story within available distinct pair/worktree 
 distinct across stories and continuous within a story.
 
 The implementer writes; at explicit freeze the reviewer uses that same registered worktree read-only.
-Candidate, fix, or target move means commit, run affected checks, record evidence, and have the same
-reviewer incrementally inspect prior-reviewed..new, sibling occurrences, and invariants. Old verdicts
-never transfer. Story states are admitted, implementing, frozen-for-review, changes-required,
-approved, integrated/quiescent, or terminally-blocked; inspect the ready set after every transition
-to approved, integrated, or terminally-blocked.
+Candidate, fix, or target move means commit, run affected checks with only the policy allowlisted
+environment names, inventory ignored state before/after, record evidence, and have the same reviewer
+incrementally inspect prior-reviewed..new, sibling occurrences, and invariants. `.env`/credential
+files, external workspace links, unexplained generated output, or unlisted residue fail closed;
+dependencies require frozen-lockfile/link-containment proof and generated/cache output must be
+regenerated or exact-candidate-keyed. Old verdicts never transfer. Story states are admitted,
+implementing, frozen-for-review, changes-required, approved, integrated/quiescent, or
+terminally-blocked; inspect the ready set after every transition to approved, integrated, or
+terminally-blocked.
 
 ## Integration and closure
 

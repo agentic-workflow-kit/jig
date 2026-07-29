@@ -1157,6 +1157,14 @@ test('candidate package binds the repository-local phase skill', () =>
     assert.notEqual(candidatePackageManifest(dir), baseline);
     assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
   }));
+test('story narratives reject invented suffixed delivery story IDs', () =>
+  fixture((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\nGF-001a is a separate delivery subject.\n`);
+    assert.ok(
+      validateDeliveryTrackPackage(dir).includes('GF-001 narrative must not invent a suffixed delivery story ID'),
+    );
+  }));
 test('candidate package binds every validation, install, ignore, and local-runtime configuration input', () => {
   for (const relativePath of [
     '.gitignore',

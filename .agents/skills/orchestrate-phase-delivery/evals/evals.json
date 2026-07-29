@@ -15,12 +15,13 @@
     {
       "id": "candidate-refresh",
       "prompt": "A reviewed story is rebased onto the integration branch after another story lands. What must happen before integration?",
-      "expected_output": "The same pair creates a new committed candidate, runs affected checks, records ledger evidence, and performs incremental read-only re-review.",
+      "expected_output": "The same pair creates a new committed candidate, runs affected checks with a minimal non-secret environment allowlist and exact ignored-state inventory, records ledger evidence, and performs incremental read-only re-review.",
       "files": [],
       "assertions": [
         "Rejects transfer of the old verdict",
         "Does not require a sealer or clone",
-        "Preserves reviewer read-only boundary"
+        "Preserves reviewer read-only boundary",
+        "Requires sanitized environment-name and ignored-state evidence without restoring a sealer"
       ]
     },
     {

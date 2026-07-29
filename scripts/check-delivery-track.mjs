@@ -1058,6 +1058,8 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     else if (!exact(parsed.fields, story))
       errors.push(`${story.id} front matter must exactly match all 15 track fields`);
     if (!parsed.error) {
+      if (/\bGF-\d{3}[a-z]\b/.test(parsed.narrative))
+        errors.push(`${story.id} narrative must not invent a suffixed delivery story ID`);
       const mappingSection = storyMappingSection(parsed.narrative);
       const resolvedGoverningPaths = governingPaths.filter(
         (path) => isCanonicalGoverningPath(path) && authorityPaths.has(path) && isFile(path),

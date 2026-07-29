@@ -16,12 +16,12 @@ Use this template as a pointer to the live external ledger, not as a substitute 
 - Inspect `track.json`, ledger, and phase integration branch before selecting ready work.
 - Run `git worktree list --porcelain`; reconcile registered integration/story worktrees, branches, bases, candidates, clean statuses, and continuous pairs to the ledger.
 - Launch only declared-ready stories within available pair/worktree capacity and any already-authorized safe-overlap guard. A blocked story blocks only its descendants.
-- Require committed-candidate checks and the same reviewer’s incremental read-only review for each new candidate; do not use a local clone or historical seal as a gate.
+- Require committed-candidate checks under the recorded minimal non-secret environment-name allowlist, exact ignored-state inventories/allowlist decisions, and the same reviewer’s incremental read-only review for each new candidate; do not use a local clone or historical seal as a gate.
 - Keep integrated story worktrees/pairs quiescent until final-PR feedback and confirmed closure.
 
 ## Stop conditions
 
-Stop `OWNER_DECISION_REQUIRED` for missing/ambiguous activation, tracker, predecessor, worktree, branch/object, base, evidence, clean-status, reviewer-independence, required-check, or ownership facts. Do not reconstruct a missing workspace with a clone.
+Stop `OWNER_DECISION_REQUIRED` for missing/ambiguous activation, tracker, predecessor, worktree, branch/object, base, evidence, clean-status, sanitized-environment, ignored-state, reviewer-independence, required-check, or ownership facts. Do not reconstruct a missing workspace with a clone.
 
 ## Handoff pointer
 

@@ -53,8 +53,10 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
 3. Keep each story candidate to one cohesive semantic and authority subject. Use only split stories
    already declared by `track.json`; do not invent `<ID>a`/`<ID>b` stories or edges during
    delivery. Approved story subjects aggregate on one phase integration branch and one final phase
-   PR. A first semantic half stays useful and green but unconfigurable until its declared provider
-   successor qualifies.
+   PR. A brief may describe internal implementation slices only within the same tracked story,
+   worktree, branch, continuous pair, candidate review, and integration result; such a slice never
+   becomes a story ID, tracker edge, separate delivery subject, or PR. A first semantic half stays
+   useful and green but unconfigurable until its declared provider successor qualifies.
 4. No adapter, provider, or effect path is reachable before its semantic contract, manifest, exact
    qualification gate/evidence, and gate evaluator pass. This applies to all eight mandatory
    splits: GF-019→020, GF-010→025, GF-013→026, GF-033→039, GF-042→047, GF-034→060,
@@ -79,23 +81,35 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
    proof makes `Landed` and releases dependents; cleanup cannot change business outcome or release.
 10. A passing local check is evidence, not approval. The implementation owner commits the
     candidate, then runs every required local proof, repository check, and direct validator against
-    that exact committed candidate in its registered story worktree. Hosted CI independently
-    executes its required checks. The coordinator verifies orchestration facts and evidence
-    bindings. Every implementation candidate needs independent review under the reviewer packet;
-    that protocol reviews the story-owned source, configuration, tests, and evidence paths, not a
-    fresh delivery-package corpus review or digest computation. At candidate freeze, record approved
-    `P`, the current 67-file normative-corpus comparison, and exact committed-candidate evidence in
-    the external ledger or reviewer record; the independent reviewer verifies them read-only.
+    that exact committed candidate in its registered story worktree. Before each locally recorded
+    check, record a minimal environment variable-name allowlist and execute with only those
+    variables. The default allowlist excludes token-, secret-, credential-, auth-, and key-bearing
+    variables; record names and non-secret fingerprints where required, never values. A check that
+    requires an authorized sandbox credential receives only its named least-privilege reference
+    through the owning provider boundary, with redaction and secret-absence proof; it never inherits
+    an ambient implementer shell credential. Hosted CI independently executes its required checks.
+    The coordinator verifies orchestration facts and evidence bindings. Every implementation
+    candidate needs independent review under the reviewer packet; that protocol reviews the
+    story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
+    corpus review or digest computation. At candidate freeze, record approved `P`, the current
+    67-file normative-corpus comparison, and exact committed-candidate evidence in the external
+    ledger or reviewer record; the independent reviewer verifies them read-only.
 11. Every local delivery, implementation, verification, review, and recovery workspace is a
     registered Git worktree. For each candidate, the external ledger records: story ID; registered
     story worktree path/branch; phase integration ref and resolved base commit/tree; candidate
     commit/tree; merge-base and declared-predecessor containment; owned paths; required check
-    command/set, result, timestamp, and durable log/reference; clean status before and after review;
-    continuous implementer and independent reviewer identities; findings/verdict/timestamp bound to
-    the exact candidate; and integration result/commit. The reviewer inspects that same frozen
-    worktree read-only. No local fresh or detached clone is a delivery, check, review, or recovery
-    workspace. Provider-managed hosted-CI checkout is the sole workspace exception and cannot
-    replace local evidence or review.
+    command/set, result, timestamp, durable log/reference, and sanitized environment-name allowlist;
+    tracked/untracked clean status plus the exact
+    `git ls-files --others --ignored --exclude-standard` inventory before checks and after review;
+    the ignored-state allowlist decision; continuous implementer and independent reviewer
+    identities; findings/verdict/timestamp bound to the exact candidate; and integration
+    result/commit. Allowed ignored state is limited to repository-declared dependency trees with
+    frozen-lockfile and workspace-link-containment proof, and generated/cache outputs either
+    regenerated by the recorded check or content-keyed to the exact candidate. `.env` or credential
+    files, external workspace links, unexplained generated outputs, and unlisted residue invalidate
+    the evidence. The reviewer inspects that same frozen worktree read-only. No local fresh or
+    detached clone is a delivery, check, review, or recovery workspace. Provider-managed hosted-CI
+    checkout is the sole workspace exception and cannot replace local evidence or review.
 12. The independent reviewer is read-only and performs semantic and evidence review only. The
     reviewer may read files and inspect exact commits, trees, diffs, manifests, logs, hosted check
     results, and evidence with read-only operations such as `git show`, `git diff`, `rg`, and `sed`.

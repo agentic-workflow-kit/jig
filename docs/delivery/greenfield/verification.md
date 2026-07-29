@@ -62,9 +62,14 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
 - The implementation owner commits before verification and works only in the registered story
   worktree. The external ledger records its candidate/base identity, declared-predecessor
   containment, exact required command/set, result, timestamp, durable log/reference, and clean
-  status before/after review. `git diff --check <base>...<candidate>` is required when applicable.
-  Hosted CI independently executes required checks; the coordinator inspects bindings and the
-  semantic reviewer reads evidence rather than rerunning it.
+  status before/after review. It also records the minimal non-secret environment-name allowlist and
+  exact `git ls-files --others --ignored --exclude-standard` inventory/allowlist decision before
+  checks and after review. `.env`/credential files, external workspace links, unexplained generated
+  output, or unlisted residue fail closed; dependencies require frozen-lockfile/link-containment
+  proof and generated/cache output must be regenerated or exact-candidate-keyed.
+  `git diff --check <base>...<candidate>` is required when applicable. Hosted CI independently
+  executes required checks; the coordinator inspects bindings and the semantic reviewer reads
+  evidence rather than rerunning it.
 - A changed candidate or target needs affected check evidence and incremental read-only review by
   the same reviewer. Final evidence includes the required local checks, `pnpm check` where required,
   CI, and independent review of the exact candidate. No custom seal, envelope, detached clone, or

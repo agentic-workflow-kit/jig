@@ -116,6 +116,15 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
       durable log/reference, verification posture/class set/environment, candidate-bound
       `git diff --check` where applicable, and unchanged `HEAD`/tree with clean status before and
       after review.
+- [ ] Every locally recorded check used the recorded minimal environment-name allowlist. Ambient
+      token/secret/credential/auth/key variables and secret values were excluded; any authorized
+      sandbox credential used only its named least-privilege provider boundary with redaction and
+      secret-absence proof.
+- [ ] Exact `git ls-files --others --ignored --exclude-standard` inventories before checks and
+      after review contain only allowed state. `.env`/credential files, external workspace links,
+      unexplained generated output, or unlisted residue fail; dependency trees have
+      frozen-lockfile/link-containment proof and generated/cache output was regenerated or
+      exact-candidate-keyed.
 - [ ] Checks ran only in the registered story worktree. Provider-managed hosted-CI checkout is the
       sole workspace exception and cannot replace local evidence or review. No custom sealer, seal
       envelope, detached clone, fresh clone, or resealing was required as a gate.

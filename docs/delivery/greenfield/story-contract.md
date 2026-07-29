@@ -81,15 +81,20 @@ base commit/tree; candidate commit/tree; merge-base and target-content proof tha
 predecessor is contained; current path-by-path comparison of the 67 normative authority files; exact
 owned source/config/test/evidence paths; applicable `DR-*` choices; selected final-verification
 posture; required check-class set; verification configuration/environment; exact subject binding;
+minimal non-secret check environment-name allowlist; ignored-state inventory/allowlist;
 continuous implementer and independent reviewer identities; and integration result/commit.
 
 The implementation owner commits before required verification and works only in the registered
 story worktree. Record each required local proof/repository check/direct validator command or set,
-result, timestamp, durable log/reference, candidate-bound `git diff --check` where applicable, and
-proof that the candidate `HEAD`/tree remained unchanged and the worktree was clean before and after
-review. Hosted CI independently executes required checks. The coordinator verifies orchestration
-facts and bindings; the reviewer consumes the evidence read-only and never reruns a suite to repair
-or replace it.
+result, timestamp, durable log/reference, candidate-bound `git diff --check` where applicable, the
+sanitized environment-name allowlist, and proof that the candidate `HEAD`/tree remained unchanged.
+Record tracked/untracked clean status and the exact
+`git ls-files --others --ignored --exclude-standard` inventory before checks and after review.
+Fail closed on `.env`/credential files, external workspace links, unexplained generated output, or
+unlisted ignored residue; dependency trees require frozen-lockfile and link-containment proof, and
+generated/cache output must be regenerated or exact-candidate-keyed. Hosted CI independently
+executes required checks. The coordinator verifies orchestration facts and bindings; the reviewer
+consumes the evidence read-only and never reruns a suite to repair or replace it.
 
 At explicit freeze, the same continuous independent reviewer examines the registered story
 worktree's exact candidate, base, diff, declared-predecessor containment, evidence, and status.
@@ -110,6 +115,9 @@ dependency-release power.
 
 No custom sealer, seal envelope, detached clone, fresh clone, or resealing is a story gate.
 Historical seals may remain historical evidence but are neither required nor sufficient.
+Any brief's internal implementation-slice guidance stays within this tracked story's single
+worktree, branch, continuous pair, candidate review, and integration result. It never creates an
+untracked suffixed story ID, dependency edge, separate delivery subject, or PR.
 
 ## In-scope and non-goals
 
