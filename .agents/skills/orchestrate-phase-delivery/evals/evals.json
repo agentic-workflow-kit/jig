@@ -1,0 +1,40 @@
+{
+  "skill_name": "orchestrate-phase-delivery",
+  "evals": [
+    {
+      "id": "phase-one-ready-set",
+      "prompt": "Coordinate Phase 1 after GF-010 has landed: GF-011, GF-012, and GF-013 are initially ready; GF-012 then becomes terminally blocked.",
+      "expected_output": "A ledger-backed plan that initially admits all three within capacity, then continues GF-011 and GF-013 while localizing the GF-012 block; GF-014 follows GF-013 and GF-015 waits for GF-011 and GF-014.",
+      "files": ["docs/delivery/greenfield/track.json"],
+      "assertions": [
+        "Uses declared dependencies only",
+        "States that GF-012 does not block GF-011 or GF-013 to GF-014, and that GF-015 waits for GF-011 and GF-014",
+        "Requires registered worktrees and continuous pairs"
+      ]
+    },
+    {
+      "id": "candidate-refresh",
+      "prompt": "A reviewed story is rebased onto the integration branch after another story lands. What must happen before integration?",
+      "expected_output": "The same pair creates a new committed candidate, runs affected checks with a minimal non-secret environment allowlist and exact ignored-state inventory, records ledger evidence, and performs incremental read-only re-review.",
+      "files": [],
+      "assertions": [
+        "Rejects transfer of the old verdict",
+        "Does not require a sealer or clone",
+        "Preserves reviewer read-only boundary",
+        "Requires sanitized environment-name and ignored-state evidence without restoring a sealer"
+      ]
+    },
+    {
+      "id": "worktree-recovery-matrix",
+      "prompt": "Recover a ledger-listed story worktree in three cases: its exact recorded branch/object exists and reconciles cleanly; the object is missing; or the surviving workspace is dirty/mismatched. Explain whether a fresh clone or hosted-CI checkout can be used.",
+      "expected_output": "Reattach the clean existing branch/object as a registered worktree; stop OWNER_DECISION_REQUIRED for missing or dirty/mismatched facts; reject a local clone and treat hosted CI only as independent CI infrastructure.",
+      "files": [],
+      "assertions": [
+        "Starts with git worktree list porcelain reconciliation",
+        "Reattaches only an exact recorded branch and object at the registered path",
+        "Stops on missing objects or dirty and mismatched evidence",
+        "Rejects fresh-clone recovery and permits provider-managed checkout only for hosted CI"
+      ]
+    }
+  ]
+}

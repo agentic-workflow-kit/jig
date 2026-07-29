@@ -57,12 +57,16 @@ const activeFixturePaths = [
   'scripts/check-delivery-track.test.mjs',
   'scripts/check-active-repository.mjs',
   'scripts/check-active-repository.test.mjs',
+  '.agents/skills/orchestrate-phase-delivery/README.md',
+  '.agents/skills/orchestrate-phase-delivery/SKILL.md',
+  '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
+  '.agents/skills/orchestrate-phase-delivery/evals/trigger_queries.json',
+  '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
+  '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   'scripts/check-package-boundaries.mjs',
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
-  'scripts/seal-candidate.mjs',
-  'scripts/seal-candidate.test.mjs',
   'scripts/write-evidence.mjs',
   'tests/workspace/workspace-substrate.test.mjs',
   'tests/codec/codec.test.mjs',
@@ -1145,6 +1149,22 @@ test('candidate package binds the document-link validator implementation', () =>
     assert.notEqual(candidatePackageManifest(dir), baseline);
     assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
   }));
+test('candidate package binds the repository-local phase skill', () =>
+  fixture((dir) => {
+    const baseline = candidatePackageManifest(dir);
+    const path = join(dir, '.agents/skills/orchestrate-phase-delivery/SKILL.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\n`);
+    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+  }));
+test('story narratives reject invented suffixed delivery story IDs', () =>
+  fixture((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\nGF-001a is a separate delivery subject.\n`);
+    assert.ok(
+      validateDeliveryTrackPackage(dir).includes('GF-001 narrative must not invent a suffixed delivery story ID'),
+    );
+  }));
 test('candidate package binds every validation, install, ignore, and local-runtime configuration input', () => {
   for (const relativePath of [
     '.gitignore',
@@ -1153,6 +1173,7 @@ test('candidate package binds every validation, install, ignore, and local-runti
     'biome.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
+    'scripts/check-active-repository.test.mjs',
   ])
     fixture((dir) => {
       const baseline = candidatePackageManifest(dir);

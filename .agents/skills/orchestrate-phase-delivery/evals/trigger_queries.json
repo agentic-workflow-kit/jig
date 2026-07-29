@@ -1,0 +1,122 @@
+[
+  {
+    "id": "positive-phase-resume",
+    "query": "Resume this approved Jig phase from its external ledger and coordinate ready stories.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "positive-worktree-recovery",
+    "query": "Recover a missing Jig story worktree without changing declared dependencies.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "positive-phase-close",
+    "query": "Coordinate closure of a Jig phase into one final PR after its stories integrate.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "negative-author-dag",
+    "query": "Add a dependency edge to the Jig delivery tracker so this story waits.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "negative-implement-story",
+    "query": "Implement GF-010 in Jig and write its ledger package.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "negative-review-pr",
+    "query": "Review this one Jig pull request for bugs.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "negative-create-scheduler",
+    "query": "Build a scheduler service for managing story dependencies.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "negative-git-cleanup",
+    "query": "Delete unused Git worktrees from this repo.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "positive-capacity",
+    "query": "Start every ready story in this approved Jig phase within reviewer capacity.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "positive-review-loop",
+    "query": "Coordinate fixes and same-reviewer incremental re-review for a Jig story candidate.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "positive-integration",
+    "query": "Merge approved Jig story branches into a phase integration worktree without resolving conflicts as coordinator.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "positive-ledger",
+    "query": "What external ledger evidence is required to coordinate a Jig phase story?",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "positive-final-feedback",
+    "query": "Route final phase PR review feedback to the correct continuous story pair.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "positive-localized-block",
+    "query": "A blocked Jig story should stop only its descendants; coordinate the remaining phase.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "negative-policy-edit",
+    "query": "Rewrite the Jig product architecture decision records.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "negative-package-review",
+    "query": "Perform a full delivery-package Q and R review for Jig.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "negative-ci-debug",
+    "query": "Fix the failing hosted CI workflow in Jig.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "negative-clone",
+    "query": "Clone Jig into a fresh directory and run a one-off test.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "positive-phase-start",
+    "query": "Inspect the Jig tracker and ledger to start an approved phase with parallel story pairs.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "negative-pr-open",
+    "query": "Open a new pull request for this already-finished Jig branch.",
+    "should_trigger": false,
+    "split": "validation"
+  }
+]

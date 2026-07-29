@@ -126,12 +126,10 @@ const expectedScripts = {
   'boundaries:check':
     'node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs',
   'runtime:check': 'node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs',
-  'candidate:seal': 'node scripts/seal-candidate.mjs',
-  'candidate:seal:test': 'node --test scripts/seal-candidate.test.mjs',
   test: 'tsc --build tsconfig.json && node --test --test-concurrency=1 "tests/**/*.test.mjs"',
   'evidence:write': 'node scripts/write-evidence.mjs phase-0',
   check:
-    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm candidate:seal:test && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
+    'pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test',
 };
 
 const expectedManifest = {
@@ -162,6 +160,14 @@ const requiredPaths = [
   'docs/delivery/README.md',
   'docs/delivery/greenfield/track.json',
   'docs/delivery/greenfield/story-contract.md',
+  'docs/delivery/greenfield/phase-handoff-template.md',
+  'docs/delivery/greenfield/phase-orchestration.md',
+  '.agents/skills/orchestrate-phase-delivery/README.md',
+  '.agents/skills/orchestrate-phase-delivery/SKILL.md',
+  '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
+  '.agents/skills/orchestrate-phase-delivery/evals/trigger_queries.json',
+  '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
+  '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   'docs/archive/generations/jig-v0-pre-greenfield-2026-07-18.md',
   'docs/archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md',
   '.github/workflows/check.yml',
@@ -182,8 +188,6 @@ const requiredPaths = [
   'scripts/check-package-boundaries.test.mjs',
   'scripts/check-runtime-topology.mjs',
   'scripts/check-runtime-topology.test.mjs',
-  'scripts/seal-candidate.mjs',
-  'scripts/seal-candidate.test.mjs',
   'scripts/write-evidence.mjs',
   'tests/workspace/workspace-substrate.test.mjs',
   'tests/codec/codec.test.mjs',

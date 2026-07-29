@@ -728,6 +728,8 @@ export function deliveryAllowlist() {
     'docs/delivery/greenfield/decisions.md',
     'docs/delivery/greenfield/delivery-policy.md',
     'docs/delivery/greenfield/dependency-dag.md',
+    'docs/delivery/greenfield/phase-handoff-template.md',
+    'docs/delivery/greenfield/phase-orchestration.md',
     'docs/delivery/greenfield/research-ledger.md',
     'docs/delivery/greenfield/risks-and-owner-decisions.md',
     'docs/delivery/greenfield/story-contract.md',
@@ -757,9 +759,16 @@ function candidatePackagePaths() {
     'scripts/check-delivery-track.mjs',
     'scripts/check-delivery-track.test.mjs',
     'scripts/check-active-repository.mjs',
+    'scripts/check-active-repository.test.mjs',
+    '.agents/skills/orchestrate-phase-delivery/README.md',
+    '.agents/skills/orchestrate-phase-delivery/SKILL.md',
+    '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
+    '.agents/skills/orchestrate-phase-delivery/evals/trigger_queries.json',
+    '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
+    '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   ].sort();
-  if (paths.length !== 79 || new Set(paths).size !== paths.length)
-    throw new Error(`candidate package manifest requires exactly 79 paths, got ${paths.length}`);
+  if (paths.length !== 88 || new Set(paths).size !== paths.length)
+    throw new Error(`candidate package manifest requires exactly 88 paths, got ${paths.length}`);
   return paths;
 }
 export function candidatePackageManifest(rootDir = process.cwd()) {
@@ -1050,6 +1059,8 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     else if (!exact(parsed.fields, story))
       errors.push(`${story.id} front matter must exactly match all 15 track fields`);
     if (!parsed.error) {
+      if (/\bGF-\d{3}[a-z]\b/.test(parsed.narrative))
+        errors.push(`${story.id} narrative must not invent a suffixed delivery story ID`);
       const mappingSection = storyMappingSection(parsed.narrative);
       const resolvedGoverningPaths = governingPaths.filter(
         (path) => isCanonicalGoverningPath(path) && authorityPaths.has(path) && isFile(path),

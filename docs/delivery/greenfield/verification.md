@@ -59,16 +59,18 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   version changes.
 - Retain per-phase accumulated evidence as CI artifacts bound to the exact candidate. Do not turn
   delivery-process provenance into pinned repository checks; review it when the claim is made.
-- The implementation owner commits before verification, records candidate/base-ref/base-commit/base-tree/merge-base identity,
-  runs each required local check/direct validator once against that exact `HEAD`, and emits an
-  external seal envelope containing commands, timestamps, exit codes, log digests or durable log
-  identities, automatic `git diff --check <base-commit>...<candidate-commit>` output,
-  base-ancestry proof, and final unchanged-`HEAD`/tree/clean-worktree proof. Commands execute in a
-  local exact-candidate clone; it records clean subject state after each command, and any original-candidate edit,
-  subject drift/residue, or non-ancestor base invalidates
-  that seal. Hosted CI independently executes required checks; the coordinator inspects bindings
-  only, and the semantic reviewer reads evidence rather than rerunning it.
-- Final evidence must include `pnpm check`, `git diff --check <base-commit>...<candidate-commit>`,
-  CI, a valid exact-candidate seal,
-  and independent read-only review of the exact candidate. These delivery documents do not claim
-  that any implementation candidate passed.
+- The implementation owner commits before verification and works only in the registered story
+  worktree. The external ledger records its candidate/base identity, declared-predecessor
+  containment, exact required command/set, result, timestamp, durable log/reference, and clean
+  status before/after review. It also records the minimal non-secret environment-name allowlist and
+  exact `git ls-files --others --ignored --exclude-standard` inventory/allowlist decision before
+  checks and after review. `.env`/credential files, external workspace links, unexplained generated
+  output, or unlisted residue fail closed; dependencies require frozen-lockfile/link-containment
+  proof and generated/cache output must be regenerated or exact-candidate-keyed.
+  `git diff --check <base>...<candidate>` is required when applicable. Hosted CI independently
+  executes required checks; the coordinator inspects bindings and the semantic reviewer reads
+  evidence rather than rerunning it.
+- A changed candidate or target needs affected check evidence and incremental read-only review by
+  the same reviewer. Final evidence includes the required local checks, `pnpm check` where required,
+  CI, and independent review of the exact candidate. No custom seal, envelope, detached clone, or
+  fresh-clone workspace is a gate. These documents do not claim any candidate passed.

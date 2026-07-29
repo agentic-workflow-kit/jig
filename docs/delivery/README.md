@@ -76,6 +76,9 @@ supports this documentation track remains in scope.
   assumptions.
 - [Mandatory story contract](./greenfield/story-contract.md) — required content for every story.
 - [Delivery policy](./greenfield/delivery-policy.md) — implementation and qualification rules.
+- [Phase orchestration](./greenfield/phase-orchestration.md) — local coordination of declared
+  dependencies, worktrees, continuous pairs, and final closure.
+- [Phase handoff template](./greenfield/phase-handoff-template.md) — resumable state-free handoff.
 - [Research ledger](./greenfield/research-ledger.md) — allowed comparative inputs and limits.
 - [Reviewer packet](./greenfield/reviewer/README.md) — independent exact-candidate procedure.
 
@@ -104,14 +107,16 @@ digest into `track.json`, validator constants, fixtures, or candidate-authored r
 package byte or path-set change invalidates `Q` and requires a fresh full review. The pre-existing
 67-file normative digest remains corpus-drift evidence only, not a candidate approval digest.
 
-For a later implementation candidate, independent review freezes the candidate together with its
+For a later implementation candidate, independent review freezes the committed candidate in its
+registered worktree together with its
 final-verification posture, policy-selected required check-class set, verification
 configuration/environment, and subject binding. After `Accepted`, `deterministic` requires a
 passing, subject-matching `EV-CHECK-OBSERVATION` for every required class and the complete set
 inside `Finalizing` before any target-changing Operation; `none` is an explicit no-op. Recording
 those observations under the unchanged reviewed binding is authorized continuation evidence, not a
 review-invalidating edit. Candidate, posture, class-set, configuration/environment, or binding
-drift requires a fresh tuple and review.
+drift requires affected checks and incremental review by the same reviewer. Custom sealing,
+detached clones, and fresh-clone review workspaces are not active gates.
 
 ## Focused track gate
 
