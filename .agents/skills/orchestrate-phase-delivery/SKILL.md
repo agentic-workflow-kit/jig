@@ -21,8 +21,26 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 3. At phase start and after each terminal story boundary, re-run `pnpm delivery:check`, then inspect
    the declared DAG, ledger, and integration branch. Launch every ready story within available
    continuous implementer/reviewer pair capacity and any already-authorized safe-overlap guard. A
-   blocked story blocks only descendants.
-4. Keep each pair stable through implementation, committed-candidate checks, read-only review,
+   blocked story blocks only descendants. Before implementation, select implementer effort from
+   semantic risk as well as boundedness. Medium remains available when current authority directly
+   determines a local realization with straightforward positive and negative tests. Use high when
+   authority, fencing, recovery, replay, idempotency, witness/admission, persistence, identity,
+   ordering, lifecycle, cross-package type closure, a later-constraining seam, reconciliation of
+   multiple authority sources, or another non-local guarantee materially shapes correctness. A
+   short file list does not lower that risk. Use xhigh only for an exceptional release-critical or
+   architecture-wide decision under the global routing policy. This repository-local assessment
+   supplies Jig-specific effort reasoning and task content; the global `offload` skill still owns
+   generic sub-agent context and provider routing.
+4. After assigning the continuous pair and before writes, have the already-assigned reviewer
+   prepare read-only against the exact story, current authority, predecessor surface, and affected
+   package seams. The reviewer returns a concise set of normally five to twelve must-cover bullets;
+   each names the invariant or failure mode, its source, and expected observable proof in code,
+   types, or tests. Put the selected effort and reason plus those bullets in the implementer task.
+   They supplement rather than expand the story contract, create no new artifact or ledger field,
+   and do not replace `OWNER_DECISION_REQUIRED` for genuine ambiguity. Read
+   `references/phase-protocol.md` for the implementer proof handoff, complete-pass verdict, and
+   conditional structural-defect loop.
+5. Keep each pair stable through implementation, committed-candidate checks, read-only review,
    fixes, and incremental re-review. Before each check, enforce the policy's minimal non-secret
    environment-name allowlist and record exact ignored-state inventories/allowlist decisions. Bind
    the reviewer verdict to the exact candidate in the external ledger. After final review and before
@@ -32,9 +50,9 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    candidate or target requires every applicable required check and re-review by that same reviewer.
    `pnpm check:affected` is optional local feedback only; it never replaces the full `pnpm check`
    evidence required for candidate or integration gates.
-5. Merge only approved story commits into the integration branch while preserving them as
+6. Merge only approved story commits into the integration branch while preserving them as
    ancestors. Do not resolve integration conflicts as coordinator; return them to the owning pair.
-6. Retain story worktrees/pairs through final PR feedback. Run integration checks, obtain closure
+7. Retain story worktrees/pairs through final PR feedback. Run integration checks, obtain closure
    review, and create one normal hosted-CI-backed phase PR only after the phase is ready.
 
 Stop `OWNER_DECISION_REQUIRED` only for a genuine material ambiguity or conflict in product/design
