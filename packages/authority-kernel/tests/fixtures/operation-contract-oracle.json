@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "operationVersion": "jig.operation.v1",
+  "recordCarrierSchema": "jig.operation-record.v1",
   "run": "run-000000000001-0123456789abcdef",
   "story": "run-000000000001-0123456789abcdef/story/plan-a",
   "transaction": "run-000000000001-0123456789abcdef/txn/1/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

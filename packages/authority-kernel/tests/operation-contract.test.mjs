@@ -13,12 +13,13 @@ const crashCorpus = JSON.parse(
 
 const digest = (character) => character.repeat(64);
 const proofVerifier = Object.freeze({
-  verify: (candidate) =>
-    candidate.kind === 'committed-witnessed' && candidate.recordDigest === candidate.witnessDigest
-      ? { ok: true, value: undefined }
-      : { ok: false, error: { family: 'FC-TRUST', code: 'UNVERIFIED' } },
-  verifySeal: (candidate) =>
-    candidate.version === 'jig.operation.v1' && typeof candidate.digest === 'string'
+  verify: (candidate, carrier) =>
+    candidate.kind === 'committed-witnessed' &&
+    candidate.recordDigest === candidate.witnessDigest &&
+    carrier?.schema === 'jig.operation-record.v1' &&
+    typeof carrier.record === 'object' &&
+    carrier.record !== null &&
+    typeof carrier.record.kind === 'string'
       ? { ok: true, value: undefined }
       : { ok: false, error: { family: 'FC-TRUST', code: 'UNVERIFIED' } },
 });
@@ -106,14 +107,15 @@ const attempt = (overrides = {}) =>
     proof: proof(1),
     ...overrides,
   });
-const sealFor = (journal, position = 80) => {
-  const sealed = journal.seal({ proof: proof(position) });
-  assert.equal(sealed.ok, true);
-  return sealed.value;
-};
+const restoreFor = (journal) =>
+  operation.restoreOperationRecords(
+    journal.snapshot().entries.map((entry) => entry.record),
+    proofVerifier,
+  );
 
 test('operation contract: exact committed and witnessed intent is required before dispatch', () => {
   assert.equal(operation.OPERATION_STATE_VERSION, oracle.operationVersion);
+  assert.equal(operation.OPERATION_RECORD_SCHEMA, oracle.recordCarrierSchema);
   assert.deepEqual(operation.OPERATION_BOUNDS, {
     waitDefaultMs: 900000,
     waitMinimumMs: 5000,
@@ -465,18 +467,21 @@ test('operation contract: effect-free replacement requires a new linked ID', () 
     }).ok,
     true,
   );
+  const supersessionRestart = restoreFor(journal);
+  assert.equal(supersessionRestart.ok, true);
+  assert.equal(supersessionRestart.value.state(oracle.observationOperation).value.status, 'superseded');
   assert.equal(
-    journal.recordIntent({
+    supersessionRestart.value.recordIntent({
       ...replacement,
       proof: { ...proof(4), transaction: oracle.replacementTransaction, event: oracle.replacementEvent },
     }).ok,
     true,
   );
-  assert.equal(journal.state(oracle.observationOperation).value.status, 'superseded');
-  assert.equal(journal.state(oracle.replacementOperation).value.status, 'intent-recorded');
+  assert.equal(supersessionRestart.value.state(oracle.observationOperation).value.status, 'superseded');
+  assert.equal(supersessionRestart.value.state(oracle.replacementOperation).value.status, 'intent-recorded');
   const replacementCapability = replacement.capability;
   assert.equal(
-    journal.recordAttempt({
+    supersessionRestart.value.recordAttempt({
       operation: oracle.replacementOperation,
       ordinal: 1,
       generation: oracle.refreshedGeneration,
@@ -493,14 +498,14 @@ test('operation contract: effect-free replacement requires a new linked ID', () 
     true,
   );
   assert.equal(
-    journal.recordDispatch({
+    supersessionRestart.value.recordDispatch({
       operation: oracle.replacementOperation,
       ordinal: 1,
       proof: proof(6),
     }).ok,
     true,
   );
-  const restarted = operation.restoreOperationJournal(journal.snapshot(), sealFor(journal), proofVerifier);
+  const restarted = restoreFor(supersessionRestart.value);
   assert.equal(restarted.ok, true);
   assert.equal(
     restarted.value.recordDispatch({
@@ -513,42 +518,37 @@ test('operation contract: effect-free replacement requires a new linked ID', () 
   assert.equal(restarted.value.state(oracle.replacementOperation).value.status, 'dispatch-crossed');
 });
 
-test('operation contract: journal restore verifies every entry and exact head', () => {
+test('operation contract: journal restore replays only canonical byte-bound records', () => {
   const journal = createJournal();
   assert.equal(journal.recordIntent(intent()).ok, true);
   assert.equal(journal.recordAttempt(attempt()).ok, true);
   const snapshot = journal.snapshot();
-  const seal = sealFor(journal);
-  const restored = operation.restoreOperationJournal(snapshot, seal, proofVerifier);
+  const records = snapshot.entries.map((entry) => entry.record);
+  const restored = operation.restoreOperationRecords(records, proofVerifier);
   assert.equal(restored.ok, true);
   assert.deepEqual(
     restored.value.pendingEffects().map((entry) => entry.operation),
     [oracle.operation],
   );
   assert.equal(
-    operation.restoreOperationJournal(
-      {
-        ...snapshot,
-        entries: snapshot.entries.map((entry, index) => (index ? entry : { ...entry, digest: digest('f') })),
-      },
-      seal,
+    operation.restoreOperationRecords(
+      records.map((record, index) =>
+        index === 0 ? { ...record, proof: { ...record.proof, witnessDigest: digest('f') } } : record,
+      ),
       proofVerifier,
     ).error?.family,
-    'FC-TRUST',
-  );
-  assert.equal(
-    operation.restoreOperationJournal(snapshot, { ...seal, digest: digest('e') }, proofVerifier).error?.family,
     'FC-TRUST',
   );
 });
 
 test('operation contract: crash corpus has every required intent/dispatch/response/fact/adoption boundary', () => {
-  assert.equal(crashCorpus.fixtureVersion, 'gf015-crash-corpus.v1');
+  assert.equal(crashCorpus.fixtureVersion, 'gf015-crash-corpus.v2');
   assert.deepEqual(crashCorpus.points, [
     'before-intent-commit',
     'after-intent-flush',
     'after-intent-witness',
     'before-dispatch',
+    'after-dispatch-carrier-witness',
     'after-dispatch',
     'after-response',
     'after-fact-flush',
@@ -579,8 +579,7 @@ test('operation contract: crash corpus has every required intent/dispatch/respon
     }).ok,
     true,
   );
-  const uncertainSnapshot = dispatchCrash.snapshot();
-  const uncertainRestart = operation.restoreOperationJournal(uncertainSnapshot, sealFor(dispatchCrash), proofVerifier);
+  const uncertainRestart = restoreFor(dispatchCrash);
   assert.equal(uncertainRestart.ok, true);
   assert.equal(uncertainRestart.value.state(oracle.operation).value.status, 'uncertain');
   assert.equal(
@@ -632,8 +631,7 @@ test('operation contract: crash corpus has every required intent/dispatch/respon
     }).ok,
     true,
   );
-  const factSnapshot = factCrash.snapshot();
-  const factRestart = operation.restoreOperationJournal(factSnapshot, sealFor(factCrash), proofVerifier);
+  const factRestart = restoreFor(factCrash);
   assert.equal(factRestart.ok, true);
   assert.equal(factRestart.value.state(oracle.operation).value.status, 'confirmed-effect');
   assert.equal(factRestart.value.adopt({ operation: oracle.operation, proof: proof(5) }).ok, true);
@@ -645,8 +643,7 @@ test('GF015-R01: a committed dispatch crossing survives restart and cannot autho
   assert.equal(journal.recordIntent(intent()).ok, true);
   assert.equal(journal.recordAttempt(attempt()).ok, true);
   assert.equal(journal.recordDispatch({ operation: oracle.operation, ordinal: 1, proof: proof(2) }).ok, true);
-  const snapshot = journal.snapshot();
-  const restarted = operation.restoreOperationJournal(snapshot, sealFor(journal), proofVerifier);
+  const restarted = restoreFor(journal);
   assert.equal(restarted.ok, true);
   assert.equal(restarted.value.recordDispatch({ operation: oracle.operation, ordinal: 1, proof: proof(3) }).ok, false);
 });
@@ -704,18 +701,12 @@ test('GF015-R02: reconciliation cannot select certainty without a linked committ
   );
 });
 
-test('GF015-R03: a matching truncated self-head cannot roll back the operation journal', () => {
+test('GF015-R03: recovery authority is not a caller-supplied journal head', () => {
   const journal = createJournal();
   assert.equal(journal.recordIntent(intent()).ok, true);
   assert.equal(journal.recordAttempt(attempt()).ok, true);
-  const snapshot = journal.snapshot();
-  const seal = sealFor(journal);
-  const truncated = {
-    ...snapshot,
-    entries: snapshot.entries.slice(0, 1),
-    head: { position: 0, digest: snapshot.entries[0].digest },
-  };
-  assert.equal(operation.restoreOperationJournal(truncated, seal, proofVerifier).ok, false);
+  assert.equal(typeof journal.seal, 'undefined');
+  assert.equal(typeof operation.restoreOperationJournal, 'undefined');
 });
 
 test('GF015-R04: dispatch carries the complete canonical authority fence tuple', () => {
@@ -740,6 +731,95 @@ test('GF015-R04: dispatch carries the complete canonical authority fence tuple',
       lifecycle: 'Finalizing',
     },
   );
+});
+
+test('GF015-R02/R04: exact result provenance and every dispatch authority operand are carrier-bound', () => {
+  const baseIntent = intent();
+  const baseCarrier = operation.deriveOperationRecordCarrier({ kind: 'intent', ...baseIntent });
+  assert.equal(baseCarrier.ok, true);
+  const exactIntentVerifier = {
+    verify: (candidateProof, actualCarrier) =>
+      candidateProof.recordDigest === candidateProof.witnessDigest &&
+      JSON.stringify(actualCarrier) === JSON.stringify(baseCarrier.value)
+        ? { ok: true, value: undefined }
+        : { ok: false, error: { family: 'FC-TRUST', code: 'CARRIER_MISMATCH' } },
+  };
+  assert.equal(operation.createOperationJournal(exactIntentVerifier).recordIntent(baseIntent).ok, true);
+
+  const candidateFence = fence(oracle.generation, { candidateContentDigest: digest('c') });
+  const targetFence = fence(oracle.generation, { targetBasisDigest: digest('d') });
+  const refreshedFence = fence(oracle.refreshedGeneration);
+  const changedManifest = `provider/${digest('a')}/authority/${digest('c')}`;
+  const mutations = [
+    intent({ payloadBasisDigest: digest('c') }),
+    intent({ fence: candidateFence, capability: capability({ fence: candidateFence }) }),
+    intent({
+      fence: targetFence,
+      capability: capability({ fence: targetFence }),
+      authority: { ...authority, basis: targetFence.targetBasisDigest },
+    }),
+    intent({ fence: refreshedFence, capability: capability({ fence: refreshedFence }) }),
+    intent({ capability: capability({ manifest: changedManifest }) }),
+    intent({ capability: capability({ resourceScope: 'repository/release' }) }),
+    intent({ authority: { ...authority, authority: 'target/repository-main/auth/2' } }),
+    intent({ authority: { ...authority, registry: 'target/repository-main/registry/2' } }),
+    intent({ role: 'release-finalizer' }),
+    intent({ lifecycle: 'Delivering' }),
+    intent({ bounds: { waitMs: 600000, retryLimit: 2, recoveryLimit: 2 } }),
+  ];
+  for (const changed of mutations) {
+    assert.equal(operation.createOperationJournal(exactIntentVerifier).recordIntent(changed).ok, false);
+  }
+
+  const expected = new Map();
+  const verifier = {
+    verify: (candidateProof, actualCarrier) => {
+      const carrier = expected.get(candidateProof.position);
+      return candidateProof.recordDigest === candidateProof.witnessDigest &&
+        JSON.stringify(actualCarrier) === JSON.stringify(carrier)
+        ? { ok: true, value: undefined }
+        : { ok: false, error: { family: 'FC-TRUST', code: 'CARRIER_MISMATCH' } };
+    },
+  };
+  const journal = operation.createOperationJournal(verifier);
+  const authorize = (kind, input) => {
+    const carrier = operation.deriveOperationRecordCarrier({ kind, ...input });
+    assert.equal(carrier.ok, true);
+    expected.set(input.proof.position, carrier.value);
+  };
+  const exactIntent = intent();
+  authorize('intent', exactIntent);
+  assert.equal(journal.recordIntent(exactIntent).ok, true);
+  const exactAttempt = attempt();
+  authorize('attempt', exactAttempt);
+  assert.equal(journal.recordAttempt(exactAttempt).ok, true);
+  const dispatch = { operation: oracle.operation, ordinal: 1, proof: proof(2) };
+  authorize('dispatch', dispatch);
+  assert.equal(journal.recordDispatch(dispatch).ok, true);
+  const exactResult = {
+    operation: oracle.operation,
+    ordinal: 1,
+    mechanism: 'scripted-delivery.v1',
+    provider: 'fixture-only',
+    subject,
+    fence: fence(),
+    capability: capability(),
+    authority,
+    role: 'finalizer',
+    lifecycle: 'Finalizing',
+    observation: { kind: 'effect-confirmed', digest: digest('8') },
+    successClaim: 'observed',
+    proof: proof(3),
+  };
+  authorize('result', exactResult);
+  assert.equal(
+    journal.recordResult({
+      ...exactResult,
+      observation: { kind: 'effect-absent', digest: exactResult.observation.digest },
+    }).ok,
+    false,
+  );
+  assert.equal(journal.recordResult(exactResult).ok, true);
 });
 
 test('GF015-R05: a replacement intent is rejected until predecessor supersession is committed', () => {
@@ -785,4 +865,187 @@ test('GF015-R05: a replacement intent is rejected until predecessor supersession
     }).ok,
     false,
   );
+});
+
+test('GF015-R03: every journal record kind rejects a valid unrelated witnessed carrier', () => {
+  const effectJournal = createJournal();
+  assert.equal(effectJournal.recordIntent(intent()).ok, true);
+  assert.equal(effectJournal.recordAttempt(attempt()).ok, true);
+  assert.equal(effectJournal.recordDispatch({ operation: oracle.operation, ordinal: 1, proof: proof(2) }).ok, true);
+  assert.equal(
+    effectJournal.recordResult({
+      operation: oracle.operation,
+      ordinal: 1,
+      mechanism: 'scripted-delivery.v1',
+      provider: 'fixture-only',
+      subject,
+      fence: fence(),
+      capability: capability(),
+      authority,
+      role: 'finalizer',
+      lifecycle: 'Finalizing',
+      observation: { kind: 'target-effect', digest: digest('8') },
+      successClaim: 'observed',
+      proof: proof(3),
+    }).ok,
+    true,
+  );
+  assert.equal(
+    effectJournal.recordCertainty({
+      operation: oracle.operation,
+      ordinal: 1,
+      certainty: 'confirmed-effect',
+      observationDigest: digest('8'),
+      proof: proof(4),
+    }).ok,
+    true,
+  );
+  assert.equal(effectJournal.adopt({ operation: oracle.operation, proof: proof(5) }).ok, true);
+
+  const reconcileJournal = createJournal();
+  assert.equal(reconcileJournal.recordIntent(intent()).ok, true);
+  assert.equal(reconcileJournal.recordAttempt(attempt()).ok, true);
+  assert.equal(reconcileJournal.recordDispatch({ operation: oracle.operation, ordinal: 1, proof: proof(2) }).ok, true);
+  assert.equal(
+    reconcileJournal.recordUncertainty({
+      operation: oracle.operation,
+      ordinal: 1,
+      reason: 'lost-response',
+      proof: proof(3),
+    }).ok,
+    true,
+  );
+  const observationProof = proof(4);
+  const observationOperation = `${observationProof.transaction}/op/1`;
+  const observationCapability = capability({ operationClass: 'OPC-DEL-OBSERVE' });
+  assert.equal(
+    reconcileJournal.recordIntent(
+      intent({
+        operation: observationOperation,
+        transaction: observationProof.transaction,
+        event: observationProof.event,
+        type: 'OPC-DEL-OBSERVE',
+        capability: observationCapability,
+        effect: 'observation',
+        purpose: 'reconciliation',
+        predecessor: oracle.operation,
+        proof: observationProof,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(
+    reconcileJournal.recordAttempt(
+      attempt({
+        operation: observationOperation,
+        capability: observationCapability,
+        proof: proof(5),
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(
+    reconcileJournal.recordDispatch({ operation: observationOperation, ordinal: 1, proof: proof(6) }).ok,
+    true,
+  );
+  assert.equal(
+    reconcileJournal.recordResult({
+      operation: observationOperation,
+      ordinal: 1,
+      mechanism: 'scripted-delivery.v1',
+      provider: 'fixture-only',
+      subject,
+      fence: fence(),
+      capability: observationCapability,
+      authority,
+      role: 'finalizer',
+      lifecycle: 'Finalizing',
+      observation: { kind: 'effect-indeterminate', digest: digest('7') },
+      successClaim: 'observed',
+      proof: proof(7),
+    }).ok,
+    true,
+  );
+  assert.equal(
+    reconcileJournal.recordReconciliation({
+      operation: oracle.operation,
+      observationOperation,
+      proof: proof(8),
+    }).ok,
+    true,
+  );
+
+  const replacementJournal = createJournal();
+  const observation = intent({
+    operation: oracle.observationOperation,
+    transaction: oracle.observationTransaction,
+    event: oracle.observationEvent,
+    type: 'OPC-VERIFY-EXECUTE',
+    effect: 'observation',
+    purpose: 'semantic',
+    predecessor: null,
+    capability: capability({
+      kind: 'CB-VERIFY',
+      port: 'PORT-VERIFY',
+      operationClass: 'OPC-VERIFY-EXECUTE',
+      fence: fence(oracle.refreshedGeneration),
+      resourceScope: 'candidate/exact',
+    }),
+    authority: null,
+    fence: fence(oracle.refreshedGeneration),
+    proof: { ...proof(1), transaction: oracle.observationTransaction, event: oracle.observationEvent },
+  });
+  assert.equal(replacementJournal.recordIntent(observation).ok, true);
+  assert.equal(
+    replacementJournal.recordUncertainty({
+      operation: oracle.observationOperation,
+      ordinal: 0,
+      reason: 'cancelled',
+      proof: proof(2),
+    }).ok,
+    true,
+  );
+  assert.equal(
+    replacementJournal.replaceObservation({
+      operation: oracle.observationOperation,
+      replacement: oracle.replacementOperation,
+      proof: proof(3),
+    }).ok,
+    true,
+  );
+
+  const coveredKinds = new Set();
+  for (const journal of [effectJournal, reconcileJournal, replacementJournal]) {
+    const records = journal.snapshot().entries.map((entry) => entry.record);
+    const carriers = records.map((record) => operation.deriveOperationRecordCarrier(record).value);
+    for (let target = 0; target < records.length; target += 1) {
+      const kind = records[target].kind;
+      if (coveredKinds.has(kind)) continue;
+      coveredKinds.add(kind);
+      const unrelated = carriers.find((candidate) => candidate.record.kind !== kind);
+      assert.ok(unrelated);
+      const strictVerifier = {
+        verify: (candidateProof, actualCarrier) => {
+          const index = records.findIndex((record) => record.proof.position === candidateProof.position);
+          const expectedCarrier = index === target ? unrelated : carriers[index];
+          return candidateProof.recordDigest === candidateProof.witnessDigest &&
+            JSON.stringify(actualCarrier) === JSON.stringify(expectedCarrier)
+            ? { ok: true, value: undefined }
+            : { ok: false, error: { family: 'FC-TRUST', code: 'UNRELATED_CARRIER' } };
+        },
+      };
+      assert.equal(operation.restoreOperationRecords(records, strictVerifier).ok, false, kind);
+    }
+  }
+  assert.deepEqual([...coveredKinds].sort(), [
+    'adoption',
+    'attempt',
+    'certainty',
+    'dispatch',
+    'intent',
+    'reconciliation',
+    'replacement',
+    'result',
+    'uncertainty',
+  ]);
 });

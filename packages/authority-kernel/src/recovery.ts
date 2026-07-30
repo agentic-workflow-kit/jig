@@ -1,6 +1,11 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
-import { type OperationJournalSnapshot, type OperationProjection, restoreOperationJournal } from './operation.js';
+import {
+  OPERATION_RECORD_SCHEMA,
+  type OperationProjection,
+  type OperationRecordCarrier,
+  restoreOperationRecords,
+} from './operation.js';
 
 const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
@@ -270,7 +275,6 @@ function snapshot(value: unknown): RecoverySnapshot | undefined {
 type GenerationControl =
   | Readonly<{ kind: 'not-claim' }>
   | Readonly<{ kind: 'claim'; token: string }>
-  | Readonly<{ kind: 'operation-head'; position: number; digest: string }>
   | Readonly<{ kind: 'malformed' }>;
 
 function generationControl(value: LedgerRecord): GenerationControl {
@@ -278,21 +282,6 @@ function generationControl(value: LedgerRecord): GenerationControl {
     if (typeof value.content !== 'object' || value.content === null || Array.isArray(value.content))
       return freeze({ kind: 'not-claim' });
     const descriptors = Object.getOwnPropertyDescriptors(value.content);
-    if (descriptors.schema?.value === 'jig.operation-head.v1') {
-      if (
-        Object.keys(descriptors).length !== 3 ||
-        descriptors.position === undefined ||
-        descriptors.digest === undefined ||
-        !position(descriptors.position.value) ||
-        !digest(descriptors.digest.value)
-      )
-        return freeze({ kind: 'malformed' });
-      return freeze({
-        kind: 'operation-head',
-        position: descriptors.position.value,
-        digest: descriptors.digest.value,
-      });
-    }
     const shaped = descriptors.recovery !== undefined || descriptors.token !== undefined;
     if (!shaped) return freeze({ kind: 'not-claim' });
     if (
@@ -309,10 +298,46 @@ function generationControl(value: LedgerRecord): GenerationControl {
 }
 
 function replayStep(value: LedgerRecord): Readonly<{ event: unknown; bindings: unknown }> | undefined {
-  const content = own(value.content, ['schema', 'event', 'bindings']);
+  const content = ownOptional(value.content, ['schema', 'event', 'bindings'], ['operation']);
   if (!content || (content.schema !== 'jig.transition.v1' && content.schema !== 'jig.transition.v0')) return undefined;
   // v0 and v1 have the same semantic fields; upcasting happens only in this recovered view.
   return freeze({ event: content.event, bindings: content.bindings });
+}
+
+function operationCarrier(value: unknown): OperationRecordCarrier | undefined {
+  const carrier = own(value, ['schema', 'record']);
+  if (
+    !carrier ||
+    carrier.schema !== OPERATION_RECORD_SCHEMA ||
+    typeof carrier.record !== 'object' ||
+    carrier.record === null ||
+    Array.isArray(carrier.record) ||
+    !encodeFrame(carrier.record as CanonicalJson).ok
+  )
+    return undefined;
+  return freeze({
+    schema: OPERATION_RECORD_SCHEMA,
+    record: carrier.record as CanonicalJson,
+  });
+}
+
+function carrierFromLedger(value: LedgerRecord):
+  | Readonly<{
+      carrier: OperationRecordCarrier;
+      intentTransition: boolean;
+    }>
+  | undefined {
+  const direct = operationCarrier(value.content);
+  if (direct) return freeze({ carrier: direct, intentTransition: false });
+  const transition = ownOptional(value.content, ['schema', 'event', 'bindings'], ['operation']);
+  if (
+    !transition ||
+    (transition.schema !== 'jig.transition.v1' && transition.schema !== 'jig.transition.v0') ||
+    transition.operation === undefined
+  )
+    return undefined;
+  const embedded = operationCarrier(transition.operation);
+  return embedded ? freeze({ carrier: embedded, intentTransition: true }) : undefined;
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -342,6 +367,7 @@ function replayProjection(
 ): RecoveryResult<CanonicalJson> {
   const steps = records
     .filter((entry) => entry.position <= position && !generationControlPositions.has(entry.position))
+    .filter((entry) => operationCarrier(entry.content) === undefined)
     .map(replayStep);
   if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
   const replayed = replayAuthority(initialState, steps);
@@ -367,7 +393,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   const candidate = ownOptional(
     input,
     ['ledger', 'binding', 'generation', 'recoveryToken', 'records', 'head', 'claim', 'initialState'],
-    ['snapshot', 'wait', 'crashAt', 'operationState'],
+    ['snapshot', 'wait', 'crashAt'],
   );
   if (!candidate) return failure('FC-INPUT', 'INVALID_RECOVERY_INPUT');
   const recoveredBinding = binding(candidate.binding);
@@ -414,9 +440,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   if (controls.some((entry) => entry.control.kind === 'malformed'))
     return failure('FC-FENCE', 'MALFORMED_GENERATION_CLAIM');
   const generationControlPositions = new Set(
-    controls
-      .filter((entry) => entry.control.kind === 'claim' || entry.control.kind === 'operation-head')
-      .map((entry) => entry.position),
+    controls.filter((entry) => entry.control.kind === 'claim').map((entry) => entry.position),
   );
 
   const claimed = record(candidate.claim, recoveredBinding.run);
@@ -509,76 +533,76 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     decisionDigest: decisionDigest.value.digest,
   });
   const authorizedOperations = projected.decisions.flatMap((decision) => decision.operations);
-  if (authorizedOperations.length > 0 && candidate.operationState === undefined)
-    return failure('FC-TRUST', 'OPERATION_JOURNAL_REQUIRED');
   let pendingEffects: readonly OperationProjection[] = freeze([]);
-  if (candidate.operationState !== undefined) {
-    const operationState = own(candidate.operationState, ['snapshot', 'seal']);
-    if (!operationState) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
-    const latestHead = controls.filter((entry) => entry.control.kind === 'operation-head').at(-1);
-    const restored = restoreOperationJournal(operationState.snapshot, operationState.seal, {
-      verify: (proof) => {
-        const carrier = ordered[proof.position];
-        return carrier &&
-          carrier.event === proof.event &&
-          carrier.transaction === proof.transaction &&
-          carrier.contentDigest === proof.recordDigest &&
+  const operationRecords: CanonicalJson[] = [];
+  const journalIntentIds: string[] = [];
+  for (const ledgerRecord of ordered) {
+    const source = carrierFromLedger(ledgerRecord);
+    if (!source) continue;
+    const recordValue = source.carrier.record;
+    const recordKind =
+      typeof recordValue === 'object' && recordValue !== null && !Array.isArray(recordValue)
+        ? Object.getOwnPropertyDescriptor(recordValue, 'kind')?.value
+        : undefined;
+    if ((recordKind === 'intent') !== source.intentTransition)
+      return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+    const proof = freeze({
+      kind: 'committed-witnessed' as const,
+      position: ledgerRecord.position,
+      event: ledgerRecord.event,
+      transaction: ledgerRecord.transaction,
+      recordDigest: ledgerRecord.contentDigest,
+      witnessDigest: ledgerRecord.contentDigest,
+    });
+    const completeRecord = freeze({
+      ...(recordValue as Record<string, CanonicalJson>),
+      proof,
+    }) as unknown as CanonicalJson;
+    operationRecords.push(completeRecord);
+    if (recordKind === 'intent') {
+      const operationId = Object.getOwnPropertyDescriptor(recordValue, 'operation')?.value;
+      if (typeof operationId !== 'string') return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+      const intent = recordValue as Record<string, CanonicalJson>;
+      const intentSubject = intent.subject as Record<string, CanonicalJson> | undefined;
+      const intentFence = intent.fence as Record<string, CanonicalJson> | undefined;
+      const decisionOperation = authorizedOperations.find((operation) => operation.operation === operationId);
+      if (
+        !decisionOperation ||
+        decisionOperation.type !== intent.type ||
+        decisionOperation.transaction !== intent.transaction ||
+        decisionOperation.event !== intent.event ||
+        decisionOperation.subject.run !== intentSubject?.run ||
+        decisionOperation.subject.story !== intentSubject?.story ||
+        decisionOperation.subject.basis !== intentSubject?.basis ||
+        decisionOperation.fence.generation !== intentFence?.generation ||
+        decisionOperation.fence.basis !== intentFence?.basis
+      )
+        return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+      journalIntentIds.push(operationId);
+    }
+  }
+  if (authorizedOperations.length > 0 && operationRecords.length === 0)
+    return failure('FC-TRUST', 'OPERATION_JOURNAL_REQUIRED');
+  if (operationRecords.length > 0) {
+    const restored = restoreOperationRecords(operationRecords, {
+      verify: (proof, expectedCarrier) => {
+        const ledgerCarrier = ordered[proof.position];
+        const actual = ledgerCarrier ? carrierFromLedger(ledgerCarrier)?.carrier : undefined;
+        const actualBytes = actual ? encodeFrame(actual as unknown as CanonicalJson) : undefined;
+        const expectedBytes = encodeFrame(expectedCarrier as unknown as CanonicalJson);
+        return ledgerCarrier &&
+          actualBytes?.ok &&
+          expectedBytes.ok &&
+          sameBytes(actualBytes.value, expectedBytes.value) &&
+          ledgerCarrier.event === proof.event &&
+          ledgerCarrier.transaction === proof.transaction &&
+          ledgerCarrier.contentDigest === proof.recordDigest &&
           proof.recordDigest === proof.witnessDigest
           ? { ok: true, value: undefined }
           : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_COMMIT_PROOF_MISMATCH' } };
       },
-      verifySeal: (seal) => {
-        const carrier = ordered[seal.proof.position];
-        const headContent = carrier ? own(carrier.content, ['schema', 'position', 'digest']) : undefined;
-        return carrier &&
-          carrier.event === seal.proof.event &&
-          carrier.transaction === seal.proof.transaction &&
-          carrier.contentDigest === seal.proof.recordDigest &&
-          seal.proof.recordDigest === seal.proof.witnessDigest &&
-          headContent?.schema === 'jig.operation-head.v1' &&
-          headContent.position === seal.position &&
-          headContent.digest === seal.digest &&
-          latestHead?.position === carrier.position &&
-          latestHead.control.kind === 'operation-head' &&
-          latestHead.control.position === seal.position &&
-          latestHead.control.digest === seal.digest
-          ? { ok: true, value: undefined }
-          : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_HEAD_PROOF_MISMATCH' } };
-      },
     });
     if (!restored.ok) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
-    const operationSnapshot = operationState.snapshot as OperationJournalSnapshot;
-    const journalIntentIds: string[] = [];
-    for (const entry of operationSnapshot.entries) {
-      const proof = entry.record.proof;
-      const carrier = ordered[proof.position];
-      if (
-        !carrier ||
-        carrier.event !== proof.event ||
-        carrier.transaction !== proof.transaction ||
-        carrier.contentDigest !== proof.recordDigest ||
-        proof.recordDigest !== proof.witnessDigest
-      )
-        return failure('FC-TRUST', 'OPERATION_COMMIT_PROOF_MISMATCH');
-      if (entry.record.kind === 'intent') {
-        journalIntentIds.push(entry.record.operation);
-        const decisionOperation = authorizedOperations.find(
-          (operation) => operation.operation === entry.record.operation,
-        );
-        if (
-          !decisionOperation ||
-          decisionOperation.type !== entry.record.type ||
-          decisionOperation.transaction !== entry.record.transaction ||
-          decisionOperation.event !== entry.record.event ||
-          decisionOperation.subject.run !== entry.record.subject.run ||
-          decisionOperation.subject.story !== entry.record.subject.story ||
-          decisionOperation.subject.basis !== entry.record.subject.basis ||
-          decisionOperation.fence.generation !== entry.record.fence.generation ||
-          decisionOperation.fence.basis !== entry.record.fence.basis
-        )
-          return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
-      }
-    }
     const authorizedIds = authorizedOperations.map((operation) => operation.operation).sort();
     if (
       journalIntentIds.length !== authorizedIds.length ||

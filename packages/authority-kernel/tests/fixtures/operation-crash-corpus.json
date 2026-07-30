@@ -1,11 +1,12 @@
 {
-  "schemaVersion": 1,
-  "fixtureVersion": "gf015-crash-corpus.v1",
+  "schemaVersion": 2,
+  "fixtureVersion": "gf015-crash-corpus.v2",
   "points": [
     "before-intent-commit",
     "after-intent-flush",
     "after-intent-witness",
     "before-dispatch",
+    "after-dispatch-carrier-witness",
     "after-dispatch",
     "after-response",
     "after-fact-flush",
@@ -18,6 +19,7 @@
     "after-intent-flush": "recovery-required",
     "after-intent-witness": "pending",
     "before-dispatch": "pending",
+    "after-dispatch-carrier-witness": "dispatch-crossed-reconciliation-only",
     "after-dispatch": "dispatch-crossed-reconciliation-only",
     "after-response": "dispatch-crossed-reconciliation-only",
     "after-fact-flush": "recovery-required",

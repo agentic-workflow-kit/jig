@@ -1,6 +1,7 @@
 import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 export const OPERATION_STATE_VERSION = 'jig.operation.v1';
+export const OPERATION_RECORD_SCHEMA = 'jig.operation-record.v1';
 export const OPERATION_TYPES = Object.freeze([
   'OPC-SESSION-OPEN',
   'OPC-SESSION-ASSIGN',
@@ -202,16 +203,12 @@ export type OperationJournalSnapshot = Readonly<{
   entries: readonly OperationJournalEntry[];
   head: Readonly<{ position: number; digest: string }>;
 }>;
-export type OperationProofVerifier = Readonly<{
-  verify(proof: OperationCommitProof): OperationResult<void>;
-  verifySeal?(seal: OperationJournalSeal): OperationResult<void>;
+export type OperationRecordCarrier = Readonly<{
+  schema: typeof OPERATION_RECORD_SCHEMA;
+  record: CanonicalJson;
 }>;
-
-export type OperationJournalSeal = Readonly<{
-  version: typeof OPERATION_STATE_VERSION;
-  position: number;
-  digest: string;
-  proof: OperationCommitProof;
+export type OperationProofVerifier = Readonly<{
+  verify(proof: OperationCommitProof, carrier: OperationRecordCarrier): OperationResult<void>;
 }>;
 
 type OperationStatus =
@@ -289,7 +286,6 @@ export type OperationJournal = Readonly<{
   state(operation: unknown): OperationResult<OperationProjection>;
   pendingEffects(): readonly OperationProjection[];
   snapshot(): OperationJournalSnapshot;
-  seal(input: unknown): OperationResult<OperationJournalSeal>;
 }>;
 
 const ZERO_DIGEST = '0'.repeat(64);
@@ -910,6 +906,65 @@ function journalDigest(position: number, previousDigest: string, record: Journal
   return staged.ok ? ok(staged.value.digest) : fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
 }
 
+function operationRecordCarrier(record: JournalRecord): OperationResult<OperationRecordCarrier> {
+  try {
+    const { proof: _proof, ...durableRecord } = record;
+    const staged = stageDigest({
+      domain: 'OPERATION-RECORD-CARRIER',
+      excludePaths: [],
+      value: durableRecord as unknown as CanonicalJson,
+    });
+    if (!staged.ok) return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+    return ok(
+      deepFreeze({
+        schema: OPERATION_RECORD_SCHEMA,
+        record: durableRecord as unknown as CanonicalJson,
+      }),
+    );
+  } catch {
+    return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+  }
+}
+
+export function deriveOperationRecordCarrier(input: unknown): OperationResult<OperationRecordCarrier> {
+  try {
+    if (
+      typeof input !== 'object' ||
+      input === null ||
+      Array.isArray(input) ||
+      Object.getPrototypeOf(input) !== Object.prototype
+    )
+      return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    if (
+      descriptors.kind === undefined ||
+      !('value' in descriptors.kind) ||
+      typeof descriptors.kind.value !== 'string' ||
+      Object.values(descriptors).some((descriptor) => !('value' in descriptor))
+    )
+      return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+    const durableRecord = Object.fromEntries(
+      Object.entries(descriptors)
+        .filter(([name]) => name !== 'proof')
+        .map(([name, descriptor]) => [name, (descriptor as PropertyDescriptor & { value: unknown }).value]),
+    );
+    const staged = stageDigest({
+      domain: 'OPERATION-RECORD-CARRIER',
+      excludePaths: [],
+      value: durableRecord as CanonicalJson,
+    });
+    if (!staged.ok) return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+    return ok(
+      deepFreeze({
+        schema: OPERATION_RECORD_SCHEMA,
+        record: durableRecord as CanonicalJson,
+      }),
+    );
+  } catch {
+    return fail('FC-INPUT', 'NONCANONICAL_OPERATION_RECORD');
+  }
+}
+
 export function createOperationJournal(verifierInput?: OperationProofVerifier): OperationJournal {
   const entries: OperationJournalEntry[] = [];
   const operations = new Map<string, MutableProjection>();
@@ -923,9 +978,11 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
 
   const append = (record: JournalRecord): OperationResult<OperationJournalEntry> => {
     if (!verifier) return fail('FC-ORDERING', 'COMMIT_PROOF_VERIFIER_REQUIRED');
+    const carrier = operationRecordCarrier(record);
+    if (!carrier.ok) return carrier;
     let verified: OperationResult<void>;
     try {
-      verified = verifier.verify(record.proof);
+      verified = verifier.verify(record.proof, carrier.value);
     } catch {
       return fail('FC-TRUST', 'COMMIT_PROOF_UNVERIFIED');
     }
@@ -1267,31 +1324,6 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
       },
     });
 
-  const seal = (input: unknown): OperationResult<OperationJournalSeal> => {
-    const raw = fields(input, ['proof']);
-    const proof = raw ? proofValue(raw.proof) : undefined;
-    const currentHead = snapshot().head;
-    if (!proof || proof.position <= (entries.at(-1)?.record.proof.position ?? -1))
-      return fail('FC-TRUST', 'OPERATION_SEAL_INVALID');
-    const candidate: OperationJournalSeal = deepFreeze({
-      version: OPERATION_STATE_VERSION,
-      position: currentHead.position,
-      digest: currentHead.digest,
-      proof,
-    });
-    const verifySeal =
-      verifierInput && typeof verifierInput === 'object' && verifierInput !== null
-        ? Object.getOwnPropertyDescriptor(verifierInput, 'verifySeal')?.value
-        : undefined;
-    if (typeof verifySeal !== 'function') return fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
-    try {
-      const verified = verifySeal.call(verifierInput, candidate);
-      return verified?.ok ? ok(candidate) : fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
-    } catch {
-      return fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
-    }
-  };
-
   return Object.freeze({
     recordIntent,
     recordAttempt,
@@ -1319,7 +1351,6 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
           .map(publicProjection),
       ),
     snapshot,
-    seal,
   });
 }
 
@@ -1360,51 +1391,20 @@ function replayRecord(journal: OperationJournal, record: JournalRecord): Operati
   return journal.replaceObservation(input);
 }
 
-export function restoreOperationJournal(
-  snapshotInput: unknown,
-  sealInput: unknown,
+export function restoreOperationRecords(
+  recordsInput: unknown,
   verifier: OperationProofVerifier,
 ): OperationResult<OperationJournal> {
-  const snapshot = fields(snapshotInput, ['version', 'entries', 'head']);
-  const suppliedSeal = fields(sealInput, ['version', 'position', 'digest', 'proof']);
-  const storedHead = snapshot ? fields(snapshot.head, ['position', 'digest']) : undefined;
-  const entries = snapshot ? array(snapshot.entries) : undefined;
-  if (
-    !snapshot ||
-    snapshot.version !== OPERATION_STATE_VERSION ||
-    !entries ||
-    !storedHead ||
-    !suppliedSeal ||
-    suppliedSeal.version !== OPERATION_STATE_VERSION ||
-    !integer(storedHead.position, -1) ||
-    !digest(storedHead.digest) ||
-    suppliedSeal.position !== storedHead.position ||
-    suppliedSeal.digest !== storedHead.digest ||
-    storedHead.position !== entries.length - 1
-  )
-    return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
+  const records = array(recordsInput);
+  if (!records) return fail('FC-TRUST', 'OPERATION_JOURNAL_INVALID');
   const journal = createOperationJournal(verifier);
-  let previousDigest = ZERO_DIGEST;
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = fields(entries[index], ['position', 'previousDigest', 'digest', 'record']);
-    if (!entry || entry.position !== index || entry.previousDigest !== previousDigest || !digest(entry.digest))
-      return fail('FC-TRUST', 'OPERATION_JOURNAL_INVALID');
+  for (const candidate of records) {
     const kindDescriptor =
-      entry.record && typeof entry.record === 'object'
-        ? Object.getOwnPropertyDescriptor(entry.record, 'kind')
-        : undefined;
+      candidate && typeof candidate === 'object' ? Object.getOwnPropertyDescriptor(candidate, 'kind') : undefined;
     if (!kindDescriptor || !('value' in kindDescriptor)) return fail('FC-TRUST', 'OPERATION_JOURNAL_INVALID');
-    const replayed = replayRecord(journal, entry.record as JournalRecord);
+    const replayed = replayRecord(journal, candidate as JournalRecord);
     if (!replayed.ok) return fail('FC-TRUST', 'OPERATION_JOURNAL_INVALID');
-    const actual = journal.snapshot().entries[index];
-    if (!actual || actual.digest !== entry.digest || actual.previousDigest !== entry.previousDigest)
-      return fail('FC-TRUST', 'OPERATION_JOURNAL_INVALID');
-    previousDigest = entry.digest;
   }
-  if (journal.snapshot().head.digest !== storedHead.digest) return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
-  const sealed = journal.seal({ proof: suppliedSeal.proof });
-  if (!sealed.ok || sealed.value.position !== suppliedSeal.position || sealed.value.digest !== suppliedSeal.digest)
-    return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
   return ok(journal);
 }
 
