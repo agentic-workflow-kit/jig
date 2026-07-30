@@ -126,6 +126,38 @@ test('least eligible unwithdrawn waiter grants without preemption and allocates 
   );
 });
 
+test('least eligible selection retains the exact record when active waiters share a story', () => {
+  const store = registry.createScriptedRegistry();
+  const binding = canonicalBinding;
+  const later = store.waiter({
+    binding,
+    expectedPosition: -1,
+    expectedDigest: digest('0'),
+    waiter: waiter({ priority: 9, ordinal: 9 }),
+  });
+  const earlier = store.waiter({
+    binding,
+    expectedPosition: 0,
+    expectedDigest: later.value.contentDigest,
+    waiter: waiter({
+      candidateId: candidate(2, fixture.digests.candidateB),
+      candidateContentDigest: fixture.digests.candidateB,
+      basis: fixture.digests.basisB,
+      priority: 1,
+      ordinal: 1,
+    }),
+  });
+  const granted = store.grant({
+    binding,
+    expectedPosition: 1,
+    expectedDigest: earlier.value.contentDigest,
+    waiter: earlier.value.handle,
+    eligibilityBasis: fixture.digests.basisB,
+  });
+  assert.equal(granted.ok, true);
+  assert.equal(granted.value.content.waiter.contentDigest, earlier.value.contentDigest);
+});
+
 test('stale eligibility cannot mint authority after a conditional head re-read', () => {
   const store = registry.createScriptedRegistry();
   const binding = canonicalBinding;
@@ -253,6 +285,21 @@ test('witness flushes before acknowledgement; crashes, lost ack, fork, rollback,
     assert.equal(store.injectFault(binding, fault).ok, true);
     const read = store.readback({ binding, position: created.value.position });
     assert.deepEqual(read, { ok: false, error: { family: 'FC-TRUST', code: registry.faultCode(fault) } });
+  }
+  const hostileStore = registry.createScriptedRegistry();
+  for (const fault of [
+    { toString: () => 'fork' },
+    {
+      toString() {
+        throw new Error('hostile');
+      },
+    },
+  ]) {
+    assert.doesNotThrow(() => hostileStore.injectFault(binding, fault));
+    assert.deepEqual(hostileStore.injectFault(binding, fault), {
+      ok: false,
+      error: { family: 'FC-INPUT', code: 'INVALID_FAULT' },
+    });
   }
 });
 

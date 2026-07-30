@@ -206,6 +206,10 @@ test('mediation contract: scripted fixture dispatches only an exact journal perm
   assert.equal(dispatched.ok, true);
   assert.equal(dispatched.value.port, 'PORT-DELIVERY');
   assert.equal(fixture.invocations().length, 1);
+  assert.deepEqual(fixture.dispatch({ operation: permit.operation, ordinal: 1, attestation }), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'DUPLICATE_DISPATCH' },
+  });
 
   for (const changed of [
     { ...attestation, operation: `${permit.operation}/op/2` },
@@ -216,9 +220,45 @@ test('mediation contract: scripted fixture dispatches only an exact journal perm
     { ...attestation, capabilityDigest: digest('9') },
     { ...attestation, authority: null },
     { ...attestation, successClaim: 'bare-success', observation: null },
-  ])
-    assert.equal(fixture.dispatch({ operation: permit.operation, ordinal: 1, attestation: changed }).ok, false);
+  ]) {
+    const isolated = mediation.createScriptedMediationFixture(journal);
+    assert.deepEqual(isolated.dispatch({ operation: permit.operation, ordinal: 1, attestation: changed }), {
+      ok: false,
+      error: { family: 'FC-MECHANISM', code: 'INVALID_ATTESTATION' },
+    });
+    assert.equal(isolated.invocations().length, 0);
+  }
   assert.equal(fixture.invocations().length, 1);
+
+  const hostileEnvelope = {};
+  Object.defineProperty(hostileEnvelope, 'ok', {
+    enumerable: true,
+    get() {
+      throw new Error('hostile');
+    },
+  });
+  for (const malformed of [
+    null,
+    {},
+    { ok: true, value: null },
+    { ok: true, value: { ...permit, capability: null } },
+    { ok: true, value: { ...permit, proof: null } },
+    { ok: false, error: null },
+    hostileEnvelope,
+  ]) {
+    const isolated = mediation.createScriptedMediationFixture({
+      recordDispatch: () => malformed,
+    });
+    let result;
+    assert.doesNotThrow(() => {
+      result = isolated.dispatch({ operation: permit.operation, ordinal: 1, attestation });
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'INVALID_DISPATCH_PERMIT' },
+    });
+    assert.equal(isolated.invocations().length, 0);
+  }
 });
 
 test('mediation contract: lost response records one possible effect and never dispatches again without reauthorization', () => {

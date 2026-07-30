@@ -415,7 +415,6 @@ test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncan
     'FC-SUBJECT',
   );
   assert.equal(ledger.append({ binding, expectedPosition: 0, record: proposal }).ok, false);
-  assert.equal(runtime.createLedgerRecord({ ...proposal, position: -1 }).error.family, 'FC-INPUT');
   const normalProposal = {
     run: fixture.run,
     generation: fixture.generation,
@@ -425,13 +424,20 @@ test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncan
     content: { transition: 1 },
   };
   assert.equal(runtime.createLedgerRecord(normalProposal).ok, true);
+  assert.deepEqual(runtime.createLedgerRecord({ ...normalProposal, position: -1 }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_PROPOSAL' },
+  });
   for (const computed of [
     { contentDigest: proposal.contentDigest },
     { event: `${fixture.run}/event/1` },
     { version: runtime.LEDGER_VERSION },
   ])
     assert.equal(runtime.createLedgerRecord({ ...normalProposal, ...computed }).error.family, 'FC-INPUT');
-  assert.equal(runtime.createLedgerRecord({ ...proposal, content: { text: 'e\u0301' } }).error.family, 'FC-INPUT');
+  assert.deepEqual(runtime.createLedgerRecord({ ...normalProposal, content: { text: 'e\u0301' } }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_RECORD_CONTENT' },
+  });
 });
 
 test('review regressions: recovery observations are private and semantic boundaries fail closed', () => {

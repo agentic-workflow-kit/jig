@@ -184,6 +184,52 @@ function fields(value: unknown, names: readonly string[]): Record<string, unknow
   }
 }
 
+function dispatchPermit(value: unknown): DispatchPermit | undefined {
+  const raw = fields(value, [
+    'version',
+    'operation',
+    'ordinal',
+    'type',
+    'subject',
+    'fence',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'proof',
+    'purpose',
+    'predecessor',
+  ]);
+  const subject = raw && fields(raw.subject, ['run', 'story', 'basis']);
+  const fence = raw && fields(raw.fence, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']);
+  const capability =
+    raw &&
+    fields(raw.capability, [
+      'kind',
+      'port',
+      'operationClass',
+      'subject',
+      'fence',
+      'resourceScope',
+      'manifest',
+      'digest',
+    ]);
+  const capabilityFence =
+    capability && fields(capability.fence, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']);
+  const authority = raw?.authority === null ? null : raw && fields(raw.authority, ['authority', 'registry', 'basis']);
+  const proof = raw && fields(raw.proof, ['kind', 'position', 'event', 'transaction', 'recordDigest', 'witnessDigest']);
+  if (!raw || !subject || !fence || !capability || !capabilityFence || authority === undefined || !proof)
+    return undefined;
+  return Object.freeze({
+    ...raw,
+    subject: Object.freeze(subject),
+    fence: Object.freeze(fence),
+    capability: Object.freeze({ ...capability, fence: Object.freeze(capabilityFence) }),
+    authority: authority === null ? null : Object.freeze(authority),
+    proof: Object.freeze(proof),
+  }) as DispatchPermit;
+}
+
 function sameObject(left: unknown, right: unknown, names: readonly string[]): boolean {
   if (left === null || right === null) return left === right;
   const leftFields = fields(left, names);
@@ -283,22 +329,28 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
   const permitFor = (operation: unknown, ordinal: unknown): Result<DispatchPermit> => {
     if (typeof operation !== 'string' || typeof ordinal !== 'number' || !Number.isSafeInteger(ordinal) || ordinal < 1)
       return fail('FC-INPUT', 'INVALID_DISPATCH_REQUEST');
-    let permitted: ReturnType<DispatchJournal['recordDispatch']>;
+    let permitted: unknown;
     try {
       permitted = journal.recordDispatch({ operation, ordinal });
     } catch {
       return fail('FC-AUTHORITY', 'DISPATCH_PERMIT_UNAVAILABLE');
     }
-    if (!permitted.ok)
+    const success = fields(permitted, ['ok', 'value']);
+    const rejected = success ? undefined : fields(permitted, ['ok', 'error']);
+    if (rejected?.ok === false) {
+      const error = fields(rejected.error, ['family', 'code']);
+      if (!error || typeof error.family !== 'string' || !boundedText(error.code))
+        return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
       return fail(
-        (['FC-INPUT', 'FC-SUBJECT', 'FC-FENCE', 'FC-AUTHORITY', 'FC-MECHANISM', 'FC-EFFECT'].includes(
-          permitted.error.family,
-        )
-          ? permitted.error.family
+        (['FC-INPUT', 'FC-SUBJECT', 'FC-FENCE', 'FC-AUTHORITY', 'FC-MECHANISM', 'FC-EFFECT'].includes(error.family)
+          ? error.family
           : 'FC-AUTHORITY') as FailureFamily,
-        permitted.error.code,
+        error.code,
       );
-    const permit = permitted.value;
+    }
+    if (success?.ok !== true) return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
+    const permit = dispatchPermit(success.value);
+    if (!permit) return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
     const route = operationRoute(permit.type);
     if (
       !route.ok ||

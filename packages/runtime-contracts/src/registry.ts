@@ -528,17 +528,14 @@ export function createScriptedRegistry() {
         )
       )
         return fail('FC-AUTHORITY', 'WAITER_WITHDRAWN');
-      const eligible: Waiter[] = [];
+      const eligible: Array<Readonly<{ entry: RegistryRecord; parsed: Waiter }>> = [];
       for (const entry of active(records)) {
         const item = waiter((entry.content as Record<string, CanonicalJson>).waiter);
         if (!item.ok) return fail('FC-TRUST', 'INVALID_RECORDED_WAITER');
-        eligible.push(item.value);
+        eligible.push(freeze({ entry, parsed: item.value }));
       }
-      const least = eligible.sort(compare)[0];
-      const leastRecord = active(records)
-        .map((entry) => ({ entry, parsed: waiter((entry.content as Record<string, CanonicalJson>).waiter) }))
-        .find((entry) => entry.parsed.ok && entry.parsed.value.story === least?.story)?.entry;
-      if (!least || !leastRecord || leastRecord.contentDigest !== selected.value.contentDigest)
+      const least = [...eligible].sort((left, right) => compare(left.parsed, right.parsed))[0];
+      if (!least || least.entry.contentDigest !== selected.value.contentDigest)
         return fail('FC-AUTHORITY', 'NOT_LEAST_ELIGIBLE_WAITER');
       if (
         records.some(
@@ -663,7 +660,10 @@ export function createScriptedRegistry() {
     injectFault(input: unknown, fault: unknown) {
       const normalized = binding(input);
       if (!normalized.ok) return normalized;
-      if (!['witness-absent', 'witness-ahead', 'witness-contradiction', 'fork', 'rollback'].includes(String(fault)))
+      if (
+        typeof fault !== 'string' ||
+        !['witness-absent', 'witness-ahead', 'witness-contradiction', 'fork', 'rollback'].includes(fault)
+      )
         return fail('FC-INPUT', 'INVALID_FAULT');
       faults.set(key(normalized.value), fault as Exclude<Fault, 'after-flush' | 'after-witness' | 'lost-ack'>);
       return ok(undefined);

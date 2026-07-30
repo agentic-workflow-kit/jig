@@ -320,13 +320,13 @@ test('GF-013 R05: hostile containers, unsafe bytes, and recovery mismatch fail c
   assert.equal(written.ok, true);
   assert.equal(fixtureStore.witness.advance(written.value).ok, true);
   const snapshot = fixtureStore.store.snapshot();
-  assert.equal(
+  assert.deepEqual(
     artifact.restoreScriptedArtifactFixture(
       snapshot,
-      { position: 0, headDigest: fixture.digest },
-      { position: 0, headDigest: fixture.digest },
-    ).ok,
-    false,
+      { ...snapshot.lookup, headDigest: fixture.digest },
+      { ...snapshot.lookup, headDigest: fixture.digest },
+    ),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RECOVERY_HEAD_MISMATCH' } },
   );
 });
 
@@ -362,11 +362,15 @@ test('GF-013 R05: journal replay restores only the exact witnessed chain', () =>
   }
   for (const invalid of [
     undefined,
-    { position: lookup.position - 1, headDigest: lookup.headDigest },
-    { position: lookup.position + 1, headDigest: lookup.headDigest },
-    { position: lookup.position, headDigest: fixture.digest },
+    { ...lookup, position: lookup.position - 1 },
+    { ...lookup, position: lookup.position + 1 },
+    { ...lookup, headDigest: fixture.digest },
+    { ...lookup, protectedHead: fixture.digest },
   ])
-    assert.equal(artifact.restoreScriptedArtifactFixture(snapshot, invalid, lookup).ok, false);
+    assert.deepEqual(artifact.restoreScriptedArtifactFixture(snapshot, invalid, lookup), {
+      ok: false,
+      error: { family: 'FC-TRUST', code: 'RECOVERY_HEAD_MISMATCH' },
+    });
 });
 
 test('GF-013 R05: protected continuity replays or stops on tamper', () => {
