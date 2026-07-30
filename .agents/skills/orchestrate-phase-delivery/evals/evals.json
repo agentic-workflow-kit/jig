@@ -11,12 +11,13 @@
         "Treats the explicit current owner request as sufficient implementation authorization",
         "Does not require delivery-package qualification, delivery-surface digest approval, or an external activation issue",
         "Starts the operational ledger and initially admits GF-011, GF-012, and GF-013 within capacity",
+        "Records GF-012 as terminally blocked while allowing independent ready stories to continue",
         "Does not require a new reviewer, planning gate, package review, digest approval, external activation issue, or ledger field",
         "States that GF-012 does not block GF-011 or GF-013 to GF-014, and that GF-015 waits for GF-011 and GF-014",
         "Requires registered worktrees and continuous pairs",
         "Keeps medium effort available for bounded directly specified work with local failure modes",
         "Requires a concrete high-effort assessment for authority, recovery, witness, persistence, lifecycle, cross-package type-closure, or architecture-shaping seams even when the file list is bounded",
-        "Uses the already-assigned read-only reviewer before writes to produce concise must-cover bullets with invariant or failure mode, source, and expected observable proof",
+        "Uses the already-assigned read-only reviewer before writes to produce concise must-cover bullets with invariant or failure mode, source, and expected observable proof without running checks, repairing evidence, or mutating repository or provider state",
         "Places the must-cover bullets in the implementer task without adding an agent, gate, artifact, or ledger field"
       ]
     },
@@ -33,7 +34,7 @@
         "Keeps local defects in the ordinary same-pair fix, applicable-check, new-candidate, and incremental re-review loop",
         "Requires a corrected-realization and affected-surface restatement before code changes only for structural defects, without adding an approval gate",
         "Uses OWNER_DECISION_REQUIRED only when the corrected realization changes material product/design authority, tracked scope or dependencies, selected realization, provider reachability, or an accepted trade-off",
-        "After rebase, requires a new committed candidate, every applicable required check, ledger evidence, and same-reviewer incremental re-review",
+        "After rebase, requires a new committed candidate, every applicable required check, ledger evidence, and same-reviewer incremental re-review while the reviewer remains read-only and does not run checks",
         "Rejects transfer of the old verdict",
         "Does not require a sealer or clone",
         "Preserves reviewer read-only boundary",
