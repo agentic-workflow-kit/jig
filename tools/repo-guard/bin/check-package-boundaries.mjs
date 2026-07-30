@@ -7,7 +7,7 @@ import { repoRoot } from './repo-root.mjs';
 const packagePrefix = '@agentic-workflow-kit/jig-';
 const forbiddenManifestFields = ['bin', 'browser', 'main', 'module', 'publishConfig'];
 const forbiddenLifecycleScript = /^(?:pre|post)?(?:install|pack|publish|prepare)$/;
-const forbiddenSourceCapability = /\b(?:fetch|process|require|setInterval|setTimeout|globalThis)\b/;
+const forbiddenSourceCapability = /\b(?:fetch|process|require|setInterval|setTimeout|globalThis)\b/g;
 const knownDependencyDirections = {
   '@agentic-workflow-kit/jig-authority-kernel': new Set(['@agentic-workflow-kit/jig-codec']),
   '@agentic-workflow-kit/jig-codec': new Set(),
@@ -44,6 +44,25 @@ function importSpecifiers(source) {
   ])
     for (const match of source.matchAll(pattern)) values.add(match[1]);
   return [...values];
+}
+
+function executableSource(source) {
+  return source.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g,
+    (value) => value.replace(/[^\r\n]/g, ' '),
+  );
+}
+
+function referencesForbiddenCapability(source) {
+  const executable = executableSource(source);
+  for (const match of executable.matchAll(forbiddenSourceCapability)) {
+    let before = match.index - 1;
+    while (before >= 0 && /\s/.test(executable[before])) before -= 1;
+    let after = match.index + match[0].length;
+    while (after < executable.length && /\s/.test(executable[after])) after += 1;
+    if (executable[before] !== '.' && executable[after] !== ':') return true;
+  }
+  return false;
 }
 
 function validateManifest(manifest, packageDir, workspaceNames, errors) {
@@ -107,7 +126,7 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);
         else if (!Object.hasOwn(manifest.dependencies ?? {}, specifier))
           errors.push(`${manifest.name} source imports an undeclared workspace dependency: ${specifier}`);
-      if (forbiddenSourceCapability.test(source))
+      if (referencesForbiddenCapability(source))
         errors.push(`${manifest.name} source references a forbidden ambient runtime capability`);
     }
   }

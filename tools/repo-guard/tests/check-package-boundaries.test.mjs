@@ -74,6 +74,22 @@ test('rejects forbidden imports and ambient runtime capabilities', () => {
   assert.ok(errors.some((error) => error.includes('forbidden ambient runtime capability')));
 });
 
+test('ignores capability words in comments, strings, and member properties', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      [
+        '/** process the batch and fetch its description */',
+        "const message = 'setTimeout require globalThis';",
+        'const member = { process: message };',
+        'export const description = member.process;',
+        '',
+      ].join('\n'),
+    ),
+  );
+  assert.deepEqual(errors, []);
+});
+
 test('rejects forbidden dependency direction in an established package', () => {
   const errors = withPackages((root) =>
     editManifest(root, 'authority-kernel', (manifest) => {

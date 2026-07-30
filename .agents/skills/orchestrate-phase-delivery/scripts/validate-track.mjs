@@ -46,7 +46,14 @@ export function validateTrack(track) {
     if (phaseIds.has(phase.id)) errors.push(`duplicate phase ID: ${phase.id}`);
     phaseIds.add(phase.id);
     for (const id of phase.stories) {
-      if (!storiesById.has(id)) errors.push(`phase contains unknown story ${id}`);
+      if (typeof id !== 'string') {
+        errors.push(`phase contains invalid story ${String(id)}`);
+        continue;
+      }
+      if (!storiesById.has(id)) {
+        errors.push(`phase contains unknown story ${id}`);
+        continue;
+      }
       if (phaseMembership.has(id)) errors.push(`story appears in multiple phases: ${id}`);
       phaseMembership.set(id, phase.id);
     }

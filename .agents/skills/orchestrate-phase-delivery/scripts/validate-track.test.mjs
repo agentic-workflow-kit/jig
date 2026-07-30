@@ -45,11 +45,12 @@ test('rejects duplicate phase IDs and undeclared phase members', () => {
     stories: [story('GF-001', 0)],
     phases: [
       { id: 0, stories: ['GF-001'] },
-      { id: 0, stories: ['GF-999'] },
+      { id: 0, stories: ['GF-999', 123] },
     ],
   });
   assert.ok(errors.some((error) => error.includes('duplicate phase ID')));
   assert.ok(errors.some((error) => error.includes('phase contains unknown story GF-999')));
+  assert.ok(errors.some((error) => error.includes('phase contains invalid story 123')));
 });
 
 test('rejects a missing referenced story file at the consumer boundary', () => {
