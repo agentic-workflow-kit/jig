@@ -55,7 +55,7 @@
   },
   {
     "id": "positive-review-loop",
-    "query": "Coordinate fixes and same-reviewer incremental re-review for a Jig story candidate.",
+    "query": "Coordinate a Jig candidate review so the read-only reviewer reports all supportable blockers grouped by root cause before same-reviewer re-review.",
     "should_trigger": true,
     "split": "train"
   },
@@ -109,7 +109,7 @@
   },
   {
     "id": "positive-phase-start",
-    "query": "Inspect the Jig tracker and ledger to start an approved phase with parallel story pairs.",
+    "query": "Start an approved Jig phase by classifying implementer effort from semantic risk and forwarding each stable reviewer's must-cover bullets.",
     "should_trigger": true,
     "split": "train"
   },
