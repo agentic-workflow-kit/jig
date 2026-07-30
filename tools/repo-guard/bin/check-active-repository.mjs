@@ -70,8 +70,7 @@ function validateTurbo(turbo, errors) {
       errors.push(`Turbo ${task} task must depend on ${required.join(', ').replace(/, ([^,]+)$/, ', and $1')}`);
   }
 
-  const authorityKernelTestDependencies =
-    turbo.tasks?.['@agentic-workflow-kit/jig-authority-kernel#test']?.dependsOn;
+  const authorityKernelTestDependencies = turbo.tasks?.['@agentic-workflow-kit/jig-authority-kernel#test']?.dependsOn;
   if (
     !Array.isArray(authorityKernelTestDependencies) ||
     !authorityKernelTestDependencies.includes('@agentic-workflow-kit/jig-runtime-contracts#build')
