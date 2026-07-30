@@ -1,8 +1,3 @@
-import {
-  type AuthorityState,
-  type ProposedTransition,
-  replayAuthority,
-} from './index.js';
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import {
   createLedgerRecord,
@@ -13,6 +8,7 @@ import {
   type RunStoreBinding,
   type ScriptedLedger,
 } from '@agentic-workflow-kit/jig-runtime-contracts';
+import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
 
 const GENESIS_DIGEST = '0'.repeat(64);
 const WAIT_MIN_MS = 1_000;
