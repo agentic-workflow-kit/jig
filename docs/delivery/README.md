@@ -115,7 +115,7 @@ passing, subject-matching `EV-CHECK-OBSERVATION` for every required class and th
 inside `Finalizing` before any target-changing Operation; `none` is an explicit no-op. Recording
 those observations under the unchanged reviewed binding is authorized continuation evidence, not a
 review-invalidating edit. Candidate, posture, class-set, configuration/environment, or binding
-drift requires affected checks and incremental review by the same reviewer. Custom sealing,
+drift requires every applicable required check and incremental review by the same reviewer. Custom sealing,
 detached clones, and fresh-clone review workspaces are not active gates.
 
 ## Focused track gate

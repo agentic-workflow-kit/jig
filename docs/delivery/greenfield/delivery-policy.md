@@ -87,7 +87,11 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     variables; record names and non-secret fingerprints where required, never values. A check that
     requires an authorized sandbox credential receives only its named least-privilege reference
     through the owning provider boundary, with redaction and secret-absence proof; it never inherits
-    an ambient implementer shell credential. Hosted CI independently executes its required checks.
+    an ambient implementer shell credential. Here and throughout the delivery track, "applicable
+    required checks" means every required command or check class whose subject may have changed.
+    `pnpm check:affected` is optional local feedback only; it never satisfies the full `pnpm check`
+    repository gate required for a changed candidate or integration branch. Hosted CI independently
+    executes its required checks.
     The coordinator verifies orchestration facts and evidence bindings. Every implementation
     candidate needs independent review under the reviewer packet; that protocol reviews the
     story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
@@ -124,7 +128,7 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     configuration, pre-acceptance evidence, metadata, review package, selected verification
     posture, policy-selected required check-class set, verification configuration/environment,
     target base, or subject binding invalidates the prior candidate verdict. The same continuous
-    implementer commits the correction and reruns affected required checks; the same continuous
+    implementer commits the correction and reruns every applicable required check; the same continuous
     independent reviewer incrementally rechecks the prior-reviewed-to-new range, sibling
     occurrences, affected invariants, and the new evidence binding. Conclusions may carry forward
     only for unchanged paths and unaffected invariants. The sole continuation case is the
@@ -156,8 +160,8 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     delivery, landing, or other target-changing Operation. The `none` posture is an explicit no-op
     and authorizes no verification Operation. Post-`Accepted` observations are authorized
     continuation evidence only while the reviewed candidate, posture, required class set,
-    configuration/environment, and subject binding remain unchanged; drift requires affected
-    checks and incremental review by the same reviewer. The exact external
+    configuration/environment, and subject binding remain unchanged; drift requires every
+    applicable required check and incremental review by the same reviewer. The exact external
     owner-ratification/activation record remains required and cannot be inferred from publication,
     CI, or a reviewer verdict.
 17. The local validator proves governing-source projection, package consistency, and corpus
@@ -216,8 +220,8 @@ manifest, environment, suite, probe, and output digests.
 7. Under D15, record the transition into `Reviewing` and publish only the fenced `OPC-REV-*`
    draft/non-mergeable review subject as needed for hosted CI or review. Freeze the registered
    story worktree and supply the committed-candidate ledger evidence for the continuous independent
-   reviewer. Target movement or any candidate/binding change requires a new commit, affected checks,
-   and incremental review by the same reviewer. A changed delivery-package `Q` first requires new
+   reviewer. Target movement or any candidate/binding change requires a new commit, every applicable
+   required check, and incremental review by the same reviewer. A changed delivery-package `Q` first requires new
    external `R` and approved `P`.
 8. Resolve findings through the same continuous pair. The implementation owner corrects and
    commits; the reviewer rechecks the prior-reviewed-to-new range, sibling occurrences, affected

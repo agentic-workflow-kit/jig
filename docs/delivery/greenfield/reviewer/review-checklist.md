@@ -135,7 +135,7 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
       configuration is included.
 - [ ] A target movement, rebase, correction, source/configuration/evidence change, posture/class-set/
       environment change, or subject-binding drift produced a new committed candidate, refreshed
-      base/containment facts, and affected check evidence.
+      base/containment facts, and evidence for every applicable required check.
 - [ ] The same continuous reviewer incrementally rechecked the prior-reviewed-to-new range, sibling
       occurrences, affected invariants, and new evidence. Conclusions carried forward only for
       unchanged paths and unaffected invariants; the old verdict did not transfer.
@@ -157,8 +157,9 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
       `EV-CHECK-OBSERVATION`, and the complete set is satisfied before target-changing
       `OPC-DEL-*`, merge, delivery, or landing. `none` is an explicit no-op.
 - [ ] Post-`Accepted` observations are continuation evidence only while candidate, posture, class
-      set, configuration/environment, and binding remain unchanged; any drift requires affected
-      checks and same-reviewer incremental review before the evidence can continue.
+      set, configuration/environment, and binding remain unchanged; any drift requires every
+      applicable required check and same-reviewer incremental review before the evidence can
+      continue.
 - [ ] Reviewer identity/independence, findings, acceptance metadata, and final-verification posture
       bind exactly to this candidate. No partial, stale, self-authored, or differently based verdict
       is accepted.

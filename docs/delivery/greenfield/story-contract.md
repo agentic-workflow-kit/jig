@@ -100,7 +100,7 @@ At explicit freeze, the same continuous independent reviewer examines the regist
 worktree's exact candidate, base, diff, declared-predecessor containment, evidence, and status.
 Their verdict binds only that implementation candidate and never mints or redefines `Q`, `R`, or
 `P`. A target move, rebase, refresh, fix, posture change, evidence change, or other binding change
-creates a new committed candidate. The same implementer reruns affected required checks; the same
+creates a new committed candidate. The same implementer reruns every applicable required check; the same
 reviewer incrementally rechecks the prior-reviewed-to-new range, sibling occurrences, affected
 invariants, and new evidence. Conclusions carry forward only for unchanged paths and unaffected
 invariants. Changed package identity first requires new `Q`, external `R`, and approved `P`.
@@ -108,7 +108,7 @@ invariants. Changed package identity first requires new `Q`, external `R`, and a
 After `Accepted`, recording only the final-verification observations already authorized by the
 unchanged reviewed candidate, posture, check-class set, verification configuration/environment,
 and subject binding is continuation evidence and does not itself invalidate the verdict. Any drift
-in those values requires affected checks and incremental review by the same reviewer. Under D15,
+in those values requires every applicable required check and incremental review by the same reviewer. Under D15,
 the recorded transition into `Reviewing` may authorize only fenced `OPC-REV-*`
 draft/non-mergeable review publication; it grants no acceptance, finalization, landing, or
 dependency-release power.
@@ -224,7 +224,7 @@ PR. The phase produces one final PR after all required stories integrate and clo
 - Required unit, contract, adversarial, replay, crash/fault, provider, E2E, and `CF-*` proof passes
   on the exact committed candidate in its registered worktree.
 - The continuous independent reviewer records `PASS` on that exact candidate; corrections and
-  target changes require and receive affected checks and incremental re-review by the same
+  target changes require and receive every applicable required check and incremental re-review by the same
   reviewer.
 - Approved integration preserves the reviewed story commit as an ancestor. Required integration
   checks, independent closure review, normal hosted CI, approval, and DoD pass on the one final

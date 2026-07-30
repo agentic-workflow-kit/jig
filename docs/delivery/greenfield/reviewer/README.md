@@ -90,7 +90,7 @@ recorded checks inherited only the named minimal environment allowlist and that 
 neither ambient credentials nor secret values.
 
 For a fix, rebase, target movement, posture change, evidence change, or other binding drift, require
-a new committed candidate and affected check evidence. The same continuous reviewer incrementally
+a new committed candidate and evidence for every applicable required check. The same continuous reviewer incrementally
 reviews the prior-reviewed-to-new range, changed hunks, sibling occurrences, affected invariants,
 and new evidence. Conclusions carry forward only for unchanged paths and unaffected invariants; an
 old verdict cannot authorize a new candidate.
@@ -112,7 +112,7 @@ no-op and authorizes no verification Operation.
 
 Post-`Accepted` observations are continuation evidence only while candidate, posture, class set,
 verification configuration/environment, and subject binding remain unchanged. Any drift requires
-affected checks and incremental review by the same reviewer. Owner activation, independent review,
+every applicable required check and incremental review by the same reviewer. Owner activation, independent review,
 required CI, finalization, landing, and dependency release remain separate.
 
 ## Phase integration and closure

@@ -26,7 +26,9 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    merge, record tracked/untracked status and the exact
    `git ls-files --others --ignored --exclude-standard` output; bind that final residue snapshot to
    the reviewed candidate alongside the pre-check inventories and allowlist decisions. A changed
-   candidate or target requires affected checks and re-review by that same reviewer.
+   candidate or target requires every applicable required check and re-review by that same reviewer.
+   `pnpm check:affected` is optional local feedback only; it never replaces the full `pnpm check`
+   evidence required for candidate or integration gates.
 5. Merge only approved story commits into the integration branch while preserving them as
    ancestors. Do not resolve integration conflicts as coordinator; return them to the owning pair.
 6. Retain story worktrees/pairs through final PR feedback. Run integration checks, obtain closure
