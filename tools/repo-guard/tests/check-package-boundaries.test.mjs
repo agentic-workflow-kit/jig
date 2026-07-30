@@ -81,6 +81,7 @@ test('ignores capability words in comments, strings, and member properties', () 
       [
         '/** process the batch and fetch its description */',
         "const message = 'setTimeout require globalThis';",
+        'const matcher = /fetch[\\/](?:process)/giu;',
         'const member = { process: message };',
         'export const description = member.process;',
         '',
@@ -95,6 +96,16 @@ test('rejects forbidden capabilities inside template interpolations', () => {
     writeFileSync(
       join(root, 'packages', 'codec', 'src', 'index.ts'),
       `export const value = \`\${fetch('https://example.invalid')}\`;\n`,
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('forbidden ambient runtime capability')));
+});
+
+test('does not let regex literals hide same-line forbidden capabilities', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "if (true) /^https?:\\/\\//.test('https://example.invalid'); fetch('https://example.invalid');\n",
     ),
   );
   assert.ok(errors.some((error) => error.includes('forbidden ambient runtime capability')));

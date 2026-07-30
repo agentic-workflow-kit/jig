@@ -46,6 +46,42 @@ function importSpecifiers(source) {
   return [...values];
 }
 
+const regexPrefixKeywords = new Set([
+  'await',
+  'case',
+  'delete',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+]);
+
+function canStartRegex(output) {
+  let end = output.length - 1;
+  while (end >= 0 && /\s/.test(output[end])) end -= 1;
+  if (end < 0) return true;
+
+  const previous = output[end];
+  if ((previous === '+' || previous === '-') && output[end - 1] === previous) return false;
+  if ('([{:;,=!?&|+-*%^~<>'.includes(previous)) return true;
+  if (!/[$\w]/.test(previous)) return false;
+
+  let start = end;
+  while (start >= 0 && /[$\w]/.test(output[start])) start -= 1;
+  return regexPrefixKeywords.has(output.slice(start + 1, end + 1).join(''));
+}
+
+function isEscaped(source, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor -= 1) backslashes += 1;
+  return backslashes % 2 === 1;
+}
+
 function executableSource(source) {
   const output = [];
   const stack = [{ type: 'code', braceDepth: null }];
@@ -78,6 +114,22 @@ function executableSource(source) {
       } else if (value === state.quote) stack.pop();
       continue;
     }
+    if (state.type === 'regex') {
+      output.push(blank(value));
+      if (value === '\\' && next !== undefined) {
+        output.push(blank(next));
+        index += 1;
+      } else if (value === '[') state.inCharacterClass = true;
+      else if (value === ']') state.inCharacterClass = false;
+      else if (value === '/' && !state.inCharacterClass) {
+        while (source[index + 1] !== undefined && /[dgimsuvy]/.test(source[index + 1])) {
+          output.push(' ');
+          index += 1;
+        }
+        stack.pop();
+      }
+      continue;
+    }
     if (state.type === 'template') {
       output.push(blank(value));
       if (value === '\\' && next !== undefined) {
@@ -99,14 +151,17 @@ function executableSource(source) {
     } else if (state.braceDepth !== null && value === '{') {
       state.braceDepth += 1;
       output.push(value);
-    } else if (value === '/' && next === '/') {
+    } else if (value === '/' && next === '/' && !isEscaped(source, index)) {
       output.push(' ', ' ');
       index += 1;
       stack.push({ type: 'line-comment' });
-    } else if (value === '/' && next === '*') {
+    } else if (value === '/' && next === '*' && !isEscaped(source, index)) {
       output.push(' ', ' ');
       index += 1;
       stack.push({ type: 'block-comment' });
+    } else if (value === '/' && canStartRegex(output)) {
+      output.push(' ');
+      stack.push({ type: 'regex', inCharacterClass: false });
     } else if (value === '"' || value === "'") {
       output.push(' ');
       stack.push({ type: 'string', quote: value });
