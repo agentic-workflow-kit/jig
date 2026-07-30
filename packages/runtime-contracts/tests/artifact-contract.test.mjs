@@ -15,7 +15,7 @@ const base = Object.freeze({
   fence: 'fence/1',
 });
 const pins = Object.freeze({
-  temporary: { holder: 'SCH-EVIDENCE', tuple: 'event/1' },
+  temporary: { holder: 'EV-ARTIFACT-FACT', tuple: 'event/1' },
   intended: { holder: 'SCH-EVIDENCE', tuple: 'holder/1' },
 });
 const put = Object.freeze({ ...base, holder: 'SCH-EVIDENCE', operation: 'op-1', mode: 'put', bytes, pins });
@@ -66,7 +66,7 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
     store.adopt({ ...base, holder: put.holder, operation: put.operation, mode: put.mode, pins, fact: result.value }),
     {
       ok: false,
-      error: { family: 'FC-TRUST', code: 'WITNESS_ABSENT' },
+      error: { family: 'FC-TRUST', code: 'WITNESS_NOT_CURRENT' },
     },
   );
   assert.equal(fixtureStore.witness.advance(result.value).ok, true);
@@ -132,5 +132,65 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
   assert.equal(
     store.reconcile({ ...base, holder: put.holder, operation: 'op-3', mode: 'dispose-bytes', facts }).ok,
     true,
+  );
+});
+
+test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion are witnessed', () => {
+  const fixtureStore = artifact.createScriptedArtifactFixture();
+  const store = fixtureStore.store;
+  const written = store.putDisposable(put);
+  assert.equal(written.ok, true);
+  assert.equal(fixtureStore.witness.advance(written.value).ok, true);
+  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get' }).ok, true);
+  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get' }).ok, true);
+  const first = store.release({
+    ...base,
+    holder: put.holder,
+    operation: 'release-1',
+    mode: 'release-pin',
+    pin: pins.temporary.tuple,
+  });
+  assert.equal(first.ok, true);
+  assert.equal(fixtureStore.witness.advance(first.value).ok, true);
+  const second = store.release({
+    ...base,
+    holder: put.holder,
+    operation: 'release-2',
+    mode: 'release-pin',
+    pin: pins.intended.tuple,
+  });
+  assert.equal(second.ok, true);
+  assert.equal(fixtureStore.witness.advance(second.value).ok, true);
+  const disposed = store.dispose({ ...base, holder: put.holder, operation: 'dispose-1', mode: 'dispose-bytes', facts });
+  assert.equal(disposed.ok, true);
+  assert.equal(fixtureStore.witness.advance(disposed.value).ok, true);
+  assert.deepEqual(store.get({ ...base, holder: put.holder, operation: 'read-2', mode: 'get' }), {
+    ok: false,
+    error: { family: 'FC-EVIDENCE', code: 'ARTIFACT_ABSENT' },
+  });
+});
+
+test('GF-013 R05: hostile containers, unsafe bytes, and recovery mismatch fail closed', () => {
+  const store = artifact.createScriptedArtifactFixture().store;
+  assert.equal(store.putDisposable({ ...put, bytes: new Uint8Array(65_537) }).ok, false);
+  assert.equal(store.putDisposable({ ...put, bytes: new TextEncoder().encode('api_key=forbidden') }).ok, false);
+  const hostile = new Proxy(
+    {},
+    {
+      ownKeys() {
+        throw new Error('hostile');
+      },
+    },
+  );
+  assert.equal(store.reconcile(hostile).ok, false);
+  assert.deepEqual(
+    store.reconcile({
+      ...put,
+      recovery: {
+        lookup: { position: 0, headDigest: fixture.digest },
+        witness: { position: 0, headDigest: fixture.digest },
+      },
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RECOVERY_HEAD_MISMATCH' } },
   );
 });

@@ -25,7 +25,7 @@ type Binding = Readonly<{
   fence: string;
   holder: string;
   operation: string;
-  mode: ArtifactFact['mode'];
+  mode: ArtifactFact['mode'] | 'get';
   detail?: string;
 }>;
 type StoredOperation = Readonly<{ fact: ArtifactFact; binding: string; pending: boolean }>;
@@ -51,6 +51,13 @@ const fail = (family: ArtifactFailure['family'], code: string): ArtifactResult<n
 });
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 512;
+const subject = (value: unknown): value is string =>
+  typeof value === 'string' && /^artifact\/[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/i.test(value);
+const bytes = (value: unknown): value is Uint8Array =>
+  value instanceof Uint8Array &&
+  value.byteLength > 0 &&
+  value.byteLength <= 65_536 &&
+  !/(?:secret|token|password|credential|api[_-]?key)/i.test(String.fromCharCode(...value));
 const freeze = <T>(value: T): T => Object.freeze(value);
 const hash = (value: Uint8Array | string) => {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -141,12 +148,12 @@ const disposableHolder = (holder: unknown) => {
   const routed = context(holder);
   return routed.ok && routed.value === 'disposable';
 };
-function binding(input: unknown, mode: ArtifactFact['mode']): ArtifactResult<Binding> {
+function binding(input: unknown, mode: Binding['mode']): ArtifactResult<Binding> {
   const value = input as Record<string, unknown> | undefined;
   if (
     !value ||
     value.resourceScope !== SCOPE ||
-    !text(value.subject) ||
+    !subject(value.subject) ||
     !digest(value.digest) ||
     !text(value.fence) ||
     !text(value.operation) ||
@@ -175,7 +182,7 @@ function exactPins(input: unknown, holder: string): ArtifactResult<Pins> {
   if (
     !temporary ||
     !intended ||
-    temporary.holder !== holder ||
+    temporary.holder !== 'EV-ARTIFACT-FACT' ||
     intended.holder !== holder ||
     !text(temporary.tuple) ||
     !text(intended.tuple)
@@ -184,7 +191,7 @@ function exactPins(input: unknown, holder: string): ArtifactResult<Pins> {
   return {
     ok: true,
     value: freeze({
-      temporary: freeze({ holder, tuple: temporary.tuple }),
+      temporary: freeze({ holder: temporary.holder as string, tuple: temporary.tuple }),
       intended: freeze({ holder, tuple: intended.tuple }),
     }),
   };
@@ -215,17 +222,17 @@ export type ScriptedArtifactFixture = Readonly<{
 export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
   const objects = new Map<string, Uint8Array>();
   const pins = new Map<string, Pins>();
-  const retired = new Set<string>();
+  const livePins = new Set<string>();
   const operations = new Map<string, StoredOperation>();
-  const witnessed = new Set<string>();
   let position = -1;
   let head = '0'.repeat(64);
+  let witnessedHead: Readonly<{ position: number; headDigest: string }> | undefined;
   const makeFact = (bindingValue: Binding): ArtifactFact => {
     position += 1;
     head = hash(`${head}\0${key(bindingValue)}`);
     return freeze({
       operation: bindingValue.operation,
-      mode: bindingValue.mode,
+      mode: bindingValue.mode as ArtifactFact['mode'],
       position,
       headDigest: head,
       binding: key(bindingValue),
@@ -239,10 +246,37 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
     operations.set(operationKey, freeze({ fact, binding: key(bindingValue), pending }));
     return fact;
   };
-  const witnessedFact = (fact: ArtifactFact): ArtifactResult<void> =>
-    witnessed.has(fact.binding) && witnessed.has(`${fact.operation}/${fact.mode}`)
+  const witnessedCurrent = (): ArtifactResult<void> =>
+    witnessedHead?.position === position && witnessedHead.headDigest === head
       ? { ok: true, value: undefined }
+      : fail('FC-TRUST', 'WITNESS_NOT_CURRENT');
+  const sameFact = (left: ArtifactFact | undefined, right: ArtifactFact) =>
+    left?.operation === right.operation &&
+    left.mode === right.mode &&
+    left.position === right.position &&
+    left.headDigest === right.headDigest &&
+    left.binding === right.binding;
+  const witnessedFact = (fact: ArtifactFact): ArtifactResult<void> => {
+    const current = operations.get(`${fact.operation}/${fact.mode}`)?.fact;
+    return sameFact(current, fact) && fact.position === position && fact.headDigest === head
+      ? witnessedCurrent()
       : fail('FC-TRUST', 'WITNESS_ABSENT');
+  };
+  const recovery = (input: unknown): ArtifactResult<void> => {
+    const value = fields(input, ['lookup', 'witness']);
+    const lookup = value && fields(value.lookup, ['position', 'headDigest']);
+    const witnessed = value && fields(value.witness, ['position', 'headDigest']);
+    if (
+      !lookup ||
+      !witnessed ||
+      lookup.position !== position ||
+      lookup.headDigest !== head ||
+      witnessed.position !== position ||
+      witnessed.headDigest !== head
+    )
+      return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
+    return { ok: true, value: undefined };
+  };
   const store: ScriptedArtifactStore = freeze({
     resourceScope: SCOPE,
     protectedContext: freeze({ scope: `${SCOPE}/protected` }),
@@ -264,7 +298,7 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
         !value ||
         !bound.ok ||
         (bound.value && !protectedHolder(bound.value.holder)) ||
-        !(value.bytes instanceof Uint8Array) ||
+        !bytes(value.bytes) ||
         hash(value.bytes) !== bound.value.digest
       )
         return fail('FC-INPUT', 'INVALID_PROTECTED_CB_STORE');
@@ -288,29 +322,32 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
         !value ||
         !bound.ok ||
         !disposableHolder(bound.value.holder) ||
-        !(value.bytes instanceof Uint8Array) ||
+        !bytes(value.bytes) ||
         hash(value.bytes) !== bound.value.digest
       )
         return fail('FC-INPUT', 'INVALID_DISPOSABLE_CB_STORE');
       const exact = exactPins(value.pins, bound.value.holder);
       if (!exact.ok) return exact;
+      const exactBinding = freeze({ ...bound.value, detail: JSON.stringify(exact.value) });
       const operationKey = `${bound.value.operation}/put`;
       const prior = operations.get(operationKey);
-      if (prior && prior.binding !== key(bound.value))
+      if (prior && prior.binding !== key(exactBinding))
         return fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
       objects.set(`${bound.value.holder}/${bound.value.digest}`, new Uint8Array(value.bytes));
       pins.set(bound.value.digest, exact.value);
-      const fact = record(bound.value, fault === 'lost-ack');
+      livePins.add(pinKey(bound.value, exact.value.temporary));
+      livePins.add(pinKey(bound.value, exact.value.intended));
+      const fact = record(exactBinding, fault === 'lost-ack');
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     get(request) {
       const value = fields(request, ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode']);
-      const bound = binding(value, 'put');
+      const bound = binding(value, 'get');
       if (!bound.ok) return bound;
       const bytes = objects.get(`${bound.value.holder}/${bound.value.digest}`);
-      return bytes
+      return bytes && hash(bytes) === bound.value.digest
         ? { ok: true, value: freeze({ digest: bound.value.digest, bytes: new Uint8Array(bytes) }) }
-        : fail('FC-EVIDENCE', 'ARTIFACT_ABSENT');
+        : fail('FC-EVIDENCE', bytes ? 'ARTIFACT_DIGEST_MISMATCH' : 'ARTIFACT_ABSENT');
     },
     adopt(request) {
       const value = fields(request, [
@@ -328,10 +365,10 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
       if (!value || !bound.ok || !disposableHolder(bound.value.holder)) return fail('FC-INPUT', 'INVALID_ADOPTION');
       const exact = exactPins(value.pins, bound.value.holder);
       const fact = value.fact as ArtifactFact;
-      if (!exact.ok || !fact || fact.binding !== key(bound.value)) return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
+      if (!exact.ok || !fact || fact.binding !== key(freeze({ ...bound.value, detail: JSON.stringify(exact.value) })))
+        return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
       const current = witnessedFact(fact);
       if (!current.ok) return current;
-      retired.add(pinKey(bound.value, exact.value.temporary));
       return { ok: true, value: undefined };
     },
     release(request, fault) {
@@ -355,7 +392,9 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
           : pair?.intended.tuple === value.pin
             ? pair.intended
             : undefined;
-      if (!pin || !retired.has(pinKey(bound.value, pin))) return fail('FC-AUTHORITY', 'RELEASE_NOT_RETIRED');
+      if (!pin || !livePins.has(pinKey(bound.value, pin))) return fail('FC-AUTHORITY', 'LIVE_PIN_REQUIRED');
+      const witnessed = witnessedCurrent();
+      if (!witnessed.ok) return witnessed;
       const exactBinding = freeze({ ...bound.value, detail: value.pin });
       const operationKey = `${bound.value.operation}/release-pin`;
       const prior = operations.get(operationKey);
@@ -363,6 +402,7 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
         return fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
       if (prior) return fail('FC-TRUST', 'RECONCILE_REQUIRED');
       const fact = record(exactBinding, fault === 'lost-ack');
+      livePins.delete(pinKey(bound.value, pin));
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     dispose(request, fault) {
@@ -388,7 +428,10 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
         facts.obligations !== 'none'
       )
         return fail('FC-AUTHORITY', 'DISPOSAL_GUARDS_REQUIRED');
-      if (pins.has(bound.value.digest)) return fail('FC-AUTHORITY', 'LIVE_PIN_PRESENT');
+      const witnessed = witnessedCurrent();
+      if (!witnessed.ok) return witnessed;
+      if ([...livePins].some((pin) => pin.startsWith(`${bound.value.digest}/`)))
+        return fail('FC-AUTHORITY', 'LIVE_PIN_PRESENT');
       const operationKey = `${bound.value.operation}/dispose-bytes`;
       const prior = operations.get(operationKey);
       if (prior)
@@ -396,39 +439,88 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
           ? fail('FC-TRUST', 'RECONCILE_REQUIRED')
           : fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
       const fact = record(bound.value, fault === 'lost-ack');
+      objects.delete(`${bound.value.holder}/${bound.value.digest}`);
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     acknowledge(input) {
-      const fact = input as ArtifactFact;
-      if (!fact || !text(fact.binding)) return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
+      const value = fields(input, ['operation', 'mode', 'position', 'headDigest', 'binding']);
+      const fact = value as ArtifactFact | undefined;
+      if (
+        !fact ||
+        (fact.mode !== 'put' && fact.mode !== 'release-pin' && fact.mode !== 'dispose-bytes') ||
+        typeof fact.position !== 'number' ||
+        !digest(fact.headDigest) ||
+        !text(fact.binding)
+      )
+        return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
       return witnessedFact(fact);
     },
     reconcile(request) {
-      const value = fields(request, Object.getOwnPropertyNames(request as object));
-      if (
-        !value ||
-        !text(value.operation) ||
-        (value.mode !== 'put' && value.mode !== 'release-pin' && value.mode !== 'dispose-bytes')
-      )
+      try {
+        const object = request as Record<string, unknown>;
+        const mode = object?.mode;
+        const names =
+          mode === 'put'
+            ? [
+                'resourceScope',
+                'subject',
+                'digest',
+                'fence',
+                'holder',
+                'operation',
+                'mode',
+                'bytes',
+                'pins',
+                'recovery',
+              ]
+            : mode === 'release-pin'
+              ? ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode', 'pin', 'recovery']
+              : mode === 'dispose-bytes'
+                ? ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode', 'facts', 'recovery']
+                : undefined;
+        if (!names) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
+        const value =
+          fields(
+            request,
+            names.filter((name) => name !== 'recovery'),
+          ) ?? fields(request, names);
+        if (!value || !text(value.operation)) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
+        const bound = binding(value, mode as Binding['mode']);
+        if (!bound.ok) return bound;
+        if (value.recovery !== undefined) {
+          const restored = recovery(value.recovery);
+          if (!restored.ok) return restored;
+        }
+        const exactBinding =
+          mode === 'put'
+            ? (() => {
+                const exact = exactPins(value.pins, bound.value.holder);
+                return exact.ok ? freeze({ ...bound.value, detail: JSON.stringify(exact.value) }) : undefined;
+              })()
+            : mode === 'release-pin'
+              ? text(value.pin)
+                ? freeze({ ...bound.value, detail: value.pin })
+                : undefined
+              : bound.value;
+        if (!exactBinding) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
+        const prior = operations.get(`${bound.value.operation}/${mode}`);
+        if (!prior) return { ok: true, value: freeze({ kind: 'absent' as const }) };
+        return prior.binding === key(exactBinding)
+          ? { ok: true, value: prior.fact }
+          : fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
+      } catch {
         return fail('FC-INPUT', 'INVALID_RECONCILIATION');
-      const bound = binding(value, value.mode);
-      if (!bound.ok) return bound;
-      const exactBinding =
-        value.mode === 'release-pin' ? freeze({ ...bound.value, detail: value.pin as string }) : bound.value;
-      const prior = operations.get(`${bound.value.operation}/${bound.value.mode}`);
-      if (!prior) return { ok: true, value: freeze({ kind: 'absent' as const }) };
-      return prior.binding === key(exactBinding)
-        ? { ok: true, value: prior.fact }
-        : fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
+      }
     },
   });
   const witness = freeze({
     advance(input: unknown): ArtifactResult<void> {
-      const fact = input as ArtifactFact;
+      const value = fields(input, ['operation', 'mode', 'position', 'headDigest', 'binding']);
+      const fact = value as ArtifactFact | undefined;
       const operation = fact && operations.get(`${fact.operation}/${fact.mode}`);
-      if (!operation || operation.fact !== fact) return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
-      witnessed.add(fact.binding);
-      witnessed.add(`${fact.operation}/${fact.mode}`);
+      if (!operation || !sameFact(operation.fact, fact) || fact.position !== position || fact.headDigest !== head)
+        return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
+      witnessedHead = freeze({ position: fact.position, headDigest: fact.headDigest });
       return { ok: true, value: undefined };
     },
   });
