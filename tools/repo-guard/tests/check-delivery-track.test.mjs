@@ -71,6 +71,7 @@ const activeFixturePaths = [
   'tools/repo-guard/tests/check-runtime-topology.test.mjs',
   'tools/repo-guard/bin/write-evidence.mjs',
   'tools/repo-guard/tests/workspace-substrate.test.mjs',
+  'tools/repo-guard/tests/task-inputs.test.mjs',
   'tools/repo-guard/tests/fixtures/workspace/.gitignore',
   'tools/repo-guard/tests/fixtures/workspace/package.json',
   'tools/repo-guard/tests/fixtures/workspace/pnpm-lock.yaml',
@@ -892,6 +893,18 @@ test('Git metadata failures fail closed instead of using filesystem fallback', (
     assert.deepEqual(validateDeliveryTrackPackage(dir), [
       'delivery track contains malformed data that could not be validated safely',
     ]);
+  }));
+// Every structure-check assertion below mutates this fixture and expects a specific failure. If the
+// fixture's own path corpus drifts from the governed corpus, those tests keep passing on an unrelated
+// baseline error and stop proving anything, so the baseline is asserted clean first. The archive-ref
+// probe is excluded: it depends on git history the fixture cannot carry in a shallow checkout.
+test('the structure-check fixture carries the full governed path corpus, so mutation tests start clean', () =>
+  gitFixture((dir) => {
+    const baseline = runStructureCheck(dir)
+      .stderr.split('\n')
+      .filter((line) => line.startsWith('- '))
+      .filter((line) => !line.startsWith('- archive ref or representative recovery path'));
+    assert.deepEqual(baseline, []);
   }));
 test('structure check reports deleted governed paths and malformed package scripts without throwing', () => {
   gitFixture((dir) => {
