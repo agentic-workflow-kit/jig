@@ -48,6 +48,31 @@ function transition(position, schema = 'jig.transition.v1') {
   };
 }
 
+function factTransition(position, type, edge, recordGeneration = priorGeneration) {
+  const transaction = `${run}/txn/${position + 1}/${recordGeneration}|${basis}`;
+  const fence = { generation: recordGeneration, basis };
+  const event = {
+    type,
+    edge,
+    id: `${run}/event/${position + 1}`,
+    subject,
+    fence,
+    catalogVersion: 'jig.authority-kernel.v1',
+  };
+  return {
+    schema: 'jig.transition.v1',
+    event,
+    bindings: {
+      transaction,
+      event: event.id,
+      operation: `${transaction}/op/1`,
+      subject,
+      fence,
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+  };
+}
+
 function append(ledger, position, previousDigest, recordGeneration, content, fault) {
   const proposal = runtime.createLedgerRecord({
     run,
@@ -171,6 +196,90 @@ test('CF-SNAPSHOT: only a byte-equivalent replay projection is used', () => {
   assert.deepEqual(forged.value.projection, withoutSnapshot.value.projection);
 });
 
+test('CF-ORDERING: verified non-transition positions remain explicit gaps between replayed transitions', () => {
+  const ledger = runtime.createScriptedLedger();
+  const preparingState = Object.freeze({ ...initialState, storyState: 'Preparing' });
+  const first = append(
+    ledger,
+    0,
+    digest('0'),
+    priorGeneration,
+    factTransition(0, 'EV-WORKSPACE-FACT', 'preparing-workspace-fact'),
+  );
+  const claim = append(ledger, 1, first.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const second = append(
+    ledger,
+    2,
+    claim.contentDigest,
+    generation,
+    factTransition(2, 'EV-SETUP-FACT', 'preparing-setup-fact', generation),
+  );
+  const recoveryInput = {
+    ledger,
+    records: [first, claim, second],
+    claim,
+    head: { position: second.position, digest: second.contentDigest },
+    binding: { kind: 'run', run, generation: priorGeneration },
+    generation,
+    recoveryToken: basis,
+    initialState: preparingState,
+  };
+  const recovered = recovery.recoverFencedRun(recoveryInput);
+  assert.equal(recovered.ok, true, JSON.stringify(recovered));
+  assert.equal(recovered.value.projection.state.storyState, 'Preparing');
+  assert.deepEqual(
+    recovered.value.projection.decisions.map((decision) => decision.trigger.id),
+    [`${run}/event/1`, `${run}/event/3`],
+  );
+
+  const prefixProjection = {
+    position: first.position,
+    digest: first.contentDigest,
+    state: recovered.value.projection.decisions[0].next,
+    decisions: [recovered.value.projection.decisions[0]],
+  };
+  const fromSnapshot = recovery.recoverFencedRun({
+    ...recoveryInput,
+    snapshot: { position: first.position, digest: first.contentDigest, projection: prefixProjection },
+  });
+  assert.equal(fromSnapshot.ok, true);
+  assert.equal(fromSnapshot.value.snapshot, 'used');
+  assert.deepEqual(fromSnapshot.value.projection, recovered.value.projection);
+
+  const staleLedger = runtime.createScriptedLedger();
+  const staleFirst = append(
+    staleLedger,
+    0,
+    digest('0'),
+    priorGeneration,
+    factTransition(0, 'EV-WORKSPACE-FACT', 'preparing-workspace-fact'),
+  );
+  const staleClaim = append(staleLedger, 1, staleFirst.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const staleSecond = append(
+    staleLedger,
+    2,
+    staleClaim.contentDigest,
+    generation,
+    factTransition(2, 'EV-SETUP-FACT', 'preparing-setup-fact'),
+  );
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ...recoveryInput,
+      ledger: staleLedger,
+      records: [staleFirst, staleClaim, staleSecond],
+      claim: staleClaim,
+      head: { position: staleSecond.position, digest: staleSecond.contentDigest },
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'INVALID_TRANSITION' } },
+  );
+});
+
 test('CF-FENCE: a witnessed claim fences stale appends and recovery refuses absent claim proof', () => {
   const source = chain();
   const stale = runtime.createLedgerRecord({
@@ -210,6 +319,7 @@ test('CF-RESTART: replay excludes every exact generation-control record and fenc
   });
   assert.equal(result.ok, true);
   assert.equal(result.value.projection.state.storyState, 'Eligible');
+  assert.equal(result.value.projection.state.fence.generation, source.currentGeneration);
   assert.equal(result.value.projection.decisions.length, 1);
   assert.equal(result.value.projection.decisionDigest, fixture.expectedDecisionDigest);
   const stale = runtime.createLedgerRecord({
@@ -453,26 +563,52 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     recovery: 'generation-claim',
     token: basis,
   });
+  const later = append(
+    ledger,
+    4,
+    claim.contentDigest,
+    generation,
+    factTransition(4, 'EV-WORKSPACE-FACT', 'preparing-workspace-fact', generation),
+  );
   const recoveryInput = {
     ledger,
-    records: [first, attemptFact, dispatchFact, claim],
+    records: [first, attemptFact, dispatchFact, claim, later],
     claim,
-    head: { position: claim.position, digest: claim.contentDigest },
+    head: { position: later.position, digest: later.contentDigest },
     binding: { kind: 'run', run, generation: priorGeneration },
     generation,
     recoveryToken: basis,
     initialState: operationInitialState,
   };
   const recovered = recovery.recoverFencedRun(recoveryInput);
-  assert.equal(recovered.ok, true);
+  assert.equal(recovered.ok, true, JSON.stringify(recovered));
   assert.deepEqual(
     recovered.value.pendingEffects.map((entry) => [entry.operation, entry.status]),
     [[bindings.operation, 'dispatch-crossed']],
   );
+  assert.deepEqual(
+    recovered.value.projection.decisions.map((decision) => decision.trigger.id),
+    [`${run}/event/1`, `${run}/event/5`],
+  );
+
+  const prefixProjection = {
+    position: first.position,
+    digest: first.contentDigest,
+    state: recovered.value.projection.decisions[0].next,
+    decisions: [recovered.value.projection.decisions[0]],
+  };
+  const fromSnapshot = recovery.recoverFencedRun({
+    ...recoveryInput,
+    snapshot: { position: first.position, digest: first.contentDigest, projection: prefixProjection },
+  });
+  assert.equal(fromSnapshot.ok, true);
+  assert.equal(fromSnapshot.value.snapshot, 'used');
+  assert.deepEqual(fromSnapshot.value.projection, recovered.value.projection);
+  assert.deepEqual(fromSnapshot.value.pendingEffects, recovered.value.pendingEffects);
 
   const missingDispatch = recovery.recoverFencedRun({
     ...recoveryInput,
-    records: [first, attemptFact, claim],
+    records: [first, attemptFact, claim, later],
   });
   assert.deepEqual(missingDispatch, { ok: false, error: { family: 'FC-TRUST', code: 'BROKEN_CHAIN' } });
 

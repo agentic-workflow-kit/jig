@@ -1,5 +1,5 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
+import { type AuthorityState, type ProposedTransition, reduceAuthority, validateAuthorityState } from './index.js';
 import {
   OPERATION_RECORD_SCHEMA,
   type OperationProjection,
@@ -364,17 +364,40 @@ function replayProjection(
   generationControlPositions: ReadonlySet<number>,
   position: number,
   digest: string,
+  seed?: Readonly<{
+    position: number;
+    state: AuthorityState;
+    decisions: readonly ProposedTransition[];
+  }>,
 ): RecoveryResult<CanonicalJson> {
-  const steps = records
-    .filter((entry) => entry.position <= position && !generationControlPositions.has(entry.position))
-    .filter((entry) => operationCarrier(entry.content) === undefined)
-    .map(replayStep);
-  if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
-  const replayed = replayAuthority(initialState, steps);
-  if (!replayed.ok)
-    return failure(replayed.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
-  const state = replayed.value.at(-1)?.next ?? initialState;
-  const projected = canonicalProjection(position, digest, state, replayed.value);
+  const startingState = validateAuthorityState(seed?.state ?? initialState);
+  if (!startingState.ok)
+    return failure(startingState.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
+  let state = startingState.value;
+  const decisions = [...(seed?.decisions ?? [])];
+  const afterPosition = seed?.position ?? -1;
+  for (const entry of records) {
+    if (entry.position <= afterPosition || entry.position > position) continue;
+    if (generationControlPositions.has(entry.position)) {
+      state = freeze({
+        ...state,
+        fence: freeze({ ...state.fence, generation: entry.generation }),
+      });
+      continue;
+    }
+    if (operationCarrier(entry.content) !== undefined) continue;
+    const step = replayStep(entry);
+    if (!step) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
+    const event = own(step.event, ['type', 'edge', 'id', 'subject', 'fence', 'catalogVersion']);
+    if (!event || event.id !== entry.event || entry.generation !== state.fence.generation)
+      return failure(entry.generation === state.fence.generation ? 'FC-INPUT' : 'FC-FENCE', 'INVALID_TRANSITION');
+    const decision = reduceAuthority(state, step.event, step.bindings);
+    if (!decision.ok)
+      return failure(decision.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
+    decisions.push(decision.value);
+    state = decision.value.next;
+  }
+  const projected = canonicalProjection(position, digest, state, decisions);
   return projected ? { ok: true, value: projected } : failure('FC-INPUT', 'INVALID_PROJECTION');
 }
 
@@ -506,8 +529,22 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
         : undefined;
     const expected = covered?.ok ? encodeFrame(covered.value) : undefined;
     const supplied = encodeFrame(requestedSnapshot.projection);
-    if (expected?.ok && supplied.ok && sameBytes(expected.value, supplied.value)) {
-      effectiveProjection = requestedSnapshot.projection;
+    if (covered?.ok && expected?.ok && supplied.ok && sameBytes(expected.value, supplied.value)) {
+      const prefix = covered.value as unknown as Readonly<{
+        position: number;
+        state: AuthorityState;
+        decisions: readonly ProposedTransition[];
+      }>;
+      const resumed = replayProjection(
+        candidate.initialState as AuthorityState,
+        ordered,
+        generationControlPositions,
+        verifiedPosition,
+        verifiedDigest,
+        prefix,
+      );
+      if (!resumed.ok) return resumed;
+      effectiveProjection = resumed.value;
       snapshotStatus = 'used';
     } else snapshotStatus = 'discarded';
   }

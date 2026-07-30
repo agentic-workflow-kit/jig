@@ -17,6 +17,6 @@
     "before-projection",
     "after-projection"
   ],
-  "expectedStateDigest": "148f53e2952681308e97cf6ff4c4998db3facf28f897a173cf130a281860dd40",
+  "expectedStateDigest": "be3a616a3de0a5633c782a2827e53f09a98ba28dcfa2c5878b0a2aaa4fa9711c",
   "expectedDecisionDigest": "b67554f91e76ad57b8795352be9ddc4eb07c9caceb5c9777f65fc5435072f0fa"
 }
