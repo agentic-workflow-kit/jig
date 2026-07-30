@@ -3,44 +3,19 @@
   "extends": ["//"],
   "tasks": {
     "guard": {
-      "dependsOn": [
-        "guard:structure",
-        "guard:delivery",
-        "guard:links",
-        "guard:boundaries",
-        "guard:topology",
-        "guard:format"
-      ]
+      "dependsOn": ["guard:structure", "guard:links", "guard:boundaries", "guard:format"]
     },
     "guard:structure": {
       "inputs": [
-        "$TURBO_ROOT$/**",
-        "!$TURBO_ROOT$/**/dist/**",
-        "!$TURBO_ROOT$/**/node_modules/**",
-        "!$TURBO_ROOT$/**/.turbo/**",
-        "!$TURBO_ROOT$/artifacts/**"
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/pnpm-workspace.yaml",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/.github/workflows/check.yml",
+        "$TURBO_ROOT$/src/**",
+        "$TURBO_ROOT$/skills/**",
+        "$TURBO_ROOT$/vitest.config.ts"
       ],
       "cache": false
-    },
-    "guard:delivery": {
-      "inputs": [
-        "$TURBO_ROOT$/**",
-        "!$TURBO_ROOT$/**/dist/**",
-        "!$TURBO_ROOT$/**/node_modules/**",
-        "!$TURBO_ROOT$/**/.turbo/**",
-        "!$TURBO_ROOT$/artifacts/**"
-      ],
-      "outputs": []
-    },
-    "test:delivery": {
-      "inputs": [
-        "$TURBO_ROOT$/**",
-        "!$TURBO_ROOT$/**/dist/**",
-        "!$TURBO_ROOT$/**/node_modules/**",
-        "!$TURBO_ROOT$/**/.turbo/**",
-        "!$TURBO_ROOT$/artifacts/**"
-      ],
-      "outputs": []
     },
     "guard:links": {
       "inputs": [
@@ -53,11 +28,7 @@
       "outputs": []
     },
     "guard:boundaries": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/**", "$TURBO_ROOT$/tools/**"],
-      "outputs": []
-    },
-    "guard:topology": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/runtime-contracts/**"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/*/package.json", "$TURBO_ROOT$/packages/*/src/**"],
       "outputs": []
     },
     "guard:format": {
@@ -72,11 +43,15 @@
     },
     "test": {
       "inputs": [
-        "$TURBO_ROOT$/**",
-        "!$TURBO_ROOT$/**/dist/**",
-        "!$TURBO_ROOT$/**/node_modules/**",
-        "!$TURBO_ROOT$/**/.turbo/**",
-        "!$TURBO_ROOT$/artifacts/**"
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/pnpm-workspace.yaml",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/.github/workflows/check.yml",
+        "$TURBO_ROOT$/packages/*/package.json",
+        "$TURBO_ROOT$/packages/*/src/**",
+        "$TURBO_ROOT$/docs/delivery/greenfield/track.json",
+        "$TURBO_ROOT$/.agents/skills/orchestrate-phase-delivery/scripts/*.mjs"
       ]
     }
   }

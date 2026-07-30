@@ -44,11 +44,12 @@ pnpm check
 ```
 
 The check is a single Turbo run: every workspace package builds, lints, and tests itself, and the
-`tools/repo-guard` package runs the repository-level gates — structure, package boundaries, runtime
-topology, delivery track, documentation links, and formatting. Use `pnpm check:affected` to restrict
-the same graph to what the current branch changed — a local convenience whose selection is only as
-complete as the comparison base, so `pnpm check` stays the gate — and `pnpm delivery:check` for the
-focused delivery validator and its mutation tests.
+`tools/repo-guard` package runs narrow structure, package-boundary, documentation-link, and
+formatting gates. Runtime topology stays with the package that implements it. Use
+`pnpm check:affected` to restrict the same graph to what the current branch changed — a local
+convenience whose selection is only as complete as the comparison base, so `pnpm check` stays the
+gate. Phase orchestration runs `pnpm delivery:check` before consuming `track.json`; it is not part of
+the universal repository check.
 
 ## Next implementation prerequisites
 

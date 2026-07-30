@@ -120,6 +120,7 @@ recovery workspaces; they cannot replace registered-worktree evidence.
 
 ## Focused track gate
 
-Run `pnpm delivery:check` to verify the machine manifest, full briefs, and delivery-document
-integrity. It is a focused structural check, not a substitute for independent exact-candidate
-review or semantic approval of plan-authored outcomes/prose.
+Run `pnpm delivery:check` before phase orchestration reads `track.json`. It fails fast on malformed
+story identity, dependency, phase, or story-file references. It does not validate narrative prose,
+authority mappings, or an exact documentation corpus, and it is not part of the universal
+`pnpm check` gate.
