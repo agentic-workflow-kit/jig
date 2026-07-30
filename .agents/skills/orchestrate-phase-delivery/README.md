@@ -1,9 +1,10 @@
 # Orchestrate phase delivery
 
-Repository-local operational skill for coordinating an already-approved Jig delivery phase. Its
-source of truth is the active product/design package, delivery policy, story contract,
-`track.json`, and external ledger; it cannot authorize work, change declared dependencies, or
-implement a scheduler service.
+Repository-local operational skill for coordinating an explicitly owner-requested Jig delivery
+phase. Its source of truth is the active product/design package, current implementation request,
+delivery policy, story contract, and `track.json`. The external ledger records operational state;
+the skill cannot change product/design authority, declared dependencies, or implement a scheduler
+service.
 
 Use it to start, resume, recover, or close a phase with one integration worktree, one registered
 worktree and continuous independent pair per admitted story, bounded ready-set parallelism, and one

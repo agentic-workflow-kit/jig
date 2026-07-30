@@ -33,11 +33,12 @@ terminal/file notice route as a presentation channel rather than a port provider
 profile with both a private CLI and private MCP. These are inactive, bounded realization proposals,
 not a public-product expansion or an owner-approved planning source.
 
-No proposal is selectable or implementable until an external owner activates it through the exact
-ratification/activation record in the [delegated-choice schedule](./decisions.md#external-owner-ratification-and-activation-prerequisite).
-If activation is not recorded, the applicable realization remains unavailable.
+No proposal is selectable or implementable until an explicit current owner or named-delegate
+request selects it within a named phase/story under the
+[delegated-choice schedule](./decisions.md#implementation-authorization). If it is not explicitly
+selected, the applicable realization remains unavailable.
 
-After external owner activation, pin CI actions immutably and place the selected
+After explicit selection, pin CI actions immutably and place the selected
 realization/evidence/fallback in the applicable story contract. Unsupported GitHub modes and Codex
 postures remain unconfigurable.
 

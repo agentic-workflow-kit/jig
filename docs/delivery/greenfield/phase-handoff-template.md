@@ -21,7 +21,13 @@ Use this template as a pointer to the live external ledger, not as a substitute 
 
 ## Stop conditions
 
-Stop `OWNER_DECISION_REQUIRED` for missing/ambiguous activation, tracker, predecessor, worktree, branch/object, base, evidence, clean-status, sanitized-environment, ignored-state, reviewer-independence, required-check, or ownership facts. Do not reconstruct a missing workspace with a clone.
+Stop `OWNER_DECISION_REQUIRED` only for a material product/design authority, tracked scope or
+dependency, selected realization, provider-reachability, or accepted-trade-off ambiguity. A
+missing or contradictory tracker, predecessor, worktree, branch/object, base, evidence,
+clean-status, sanitized-environment, ignored-state, reviewer-independence, required-check, or
+ownership fact blocks the affected story until reconciled; it does not revoke implementation
+authorization or stop independent ready stories. Do not reconstruct a missing workspace with a
+clone.
 
 ## Handoff pointer
 

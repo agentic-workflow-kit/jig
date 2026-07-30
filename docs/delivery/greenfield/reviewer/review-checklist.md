@@ -1,6 +1,6 @@
 ---
 title: "Jig greenfield delivery — independent review checklist"
-purpose: "Make PASS and finding criteria repeatable for a frozen delivery-package or implementation-candidate subject."
+purpose: "Make PASS and finding criteria repeatable for a frozen implementation or phase candidate."
 audience:
   - independent reviewers
 status: mandatory review checklist
@@ -10,10 +10,9 @@ last_verified: 2026-07-29
 
 # Independent review checklist
 
-Select either the delivery-package or implementation-candidate protocol in the
+Select the story implementation-candidate or phase-closure scope in the
 [reviewer packet](./README.md). Mark every applicable item `PASS`, `FINDING`, or `N/A with
-evidence`; `N/A` never means “not considered.” Do not impose package-corpus checks on a story
-implementation candidate.
+evidence`; `N/A` never means “not considered.”
 
 ## Reviewer operation boundary
 
@@ -25,92 +24,29 @@ implementation candidate.
       hosted CI independently runs required checks, and the coordinator verifies orchestration
       facts/evidence bindings.
 
-## A. Delivery-package review
+## A. Implementation-candidate review
 
-Use this section only when reviewing the delivery package itself.
-
-### Subject and authority
-
-- [ ] Pre-verdict `Q` is recorded outside the candidate: exact package commit/tree, exact
-      package-only path set, every path's bytes/type/mode, and aggregate computed unpinned digest.
-      The coordinator supplies `Q` and checks/evidence separately; `Q` contains neither `PASS` nor
-      a review record.
-- [ ] The independent reviewer verifies the unpinned digest over `Q` and records external `R`:
-      protocol, reviewer identity/independence, exact `Q`, checked scope, checks/evidence, findings,
-      verdict, and durable external identifier. Only `R = PASS` creates
-      `P = Q + durable R identifier + PASS`.
-- [ ] No expected package digest is copied into `track.json`, validator constants, fixtures, or
-      candidate-authored prose. A package byte/path-set change requires new `Q`, `R`, and `P`.
-- [ ] A squash-changed OID has authoritative landing-equivalence evidence binding approved `P`/`Q`
-      to the landed target and proving full-tree equality or complete `Q` path-set
-      byte/type/mode equality reproducing `Q`'s digest. It is not treated as making the landed
-      commit reviewed.
-- [ ] The checkout and review scope are clean; no unrecorded path, generated residue, or moving
-      branch changes the frozen subject.
-- [ ] The live 67-file normative path set and aggregate manifest match the current byte-identical
-      corpus. This is corpus-drift evidence, not candidate approval.
-- [ ] Every brief front matter exactly matches its 15 manifest fields; stable IDs, `PC-*` routes,
-      imports, and `DR-*` choices are literal, locally explained, and neither wildcard nor invented.
-- [ ] Product outcomes and governing design paths/IDs are traceable; no archive or non-governing
-      research selected behavior.
-
-### Exact planning closure
-
-- [ ] The manifest's exact story set, phases, declared dependencies, edge types, and critical path
-      match the live DAG. All edges are topological; no orchestration artifact added an edge.
-- [ ] Every proof route, import, and fixed inventory has required forward and reverse occurrences;
-      failure-class and identity catalogs use literal defined values only.
-- [ ] I13/I14 preserve only `Landed` dependency release and separate business outcome from
-      retirement; pre-Run rejected acknowledgement remains separate from Story terminal selectors.
-- [ ] Refresh retains authority only under its valid fence, mints a new `ID-CAND`, returns the
-      changed candidate to full review, and atomically rebinds the target basis.
-- [ ] Remote `PORT-DELIVERY` and local `PORT-VERIFY` remain separate authority/mechanism seams.
-
-### Authority, evidence, and containment
-
-- [ ] Runtime units, ports, inputs, outputs, identities, durable facts, trust roots, and writer
-      authority conform to active design; evidence never confers authority.
-- [ ] All eight mandatory semantic-to-provider splits remain closed; a real provider is unreachable
-      until exact current qualification evidence admits its manifest.
-- [ ] Required `CF-*` gates, product proof routes, imported-commitment disposition, reviewer
-      independence, and acceptance metadata are complete and exact-subject-bound.
-- [ ] Changed paths match the exact package manifest, including the repository-local
-      phase-delivery skill; no product source, product package scaffolding, or unrelated
-      configuration is included.
-- [ ] Adversarial validator tests cover malformed manifest/front matter, IDs, dependencies/cycles,
-      stale mappings, split closure, changed delegated constraints, and unexpected skill paths. A
-      stale result is reported rather than weakened.
-
-### Delivery-package verdict record
-
-Record external `R`: protocol; reviewer identity/independence; exact `Q`; checked scope;
-checks/evidence; findings; verdict; and durable external identifier. When `PASS`, record
-`P = Q + durable R identifier + PASS` and any landing-equivalence record. Each finding states
-stable ID, severity, governing path/ID, exact evidence, affected observable behavior, required
-correction/result, and re-review scope.
-
-## B. Implementation-candidate review
-
-Use this section only for one implementation attempt of one `GF-*` story whose exact external
-owner-ratification/activation is verified. It permits bounded story-owned source, configuration,
-test, and evidence paths. It does not require fresh package digest/full corpus review and consumes
-already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
+Use this section for one implementation attempt of one `GF-*` story covered by an explicit current
+owner or named-delegate implementation request. It permits bounded story-owned source,
+configuration, test, and evidence paths. No delivery-package qualification, delivery-surface
+digest approval, or separate external approval issue is required. Provider qualification remains
+mandatory: configuration cannot expose a provider until its named evidence, including
+`CF-GATE-PROVIDER` where applicable, passes.
 
 ### Subject, base, and authorization
 
-- [ ] The owner-ratification/activation record is exact and current: authenticated owner or named
-      delegated principal, verifiable delegation, durable record ID/URL, approved `P`, any
-      landing-equivalence record, immutable provenance, target scope, realization tuple, and
-      expiry/revocation. Generic authorization cannot pass.
-- [ ] Approved `P = Q + durable R identifier + PASS` resolves exactly. Add/remove/rename/mode/byte
-      drift in approved package `Q`/`P`, or missing landing-equivalence evidence, requires new `Q`,
-      `R`, and `P`.
+- [ ] The explicit current implementation request covers this phase/story. The external operational
+      ledger records its scope and constraints, current product/design/track provenance, and any
+      selected bounded realization; no durable external approval URL is required.
+- [ ] Routine documentation, tooling, test, formatting, or Git-byte drift has not been treated as
+      revoking authorization. Any material authority, scope, dependency, realization, or
+      provider-reachability drift has fresh explicit direction.
 - [ ] The external ledger identifies the registered story worktree path/branch, phase integration
       ref, resolved base commit/tree, candidate commit/tree, continuous implementer and independent
       reviewer, and any exceptional pair-replacement reason/handoff.
 - [ ] The candidate contains no pinned live delivery state in source, tests, fixtures, or CI:
       commit/tree IDs, worktree paths, story branches, PR/issue URLs, reviewer identities/verdicts,
-      approval records, or package digests.
+      approval records, or delivery-surface digests.
 - [ ] `merge-base(candidate, base) == base` is recorded and holds. Target-content proof shows every
       declared predecessor landing is contained in that base; an unreviewed branch is insufficient.
 - [ ] Required check evidence binds to the exact candidate: command or set, result, timestamp,
@@ -151,7 +87,7 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
       dependency-release rule widens authority or violates fail-closed behavior.
 - [ ] The selected final-verification posture binds the immutable candidate. D15's recorded
       `Reviewing` transition authorized only fenced `OPC-REV-*` draft/non-mergeable publication.
-      It did not grant approval or replace owner activation.
+      It did not grant approval or widen the explicit implementation scope.
 - [ ] After `Accepted`, the authorized entry into `Finalizing` records verification intent. Under
       `deterministic`, every required class has a passing subject-matching
       `EV-CHECK-OBSERVATION`, and the complete set is satisfied before target-changing
@@ -166,15 +102,16 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
 
 ### Implementation-candidate verdict record
 
-Record: protocol; story ID; exact owner activation; approved `P`; landing-equivalence record where
-required; registered worktree/branch; continuous pair; base ref/commit/tree; candidate commit/tree;
-merge-base and declared-predecessor containment; normative-corpus comparison; owned paths;
-verification posture, required check classes, environment, subject binding, local/hosted check
-evidence, clean status; reviewer identity/independence; findings; verdict; timestamp; and later
-integration result/commit. Final-verification observations after `Accepted` are appended
-continuation evidence only under the unchanged binding.
+Record: protocol; story ID; authorized scope and constraints; current product/design/track
+provenance and selected bounded realization; registered worktree/branch; continuous pair; base
+ref/commit/tree; candidate commit/tree; merge-base and declared-predecessor containment;
+normative-corpus comparison; owned paths; verification posture, required check classes,
+environment, subject binding, local/hosted check evidence, clean status; reviewer
+identity/independence; findings; verdict; timestamp; and later integration result/commit.
+Final-verification observations after `Accepted` are appended continuation evidence only under the
+unchanged binding.
 
-## C. Phase integration and closure
+## B. Phase integration and closure
 
 - [ ] Every integrated story had candidate-bound `PASS`; fast-forward or no-fast-forward
       integration preserves the reviewed story commit as an ancestor.
@@ -194,4 +131,5 @@ Return `PASS` only when no blocking finding remains on the selected frozen subje
 `CHANGES_REQUIRED` for correctable defects. Return `OWNER_DECISION_REQUIRED` when correction would
 change product intent, architecture, authority, guarantee, accepted cost, or deliberate deferral
 beyond a recorded delegation. `PASS` neither authorizes a future base refresh nor substitutes for
-owner activation, candidate-bound checks/CI, finalization, landing, or dependency release.
+explicit implementation scope, candidate-bound checks/CI, finalization, landing, or dependency
+release.

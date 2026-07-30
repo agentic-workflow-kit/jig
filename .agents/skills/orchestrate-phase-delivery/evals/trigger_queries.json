@@ -91,7 +91,7 @@
   },
   {
     "id": "negative-package-review",
-    "query": "Perform a full delivery-package Q and R review for Jig.",
+    "query": "Perform a standalone planning-corpus review for Jig without implementing a phase.",
     "should_trigger": false,
     "split": "validation"
   },

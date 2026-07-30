@@ -57,32 +57,24 @@ invent an ID absent from the governing source and manifest.
 ## Dependencies plus start evidence
 
 Name every declared predecessor and the exact merged commit/evidence needed to start. Prove the
-approved delivery package `P` being executed. Its canonical identity is: delivery-package
-candidate `Q` (exact candidate commit/tree, exact package-only path set, each path's
-bytes/type/mode, and aggregate computed unpinned digest); external review record `R` (protocol,
-reviewer identity/independence, exact `Q`, checked scope, checks/evidence, findings, verdict, and a
-durable external identifier); and, only when `R` records `PASS`,
-`P = Q + durable R identifier + PASS`.
-
-Prove any required authoritative landing-equivalence record; the dynamically observed phase
-integration base ref/commit/tree and declared-predecessor containment; package/runtime boundary;
-prerequisite gate; required owner decision; and provider qualification. A dependency is not
-satisfied by an unreviewed branch or assertion. `dependencies` and `dependency_edges` must exactly
-match `track.json`, including edge type and `semantic-to-provider` split where present.
+explicit current owner or named-delegate request that authorizes this phase/story and its
+constraints. Prove the dynamically observed phase integration base ref/commit/tree and
+declared-predecessor containment; package/runtime boundary; prerequisite gate; required product or
+architecture decision; and provider qualification. A dependency is not satisfied by an unreviewed
+branch or assertion. `dependencies` and `dependency_edges` must exactly match `track.json`,
+including edge type and `semantic-to-provider` split where present.
 
 ## Implementation candidate and review binding
 
-For each implementation attempt, record externally: story ID; approved `P`; required authoritative
-landing-equivalence record; exact external owner-ratification/activation record, including
-authenticated owner or delegated principal, independently verifiable delegation/current validity,
-durable record ID/URL, immutable provenance, activation target scope, selected realization tuple,
-and expiry/revocation; registered story worktree path/branch; phase integration ref and resolved
-base commit/tree; candidate commit/tree; merge-base and target-content proof that every declared
-predecessor is contained; current path-by-path comparison of the 67 normative authority files; exact
-owned source/config/test/evidence paths; applicable `DR-*` choices; selected final-verification
-posture; required check-class set; verification configuration/environment; exact subject binding;
-minimal non-secret check environment-name allowlist; ignored-state inventory/allowlist;
-continuous implementer and independent reviewer identities; and integration result/commit.
+For each implementation attempt, record externally: story ID; explicitly authorized phase/story
+scope and constraints; current product/design/track provenance; selected bounded realization tuple;
+registered story worktree path/branch; phase integration ref and resolved base commit/tree;
+candidate commit/tree; merge-base and target-content proof that every declared predecessor is
+contained; current path-by-path comparison of the 67 normative authority files; exact owned
+source/config/test/evidence paths; applicable `DR-*` choices; selected final-verification posture;
+required check-class set; verification configuration/environment; exact subject binding; minimal
+non-secret check environment-name allowlist; ignored-state inventory/allowlist; continuous
+implementer and independent reviewer identities; and integration result/commit.
 
 The implementation owner commits before required verification and works only in the registered
 story worktree. Record each required local proof/repository check/direct validator command or set,
@@ -98,12 +90,13 @@ consumes the evidence read-only and never reruns a suite to repair or replace it
 
 At explicit freeze, the same continuous independent reviewer examines the registered story
 worktree's exact candidate, base, diff, declared-predecessor containment, evidence, and status.
-Their verdict binds only that implementation candidate and never mints or redefines `Q`, `R`, or
-`P`. A target move, rebase, refresh, fix, posture change, evidence change, or other binding change
-creates a new committed candidate. The same implementer reruns every applicable required check; the same
-reviewer incrementally rechecks the prior-reviewed-to-new range, sibling occurrences, affected
+Their verdict binds only that implementation candidate and does not authorize scope, dependencies,
+provider reachability, integration, or landing. A target move, rebase, refresh, fix, posture change,
+evidence change, or other binding change creates a new committed candidate. The same implementer
+reruns every applicable required check; the
+same reviewer incrementally rechecks the prior-reviewed-to-new range, sibling occurrences, affected
 invariants, and new evidence. Conclusions carry forward only for unchanged paths and unaffected
-invariants. Changed package identity first requires new `Q`, external `R`, and approved `P`.
+invariants.
 
 After `Accepted`, recording only the final-verification observations already authorized by the
 unchanged reviewed candidate, posture, check-class set, verification configuration/environment,
@@ -202,10 +195,9 @@ PR. The phase produces one final PR after all required stories integrate and clo
 
 ## Definition of Ready
 
-- The exact external owner-ratification/activation record is independently verified, including
-  authenticated owner/delegation, current validity, durable record identifier, approved `P`, any
-  landing-equivalence record, immutable provenance, target scope, selected realization, and
-  expiry/revocation. Generic authorization, CI, a branch, or a verdict cannot substitute.
+- An explicit current owner or named-delegate request authorizes the named phase/story. The ledger
+  records its scope and constraints, current product/design/track provenance, and any selected
+  bounded realization; no separate external approval artifact is required.
 - Literal `track.json` ID, phase, dependencies, edge types, and gates are recorded without
   invention. Declared predecessors are landed in the observed integration base.
 - Registered clean story worktree and continuous implementer/independent reviewer pair are recorded.

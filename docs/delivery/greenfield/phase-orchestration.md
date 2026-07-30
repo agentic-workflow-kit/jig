@@ -9,24 +9,46 @@ last_verified: 2026-07-29
 
 # Phase orchestration
 
-This contract coordinates an already-approved phase. It does not authorize implementation, create a scheduler service, add dependency edges, reinterpret edge types, or replace product/design, activation, Definition of Ready (DoR), Definition of Done (DoD), independent review, or CI gates.
+This contract coordinates an explicitly requested phase. It does not authorize product/design
+changes, create a scheduler service, add dependency edges, reinterpret edge types, or replace
+Definition of Ready (DoR), Definition of Done (DoD), independent review, or CI gates.
 
 ## Authority and live state
 
-Use this precedence order: current owner-approved product/design package and activation record; the [delivery policy](./delivery-policy.md) and [story contract](./story-contract.md); [`track.json`](./track.json) for membership, phase, dependencies, edge types, and gates; this coordination contract; the external live phase ledger; then a handoff. Ordinary Git facts identify a candidate and never grant authority. The ledger is the durable runtime record; do not commit its live commits, paths, identities, verdicts, or URLs into this repository.
+Use this precedence order: current owner-approved product/design corpus; explicit current owner or
+named-delegate implementation request; the [delivery policy](./delivery-policy.md) and
+[story contract](./story-contract.md); [`track.json`](./track.json) for membership, phase,
+dependencies, edge types, and gates; this coordination contract; the external live phase ledger;
+then a handoff. The implementation request authorizes delivery only within the higher product/design
+authority and tracked scope. Ordinary Git facts identify a candidate but never expand authority.
+The ledger is the operational runtime record, not an approval gate; do not commit its live commits,
+paths, identities, verdicts, or URLs into this repository.
 
 ## Mandatory worktree topology
 
 - Create one durable phase integration branch and registered integration worktree from the authorized target using `pnpm worktree:new`. Record its path, branch, target ref, and initial commit in the ledger.
 - For every admitted story, create one temporary registered story branch/worktree from the current integration commit that contains its declared predecessors. Record its path, branch, base ref and commit, current `HEAD`, clean status, and continuous implementer/reviewer pair before editing.
 - The implementer owns writes. At an explicit review freeze, the same independent reviewer uses that registered story worktree read-only; they never write concurrently. A replacement is exceptional, must be explicit, and is recorded with its reason and handoff.
-- Retain each story worktree, branch, and pair quiescent after integration through final-PR feedback and confirmed landing/closure. Cleanup requires confirmed landing and an explicit keep-list/scope; retain terminally blocked work until an owner decision.
+- Retain each story worktree, branch, and pair quiescent after integration through final-PR
+  feedback and confirmed landing/closure. Confirmed landing plus an explicit keep-list/scope is the
+  normal cleanup prerequisite. A terminally blocked story is the sole non-landed exception: first
+  reconcile it or obtain any applicable material owner decision, retain its external-ledger
+  evidence including terminal disposition, and obtain explicit authorization for the exact scoped
+  cleanup before deleting its worktree or branch.
 
 No local fresh clone is a delivery, verification, review, or recovery workspace. A provider-managed hosted-CI checkout is allowed only as CI infrastructure and cannot replace local worktree evidence or read-only review.
 
 ## Ready-set loop and capacity
 
-At phase start and after every terminal story boundary, inspect `track.json`, the ledger, and the current integration branch. A story is ready only when it is in the phase, has current activation and DoR evidence, and every declared predecessor is contained in the integration base with the required landing evidence. Pairs are distinct across stories and continuous within one story; replacement is exceptional and ledger-recorded with reason/handoff. If an already-authorized safe-overlap guard applies, a capacity or ownership conflict is a temporary ledger-recorded admission hold, never a dependency. If no guard applies, do not invent one. Launch every other ready story for which pair/worktree capacity is available. Do not invent an edge or wait for an unrelated blocked story: a blocked story stops only descendants.
+At phase start and after every terminal story boundary, inspect `track.json`, the ledger, and the
+current integration branch. A story is ready only when it is in the explicitly requested phase,
+has current DoR evidence, and every declared predecessor is contained in the integration base with
+the required landing evidence. Pairs are distinct across stories and continuous within one story;
+replacement is exceptional and ledger-recorded with reason/handoff. If an already-authorized
+safe-overlap guard applies, a capacity or ownership conflict is a temporary ledger-recorded
+admission hold, never a dependency. If no guard applies, do not invent one. Launch every other
+ready story for which pair/worktree capacity is available. Do not invent an edge or wait for an
+unrelated blocked story: a blocked story stops only descendants.
 
 For Phase 1, after GF-010 lands, GF-011, GF-012, and GF-013 are initially ready. If GF-012 later blocks, it does not stop GF-011 or GF-013; GF-013 may enable GF-014, while GF-015 waits for both GF-011 and GF-014 (and its other declared predecessors). Phase closure still waits for GF-012.
 
@@ -42,6 +64,17 @@ After every required phase story has approved integration, run required integrat
 
 ## Recovery and migration
 
-Begin recovery with `git worktree list --porcelain` and reconcile every registered ledger path, branch, `HEAD`, base, and status. Reuse an existing matching worktree. If its path is missing but the recorded branch/object exists, follow the exact reattachment procedure in the repository-local skill's [`phase-protocol.md`](../../../.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md); `pnpm worktree:new` creates a new branch and is not recovery. If an object, branch, base, evidence record, or clean reconciliation is missing, ambiguous, dirty, or irreconcilable, stop with `OWNER_DECISION_REQUIRED`; never clone or invent evidence.
+Begin recovery with `git worktree list --porcelain` and reconcile every registered ledger path,
+branch, `HEAD`, base, and status. Reuse an existing matching worktree. If its path is missing but
+the recorded branch/object exists, follow the exact reattachment procedure in the repository-local
+skill's
+[`phase-protocol.md`](../../../.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md);
+`pnpm worktree:new` creates a new branch and is not recovery. If any tracker, branch/object,
+registered path, base, clean-status, sanitized-environment, ignored-state, evidence,
+reviewer-independence, required-check, or ownership fact is missing, ambiguous, dirty, mismatched,
+or irreconcilable, block the affected story and its descendants until reconciled; independent ready
+stories continue. Use `OWNER_DECISION_REQUIRED` only if recovery requires a material authority,
+scope, dependency, realization, provider-reachability, or accepted-trade-off decision. Never clone
+or invent evidence.
 
 This policy supersedes the former custom candidate sealer, envelope, detached-clone review, and resealing gate. Historical seals remain historical evidence but are neither required nor sufficient for new or in-flight candidates. An in-flight candidate may migrate only when the required committed candidate, base, check, and reviewer evidence can be recorded; otherwise re-check and re-review it. No external pull request is a prerequisite solely because it carried sealer hardening.
