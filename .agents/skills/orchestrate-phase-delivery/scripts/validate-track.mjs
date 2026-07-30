@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const defaultRepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -138,10 +138,16 @@ export function validateTrackFile(trackPath = defaultTrackPath, repoRoot = defau
     return [`cannot read track JSON: ${error instanceof Error ? error.message : String(error)}`];
   }
   const errors = validateTrack(track);
+  const resolvedRepoRoot = resolve(repoRoot);
   if (Array.isArray(track?.stories))
     for (const story of track.stories) {
       if (typeof story?.story_file !== 'string') continue;
-      const storyPath = join(repoRoot, story.story_file);
+      const storyPath = resolve(resolvedRepoRoot, story.story_file);
+      const relativeStoryPath = relative(resolvedRepoRoot, storyPath);
+      if (relativeStoryPath === '..' || relativeStoryPath.startsWith(`..${sep}`) || isAbsolute(relativeStoryPath)) {
+        errors.push(`story file escapes repository root: ${story.story_file}`);
+        continue;
+      }
       if (!existsSync(storyPath)) errors.push(`story file is missing: ${story.story_file}`);
       else if (!lstatSync(storyPath).isFile()) errors.push(`story file is not a regular file: ${story.story_file}`);
     }

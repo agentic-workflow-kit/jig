@@ -152,3 +152,27 @@ test('rejects a symlink in place of a canonical story brief', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('rejects story paths outside the repository before probing them', () => {
+  const parent = mkdtempSync(join(tmpdir(), 'delivery-track-test-'));
+  const root = join(parent, 'repo');
+  try {
+    mkdirSync(root);
+    writeFileSync(join(parent, 'outside.md'), '# Outside the repository\n');
+    const trackPath = join(root, 'track.json');
+    const escapingStory = story('GF-001', 0);
+    escapingStory.story_file = '../outside.md';
+    writeFileSync(
+      trackPath,
+      JSON.stringify({
+        schema_version: 1,
+        stories: [escapingStory],
+        phases: [{ id: 0, stories: ['GF-001'] }],
+      }),
+    );
+
+    assert.ok(validateTrackFile(trackPath, root).includes('story file escapes repository root: ../outside.md'));
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
