@@ -266,21 +266,28 @@ function snapshot(value: unknown): RecoverySnapshot | undefined {
   });
 }
 
-function recoveryClaim(value: LedgerRecord, generation: string, token: string): boolean {
+type GenerationControl =
+  | Readonly<{ kind: 'not-claim' }>
+  | Readonly<{ kind: 'claim'; token: string }>
+  | Readonly<{ kind: 'malformed' }>;
+
+function generationControl(value: LedgerRecord): GenerationControl {
   try {
+    if (typeof value.content !== 'object' || value.content === null || Array.isArray(value.content))
+      return freeze({ kind: 'not-claim' });
+    const descriptors = Object.getOwnPropertyDescriptors(value.content);
+    const shaped = descriptors.recovery !== undefined || descriptors.token !== undefined;
+    if (!shaped) return freeze({ kind: 'not-claim' });
     if (
-      value.generation !== generation ||
-      typeof value.content !== 'object' ||
-      value.content === null ||
-      Array.isArray(value.content)
+      Object.keys(descriptors).length !== 2 ||
+      Object.keys(descriptors).some((key) => key !== 'recovery' && key !== 'token') ||
+      descriptors.recovery?.value !== 'generation-claim' ||
+      !digest(descriptors.token?.value)
     )
-      return false;
-    return (
-      Object.getOwnPropertyDescriptor(value.content, 'recovery')?.value === 'generation-claim' &&
-      Object.getOwnPropertyDescriptor(value.content, 'token')?.value === token
-    );
+      return freeze({ kind: 'malformed' });
+    return freeze({ kind: 'claim', token: descriptors.token.value });
   } catch {
-    return false;
+    return freeze({ kind: 'malformed' });
   }
 }
 
@@ -312,12 +319,12 @@ function canonicalProjection(
 function replayProjection(
   initialState: AuthorityState,
   records: readonly LedgerRecord[],
-  claimedPosition: number,
+  generationControlPositions: ReadonlySet<number>,
   position: number,
   digest: string,
 ): RecoveryResult<CanonicalJson> {
   const steps = records
-    .filter((entry) => entry.position <= position && entry.position !== claimedPosition)
+    .filter((entry) => entry.position <= position && !generationControlPositions.has(entry.position))
     .map(replayStep);
   if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
   const replayed = replayAuthority(initialState, steps);
@@ -386,11 +393,21 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   if (head.position !== verifiedPosition || head.digest !== verifiedDigest)
     return failure('FC-TRUST', 'WITNESS_MISMATCH');
 
+  const controls = ordered.map((entry) => freeze({ position: entry.position, control: generationControl(entry) }));
+  if (controls.some((entry) => entry.control.kind === 'malformed'))
+    return failure('FC-FENCE', 'MALFORMED_GENERATION_CLAIM');
+  const generationControlPositions = new Set(
+    controls.filter((entry) => entry.control.kind === 'claim').map((entry) => entry.position),
+  );
+
   const claimed = record(candidate.claim, recoveredBinding.run);
+  const claimedControl = claimed ? generationControl(claimed) : undefined;
   if (
     !claimed ||
     !ordered.some((entry) => entry.contentDigest === claimed.contentDigest) ||
-    !recoveryClaim(claimed, candidate.generation, candidate.recoveryToken) ||
+    claimed.generation !== candidate.generation ||
+    claimedControl?.kind !== 'claim' ||
+    claimedControl.token !== candidate.recoveryToken ||
     typeof candidate.ledger !== 'object' ||
     candidate.ledger === null
   )
@@ -417,7 +434,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   const projectionCanonical = replayProjection(
     candidate.initialState as AuthorityState,
     ordered,
-    claimed.position,
+    generationControlPositions,
     verifiedPosition,
     verifiedDigest,
   );
@@ -439,7 +456,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
         ? replayProjection(
             candidate.initialState as AuthorityState,
             ordered,
-            claimed.position,
+            generationControlPositions,
             requestedSnapshot.position,
             requestedSnapshot.digest,
           )

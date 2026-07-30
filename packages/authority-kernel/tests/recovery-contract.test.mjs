@@ -79,6 +79,39 @@ function chain(schema) {
   return { ledger, records: [first, claim], claim, head: { position: claim.position, digest: claim.contentDigest } };
 }
 
+function secondRestart(malformedHistory = false) {
+  const ledger = runtime.createScriptedLedger();
+  const first = append(ledger, 0, digest('0'), priorGeneration, transition(0));
+  const priorClaim = append(ledger, 1, first.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const records = [first, priorClaim];
+  let previousDigest = priorClaim.contentDigest;
+  if (malformedHistory) {
+    const malformed = append(ledger, 2, previousDigest, generation, {
+      recovery: 'generation-claim',
+      token: digest('b'),
+      ambiguous: true,
+    });
+    records.push(malformed);
+    previousDigest = malformed.contentDigest;
+  }
+  const currentGeneration = `${run}/gen/3|recovery`;
+  const claim = append(ledger, records.length, previousDigest, currentGeneration, {
+    recovery: 'generation-claim',
+    token: digest('c'),
+  });
+  records.push(claim);
+  return {
+    ledger,
+    records,
+    claim,
+    head: { position: claim.position, digest: claim.contentDigest },
+    currentGeneration,
+  };
+}
+
 function recover(overrides = {}) {
   return recovery.recoverFencedRun({
     ...chain(),
@@ -160,6 +193,58 @@ test('CF-FENCE: a witnessed claim fences stale appends and recovery refuses abse
     ok: false,
     error: { family: 'FC-FENCE', code: 'GENERATION_CLAIM_UNVERIFIED' },
   });
+});
+
+test('CF-RESTART: replay excludes every exact generation-control record and fences prior generations', () => {
+  const source = secondRestart();
+  const result = recovery.recoverFencedRun({
+    ledger: source.ledger,
+    records: source.records,
+    claim: source.claim,
+    head: source.head,
+    binding: { kind: 'run', run, generation: priorGeneration },
+    generation: source.currentGeneration,
+    recoveryToken: digest('c'),
+    initialState,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.projection.state.storyState, 'Eligible');
+  assert.equal(result.value.projection.decisions.length, 1);
+  assert.equal(result.value.projection.decisionDigest, fixture.expectedDecisionDigest);
+  const stale = runtime.createLedgerRecord({
+    run,
+    generation,
+    transaction: `${run}/txn/4/${generation}|${basis}`,
+    position: 3,
+    previousDigest: source.head.digest,
+    content: transition(3),
+  });
+  assert.equal(stale.ok, true);
+  assert.deepEqual(
+    source.ledger.append({
+      binding: { kind: 'run', run, generation },
+      expectedPosition: 2,
+      record: stale.value,
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'STALE_GENERATION' } },
+  );
+});
+
+test('FC-FENCE: malformed historical generation claims fail closed before replay', () => {
+  const source = secondRestart(true);
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ledger: source.ledger,
+      records: source.records,
+      claim: source.claim,
+      head: source.head,
+      binding: { kind: 'run', run, generation: priorGeneration },
+      generation: source.currentGeneration,
+      recoveryToken: digest('c'),
+      initialState,
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'MALFORMED_GENERATION_CLAIM' } },
+  );
 });
 
 test('FC-INPUT: unknown and invalid transition schemas fail before replay', () => {
