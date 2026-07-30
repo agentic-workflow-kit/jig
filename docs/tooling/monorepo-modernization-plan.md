@@ -24,7 +24,7 @@ Repository facts (current `main`):
 
 - Four private, pure, compiled ESM packages (`codec`, `runtime-contracts`, `conformance`,
   `authority-kernel`) built with package-local `tsc -p`, tested with `node:test` against `dist`.
-- `tools/repo-guard` is dependency-light: the package-boundary guard is manifest/regex based and
+- `tools/repo-guard` is dependency-light: the package-boundary guard is manifest/regex-based and
   has **no TypeScript compiler-API dependency**. The former evidence writer
   (`write-evidence.mjs`), runtime-topology guard, delivery-track checker, and the
   project-reference workspace fixture were all removed by PR #118.
@@ -36,17 +36,29 @@ Repository facts (current `main`):
 
 External facts (verified 2026-07-30 against primary sources):
 
-- **TypeScript 7.0** (native Go compiler) went stable on 2026-07-08. The stable programmatic
-  compiler API is deferred to TypeScript 7.1 (expected around October 2026). Because no repository
-  tool consumes the compiler API, the 7.1 constraint does not affect this repository.
-- **Node.js 24** is Active LTS; Node 22 is maintenance. Node 26 is scheduled for LTS promotion in
-  October 2026, and Node moves to one major release per year starting with Node 27.
-- **Turborepo ≥ 2.8** shares the local cache across Git worktrees automatically when no custom
-  `cacheDir` is set, and supports task descriptions and `--summarize` run summaries.
-- **pnpm 11** ships supply-chain controls as first-class settings (`minimumReleaseAge` and its
-  strict/missing-time variants, `trustPolicy`, `trustLockfile`, `blockExoticSubdeps` — the last
-  already defaulting to true), and pnpm 11.13 added native workspace release management using
-  Changesets-compatible `.changeset/*.md` files.
+- **TypeScript 7.0** (native Go compiler) went stable on 2026-07-08; the stable programmatic
+  compiler API is deferred to TypeScript 7.1 (expected around October 2026)
+  ([announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)).
+  Supports the compiler decision in section 2; because no repository tool consumes the compiler
+  API, the 7.1 constraint does not affect this repository.
+- **Node.js 24** is Active LTS and Node 22 is maintenance
+  ([release table](https://nodejs.org/en/about/previous-releases)); Node 26 is scheduled for LTS
+  promotion in October 2026 and Node moves to one major release per year starting with Node 27
+  ([schedule announcement](https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule)).
+  Supports the runtime decision and the annual-bump policy in section 2.
+- **Turborepo 2.8+** (repository currently pins 2.10.5) shares the local cache across Git
+  worktrees automatically when no custom `cacheDir` is set and supports task descriptions
+  ([2.8 release notes](https://turborepo.dev/blog/2-8)); `--summarize` run summaries are
+  documented in the [run reference](https://turborepo.dev/docs/reference/run). Supports the task
+  runner and verification decisions in section 2.
+- **pnpm 11** (repository currently pins 11.9.0) ships supply-chain controls as first-class
+  settings — `minimumReleaseAge` and its strict/missing-time variants, `trustPolicy`,
+  `trustLockfile`, `blockExoticSubdeps` (the last already defaulting to true) — per the
+  [11.0 release post](https://pnpm.io/blog/releases/11.0) and the
+  [settings reference](https://pnpm.io/settings); pnpm 11.13 added native workspace release
+  management using Changesets-compatible `.changeset/*.md` files
+  ([11.11–11.14 release post](https://pnpm.io/blog/releases/11.11-11.14)). Supports the package
+  manager, security-settings, and release-machinery decisions in section 2.
 
 ## 2. Decisions
 
@@ -63,7 +75,7 @@ External facts (verified 2026-07-30 against primary sources):
 | Source-unit tests   | `test:unit` is a reserved package-local lane name; unused until a story-owned need exists         |
 | Lint/format         | Biome (code/JSON) + Prettier (Markdown/YAML) retained; no Oxlint or Oxfmt lanes now               |
 | Verification        | `pnpm verify` = full graph, cache reads bypassed, run summary emitted                             |
-| Evidence            | Implemented inside GF-004's story, consuming the Turbo run summary; not freestanding tooling      |
+| Evidence            | Dedicated substrate slice (PR D) binding `pnpm verify` run summaries to exact candidates          |
 | Release machinery   | None; nothing is published and the product is private and user-run                                |
 | Remote cache        | None; single-host, single-trust-boundary product — local worktree cache is sufficient             |
 
@@ -78,10 +90,11 @@ Rationale in one line each:
   source-versus-artifact divergence exactly where the design treats divergence as a trust failure.
 - **ESM only:** all six planned runtime units are Node processes on a pinned user-run runtime with
   no external package consumers; Node 22+/24 `require(esm)` covers any hypothetical straggler.
-- **Evidence belongs to GF-004:** the delivery track already owns verification evidence
-  ([verification](../delivery/greenfield/verification.md), the GF-004 conformance recorder).
-  Rebuilding a freestanding evidence writer days after PR #118 removed one would create a second
-  owner for the same obligation.
+- **Evidence has one owner:** the delivery track's
+  [verification contract](../delivery/greenfield/verification.md) governs exact-candidate
+  evidence, and the GF-004 conformance harness already landed with Phase 0. Binding `pnpm verify`
+  run summaries to candidates is therefore its own bounded substrate slice (PR D) — neither
+  freestanding tooling nor a retrofit into a completed story.
 
 ## 3. Package archetypes and task conventions
 
@@ -111,9 +124,9 @@ Conventions that hold across archetypes:
 
 ## 4. Migration slices
 
-Three substrate PRs, each independently green. Doing them now — while the workspace is four small
-packages — is deliberate: every slice's cost scales with package count, and the track is about to
-grow it.
+Four substrate slices, each independently green. Doing them now — while the workspace is four
+small packages — is deliberate: every slice's cost scales with package count, and the track is
+about to grow it.
 
 **PR A — contract wording (delivery-track governed).** Correct
 [`GF-001`](../delivery/greenfield/stories/GF-001.md) so the recorded substrate matches the live
@@ -141,9 +154,22 @@ delivery track's own change rules.
 strict set now (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
 `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`,
 `verbatimModuleSyntax`, `moduleDetection: "force"`) on the current small surface; move package
-`exports` to object form; target ES2024. Acceptance: golden vectors byte-identical, declaration
-digests reviewed, `incremental`/`tsBuildInfoFile` behavior under the native compiler verified,
-full `pnpm verify` green.
+`exports` to object form; target ES2024. The same slice must extend
+`check-package-boundaries.mjs` and its fixtures to accept exactly the object export shape
+(`types`/`import` conditions resolving from `dist`), which the guard currently rejects because it
+only accepts string-form `exports`; otherwise the slice cannot be independently green. Acceptance:
+golden vectors byte-identical, declaration digests reviewed, `incremental`/`tsBuildInfoFile`
+behavior under the native compiler verified, boundary-guard positive and negative fixtures for
+object exports, full `pnpm verify` green.
+
+**PR D — verification evidence binding (after PR B).** Add a repo-guard evidence step that
+consumes the `pnpm verify` Turbo run summary and records the candidate commit/tree before and
+after verification, toolchain versions, and per-task hash, status, and cache origin. It fails
+closed when a required task is missing, failed, or restored from cache in the final run, or when
+the candidate drifted during verification, with negative fixtures proving each fail-closed path.
+Scope stays aligned with the delivery track's
+[verification contract](../delivery/greenfield/verification.md): the step records evidence and
+never widens authority.
 
 ## 5. Triggered deferrals
 
@@ -155,7 +181,6 @@ creep; when it fires, the owning story decides.
 | First behavior-heavy package (likely GF-010/GF-011)              | Decide package-local Vitest for the reserved `test:unit` lane; contract lane is unchanged |
 | First story adding real runtime dependencies (phase 2 providers) | Pilot `enableGlobalVirtualStore` for worktree installs, with cold/warm measurements       |
 | Node 26 LTS promotion (~October 2026)                            | Annual runtime bump PR, same shape as PR B                                                |
-| GF-004 implementation                                            | Evidence recorder consuming the `pnpm verify` run summary; fail closed on gaps and drift  |
 | Distribution story for archetype D                               | Per-package bundling/SEA decision and any release tooling decision, owned by that story   |
 | Lint wall time becomes noticeable in `pnpm check`                | Evaluate Oxlint via a temporary shadow comparison, then choose one linter                 |
 | Oxfmt leaves beta with full Markdown/YAML coverage               | Formatting-only qualification candidate; never combined with semantic changes             |
