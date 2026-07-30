@@ -79,6 +79,16 @@ test('requires the essential Turbo aggregation edges', () => {
   assert.ok(errors.includes('Turbo build task must depend on ^build'));
 });
 
+test('requires the authority-kernel test artifact dependency', () => {
+  const errors = withRepository((root) => {
+    const turboPath = join(root, 'turbo.json');
+    const turbo = JSON.parse(readFileSync(turboPath, 'utf8'));
+    turbo.tasks['@agentic-workflow-kit/jig-authority-kernel#test'].dependsOn = ['build'];
+    writeFileSync(turboPath, `${JSON.stringify(turbo)}\n`);
+  });
+  assert.ok(errors.includes('Turbo authority-kernel test task must depend on runtime-contracts build'));
+});
+
 test('does not accept a commented-out CI check command', () => {
   const errors = withRepository((root) => {
     const workflowPath = join(root, '.github/workflows/check.yml');

@@ -779,7 +779,7 @@ function restore(snapshot: unknown, lookup: unknown, witness: unknown): Artifact
     const replayed = new Set<string>();
     for (const entry of source.journal) {
       const item = fields(entry, ['kind', 'request']) ?? fields(entry, ['kind', 'request', 'fact']);
-      if (!item || !item.request || typeof item.kind !== 'string') return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      if (!item?.request || typeof item.kind !== 'string') return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
       const request = { ...(item.request as Record<string, unknown>) };
       const operation = request.operation;
       if (!text(operation) || replayed.has(`${item.kind}/${operation}`))
