@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -26,6 +27,38 @@ const facts = Object.freeze({
   retention: 'expired',
   obligations: 'none',
 });
+const proof = (role) => {
+  const registration = JSON.stringify({
+    resourceScope: base.resourceScope,
+    subject: base.subject,
+    digest: base.digest,
+    fence: base.fence,
+    holder: put.holder,
+    putOperation: put.operation,
+    pins,
+  });
+  const pin = pins[role];
+  const transition = `transition/${role}`;
+  const canonical = JSON.stringify({
+    transition,
+    registration,
+    role,
+    holder: pin.holder,
+    tuple: pin.tuple,
+    subject: base.subject,
+    fence: base.fence,
+  });
+  return {
+    transition,
+    registration,
+    role,
+    holder: pin.holder,
+    tuple: pin.tuple,
+    subject: base.subject,
+    fence: base.fence,
+    digest: createHash('sha256').update(canonical).digest('hex'),
+  };
+};
 
 test('GF-013 R01: exact governing holder matrix and fixed CB-STORE binding fail closed', () => {
   const store = artifact.createScriptedArtifactStore();
@@ -71,6 +104,7 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
       putOperation: put.operation,
       pins,
       fact: result.value,
+      proof: proof('temporary'),
     }),
     {
       ok: false,
@@ -87,6 +121,7 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
       putOperation: put.operation,
       pins,
       fact: result.value,
+      proof: proof('temporary'),
     }).ok,
     true,
   );
@@ -120,6 +155,7 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
       putOperation: put.operation,
       pins,
       fact: written.value,
+      proof: proof('temporary'),
     }).ok,
     true,
   );
@@ -201,6 +237,7 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'release-pin',
       pin: pins.temporary.tuple,
       ...registration,
+      proof: proof('temporary'),
     }).ok,
     false,
   );
@@ -212,6 +249,7 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'put',
       fact: written.value,
       ...registration,
+      proof: proof('temporary'),
     }).ok,
     true,
   );
@@ -233,6 +271,7 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'put',
       fact: first.value,
       ...registration,
+      proof: proof('intended'),
     }).ok,
     true,
   );
@@ -288,4 +327,43 @@ test('GF-013 R05: hostile containers, unsafe bytes, and recovery mismatch fail c
     ).ok,
     false,
   );
+});
+
+test('GF-013 R05: journal replay restores only the exact witnessed chain', () => {
+  const fixtureStore = artifact.createScriptedArtifactFixture();
+  const written = fixtureStore.store.putDisposable(put);
+  assert.equal(written.ok, true);
+  assert.equal(fixtureStore.witness.advance(written.value).ok, true);
+  const snapshot = fixtureStore.store.snapshot();
+  const lookup = snapshot.lookup;
+  const restored = artifact.restoreScriptedArtifactFixture(snapshot, lookup, lookup);
+  assert.equal(restored.ok, true);
+  assert.equal(
+    restored.value.store.get({
+      ...base,
+      holder: put.holder,
+      operation: 'get-restored',
+      mode: 'get',
+      putOperation: put.operation,
+      pins,
+    }).ok,
+    true,
+  );
+  for (const mutate of [
+    (value) => (value.journal[0].request.bytes[0] ^= 1),
+    (value) => value.journal.pop(),
+    (value) => value.journal.push(structuredClone(value.journal[0])),
+    (value) => (value.journal[0].fact.position = 7),
+  ]) {
+    const tampered = structuredClone(snapshot);
+    mutate(tampered);
+    assert.equal(artifact.restoreScriptedArtifactFixture(tampered, lookup, lookup).ok, false);
+  }
+  for (const invalid of [
+    undefined,
+    { position: lookup.position - 1, headDigest: lookup.headDigest },
+    { position: lookup.position + 1, headDigest: lookup.headDigest },
+    { position: lookup.position, headDigest: fixture.digest },
+  ])
+    assert.equal(artifact.restoreScriptedArtifactFixture(snapshot, invalid, lookup).ok, false);
 });

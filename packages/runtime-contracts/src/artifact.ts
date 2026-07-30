@@ -30,16 +30,10 @@ type Binding = Readonly<{
 }>;
 type StoredOperation = Readonly<{ fact: ArtifactFact; binding: string; pending: boolean }>;
 type Registration = Readonly<{ key: string; binding: Binding; pins: Pins }>;
-type Seed = Readonly<{
-  objects: readonly (readonly [string, readonly number[]])[];
-  registrations: readonly (readonly [string, Registration])[];
-  livePins: readonly string[];
-  retiredPins: readonly string[];
-  operations: readonly (readonly [string, StoredOperation])[];
-  position: number;
-  head: string;
-  witnessedHead?: Readonly<{ position: number; headDigest: string }>;
-  trusted: boolean;
+type JournalEntry = Readonly<{
+  kind: 'put' | 'adopt' | 'reject' | 'retire' | 'release' | 'dispose';
+  request: Readonly<Record<string, unknown>>;
+  fact?: ArtifactFact;
 }>;
 const SCOPE = 'fixture/artifact-resource/v1';
 const PROTECTED = new Set([
@@ -71,6 +65,12 @@ const bytes = (value: unknown): value is Uint8Array =>
   value.byteLength <= 65_536 &&
   !/(?:secret|token|password|credential|api[_-]?key)/i.test(String.fromCharCode(...value));
 const freeze = <T>(value: T): T => Object.freeze(value);
+const sameArtifactFact = (left: ArtifactFact | undefined, right: ArtifactFact) =>
+  left?.operation === right.operation &&
+  left.mode === right.mode &&
+  left.position === right.position &&
+  left.headDigest === right.headDigest &&
+  left.binding === right.binding;
 const hash = (value: Uint8Array | string) => {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
   const constants = [
@@ -251,18 +251,17 @@ export function restoreScriptedArtifactFixture(
   return restore(snapshot, lookup, witness);
 }
 
-function createFixture(seed?: Seed): ScriptedArtifactFixture {
-  const objects = new Map<string, Uint8Array>(
-    (seed?.objects ?? []).map(([key, value]) => [key, new Uint8Array(value)]),
-  );
-  const registrations = new Map<string, Registration>(seed?.registrations ?? []);
-  const livePins = new Set<string>(seed?.livePins ?? []);
-  const retiredPins = new Set<string>(seed?.retiredPins ?? []);
-  const operations = new Map<string, StoredOperation>(seed?.operations ?? []);
-  let position = seed?.position ?? -1;
-  let head = seed?.head ?? '0'.repeat(64);
-  let witnessedHead: Readonly<{ position: number; headDigest: string }> | undefined = seed?.witnessedHead;
-  const recoveryTrusted = seed?.trusted ?? true;
+function createFixture(): ScriptedArtifactFixture {
+  const objects = new Map<string, Uint8Array>();
+  const registrations = new Map<string, Registration>();
+  const livePins = new Set<string>();
+  const retiredPins = new Set<string>();
+  const operations = new Map<string, StoredOperation>();
+  const journal: JournalEntry[] = [];
+  let position = -1;
+  let head = '0'.repeat(64);
+  let witnessedHead: Readonly<{ position: number; headDigest: string }> | undefined;
+  const recoveryTrusted = true;
   const makeFact = (bindingValue: Binding): ArtifactFact => {
     position += 1;
     head = hash(`${head}\0${key(bindingValue)}`);
@@ -307,6 +306,43 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
     const key = registrationKey(bindingValue, putOperation, exact.value);
     const registration = registrations.get(key);
     return registration ? { ok: true, value: registration } : fail('FC-EVIDENCE', 'REGISTRATION_ABSENT');
+  };
+  const transitionProof = (
+    input: unknown,
+    registration: Registration,
+    role: 'temporary' | 'intended',
+  ): ArtifactResult<void> => {
+    const proof = fields(input, [
+      'transition',
+      'digest',
+      'registration',
+      'role',
+      'holder',
+      'tuple',
+      'subject',
+      'fence',
+    ]);
+    const pin = registration.pins[role];
+    const canonical = JSON.stringify({
+      transition: proof?.transition,
+      registration: registration.key,
+      role,
+      holder: pin.holder,
+      tuple: pin.tuple,
+      subject: registration.binding.subject,
+      fence: registration.binding.fence,
+    });
+    return proof &&
+      text(proof.transition) &&
+      proof.registration === registration.key &&
+      proof.role === role &&
+      proof.holder === pin.holder &&
+      proof.tuple === pin.tuple &&
+      proof.subject === registration.binding.subject &&
+      proof.fence === registration.binding.fence &&
+      proof.digest === hash(canonical)
+      ? { ok: true, value: undefined }
+      : fail('FC-AUTHORITY', 'EXACT_RETIREMENT_TRANSITION_REQUIRED');
   };
   const store: ScriptedArtifactStore = freeze({
     resourceScope: SCOPE,
@@ -374,6 +410,7 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       livePins.add(registrationPinKey(registration, 'temporary'));
       livePins.add(registrationPinKey(registration, 'intended'));
       const fact = record(exactBinding, fault === 'lost-ack');
+      journal.push(freeze({ kind: 'put', request: freeze({ ...value, bytes: [...value.bytes] }), fact }));
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     get(request) {
@@ -409,6 +446,7 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
         'pins',
         'putOperation',
         'fact',
+        'proof',
       ]);
       const bound = binding(value, 'put');
       if (!value || !bound.ok || !disposableHolder(bound.value.holder)) return fail('FC-INPUT', 'INVALID_ADOPTION');
@@ -422,7 +460,10 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
+      const proof = transitionProof(value.proof, registration.value, 'temporary');
+      if (!proof.ok) return proof;
       retiredPins.add(registrationPinKey(registration.value, 'temporary'));
+      journal.push(freeze({ kind: 'adopt', request: freeze({ ...value }) }));
       return { ok: true, value: undefined };
     },
     reject(request) {
@@ -437,6 +478,8 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
         'putOperation',
         'pins',
         'fact',
+        'temporaryProof',
+        'intendedProof',
       ]);
       const bound = binding(value, 'put');
       const fact = value?.fact as ArtifactFact;
@@ -446,8 +489,13 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
+      const temporary = transitionProof(value.temporaryProof, registration.value, 'temporary');
+      const intended = transitionProof(value.intendedProof, registration.value, 'intended');
+      if (!temporary.ok) return temporary;
+      if (!intended.ok) return intended;
       retiredPins.add(registrationPinKey(registration.value, 'temporary'));
       retiredPins.add(registrationPinKey(registration.value, 'intended'));
+      journal.push(freeze({ kind: 'reject', request: freeze({ ...value }) }));
       return { ok: true, value: undefined };
     },
     retire(request) {
@@ -462,6 +510,7 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
         'putOperation',
         'pins',
         'fact',
+        'proof',
       ]);
       const bound = binding(value, 'put');
       const fact = value?.fact as ArtifactFact;
@@ -471,7 +520,10 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
+      const proof = transitionProof(value.proof, registration.value, 'intended');
+      if (!proof.ok) return proof;
       retiredPins.add(registrationPinKey(registration.value, 'intended'));
+      journal.push(freeze({ kind: 'retire', request: freeze({ ...value }) }));
       return { ok: true, value: undefined };
     },
     release(request, fault) {
@@ -517,6 +569,7 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       if (prior) return fail('FC-TRUST', 'RECONCILE_REQUIRED');
       const fact = record(exactBinding, fault === 'lost-ack');
       livePins.delete(pinKey);
+      journal.push(freeze({ kind: 'release', request: freeze({ ...value }), fact }));
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     dispose(request, fault) {
@@ -560,6 +613,7 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
           : fail('FC-FENCE' as ArtifactFailure['family'], 'OPERATION_BINDING_MISMATCH');
       const fact = record(bound.value, fault === 'lost-ack');
       objects.delete(registration.value.key);
+      journal.push(freeze({ kind: 'dispose', request: freeze({ ...value }), fact }));
       return fault === 'lost-ack' ? fail('FC-TRUST', 'ACK_LOST') : { ok: true, value: fact };
     },
     acknowledge(input) {
@@ -579,16 +633,8 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
     },
     snapshot() {
       return freeze({
-        objects: [...objects].map(([key, value]) => freeze([key, [...value]] as const)),
-        registrations: [...registrations].map(([key, value]) => freeze([key, value] as const)),
-        livePins: freeze([...livePins].sort()),
-        retiredPins: freeze([...retiredPins].sort()),
-        operations: [...operations].map(([key, value]) => freeze([key, value] as const)),
+        journal: freeze([...journal]),
         lookup: freeze({ position, headDigest: head }),
-        position,
-        head,
-        witnessedHead: witnessedHead && freeze({ ...witnessedHead }),
-        trusted: recoveryTrusted,
       });
     },
     reconcile(request) {
@@ -677,18 +723,7 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
   return createFixture();
 }
 function restore(snapshot: unknown, lookup: unknown, witness: unknown): ArtifactResult<ScriptedArtifactFixture> {
-  const source = fields(snapshot, [
-    'objects',
-    'registrations',
-    'livePins',
-    'retiredPins',
-    'operations',
-    'lookup',
-    'position',
-    'head',
-    'witnessedHead',
-    'trusted',
-  ]);
+  const source = fields(snapshot, ['journal', 'lookup']);
   const suppliedLookup = fields(lookup, ['position', 'headDigest']);
   const suppliedWitness = fields(witness, ['position', 'headDigest']);
   const storedLookup = source && fields(source.lookup, ['position', 'headDigest']);
@@ -697,34 +732,57 @@ function restore(snapshot: unknown, lookup: unknown, witness: unknown): Artifact
     !storedLookup ||
     !suppliedLookup ||
     !suppliedWitness ||
-    source.position !== storedLookup.position ||
-    source.head !== storedLookup.headDigest ||
     suppliedLookup.position !== storedLookup.position ||
     suppliedLookup.headDigest !== storedLookup.headDigest ||
     suppliedWitness.position !== storedLookup.position ||
     suppliedWitness.headDigest !== storedLookup.headDigest ||
-    !Array.isArray(source.objects) ||
-    !Array.isArray(source.registrations) ||
-    !Array.isArray(source.livePins) ||
-    !Array.isArray(source.retiredPins) ||
-    !Array.isArray(source.operations)
+    !Array.isArray(source.journal)
   )
     return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
   try {
-    return {
-      ok: true,
-      value: createFixture({
-        objects: source.objects as Seed['objects'],
-        registrations: source.registrations as Seed['registrations'],
-        livePins: source.livePins as Seed['livePins'],
-        retiredPins: source.retiredPins as Seed['retiredPins'],
-        operations: source.operations as Seed['operations'],
-        position: source.position as number,
-        head: source.head as string,
-        witnessedHead: source.witnessedHead as Seed['witnessedHead'],
-        trusted: source.trusted === true,
-      }),
-    };
+    const fixture = createFixture();
+    const replayed = new Set<string>();
+    for (const entry of source.journal) {
+      const item = fields(entry, ['kind', 'request']) ?? fields(entry, ['kind', 'request', 'fact']);
+      if (!item || !item.request || typeof item.kind !== 'string') return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      const request = { ...(item.request as Record<string, unknown>) };
+      const operation = request.operation;
+      if (!text(operation) || replayed.has(`${item.kind}/${operation}`))
+        return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      replayed.add(`${item.kind}/${operation}`);
+      if (item.kind === 'put' && Array.isArray(request.bytes))
+        request.bytes = new Uint8Array(request.bytes as number[]);
+      const result =
+        item.kind === 'put'
+          ? fixture.store.putDisposable(request)
+          : item.kind === 'adopt'
+            ? fixture.store.adopt(request)
+            : item.kind === 'reject'
+              ? fixture.store.reject(request)
+              : item.kind === 'retire'
+                ? fixture.store.retire(request)
+                : item.kind === 'release'
+                  ? fixture.store.release(request)
+                  : item.kind === 'dispose'
+                    ? fixture.store.dispose(request)
+                    : fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      if (!result.ok) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      if (item.kind === 'put' || item.kind === 'release' || item.kind === 'dispose') {
+        const expected = item.fact as ArtifactFact;
+        const actual = result.value as ArtifactFact;
+        if (!expected || !sameArtifactFact(actual, expected) || !fixture.witness.advance(actual).ok)
+          return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      }
+    }
+    const rebuilt = fixture.store.snapshot();
+    const rebuiltLookup =
+      fields(rebuilt, ['journal', 'lookup']) &&
+      fields((rebuilt as Record<string, unknown>).lookup, ['position', 'headDigest']);
+    return rebuiltLookup &&
+      rebuiltLookup.position === storedLookup.position &&
+      rebuiltLookup.headDigest === storedLookup.headDigest
+      ? { ok: true, value: fixture }
+      : fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
   } catch {
     return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
   }
