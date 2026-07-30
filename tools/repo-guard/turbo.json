@@ -1,0 +1,83 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "guard": {
+      "dependsOn": [
+        "guard:structure",
+        "guard:delivery",
+        "guard:links",
+        "guard:boundaries",
+        "guard:topology",
+        "guard:format"
+      ]
+    },
+    "guard:structure": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
+      "cache": false
+    },
+    "guard:delivery": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
+      "outputs": []
+    },
+    "test:delivery": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
+      "outputs": []
+    },
+    "guard:links": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
+      "outputs": []
+    },
+    "guard:boundaries": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/**", "$TURBO_ROOT$/tools/**"],
+      "outputs": []
+    },
+    "guard:topology": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/runtime-contracts/**"],
+      "outputs": []
+    },
+    "guard:format": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
+      "outputs": []
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ]
+    }
+  }
+}

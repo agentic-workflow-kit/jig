@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
+import { repoRoot } from './repo-root.mjs';
 
-const rootDir = process.cwd();
+const rootDir = repoRoot;
 const excludedDirNames = new Set(['node_modules', 'dist', 'coverage', 'runs', '.git']);
 const generationArchiveRef = 'archive/jig-v0-pre-greenfield-2026-07-18';
 const historicalSourceRoots = [resolve(rootDir, 'docs/archive'), resolve(rootDir, 'docs/redesign/raw')];

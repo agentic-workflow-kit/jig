@@ -2,6 +2,13 @@
 # `.npmrc` is auth-only.
 packages:
   - "packages/*"
+  - "tools/*"
+
+# --- Single-sourced toolchain versions consumed by workspace packages via `catalog:` ---
+catalog:
+  "@biomejs/biome": 2.5.2
+  prettier: 3.9.3
+  typescript: 5.8.2
 
 # --- Supply-chain / toolchain baseline (every archetype) ---
 allowBuilds: {} # no dependency runs install/build scripts until reviewed and listed here

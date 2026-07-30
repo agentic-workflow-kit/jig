@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { encodeFrame } from '../../packages/codec/dist/index.js';
+import { encodeFrame } from '@agentic-workflow-kit/jig-codec';
 
-const conformance = await import('../../packages/conformance/dist/index.js');
-const oracleText = readFileSync(resolve(import.meta.dirname, '../fixtures/conformance-oracle.json'), 'utf8');
+const conformance = await import('../dist/index.js');
+const oracleText = readFileSync(resolve(import.meta.dirname, './fixtures/conformance-oracle.json'), 'utf8');
 const oracle = JSON.parse(oracleText);
 const hash = 'a'.repeat(64);
 const subject = Object.freeze({

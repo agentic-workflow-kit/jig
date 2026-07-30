@@ -1,23 +1,42 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative } from 'node:path';
+import { repoRoot } from './repo-root.mjs';
 
-const root = resolve(import.meta.dirname, '..');
+const root = repoRoot;
 const subject = process.argv[2];
 const safeSubject = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const testTimeoutMs = 120_000;
+// The guard test task runs Turbo recursively (the workspace-substrate fixture), so it does not
+// replay from cache; the evidence run must budget for a full uncached suite rather than a warm one.
+const testTimeoutMs = 900_000;
 
 function digestFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-function fixtureDigests(directory, current = directory, result = {}) {
+// Fixtures now live beside the package that owns them, so evidence digests every fixture tree the
+// workspace declares rather than a single root directory.
+const fixtureRoots = [
+  'packages/authority-kernel/tests/fixtures',
+  'packages/codec/tests/fixtures',
+  'packages/conformance/tests/fixtures',
+  'packages/runtime-contracts/tests/fixtures',
+  'tools/repo-guard/tests/fixtures',
+];
+
+function fixtureDigests(prefix, current, result = {}) {
   for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const path = join(current, entry.name);
-    if (entry.isDirectory()) fixtureDigests(directory, path, result);
-    else if (entry.isFile()) result[relative(directory, path)] = digestFile(path);
+    if (entry.isDirectory()) fixtureDigests(prefix, path, result);
+    else if (entry.isFile()) result[`${prefix}/${relative(join(root, prefix), path)}`] = digestFile(path);
   }
+  return result;
+}
+
+function workspaceFixtureDigests() {
+  const result = {};
+  for (const prefix of fixtureRoots) fixtureDigests(prefix, join(root, prefix), result);
   return result;
 }
 
@@ -28,7 +47,7 @@ function git(...args) {
 function writeEvidence() {
   if (!subject || !safeSubject.test(subject)) {
     throw new Error(
-      'usage: node scripts/write-evidence.mjs <subject>; subject must use lowercase letters, digits, and single hyphens',
+      'usage: node tools/repo-guard/bin/write-evidence.mjs <subject>; subject must use lowercase letters, digits, and single hyphens',
     );
   }
 
@@ -43,17 +62,22 @@ function writeEvidence() {
     subject,
     candidate: { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') },
     toolchainDigests: Object.fromEntries(
-      ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json'].map((path) => [
-        path,
-        digestFile(join(root, path)),
-      ]),
+      [
+        'package.json',
+        'pnpm-lock.yaml',
+        'pnpm-workspace.yaml',
+        'tsconfig.base.json',
+        'turbo.json',
+        'tools/repo-guard/package.json',
+        'tools/repo-guard/turbo.json',
+      ].map((path) => [path, digestFile(join(root, path))]),
     ),
-    fixtureDigests: fixtureDigests(join(root, 'tests', 'fixtures')),
+    fixtureDigests: workspaceFixtureDigests(),
     environment: { node: process.version, platform: process.platform, arch: process.arch },
     test: { command: 'pnpm test', exitCode: test.status },
   };
   const destination = join(root, 'artifacts', subject, 'evidence.json');
-  mkdirSync(resolve(destination, '..'), { recursive: true });
+  mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(destination);
 }

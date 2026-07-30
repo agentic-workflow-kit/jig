@@ -40,16 +40,27 @@ Product owns what and why. The approved redesign owns how. Historical material u
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
-pnpm typecheck
-pnpm boundaries:check
+pnpm check:affected
+pnpm build
+pnpm lint
 pnpm test
+pnpm guard
 pnpm format
+pnpm format:check
+pnpm links:check
+pnpm delivery:check
 pnpm worktree:new <branch>
 pnpm worktree:clean <branch>
 ```
 
-`pnpm check` validates repository structure, typecheck, package boundaries, infrastructure tests,
-the archive recovery anchor, the greenfield delivery track, formatting, lint, and documentation links.
+Turbo owns the task graph. Every compiled package under `packages/` declares the same `build`,
+`lint`, and `test` tasks, and `check` aggregates them. `tools/repo-guard` compiles nothing, so it
+declares `lint`, `test`, and the repository-level `guard:*` gates instead of a build. `pnpm check` therefore runs package build, lint, and test plus repository
+structure, package boundaries, runtime topology, the greenfield delivery track, documentation
+links, and formatting. `pnpm check:affected` restricts the same graph to what the current branch
+changed, using each task's declared inputs. It is a local convenience, not the gate: selection is
+only as complete as the comparison base, so `pnpm check` is what CI runs and what a change must
+pass.
 
 ## Gate and conventions
 

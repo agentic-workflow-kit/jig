@@ -4,30 +4,53 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@biomejs/biome':
+      specifier: 2.5.2
+      version: 2.5.2
+    prettier:
+      specifier: 3.9.3
+      version: 3.9.3
+    typescript:
+      specifier: 5.8.2
+      version: 5.8.2
+
 importers:
 
   .:
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.5.2
+        specifier: 'catalog:'
         version: 2.5.2
       prettier:
-        specifier: 3.9.3
+        specifier: 'catalog:'
         version: 3.9.3
       turbo:
         specifier: 2.10.5
         version: 2.10.5
-      typescript:
-        specifier: 5.8.2
-        version: 5.8.2
 
   packages/authority-kernel:
     dependencies:
       '@agentic-workflow-kit/jig-codec':
         specifier: workspace:*
         version: link:../codec
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
 
-  packages/codec: {}
+  packages/codec:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
 
   packages/conformance:
     dependencies:
@@ -37,12 +60,38 @@ importers:
       '@agentic-workflow-kit/jig-runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
 
   packages/runtime-contracts:
     dependencies:
       '@agentic-workflow-kit/jig-codec':
         specifier: workspace:*
         version: link:../codec
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
+
+  tools/repo-guard:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      prettier:
+        specifier: 'catalog:'
+        version: 3.9.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
 
 packages:
 

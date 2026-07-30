@@ -21,9 +21,9 @@ import {
   deliveryAllowlist,
   validateDeliveryTrackPackage,
   verifyCandidatePackageManifest,
-} from './check-delivery-track.mjs';
+} from '../bin/check-delivery-track.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 function markdownFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory()
@@ -49,61 +49,57 @@ const activeFixturePaths = [
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
   'turbo.json',
-  'tsconfig.json',
   'tsconfig.base.json',
-  'tsconfig.tools.json',
-  'scripts/check-doc-links.mjs',
-  'scripts/check-delivery-track.mjs',
-  'scripts/check-delivery-track.test.mjs',
-  'scripts/check-active-repository.mjs',
-  'scripts/check-active-repository.test.mjs',
+  'tools/repo-guard/bin/check-doc-links.mjs',
+  'tools/repo-guard/bin/check-delivery-track.mjs',
+  'tools/repo-guard/tests/check-delivery-track.test.mjs',
+  'tools/repo-guard/bin/check-active-repository.mjs',
+  'tools/repo-guard/tests/check-active-repository.test.mjs',
   '.agents/skills/orchestrate-phase-delivery/README.md',
   '.agents/skills/orchestrate-phase-delivery/SKILL.md',
   '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
   '.agents/skills/orchestrate-phase-delivery/evals/trigger_queries.json',
   '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
   '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
-  'scripts/check-package-boundaries.mjs',
-  'scripts/check-package-boundaries.test.mjs',
-  'scripts/check-runtime-topology.mjs',
-  'scripts/check-runtime-topology.test.mjs',
-  'scripts/write-evidence.mjs',
-  'tests/workspace/workspace-substrate.test.mjs',
-  'tests/codec/codec.test.mjs',
-  'tests/codec/corpus.test.mjs',
-  'tests/codec/golden-consumer.mjs',
-  'tests/runtime-contracts/topology.test.mjs',
-  'tests/conformance/conformance.test.mjs',
-  'tests/authority-kernel/authority-kernel.test.mjs',
-  'tests/fixtures/codec-vectors.json',
-  'tests/fixtures/codec-corpus.json',
-  'tests/fixtures/runtime-topology.json',
-  'tests/fixtures/runtime-fakes.json',
-  'tests/fixtures/conformance-oracle.json',
-  'tests/fixtures/authority-oracle.json',
-  'tests/fixtures/workspace/.gitignore',
-  'tests/fixtures/workspace/package.json',
-  'tests/fixtures/workspace/pnpm-lock.yaml',
-  'tests/fixtures/workspace/pnpm-workspace.yaml',
-  'tests/fixtures/workspace/tsconfig.base.json',
-  'tests/fixtures/workspace/tsconfig.json',
+  'tools/repo-guard/package.json',
+  'tools/repo-guard/turbo.json',
+  'tools/repo-guard/bin/repo-root.mjs',
+  'tools/repo-guard/bin/check-formatting.mjs',
+  'tools/repo-guard/bin/check-package-boundaries.mjs',
+  'tools/repo-guard/tests/check-package-boundaries.test.mjs',
+  'tools/repo-guard/bin/check-runtime-topology.mjs',
+  'tools/repo-guard/tests/check-runtime-topology.test.mjs',
+  'tools/repo-guard/bin/write-evidence.mjs',
+  'tools/repo-guard/tests/workspace-substrate.test.mjs',
+  'tools/repo-guard/tests/task-inputs.test.mjs',
+  'tools/repo-guard/tests/fixtures/workspace/.gitignore',
+  'tools/repo-guard/tests/fixtures/workspace/package.json',
+  'tools/repo-guard/tests/fixtures/workspace/pnpm-lock.yaml',
+  'tools/repo-guard/tests/fixtures/workspace/pnpm-workspace.yaml',
+  'tools/repo-guard/tests/fixtures/workspace/tsconfig.base.json',
+  'tools/repo-guard/tests/fixtures/workspace/tsconfig.json',
   ...['pkg-a', 'pkg-b', 'pkg-c'].flatMap((name) => [
-    `tests/fixtures/workspace/packages/${name}/package.json`,
-    `tests/fixtures/workspace/packages/${name}/src/index.ts`,
-    `tests/fixtures/workspace/packages/${name}/tsconfig.json`,
+    `tools/repo-guard/tests/fixtures/workspace/packages/${name}/package.json`,
+    `tools/repo-guard/tests/fixtures/workspace/packages/${name}/src/index.ts`,
+    `tools/repo-guard/tests/fixtures/workspace/packages/${name}/tsconfig.json`,
   ]),
-  'packages/codec/package.json',
-  'packages/codec/tsconfig.json',
-  'packages/codec/src/index.ts',
-  'packages/conformance/package.json',
-  'packages/conformance/tsconfig.json',
-  'packages/conformance/src/index.ts',
-  'packages/runtime-contracts/package.json',
-  'packages/runtime-contracts/tsconfig.json',
-  'packages/runtime-contracts/src/index.ts',
-  'packages/authority-kernel/package.json',
-  'packages/authority-kernel/tsconfig.json',
-  'packages/authority-kernel/src/index.ts',
+  ...['authority-kernel', 'codec', 'conformance', 'runtime-contracts'].flatMap((name) => [
+    `packages/${name}/package.json`,
+    `packages/${name}/tsconfig.json`,
+    `packages/${name}/src/index.ts`,
+  ]),
+  'packages/codec/tests/codec.test.mjs',
+  'packages/codec/tests/corpus.test.mjs',
+  'packages/codec/tests/golden-consumer.mjs',
+  'packages/codec/tests/fixtures/codec-vectors.json',
+  'packages/codec/tests/fixtures/codec-corpus.json',
+  'packages/runtime-contracts/tests/topology.test.mjs',
+  'packages/runtime-contracts/tests/fixtures/runtime-topology.json',
+  'packages/runtime-contracts/tests/fixtures/runtime-fakes.json',
+  'packages/conformance/tests/conformance.test.mjs',
+  'packages/conformance/tests/fixtures/conformance-oracle.json',
+  'packages/authority-kernel/tests/authority-kernel.test.mjs',
+  'packages/authority-kernel/tests/fixtures/authority-oracle.json',
   ...['docs/product', 'docs/redesign/design', 'docs/redesign/guidelines'].flatMap((path) =>
     markdownFiles(join(root, path)).map((file) => relative(root, file)),
   ),
@@ -142,7 +138,7 @@ function gitFixture(run) {
   });
 }
 function runStructureCheck(dir) {
-  return spawnSync(process.execPath, ['scripts/check-active-repository.mjs'], {
+  return spawnSync(process.execPath, ['tools/repo-guard/bin/check-active-repository.mjs'], {
     cwd: dir,
     encoding: 'utf8',
   });
@@ -898,6 +894,25 @@ test('Git metadata failures fail closed instead of using filesystem fallback', (
       'delivery track contains malformed data that could not be validated safely',
     ]);
   }));
+// Every structure-check assertion below mutates this fixture and expects a specific failure. If the
+// fixture's own path corpus drifts from the governed corpus, those tests keep passing on an unrelated
+// baseline error and stop proving anything, so the baseline is asserted clean first. The archive-ref
+// probe is excluded: it depends on git history the fixture cannot carry in a shallow checkout.
+test('the structure-check fixture carries the full governed path corpus, so mutation tests start clean', () =>
+  gitFixture((dir) => {
+    const archiveDiagnostic = '- archive ref or representative recovery path';
+    const result = runStructureCheck(dir);
+    assert.equal(result.error, undefined, 'structure check must be runnable');
+    assert.equal(result.signal, null, 'structure check must not be killed');
+    const baseline = result.stderr
+      .split('\n')
+      .filter((line) => line.startsWith('- '))
+      .filter((line) => !line.startsWith(archiveDiagnostic));
+    assert.deepEqual(baseline, []);
+    // A crash or an undiagnosed failure emits nothing dash-prefixed, so an empty `baseline` alone
+    // would pass silently. Any non-zero exit must be fully explained by the archive probe.
+    if (result.status !== 0) assert.ok(result.stderr.includes(archiveDiagnostic), result.stderr);
+  }));
 test('structure check reports deleted governed paths and malformed package scripts without throwing', () => {
   gitFixture((dir) => {
     const deleted = 'docs/delivery/greenfield/stories/GF-001.md';
@@ -1033,8 +1048,8 @@ test('CI runs the immutable structure preflight before the mutable pipeline and 
     writeFileSync(
       workflow,
       readFileSync(workflow, 'utf8').replace(
-        '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile',
-        '      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n\n      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs',
+        '      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs\n\n      - name: Install dependencies\n        run: pnpm install --frozen-lockfile',
+        '      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n\n      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs',
       ),
     );
     assert.notEqual(candidatePackageManifest(dir), baseline);
@@ -1056,8 +1071,8 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
       writeFileSync(
         workflow,
         readFileSync(workflow, 'utf8').replace(
-          '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs',
-          `      - name: Active repository preflight\n${insertedLine}        run: node scripts/check-active-repository.mjs`,
+          '      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs',
+          `      - name: Active repository preflight\n${insertedLine}        run: node tools/repo-guard/bin/check-active-repository.mjs`,
         ),
       );
       const result = runStructureCheck(dir);
@@ -1091,7 +1106,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
       workflow,
       readFileSync(workflow, 'utf8').replace(
         '      - name: Active repository preflight',
-        '      - name: Rewrite active checker\n        run: cp package.json scripts/check-active-repository.mjs\n\n      - name: Active repository preflight',
+        '      - name: Rewrite active checker\n        run: cp package.json tools/repo-guard/bin/check-active-repository.mjs\n\n      - name: Active repository preflight',
       ),
     );
     const result = runStructureCheck(dir);
@@ -1123,14 +1138,14 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     const workflow = join(dir, '.github/workflows/check.yml');
     const text = readFileSync(workflow, 'utf8');
     const withoutCheckPreflight = text.replace(
-      '      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n',
+      '      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs\n\n',
       '',
     );
     writeFileSync(
       workflow,
       withoutCheckPreflight.replace(
         'jobs:\n  check:',
-        'jobs:\n  preflight:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Active repository preflight\n        run: node scripts/check-active-repository.mjs\n\n  check:',
+        'jobs:\n  preflight:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs\n\n  check:',
       ),
     );
     const result = runStructureCheck(dir);
@@ -1144,7 +1159,7 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
 test('candidate package binds the document-link validator implementation', () =>
   fixture((dir) => {
     const baseline = candidatePackageManifest(dir);
-    const path = join(dir, 'scripts/check-doc-links.mjs');
+    const path = join(dir, 'tools/repo-guard/bin/check-doc-links.mjs');
     writeFileSync(path, `${readFileSync(path, 'utf8')}\n// coherent validator mutation\n`);
     assert.notEqual(candidatePackageManifest(dir), baseline);
     assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
@@ -1173,7 +1188,10 @@ test('candidate package binds every validation, install, ignore, and local-runti
     'biome.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
-    'scripts/check-active-repository.test.mjs',
+    'turbo.json',
+    'tools/repo-guard/package.json',
+    'tools/repo-guard/turbo.json',
+    'tools/repo-guard/tests/check-active-repository.test.mjs',
   ])
     fixture((dir) => {
       const baseline = candidatePackageManifest(dir);

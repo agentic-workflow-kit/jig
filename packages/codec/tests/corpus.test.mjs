@@ -11,9 +11,9 @@ import {
   formatIdentity,
   parseIdentity,
   validateStagedDigest,
-} from '../../packages/codec/dist/index.js';
+} from '../dist/index.js';
 
-const corpus = JSON.parse(readFileSync(new URL('../fixtures/codec-corpus.json', import.meta.url), 'utf8'));
+const corpus = JSON.parse(readFileSync(new URL('./fixtures/codec-corpus.json', import.meta.url), 'utf8'));
 const utf8 = (value) => Buffer.from(value, 'utf8');
 const oversizedFrame = (descriptor) =>
   `{"payload":"${descriptor.character.repeat(descriptor.count)}","version":"jig.codec.v1"}`;
@@ -68,7 +68,7 @@ test('codec: deterministic property corpus replays canonical bytes from its decl
 });
 
 test('codec: independent process consumer derives the same corpus oracle', () => {
-  const result = spawnSync(process.execPath, ['tests/codec/golden-consumer.mjs'], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, ['tests/golden-consumer.mjs'], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   const output = JSON.parse(result.stdout);
   assert.equal(output.corpusVersion, corpus.corpusVersion);
@@ -98,7 +98,7 @@ test('codec: independent consumer rejects wrong immutable canonical, digest, and
         .digest('hex');
       const path = join(root, `${index}.json`);
       writeFileSync(path, `${JSON.stringify(copy)}\n`);
-      const result = spawnSync(process.execPath, ['tests/codec/golden-consumer.mjs', path], { encoding: 'utf8' });
+      const result = spawnSync(process.execPath, ['tests/golden-consumer.mjs', path], { encoding: 'utf8' });
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /fixed corpus oracle digest|implementation output/);
     }

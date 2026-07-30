@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-const kernel = await import('../../packages/authority-kernel/dist/index.js');
-const oracle = JSON.parse(readFileSync(resolve(import.meta.dirname, '../fixtures/authority-oracle.json'), 'utf8'));
+const kernel = await import('../dist/index.js');
+const oracle = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/authority-oracle.json'), 'utf8'));
 
 const run = 'run-000000000001-aaaaaaaaaaaaaaaa';
 const digest = 'a'.repeat(64);

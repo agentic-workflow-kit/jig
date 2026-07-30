@@ -3,19 +3,23 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writ
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { validatePackageBoundaries } from './check-package-boundaries.mjs';
+import { validatePackageBoundaries } from '../bin/check-package-boundaries.mjs';
 
-const repoRoot = resolve(import.meta.dirname, '..');
+const repoRoot = resolve(import.meta.dirname, '../../..');
 
 function withFixture(mutate) {
   const root = mkdtempSync(join(tmpdir(), 'package-boundary-test-'));
   let failure;
   let result;
   try {
-    cpSync(join(repoRoot, 'tests/fixtures/workspace'), join(root, 'tests/fixtures/workspace'), {
-      recursive: true,
-      verbatimSymlinks: true,
-    });
+    cpSync(
+      join(repoRoot, 'tools/repo-guard/tests/fixtures/workspace'),
+      join(root, 'tools/repo-guard/tests/fixtures/workspace'),
+      {
+        recursive: true,
+        verbatimSymlinks: true,
+      },
+    );
     mutate(root);
     result = validatePackageBoundaries(root);
   } catch (error) {
@@ -180,7 +184,7 @@ test('fails closed when a pure package source entry point is missing', () => {
 
 test('rejects runtime-capable package entrypoints and lifecycle scripts', () => {
   const errors = withFixture((root) => {
-    const manifest = join(root, 'tests/fixtures/workspace/packages/pkg-a/package.json');
+    const manifest = join(root, 'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/package.json');
     writeFileSync(
       manifest,
       '{"name":"@workspace-fixture/pkg-a","private":true,"bin":"cli.mjs","scripts":{"start":"node src/index.ts"}}\n',
@@ -193,14 +197,17 @@ test('rejects runtime-capable package entrypoints and lifecycle scripts', () => 
 
 test('rejects a source implementation hidden behind an allowed index path', () => {
   const errors = withFixture((root) =>
-    writeFileSync(join(root, 'tests/fixtures/workspace/packages/pkg-a/src/index.ts'), 'export const provider = {};\n'),
+    writeFileSync(
+      join(root, 'tools/repo-guard/tests/fixtures/workspace/packages/pkg-a/src/index.ts'),
+      'export const provider = {};\n',
+    ),
   );
   assert.ok(errors.some((error) => error.includes('bounded content')));
 });
 
 test('rejects tracked-file substitutions with symlinks', () => {
   const errors = withFixture((root) => {
-    const target = join(root, 'tests/fixtures/workspace/packages/pkg-c/src/index.ts');
+    const target = join(root, 'tools/repo-guard/tests/fixtures/workspace/packages/pkg-c/src/index.ts');
     rmSync(target);
     symlinkSync('../../pkg-a/src/index.ts', target);
   });
@@ -209,7 +216,10 @@ test('rejects tracked-file substitutions with symlinks', () => {
 
 test('rejects fixture workspace membership and solution-reference graph drift', () => {
   const errors = withFixture((root) =>
-    writeFileSync(join(root, 'tests/fixtures/workspace/tsconfig.json'), '{"files":[],"references":[]}\n'),
+    writeFileSync(
+      join(root, 'tools/repo-guard/tests/fixtures/workspace/tsconfig.json'),
+      '{"files":[],"references":[]}\n',
+    ),
   );
   assert.ok(
     errors.some((error) => error.includes('bounded content') || error.includes('solution TypeScript references')),
@@ -219,7 +229,7 @@ test('rejects fixture workspace membership and solution-reference graph drift', 
 test('rejects even a lockfile-only fixture dependency drift', () => {
   const errors = withFixture((root) =>
     writeFileSync(
-      join(root, 'tests/fixtures/workspace/pnpm-lock.yaml'),
+      join(root, 'tools/repo-guard/tests/fixtures/workspace/pnpm-lock.yaml'),
       "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
     ),
   );
@@ -229,7 +239,7 @@ test('rejects even a lockfile-only fixture dependency drift', () => {
 test('rejects forbidden dependency direction and non-workspace binding', () => {
   const errors = withFixture((root) =>
     writeFileSync(
-      join(root, 'tests/fixtures/workspace/packages/pkg-b/package.json'),
+      join(root, 'tools/repo-guard/tests/fixtures/workspace/packages/pkg-b/package.json'),
       '{"name":"@workspace-fixture/pkg-b","private":true,"dependencies":{"@workspace-fixture/pkg-a":"^1.0.0"}}\n',
     ),
   );

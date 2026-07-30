@@ -3,11 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-const rootDir = resolve(import.meta.dirname, '../..');
-const fixture = JSON.parse(readFileSync(resolve(rootDir, 'tests/fixtures/runtime-topology.json'), 'utf8'));
-const fakeFixture = JSON.parse(readFileSync(resolve(rootDir, 'tests/fixtures/runtime-fakes.json'), 'utf8'));
-const runtime = await import('../../packages/runtime-contracts/dist/index.js');
-const codec = await import('../../packages/codec/dist/index.js');
+const fixture = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/runtime-topology.json'), 'utf8'));
+const fakeFixture = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/runtime-fakes.json'), 'utf8'));
+const runtime = await import('../dist/index.js');
+const codec = await import('@agentic-workflow-kit/jig-codec');
 
 function encodedCrossing(crossing) {
   const encoded = runtime.encodeTopologyCrossing(crossing);

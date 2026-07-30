@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { repoRoot } from './repo-root.mjs';
 
 const expectedUnits = ['RT-OPERATOR', 'RT-CONTROLLER', 'RT-LEDGER', 'RT-EVIDENCE', 'RT-REGISTRY', 'RT-WITNESS'];
 const expectedPorts = [
@@ -27,10 +28,10 @@ const expectedDeniedEdges = [
 
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
-export function validateRuntimeTopology(rootDir = process.cwd()) {
+export function validateRuntimeTopology(rootDir = repoRoot) {
   const errors = [];
-  const fixturePath = resolve(rootDir, 'tests/fixtures/runtime-topology.json');
-  const fakePath = resolve(rootDir, 'tests/fixtures/runtime-fakes.json');
+  const fixturePath = resolve(rootDir, 'packages/runtime-contracts/tests/fixtures/runtime-topology.json');
+  const fakePath = resolve(rootDir, 'packages/runtime-contracts/tests/fixtures/runtime-fakes.json');
   const sourcePath = resolve(rootDir, 'packages/runtime-contracts/src/index.ts');
   const manifestPath = resolve(rootDir, 'packages/runtime-contracts/package.json');
   for (const path of [fixturePath, fakePath, sourcePath, manifestPath])

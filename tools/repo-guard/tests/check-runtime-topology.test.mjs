@@ -3,15 +3,19 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { validateRuntimeTopology } from './check-runtime-topology.mjs';
+import { validateRuntimeTopology } from '../bin/check-runtime-topology.mjs';
 
-const rootDir = resolve(import.meta.dirname, '..');
+const rootDir = resolve(import.meta.dirname, '../../..');
 
 function withCopy(mutate) {
   const tempDir = mkdtempSync(join(tmpdir(), 'runtime-topology-test-'));
   try {
     cpSync(join(rootDir, 'packages'), join(tempDir, 'packages'), { recursive: true });
-    cpSync(join(rootDir, 'tests/fixtures'), join(tempDir, 'tests/fixtures'), { recursive: true });
+    cpSync(
+      join(rootDir, 'packages/runtime-contracts/tests/fixtures'),
+      join(tempDir, 'packages/runtime-contracts/tests/fixtures'),
+      { recursive: true },
+    );
     mutate(tempDir);
     return validateRuntimeTopology(tempDir);
   } finally {
@@ -32,7 +36,7 @@ test('runtime topology topology guard rejects every forbidden capability edge', 
 
 test('runtime topology topology guard rejects oracle permutation', () => {
   const errors = withCopy((root) => {
-    const path = join(root, 'tests/fixtures/runtime-topology.json');
+    const path = join(root, 'packages/runtime-contracts/tests/fixtures/runtime-topology.json');
     const fixture = JSON.parse(readFileSync(path, 'utf8'));
     fixture.ports = [...fixture.ports].reverse();
     writeFileSync(path, `${JSON.stringify(fixture)}\n`);

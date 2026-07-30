@@ -4,6 +4,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TextDecoder } from 'node:util';
+import { repoRoot } from './repo-root.mjs';
 
 const TRACK_PATH = 'docs/delivery/greenfield/track.json';
 const STORY_IDS =
@@ -184,7 +185,7 @@ export function normativeCorpusPaths(rootDir) {
       .sort(),
   );
 }
-export function normativeCorpusManifest(rootDir = process.cwd()) {
+export function normativeCorpusManifest(rootDir = repoRoot) {
   const paths = normativeCorpusPaths(rootDir);
   const rows = paths.map((path) => `${sha(readFileSync(join(rootDir, path)))}  ${path}\n`).join('');
   return { pathCount: paths.length, digest: sha(rows), paths };
@@ -755,11 +756,16 @@ function candidatePackagePaths() {
     'package.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
-    'scripts/check-doc-links.mjs',
-    'scripts/check-delivery-track.mjs',
-    'scripts/check-delivery-track.test.mjs',
-    'scripts/check-active-repository.mjs',
-    'scripts/check-active-repository.test.mjs',
+    'turbo.json',
+    'tools/repo-guard/package.json',
+    'tools/repo-guard/turbo.json',
+    'tools/repo-guard/bin/check-doc-links.mjs',
+    'tools/repo-guard/bin/check-delivery-track.mjs',
+    'tools/repo-guard/bin/repo-root.mjs',
+    'tools/repo-guard/bin/check-formatting.mjs',
+    'tools/repo-guard/tests/check-delivery-track.test.mjs',
+    'tools/repo-guard/bin/check-active-repository.mjs',
+    'tools/repo-guard/tests/check-active-repository.test.mjs',
     '.agents/skills/orchestrate-phase-delivery/README.md',
     '.agents/skills/orchestrate-phase-delivery/SKILL.md',
     '.agents/skills/orchestrate-phase-delivery/evals/evals.json',
@@ -767,11 +773,11 @@ function candidatePackagePaths() {
     '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
     '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   ].sort();
-  if (paths.length !== 88 || new Set(paths).size !== paths.length)
-    throw new Error(`candidate package manifest requires exactly 88 paths, got ${paths.length}`);
+  if (paths.length !== 93 || new Set(paths).size !== paths.length)
+    throw new Error(`candidate package manifest requires exactly 93 paths, got ${paths.length}`);
   return paths;
 }
-export function candidatePackageManifest(rootDir = process.cwd()) {
+export function candidatePackageManifest(rootDir = repoRoot) {
   const paths = candidatePackagePaths();
   const rows = paths
     .map((path) => {
@@ -782,7 +788,7 @@ export function candidatePackageManifest(rootDir = process.cwd()) {
     .join('');
   return sha(rows);
 }
-export function verifyCandidatePackageManifest(expected, rootDir = process.cwd()) {
+export function verifyCandidatePackageManifest(expected, rootDir = repoRoot) {
   const actual = candidatePackageManifest(rootDir);
   if (actual !== expected) throw new Error(`candidate package manifest mismatch: expected ${expected}, got ${actual}`);
   return actual;
@@ -1565,7 +1571,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
   }
   return [...new Set(errors)];
 }
-export function validateDeliveryTrackPackage(rootDir = process.cwd()) {
+export function validateDeliveryTrackPackage(rootDir = repoRoot) {
   const exists = (path) => existsSync(join(rootDir, path));
   const isFile = (path) => {
     try {

@@ -12,10 +12,10 @@ import {
   parseIdentity,
   stageDigest,
   validateStagedDigest,
-} from '../../packages/codec/dist/index.js';
+} from '../dist/index.js';
 
-const vectors = JSON.parse(readFileSync(new URL('../fixtures/codec-vectors.json', import.meta.url), 'utf8'));
-const corpus = JSON.parse(readFileSync(new URL('../fixtures/codec-corpus.json', import.meta.url), 'utf8'));
+const vectors = JSON.parse(readFileSync(new URL('./fixtures/codec-vectors.json', import.meta.url), 'utf8'));
+const corpus = JSON.parse(readFileSync(new URL('./fixtures/codec-corpus.json', import.meta.url), 'utf8'));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 function expectError(result, family, code) {

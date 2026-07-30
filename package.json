@@ -17,26 +17,24 @@
     }
   },
   "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "guard": "turbo run guard",
+    "check": "turbo run check guard",
+    "check:affected": "turbo run check guard --affected",
+    "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
+    "format:check": "turbo run guard:format",
+    "links:check": "turbo run guard:links",
+    "delivery:check": "turbo run guard:delivery test:delivery",
+    "evidence:write": "node tools/repo-guard/bin/write-evidence.mjs phase-0",
     "dev:setup": "bash scripts/dev-setup.sh",
     "worktree:new": "bash scripts/worktree-new.sh",
-    "worktree:clean": "bash scripts/worktree-clean.sh",
-    "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{md,yml,yaml}\"",
-    "lint": "biome check .",
-    "links:check": "node scripts/check-doc-links.mjs",
-    "structure:check": "node --test scripts/check-active-repository.test.mjs && node scripts/check-active-repository.mjs",
-    "delivery:check": "node --test scripts/check-delivery-track.test.mjs && node scripts/check-delivery-track.mjs",
-    "typecheck": "tsc --build tsconfig.json",
-    "boundaries:check": "node --test scripts/check-package-boundaries.test.mjs && node scripts/check-package-boundaries.mjs",
-    "runtime:check": "node --test scripts/check-runtime-topology.test.mjs && node scripts/check-runtime-topology.mjs",
-    "test": "tsc --build tsconfig.json && node --test --test-concurrency=1 \"tests/**/*.test.mjs\"",
-    "evidence:write": "node scripts/write-evidence.mjs phase-0",
-    "check": "pnpm lint && pnpm format:check && pnpm links:check && pnpm delivery:check && pnpm structure:check && pnpm typecheck && pnpm boundaries:check && pnpm runtime:check && pnpm test"
+    "worktree:clean": "bash scripts/worktree-clean.sh"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.2",
-    "prettier": "3.9.3",
-    "turbo": "2.10.5",
-    "typescript": "5.8.2"
+    "@biomejs/biome": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "2.10.5"
   }
 }
