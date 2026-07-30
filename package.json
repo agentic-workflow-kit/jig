@@ -26,8 +26,7 @@
     "format": "biome check --write . && prettier --write \"**/*.{md,yml,yaml}\"",
     "format:check": "turbo run guard:format",
     "links:check": "turbo run guard:links",
-    "delivery:check": "turbo run guard:delivery test:delivery",
-    "evidence:write": "node tools/repo-guard/bin/write-evidence.mjs phase-0",
+    "delivery:check": "node .agents/skills/orchestrate-phase-delivery/scripts/validate-track.mjs",
     "dev:setup": "bash scripts/dev-setup.sh",
     "worktree:new": "bash scripts/worktree-new.sh",
     "worktree:clean": "bash scripts/worktree-clean.sh"

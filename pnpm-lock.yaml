@@ -89,9 +89,6 @@ importers:
       prettier:
         specifier: 'catalog:'
         version: 3.9.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.8.2
 
 packages:
 

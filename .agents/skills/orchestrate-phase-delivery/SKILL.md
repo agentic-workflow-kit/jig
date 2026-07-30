@@ -5,8 +5,9 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 
 # Orchestrate phase delivery
 
-1. Resolve the current approved product package from `docs/product/` and approved architecture
-   package from `docs/redesign/design/`. Only then read
+1. Run `pnpm delivery:check` and stop before scheduling if the declared track is malformed. Resolve
+   the current approved product package from `docs/product/` and approved architecture package from
+   `docs/redesign/design/`. Only then read
    `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
    `phase-orchestration.md`. Confirm that the current owner or named delegate explicitly requested
    implementation of the named phase/story. That request is sufficient implementation
@@ -17,10 +18,10 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    worktree per admitted story. Use Git worktrees for every local delivery, check, review, and
    recovery operation; no fresh clone is an exception. Read `references/phase-protocol.md` before
    recording ledger facts or recovering a worktree.
-3. At phase start and after each terminal story boundary, inspect the declared DAG, ledger, and
-   integration branch. Launch every ready story within available continuous implementer/reviewer
-   pair capacity and any already-authorized safe-overlap guard. A blocked story blocks only
-   descendants.
+3. At phase start and after each terminal story boundary, re-run `pnpm delivery:check`, then inspect
+   the declared DAG, ledger, and integration branch. Launch every ready story within available
+   continuous implementer/reviewer pair capacity and any already-authorized safe-overlap guard. A
+   blocked story blocks only descendants.
 4. Keep each pair stable through implementation, committed-candidate checks, read-only review,
    fixes, and incremental re-review. Before each check, enforce the policy's minimal non-secret
    environment-name allowlist and record exact ignored-state inventories/allowlist decisions. Bind

@@ -5,18 +5,14 @@
   "type": "module",
   "scripts": {
     "lint": "biome check .",
-    "test": "node --test --test-concurrency=1 \"tests/**/*.test.mjs\"",
-    "test:delivery": "node --test tests/check-delivery-track.test.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\" \"../../.agents/skills/orchestrate-phase-delivery/scripts/*.test.mjs\"",
     "guard:structure": "node bin/check-active-repository.mjs",
-    "guard:delivery": "node bin/check-delivery-track.mjs",
     "guard:links": "node bin/check-doc-links.mjs",
     "guard:boundaries": "node bin/check-package-boundaries.mjs",
-    "guard:topology": "node bin/check-runtime-topology.mjs",
     "guard:format": "node bin/check-formatting.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
-    "prettier": "catalog:",
-    "typescript": "catalog:"
+    "prettier": "catalog:"
   }
 }

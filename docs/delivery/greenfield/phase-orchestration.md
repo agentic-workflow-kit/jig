@@ -40,15 +40,16 @@ No local fresh clone is a delivery, verification, review, or recovery workspace.
 
 ## Ready-set loop and capacity
 
-At phase start and after every terminal story boundary, inspect `track.json`, the ledger, and the
-current integration branch. A story is ready only when it is in the explicitly requested phase,
-has current DoR evidence, and every declared predecessor is contained in the integration base with
-the required landing evidence. Pairs are distinct across stories and continuous within one story;
-replacement is exceptional and ledger-recorded with reason/handoff. If an already-authorized
-safe-overlap guard applies, a capacity or ownership conflict is a temporary ledger-recorded
-admission hold, never a dependency. If no guard applies, do not invent one. Launch every other
-ready story for which pair/worktree capacity is available. Do not invent an edge or wait for an
-unrelated blocked story: a blocked story stops only descendants.
+At phase start and after every terminal story boundary, run `pnpm delivery:check`, then inspect
+`track.json`, the ledger, and the current integration branch. The preflight validates only the
+machine scheduling shape; it does not approve story prose or authority. A story is ready only when
+it is in the explicitly requested phase, has current DoR evidence, and every declared predecessor
+is contained in the integration base with the required landing evidence. Pairs are distinct across
+stories and continuous within one story; replacement is exceptional and ledger-recorded with
+reason/handoff. If an already-authorized safe-overlap guard applies, a capacity or ownership
+conflict is a temporary ledger-recorded admission hold, never a dependency. If no guard applies, do
+not invent one. Launch every other ready story for which pair/worktree capacity is available. Do
+not invent an edge or wait for an unrelated blocked story: a blocked story stops only descendants.
 
 For Phase 1, after GF-010 lands, GF-011, GF-012, and GF-013 are initially ready. If GF-012 later blocks, it does not stop GF-011 or GF-013; GF-013 may enable GF-014, while GF-015 waits for both GF-011 and GF-014 (and its other declared predecessors). Phase closure still waits for GF-012.
 

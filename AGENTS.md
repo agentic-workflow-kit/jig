@@ -55,12 +55,12 @@ pnpm worktree:clean <branch>
 
 Turbo owns the task graph. Every compiled package under `packages/` declares the same `build`,
 `lint`, and `test` tasks, and `check` aggregates them. `tools/repo-guard` compiles nothing, so it
-declares `lint`, `test`, and the repository-level `guard:*` gates instead of a build. `pnpm check` therefore runs package build, lint, and test plus repository
-structure, package boundaries, runtime topology, the greenfield delivery track, documentation
-links, and formatting. `pnpm check:affected` restricts the same graph to what the current branch
-changed, using each task's declared inputs. It is a local convenience, not the gate: selection is
-only as complete as the comparison base, so `pnpm check` is what CI runs and what a change must
-pass.
+declares `lint`, `test`, and narrow repository-level structure, package-boundary, documentation-link,
+and formatting gates instead of a build. Product packages own their runtime topology tests.
+`pnpm check:affected` restricts the same graph to what the current branch changed. It is a local
+convenience, not the gate: selection is only as complete as the comparison base, so `pnpm check` is
+what CI runs and what a change must pass. `pnpm delivery:check` is a phase-orchestration preflight,
+not a universal repository gate.
 
 ## Gate and conventions
 

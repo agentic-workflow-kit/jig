@@ -50,9 +50,11 @@ records the lookup as non-governing provenance.
 
 ## Focused track gate
 
-Run `pnpm delivery:check` for the machine manifest, full briefs, and delivery-document integrity.
-It complements, but does not replace, the applicable formatting, link, exact-candidate, or
-independent-review evidence.
+Run `pnpm delivery:check` immediately before phase orchestration consumes `track.json`. It checks
+only the scheduling boundary: JSON shape, unique story IDs, existing and acyclic dependencies,
+phase ordering, phase membership, and referenced story files. It is deliberately outside the
+universal repository gate; prose and authority remain subject to review rather than byte-level
+validation.
 
 ## Reader route
 
