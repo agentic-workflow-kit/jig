@@ -28,6 +28,22 @@ function readJson(rootDir, path, errors) {
   }
 }
 
+function workspacePackages(workspace) {
+  const packages = [];
+  let readingPackages = false;
+  for (const line of workspace.split('\n')) {
+    if (!readingPackages) {
+      readingPackages = /^packages:\s*(?:#.*)?$/.test(line);
+      continue;
+    }
+    if (/^\s*(?:#.*)?$/.test(line)) continue;
+    if (/^\S/.test(line)) break;
+    const item = line.match(/^\s+-\s+(?:"([^"]+)"|'([^']+)'|([^#]+?))\s*(?:#.*)?$/);
+    if (item) packages.push((item[1] ?? item[2] ?? item[3]).trim());
+  }
+  return new Set(packages);
+}
+
 function validateWorkflow(workflow, errors) {
   if (!/^permissions:\n\s+contents:\s+read$/m.test(workflow))
     errors.push('CI workflow must retain read-only repository permissions');
@@ -53,8 +69,9 @@ export function validateActiveRepository(rootDir = repoRoot) {
   }
 
   const workspace = readText(rootDir, 'pnpm-workspace.yaml', errors) ?? '';
+  const packagePatterns = workspacePackages(workspace);
   for (const pattern of ['packages/*', 'tools/*'])
-    if (!workspace.includes(pattern)) errors.push(`pnpm workspace must include ${pattern}`);
+    if (!packagePatterns.has(pattern)) errors.push(`pnpm workspace must include ${pattern}`);
 
   readJson(rootDir, 'turbo.json', errors);
   validateWorkflow(readText(rootDir, '.github/workflows/check.yml', errors) ?? '', errors);

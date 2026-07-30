@@ -32,6 +32,14 @@ test('allows benign repository files outside the active runtime surface', () => 
   assert.deepEqual(errors, []);
 });
 
+test('requires product packages in the actual workspace package list', () => {
+  const errors = withRepository((root) => {
+    const workspacePath = join(root, 'pnpm-workspace.yaml');
+    writeFileSync(workspacePath, readFileSync(workspacePath, 'utf8').replace('  - "packages/*"', '  # packages/*'));
+  });
+  assert.ok(errors.includes('pnpm workspace must include packages/*'));
+});
+
 test('rejects malformed required configuration and forbidden root product surfaces', () => {
   const malformed = withRepository((root) => writeFileSync(join(root, 'turbo.json'), '{\n'));
   assert.ok(malformed.includes('required repository JSON is malformed: turbo.json'));

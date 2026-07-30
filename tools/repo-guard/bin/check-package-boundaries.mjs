@@ -59,6 +59,12 @@ function validateManifest(manifest, packageDir, workspaceNames, errors) {
     errors.push(`${label} types must resolve only from dist`);
   if (Object.keys(manifest.scripts ?? {}).some((name) => name === 'start' || forbiddenLifecycleScript.test(name)))
     errors.push(`${label} exposes a start or package lifecycle script`);
+  if (
+    ['build', 'lint', 'test'].some(
+      (name) => typeof manifest.scripts?.[name] !== 'string' || !manifest.scripts[name].trim(),
+    )
+  )
+    errors.push(`${label} must declare build, lint, and test scripts`);
 
   const dependencies = manifest.dependencies ?? {};
   for (const [dependency, specifier] of Object.entries(dependencies)) {
@@ -67,7 +73,8 @@ function validateManifest(manifest, packageDir, workspaceNames, errors) {
   }
 
   const allowed = knownDependencyDirections[manifest.name];
-  if (allowed)
+  if (!allowed) errors.push(`${label} has no dependency-direction policy`);
+  else
     for (const dependency of Object.keys(dependencies))
       if (!allowed.has(dependency)) errors.push(`${label} has a forbidden dependency direction to ${dependency}`);
 }
@@ -95,7 +102,8 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
     for (const path of sources) {
       const source = readFileSync(path, 'utf8');
       for (const specifier of importSpecifiers(source))
-        if (!specifier.startsWith(packagePrefix))
+        if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
+        else if (!specifier.startsWith(packagePrefix))
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);
         else if (!Object.hasOwn(manifest.dependencies ?? {}, specifier))
           errors.push(`${manifest.name} source imports an undeclared workspace dependency: ${specifier}`);

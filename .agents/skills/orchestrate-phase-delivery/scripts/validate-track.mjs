@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,16 +31,22 @@ export function validateTrack(track) {
       continue;
     }
     if (storiesById.has(story.id)) errors.push(`duplicate story ID: ${story.id}`);
+    const canonicalStoryFile = `docs/delivery/greenfield/stories/${story.id}.md`;
+    if (story.story_file !== canonicalStoryFile) errors.push(`${story.id} must reference ${canonicalStoryFile}`);
     storiesById.set(story.id, story);
   }
 
   const phaseMembership = new Map();
+  const phaseIds = new Set();
   for (const phase of track.phases) {
     if (!isRecord(phase) || !Number.isInteger(phase.id) || !Array.isArray(phase.stories)) {
       errors.push('every phase needs an integer ID and story list');
       continue;
     }
+    if (phaseIds.has(phase.id)) errors.push(`duplicate phase ID: ${phase.id}`);
+    phaseIds.add(phase.id);
     for (const id of phase.stories) {
+      if (!storiesById.has(id)) errors.push(`phase contains unknown story ${id}`);
       if (phaseMembership.has(id)) errors.push(`story appears in multiple phases: ${id}`);
       phaseMembership.set(id, phase.id);
     }
@@ -85,9 +91,12 @@ export function validateTrackFile(trackPath = defaultTrackPath, repoRoot = defau
   }
   const errors = validateTrack(track);
   if (Array.isArray(track?.stories))
-    for (const story of track.stories)
-      if (typeof story?.story_file === 'string' && !existsSync(join(repoRoot, story.story_file)))
-        errors.push(`story file is missing: ${story.story_file}`);
+    for (const story of track.stories) {
+      if (typeof story?.story_file !== 'string') continue;
+      const storyPath = join(repoRoot, story.story_file);
+      if (!existsSync(storyPath)) errors.push(`story file is missing: ${story.story_file}`);
+      else if (!statSync(storyPath).isFile()) errors.push(`story file is not a regular file: ${story.story_file}`);
+    }
   return errors;
 }
 

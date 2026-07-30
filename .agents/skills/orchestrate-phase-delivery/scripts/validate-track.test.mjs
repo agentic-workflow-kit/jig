@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -39,6 +39,19 @@ test('rejects duplicate, missing, cyclic, and phase-reversing dependencies', () 
   assert.ok(errors.some((error) => error.includes('later phase')));
 });
 
+test('rejects duplicate phase IDs and undeclared phase members', () => {
+  const errors = validateTrack({
+    schema_version: 1,
+    stories: [story('GF-001', 0)],
+    phases: [
+      { id: 0, stories: ['GF-001'] },
+      { id: 0, stories: ['GF-999'] },
+    ],
+  });
+  assert.ok(errors.some((error) => error.includes('duplicate phase ID')));
+  assert.ok(errors.some((error) => error.includes('phase contains unknown story GF-999')));
+});
+
 test('rejects a missing referenced story file at the consumer boundary', () => {
   const root = mkdtempSync(join(tmpdir(), 'delivery-track-test-'));
   try {
@@ -54,6 +67,48 @@ test('rejects a missing referenced story file at the consumer boundary', () => {
     assert.deepEqual(validateTrackFile(trackPath, root), [
       'story file is missing: docs/delivery/greenfield/stories/GF-001.md',
     ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('requires each story ID to reference its canonical regular file', () => {
+  const root = mkdtempSync(join(tmpdir(), 'delivery-track-test-'));
+  try {
+    const storiesDir = join(root, 'docs/delivery/greenfield/stories');
+    mkdirSync(storiesDir, { recursive: true });
+    writeFileSync(join(storiesDir, 'GF-002.md'), '# Existing brief\n');
+
+    const wrongPathTrack = join(root, 'wrong-path.json');
+    const wrongPathStory = story('GF-001', 0);
+    wrongPathStory.story_file = 'docs/delivery/greenfield/stories/GF-002.md';
+    writeFileSync(
+      wrongPathTrack,
+      JSON.stringify({
+        schema_version: 1,
+        stories: [wrongPathStory],
+        phases: [{ id: 0, stories: ['GF-001'] }],
+      }),
+    );
+    assert.ok(
+      validateTrackFile(wrongPathTrack, root).some((error) =>
+        error.includes('must reference docs/delivery/greenfield/stories/GF-001.md'),
+      ),
+    );
+
+    mkdirSync(join(storiesDir, 'GF-001.md'));
+    const directoryTrack = join(root, 'directory.json');
+    writeFileSync(
+      directoryTrack,
+      JSON.stringify({
+        schema_version: 1,
+        stories: [story('GF-001', 0)],
+        phases: [{ id: 0, stories: ['GF-001'] }],
+      }),
+    );
+    assert.ok(
+      validateTrackFile(directoryTrack, root).some((error) => error.includes('story file is not a regular file')),
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

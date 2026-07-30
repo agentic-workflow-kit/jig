@@ -37,6 +37,17 @@ test('ignores generated TypeScript build metadata', () => {
   assert.deepEqual(errors, []);
 });
 
+test('requires every compiled package to own the standard validation tasks', () => {
+  const errors = withPackages((root) =>
+    editManifest(root, 'codec', (manifest) => {
+      delete manifest.scripts.build;
+      delete manifest.scripts.lint;
+      delete manifest.scripts.test;
+    }),
+  );
+  assert.ok(errors.some((error) => error.includes('must declare build, lint, and test scripts')));
+});
+
 test('rejects public, runnable, and externally dependent packages', () => {
   const errors = withPackages((root) =>
     editManifest(root, 'codec', (manifest) => {
@@ -70,4 +81,21 @@ test('rejects forbidden dependency direction in an established package', () => {
     }),
   );
   assert.ok(errors.some((error) => error.includes('forbidden dependency direction')));
+});
+
+test('rejects a Jig package without an explicit dependency policy', () => {
+  const errors = withPackages((root) =>
+    editManifest(root, 'codec', (manifest) => {
+      manifest.name = '@agentic-workflow-kit/jig-codecc';
+    }),
+  );
+  assert.ok(errors.some((error) => error.includes('has no dependency-direction policy')));
+});
+
+test('allows package-local relative imports', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(join(root, 'packages', 'codec', 'src', 'helper.ts'), 'export const helper = 1;\n');
+    writeFileSync(join(root, 'packages', 'codec', 'src', 'index.ts'), "export { helper } from './helper.js';\n");
+  });
+  assert.deepEqual(errors, []);
 });
