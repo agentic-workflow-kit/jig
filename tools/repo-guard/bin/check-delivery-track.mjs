@@ -43,13 +43,13 @@ const APPROVED_DELEGATED_CHOICES_SHA256 = 'e8fb8713126d05bf59c850606d43af542e621
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = 'de7bdd92f248de65756a2cb6a2e3cb5d1eb098c8471121f084dd00b9d4f682b6';
 const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'c1545bdfa9547700b8dffb340b2d1bc21c9c4c8fc22a4b2ce2baf206784c6524';
 const RETIRED_DELIVERY_GATE_PATTERNS = [
-  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?delivery[- ]package qualification\b/i,
+  /\b(?:requires?|must obtain|depends? on) (?:a |the )?delivery[- ]package qualification\b/i,
   /\bdelivery[- ]package qualification (?:is required|must pass|gates? delivery)\b/i,
-  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?(?:delivery[- ]surface |package )?digest approval\b/i,
+  /\b(?:requires?|must obtain|depends? on) (?:a |the )?(?:delivery[- ]surface |package )?digest approval\b/i,
   /\b(?:delivery[- ]surface |package )?digest approval (?:is required|must pass|gates? delivery)\b/i,
-  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?hosted activation artifact\b/i,
+  /\b(?:requires?|must obtain|depends? on) (?:a |the )?hosted activation artifact\b/i,
   /\bhosted activation artifact (?:is required|must exist|gates? delivery)\b/i,
-  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?landed[- ]commit equivalence(?: record)?\b/i,
+  /\b(?:requires?|must obtain|depends? on) (?:a |the )?landed[- ]commit equivalence(?: record)?\b/i,
   /\blanded[- ]commit equivalence(?: record)? (?:is required|must exist|gates? delivery)\b/i,
   /\bP\s*=\s*Q\b/i,
   /\bdelivery-package review\b/i,
@@ -69,6 +69,19 @@ const RETIRED_DELIVERY_GATE_PATTERNS = [
   /\bapproved package `?P`?\b/i,
   /\bpre-verdict `?Q`?\b/i,
 ];
+const RETIRED_DELIVERY_GATE_NEGATION_PREFIX =
+  /(?:\b(?:do|does|did|is|are|was|were|must|should|shall|need)\s+not\s+|\b(?:don|doesn|didn|isn|aren|wasn|weren|mustn|shouldn|shan|needn)'t\s+|\bno(?:\s+separate)?\s+)$/i;
+
+function hasRetiredDeliveryGate(text) {
+  for (const pattern of RETIRED_DELIVERY_GATE_PATTERNS) {
+    const matcher = new RegExp(pattern.source, `${pattern.flags}g`);
+    for (const match of text.matchAll(matcher)) {
+      const prefix = text.slice(Math.max(0, match.index - 80), match.index);
+      if (!RETIRED_DELIVERY_GATE_NEGATION_PREFIX.test(prefix)) return true;
+    }
+  }
+  return false;
+}
 const WAIT_PROGRESS_SURFACES =
   'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
     ' ',
@@ -1598,11 +1611,7 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
       '.agents/skills/orchestrate-phase-delivery/SKILL.md',
       '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
     ];
-    if (
-      activeDeliveryPolicyPaths.some((path) =>
-        RETIRED_DELIVERY_GATE_PATTERNS.some((pattern) => pattern.test(readText(path))),
-      )
-    )
+    if (activeDeliveryPolicyPaths.some((path) => hasRetiredDeliveryGate(readText(path))))
       errors.push(
         'active delivery policy contains retired package qualification, external activation, or ratification gate',
       );

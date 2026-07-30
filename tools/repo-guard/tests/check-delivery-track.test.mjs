@@ -1357,6 +1357,21 @@ test('retired package qualification, activation, and ratification gates cannot r
       writeFileSync(path, `${readFileSync(path, 'utf8')}\n${retiredGate}\n`);
     }, 'active delivery policy contains retired package qualification, external activation, or ratification gate');
 });
+test('retired-gate detector permits explicit negation forms', () =>
+  fixture((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/delivery-policy.md');
+    writeFileSync(
+      path,
+      `${readFileSync(path, 'utf8')}
+Delivery does not require delivery-package qualification.
+Delivery doesn't require delivery-surface digest approval.
+No separate delivery-package qualification is required.
+No separate hosted activation artifact is required.
+No separate landed-commit equivalence record is required.
+`,
+    );
+    assert.deepEqual(validateDeliveryTrackPackage(dir), []);
+  }));
 test('source catalogs fail closed on missing headings and duplicate first-column rows', () => {
   reject((dir) => {
     const p = join(dir, 'docs/redesign/design/runtime.md');
