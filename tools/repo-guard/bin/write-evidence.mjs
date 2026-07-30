@@ -7,7 +7,9 @@ import { repoRoot } from './repo-root.mjs';
 const root = repoRoot;
 const subject = process.argv[2];
 const safeSubject = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const testTimeoutMs = 120_000;
+// The guard test task runs Turbo recursively (the workspace-substrate fixture), so it does not
+// replay from cache; the evidence run must budget for a full uncached suite rather than a warm one.
+const testTimeoutMs = 900_000;
 
 function digestFile(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');

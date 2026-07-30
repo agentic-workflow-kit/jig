@@ -3,9 +3,10 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoRoot } from './repo-root.mjs';
 
-// Files no package owns: package tasks cover their own directories, so the repository-level gate
-// covers the root manifests plus every Markdown and YAML document Biome does not format.
-const rootOwnedFiles = ['biome.json', 'package.json', 'tsconfig.base.json', 'turbo.json'];
+// Package `lint` tasks are the affected-precise fast path over their own directories; this gate is
+// the completeness net. Biome runs repository-wide so no active file — root manifests, `.agents`
+// eval JSON, or anything added later — can fall outside a mandatory check, and Prettier covers the
+// Markdown and YAML documents Biome does not format.
 const documentGlob = '**/*.{md,yml,yaml}';
 
 function binary(name) {
@@ -19,8 +20,8 @@ function run(name, args) {
   return result.status ?? 1;
 }
 
-const status = Math.max(run('biome', ['check', ...rootOwnedFiles]), run('prettier', ['--check', documentGlob]));
+const status = Math.max(run('biome', ['check', '.']), run('prettier', ['--check', documentGlob]));
 if (status !== 0) {
   console.error('Repository formatting check failed.');
   process.exitCode = status;
-} else console.log('Repository formatting check passed (root-owned manifests and Markdown/YAML documents).');
+} else console.log('Repository formatting check passed (repository-wide Biome plus Markdown/YAML documents).');

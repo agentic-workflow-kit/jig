@@ -142,18 +142,43 @@ const expectedGuardTurbo = `{
       ]
     },
     "guard:structure": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
       "cache": false
     },
     "guard:delivery": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
       "outputs": []
     },
     "test:delivery": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/delivery/**", "$TURBO_ROOT$/.agents/**"],
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
       "outputs": []
     },
     "guard:links": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**", "$TURBO_ROOT$/*.md"],
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ],
       "outputs": []
     },
     "guard:boundaries": {
@@ -166,14 +191,22 @@ const expectedGuardTurbo = `{
     },
     "guard:format": {
       "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/**/*.md",
-        "$TURBO_ROOT$/**/*.yml",
-        "$TURBO_ROOT$/**/*.yaml",
-        "$TURBO_ROOT$/*.json",
-        "$TURBO_ROOT$/.prettierignore"
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
       ],
       "outputs": []
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_ROOT$/**",
+        "!$TURBO_ROOT$/**/dist/**",
+        "!$TURBO_ROOT$/**/node_modules/**",
+        "!$TURBO_ROOT$/**/.turbo/**",
+        "!$TURBO_ROOT$/artifacts/**"
+      ]
     }
   }
 }
@@ -254,6 +287,7 @@ const requiredPaths = [
   'tools/repo-guard/tests/check-delivery-track.test.mjs',
   'tools/repo-guard/tests/check-package-boundaries.test.mjs',
   'tools/repo-guard/tests/check-runtime-topology.test.mjs',
+  'tools/repo-guard/tests/task-inputs.test.mjs',
   'tools/repo-guard/tests/workspace-substrate.test.mjs',
   'packages/codec/package.json',
   'packages/codec/tsconfig.json',
@@ -269,10 +303,12 @@ const requiredPaths = [
   'packages/conformance/tsconfig.json',
   'packages/conformance/src/index.ts',
   'packages/conformance/tests/conformance.test.mjs',
+  'packages/conformance/tests/fixtures/conformance-oracle.json',
   'packages/authority-kernel/package.json',
   'packages/authority-kernel/tsconfig.json',
   'packages/authority-kernel/src/index.ts',
   'packages/authority-kernel/tests/authority-kernel.test.mjs',
+  'packages/authority-kernel/tests/fixtures/authority-oracle.json',
 ];
 
 const allowedRootFiles = new Set([

@@ -1168,6 +1168,9 @@ test('candidate package binds every validation, install, ignore, and local-runti
     'biome.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
+    'turbo.json',
+    'tools/repo-guard/package.json',
+    'tools/repo-guard/turbo.json',
     'tools/repo-guard/tests/check-active-repository.test.mjs',
   ])
     fixture((dir) => {
