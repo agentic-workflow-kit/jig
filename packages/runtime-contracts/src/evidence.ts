@@ -362,13 +362,54 @@ function directSecret(input: string): boolean {
   return NORMALIZED_SECRET_PATTERN.test(normalized);
 }
 
+function percentDecoded(input: string): string {
+  let output = '';
+  for (let index = 0; index < input.length; ) {
+    const token = input.slice(index + 1, index + 3);
+    if (input[index] !== '%' || !/^[0-9a-f]{2}$/iu.test(token)) {
+      output += input[index] ?? '';
+      index += 1;
+      continue;
+    }
+    const first = Number.parseInt(token, 16);
+    if (first < 0x80) {
+      output += String.fromCharCode(first);
+      index += 3;
+      continue;
+    }
+    const length =
+      first >= 0xc2 && first <= 0xdf ? 2 : first >= 0xe0 && first <= 0xef ? 3 : first >= 0xf0 && first <= 0xf4 ? 4 : 0;
+    const bytes: number[] = [first];
+    let cursor = index + 3;
+    while (bytes.length < length) {
+      const continuation = input.slice(cursor + 1, cursor + 3);
+      if (input[cursor] !== '%' || !/^[0-9a-f]{2}$/iu.test(continuation)) break;
+      bytes.push(Number.parseInt(continuation, 16));
+      cursor += 3;
+    }
+    if (length > 0 && bytes.length === length) {
+      try {
+        output += decoder.decode(new Uint8Array(bytes));
+        index = cursor;
+        continue;
+      } catch {
+        // Preserve only the invalid token; later valid runs remain independently decodable.
+      }
+    }
+    output += input.slice(index, index + 3);
+    index += 3;
+  }
+  return output;
+}
+
 function secretText(input: string): boolean {
   const variants = new Set<string>([input.normalize('NFKC')]);
-  try {
-    const decoded = decodeURIComponent(input);
-    variants.add(decoded.normalize('NFKC'));
-  } catch {
-    // Invalid percent encodings are handled as ordinary text.
+  let decoded = input;
+  for (let depth = 0; depth < 3; depth += 1) {
+    const next = percentDecoded(decoded);
+    if (next === decoded) break;
+    variants.add(next.normalize('NFKC'));
+    decoded = next;
   }
   for (const source of [...variants]) {
     for (let offset = 0; offset < source.length; offset += 7936) {
@@ -382,6 +423,44 @@ function secretText(input: string): boolean {
         const decoded = decodeHex(candidate);
         if (decoded && directSecret(decoded)) return true;
       }
+    }
+  }
+  return false;
+}
+
+function jsonSecret(input: unknown): boolean {
+  const pending = [input];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (typeof value === 'string') {
+      if (secretText(value)) return true;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) pending.push(child);
+      continue;
+    }
+    if (!value || typeof value !== 'object') continue;
+    for (const [key, child] of Object.entries(value)) {
+      const canonicalKey = key.normalize('NFKC').replace(/[^a-z0-9]/giu, '');
+      if (
+        [
+          'apikey',
+          'accesstoken',
+          'refreshtoken',
+          'clientsecret',
+          'privatekey',
+          'password',
+          'credential',
+          'secret',
+          'token',
+          'authorization',
+        ].includes(canonicalKey.toLowerCase()) ||
+        secretText(key) ||
+        (typeof child === 'string' && secretText(`${key}:${child}`))
+      )
+        return true;
+      pending.push(child);
     }
   }
   return false;
@@ -679,14 +758,15 @@ function scan(
     return fail('FC-TRUST', 'SECRET_SCAN_POLICY_MISMATCH');
   const decoded = safeDecode(input);
   if (!decoded.ok) return decoded;
+  let semanticSecret = false;
   if (contentType === 'application/json') {
     try {
-      JSON.parse(decoded.value);
+      semanticSecret = jsonSecret(JSON.parse(decoded.value));
     } catch {
       return fail('FC-INPUT', 'INVALID_JSON_EVIDENCE');
     }
   }
-  return { ok: true, value: freeze({ secret: secretText(decoded.value) }) };
+  return { ok: true, value: freeze({ secret: semanticSecret || secretText(decoded.value) }) };
 }
 
 function artifactBasis(request: ArtifactPutRequest): Omit<ArtifactPutRequest, 'bytes'> {

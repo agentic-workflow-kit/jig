@@ -638,6 +638,40 @@ test('GF-014 correction F01: configured secret absence scans every durable value
   }
 });
 
+test('GF-014 correction F01-R1: JSON Unicode semantics and partial percent decoding cannot hide secrets', () => {
+  const hostilePayloads = [
+    String.raw`{"api\u005fkey":"synthetic-material"}`,
+    String.raw`{"note":"Authorization\u003a Bearer synthetic-material"}`,
+    String.raw`{"outer":[{"inner":{"api\u005fkey":"synthetic-material"}}]}`,
+    'api%5Fkey%3Dsynthetic-material%',
+  ];
+  for (const material of hostilePayloads) {
+    const admission = fixture();
+    const hostileBytes = new TextEncoder().encode(material);
+    const result = admission.prepare({
+      ...base,
+      bytes: hostileBytes,
+      contentDigest: hash(hostileBytes),
+      ...(material.startsWith('{')
+        ? {
+            evidenceKind: supportingJsonPolicy.kind,
+            policy: {
+              version: supportingJsonPolicy.version,
+              digest: supportingJsonPolicy.digest,
+            },
+          }
+        : {}),
+    });
+    assert.equal(result.ok, true, material);
+    assert.deepEqual(Object.keys(result.value).sort(), ['key', 'kind', 'reason']);
+    assert.equal(result.value.kind, 'quarantined');
+    const emitted = JSON.stringify({ result: result.value, snapshot: admission.snapshot() });
+    assert.equal(emitted.includes(material), false);
+    assert.equal(emitted.includes('synthetic-material'), false);
+    assert.equal(emitted.includes(hash(hostileBytes)), false);
+  }
+});
+
 test('GF-014 correction F02: evidence-kind policy selection is immutable, digest-bound, and non-downgradable', () => {
   const prepared = fixture().prepare(base);
   assert.equal(prepared.ok, true);
