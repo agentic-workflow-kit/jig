@@ -33,6 +33,11 @@ Repository facts (current `main`):
 - [`GF-001`](../delivery/greenfield/stories/GF-001.md) still names "project references" and
   "TypeScript reference configuration" while the live build graph is pnpm workspace edges plus
   Turborepo `^build` plus package-local `tsc -p`.
+- `scripts/worktree-new.sh` creates linked worktrees via `git worktree add` as external siblings,
+  which is the shape Turborepo's automatic worktree cache sharing requires (a separate clone would
+  not share). Verified empirically: a fresh sibling worktree created by the script replays all
+  package builds as cache hits from the primary checkout, with Turbo reporting "using shared
+  worktree cache".
 
 External facts (verified 2026-07-30 against primary sources):
 
@@ -155,18 +160,25 @@ strict set now (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImp
 `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`,
 `verbatimModuleSyntax`, `moduleDetection: "force"`) on the current small surface; move package
 `exports` to object form; target ES2024. The same slice must extend
-`check-package-boundaries.mjs` and its fixtures to accept exactly the object export shape
-(`types`/`import` conditions resolving from `dist`), which the guard currently rejects because it
-only accepts string-form `exports`; otherwise the slice cannot be independently green. Acceptance:
-golden vectors byte-identical, declaration digests reviewed, `incremental`/`tsBuildInfoFile`
-behavior under the native compiler verified, boundary-guard positive and negative fixtures for
-object exports, full `pnpm verify` green.
+`check-package-boundaries.mjs` and its fixtures to accept exactly the object export shape —
+`types` and `import` conditions both resolving from `dist`, with `types` ordered before `import`
+(condition order is significant to Node and TypeScript resolution) and unknown conditions
+rejected — which the guard currently rejects because it only accepts string-form `exports`;
+otherwise the slice cannot be independently green. Acceptance: golden vectors byte-identical,
+declaration digests reviewed, `incremental`/`tsBuildInfoFile` behavior under the native compiler
+verified, boundary-guard positive fixtures plus negative fixtures for reversed condition order and
+unknown conditions, full `pnpm verify` green.
 
 **PR D — verification evidence binding (after PR B).** Add a repo-guard evidence step that
 consumes the `pnpm verify` Turbo run summary and records the candidate commit/tree before and
-after verification, toolchain versions, and per-task hash, status, and cache origin. It fails
-closed when a required task is missing, failed, or restored from cache in the final run, or when
-the candidate drifted during verification, with negative fixtures proving each fail-closed path.
+after verification, toolchain versions, and per-task hash, status, and cache origin. The parser
+contract is explicit: for every required task it reads the summary's per-task execution result
+(exit code) and cache record (`tasks[].cache` — hit status plus local/remote source), validated
+against a checked-in schema fixture for the pinned Turbo version; because `verify` runs with
+`--force`, every required task must report a cache miss, and evidence generation fails closed when
+a required provenance field is absent, unrecognized, or indicates the task was restored rather
+than executed. It also fails closed when a required task is missing, failed, or when the candidate
+drifted during verification, with negative fixtures proving each fail-closed path.
 Scope stays aligned with the delivery track's
 [verification contract](../delivery/greenfield/verification.md): the step records evidence and
 never widens authority.
