@@ -219,9 +219,10 @@ export function createLedgerRecord(input: LedgerProposal): LedgerResult<LedgerPr
   if (
     typeof input !== 'object' ||
     input === null ||
-    !['content,generation,position,previousDigest,run,transaction', 'content,contentDigest,generation,position,previousDigest,run,transaction'].includes(
-      Object.keys(input).sort().join(','),
-    )
+    ![
+      'content,generation,position,previousDigest,run,transaction',
+      'content,contentDigest,generation,position,previousDigest,run,transaction',
+    ].includes(Object.keys(input).sort().join(','))
   )
     return fail('FC-INPUT', 'INVALID_PROPOSAL');
   if (
