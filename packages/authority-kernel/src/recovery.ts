@@ -270,6 +270,7 @@ function snapshot(value: unknown): RecoverySnapshot | undefined {
 type GenerationControl =
   | Readonly<{ kind: 'not-claim' }>
   | Readonly<{ kind: 'claim'; token: string }>
+  | Readonly<{ kind: 'operation-head'; position: number; digest: string }>
   | Readonly<{ kind: 'malformed' }>;
 
 function generationControl(value: LedgerRecord): GenerationControl {
@@ -277,6 +278,21 @@ function generationControl(value: LedgerRecord): GenerationControl {
     if (typeof value.content !== 'object' || value.content === null || Array.isArray(value.content))
       return freeze({ kind: 'not-claim' });
     const descriptors = Object.getOwnPropertyDescriptors(value.content);
+    if (descriptors.schema?.value === 'jig.operation-head.v1') {
+      if (
+        Object.keys(descriptors).length !== 3 ||
+        descriptors.position === undefined ||
+        descriptors.digest === undefined ||
+        !position(descriptors.position.value) ||
+        !digest(descriptors.digest.value)
+      )
+        return freeze({ kind: 'malformed' });
+      return freeze({
+        kind: 'operation-head',
+        position: descriptors.position.value,
+        digest: descriptors.digest.value,
+      });
+    }
     const shaped = descriptors.recovery !== undefined || descriptors.token !== undefined;
     if (!shaped) return freeze({ kind: 'not-claim' });
     if (
@@ -398,7 +414,9 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   if (controls.some((entry) => entry.control.kind === 'malformed'))
     return failure('FC-FENCE', 'MALFORMED_GENERATION_CLAIM');
   const generationControlPositions = new Set(
-    controls.filter((entry) => entry.control.kind === 'claim').map((entry) => entry.position),
+    controls
+      .filter((entry) => entry.control.kind === 'claim' || entry.control.kind === 'operation-head')
+      .map((entry) => entry.position),
   );
 
   const claimed = record(candidate.claim, recoveredBinding.run);
@@ -490,11 +508,15 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     stateDigest: projectionDigest.value.digest,
     decisionDigest: decisionDigest.value.digest,
   });
+  const authorizedOperations = projected.decisions.flatMap((decision) => decision.operations);
+  if (authorizedOperations.length > 0 && candidate.operationState === undefined)
+    return failure('FC-TRUST', 'OPERATION_JOURNAL_REQUIRED');
   let pendingEffects: readonly OperationProjection[] = freeze([]);
   if (candidate.operationState !== undefined) {
-    const operationState = own(candidate.operationState, ['snapshot', 'head']);
+    const operationState = own(candidate.operationState, ['snapshot', 'seal']);
     if (!operationState) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
-    const restored = restoreOperationJournal(operationState.snapshot, operationState.head, {
+    const latestHead = controls.filter((entry) => entry.control.kind === 'operation-head').at(-1);
+    const restored = restoreOperationJournal(operationState.snapshot, operationState.seal, {
       verify: (proof) => {
         const carrier = ordered[proof.position];
         return carrier &&
@@ -505,9 +527,28 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
           ? { ok: true, value: undefined }
           : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_COMMIT_PROOF_MISMATCH' } };
       },
+      verifySeal: (seal) => {
+        const carrier = ordered[seal.proof.position];
+        const headContent = carrier ? own(carrier.content, ['schema', 'position', 'digest']) : undefined;
+        return carrier &&
+          carrier.event === seal.proof.event &&
+          carrier.transaction === seal.proof.transaction &&
+          carrier.contentDigest === seal.proof.recordDigest &&
+          seal.proof.recordDigest === seal.proof.witnessDigest &&
+          headContent?.schema === 'jig.operation-head.v1' &&
+          headContent.position === seal.position &&
+          headContent.digest === seal.digest &&
+          latestHead?.position === carrier.position &&
+          latestHead.control.kind === 'operation-head' &&
+          latestHead.control.position === seal.position &&
+          latestHead.control.digest === seal.digest
+          ? { ok: true, value: undefined }
+          : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_HEAD_PROOF_MISMATCH' } };
+      },
     });
     if (!restored.ok) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
     const operationSnapshot = operationState.snapshot as OperationJournalSnapshot;
+    const journalIntentIds: string[] = [];
     for (const entry of operationSnapshot.entries) {
       const proof = entry.record.proof;
       const carrier = ordered[proof.position];
@@ -520,9 +561,10 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
       )
         return failure('FC-TRUST', 'OPERATION_COMMIT_PROOF_MISMATCH');
       if (entry.record.kind === 'intent') {
-        const decisionOperation = projected.decisions
-          .flatMap((decision) => decision.operations)
-          .find((operation) => operation.operation === entry.record.operation);
+        journalIntentIds.push(entry.record.operation);
+        const decisionOperation = authorizedOperations.find(
+          (operation) => operation.operation === entry.record.operation,
+        );
         if (
           !decisionOperation ||
           decisionOperation.type !== entry.record.type ||
@@ -537,6 +579,12 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
           return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
       }
     }
+    const authorizedIds = authorizedOperations.map((operation) => operation.operation).sort();
+    if (
+      journalIntentIds.length !== authorizedIds.length ||
+      journalIntentIds.sort().some((operation, index) => operation !== authorizedIds[index])
+    )
+      return failure('FC-TRUST', 'OPERATION_JOURNAL_COVERAGE_MISMATCH');
     pendingEffects = restored.value.pendingEffects();
   }
   const observation = freeze({

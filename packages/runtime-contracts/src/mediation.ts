@@ -38,18 +38,30 @@ type DispatchPermit = Readonly<{
   ordinal: number;
   type: OperationType;
   subject: Readonly<{ run: string; story: string; basis: string }>;
-  fence: Readonly<{ generation: string; basis: string }>;
+  fence: Readonly<{
+    generation: string;
+    basis: string;
+    candidateContentDigest: string;
+    targetBasisDigest: string;
+  }>;
   capability: Readonly<{
     kind: CapabilityKind;
     port: MediatedPort;
     operationClass: OperationType;
     subject: string;
-    fence: Readonly<{ generation: string; basis: string }>;
+    fence: Readonly<{
+      generation: string;
+      basis: string;
+      candidateContentDigest: string;
+      targetBasisDigest: string;
+    }>;
     resourceScope: string;
     manifest: string;
     digest: string;
   }>;
   authority: Readonly<{ authority: string; registry: string; basis: string }> | null;
+  role: string;
+  lifecycle: string;
   proof: Readonly<{
     kind: 'committed-witnessed';
     position: number;
@@ -58,6 +70,8 @@ type DispatchPermit = Readonly<{
     recordDigest: string;
     witnessDigest: string;
   }>;
+  purpose: 'semantic' | 'replacement' | 'reconciliation';
+  predecessor: string | null;
 }>;
 
 export const MEDIATED_PORTS = Object.freeze([
@@ -82,7 +96,7 @@ type FailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-AUTHORITY' | '
 type Failure = Readonly<{ family: FailureFamily; code: string }>;
 type Result<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: Failure }>;
 type DispatchJournal = Readonly<{
-  dispatchPermit(
+  recordDispatch(
     input: unknown,
   ): Readonly<{ ok: true; value: DispatchPermit } | { ok: false; error: Readonly<{ family: string; code: string }> }>;
 }>;
@@ -94,7 +108,10 @@ type Attestation = Readonly<{
   subject: DispatchPermit['subject'];
   fence: DispatchPermit['fence'];
   capabilityDigest: string;
+  manifest: string;
   authority: DispatchPermit['authority'];
+  role: string;
+  lifecycle: string;
   observation: Readonly<{ kind: string; digest: string }>;
   successClaim: 'observed';
 }>;
@@ -133,6 +150,14 @@ const boundedText = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 512 && value.normalize('NFC') === value;
 const operationType = (value: unknown): value is OperationType =>
   typeof value === 'string' && OPERATION_TYPES.includes(value as OperationType);
+const capabilityDigest = (permit: DispatchPermit): string | undefined => {
+  const staged = stageDigest({
+    domain: 'OPERATION-CAPABILITY',
+    excludePaths: ['digest'],
+    value: { ...permit.capability, digest: '' } as CanonicalJson,
+  });
+  return staged.ok ? staged.value.digest : undefined;
+};
 
 function fields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
   try {
@@ -205,7 +230,10 @@ function validateAttestation(value: unknown, permit: DispatchPermit, mechanism: 
     'subject',
     'fence',
     'capabilityDigest',
+    'manifest',
     'authority',
+    'role',
+    'lifecycle',
     'observation',
     'successClaim',
   ]);
@@ -217,9 +245,12 @@ function validateAttestation(value: unknown, permit: DispatchPermit, mechanism: 
     raw.mechanism !== mechanism ||
     raw.provider !== 'fixture-only' ||
     !sameObject(raw.subject, permit.subject, ['run', 'story', 'basis']) ||
-    !sameObject(raw.fence, permit.fence, ['generation', 'basis']) ||
+    !sameObject(raw.fence, permit.fence, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']) ||
     raw.capabilityDigest !== permit.capability.digest ||
+    raw.manifest !== permit.capability.manifest ||
     !sameObject(raw.authority, permit.authority, ['authority', 'registry', 'basis']) ||
+    raw.role !== permit.role ||
+    raw.lifecycle !== permit.lifecycle ||
     !observation ||
     !boundedText(observation.kind) ||
     !digest(observation.digest) ||
@@ -235,7 +266,10 @@ function validateAttestation(value: unknown, permit: DispatchPermit, mechanism: 
       subject: permit.subject,
       fence: permit.fence,
       capabilityDigest: permit.capability.digest,
+      manifest: permit.capability.manifest,
       authority: permit.authority,
+      role: permit.role,
+      lifecycle: permit.lifecycle,
       observation: Object.freeze({ kind: observation.kind, digest: observation.digest }),
       successClaim: 'observed',
     }),
@@ -249,9 +283,9 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
   const permitFor = (operation: unknown, ordinal: unknown): Result<DispatchPermit> => {
     if (typeof operation !== 'string' || typeof ordinal !== 'number' || !Number.isSafeInteger(ordinal) || ordinal < 1)
       return fail('FC-INPUT', 'INVALID_DISPATCH_REQUEST');
-    let permitted: ReturnType<DispatchJournal['dispatchPermit']>;
+    let permitted: ReturnType<DispatchJournal['recordDispatch']>;
     try {
-      permitted = journal.dispatchPermit({ operation, ordinal });
+      permitted = journal.recordDispatch({ operation, ordinal });
     } catch {
       return fail('FC-AUTHORITY', 'DISPATCH_PERMIT_UNAVAILABLE');
     }
@@ -275,7 +309,15 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
       permit.capability.kind !== route.value.capability ||
       permit.capability.operationClass !== permit.type ||
       permit.capability.subject !== permit.subject.story ||
-      !sameObject(permit.capability.fence, permit.fence, ['generation', 'basis']) ||
+      !sameObject(permit.capability.fence, permit.fence, [
+        'generation',
+        'basis',
+        'candidateContentDigest',
+        'targetBasisDigest',
+      ]) ||
+      capabilityDigest(permit) !== permit.capability.digest ||
+      !boundedText(permit.role) ||
+      !boundedText(permit.lifecycle) ||
       permit.proof.kind !== 'committed-witnessed' ||
       permit.proof.recordDigest !== permit.proof.witnessDigest
     )
@@ -318,22 +360,31 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
   const lookup = (
     input: unknown,
   ): Result<Readonly<{ effectOperation: string; observationOperation: string; outcome: string; digest: string }>> => {
-    const raw = fields(input, ['effectOperation', 'observationOperation', 'ordinal', 'outcome', 'attestation']);
-    if (
-      !raw ||
-      typeof raw.effectOperation !== 'string' ||
-      raw.effectOperation === raw.observationOperation ||
-      (raw.outcome !== 'confirmed-effect' && raw.outcome !== 'confirmed-absence' && raw.outcome !== 'indeterminate')
-    )
+    const raw = fields(input, ['effectOperation', 'observationOperation', 'ordinal', 'attestation']);
+    if (!raw || typeof raw.effectOperation !== 'string' || raw.effectOperation === raw.observationOperation)
       return fail('FC-INPUT', 'INVALID_RECONCILIATION_LOOKUP');
     const permit = permitFor(raw.observationOperation, raw.ordinal);
     if (!permit.ok) return permit;
     const route = operationRoute(permit.value.type);
-    if (!route.ok || route.value.effect !== 'observation')
+    if (
+      !route.ok ||
+      route.value.effect !== 'observation' ||
+      permit.value.purpose !== 'reconciliation' ||
+      permit.value.predecessor !== raw.effectOperation
+    )
       return fail('FC-EFFECT', 'RECONCILIATION_REQUIRES_OBSERVATION');
     const mechanism = SCRIPTED_MECHANISMS[route.value.port];
     const attestation = validateAttestation(raw.attestation, permit.value, mechanism);
     if (!attestation.ok) return attestation;
+    const outcome =
+      attestation.value.observation.kind === 'effect-confirmed'
+        ? 'confirmed-effect'
+        : attestation.value.observation.kind === 'effect-absent'
+          ? 'confirmed-absence'
+          : attestation.value.observation.kind === 'effect-indeterminate'
+            ? 'indeterminate'
+            : undefined;
+    if (!outcome) return fail('FC-MECHANISM', 'INVALID_RECONCILIATION_OUTCOME');
     const key = `${permit.value.operation}\0${permit.value.ordinal}`;
     if (dispatched.has(key)) return fail('FC-EFFECT', 'DUPLICATE_DISPATCH');
     dispatched.add(key);
@@ -351,7 +402,7 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
       Object.freeze({
         effectOperation: raw.effectOperation,
         observationOperation: permit.value.operation,
-        outcome: raw.outcome,
+        outcome,
         digest: attestation.value.observation.digest,
       }),
     );
@@ -363,3 +414,5 @@ export function createScriptedMediationFixture(journal: DispatchJournal) {
     invocations: () => Object.freeze([...invocations]),
   });
 }
+
+import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';

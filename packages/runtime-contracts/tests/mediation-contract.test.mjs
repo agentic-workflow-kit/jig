@@ -10,6 +10,29 @@ const oracle = JSON.parse(
 );
 
 const digest = (character) => character.repeat(64);
+const canonicalPermit = (source) => {
+  const fence = {
+    ...source.fence,
+    candidateContentDigest: source.fence.candidateContentDigest ?? digest('8'),
+    targetBasisDigest: source.fence.targetBasisDigest ?? digest('b'),
+  };
+  const unsignedCapability = {
+    ...source.capability,
+    fence,
+  };
+  delete unsignedCapability.digest;
+  const derived = kernel.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(derived.ok, true);
+  return Object.freeze({
+    ...source,
+    fence,
+    capability: Object.freeze({ ...unsignedCapability, digest: derived.value }),
+    role: source.role ?? 'controller',
+    lifecycle: source.lifecycle ?? 'Implementing',
+    purpose: source.purpose ?? 'semantic',
+    predecessor: source.predecessor ?? null,
+  });
+};
 
 test('mediation contract: closed operation catalog maps onto exactly five private mediated port shapes', () => {
   assert.deepEqual(
@@ -57,7 +80,7 @@ test('mediation contract: each mediated port shape dispatches only through its f
             basis: digest('b'),
           }
         : null;
-    const permit = {
+    const permit = canonicalPermit({
       version: kernel.OPERATION_STATE_VERSION,
       operation: operationId,
       ordinal: 1,
@@ -83,9 +106,9 @@ test('mediation contract: each mediated port shape dispatches only through its f
         recordDigest: digest(String(ordinal)),
         witnessDigest: digest(String(ordinal)),
       },
-    };
+    });
     const fixture = mediation.createScriptedMediationFixture({
-      dispatchPermit: () => ({ ok: true, value: permit }),
+      recordDispatch: () => ({ ok: true, value: permit }),
     });
     const attestation = {
       operation: operationId,
@@ -93,9 +116,12 @@ test('mediation contract: each mediated port shape dispatches only through its f
       mechanism: oracle.scriptedMechanisms[port],
       provider: 'fixture-only',
       subject,
-      fence,
+      fence: permit.fence,
       capabilityDigest: permit.capability.digest,
+      manifest: permit.capability.manifest,
       authority,
+      role: permit.role,
+      lifecycle: permit.lifecycle,
       observation: { kind: `${port.toLowerCase()}-fact`, digest: digest('a') },
       successClaim: 'observed',
     };
@@ -110,7 +136,7 @@ test('mediation contract: each mediated port shape dispatches only through its f
 });
 
 test('mediation contract: scripted fixture dispatches only an exact journal permit and exact attestation', () => {
-  const permit = Object.freeze({
+  const permit = canonicalPermit({
     version: 'jig.operation.v1',
     operation:
       'run-000000000001-0123456789abcdef/txn/1/run-000000000001-0123456789abcdef/gen/2|token|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/op/1',
@@ -155,7 +181,7 @@ test('mediation contract: scripted fixture dispatches only an exact journal perm
     }),
   });
   const journal = Object.freeze({
-    dispatchPermit: ({ operation, ordinal }) =>
+    recordDispatch: ({ operation, ordinal }) =>
       operation === permit.operation && ordinal === permit.ordinal
         ? { ok: true, value: permit }
         : { ok: false, error: { family: 'FC-ORDERING', code: 'ATTEMPT_NOT_RECORDED' } },
@@ -169,7 +195,10 @@ test('mediation contract: scripted fixture dispatches only an exact journal perm
     subject: permit.subject,
     fence: permit.fence,
     capabilityDigest: permit.capability.digest,
+    manifest: permit.capability.manifest,
     authority: permit.authority,
+    role: permit.role,
+    lifecycle: permit.lifecycle,
     observation: Object.freeze({ kind: 'target-effect', digest: digest('2') }),
     successClaim: 'observed',
   });
@@ -194,7 +223,7 @@ test('mediation contract: scripted fixture dispatches only an exact journal perm
 
 test('mediation contract: lost response records one possible effect and never dispatches again without reauthorization', () => {
   let allowed = true;
-  const permit = {
+  const permit = canonicalPermit({
     version: 'jig.operation.v1',
     operation:
       'run-000000000001-0123456789abcdef/txn/1/run-000000000001-0123456789abcdef/gen/2|token|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/op/1',
@@ -230,11 +259,12 @@ test('mediation contract: lost response records one possible effect and never di
       recordDigest: digest('1'),
       witnessDigest: digest('1'),
     },
-  };
-  const fixture = mediation.createScriptedMediationFixture({
-    dispatchPermit: () =>
-      allowed ? { ok: true, value: permit } : { ok: false, error: { family: 'FC-EFFECT', code: 'UNCERTAIN_EFFECT' } },
   });
+  const durableJournal = {
+    recordDispatch: () =>
+      allowed ? { ok: true, value: permit } : { ok: false, error: { family: 'FC-EFFECT', code: 'UNCERTAIN_EFFECT' } },
+  };
+  const fixture = mediation.createScriptedMediationFixture(durableJournal);
   const attestation = {
     operation: permit.operation,
     ordinal: 1,
@@ -243,7 +273,10 @@ test('mediation contract: lost response records one possible effect and never di
     subject: permit.subject,
     fence: permit.fence,
     capabilityDigest: permit.capability.digest,
+    manifest: permit.capability.manifest,
     authority: null,
+    role: permit.role,
+    lifecycle: permit.lifecycle,
     observation: { kind: 'workspace-effect', digest: digest('2') },
     successClaim: 'observed',
   };
@@ -252,14 +285,17 @@ test('mediation contract: lost response records one possible effect and never di
     error: { family: 'FC-MECHANISM', code: 'RESULT_UNCERTAIN' },
   });
   allowed = false;
-  assert.equal(fixture.dispatch({ operation: permit.operation, ordinal: 1, attestation }).ok, false);
+  const restartedFixture = mediation.createScriptedMediationFixture(durableJournal);
+  assert.equal(restartedFixture.dispatch({ operation: permit.operation, ordinal: 1, attestation }).ok, false);
   assert.equal(fixture.invocations().length, 1);
+  assert.equal(restartedFixture.invocations().length, 0);
 });
 
 test('mediation contract: reconciliation lookup is a separately authorized effect-free operation', () => {
   const run = 'run-000000000001-0123456789abcdef';
   const transaction = `${run}/txn/2/${run}/gen/2|token|${digest('2')}`;
   const observationOperation = `${transaction}/op/1`;
+  const effectOperation = `${run}/txn/1/${run}/gen/2|token|${digest('1')}/op/1`;
   const subject = { run, story: `${run}/story/plan-a`, basis: digest('b') };
   const fence = { generation: `${run}/gen/2|token`, basis: digest('b') };
   const authority = {
@@ -267,7 +303,7 @@ test('mediation contract: reconciliation lookup is a separately authorized effec
     registry: `registry/${digest('f')}`,
     basis: digest('b'),
   };
-  const permit = {
+  const permit = canonicalPermit({
     version: kernel.OPERATION_STATE_VERSION,
     operation: observationOperation,
     ordinal: 1,
@@ -285,6 +321,8 @@ test('mediation contract: reconciliation lookup is a separately authorized effec
       digest: digest('e'),
     },
     authority,
+    purpose: 'reconciliation',
+    predecessor: effectOperation,
     proof: {
       kind: 'committed-witnessed',
       position: 1,
@@ -293,35 +331,61 @@ test('mediation contract: reconciliation lookup is a separately authorized effec
       recordDigest: digest('2'),
       witnessDigest: digest('2'),
     },
-  };
-  const fixture = mediation.createScriptedMediationFixture({
-    dispatchPermit: () => ({ ok: true, value: permit }),
   });
-  const result = fixture.lookup({
-    effectOperation: `${run}/txn/1/${run}/gen/2|token|${digest('1')}/op/1`,
+  const fixture = mediation.createScriptedMediationFixture({
+    recordDispatch: () => ({ ok: true, value: permit }),
+  });
+  const request = {
+    effectOperation,
     observationOperation,
     ordinal: 1,
-    outcome: 'confirmed-absence',
     attestation: {
       operation: observationOperation,
       ordinal: 1,
       mechanism: oracle.scriptedMechanisms['PORT-DELIVERY'],
       provider: 'fixture-only',
       subject,
-      fence,
+      fence: permit.fence,
       capabilityDigest: permit.capability.digest,
+      manifest: permit.capability.manifest,
       authority,
-      observation: { kind: 'effect-lookup', digest: digest('a') },
+      role: permit.role,
+      lifecycle: permit.lifecycle,
+      observation: { kind: 'effect-absent', digest: digest('a') },
       successClaim: 'observed',
     },
-  });
+  };
+  const result = fixture.lookup(request);
   assert.equal(result.ok, true);
   assert.deepEqual(result.value, {
-    effectOperation: `${run}/txn/1/${run}/gen/2|token|${digest('1')}/op/1`,
+    effectOperation,
     observationOperation,
     outcome: 'confirmed-absence',
     digest: digest('a'),
   });
+  for (const forgedPermit of [
+    canonicalPermit({ ...permit, purpose: 'semantic', predecessor: null }),
+    canonicalPermit({ ...permit, predecessor: `${effectOperation}/op/2` }),
+  ]) {
+    const forgedFixture = mediation.createScriptedMediationFixture({
+      recordDispatch: () => ({ ok: true, value: forgedPermit }),
+    });
+    assert.equal(forgedFixture.lookup(request).ok, false);
+  }
+  const forgedOutcomeFixture = mediation.createScriptedMediationFixture({
+    recordDispatch: () => ({ ok: true, value: permit }),
+  });
+  assert.equal(
+    forgedOutcomeFixture.lookup({
+      ...request,
+      attestation: {
+        ...request.attestation,
+        observation: { kind: 'caller-selected-absence', digest: digest('a') },
+      },
+    }).ok,
+    false,
+  );
+  assert.equal(forgedOutcomeFixture.lookup({ ...request, outcome: 'confirmed-absence' }).ok, false);
 });
 
 test('mediation contract: no real provider, adapter, credentials, trigger, or configuration route is exposed', () => {

@@ -388,7 +388,23 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     event,
     bindings,
   });
-  const operationJournal = operation.createOperationJournal({
+  const operationFence = Object.freeze({
+    ...priorFence,
+    candidateContentDigest: digest('6'),
+    targetBasisDigest: digest('7'),
+  });
+  const unsignedCapability = {
+    kind: 'CB-WORKSPACE',
+    port: 'PORT-WORKSPACE',
+    operationClass: 'OPC-WS-PROVISION',
+    subject: subject.story,
+    fence: operationFence,
+    resourceScope: 'workspace/story-1',
+    manifest: `provider/${digest('3')}/authority/${digest('4')}`,
+  };
+  const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(capabilityDigest.ok, true);
+  const operationVerifier = {
     verify: (proof) => {
       const readback = ledger.readback({
         binding: { kind: 'run', run, generation: priorGeneration },
@@ -405,7 +421,23 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
         ? { ok: true, value: undefined }
         : { ok: false, error: { family: 'FC-TRUST', code: 'UNVERIFIED' } };
     },
-  });
+    verifySeal: (seal) => {
+      const readback = ledger.readback({
+        binding: { kind: 'run', run, generation: priorGeneration },
+        position: seal.proof.position,
+        transaction: seal.proof.transaction,
+        contentDigest: seal.proof.recordDigest,
+      });
+      return readback.ok &&
+        readback.value.kind === 'committed' &&
+        readback.value.record.content.schema === 'jig.operation-head.v1' &&
+        readback.value.record.content.position === seal.position &&
+        readback.value.record.content.digest === seal.digest
+        ? { ok: true, value: undefined }
+        : { ok: false, error: { family: 'FC-TRUST', code: 'UNVERIFIED' } };
+    },
+  };
+  const operationJournal = operation.createOperationJournal(operationVerifier);
   assert.equal(
     operationJournal.recordIntent({
       version: operation.OPERATION_STATE_VERSION,
@@ -415,17 +447,8 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
       type: 'OPC-WS-PROVISION',
       subject,
       payloadBasisDigest: digest('2'),
-      fence: priorFence,
-      capability: {
-        kind: 'CB-WORKSPACE',
-        port: 'PORT-WORKSPACE',
-        operationClass: 'OPC-WS-PROVISION',
-        subject: subject.story,
-        fence: priorFence,
-        resourceScope: 'workspace/story-1',
-        manifest: `provider/${digest('3')}/authority/${digest('4')}`,
-        digest: digest('5'),
-      },
+      fence: operationFence,
+      capability: { ...unsignedCapability, digest: capabilityDigest.value },
       authority: null,
       role: 'controller',
       lifecycle: 'Preparing',
@@ -444,21 +467,44 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     }).ok,
     true,
   );
-  const claim = append(ledger, 1, first.contentDigest, generation, {
+  const snapshot = operationJournal.snapshot();
+  const headCarrier = append(ledger, 1, first.contentDigest, priorGeneration, {
+    schema: 'jig.operation-head.v1',
+    position: snapshot.head.position,
+    digest: snapshot.head.digest,
+  });
+  const seal = operationJournal.seal({
+    proof: {
+      kind: 'committed-witnessed',
+      position: headCarrier.position,
+      event: headCarrier.event,
+      transaction: headCarrier.transaction,
+      recordDigest: headCarrier.contentDigest,
+      witnessDigest: headCarrier.contentDigest,
+    },
+  });
+  assert.equal(seal.ok, true);
+  const claim = append(ledger, 2, headCarrier.contentDigest, generation, {
     recovery: 'generation-claim',
     token: basis,
   });
-  const snapshot = operationJournal.snapshot();
-  const recovered = recovery.recoverFencedRun({
+  const recoveryInput = {
     ledger,
-    records: [first, claim],
+    records: [first, headCarrier, claim],
     claim,
     head: { position: claim.position, digest: claim.contentDigest },
     binding: { kind: 'run', run, generation: priorGeneration },
     generation,
     recoveryToken: basis,
     initialState: operationInitialState,
-    operationState: { snapshot, head: snapshot.head },
+  };
+  assert.deepEqual(recovery.recoverFencedRun(recoveryInput), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'OPERATION_JOURNAL_REQUIRED' },
+  });
+  const recovered = recovery.recoverFencedRun({
+    ...recoveryInput,
+    operationState: { snapshot, seal: seal.value },
   });
   assert.equal(recovered.ok, true);
   assert.deepEqual(
@@ -468,15 +514,40 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
 
   assert.deepEqual(
     recovery.recoverFencedRun({
-      ledger,
-      records: [first, claim],
-      claim,
-      head: { position: claim.position, digest: claim.contentDigest },
-      binding: { kind: 'run', run, generation: priorGeneration },
-      generation,
-      recoveryToken: basis,
-      initialState: operationInitialState,
-      operationState: { snapshot, head: { ...snapshot.head, digest: digest('f') } },
+      ...recoveryInput,
+      operationState: { snapshot, seal: { ...seal.value, digest: digest('f') } },
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_JOURNAL_UNVERIFIED' } },
+  );
+
+  const behindLedger = runtime.createScriptedLedger();
+  const behindFirst = append(behindLedger, 0, digest('0'), priorGeneration, {
+    schema: 'jig.transition.v1',
+    event,
+    bindings,
+  });
+  const behindHead = append(behindLedger, 1, behindFirst.contentDigest, priorGeneration, {
+    schema: 'jig.operation-head.v1',
+    position: snapshot.head.position,
+    digest: snapshot.head.digest,
+  });
+  const laterHead = append(behindLedger, 2, behindHead.contentDigest, priorGeneration, {
+    schema: 'jig.operation-head.v1',
+    position: snapshot.head.position,
+    digest: digest('f'),
+  });
+  const behindClaim = append(behindLedger, 3, laterHead.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ...recoveryInput,
+      ledger: behindLedger,
+      records: [behindFirst, behindHead, laterHead, behindClaim],
+      claim: behindClaim,
+      head: { position: behindClaim.position, digest: behindClaim.contentDigest },
+      operationState: { snapshot, seal: seal.value },
     }),
     { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_JOURNAL_UNVERIFIED' } },
   );

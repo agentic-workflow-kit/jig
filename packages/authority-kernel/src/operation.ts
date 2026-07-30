@@ -49,7 +49,12 @@ export type OperationFailure = Readonly<{ family: OperationFailureFamily; code: 
 export type OperationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: OperationFailure }>;
 
 type Subject = Readonly<{ run: string; story: string; basis: string }>;
-type Fence = Readonly<{ generation: string; basis: string }>;
+type Fence = Readonly<{
+  generation: string;
+  basis: string;
+  candidateContentDigest: string;
+  targetBasisDigest: string;
+}>;
 type Authority = Readonly<{ authority: string; registry: string; basis: string }>;
 type CapabilityKind =
   | 'CB-SESSION'
@@ -103,8 +108,10 @@ type Reauthorization = Readonly<{
   confirmedAbsenceDigest: string;
   generation: string;
   fence: Fence;
-  capabilityDigest: string;
+  capability: Capability;
   authority: Authority | null;
+  role: string;
+  lifecycle: string;
 }>;
 type AttemptRecord = Readonly<{
   kind: 'attempt';
@@ -112,11 +119,19 @@ type AttemptRecord = Readonly<{
   ordinal: number;
   generation: string;
   fence: Fence;
-  capabilityDigest: string;
+  capability: Capability;
   authority: Authority | null;
+  role: string;
+  lifecycle: string;
   startedAt: number;
   deadline: number;
   reauthorization: Reauthorization | null;
+  proof: OperationCommitProof;
+}>;
+type DispatchRecord = Readonly<{
+  kind: 'dispatch';
+  operation: string;
+  ordinal: number;
   proof: OperationCommitProof;
 }>;
 type ResultRecord = Readonly<{
@@ -127,8 +142,10 @@ type ResultRecord = Readonly<{
   provider: string;
   subject: Subject;
   fence: Fence;
-  capabilityDigest: string;
+  capability: Capability;
   authority: Authority | null;
+  role: string;
+  lifecycle: string;
   observation: Readonly<{ kind: string; digest: string }>;
   successClaim: 'observed' | 'absent';
   proof: OperationCommitProof;
@@ -167,6 +184,7 @@ type ReplacementRecord = Readonly<{
 type JournalRecord =
   | IntentRecord
   | AttemptRecord
+  | DispatchRecord
   | ResultRecord
   | CertaintyRecord
   | UncertaintyRecord
@@ -186,11 +204,20 @@ export type OperationJournalSnapshot = Readonly<{
 }>;
 export type OperationProofVerifier = Readonly<{
   verify(proof: OperationCommitProof): OperationResult<void>;
+  verifySeal?(seal: OperationJournalSeal): OperationResult<void>;
+}>;
+
+export type OperationJournalSeal = Readonly<{
+  version: typeof OPERATION_STATE_VERSION;
+  position: number;
+  digest: string;
+  proof: OperationCommitProof;
 }>;
 
 type OperationStatus =
   | 'intent-recorded'
   | 'attempt-recorded'
+  | 'dispatch-crossed'
   | 'result-recorded'
   | 'uncertain'
   | 'confirmed-effect'
@@ -243,12 +270,16 @@ export type DispatchPermit = Readonly<{
   fence: Fence;
   capability: Capability;
   authority: Authority | null;
+  role: string;
+  lifecycle: string;
   proof: OperationCommitProof;
+  purpose: IntentRecord['purpose'];
+  predecessor: string | null;
 }>;
 export type OperationJournal = Readonly<{
   recordIntent(input: unknown): OperationResult<OperationProjection>;
   recordAttempt(input: unknown): OperationResult<OperationProjection>;
-  dispatchPermit(input: unknown): OperationResult<DispatchPermit>;
+  recordDispatch(input: unknown): OperationResult<DispatchPermit>;
   recordResult(input: unknown): OperationResult<OperationProjection>;
   recordCertainty(input: unknown): OperationResult<OperationProjection>;
   recordUncertainty(input: unknown): OperationResult<OperationProjection>;
@@ -258,6 +289,7 @@ export type OperationJournal = Readonly<{
   state(operation: unknown): OperationResult<OperationProjection>;
   pendingEffects(): readonly OperationProjection[];
   snapshot(): OperationJournalSnapshot;
+  seal(input: unknown): OperationResult<OperationJournalSeal>;
 }>;
 
 const ZERO_DIGEST = '0'.repeat(64);
@@ -346,7 +378,12 @@ function sameSubject(left: Subject, right: Subject): boolean {
   return left.run === right.run && left.story === right.story && left.basis === right.basis;
 }
 function sameFence(left: Fence, right: Fence): boolean {
-  return left.generation === right.generation && left.basis === right.basis;
+  return (
+    left.generation === right.generation &&
+    left.basis === right.basis &&
+    left.candidateContentDigest === right.candidateContentDigest &&
+    left.targetBasisDigest === right.targetBasisDigest
+  );
 }
 function sameAuthority(left: Authority | null, right: Authority | null): boolean {
   return (
@@ -356,6 +393,18 @@ function sameAuthority(left: Authority | null, right: Authority | null): boolean
       left.authority === right.authority &&
       left.registry === right.registry &&
       left.basis === right.basis)
+  );
+}
+function sameCapability(left: Capability, right: Capability): boolean {
+  return (
+    left.kind === right.kind &&
+    left.port === right.port &&
+    left.operationClass === right.operationClass &&
+    left.subject === right.subject &&
+    sameFence(left.fence, right.fence) &&
+    left.resourceScope === right.resourceScope &&
+    left.manifest === right.manifest &&
+    left.digest === right.digest
   );
 }
 
@@ -374,16 +423,23 @@ function subjectValue(value: unknown): Subject | undefined {
   return deepFreeze({ run: raw.run, story: raw.story, basis: raw.basis });
 }
 function fenceValue(value: unknown, run?: string): Fence | undefined {
-  const raw = fields(value, ['generation', 'basis']);
+  const raw = fields(value, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']);
   if (
     !raw ||
     typeof raw.generation !== 'string' ||
     !digest(raw.basis) ||
+    !digest(raw.candidateContentDigest) ||
+    !digest(raw.targetBasisDigest) ||
     !parseIdentity('ID-GEN', raw.generation).ok ||
     (run !== undefined && !raw.generation.startsWith(`${run}/gen/`))
   )
     return undefined;
-  return deepFreeze({ generation: raw.generation, basis: raw.basis });
+  return deepFreeze({
+    generation: raw.generation,
+    basis: raw.basis,
+    candidateContentDigest: raw.candidateContentDigest,
+    targetBasisDigest: raw.targetBasisDigest,
+  });
 }
 function authorityValue(value: unknown, basis: string): Authority | null | undefined {
   if (value === null) return null;
@@ -422,6 +478,23 @@ function capabilityValue(value: unknown, type: OperationType, subject: Subject, 
   ]);
   const expected = expectedRoute(type);
   const capabilityFence = raw ? fenceValue(raw.fence, subject.run) : undefined;
+  const derived =
+    raw && capabilityFence
+      ? stageDigest({
+          domain: 'OPERATION-CAPABILITY',
+          excludePaths: ['digest'],
+          value: {
+            kind: raw.kind,
+            port: raw.port,
+            operationClass: raw.operationClass,
+            subject: raw.subject,
+            fence: capabilityFence,
+            resourceScope: raw.resourceScope,
+            manifest: raw.manifest,
+            digest: '',
+          } as CanonicalJson,
+        })
+      : undefined;
   if (
     !raw ||
     raw.kind !== expected.kind ||
@@ -433,7 +506,9 @@ function capabilityValue(value: unknown, type: OperationType, subject: Subject, 
     !boundedText(raw.resourceScope, 1024) ||
     typeof raw.manifest !== 'string' ||
     !parseIdentity('ID-MANIFEST', raw.manifest).ok ||
-    !digest(raw.digest)
+    !digest(raw.digest) ||
+    !derived?.ok ||
+    raw.digest !== derived.value.digest
   )
     return undefined;
   return deepFreeze({
@@ -446,6 +521,40 @@ function capabilityValue(value: unknown, type: OperationType, subject: Subject, 
     manifest: raw.manifest,
     digest: raw.digest,
   });
+}
+
+export function deriveOperationCapabilityDigest(value: unknown): OperationResult<string> {
+  const raw = fields(value, ['kind', 'port', 'operationClass', 'subject', 'fence', 'resourceScope', 'manifest']);
+  if (!raw || !operationType(raw.operationClass)) return fail('FC-INPUT', 'INVALID_CAPABILITY');
+  const subjectValue = typeof raw.subject === 'string' ? raw.subject : undefined;
+  const run = subjectValue?.split('/story/')[0];
+  const parsedFence = fenceValue(raw.fence, run);
+  if (
+    !subjectValue ||
+    !run ||
+    !parsedFence ||
+    !boundedText(raw.resourceScope, 1024) ||
+    typeof raw.manifest !== 'string' ||
+    !parseIdentity('ID-MANIFEST', raw.manifest).ok
+  )
+    return fail('FC-INPUT', 'INVALID_CAPABILITY');
+  const route = expectedRoute(raw.operationClass);
+  if (raw.kind !== route.kind || raw.port !== route.port) return fail('FC-INPUT', 'INVALID_CAPABILITY');
+  const staged = stageDigest({
+    domain: 'OPERATION-CAPABILITY',
+    excludePaths: ['digest'],
+    value: {
+      kind: raw.kind,
+      port: raw.port,
+      operationClass: raw.operationClass,
+      subject: subjectValue,
+      fence: parsedFence,
+      resourceScope: raw.resourceScope,
+      manifest: raw.manifest,
+      digest: '',
+    } as CanonicalJson,
+  });
+  return staged.ok ? ok(staged.value.digest) : fail('FC-INPUT', 'INVALID_CAPABILITY');
 }
 
 function boundsValue(value: unknown): Bounds | undefined {
@@ -518,7 +627,7 @@ function intentValue(value: unknown): OperationResult<IntentRecord> {
   const subject = subjectValue(raw.subject);
   const fence = subject ? fenceValue(raw.fence, subject.run) : undefined;
   const capability = subject && fence ? capabilityValue(raw.capability, raw.type, subject, fence) : undefined;
-  const authority = subject ? authorityValue(raw.authority, subject.basis) : undefined;
+  const authority = fence ? authorityValue(raw.authority, fence.targetBasisDigest) : undefined;
   const bounds = boundsValue(raw.bounds);
   const proof = subject ? proofValue(raw.proof, subject.run) : undefined;
   if (
@@ -585,15 +694,18 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
     'ordinal',
     'generation',
     'fence',
-    'capabilityDigest',
+    'capability',
     'authority',
+    'role',
+    'lifecycle',
     'startedAt',
     'deadline',
     'reauthorization',
     'proof',
   ]);
   const fence = raw ? fenceValue(raw.fence, state.subject.run) : undefined;
-  const authority = raw ? authorityValue(raw.authority, state.subject.basis) : undefined;
+  const capability = raw && fence ? capabilityValue(raw.capability, state.type, state.subject, fence) : undefined;
+  const authority = raw && fence ? authorityValue(raw.authority, fence.targetBasisDigest) : undefined;
   const proof = raw ? proofValue(raw.proof, state.subject.run) : undefined;
   if (
     !raw ||
@@ -601,8 +713,10 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
     !integer(raw.ordinal, 1) ||
     typeof raw.generation !== 'string' ||
     !fence ||
-    !digest(raw.capabilityDigest) ||
+    !capability ||
     authority === undefined ||
+    !boundedText(raw.role) ||
+    !boundedText(raw.lifecycle) ||
     !integer(raw.startedAt) ||
     !integer(raw.deadline) ||
     raw.deadline <= raw.startedAt ||
@@ -610,11 +724,7 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
     !proof
   )
     return fail('FC-INPUT', 'INVALID_OPERATION_ATTEMPT');
-  if (
-    raw.generation !== fence.generation ||
-    fence.basis !== state.subject.basis ||
-    !sameAuthority(authority, state.authority)
-  )
+  if (raw.generation !== fence.generation || fence.basis !== state.subject.basis)
     return fail('FC-FENCE', 'ATTEMPT_FENCE_MISMATCH');
   if (raw.ordinal !== state.attempts.length + 1 || raw.ordinal > state.intent.bounds.retryLimit)
     return fail('FC-BOUND', 'BND_RETRY_EXHAUSTED');
@@ -622,7 +732,13 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
   if (raw.ordinal === 1) {
     if (raw.reauthorization !== null || state.status !== 'intent-recorded')
       return fail('FC-ORDERING', 'FIRST_ATTEMPT_NOT_AUTHORIZED');
-    if (raw.generation !== state.retainedFence.generation || raw.capabilityDigest !== state.capability.digest)
+    if (
+      raw.generation !== state.retainedFence.generation ||
+      !sameCapability(capability, state.capability) ||
+      !sameAuthority(authority, state.authority) ||
+      raw.role !== state.intent.role ||
+      raw.lifecycle !== state.intent.lifecycle
+    )
       return fail('FC-FENCE', 'INITIAL_ATTEMPT_FENCE_MISMATCH');
   } else {
     if (state.effect !== 'effectful' || state.status !== 'confirmed-absence')
@@ -632,11 +748,18 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
       'confirmedAbsenceDigest',
       'generation',
       'fence',
-      'capabilityDigest',
+      'capability',
       'authority',
+      'role',
+      'lifecycle',
     ]);
     const refreshedFence = candidate ? fenceValue(candidate.fence, state.subject.run) : undefined;
-    const refreshedAuthority = candidate ? authorityValue(candidate.authority, state.subject.basis) : undefined;
+    const refreshedCapability =
+      candidate && refreshedFence
+        ? capabilityValue(candidate.capability, state.type, state.subject, refreshedFence)
+        : undefined;
+    const refreshedAuthority =
+      candidate && refreshedFence ? authorityValue(candidate.authority, refreshedFence.targetBasisDigest) : undefined;
     if (
       !candidate ||
       candidate.previousAttempt !== raw.ordinal - 1 ||
@@ -644,11 +767,18 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
       candidate.generation !== raw.generation ||
       !refreshedFence ||
       !sameFence(refreshedFence, fence) ||
-      candidate.capabilityDigest !== raw.capabilityDigest ||
+      !refreshedCapability ||
+      !sameCapability(refreshedCapability, capability) ||
       refreshedAuthority === undefined ||
       !sameAuthority(refreshedAuthority, authority) ||
       raw.generation === state.retainedFence.generation ||
-      raw.capabilityDigest === state.capability.digest
+      capability.digest === state.capability.digest ||
+      candidate.role !== raw.role ||
+      candidate.lifecycle !== raw.lifecycle ||
+      !boundedText(candidate.role) ||
+      !boundedText(candidate.lifecycle) ||
+      (capability.kind === 'CB-DELIVERY' &&
+        (authority === null || state.authority === null || authority.authority === state.authority.authority))
     )
       return fail('FC-FENCE', 'STALE_REAUTHORIZATION');
     if (state.certainty?.observationDigest !== candidate.confirmedAbsenceDigest)
@@ -658,8 +788,10 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
       confirmedAbsenceDigest: candidate.confirmedAbsenceDigest,
       generation: candidate.generation,
       fence: refreshedFence,
-      capabilityDigest: candidate.capabilityDigest,
+      capability: refreshedCapability,
       authority: refreshedAuthority,
+      role: candidate.role,
+      lifecycle: candidate.lifecycle,
     });
   }
   return ok(
@@ -669,8 +801,10 @@ function attemptValue(value: unknown, state: MutableProjection): OperationResult
       ordinal: raw.ordinal,
       generation: raw.generation,
       fence,
-      capabilityDigest: raw.capabilityDigest,
+      capability,
       authority,
+      role: raw.role,
+      lifecycle: raw.lifecycle,
       startedAt: raw.startedAt,
       deadline: raw.deadline,
       reauthorization,
@@ -687,22 +821,25 @@ function resultValue(value: unknown, state: MutableProjection): OperationResult<
     'provider',
     'subject',
     'fence',
-    'capabilityDigest',
+    'capability',
     'authority',
+    'role',
+    'lifecycle',
     'observation',
     'successClaim',
     'proof',
   ]);
   const subject = raw ? subjectValue(raw.subject) : undefined;
   const fence = raw ? fenceValue(raw.fence, state.subject.run) : undefined;
-  const authority = raw ? authorityValue(raw.authority, state.subject.basis) : undefined;
+  const capability = raw && fence ? capabilityValue(raw.capability, state.type, state.subject, fence) : undefined;
+  const authority = raw && fence ? authorityValue(raw.authority, fence.targetBasisDigest) : undefined;
   const observation = raw ? fields(raw.observation, ['kind', 'digest']) : undefined;
   const proof = raw ? proofValue(raw.proof, state.subject.run) : undefined;
   const attempt = state.attempts.at(-1);
   if (
     !raw ||
     !attempt ||
-    state.status !== 'attempt-recorded' ||
+    state.status !== 'dispatch-crossed' ||
     raw.operation !== state.operation ||
     raw.ordinal !== attempt.ordinal ||
     !boundedText(raw.mechanism) ||
@@ -711,9 +848,12 @@ function resultValue(value: unknown, state: MutableProjection): OperationResult<
     !sameSubject(subject, state.subject) ||
     !fence ||
     !sameFence(fence, attempt.fence) ||
-    raw.capabilityDigest !== attempt.capabilityDigest ||
+    !capability ||
+    !sameCapability(capability, attempt.capability) ||
     authority === undefined ||
     !sameAuthority(authority, attempt.authority) ||
+    raw.role !== attempt.role ||
+    raw.lifecycle !== attempt.lifecycle ||
     !observation ||
     !boundedText(observation.kind) ||
     !digest(observation.digest) ||
@@ -730,8 +870,10 @@ function resultValue(value: unknown, state: MutableProjection): OperationResult<
       provider: raw.provider,
       subject,
       fence,
-      capabilityDigest: raw.capabilityDigest,
+      capability,
       authority,
+      role: attempt.role,
+      lifecycle: attempt.lifecycle,
       observation: { kind: observation.kind, digest: observation.digest },
       successClaim: raw.successClaim,
       proof,
@@ -816,6 +958,26 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
     if (operations.has(parsed.value.operation)) return fail('FC-EFFECT', 'DUPLICATE_OPERATION_ID');
     if (parsed.value.predecessor !== null && !operations.has(parsed.value.predecessor))
       return fail('FC-SUBJECT', 'PREDECESSOR_OPERATION_NOT_FOUND');
+    if (parsed.value.purpose === 'replacement') {
+      const predecessor = operations.get(parsed.value.predecessor as string);
+      if (predecessor?.status !== 'superseded' || predecessor.supersededBy !== parsed.value.operation)
+        return fail('FC-ORDERING', 'PREDECESSOR_SUPERSESSION_REQUIRED');
+    }
+    if (parsed.value.purpose === 'reconciliation') {
+      const predecessor = operations.get(parsed.value.predecessor as string);
+      if (
+        predecessor?.effect !== 'effectful' ||
+        (predecessor.status !== 'uncertain' && predecessor.status !== 'parked') ||
+        parsed.value.effect !== 'observation' ||
+        !sameSubject(predecessor.subject, parsed.value.subject) ||
+        predecessor.capability.resourceScope !== parsed.value.capability.resourceScope ||
+        predecessor.capability.port !== parsed.value.capability.port ||
+        predecessor.capability.kind !== parsed.value.capability.kind ||
+        predecessor.capability.manifest !== parsed.value.capability.manifest ||
+        !sameFence(predecessor.retainedFence, parsed.value.fence)
+      )
+        return fail('FC-SUBJECT', 'INVALID_RECONCILIATION_LINEAGE');
+    }
     const appended = append(parsed.value);
     if (!appended.ok) return appended;
     const state: MutableProjection = {
@@ -852,18 +1014,14 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
     current.value.attempts.push(parsed.value);
     current.value.status = 'attempt-recorded';
     current.value.retainedFence = parsed.value.fence;
-    current.value.capability = deepFreeze({
-      ...current.value.capability,
-      fence: parsed.value.fence,
-      digest: parsed.value.capabilityDigest,
-    });
+    current.value.capability = parsed.value.capability;
     current.value.authority = parsed.value.authority;
     current.value.result = null;
     current.value.certainty = null;
     return ok(publicProjection(current.value));
   };
 
-  const dispatchPermit = (input: unknown): OperationResult<DispatchPermit> => {
+  const buildDispatchPermit = (input: unknown): OperationResult<DispatchPermit> => {
     const raw = fields(input, ['operation', 'ordinal']);
     if (!raw) return fail('FC-INPUT', 'INVALID_DISPATCH_REQUEST');
     const current = get(raw.operation);
@@ -883,9 +1041,36 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
         fence: attempt.fence,
         capability: current.value.capability,
         authority: attempt.authority,
+        role: attempt.role,
+        lifecycle: attempt.lifecycle,
         proof: attempt.proof,
+        purpose: current.value.intent.purpose,
+        predecessor: current.value.intent.predecessor,
       }),
     );
+  };
+
+  const recordDispatch = (input: unknown): OperationResult<DispatchPermit> => {
+    const raw = fields(input, ['operation', 'ordinal', 'proof']);
+    const current = raw ? get(raw.operation) : fail('FC-INPUT', 'INVALID_DISPATCH_RECORD');
+    if (!raw) return fail('FC-INPUT', 'INVALID_DISPATCH_RECORD');
+    if (!current.ok)
+      return current.error.code === 'OPERATION_NOT_FOUND'
+        ? fail('FC-ORDERING', 'INTENT_NOT_RECORDED')
+        : fail(current.error.family, current.error.code);
+    const permit = buildDispatchPermit({ operation: raw.operation, ordinal: raw.ordinal });
+    const proof = proofValue(raw.proof, current.value.subject.run);
+    if (!permit.ok || !proof) return permit.ok ? fail('FC-INPUT', 'INVALID_DISPATCH_RECORD') : permit;
+    const record: DispatchRecord = deepFreeze({
+      kind: 'dispatch',
+      operation: current.value.operation,
+      ordinal: raw.ordinal as number,
+      proof,
+    });
+    const appended = append(record);
+    if (!appended.ok) return appended;
+    current.value.status = 'dispatch-crossed';
+    return ok(deepFreeze({ ...permit.value, proof }));
   };
 
   const recordResult = (input: unknown): OperationResult<OperationProjection> => {
@@ -914,6 +1099,7 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
       !result ||
       raw.ordinal !== result.ordinal ||
       (raw.certainty !== 'confirmed-effect' && raw.certainty !== 'confirmed-absence') ||
+      raw.certainty !== (result.successClaim === 'observed' ? 'confirmed-effect' : 'confirmed-absence') ||
       !digest(raw.observationDigest) ||
       raw.observationDigest !== result.observation.digest
     )
@@ -949,7 +1135,7 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
       (!allowedWithoutAttempt &&
         (!attempt ||
           attempt.ordinal !== raw.ordinal ||
-          (current.value.status !== 'attempt-recorded' && current.value.status !== 'result-recorded')))
+          (current.value.status !== 'dispatch-crossed' && current.value.status !== 'result-recorded')))
     )
       return fail('FC-INPUT', 'INVALID_UNCERTAINTY_RECORD');
     const record: UncertaintyRecord = deepFreeze({
@@ -966,40 +1152,53 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
   };
 
   const recordReconciliation = (input: unknown): OperationResult<OperationProjection> => {
-    const raw = fields(input, [
-      'operation',
-      'ordinal',
-      'observationOperation',
-      'outcome',
-      'observationDigest',
-      'proof',
-    ]);
+    const raw = fields(input, ['operation', 'observationOperation', 'proof']);
     const current = raw ? get(raw.operation) : fail('FC-INPUT', 'INVALID_RECONCILIATION_RECORD');
     if (!raw || !current.ok) return current;
+    const observation = get(raw.observationOperation);
     const proof = proofValue(raw.proof, current.value.subject.run);
+    const ordinal = current.value.reconciliations.length + 1;
+    const observationResult = observation.ok ? observation.value.result : undefined;
+    const outcome =
+      observationResult?.observation.kind === 'effect-confirmed'
+        ? 'confirmed-effect'
+        : observationResult?.observation.kind === 'effect-absent'
+          ? 'confirmed-absence'
+          : observationResult?.observation.kind === 'effect-indeterminate'
+            ? 'indeterminate'
+            : undefined;
     if (
       !proof ||
+      !observation.ok ||
       current.value.effect !== 'effectful' ||
       (current.value.status !== 'uncertain' && current.value.status !== 'parked') ||
-      !integer(raw.ordinal, 1) ||
-      raw.ordinal !== current.value.reconciliations.length + 1 ||
-      raw.ordinal > current.value.intent.bounds.recoveryLimit ||
-      typeof raw.observationOperation !== 'string' ||
-      !parseIdentity('ID-OP', raw.observationOperation).ok ||
-      raw.observationOperation === current.value.operation ||
-      (raw.outcome !== 'confirmed-effect' && raw.outcome !== 'confirmed-absence' && raw.outcome !== 'indeterminate') ||
-      !digest(raw.observationDigest)
+      ordinal > current.value.intent.bounds.recoveryLimit ||
+      observation.value.effect !== 'observation' ||
+      observation.value.intent.purpose !== 'reconciliation' ||
+      observation.value.intent.predecessor !== current.value.operation ||
+      observation.value.status !== 'result-recorded' ||
+      !observationResult ||
+      !outcome ||
+      !sameSubject(current.value.subject, observation.value.subject) ||
+      current.value.capability.resourceScope !== observation.value.capability.resourceScope ||
+      current.value.capability.port !== observation.value.capability.port ||
+      current.value.capability.kind !== observation.value.capability.kind ||
+      current.value.capability.manifest !== observation.value.capability.manifest ||
+      !sameFence(current.value.retainedFence, observation.value.retainedFence) ||
+      [...operations.values()].some((state) =>
+        state.reconciliations.some((entry) => entry.observationOperation === observation.value.operation),
+      )
     )
-      return raw && integer(raw.ordinal, 1) && raw.ordinal > current.value.intent.bounds.recoveryLimit
+      return ordinal > current.value.intent.bounds.recoveryLimit
         ? fail('FC-BOUND', 'BND_RECOVERY_EXHAUSTED')
         : fail('FC-INPUT', 'INVALID_RECONCILIATION_RECORD');
     const record: ReconciliationRecord = deepFreeze({
       kind: 'reconciliation' as const,
       operation: current.value.operation,
-      ordinal: raw.ordinal,
-      observationOperation: raw.observationOperation,
-      outcome: raw.outcome as ReconciliationRecord['outcome'],
-      observationDigest: raw.observationDigest,
+      ordinal,
+      observationOperation: observation.value.operation,
+      outcome,
+      observationDigest: observationResult.observation.digest,
       proof,
     });
     const appended = append(record);
@@ -1033,31 +1232,28 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
   const replaceObservation = (input: unknown): OperationResult<OperationProjection> => {
     const raw = fields(input, ['operation', 'replacement', 'proof']);
     const current = raw ? get(raw.operation) : fail('FC-INPUT', 'INVALID_REPLACEMENT_RECORD');
-    const replacement = raw ? get(raw.replacement) : fail('FC-INPUT', 'INVALID_REPLACEMENT_RECORD');
-    if (!raw || !current.ok || !replacement.ok)
-      return !current.ok ? current : !replacement.ok ? replacement : fail('FC-INPUT', 'INVALID_REPLACEMENT_RECORD');
+    if (!raw || !current.ok) return current;
     const proof = proofValue(raw.proof, current.value.subject.run);
     if (
       !proof ||
       current.value.effect !== 'observation' ||
       current.value.status !== 'uncertain' ||
-      replacement.value.effect !== 'observation' ||
-      replacement.value.intent.purpose !== 'replacement' ||
-      replacement.value.intent.predecessor !== current.value.operation ||
-      replacement.value.operation === current.value.operation ||
-      !sameSubject(current.value.subject, replacement.value.subject)
+      typeof raw.replacement !== 'string' ||
+      !parseIdentity('ID-OP', raw.replacement).ok ||
+      raw.replacement === current.value.operation ||
+      operations.has(raw.replacement)
     )
       return fail('FC-EFFECT', 'NEW_OBSERVATION_ID_REQUIRED');
     const record = deepFreeze({
       kind: 'replacement' as const,
       operation: current.value.operation,
-      replacement: replacement.value.operation,
+      replacement: raw.replacement,
       proof,
     });
     const appended = append(record);
     if (!appended.ok) return appended;
     current.value.status = 'superseded';
-    current.value.supersededBy = replacement.value.operation;
+    current.value.supersededBy = raw.replacement;
     return ok(publicProjection(current.value));
   };
 
@@ -1071,10 +1267,35 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
       },
     });
 
+  const seal = (input: unknown): OperationResult<OperationJournalSeal> => {
+    const raw = fields(input, ['proof']);
+    const proof = raw ? proofValue(raw.proof) : undefined;
+    const currentHead = snapshot().head;
+    if (!proof || proof.position <= (entries.at(-1)?.record.proof.position ?? -1))
+      return fail('FC-TRUST', 'OPERATION_SEAL_INVALID');
+    const candidate: OperationJournalSeal = deepFreeze({
+      version: OPERATION_STATE_VERSION,
+      position: currentHead.position,
+      digest: currentHead.digest,
+      proof,
+    });
+    const verifySeal =
+      verifierInput && typeof verifierInput === 'object' && verifierInput !== null
+        ? Object.getOwnPropertyDescriptor(verifierInput, 'verifySeal')?.value
+        : undefined;
+    if (typeof verifySeal !== 'function') return fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
+    try {
+      const verified = verifySeal.call(verifierInput, candidate);
+      return verified?.ok ? ok(candidate) : fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
+    } catch {
+      return fail('FC-TRUST', 'OPERATION_SEAL_UNVERIFIED');
+    }
+  };
+
   return Object.freeze({
     recordIntent,
     recordAttempt,
-    dispatchPermit,
+    recordDispatch,
     recordResult,
     recordCertainty,
     recordUncertainty,
@@ -1098,6 +1319,7 @@ export function createOperationJournal(verifierInput?: OperationProofVerifier): 
           .map(publicProjection),
       ),
     snapshot,
+    seal,
   });
 }
 
@@ -1109,6 +1331,10 @@ function replayRecord(journal: OperationJournal, record: JournalRecord): Operati
   if (record.kind === 'attempt') {
     const { kind: _kind, ...input } = record;
     return journal.recordAttempt(input);
+  }
+  if (record.kind === 'dispatch') {
+    const { kind: _kind, ...input } = record;
+    return journal.recordDispatch(input);
   }
   if (record.kind === 'result') {
     const { kind: _kind, ...input } = record;
@@ -1136,11 +1362,11 @@ function replayRecord(journal: OperationJournal, record: JournalRecord): Operati
 
 export function restoreOperationJournal(
   snapshotInput: unknown,
-  headInput: unknown,
+  sealInput: unknown,
   verifier: OperationProofVerifier,
 ): OperationResult<OperationJournal> {
   const snapshot = fields(snapshotInput, ['version', 'entries', 'head']);
-  const suppliedHead = fields(headInput, ['position', 'digest']);
+  const suppliedSeal = fields(sealInput, ['version', 'position', 'digest', 'proof']);
   const storedHead = snapshot ? fields(snapshot.head, ['position', 'digest']) : undefined;
   const entries = snapshot ? array(snapshot.entries) : undefined;
   if (
@@ -1148,11 +1374,12 @@ export function restoreOperationJournal(
     snapshot.version !== OPERATION_STATE_VERSION ||
     !entries ||
     !storedHead ||
-    !suppliedHead ||
+    !suppliedSeal ||
+    suppliedSeal.version !== OPERATION_STATE_VERSION ||
     !integer(storedHead.position, -1) ||
     !digest(storedHead.digest) ||
-    suppliedHead.position !== storedHead.position ||
-    suppliedHead.digest !== storedHead.digest ||
+    suppliedSeal.position !== storedHead.position ||
+    suppliedSeal.digest !== storedHead.digest ||
     storedHead.position !== entries.length - 1
   )
     return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
@@ -1175,6 +1402,9 @@ export function restoreOperationJournal(
     previousDigest = entry.digest;
   }
   if (journal.snapshot().head.digest !== storedHead.digest) return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
+  const sealed = journal.seal({ proof: suppliedSeal.proof });
+  if (!sealed.ok || sealed.value.position !== suppliedSeal.position || sealed.value.digest !== suppliedSeal.digest)
+    return fail('FC-TRUST', 'OPERATION_HEAD_MISMATCH');
   return ok(journal);
 }
 
