@@ -1,5 +1,10 @@
 {
   "fixtureVersion": "ledger-contract-fixtures.v1",
+  "sourceId": "runtime-contracts/ledger.ts",
+  "suiteVersion": "semantic-ledger-contract.v1",
+  "probeVersion": "scripted-fault-plane.v1",
+  "logicalControl": "separate scripted witness state",
+  "providerQualification": "none",
   "run": "run-000000000001-aaaaaaaaaaaaaaaa",
   "generation": "run-000000000001-aaaaaaaaaaaaaaaa/gen/1|generation",
   "generationDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

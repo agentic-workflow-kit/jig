@@ -146,6 +146,35 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   assert.equal(contender.ok, true);
   assert.equal(contender.value.kind, 'rejected');
   assert.equal(contender.value.successorCut, undefined);
+  assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, false);
+});
+
+test('semantic ledger: intake crash and missing companions fail closed without repair', () => {
+  const request = {
+    compositionDigest: fixture.digests.compositionA,
+    acknowledgementDigest: fixture.digests.acknowledgementA,
+    successorCut: 'predecessor/4',
+  };
+  const lost = runtime.createScriptedLedger();
+  assert.deepEqual(lost.intake(request, 'intake-after-flush'), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'INTAKE_ACK_LOST' },
+  });
+  assert.equal(lost.readIntake(request.compositionDigest).ok, false);
+  const missing = runtime.createScriptedLedger();
+  assert.equal(missing.intake(request, 'intake-missing-companion').ok, true);
+  assert.deepEqual(missing.readIntake(request.compositionDigest), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' },
+  });
+});
+
+test('semantic ledger fixture records semantic metadata without provider qualification', () => {
+  assert.equal(fixture.sourceId, 'runtime-contracts/ledger.ts');
+  assert.equal(fixture.suiteVersion, 'semantic-ledger-contract.v1');
+  assert.equal(fixture.probeVersion, 'scripted-fault-plane.v1');
+  assert.equal(fixture.logicalControl, 'separate scripted witness state');
+  assert.equal(fixture.providerQualification, 'none');
 });
 
 test('semantic ledger: preflight is a deterministic non-Run primitive and snapshots are disposable', () => {

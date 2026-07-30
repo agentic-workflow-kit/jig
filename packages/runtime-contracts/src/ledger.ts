@@ -75,7 +75,9 @@ export type ScriptedLedgerFault =
   | 'witness-ahead'
   | 'witness-contradiction'
   | 'fork'
-  | 'rollback';
+  | 'rollback'
+  | 'intake-after-flush'
+  | 'intake-missing-companion';
 
 export type ScriptedLedger = Readonly<{
   append(
@@ -87,7 +89,10 @@ export type ScriptedLedger = Readonly<{
     fault?: Extract<ScriptedLedgerFault, 'indeterminate-read'>,
   ): LedgerResult<Readback>;
   advanceWitnessFloor(binding: RunStoreBinding): LedgerResult<void>;
-  intake(request: IntakeRequest): LedgerResult<IntakeResult>;
+  intake(
+    request: IntakeRequest,
+    fault?: Extract<ScriptedLedgerFault, 'intake-after-flush' | 'intake-missing-companion'>,
+  ): LedgerResult<IntakeResult>;
   readIntake(compositionDigest: string): LedgerResult<IntakeReadback>;
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
   snapshot(binding: RunStoreBinding): LedgerResult<Readonly<{ position: number; digest: string }>>;
@@ -343,7 +348,7 @@ export function createScriptedLedger(): ScriptedLedger {
       witnesses.set(binding.run, freeze(verified.value));
       return { ok: true, value: undefined };
     },
-    intake(request) {
+    intake(request, fault) {
       if (
         !digest(request.compositionDigest) ||
         !digest(request.acknowledgementDigest) ||
@@ -376,6 +381,8 @@ export function createScriptedLedger(): ScriptedLedger {
       // The acknowledgement and unique successor cut are committed as one in-memory transaction.
       intake.set(request.compositionDigest, result);
       if (request.successorCut && result.kind === 'acknowledged') cuts.set(request.successorCut, result);
+      if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+      if (fault === 'intake-missing-companion' && result.successorCut) cuts.delete(result.successorCut);
       // The intake witness is deliberately separate from the pair's durable state and advances only after it.
       const stagedHead = stageDigest({
         domain: 'INTAKE-PAIR',
