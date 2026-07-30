@@ -1,15 +1,7 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import {
-  createLedgerRecord,
-  LEDGER_VERSION,
-  type LedgerFailure,
-  type LedgerRecord,
-  type PreparedLedgerRecord,
-  type RunStoreBinding,
-  type ScriptedLedger,
-} from '@agentic-workflow-kit/jig-runtime-contracts';
 import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
 
+const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
 const WAIT_MIN_MS = 1_000;
 const WAIT_MAX_MS = 300_000;
@@ -22,8 +14,27 @@ const CRASH_POINTS = new Set([
   'after-projection',
 ]);
 
-export type RecoveryFailureFamily = LedgerFailure['family'];
+export type RecoveryFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST' | 'FC-BOUND';
+export type LedgerFailure = Readonly<{ family: RecoveryFailureFamily; code: string }>;
 export type RecoveryResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: LedgerFailure }>;
+type RunStoreBinding = Readonly<{ kind: 'run'; run: string; generation: string }>;
+type LedgerRecord = Readonly<{
+  version: typeof LEDGER_VERSION;
+  run: string;
+  generation: string;
+  transaction: string;
+  event: string;
+  position: number;
+  previousDigest: string;
+  content: CanonicalJson;
+  contentDigest: string;
+}>;
+type PreparedLedgerRecord = Readonly<Omit<LedgerRecord, 'event'>>;
+type LedgerReadback =
+  | Readonly<{ kind: 'committed'; record: LedgerRecord }>
+  | Readonly<{ kind: 'absent'; position: number }>
+  | Readonly<{ kind: 'competing'; record: LedgerRecord }>
+  | Readonly<{ kind: 'integrity-failure'; record: LedgerRecord }>;
 export type RecoverySnapshot = Readonly<{ position: number; digest: string; projection: CanonicalJson }>;
 export type RecoveryProjection = Readonly<{
   position: number;
@@ -39,9 +50,16 @@ export type RecoveryObservation = Readonly<{
   snapshot: 'absent' | 'used' | 'discarded';
 }>;
 
-type RecoveryLedger = Pick<ScriptedLedger, 'append' | 'readback'>;
+type RecoveryLedger = Readonly<{
+  append(
+    request: Readonly<{ binding: RunStoreBinding; expectedPosition: number; record: PreparedLedgerRecord }>,
+  ): RecoveryResult<LedgerRecord>;
+  readback(
+    request: Readonly<{ binding: RunStoreBinding; position: number; transaction: string; contentDigest: string }>,
+  ): RecoveryResult<LedgerReadback>;
+}>;
 type ClaimInput = Readonly<{
-  ledger: Pick<ScriptedLedger, 'append'>;
+  ledger: Pick<RecoveryLedger, 'append'>;
   binding: RunStoreBinding;
   generation: string;
   recoveryToken: string;
@@ -64,6 +82,21 @@ const position = (value: unknown): value is number =>
 const expectedPosition = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= -1;
 const freeze = <T>(value: T): T => Object.freeze(value);
+
+function createLedgerRecord(
+  input: Omit<PreparedLedgerRecord, 'version' | 'contentDigest'>,
+): RecoveryResult<PreparedLedgerRecord> {
+  if (!position(input.position) || !digest(input.previousDigest) || !encodeFrame(input.content).ok)
+    return failure('FC-INPUT', 'INVALID_PREPARED_RECORD');
+  const staged = stageDigest({
+    domain: 'LEDGER-RECORD',
+    excludePaths: ['contentDigest', 'event'],
+    value: { ...input, event: '', version: LEDGER_VERSION, contentDigest: '' },
+  });
+  return staged.ok
+    ? { ok: true, value: freeze({ version: LEDGER_VERSION, ...input, contentDigest: staged.value.digest }) }
+    : failure('FC-INPUT', 'INVALID_PREPARED_RECORD');
+}
 
 function own(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
   try {

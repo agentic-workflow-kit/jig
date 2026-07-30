@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
+const runtime = await import('../../runtime-contracts/dist/index.js');
 const recovery = await import('../dist/recovery.js');
 const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/recovery-contract-oracle.json'), 'utf8'),
