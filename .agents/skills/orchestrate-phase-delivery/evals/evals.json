@@ -3,23 +3,38 @@
   "evals": [
     {
       "id": "phase-one-ready-set",
-      "prompt": "The owner explicitly asks you to implement Phase 1 after GF-010 has landed. There is no separate delivery-package qualification or external activation issue. GF-011, GF-012, and GF-013 are initially ready; GF-012 then becomes terminally blocked.",
-      "expected_output": "Treat the explicit current owner request as sufficient implementation authorization within the current product/design/track scope, start the operational ledger, and initially admit all three within capacity. Continue GF-011 and GF-013 while localizing the GF-012 block; GF-014 follows GF-013 and GF-015 waits for GF-011 and GF-014. Do not require a separate package review, digest approval, or external activation issue.",
+      "prompt": "The owner explicitly asks you to implement Phase 1 after GF-010 has landed. There is no separate delivery-package qualification or external activation issue. GF-011, GF-012, and GF-013 are initially ready; one story is bounded and directly specified with local failure modes, while another has authority, recovery, witness, and cross-package type-closure seams despite a short file list. The continuous reviewers are already assigned. GF-012 then becomes terminally blocked.",
+      "expected_output": "Treat the explicit current owner request as sufficient implementation authorization within the current product/design/track scope, start the operational ledger, and initially admit all three within capacity. Keep medium available for the genuinely local story, but make a concrete high-effort assessment for the semantic-risk story instead of routing it by file count. Before writes, have each assigned read-only reviewer prepare concise must-cover bullets naming the invariant or failure mode, source, and observable code/type/test proof, then place those bullets in the implementer task. Continue GF-011 and GF-013 while localizing the GF-012 block; GF-014 follows GF-013 and GF-015 waits for GF-011 and GF-014. Do not require a new reviewer, planning gate, package review, digest approval, external activation issue, or ledger field.",
       "files": ["docs/delivery/greenfield/track.json"],
       "assertions": [
         "Uses declared dependencies only",
         "Treats the explicit current owner request as sufficient implementation authorization",
         "Does not require delivery-package qualification, delivery-surface digest approval, or an external activation issue",
+        "Starts the operational ledger and initially admits GF-011, GF-012, and GF-013 within capacity",
+        "Records GF-012 as terminally blocked while allowing independent ready stories to continue",
+        "Does not require a new reviewer, planning gate, package review, digest approval, external activation issue, or ledger field",
         "States that GF-012 does not block GF-011 or GF-013 to GF-014, and that GF-015 waits for GF-011 and GF-014",
-        "Requires registered worktrees and continuous pairs"
+        "Requires registered worktrees and continuous pairs",
+        "Keeps medium effort available for bounded directly specified work with local failure modes",
+        "Requires a concrete high-effort assessment for authority, recovery, witness, persistence, lifecycle, cross-package type-closure, or architecture-shaping seams even when the file list is bounded",
+        "Uses the already-assigned read-only reviewer before writes to produce concise must-cover bullets with invariant or failure mode, source, and expected observable proof without running checks, repairing evidence, or mutating repository or provider state",
+        "Places the must-cover bullets in the implementer task without adding an agent, gate, artifact, or ledger field"
       ]
     },
     {
       "id": "candidate-refresh",
-      "prompt": "A reviewed story is rebased onto the integration branch after another story lands. What must happen before integration?",
-      "expected_output": "The same pair creates a new committed candidate, runs every applicable required check with a minimal non-secret environment allowlist and exact ignored-state inventory, records ledger evidence, and performs incremental read-only re-review. It may use pnpm check:affected for local feedback but never as a substitute for the full pnpm check evidence required for candidate or integration gates.",
+      "prompt": "Before freezing a Jig story candidate, the implementer has reviewer-prepared must-cover bullets for an invariant that applies to a family of operations. During review, the read-only reviewer finds one local blocker and one structural root cause affecting several sibling types. The story is later rebased onto the integration branch after another story lands. Describe the handoff, review verdict, correction paths, and what must happen before integration.",
+      "expected_output": "Before freeze, the implementer identifies the code/type/test proof for every must-cover bullet in the normal handoff and searches sibling operations, states, and types. The reviewer does not run checks or stop after the first blocker: it completes the presently supportable candidate-bound inspection, returns PASS or CHANGES_REQUIRED, groups all current blockers by root cause with their source/invariant, and names exact re-review scope plus any evidence limitation. The local defect follows the ordinary same-pair fix, every applicable required check, new candidate, and incremental re-review loop. Before changing code for the structural defect, the implementer restates the corrected realization and affected surface in the normal handoff; this is conditional, not a new approval gate, and OWNER_DECISION_REQUIRED applies only if material product/design authority, tracked scope or dependencies, selected realization, provider reachability, or an accepted trade-off would change. The later rebase also creates a new committed candidate, runs every applicable required check with a minimal non-secret environment allowlist and exact ignored-state inventory, records ledger evidence, and receives same-reviewer incremental read-only re-review. pnpm check:affected remains optional local feedback and never replaces full pnpm check evidence.",
       "files": [],
       "assertions": [
+        "Requires implementer proof notes for every must-cover bullet in the normal handoff without a new artifact",
+        "Requires sibling-occurrence search across applicable operations, states, or types before candidate freeze",
+        "Requires the read-only reviewer to complete the current pass after the first blocker and report all presently supportable blockers",
+        "Groups findings by root cause, cites the source or invariant, and names exact re-review scope and evidence limitations",
+        "Keeps local defects in the ordinary same-pair fix, applicable-check, new-candidate, and incremental re-review loop",
+        "Requires a corrected-realization and affected-surface restatement before code changes only for structural defects, without adding an approval gate",
+        "Uses OWNER_DECISION_REQUIRED only when the corrected realization changes material product/design authority, tracked scope or dependencies, selected realization, provider reachability, or an accepted trade-off",
+        "After rebase, requires a new committed candidate, every applicable required check, ledger evidence, and same-reviewer incremental re-review while the reviewer remains read-only and does not run checks",
         "Rejects transfer of the old verdict",
         "Does not require a sealer or clone",
         "Preserves reviewer read-only boundary",
@@ -30,9 +45,10 @@
     {
       "id": "worktree-recovery-matrix",
       "prompt": "Recover a ledger-listed story worktree in three cases: its exact recorded branch/object exists and reconciles cleanly; the object is missing; or the surviving workspace is dirty/mismatched. Explain whether a fresh clone or hosted-CI checkout can be used.",
-      "expected_output": "Reattach the clean existing branch/object as a registered worktree; block the affected story for missing or dirty/mismatched facts while independent ready stories continue; use OWNER_DECISION_REQUIRED only if recovery requires a material authority decision; reject a local clone and treat hosted CI only as independent CI infrastructure.",
+      "expected_output": "Treat recovery as semantic-risk input to the existing dispatch assessment rather than assuming medium from a bounded command list. Reattach the clean existing branch/object as a registered worktree; block the affected story for missing or dirty/mismatched facts while independent ready stories continue; use OWNER_DECISION_REQUIRED only if recovery requires a material authority decision; reject a local clone and treat hosted CI only as independent CI infrastructure.",
       "files": [],
       "assertions": [
+        "Treats recovery semantics as a reason for concrete high-effort assessment without making high universal",
         "Starts with git worktree list porcelain reconciliation",
         "Reattaches only an exact recorded branch and object at the registered path",
         "Blocks only the affected story and descendants on missing objects or dirty and mismatched evidence",

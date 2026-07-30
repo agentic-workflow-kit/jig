@@ -8,7 +8,10 @@ service.
 
 Use it to start, resume, recover, or close a phase with one integration worktree, one registered
 worktree and continuous independent pair per admitted story, bounded ready-set parallelism, and one
-final phase PR.
+final phase PR. The pair also classifies implementer effort from semantic risk, forwards concise
+read-only reviewer preparation before writes, records implementer proof in the normal handoff, and
+returns all presently supportable candidate-bound blockers grouped by root cause without adding an
+agent, gate, artifact, or ledger field.
 
 The skill keeps detailed state and recovery rules in
 [`references/phase-protocol.md`](./references/phase-protocol.md). Authored output and trigger evals
