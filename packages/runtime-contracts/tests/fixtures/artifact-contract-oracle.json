@@ -3,19 +3,19 @@
   "fixture": "scripted-unapproved-unreachable",
   "resource_scope": "fixture/artifact-resource/v1",
   "protected_holders": [
-    "configuration",
-    "intake-envelope",
-    "intake-composition",
-    "preflight-attempt",
-    "capability-proof"
+    "SCH-ENVELOPE",
+    "SCH-WORK-PROFILE",
+    "SCH-CONFIG-ARTIFACT",
+    "SCH-INTAKE-ACK",
+    "SCH-CAPABILITY-PROOF"
   ],
   "disposable_holders": [
-    "work-product",
-    "verification-result",
-    "review-record",
-    "delivery-record",
-    "audit-evidence",
-    "terminal-export"
+    "SCH-EVIDENCE",
+    "SCH-AUDIT-EXPORT",
+    "EV-ARTIFACT-FACT",
+    "SCH-VERDICT",
+    "SCH-DECISION/EV-OWNER-DECISION",
+    "SCH-OBLIGATION"
   ],
   "bytes": "immutable artifact bytes",
   "digest": "4e5dd5cddfe6ca669736dac91231b75e7b7e7949f5152e9aaeb810cd2ede2076"
