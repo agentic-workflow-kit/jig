@@ -90,6 +90,16 @@ test('ignores capability words in comments, strings, and member properties', () 
   assert.deepEqual(errors, []);
 });
 
+test('rejects forbidden capabilities inside template interpolations', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      `export const value = \`\${fetch('https://example.invalid')}\`;\n`,
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('forbidden ambient runtime capability')));
+});
+
 test('rejects forbidden dependency direction in an established package', () => {
   const errors = withPackages((root) =>
     editManifest(root, 'authority-kernel', (manifest) => {

@@ -47,10 +47,76 @@ function importSpecifiers(source) {
 }
 
 function executableSource(source) {
-  return source.replace(
-    /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g,
-    (value) => value.replace(/[^\r\n]/g, ' '),
-  );
+  const output = [];
+  const stack = [{ type: 'code', braceDepth: null }];
+  const blank = (value) => (value === '\n' || value === '\r' ? value : ' ');
+
+  for (let index = 0; index < source.length; index += 1) {
+    const value = source[index];
+    const next = source[index + 1];
+    const state = stack.at(-1);
+
+    if (state.type === 'line-comment') {
+      output.push(blank(value));
+      if (value === '\n') stack.pop();
+      continue;
+    }
+    if (state.type === 'block-comment') {
+      output.push(blank(value));
+      if (value === '*' && next === '/') {
+        output.push(' ');
+        index += 1;
+        stack.pop();
+      }
+      continue;
+    }
+    if (state.type === 'string') {
+      output.push(blank(value));
+      if (value === '\\' && next !== undefined) {
+        output.push(blank(next));
+        index += 1;
+      } else if (value === state.quote) stack.pop();
+      continue;
+    }
+    if (state.type === 'template') {
+      output.push(blank(value));
+      if (value === '\\' && next !== undefined) {
+        output.push(blank(next));
+        index += 1;
+      } else if (value === '`') stack.pop();
+      else if (value === '$' && next === '{') {
+        output.push(' ');
+        index += 1;
+        stack.push({ type: 'code', braceDepth: 1 });
+      }
+      continue;
+    }
+
+    if (state.braceDepth !== null && value === '}') {
+      state.braceDepth -= 1;
+      output.push(state.braceDepth === 0 ? ' ' : value);
+      if (state.braceDepth === 0) stack.pop();
+    } else if (state.braceDepth !== null && value === '{') {
+      state.braceDepth += 1;
+      output.push(value);
+    } else if (value === '/' && next === '/') {
+      output.push(' ', ' ');
+      index += 1;
+      stack.push({ type: 'line-comment' });
+    } else if (value === '/' && next === '*') {
+      output.push(' ', ' ');
+      index += 1;
+      stack.push({ type: 'block-comment' });
+    } else if (value === '"' || value === "'") {
+      output.push(' ');
+      stack.push({ type: 'string', quote: value });
+    } else if (value === '`') {
+      output.push(' ');
+      stack.push({ type: 'template' });
+    } else output.push(value);
+  }
+
+  return output.join('');
 }
 
 function referencesForbiddenCapability(source) {
