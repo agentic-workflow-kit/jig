@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceSchemaVersion": "jig.evidence.v1",
+  "scanPolicyVersion": "jig.secret-scan.v1",
+  "defaultMaxBytes": 10485760,
+  "minimumMaxBytes": 65536,
+  "maximumMaxBytes": 1073741824,
+  "defaultRetentionDays": 90,
+  "resourceScope": "fixture/artifact-resource/v1",
+  "subjectKind": "ID-CAND",
+  "subjectIdentity": "run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "claim": "candidate-content",
+  "evidenceSubject": "evidence://run-000000000001-0123456789abcdef/story/plan-a/cand/1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/claim/candidate-content",
+  "principal": "principal/arya",
+  "session": "run-000000000001-0123456789abcdef/story/plan-a/session/implementer/1",
+  "bytes": "immutable redacted evidence",
+  "digest": "22a65a2e96c53ea11b477bca7cd65b4593ed541dfe94b530a46738a8da5c718f",
+  "contentType": "text/plain",
+  "operation": "run-000000000001-0123456789abcdef/txn/9/run-000000000001-0123456789abcdef/gen/2|controller-token-1|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/op/1",
+  "fence": "generation/2|candidate/1|artifact-provider/unavailable",
+  "temporaryTuple": "run-000000000001-0123456789abcdef/event/9",
+  "retention": {
+    "class": "run-evidence",
+    "windowDays": 90,
+    "hold": {
+      "id": "hold/preservation/1",
+      "basis": "run-000000000001-0123456789abcdef/obligation/1",
+      "status": "active"
+    }
+  }
+}
