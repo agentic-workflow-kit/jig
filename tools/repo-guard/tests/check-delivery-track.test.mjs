@@ -1337,11 +1337,19 @@ test('delivery surface digest changes after a coherent policy-surface edit', () 
     assert.notEqual(deliverySurfaceManifest(dir), baseline);
     assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
   }));
-test('retired package qualification and external activation gates cannot re-enter delivery policy', () =>
-  reject((dir) => {
-    const path = join(dir, 'docs/delivery/greenfield/delivery-policy.md');
-    writeFileSync(path, `${readFileSync(path, 'utf8')}\nP = Q requires an external activation record.\n`);
-  }, 'active delivery policy contains retired package qualification or external activation gate'));
+test('retired package qualification, activation, and ratification gates cannot re-enter delivery policy', () => {
+  for (const retiredGate of [
+    'P = Q requires an external activation record.',
+    'Configuration starts only after external owner activation.',
+    'Engineering may proceed after exact owner activation.',
+    'Use only the owner-ratified toolchain.',
+    'The exact activation authorizes this realization.',
+  ])
+    reject((dir) => {
+      const path = join(dir, 'docs/delivery/greenfield/delivery-policy.md');
+      writeFileSync(path, `${readFileSync(path, 'utf8')}\n${retiredGate}\n`);
+    }, 'active delivery policy contains retired package qualification, external activation, or ratification gate');
+});
 test('source catalogs fail closed on missing headings and duplicate first-column rows', () => {
   reject((dir) => {
     const p = join(dir, 'docs/redesign/design/runtime.md');

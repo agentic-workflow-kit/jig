@@ -49,6 +49,15 @@ const RETIRED_DELIVERY_GATE_PATTERNS = [
   /\blanding-equivalence\b/i,
   /\bowner-ratification\/activation record\b/i,
   /\bexternal activation record\b/i,
+  /\bexternal owner activation\b/i,
+  /\bseparate external owner authorization\b/i,
+  /\bexact owner activation\b/i,
+  /\bexact activation (?:authorizes|is absent)\b/i,
+  /\bowner-ratified\b/i,
+  /\b(?:un)?ratified (?:workspace|tooling|toolchain|default)\b/i,
+  /\bactivated(?:-toolchain| private tooling| tooling paths| GF-\d{3} tooling| tooling allowlist)\b/i,
+  /\bafter activation, Engineering\b/i,
+  /\buntil activation, this is a planning story\b/i,
   /\bapproved package `?P`?\b/i,
   /\bpre-verdict `?Q`?\b/i,
 ];
@@ -1586,7 +1595,9 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
         RETIRED_DELIVERY_GATE_PATTERNS.some((pattern) => pattern.test(readText(path))),
       )
     )
-      errors.push('active delivery policy contains retired package qualification or external activation gate');
+      errors.push(
+        'active delivery policy contains retired package qualification, external activation, or ratification gate',
+      );
     const corpus = normativeCorpusPaths(rootDir);
     const rows = corpus.map((path) => `${sha(readText(path))}  ${path}\n`).join('');
     if (corpus.length !== 67 || sha(rows) !== APPROVED_NORMATIVE_CORPUS_SHA256)
