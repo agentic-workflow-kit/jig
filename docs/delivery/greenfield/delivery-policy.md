@@ -160,8 +160,8 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     delivery, landing, or other target-changing Operation. The `none` posture is an explicit no-op
     and authorizes no verification Operation. Post-`Accepted` observations are authorized
     continuation evidence only while the reviewed candidate, posture, required class set,
-    configuration/environment, and subject binding remain unchanged; drift requires affected
-    checks and incremental review by the same reviewer. The exact external
+    configuration/environment, and subject binding remain unchanged; drift requires every
+    applicable required check and incremental review by the same reviewer. The exact external
     owner-ratification/activation record remains required and cannot be inferred from publication,
     CI, or a reviewer verdict.
 17. The local validator proves governing-source projection, package consistency, and corpus
