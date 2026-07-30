@@ -260,6 +260,8 @@ function createFixture(): ScriptedArtifactFixture {
   const journal: JournalEntry[] = [];
   let position = -1;
   let head = '0'.repeat(64);
+  let protectedPosition = -1;
+  let protectedHead = '0'.repeat(64);
   let witnessedHead: Readonly<{ position: number; headDigest: string }> | undefined;
   const recoveryTrusted = true;
   const makeFact = (bindingValue: Binding): ArtifactFact => {
@@ -395,6 +397,8 @@ function createFixture(): ScriptedArtifactFixture {
       )
         return fail('FC-INPUT', 'INVALID_PROTECTED_CB_STORE');
       objects.set(`${bound.value.holder}/${bound.value.digest}`, new Uint8Array(value.bytes));
+      protectedPosition += 1;
+      protectedHead = hash(`${protectedHead}\0${key(bound.value)}`);
       journal.push(freeze({ kind: 'protected', request: freeze({ ...value, bytes: [...value.bytes] }) }));
       return { ok: true, value: freeze({ digest: bound.value.digest }) };
     },
@@ -660,7 +664,7 @@ function createFixture(): ScriptedArtifactFixture {
     snapshot() {
       return freeze({
         journal: freeze([...journal]),
-        lookup: freeze({ position, headDigest: head }),
+        lookup: freeze({ position, headDigest: head, protectedPosition, protectedHead }),
       });
     },
     reconcile(request) {
@@ -750,9 +754,10 @@ export function createScriptedArtifactFixture(): ScriptedArtifactFixture {
 }
 function restore(snapshot: unknown, lookup: unknown, witness: unknown): ArtifactResult<ScriptedArtifactFixture> {
   const source = fields(snapshot, ['journal', 'lookup']);
-  const suppliedLookup = fields(lookup, ['position', 'headDigest']);
-  const suppliedWitness = fields(witness, ['position', 'headDigest']);
-  const storedLookup = source && fields(source.lookup, ['position', 'headDigest']);
+  const suppliedLookup = fields(lookup, ['position', 'headDigest', 'protectedPosition', 'protectedHead']);
+  const suppliedWitness = fields(witness, ['position', 'headDigest', 'protectedPosition', 'protectedHead']);
+  const storedLookup =
+    source && fields(source.lookup, ['position', 'headDigest', 'protectedPosition', 'protectedHead']);
   if (
     !source ||
     !storedLookup ||
@@ -760,8 +765,12 @@ function restore(snapshot: unknown, lookup: unknown, witness: unknown): Artifact
     !suppliedWitness ||
     suppliedLookup.position !== storedLookup.position ||
     suppliedLookup.headDigest !== storedLookup.headDigest ||
+    suppliedLookup.protectedPosition !== storedLookup.protectedPosition ||
+    suppliedLookup.protectedHead !== storedLookup.protectedHead ||
     suppliedWitness.position !== storedLookup.position ||
     suppliedWitness.headDigest !== storedLookup.headDigest ||
+    suppliedWitness.protectedPosition !== storedLookup.protectedPosition ||
+    suppliedWitness.protectedHead !== storedLookup.protectedHead ||
     !Array.isArray(source.journal)
   )
     return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
@@ -805,10 +814,17 @@ function restore(snapshot: unknown, lookup: unknown, witness: unknown): Artifact
     const rebuilt = fixture.store.snapshot();
     const rebuiltLookup =
       fields(rebuilt, ['journal', 'lookup']) &&
-      fields((rebuilt as Record<string, unknown>).lookup, ['position', 'headDigest']);
+      fields((rebuilt as Record<string, unknown>).lookup, [
+        'position',
+        'headDigest',
+        'protectedPosition',
+        'protectedHead',
+      ]);
     return rebuiltLookup &&
       rebuiltLookup.position === storedLookup.position &&
-      rebuiltLookup.headDigest === storedLookup.headDigest
+      rebuiltLookup.headDigest === storedLookup.headDigest &&
+      rebuiltLookup.protectedPosition === storedLookup.protectedPosition &&
+      rebuiltLookup.protectedHead === storedLookup.protectedHead
       ? { ok: true, value: fixture }
       : fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
   } catch {

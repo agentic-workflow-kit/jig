@@ -386,6 +386,12 @@ test('GF-013 R05: protected continuity replays or stops on tamper', () => {
   const tampered = structuredClone(snapshot);
   tampered.journal[0].request.bytes[0] ^= 1;
   assert.equal(artifact.restoreScriptedArtifactFixture(tampered, lookup, lookup).ok, false);
+  const removed = structuredClone(snapshot);
+  removed.journal.pop();
+  assert.equal(artifact.restoreScriptedArtifactFixture(removed, lookup, lookup).ok, false);
+  const substituted = structuredClone(snapshot);
+  substituted.journal[0].request.operation = 'protected-substitute';
+  assert.equal(artifact.restoreScriptedArtifactFixture(substituted, lookup, lookup).ok, false);
 });
 
 test('GF-013 R03: a current fact from registration B cannot retire registration A', () => {
