@@ -9,7 +9,8 @@ declare const TextDecoder: {
 
 export const EVIDENCE_POLICY = Object.freeze({
   schemaVersion: 'jig.evidence.v1',
-  scanPolicyVersion: 'jig.secret-scan.v1',
+  scanPolicyVersion: 'jig.secret-scan.v2',
+  scanDetectors: Object.freeze(['assignment-v2', 'authorization-bearer-v1', 'percent-base64-split-v1']),
   defaultMaxBytes: 10 * 1024 * 1024,
   minimumMaxBytes: 64 * 1024,
   maximumMaxBytes: 1024 * 1024 * 1024,
@@ -30,6 +31,31 @@ type Retention = Readonly<{
   class: string;
   windowDays: number;
   hold: null | Readonly<{ id: string; basis: string; status: 'active' }>;
+}>;
+type SecretScanConfiguration = Readonly<{
+  version: string;
+  detectors: readonly string[];
+  digest: string;
+}>;
+type EvidenceKindPolicy = Readonly<{
+  kind: string;
+  version: string;
+  scanPolicyVersion: string;
+  scanPolicyDigest: string;
+  maxBytes: number;
+  oversizeBehavior: 'reject' | 'truncate-with-recorded-loss';
+  completenessCritical: boolean;
+  contentType: 'text/plain' | 'application/json';
+  redactionStatus: 'none' | 'source-redacted';
+  retention: Retention;
+  digest: string;
+}>;
+type PolicyIdentity = Readonly<{
+  kind: string;
+  version: string;
+  digest: string;
+  scanPolicyVersion: string;
+  scanPolicyDigest: string;
 }>;
 type Loss = null | Readonly<{ kind: 'truncated'; omittedBytes: number }>;
 type Pins = Readonly<{
@@ -70,7 +96,9 @@ type AdoptionProof = Readonly<{
   digest: string;
 }>;
 type ManifestBasis = Readonly<{
+  configurationDigest: string;
   schemaVersion: string;
+  policy: PolicyIdentity;
   subjectKind: SubjectKind;
   subjectIdentity: string;
   subject: string;
@@ -108,19 +136,11 @@ export type EvidenceManifest = Readonly<
 type QuarantinedEvidence = Readonly<{
   kind: 'quarantined';
   key: string;
-  subject: string;
-  producer: Producer;
-  contentType: string;
-  originalSize: number;
-  scanPolicyVersion: string;
   reason: 'SECRET_DETECTED';
 }>;
 type RejectedEvidence = Readonly<{
   kind: 'rejected';
   key: string;
-  subject: string;
-  producer: Producer;
-  contentType: string;
   originalSize: number;
   reason: 'OVERSIZE_REJECTED';
 }>;
@@ -140,12 +160,24 @@ type PrincipalConfiguration = Readonly<{ principal: string; sessions: readonly s
 type Configuration = Readonly<{
   subjects: readonly SubjectConfiguration[];
   principals: readonly PrincipalConfiguration[];
+  secretScan: SecretScanConfiguration;
+  evidenceKinds: readonly EvidenceKindPolicy[];
+  digest: string;
+}>;
+type ConfigurationBinding = Readonly<{
+  configurationDigest: string;
+  subjectIndex: number;
+  claimIndex: number;
+  principalIndex: number;
+  sessionIndex: number;
+  policyIndex: number;
 }>;
 type IntentRecord = Readonly<{
   kind: 'intent';
   key: string;
   basis: ManifestBasis;
   artifact: Omit<ArtifactPutRequest, 'bytes'>;
+  binding: ConfigurationBinding;
 }>;
 type AdmissionRecord = Readonly<{
   kind: 'admission';
@@ -153,10 +185,11 @@ type AdmissionRecord = Readonly<{
   manifest: EvidenceManifest;
   getRequest: ArtifactGetRequest;
   proof: AdoptionProof;
+  binding: ConfigurationBinding;
 }>;
 type OutcomeRecord =
-  | Readonly<{ kind: 'quarantine'; key: string; outcome: QuarantinedEvidence }>
-  | Readonly<{ kind: 'rejection'; key: string; outcome: RejectedEvidence }>;
+  | Readonly<{ kind: 'quarantine'; key: string; outcome: QuarantinedEvidence; binding: ConfigurationBinding }>
+  | Readonly<{ kind: 'rejection'; key: string; outcome: RejectedEvidence; binding: ConfigurationBinding }>;
 type EvidenceRecord = IntentRecord | AdmissionRecord | OutcomeRecord;
 type JournalEntry = Readonly<{
   position: number;
@@ -177,7 +210,13 @@ type InternalState = {
 };
 
 const ZERO_DIGEST = '0'.repeat(64);
-const SECRET_PATTERN = /(?:api[_-]?key|password|credential|token|secret)\s*[:=]/iu;
+const SECRET_ASSIGNMENT_PATTERN =
+  /(?:api[\s._'"+/-]*key|access[\s._'"+/-]*token|refresh[\s._'"+/-]*token|client[\s._'"+/-]*secret|private[\s._'"+/-]*key|password|credential|secret|token)\s*["']?\s*[:=]\s*["']?\s*[^\s"',}\]]+/iu;
+const AUTHORIZATION_PATTERN = /authorization\s*["']?\s*[:=]?\s*["']?\s*bearer(?:\s|[:=+/_-])+[a-z0-9._~+/-]{4,}/iu;
+const NORMALIZED_SECRET_PATTERN =
+  /(?:apikey|accesstoken|refreshtoken|clientsecret|privatekey)(?:is|equals)?[a-z0-9]{8,}|authorizationbearer[a-z0-9]{4,}/iu;
+const BASE64_PATTERN = /(?:[A-Za-z0-9+/]{4}){3,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?/gu;
+const HEX_PATTERN = /(?:[0-9a-f]{2}){8,}/giu;
 const KEY_PATTERN = /^[a-z0-9](?:[a-z0-9._/-]{0,510}[a-z0-9])?$/iu;
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/u;
 const CLAIM_DIVIDER = '/claim/';
@@ -276,9 +315,105 @@ function sha256(bytes: Uint8Array | string): string {
   return state.map((part) => part.toString(16).padStart(8, '0')).join('');
 }
 
+function decodeBase64(input: string): string | undefined {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const limit = Math.min(input.length, 8192);
+  const usable = input.slice(0, limit - (limit % 4));
+  if (usable.length < 12) return undefined;
+  const output: number[] = [];
+  for (let index = 0; index < usable.length; index += 4) {
+    const first = alphabet.indexOf(usable[index] ?? '');
+    const second = alphabet.indexOf(usable[index + 1] ?? '');
+    const thirdCharacter = usable[index + 2] ?? '=';
+    const fourthCharacter = usable[index + 3] ?? '=';
+    const third = thirdCharacter === '=' ? 0 : alphabet.indexOf(thirdCharacter);
+    const fourth = fourthCharacter === '=' ? 0 : alphabet.indexOf(fourthCharacter);
+    if (first < 0 || second < 0 || third < 0 || fourth < 0) return undefined;
+    output.push((first << 2) | (second >> 4));
+    if (thirdCharacter !== '=') output.push(((second & 15) << 4) | (third >> 2));
+    if (fourthCharacter !== '=') output.push(((third & 3) << 6) | fourth);
+  }
+  try {
+    return decoder.decode(new Uint8Array(output));
+  } catch {
+    return undefined;
+  }
+}
+
+function decodeHex(input: string): string | undefined {
+  const limit = Math.min(input.length, 8192);
+  const usable = input.slice(0, limit - (limit % 2));
+  const output = new Uint8Array(usable.length / 2);
+  for (let index = 0; index < output.length; index += 1) {
+    const value = Number.parseInt(usable.slice(index * 2, index * 2 + 2), 16);
+    if (!Number.isFinite(value)) return undefined;
+    output[index] = value;
+  }
+  try {
+    return decoder.decode(output);
+  } catch {
+    return undefined;
+  }
+}
+
+function directSecret(input: string): boolean {
+  if (SECRET_ASSIGNMENT_PATTERN.test(input) || AUTHORIZATION_PATTERN.test(input)) return true;
+  const normalized = input.normalize('NFKC').replace(/[^a-z0-9]/giu, '');
+  return NORMALIZED_SECRET_PATTERN.test(normalized);
+}
+
+function secretText(input: string): boolean {
+  const variants = new Set<string>([input.normalize('NFKC')]);
+  try {
+    const decoded = decodeURIComponent(input);
+    variants.add(decoded.normalize('NFKC'));
+  } catch {
+    // Invalid percent encodings are handled as ordinary text.
+  }
+  for (const source of [...variants]) {
+    for (let offset = 0; offset < source.length; offset += 7936) {
+      const chunk = source.slice(offset, offset + 8192);
+      if (directSecret(chunk)) return true;
+      for (const candidate of chunk.match(BASE64_PATTERN) ?? []) {
+        const decoded = decodeBase64(candidate);
+        if (decoded && directSecret(decoded)) return true;
+      }
+      for (const candidate of chunk.match(HEX_PATTERN) ?? []) {
+        const decoded = decodeHex(candidate);
+        if (decoded && directSecret(decoded)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function parseConfiguration(input: unknown): Configuration | undefined {
-  const value = fields(input, ['subjects', 'principals']);
-  if (!value || !Array.isArray(value.subjects) || !Array.isArray(value.principals)) return undefined;
+  const value = fields(input, ['subjects', 'principals', 'secretScan', 'evidenceKinds']);
+  if (
+    !value ||
+    !Array.isArray(value.subjects) ||
+    value.subjects.length === 0 ||
+    !Array.isArray(value.principals) ||
+    value.principals.length === 0 ||
+    !Array.isArray(value.evidenceKinds) ||
+    value.evidenceKinds.length === 0
+  )
+    return undefined;
+  const scan = fields(value.secretScan, ['version', 'detectors', 'digest']);
+  if (
+    !scan ||
+    scan.version !== EVIDENCE_POLICY.scanPolicyVersion ||
+    !Array.isArray(scan.detectors) ||
+    JSON.stringify(scan.detectors) !== JSON.stringify(EVIDENCE_POLICY.scanDetectors) ||
+    !digestValue(scan.digest) ||
+    scan.digest !== sha256(JSON.stringify({ version: scan.version, detectors: scan.detectors }))
+  )
+    return undefined;
+  const secretScan = deepFreeze({
+    version: scan.version as string,
+    detectors: [...(scan.detectors as string[])],
+    digest: scan.digest as string,
+  });
   const subjects: SubjectConfiguration[] = [];
   const identities = new Set<string>();
   for (const item of value.subjects) {
@@ -327,23 +462,132 @@ function parseConfiguration(input: unknown): Configuration | undefined {
       }),
     );
   }
-  return deepFreeze({ subjects, principals });
+  const evidenceKinds: EvidenceKindPolicy[] = [];
+  const kindSet = new Set<string>();
+  const versionSet = new Set<string>();
+  for (const item of value.evidenceKinds) {
+    const policy = fields(item, [
+      'kind',
+      'version',
+      'scanPolicyVersion',
+      'scanPolicyDigest',
+      'maxBytes',
+      'oversizeBehavior',
+      'completenessCritical',
+      'contentType',
+      'redactionStatus',
+      'retention',
+      'digest',
+    ]);
+    if (
+      !policy ||
+      !boundedText(policy.kind, 128) ||
+      !KEY_PATTERN.test(policy.kind) ||
+      !boundedText(policy.version, 128) ||
+      policy.scanPolicyVersion !== secretScan.version ||
+      policy.scanPolicyDigest !== secretScan.digest ||
+      !Number.isSafeInteger(policy.maxBytes) ||
+      (policy.maxBytes as number) < EVIDENCE_POLICY.minimumMaxBytes ||
+      (policy.maxBytes as number) > EVIDENCE_POLICY.maximumMaxBytes ||
+      (policy.oversizeBehavior !== 'reject' && policy.oversizeBehavior !== 'truncate-with-recorded-loss') ||
+      typeof policy.completenessCritical !== 'boolean' ||
+      (policy.completenessCritical && policy.oversizeBehavior !== 'reject') ||
+      (policy.contentType !== 'text/plain' && policy.contentType !== 'application/json') ||
+      (policy.redactionStatus !== 'none' && policy.redactionStatus !== 'source-redacted') ||
+      !digestValue(policy.digest) ||
+      kindSet.has(policy.kind as string) ||
+      versionSet.has(policy.version as string)
+    )
+      return undefined;
+    const retention = exactRetention(policy.retention);
+    if (!retention.ok) return undefined;
+    const basis = {
+      kind: policy.kind,
+      version: policy.version,
+      scanPolicyVersion: policy.scanPolicyVersion,
+      scanPolicyDigest: policy.scanPolicyDigest,
+      maxBytes: policy.maxBytes,
+      oversizeBehavior: policy.oversizeBehavior,
+      completenessCritical: policy.completenessCritical,
+      contentType: policy.contentType,
+      redactionStatus: policy.redactionStatus,
+      retention: retention.value,
+    };
+    if (policy.digest !== sha256(JSON.stringify(basis))) return undefined;
+    kindSet.add(policy.kind);
+    versionSet.add(policy.version);
+    evidenceKinds.push(
+      deepFreeze({
+        ...basis,
+        kind: policy.kind as string,
+        version: policy.version as string,
+        scanPolicyVersion: policy.scanPolicyVersion as string,
+        scanPolicyDigest: policy.scanPolicyDigest as string,
+        maxBytes: policy.maxBytes as number,
+        oversizeBehavior: policy.oversizeBehavior as EvidenceKindPolicy['oversizeBehavior'],
+        completenessCritical: policy.completenessCritical as boolean,
+        contentType: policy.contentType as EvidenceKindPolicy['contentType'],
+        redactionStatus: policy.redactionStatus as EvidenceKindPolicy['redactionStatus'],
+        digest: policy.digest,
+      }),
+    );
+  }
+  const controlledStrings = [
+    secretScan.version,
+    ...secretScan.detectors,
+    ...subjects.flatMap((subject) => [subject.kind, subject.identity, ...subject.claims]),
+    ...principals.flatMap((principal) => [principal.principal, ...principal.sessions]),
+    ...evidenceKinds.flatMap((policy) => [
+      policy.kind,
+      policy.version,
+      policy.scanPolicyVersion,
+      policy.contentType,
+      policy.redactionStatus,
+      policy.retention.class,
+      ...(policy.retention.hold ? [policy.retention.hold.id, policy.retention.hold.basis] : []),
+    ]),
+  ];
+  if (controlledStrings.some(secretText)) return undefined;
+  const configurationBasis = { subjects, principals, secretScan, evidenceKinds };
+  return deepFreeze({
+    ...configurationBasis,
+    digest: sha256(JSON.stringify(configurationBasis)),
+  });
 }
 
 function exactSubject(
   input: unknown,
   configuration: Configuration,
-): EvidenceResult<Readonly<{ kind: SubjectKind; identity: string; claim: string; subject: string }>> {
+): EvidenceResult<
+  Readonly<{
+    kind: SubjectKind;
+    identity: string;
+    claim: string;
+    subject: string;
+    subjectIndex: number;
+    claimIndex: number;
+  }>
+> {
   if (typeof input !== 'string' || !parseIdentity('ID-EVSUBJ', input).ok)
     return fail('FC-SUBJECT', 'INVALID_EVIDENCE_SUBJECT');
-  for (const subject of configuration.subjects) {
+  for (let subjectIndex = 0; subjectIndex < configuration.subjects.length; subjectIndex += 1) {
+    const subject = configuration.subjects[subjectIndex];
+    if (!subject) continue;
     const prefix = `evidence://${subject.identity}${CLAIM_DIVIDER}`;
     if (!input.startsWith(prefix)) continue;
     const claim = input.slice(prefix.length);
-    return subject.claims.includes(claim)
+    const claimIndex = subject.claims.indexOf(claim);
+    return claimIndex >= 0
       ? {
           ok: true,
-          value: deepFreeze({ kind: subject.kind, identity: subject.identity, claim, subject: input }),
+          value: deepFreeze({
+            kind: subject.kind,
+            identity: subject.identity,
+            claim,
+            subject: input,
+            subjectIndex,
+            claimIndex,
+          }),
         }
       : fail('FC-SUBJECT', 'UNKNOWN_CLAIM');
   }
@@ -354,7 +598,7 @@ function exactProducer(
   input: unknown,
   providerManifest: unknown,
   configuration: Configuration,
-): EvidenceResult<Producer> {
+): EvidenceResult<Readonly<{ producer: Producer; principalIndex: number; sessionIndex: number }>> {
   const object = input as Record<string, unknown> | undefined;
   if (object?.kind === 'mechanism') return fail('FC-EVIDENCE', 'PROVIDER_MANIFEST_UNAVAILABLE');
   const value = fields(input, ['kind', 'principal', 'session']);
@@ -367,14 +611,20 @@ function exactProducer(
     !parseIdentity('ID-SESSION', value.session).ok
   )
     return fail('FC-SUBJECT', 'INVALID_PRODUCER');
-  const configured = configuration.principals.find((principal) => principal.principal === value.principal);
-  return configured?.sessions.includes(value.session)
+  const principalIndex = configuration.principals.findIndex((principal) => principal.principal === value.principal);
+  const configured = configuration.principals[principalIndex];
+  const sessionIndex = configured?.sessions.indexOf(value.session) ?? -1;
+  return configured && sessionIndex >= 0
     ? {
         ok: true,
         value: deepFreeze({
-          kind: 'principal' as const,
-          principal: value.principal,
-          session: value.session,
+          producer: {
+            kind: 'principal' as const,
+            principal: value.principal,
+            session: value.session,
+          },
+          principalIndex,
+          sessionIndex,
         }),
       }
     : fail('FC-SUBJECT', 'PRODUCER_NOT_CONFIGURED');
@@ -416,7 +666,17 @@ function safeDecode(input: Uint8Array): EvidenceResult<string> {
   }
 }
 
-function scan(input: Uint8Array, contentType: string): EvidenceResult<Readonly<{ secret: boolean }>> {
+function scan(
+  input: Uint8Array,
+  contentType: string,
+  policy: SecretScanConfiguration,
+): EvidenceResult<Readonly<{ secret: boolean }>> {
+  if (
+    policy.version !== EVIDENCE_POLICY.scanPolicyVersion ||
+    JSON.stringify(policy.detectors) !== JSON.stringify(EVIDENCE_POLICY.scanDetectors) ||
+    policy.digest !== sha256(JSON.stringify({ version: policy.version, detectors: policy.detectors }))
+  )
+    return fail('FC-TRUST', 'SECRET_SCAN_POLICY_MISMATCH');
   const decoded = safeDecode(input);
   if (!decoded.ok) return decoded;
   if (contentType === 'application/json') {
@@ -426,7 +686,7 @@ function scan(input: Uint8Array, contentType: string): EvidenceResult<Readonly<{
       return fail('FC-INPUT', 'INVALID_JSON_EVIDENCE');
     }
   }
-  return { ok: true, value: freeze({ secret: SECRET_PATTERN.test(decoded.value) }) };
+  return { ok: true, value: freeze({ secret: secretText(decoded.value) }) };
 }
 
 function artifactBasis(request: ArtifactPutRequest): Omit<ArtifactPutRequest, 'bytes'> {
@@ -474,58 +734,50 @@ function parsePrepare(
   Readonly<{
     subject: Readonly<{ kind: SubjectKind; identity: string; claim: string; subject: string }>;
     producer: Producer;
-    contentType: 'text/plain' | 'application/json';
-    contentClass: 'completeness-critical' | 'supporting';
-    completeness: 'complete' | 'partial';
+    policy: EvidenceKindPolicy;
+    policyIndex: number;
+    binding: ConfigurationBinding;
     contentDigest: string;
     bytes: Uint8Array;
-    redaction: Readonly<{ policyVersion: string; status: 'none' | 'source-redacted' }>;
-    oversizeBehavior: 'reject' | 'truncate-with-recorded-loss';
-    retention: Retention;
     artifact: Readonly<{ resourceScope: string; operation: string; fence: string; temporaryTuple: string }>;
   }>
 > {
   const value = fields(input, [
     'schemaVersion',
+    'evidenceKind',
+    'policy',
     'subject',
     'producer',
     'providerManifest',
-    'contentType',
-    'contentClass',
-    'completeness',
     'contentDigest',
     'bytes',
-    'redaction',
-    'oversizeBehavior',
-    'retention',
     'artifact',
   ]);
   if (!value) return fail('FC-INPUT', 'INVALID_EVIDENCE_REQUEST');
   if (value.schemaVersion !== EVIDENCE_POLICY.schemaVersion) return fail('FC-INPUT', 'UNKNOWN_SCHEMA_VERSION');
+  const selection = fields(value.policy, ['version', 'digest']);
+  if (
+    !boundedText(value.evidenceKind, 128) ||
+    !selection ||
+    !boundedText(selection.version, 128) ||
+    !digestValue(selection.digest)
+  )
+    return fail('FC-EVIDENCE', 'INVALID_EVIDENCE_POLICY');
+  const policyIndex = configuration.evidenceKinds.findIndex(
+    (candidate) =>
+      candidate.kind === value.evidenceKind &&
+      candidate.version === selection.version &&
+      candidate.digest === selection.digest,
+  );
+  const policy = configuration.evidenceKinds[policyIndex];
+  if (!policy) return fail('FC-EVIDENCE', 'EVIDENCE_POLICY_NOT_CONFIGURED');
   const subject = exactSubject(value.subject, configuration);
   if (!subject.ok) return subject;
   const producer = exactProducer(value.producer, value.providerManifest, configuration);
   if (!producer.ok) return producer;
-  if (
-    (value.contentType !== 'text/plain' && value.contentType !== 'application/json') ||
-    (value.contentClass !== 'completeness-critical' && value.contentClass !== 'supporting') ||
-    (value.completeness !== 'complete' && value.completeness !== 'partial') ||
-    !digestValue(value.contentDigest) ||
-    !(value.bytes instanceof Uint8Array) ||
-    value.bytes.byteLength === 0 ||
-    (value.oversizeBehavior !== 'reject' && value.oversizeBehavior !== 'truncate-with-recorded-loss')
-  )
+  if (!digestValue(value.contentDigest) || !(value.bytes instanceof Uint8Array) || value.bytes.byteLength === 0)
     return fail('FC-INPUT', 'INVALID_EVIDENCE_CONTENT');
   if (sha256(value.bytes) !== value.contentDigest) return fail('FC-EVIDENCE', 'CONTENT_DIGEST_MISMATCH');
-  const redaction = fields(value.redaction, ['policyVersion', 'status']);
-  if (
-    !redaction ||
-    redaction.policyVersion !== EVIDENCE_POLICY.scanPolicyVersion ||
-    (redaction.status !== 'none' && redaction.status !== 'source-redacted')
-  )
-    return fail('FC-EVIDENCE', 'INVALID_REDACTION_POLICY');
-  const retention = exactRetention(value.retention);
-  if (!retention.ok) return retention;
   const artifact = fields(value.artifact, ['resourceScope', 'operation', 'fence', 'temporaryTuple']);
   if (
     !artifact ||
@@ -535,22 +787,29 @@ function parsePrepare(
     !boundedText(artifact.temporaryTuple)
   )
     return fail('FC-FENCE', 'INVALID_ARTIFACT_BINDING');
+  const binding = deepFreeze({
+    configurationDigest: configuration.digest,
+    subjectIndex: subject.value.subjectIndex,
+    claimIndex: subject.value.claimIndex,
+    principalIndex: producer.value.principalIndex,
+    sessionIndex: producer.value.sessionIndex,
+    policyIndex,
+  });
   return {
     ok: true,
     value: {
-      subject: subject.value,
-      producer: producer.value,
-      contentType: value.contentType,
-      contentClass: value.contentClass,
-      completeness: value.completeness,
+      subject: deepFreeze({
+        kind: subject.value.kind,
+        identity: subject.value.identity,
+        claim: subject.value.claim,
+        subject: subject.value.subject,
+      }),
+      producer: producer.value.producer,
+      policy,
+      policyIndex,
+      binding,
       contentDigest: value.contentDigest,
       bytes: new Uint8Array(value.bytes),
-      redaction: deepFreeze({
-        policyVersion: redaction.policyVersion as string,
-        status: redaction.status as 'none' | 'source-redacted',
-      }),
-      oversizeBehavior: value.oversizeBehavior,
-      retention: retention.value,
       artifact: deepFreeze({
         resourceScope: artifact.resourceScope,
         operation: artifact.operation,
@@ -690,16 +949,51 @@ function adoptionRecorded(
   return false;
 }
 
+function artifactCurrencyCurrent(port: ArtifactReadPort): boolean {
+  const snapshot = fields(port.snapshot(), ['journal', 'lookup']);
+  const lookup = snapshot && fields(snapshot.lookup, ['position', 'headDigest', 'protectedPosition', 'protectedHead']);
+  if (
+    !snapshot ||
+    !lookup ||
+    !Array.isArray(snapshot.journal) ||
+    !Number.isSafeInteger(lookup.position) ||
+    !digestValue(lookup.headDigest)
+  )
+    return false;
+  let terminal: ArtifactFact | undefined;
+  for (const entry of snapshot.journal) {
+    const item = fields(entry, ['kind', 'request', 'fact']) ?? fields(entry, ['kind', 'request']);
+    if (!item || typeof item.kind !== 'string') return false;
+    if (item.kind !== 'put' && item.kind !== 'release' && item.kind !== 'dispose') continue;
+    const fact = fields(item.fact, ['operation', 'mode', 'position', 'headDigest', 'binding']);
+    if (
+      !fact ||
+      !boundedText(fact.operation) ||
+      (fact.mode !== 'put' && fact.mode !== 'release-pin' && fact.mode !== 'dispose-bytes') ||
+      !Number.isSafeInteger(fact.position) ||
+      !digestValue(fact.headDigest) ||
+      !boundedText(fact.binding, 4096)
+    )
+      return false;
+    terminal = deepFreeze(fact as ArtifactFact);
+  }
+  if (!terminal) return lookup.position === -1 && lookup.headDigest === ZERO_DIGEST;
+  return (
+    terminal.position === lookup.position && terminal.headDigest === lookup.headDigest && port.acknowledge(terminal).ok
+  );
+}
+
 function readArtifact(
   port: ArtifactReadPort,
   fact: ArtifactFact,
   request: ArtifactGetRequest,
   artifact: Omit<ArtifactPutRequest, 'bytes'>,
   proof: AdoptionProof,
+  basis: ManifestBasis,
+  configuration: Configuration,
 ): EvidenceResult<void> {
   try {
-    const acknowledged = port.acknowledge(fact);
-    if (!acknowledged.ok) return fail('FC-TRUST', 'ARTIFACT_WITNESS_NOT_CURRENT');
+    if (!artifactCurrencyCurrent(port)) return fail('FC-TRUST', 'ARTIFACT_WITNESS_NOT_CURRENT');
     if (!adoptionRecorded(port, artifact, fact, proof)) return fail('FC-TRUST', 'ARTIFACT_ADOPTION_NOT_RECORDED');
     const read = port.get(request);
     if (!read.ok) return fail('FC-TRUST', 'ARTIFACT_READBACK_FAILED');
@@ -709,12 +1003,42 @@ function readArtifact(
       sha256(read.value.bytes) !== request.digest
     )
       return fail('FC-EVIDENCE', 'ARTIFACT_READBACK_MISMATCH');
-    const scanned = scan(read.value.bytes, 'text/plain');
+    const scanned = scan(read.value.bytes, basis.contentType, configuration.secretScan);
     if (!scanned.ok || scanned.value.secret) return fail('FC-EVIDENCE', 'ARTIFACT_READBACK_UNSAFE');
     return { ok: true, value: undefined };
   } catch {
     return fail('FC-TRUST', 'ARTIFACT_READBACK_FAILED');
   }
+}
+
+function policyIdentity(policy: EvidenceKindPolicy): PolicyIdentity {
+  return deepFreeze({
+    kind: policy.kind,
+    version: policy.version,
+    digest: policy.digest,
+    scanPolicyVersion: policy.scanPolicyVersion,
+    scanPolicyDigest: policy.scanPolicyDigest,
+  });
+}
+
+function outcomeKey(
+  configuration: Configuration,
+  binding: ConfigurationBinding,
+  kind: 'quarantine' | 'rejection',
+  position: number,
+): string {
+  return sha256(
+    JSON.stringify({
+      configurationDigest: configuration.digest,
+      subjectIndex: binding.subjectIndex,
+      claimIndex: binding.claimIndex,
+      principalIndex: binding.principalIndex,
+      sessionIndex: binding.sessionIndex,
+      policyIndex: binding.policyIndex,
+      kind,
+      position,
+    }),
+  );
 }
 
 function createRuntime(configuration?: Configuration): Readonly<{
@@ -738,59 +1062,59 @@ function createRuntime(configuration?: Configuration): Readonly<{
       try {
         const parsed = parsePrepare(input, state.configuration);
         if (!parsed.ok) return parsed;
-        const scanned = scan(parsed.value.bytes, parsed.value.contentType);
+        const scanned = scan(parsed.value.bytes, parsed.value.policy.contentType, state.configuration.secretScan);
         if (!scanned.ok) return scanned;
-        const sanitized = {
-          subject: parsed.value.subject.subject,
-          producer: parsed.value.producer,
-          contentType: parsed.value.contentType,
-          originalSize: parsed.value.bytes.byteLength,
-        };
-        if (scanned.value.secret) {
-          const key = sha256(
-            JSON.stringify({
-              ...sanitized,
-              scanPolicyVersion: EVIDENCE_POLICY.scanPolicyVersion,
-              reason: 'SECRET_DETECTED',
-            }),
-          );
+        const metadataSecret = [
+          parsed.value.subject.subject,
+          parsed.value.subject.identity,
+          parsed.value.subject.claim,
+          parsed.value.producer.principal,
+          parsed.value.producer.session,
+          parsed.value.policy.kind,
+          parsed.value.policy.version,
+          parsed.value.policy.scanPolicyVersion,
+          parsed.value.policy.contentType,
+          parsed.value.policy.redactionStatus,
+          parsed.value.policy.retention.class,
+          ...(parsed.value.policy.retention.hold
+            ? [parsed.value.policy.retention.hold.id, parsed.value.policy.retention.hold.basis]
+            : []),
+          parsed.value.artifact.resourceScope,
+          parsed.value.artifact.operation,
+          parsed.value.artifact.fence,
+          parsed.value.artifact.temporaryTuple,
+        ].some(secretText);
+        if (scanned.value.secret || metadataSecret) {
+          const key = outcomeKey(state.configuration, parsed.value.binding, 'quarantine', state.position + 1);
           const outcome = deepFreeze({
             kind: 'quarantined' as const,
             key,
-            ...sanitized,
-            scanPolicyVersion: EVIDENCE_POLICY.scanPolicyVersion,
             reason: 'SECRET_DETECTED' as const,
           });
-          if (!state.outcomes.has(key)) {
-            append(state, deepFreeze({ kind: 'quarantine', key, outcome }));
-            state.outcomes.set(key, outcome);
-          }
+          append(state, deepFreeze({ kind: 'quarantine', key, outcome, binding: parsed.value.binding }));
+          state.outcomes.set(key, outcome);
           return { ok: true, value: outcome };
         }
-        const oversize = parsed.value.bytes.byteLength > EVIDENCE_POLICY.defaultMaxBytes;
-        if (oversize && parsed.value.oversizeBehavior === 'reject') {
-          const key = sha256(JSON.stringify({ ...sanitized, reason: 'OVERSIZE_REJECTED' }));
+        const oversize = parsed.value.bytes.byteLength > parsed.value.policy.maxBytes;
+        if (oversize && parsed.value.policy.oversizeBehavior === 'reject') {
+          const key = outcomeKey(state.configuration, parsed.value.binding, 'rejection', state.position + 1);
           const outcome = deepFreeze({
             kind: 'rejected' as const,
             key,
-            ...sanitized,
+            originalSize: parsed.value.bytes.byteLength,
             reason: 'OVERSIZE_REJECTED' as const,
           });
-          if (!state.outcomes.has(key)) {
-            append(state, deepFreeze({ kind: 'rejection', key, outcome }));
-            state.outcomes.set(key, outcome);
-          }
+          append(state, deepFreeze({ kind: 'rejection', key, outcome, binding: parsed.value.binding }));
+          state.outcomes.set(key, outcome);
           return { ok: true, value: outcome };
         }
-        if (
-          oversize &&
-          parsed.value.oversizeBehavior === 'truncate-with-recorded-loss' &&
-          parsed.value.contentClass === 'completeness-critical'
-        )
-          return fail('FC-EVIDENCE', 'COMPLETENESS_CRITICAL_TRUNCATION');
         const retainedBytes = oversize
-          ? parsed.value.bytes.slice(0, EVIDENCE_POLICY.defaultMaxBytes)
+          ? parsed.value.bytes.slice(0, parsed.value.policy.maxBytes)
           : new Uint8Array(parsed.value.bytes);
+        if (oversize) {
+          const retainedScan = scan(retainedBytes, parsed.value.policy.contentType, state.configuration.secretScan);
+          if (!retainedScan.ok || retainedScan.value.secret) return fail('FC-EVIDENCE', 'TRUNCATED_CONTENT_INVALID');
+        }
         const loss: Loss = oversize
           ? deepFreeze({
               kind: 'truncated' as const,
@@ -798,23 +1122,28 @@ function createRuntime(configuration?: Configuration): Readonly<{
             })
           : null;
         const basis: ManifestBasis = deepFreeze({
+          configurationDigest: state.configuration.digest,
           schemaVersion: EVIDENCE_POLICY.schemaVersion,
+          policy: policyIdentity(parsed.value.policy),
           subjectKind: parsed.value.subject.kind,
           subjectIdentity: parsed.value.subject.identity,
           subject: parsed.value.subject.subject,
           claim: parsed.value.subject.claim,
           producer: parsed.value.producer,
           providerManifest: null,
-          contentType: parsed.value.contentType,
-          contentClass: parsed.value.contentClass,
-          completeness: loss ? 'partial' : parsed.value.completeness,
+          contentType: parsed.value.policy.contentType,
+          contentClass: parsed.value.policy.completenessCritical ? 'completeness-critical' : 'supporting',
+          completeness: loss ? 'partial' : 'complete',
           originalDigest: parsed.value.contentDigest,
           artifactDigest: sha256(retainedBytes),
           originalSize: parsed.value.bytes.byteLength,
           retainedSize: retainedBytes.byteLength,
           loss,
-          redaction: parsed.value.redaction,
-          retention: parsed.value.retention,
+          redaction: {
+            policyVersion: parsed.value.policy.scanPolicyVersion,
+            status: parsed.value.policy.redactionStatus,
+          },
+          retention: parsed.value.policy.retention,
         });
         const key = sha256(
           JSON.stringify({
@@ -844,6 +1173,7 @@ function createRuntime(configuration?: Configuration): Readonly<{
           key,
           basis,
           artifact: artifactBasis(request),
+          binding: parsed.value.binding,
         });
         if (!state.intents.has(key)) {
           append(state, record);
@@ -876,7 +1206,16 @@ function createRuntime(configuration?: Configuration): Readonly<{
         if (!fact.ok) return fact;
         const proof = exactProof(value.proof, intent.artifact, fact.value);
         if (!proof.ok) return proof;
-        const read = readArtifact(port, fact.value, getRequest(intent.artifact), intent.artifact, proof.value);
+        if (!state.configuration) return fail('FC-TRUST', 'CONFIGURATION_NOT_BOUND');
+        const read = readArtifact(
+          port,
+          fact.value,
+          getRequest(intent.artifact),
+          intent.artifact,
+          proof.value,
+          intent.basis,
+          state.configuration,
+        );
         if (!read.ok) return read;
         const existing = state.admissions.get(value.key);
         if (existing) return { ok: true, value: existing };
@@ -902,6 +1241,7 @@ function createRuntime(configuration?: Configuration): Readonly<{
             manifest,
             getRequest: getRequest(intent.artifact),
             proof: proof.value,
+            binding: intent.binding,
           }),
         );
         state.admissions.set(value.key, admitted);
@@ -926,6 +1266,15 @@ function createRuntime(configuration?: Configuration): Readonly<{
     },
     snapshot(): Readonly<unknown> {
       return deepFreeze({
+        configuration: state.configuration
+          ? {
+              digest: state.configuration.digest,
+              scanPolicy: {
+                version: state.configuration.secretScan.version,
+                digest: state.configuration.secretScan.digest,
+              },
+            }
+          : null,
         journal: [...state.journal],
         head: { position: state.position, headDigest: state.headDigest },
       });
@@ -945,6 +1294,368 @@ export function createScriptedEvidenceFixture(config: unknown): ScriptedEvidence
   return createRuntime(parseConfiguration(config)).fixture;
 }
 
+const BASIS_FIELDS = [
+  'configurationDigest',
+  'schemaVersion',
+  'policy',
+  'subjectKind',
+  'subjectIdentity',
+  'subject',
+  'claim',
+  'producer',
+  'providerManifest',
+  'contentType',
+  'contentClass',
+  'completeness',
+  'originalDigest',
+  'artifactDigest',
+  'originalSize',
+  'retainedSize',
+  'loss',
+  'redaction',
+  'retention',
+] as const;
+
+function exactConfigurationBinding(input: unknown, configuration: Configuration): EvidenceResult<ConfigurationBinding> {
+  const value = fields(input, [
+    'configurationDigest',
+    'subjectIndex',
+    'claimIndex',
+    'principalIndex',
+    'sessionIndex',
+    'policyIndex',
+  ]);
+  if (
+    !value ||
+    value.configurationDigest !== configuration.digest ||
+    !Number.isSafeInteger(value.subjectIndex) ||
+    !Number.isSafeInteger(value.claimIndex) ||
+    !Number.isSafeInteger(value.principalIndex) ||
+    !Number.isSafeInteger(value.sessionIndex) ||
+    !Number.isSafeInteger(value.policyIndex)
+  )
+    return fail('FC-TRUST', 'RECOVERY_CONFIGURATION_MISMATCH');
+  const subject = configuration.subjects[value.subjectIndex as number];
+  const principal = configuration.principals[value.principalIndex as number];
+  const policy = configuration.evidenceKinds[value.policyIndex as number];
+  if (!subject?.claims[value.claimIndex as number] || !principal?.sessions[value.sessionIndex as number] || !policy)
+    return fail('FC-TRUST', 'RECOVERY_CONFIGURATION_MISMATCH');
+  return {
+    ok: true,
+    value: deepFreeze({
+      configurationDigest: configuration.digest,
+      subjectIndex: value.subjectIndex as number,
+      claimIndex: value.claimIndex as number,
+      principalIndex: value.principalIndex as number,
+      sessionIndex: value.sessionIndex as number,
+      policyIndex: value.policyIndex as number,
+    }),
+  };
+}
+
+function exactBasis(
+  input: unknown,
+  configuration: Configuration,
+  binding: ConfigurationBinding,
+): EvidenceResult<ManifestBasis> {
+  const value = fields(input, BASIS_FIELDS);
+  const policyValue =
+    value && fields(value.policy, ['kind', 'version', 'digest', 'scanPolicyVersion', 'scanPolicyDigest']);
+  const producer = value && fields(value.producer, ['kind', 'principal', 'session']);
+  const redaction = value && fields(value.redaction, ['policyVersion', 'status']);
+  const retention = value && exactRetention(value.retention);
+  const loss = value?.loss === null ? null : value && fields(value.loss, ['kind', 'omittedBytes']);
+  const subject = configuration.subjects[binding.subjectIndex];
+  const principal = configuration.principals[binding.principalIndex];
+  const policy = configuration.evidenceKinds[binding.policyIndex];
+  const claim = subject?.claims[binding.claimIndex];
+  const session = principal?.sessions[binding.sessionIndex];
+  const hasLoss =
+    loss !== null &&
+    loss !== undefined &&
+    loss.kind === 'truncated' &&
+    Number.isSafeInteger(loss.omittedBytes) &&
+    (loss.omittedBytes as number) > 0;
+  if (
+    !value ||
+    !policyValue ||
+    !producer ||
+    !redaction ||
+    !retention?.ok ||
+    !subject ||
+    !principal ||
+    !policy ||
+    !claim ||
+    !session ||
+    value.configurationDigest !== configuration.digest ||
+    value.schemaVersion !== EVIDENCE_POLICY.schemaVersion ||
+    policyValue.kind !== policy.kind ||
+    policyValue.version !== policy.version ||
+    policyValue.digest !== policy.digest ||
+    policyValue.scanPolicyVersion !== policy.scanPolicyVersion ||
+    policyValue.scanPolicyDigest !== policy.scanPolicyDigest ||
+    value.subjectKind !== subject.kind ||
+    value.subjectIdentity !== subject.identity ||
+    value.subject !== `evidence://${subject.identity}${CLAIM_DIVIDER}${claim}` ||
+    value.claim !== claim ||
+    producer.kind !== 'principal' ||
+    producer.principal !== principal.principal ||
+    producer.session !== session ||
+    value.providerManifest !== null ||
+    value.contentType !== policy.contentType ||
+    value.contentClass !== (policy.completenessCritical ? 'completeness-critical' : 'supporting') ||
+    (value.completeness !== 'complete' && value.completeness !== 'partial') ||
+    !digestValue(value.originalDigest) ||
+    !digestValue(value.artifactDigest) ||
+    !Number.isSafeInteger(value.originalSize) ||
+    (value.originalSize as number) <= 0 ||
+    !Number.isSafeInteger(value.retainedSize) ||
+    (value.retainedSize as number) <= 0 ||
+    (value.retainedSize as number) > (value.originalSize as number) ||
+    redaction.policyVersion !== policy.scanPolicyVersion ||
+    redaction.status !== policy.redactionStatus ||
+    JSON.stringify(retention.value) !== JSON.stringify(policy.retention) ||
+    (value.loss !== null && !hasLoss) ||
+    (value.loss === null && (value.originalSize !== value.retainedSize || value.completeness !== 'complete')) ||
+    (hasLoss &&
+      (policy.completenessCritical ||
+        policy.oversizeBehavior !== 'truncate-with-recorded-loss' ||
+        (value.originalSize as number) <= policy.maxBytes ||
+        value.retainedSize !== policy.maxBytes ||
+        loss.omittedBytes !== (value.originalSize as number) - policy.maxBytes ||
+        value.completeness !== 'partial'))
+  )
+    return fail('FC-TRUST', 'RECOVERY_EVIDENCE_BASIS_INVALID');
+  return {
+    ok: true,
+    value: deepFreeze({
+      configurationDigest: configuration.digest,
+      schemaVersion: EVIDENCE_POLICY.schemaVersion,
+      policy: policyIdentity(policy),
+      subjectKind: subject.kind,
+      subjectIdentity: subject.identity,
+      subject: `evidence://${subject.identity}${CLAIM_DIVIDER}${claim}`,
+      claim,
+      producer: {
+        kind: 'principal' as const,
+        principal: principal.principal,
+        session,
+      },
+      providerManifest: null,
+      contentType: policy.contentType,
+      contentClass: policy.completenessCritical ? 'completeness-critical' : 'supporting',
+      completeness: value.completeness as ManifestBasis['completeness'],
+      originalDigest: value.originalDigest as string,
+      artifactDigest: value.artifactDigest as string,
+      originalSize: value.originalSize as number,
+      retainedSize: value.retainedSize as number,
+      loss: hasLoss
+        ? {
+            kind: 'truncated' as const,
+            omittedBytes: loss.omittedBytes as number,
+          }
+        : null,
+      redaction: {
+        policyVersion: policy.scanPolicyVersion,
+        status: policy.redactionStatus,
+      },
+      retention: retention.value,
+    }),
+  };
+}
+
+function exactArtifactBasis(
+  input: unknown,
+  key: string,
+  basis: ManifestBasis,
+): EvidenceResult<Omit<ArtifactPutRequest, 'bytes'>> {
+  const value = fields(input, ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode', 'pins']);
+  const pins = value && fields(value.pins, ['temporary', 'intended']);
+  const temporary = pins && fields(pins.temporary, ['holder', 'tuple']);
+  const intended = pins && fields(pins.intended, ['holder', 'tuple']);
+  if (
+    !value ||
+    !temporary ||
+    !intended ||
+    !boundedText(value.resourceScope) ||
+    value.subject !== `artifact/evidence/${key}` ||
+    value.digest !== basis.artifactDigest ||
+    !boundedText(value.fence) ||
+    value.holder !== 'SCH-EVIDENCE' ||
+    !boundedText(value.operation) ||
+    value.mode !== 'put' ||
+    temporary.holder !== 'EV-ARTIFACT-FACT' ||
+    !boundedText(temporary.tuple) ||
+    intended.holder !== 'SCH-EVIDENCE' ||
+    intended.tuple !== `evidence-manifest/${key}` ||
+    [value.resourceScope, value.subject, value.fence, value.operation, temporary.tuple, intended.tuple].some(
+      (item) => typeof item !== 'string' || secretText(item),
+    )
+  )
+    return fail('FC-TRUST', 'RECOVERY_ARTIFACT_BINDING_INVALID');
+  return {
+    ok: true,
+    value: deepFreeze({
+      resourceScope: value.resourceScope,
+      subject: value.subject,
+      digest: value.digest,
+      fence: value.fence,
+      holder: 'SCH-EVIDENCE' as const,
+      operation: value.operation,
+      mode: 'put' as const,
+      pins: {
+        temporary: { holder: 'EV-ARTIFACT-FACT' as const, tuple: temporary.tuple },
+        intended: { holder: 'SCH-EVIDENCE' as const, tuple: intended.tuple },
+      },
+    }),
+  };
+}
+
+function exactIntent(input: unknown, configuration: Configuration): EvidenceResult<IntentRecord> {
+  const value = fields(input, ['kind', 'key', 'basis', 'artifact', 'binding']);
+  if (value?.kind !== 'intent' || !digestValue(value.key)) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+  const binding = exactConfigurationBinding(value.binding, configuration);
+  if (!binding.ok) return binding;
+  const basis = exactBasis(value.basis, configuration, binding.value);
+  if (!basis.ok) return basis;
+  const artifact = exactArtifactBasis(value.artifact, value.key, basis.value);
+  if (!artifact.ok) return artifact;
+  const artifactSelection = {
+    resourceScope: artifact.value.resourceScope,
+    operation: artifact.value.operation,
+    fence: artifact.value.fence,
+    temporaryTuple: artifact.value.pins.temporary.tuple,
+  };
+  if (value.key !== sha256(JSON.stringify({ basis: basis.value, artifact: artifactSelection })))
+    return fail('FC-TRUST', 'RECOVERY_EVIDENCE_KEY_INVALID');
+  return {
+    ok: true,
+    value: deepFreeze({
+      kind: 'intent' as const,
+      key: value.key,
+      basis: basis.value,
+      artifact: artifact.value,
+      binding: binding.value,
+    }),
+  };
+}
+
+function exactAdmission(
+  input: unknown,
+  intent: IntentRecord,
+  configuration: Configuration,
+): EvidenceResult<AdmissionRecord> {
+  const value = fields(input, ['kind', 'key', 'manifest', 'getRequest', 'proof', 'binding']);
+  if (value?.kind !== 'admission' || value.key !== intent.key) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+  const binding = exactConfigurationBinding(value.binding, configuration);
+  if (!binding.ok || JSON.stringify(binding.value) !== JSON.stringify(intent.binding))
+    return fail('FC-TRUST', 'RECOVERY_CONFIGURATION_MISMATCH');
+  const manifest = fields(value.manifest, [
+    ...BASIS_FIELDS,
+    'manifestDigest',
+    'disposition',
+    'artifactFact',
+    'adoptionTransition',
+  ]);
+  if (!manifest) return fail('FC-TRUST', 'RECOVERY_EVIDENCE_MANIFEST_INVALID');
+  const basisInput: Record<string, unknown> = {};
+  for (const name of BASIS_FIELDS) basisInput[name] = manifest[name];
+  const basis = exactBasis(basisInput, configuration, binding.value);
+  if (!basis.ok || JSON.stringify(basis.value) !== JSON.stringify(intent.basis))
+    return fail('FC-TRUST', 'RECOVERY_EVIDENCE_MANIFEST_INVALID');
+  const fact = exactFact(manifest.artifactFact, intent.artifact);
+  if (!fact.ok) return fail('FC-TRUST', 'RECOVERY_EVIDENCE_MANIFEST_INVALID');
+  const proof = exactProof(value.proof, intent.artifact, fact.value);
+  if (!proof.ok) return fail('FC-TRUST', 'RECOVERY_EVIDENCE_MANIFEST_INVALID');
+  const expectedGet = getRequest(intent.artifact);
+  const manifestDigest = sha256(
+    JSON.stringify({
+      basis: intent.basis,
+      artifactFact: fact.value,
+      adoptionTransition: proof.value.transition,
+    }),
+  );
+  if (
+    manifest.disposition !== 'admitted' ||
+    manifest.adoptionTransition !== proof.value.transition ||
+    manifest.manifestDigest !== manifestDigest ||
+    JSON.stringify(value.getRequest) !== JSON.stringify(expectedGet)
+  )
+    return fail('FC-TRUST', 'RECOVERY_EVIDENCE_MANIFEST_INVALID');
+  return {
+    ok: true,
+    value: deepFreeze({
+      kind: 'admission' as const,
+      key: intent.key,
+      manifest: {
+        ...intent.basis,
+        manifestDigest,
+        disposition: 'admitted' as const,
+        artifactFact: fact.value,
+        adoptionTransition: proof.value.transition,
+      },
+      getRequest: expectedGet,
+      proof: proof.value,
+      binding: binding.value,
+    }),
+  };
+}
+
+function exactOutcome(input: unknown, configuration: Configuration, position: number): EvidenceResult<OutcomeRecord> {
+  const value = fields(input, ['kind', 'key', 'outcome', 'binding']);
+  if (!value || (value.kind !== 'quarantine' && value.kind !== 'rejection') || !digestValue(value.key))
+    return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+  const binding = exactConfigurationBinding(value.binding, configuration);
+  if (!binding.ok) return binding;
+  const expectedKey = outcomeKey(configuration, binding.value, value.kind, position);
+  const outcome =
+    value.kind === 'quarantine'
+      ? fields(value.outcome, ['kind', 'key', 'reason'])
+      : fields(value.outcome, ['kind', 'key', 'originalSize', 'reason']);
+  const expectedOutcomeKind = value.kind === 'quarantine' ? 'quarantined' : 'rejected';
+  const expectedReason = value.kind === 'quarantine' ? 'SECRET_DETECTED' : 'OVERSIZE_REJECTED';
+  const policy = configuration.evidenceKinds[binding.value.policyIndex];
+  if (
+    !outcome ||
+    !policy ||
+    value.key !== expectedKey ||
+    outcome.kind !== expectedOutcomeKind ||
+    outcome.key !== expectedKey ||
+    outcome.reason !== expectedReason ||
+    (value.kind === 'rejection' &&
+      (policy.oversizeBehavior !== 'reject' ||
+        !Number.isSafeInteger(outcome.originalSize) ||
+        (outcome.originalSize as number) <= policy.maxBytes))
+  )
+    return fail('FC-TRUST', 'RECOVERY_EVIDENCE_OUTCOME_INVALID');
+  return {
+    ok: true,
+    value:
+      value.kind === 'quarantine'
+        ? deepFreeze({
+            kind: 'quarantine' as const,
+            key: expectedKey,
+            outcome: {
+              kind: 'quarantined' as const,
+              key: expectedKey,
+              reason: 'SECRET_DETECTED' as const,
+            },
+            binding: binding.value,
+          })
+        : deepFreeze({
+            kind: 'rejection' as const,
+            key: expectedKey,
+            outcome: {
+              kind: 'rejected' as const,
+              key: expectedKey,
+              originalSize: outcome.originalSize as number,
+              reason: 'OVERSIZE_REJECTED' as const,
+            },
+            binding: binding.value,
+          }),
+  };
+}
+
 export function restoreScriptedEvidenceFixture(
   snapshot: unknown,
   witness: unknown,
@@ -952,12 +1663,19 @@ export function restoreScriptedEvidenceFixture(
   artifact: ArtifactReadPort,
 ): EvidenceResult<ScriptedEvidenceFixture> {
   const configuration = parseConfiguration(config);
-  const source = fields(snapshot, ['journal', 'head']);
+  const source = fields(snapshot, ['configuration', 'journal', 'head']);
+  const storedConfiguration = source && fields(source.configuration, ['digest', 'scanPolicy']);
+  const storedScan = storedConfiguration && fields(storedConfiguration.scanPolicy, ['version', 'digest']);
   const storedHead = source && fields(source.head, ['position', 'headDigest']);
   const suppliedHead = fields(witness, ['position', 'headDigest']);
   if (
     !configuration ||
     !source ||
+    !storedConfiguration ||
+    !storedScan ||
+    storedConfiguration.digest !== configuration.digest ||
+    storedScan.version !== configuration.secretScan.version ||
+    storedScan.digest !== configuration.secretScan.digest ||
     !Array.isArray(source.journal) ||
     !storedHead ||
     !suppliedHead ||
@@ -968,9 +1686,9 @@ export function restoreScriptedEvidenceFixture(
   )
     return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
   try {
+    if (!artifactCurrencyCurrent(artifact)) return fail('FC-TRUST', 'RECOVERY_ARTIFACT_MISMATCH');
     const runtime = createRuntime(configuration);
     let previousDigest = ZERO_DIGEST;
-    let lastAdmission: AdmissionRecord | undefined;
     for (let index = 0; index < source.journal.length; index += 1) {
       const entry = fields(source.journal[index], ['position', 'previousDigest', 'digest', 'record']);
       if (
@@ -981,49 +1699,53 @@ export function restoreScriptedEvidenceFixture(
         entry.digest !== sha256(`${previousDigest}\0${JSON.stringify(entry.record)}`)
       )
         return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
-      const record = entry.record as EvidenceRecord;
-      if (record.kind === 'intent') {
+      const kindDescriptor =
+        entry.record && typeof entry.record === 'object'
+          ? Object.getOwnPropertyDescriptor(entry.record, 'kind')
+          : undefined;
+      const kind = kindDescriptor && 'value' in kindDescriptor ? kindDescriptor.value : undefined;
+      let record: EvidenceRecord;
+      if (kind === 'intent') {
+        const exact = exactIntent(entry.record, configuration);
+        if (!exact.ok) return exact;
+        record = exact.value;
         if (
-          !digestValue(record.key) ||
-          !record.basis ||
-          !record.artifact ||
           runtime.state.intents.has(record.key) ||
           (runtime.state.operations.has(record.artifact.operation) &&
             runtime.state.operations.get(record.artifact.operation) !== record.key)
         )
           return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
-        runtime.state.intents.set(record.key, deepFreeze(record));
+        runtime.state.intents.set(record.key, record);
         runtime.state.operations.set(record.artifact.operation, record.key);
-      } else if (record.kind === 'admission') {
-        const intent = runtime.state.intents.get(record.key);
-        if (
-          !intent ||
-          runtime.state.admissions.has(record.key) ||
-          record.manifest.manifestDigest !==
-            sha256(
-              JSON.stringify({
-                basis: intent.basis,
-                artifactFact: record.manifest.artifactFact,
-                adoptionTransition: record.manifest.adoptionTransition,
-              }),
-            )
-        )
-          return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+      } else if (kind === 'admission') {
+        const keyDescriptor =
+          entry.record && typeof entry.record === 'object'
+            ? Object.getOwnPropertyDescriptor(entry.record, 'key')
+            : undefined;
+        const key = keyDescriptor && 'value' in keyDescriptor ? keyDescriptor.value : undefined;
+        const intent = typeof key === 'string' ? runtime.state.intents.get(key) : undefined;
+        if (!intent || runtime.state.admissions.has(intent.key)) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+        const exact = exactAdmission(entry.record, intent, configuration);
+        if (!exact.ok) return exact;
+        record = exact.value;
         const read = portReadbackOnly(
           artifact,
           record.manifest.artifactFact,
           record.getRequest,
           intent.artifact,
           record.proof,
+          intent.basis,
+          configuration,
         );
         if (!read.ok) return read;
-        const admitted = deepFreeze({ kind: 'admitted' as const, manifest: deepFreeze(record.manifest) });
+        const admitted = deepFreeze({ kind: 'admitted' as const, manifest: record.manifest });
         runtime.state.admissions.set(record.key, admitted);
-        lastAdmission = record;
-      } else if (record.kind === 'quarantine' || record.kind === 'rejection') {
-        if (!digestValue(record.key) || runtime.state.outcomes.has(record.key))
-          return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
-        runtime.state.outcomes.set(record.key, deepFreeze(record.outcome));
+      } else if (kind === 'quarantine' || kind === 'rejection') {
+        const exact = exactOutcome(entry.record, configuration, index);
+        if (!exact.ok) return exact;
+        record = exact.value;
+        if (runtime.state.outcomes.has(record.key)) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+        runtime.state.outcomes.set(record.key, record.outcome);
       } else {
         return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
       }
@@ -1031,18 +1753,14 @@ export function restoreScriptedEvidenceFixture(
         position: entry.position as number,
         previousDigest: entry.previousDigest as string,
         digest: entry.digest as string,
-        record: deepFreeze(record),
+        record,
       });
       runtime.state.journal.push(frozenEntry);
       runtime.state.position = entry.position as number;
       runtime.state.headDigest = entry.digest as string;
       previousDigest = entry.digest as string;
     }
-    if (
-      runtime.state.position !== storedHead.position ||
-      runtime.state.headDigest !== storedHead.headDigest ||
-      (lastAdmission && !artifact.acknowledge(lastAdmission.manifest.artifactFact).ok)
-    )
+    if (runtime.state.position !== storedHead.position || runtime.state.headDigest !== storedHead.headDigest)
       return fail('FC-TRUST', 'RECOVERY_HEAD_MISMATCH');
     return { ok: true, value: runtime.fixture };
   } catch {
@@ -1056,6 +1774,8 @@ function portReadbackOnly(
   request: ArtifactGetRequest,
   artifact: Omit<ArtifactPutRequest, 'bytes'>,
   proof: AdoptionProof,
+  basis: ManifestBasis,
+  configuration: Configuration,
 ): EvidenceResult<void> {
   try {
     if (!adoptionRecorded(port, artifact, fact, proof)) return fail('FC-TRUST', 'RECOVERY_ARTIFACT_MISMATCH');
@@ -1067,7 +1787,7 @@ function portReadbackOnly(
       sha256(read.value.bytes) !== request.digest
     )
       return fail('FC-TRUST', 'RECOVERY_ARTIFACT_MISMATCH');
-    const scanned = scan(read.value.bytes, 'text/plain');
+    const scanned = scan(read.value.bytes, basis.contentType, configuration.secretScan);
     return scanned.ok && !scanned.value.secret
       ? { ok: true, value: undefined }
       : fail('FC-TRUST', 'RECOVERY_ARTIFACT_MISMATCH');
