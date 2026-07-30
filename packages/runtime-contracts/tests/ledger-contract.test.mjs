@@ -146,7 +146,7 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   assert.equal(contender.ok, true);
   assert.equal(contender.value.kind, 'rejected');
   assert.equal(contender.value.successorCut, undefined);
-  assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, false);
+  assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, true);
 });
 
 test('semantic ledger: intake crash and missing companions fail closed without repair', () => {
@@ -162,10 +162,10 @@ test('semantic ledger: intake crash and missing companions fail closed without r
   });
   assert.equal(lost.readIntake(request.compositionDigest).ok, false);
   const missing = runtime.createScriptedLedger();
-  assert.equal(missing.intake(request, 'intake-missing-companion').ok, true);
+  assert.equal(missing.intake(request, 'intake-missing-companion').ok, false);
   assert.deepEqual(missing.readIntake(request.compositionDigest), {
     ok: false,
-    error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' },
+    error: { family: 'FC-TRUST', code: 'INTAKE_UNVERIFIABLE' },
   });
 });
 

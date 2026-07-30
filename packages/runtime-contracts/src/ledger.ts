@@ -223,13 +223,19 @@ export function createLedgerRecord(input: Omit<LedgerRecord, 'version' | 'conten
 }
 
 function validBinding(value: unknown): value is RunStoreBinding {
+  const candidate = value as Record<string, unknown>;
+  const run = candidate.run;
+  const generation = candidate.generation;
   return (
     typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
-    (value as Record<string, unknown>).kind === 'run' &&
-    nonEmpty((value as Record<string, unknown>).run) &&
-    nonEmpty((value as Record<string, unknown>).generation) &&
+    candidate.kind === 'run' &&
+    typeof run === 'string' &&
+    typeof generation === 'string' &&
+    parseIdentity('ID-RUN', run).ok &&
+    parseIdentity('ID-GEN', generation).ok &&
+    generation.startsWith(`${run}/gen/`) &&
     Object.keys(value as object)
       .sort()
       .join(',') === 'generation,kind,run'
@@ -262,7 +268,7 @@ export function createScriptedLedger(): ScriptedLedger {
   const intake = new Map<string, IntakeResult>();
   const cuts = new Map<string, IntakeResult>();
   const preflight = new Map<string, PreflightResult>();
-  let intakeWitness: Readonly<{ position: number; digest: string }> | undefined;
+  const intakeWitnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
 
   const forRun = (binding: RunStoreBinding): LedgerResult<LedgerRecord[]> => {
     if (!validBinding(binding)) return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
@@ -356,10 +362,13 @@ export function createScriptedLedger(): ScriptedLedger {
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
       const existing = intake.get(request.compositionDigest);
-      if (existing)
+      if (existing) {
+        const read = this.readIntake(request.compositionDigest);
+        if (!read.ok) return read;
         return existing.acknowledgementDigest === request.acknowledgementDigest
           ? { ok: true, value: existing }
           : fail('FC-INPUT', 'INTAKE_DIGEST_MISMATCH');
+      }
       const position = intake.size;
       const winner = request.successorCut ? cuts.get(request.successorCut) : undefined;
       const result: IntakeResult = freeze(
@@ -390,13 +399,17 @@ export function createScriptedLedger(): ScriptedLedger {
         value: { acknowledgement: result, cut: result.successorCut ?? null, position: result.position },
       });
       if (!stagedHead.ok) return fail('FC-TRUST', 'INTAKE_HEAD_INVALID');
-      intakeWitness = freeze({ position: result.position, digest: stagedHead.value.digest });
-      if (!intakeWitness) return fail('FC-TRUST', 'WITNESS_ABSENT');
+      if (fault === 'intake-missing-companion') return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      intakeWitnesses.set(
+        request.compositionDigest,
+        freeze({ position: result.position, digest: stagedHead.value.digest }),
+      );
       return { ok: true, value: result };
     },
     readIntake(compositionDigest) {
       if (!digest(compositionDigest)) return fail('FC-INPUT', 'INVALID_INTAKE_KEY');
       const result = intake.get(compositionDigest);
+      const intakeWitness = intakeWitnesses.get(compositionDigest);
       if (!result || !intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
       if (result.successorCut && cuts.get(result.successorCut) !== result)
         return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
