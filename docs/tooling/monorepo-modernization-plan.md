@@ -173,11 +173,12 @@ unknown conditions, full `pnpm verify` green.
 consumes the `pnpm verify` Turbo run summary and records the candidate commit/tree before and
 after verification, toolchain versions, and per-task hash, status, and cache origin. The parser
 contract is explicit: for every required task it reads the summary's per-task execution result
-(exit code) and cache record (`tasks[].cache` — hit status plus local/remote source), validated
-against a checked-in schema fixture for the pinned Turbo version; because `verify` runs with
-`--force`, every required task must report a cache miss, and evidence generation fails closed when
-a required provenance field is absent, unrecognized, or indicates the task was restored rather
-than executed. It also fails closed when a required task is missing, failed, or when the candidate
+(exit code) and cache record (`tasks[].cache` — hit status, with the local/remote source field
+populated only on hits), validated against a checked-in schema fixture for the pinned Turbo
+version; because `verify` runs with `--force`, every required task must report a cache miss, whose
+empty source field is the valid shape. Evidence generation fails closed when the cache status is
+absent or unrecognized, when a reported hit lacks its source, or when any required task was
+restored rather than executed. It also fails closed when a required task is missing, failed, or when the candidate
 drifted during verification, with negative fixtures proving each fail-closed path.
 Scope stays aligned with the delivery track's
 [verification contract](../delivery/greenfield/verification.md): the step records evidence and
