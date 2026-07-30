@@ -17,6 +17,7 @@ function record(
   previousDigest,
   generation = binding.generation,
   transaction = `${fixture.run}/txn/${position + 1}/${generation}|${fixture.generationDigest}`,
+  content = { transition: position + 1 },
 ) {
   const created = runtime.createLedgerRecord({
     run: fixture.run,
@@ -24,14 +25,14 @@ function record(
     transaction,
     position,
     previousDigest,
-    content: { transition: position + 1 },
+    content,
   });
   assert.equal(created.ok, true);
   return created.value;
 }
 
-function append(ledger, position, previousDigest, fault, generation = binding.generation) {
-  const proposal = record(position, previousDigest, generation);
+function append(ledger, position, previousDigest, fault, generation = binding.generation, content) {
+  const proposal = record(position, previousDigest, generation, undefined, content);
   return [
     proposal,
     ledger.append({ binding: { ...binding, generation }, expectedPosition: position - 1, record: proposal }, fault),
@@ -81,15 +82,17 @@ test('semantic ledger: readback has the fixed five outcomes and never retries un
   assert.equal(mismatch.ok, true);
   assert.equal(mismatch.value.kind, 'integrity-failure');
   const competingGeneration = `${fixture.run}/gen/2|replacement`;
-  const [second] = append(ledger, 1, first.contentDigest, undefined, competingGeneration);
+  const [second] = append(ledger, 1, first.contentDigest, undefined, competingGeneration, {
+    recovery: 'generation-claim',
+    token: digest('a'),
+  });
   const competing = ledger.readback({
     binding,
     position: 1,
     transaction: `${fixture.run}/txn/2/${binding.generation}|${fixture.generationDigest}`,
     contentDigest: second.contentDigest,
   });
-  assert.equal(competing.ok, true);
-  assert.equal(competing.value.kind, 'competing');
+  assert.deepEqual(competing, { ok: false, error: { family: 'FC-FENCE', code: 'STALE_GENERATION' } });
   const indeterminate = ledger.readback(
     { binding, position: 0, transaction: first.transaction, contentDigest: first.contentDigest },
     'indeterminate-read',
@@ -465,4 +468,55 @@ test('review regressions: recovery observations are private and semantic boundar
     }).ok,
     false,
   );
+});
+
+test('generation claims fence every stale PORT-LEDGER basis after the witnessed claim', () => {
+  const ledger = runtime.createScriptedLedger();
+  const [first] = append(ledger, 0, '0'.repeat(64));
+  const currentGeneration = `${fixture.run}/gen/2|recovery`;
+  const [claim] = append(ledger, 1, first.contentDigest, undefined, currentGeneration, {
+    recovery: 'generation-claim',
+    token: digest('a'),
+  });
+  const stale = record(2, claim.contentDigest, binding.generation);
+  assert.deepEqual(ledger.append({ binding, expectedPosition: 1, record: stale }), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'STALE_GENERATION' },
+  });
+  assert.deepEqual(
+    ledger.readback({
+      binding,
+      position: 1,
+      transaction: claim.transaction,
+      contentDigest: claim.contentDigest,
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'STALE_GENERATION' } },
+  );
+});
+
+test('witness-floor recovery promotes a durably flushed generation claim before stale reuse', () => {
+  const ledger = runtime.createScriptedLedger();
+  const [first] = append(ledger, 0, '0'.repeat(64));
+  const recoveredGeneration = `${fixture.run}/gen/2|recovery`;
+  const claim = record(1, first.contentDigest, recoveredGeneration, undefined, {
+    recovery: 'generation-claim',
+    token: digest('a'),
+  });
+  assert.deepEqual(
+    ledger.append(
+      {
+        binding: { ...binding, generation: recoveredGeneration },
+        expectedPosition: 0,
+        record: claim,
+      },
+      'after-flush',
+    ),
+    { ok: false, error: { family: 'FC-TRUST', code: 'ACK_LOST' } },
+  );
+  assert.equal(ledger.advanceWitnessFloor({ ...binding, generation: recoveredGeneration }).ok, true);
+  const stale = record(2, claim.contentDigest);
+  assert.deepEqual(ledger.append({ binding, expectedPosition: 1, record: stale }), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'STALE_GENERATION' },
+  });
 });
