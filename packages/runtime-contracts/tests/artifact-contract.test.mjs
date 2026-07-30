@@ -35,6 +35,10 @@ test('GF-013 R01: exact governing holder matrix and fixed CB-STORE binding fail 
   for (const holder of fixture.disposable_holders)
     assert.deepEqual(store.contextFor(holder), { ok: true, value: 'disposable' });
   assert.equal(store.putDisposable(put).ok, true);
+  assert.equal(
+    store.putDisposable({ ...put, operation: 'op-digest', bytes: new TextEncoder().encode('different bytes') }).ok,
+    false,
+  );
   for (const request of [
     { ...put, resourceScope: 'other' },
     { ...put, subject: 'artifact/two' },
