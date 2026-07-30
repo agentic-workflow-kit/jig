@@ -2,6 +2,7 @@
   "fixtureVersion": "ledger-contract-fixtures.v1",
   "run": "run-000000000001-aaaaaaaaaaaaaaaa",
   "generation": "run-000000000001-aaaaaaaaaaaaaaaa/gen/1|generation",
+  "generationDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "digests": {
     "compositionA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "compositionB": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

@@ -2,6 +2,7 @@ import {
   type CanonicalJson,
   decodeFrame,
   encodeFrame,
+  parseIdentity,
   stageDigest,
   validateStagedDigest,
 } from '@agentic-workflow-kit/jig-codec';
@@ -9,7 +10,7 @@ import {
 export const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
 
-export type LedgerFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST';
+export type LedgerFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST' | 'FC-BOUND';
 export type LedgerFailure = Readonly<{ family: LedgerFailureFamily; code: string }>;
 export type LedgerResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: LedgerFailure }>;
 export type RunStoreBinding = Readonly<{ kind: 'run'; run: string; generation: string }>;
@@ -18,24 +19,31 @@ export type LedgerRecord = Readonly<{
   run: string;
   generation: string;
   transaction: string;
+  event: string;
   position: number;
   previousDigest: string;
   content: CanonicalJson;
   contentDigest: string;
 }>;
-export type AppendRequest = Readonly<{ binding: RunStoreBinding; expectedPosition: number; record: LedgerRecord }>;
+export type LedgerWait = Readonly<{ elapsedMs: number; limitMs?: number }>;
+export type AppendRequest = Readonly<{
+  binding: RunStoreBinding;
+  expectedPosition: number;
+  record: LedgerRecord;
+  wait?: LedgerWait;
+}>;
 export type ReadbackRequest = Readonly<{
   binding: RunStoreBinding;
   position: number;
   transaction: string;
   contentDigest: string;
+  wait?: LedgerWait;
 }>;
 export type Readback =
   | Readonly<{ kind: 'committed'; record: LedgerRecord }>
   | Readonly<{ kind: 'absent'; position: number }>
   | Readonly<{ kind: 'competing'; record: LedgerRecord }>
-  | Readonly<{ kind: 'integrity-failure'; record: LedgerRecord }>
-  | Readonly<{ kind: 'witness-behind'; position: number; digest: string }>;
+  | Readonly<{ kind: 'integrity-failure'; record: LedgerRecord }>;
 export type IntakeRequest = Readonly<{
   compositionDigest: string;
   acknowledgementDigest: string;
@@ -48,12 +56,14 @@ export type IntakeResult = Readonly<{
   acknowledgementDigest: string;
   successorCut?: string;
 }>;
+export type IntakeReadback = Readonly<{ result: IntakeResult; witnessedHeadDigest: string }>;
 export type PreflightRequest = Readonly<{
   key: string;
   variant: 'start' | 'result';
   bytes: CanonicalJson;
   predecessor?: string;
   deadline: number;
+  observedAt?: number;
 }>;
 export type PreflightResult = Readonly<{ key: string; digest: string; bytes: CanonicalJson; deadline: number }>;
 export type ScriptedLedgerFault =
@@ -78,6 +88,7 @@ export type ScriptedLedger = Readonly<{
   ): LedgerResult<Readback>;
   advanceWitnessFloor(binding: RunStoreBinding): LedgerResult<void>;
   intake(request: IntakeRequest): LedgerResult<IntakeResult>;
+  readIntake(compositionDigest: string): LedgerResult<IntakeReadback>;
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
   snapshot(binding: RunStoreBinding): LedgerResult<Readonly<{ position: number; digest: string }>>;
   verifySnapshot(
@@ -100,6 +111,9 @@ const position = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const expectedPosition = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= -1;
+const WAIT_DEFAULT_MS = 30_000;
+const WAIT_MIN_MS = 1_000;
+const WAIT_MAX_MS = 300_000;
 const freeze = <T>(value: T): T => Object.freeze(value);
 const freezeDeep = <T>(value: T): T => {
   if (value !== null && typeof value === 'object') {
@@ -125,21 +139,40 @@ function recordDigest(record: Omit<LedgerRecord, 'contentDigest'>): LedgerResult
   return staged.ok ? { ok: true, value: staged.value.digest } : fail('FC-INPUT', 'INVALID_RECORD');
 }
 
+function waitWithinBound(wait: LedgerWait | undefined): LedgerResult<void> {
+  if (wait === undefined) return { ok: true, value: undefined };
+  const limit = wait.limitMs ?? WAIT_DEFAULT_MS;
+  if (!position(wait.elapsedMs) || !Number.isSafeInteger(limit) || limit < WAIT_MIN_MS || limit > WAIT_MAX_MS)
+    return fail('FC-INPUT', 'INVALID_BND_WAIT_LEDGER');
+  return wait.elapsedMs > limit ? fail('FC-BOUND', 'BND_WAIT_LEDGER_EXHAUSTED') : { ok: true, value: undefined };
+}
+
 function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return fail('FC-INPUT', 'INVALID_RECORD');
   const record = value as Record<string, unknown>;
   if (
     Object.keys(record).sort().join(',') !==
-      'content,contentDigest,generation,position,previousDigest,run,transaction,version' ||
+      'content,contentDigest,event,generation,position,previousDigest,run,transaction,version' ||
     record.version !== LEDGER_VERSION ||
     !nonEmpty(record.run) ||
     !nonEmpty(record.generation) ||
     !nonEmpty(record.transaction) ||
+    !nonEmpty(record.event) ||
     !position(record.position) ||
     !digest(record.previousDigest) ||
     !digest(record.contentDigest)
   )
     return fail('FC-INPUT', 'INVALID_RECORD');
+  if (
+    !parseIdentity('ID-RUN', record.run).ok ||
+    !parseIdentity('ID-GEN', record.generation).ok ||
+    !parseIdentity('ID-TXN', record.transaction).ok ||
+    !parseIdentity('ID-EVENT', record.event).ok ||
+    !record.generation.startsWith(`${record.run}/gen/`) ||
+    !record.transaction.startsWith(`${record.run}/txn/${record.position + 1}/${record.generation}|`) ||
+    record.event !== `${record.run}/event/${record.position + 1}`
+  )
+    return fail('FC-SUBJECT', 'INVALID_IDENTITY_BINDING');
   const content = snapshotContent(record.content);
   if (content === undefined) return fail('FC-INPUT', 'INVALID_RECORD_CONTENT');
   const staged = validateStagedDigest({
@@ -151,6 +184,7 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
       run: record.run,
       generation: record.generation,
       transaction: record.transaction,
+      event: record.event,
       position: record.position,
       previousDigest: record.previousDigest,
       content,
@@ -165,6 +199,7 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
       run: record.run,
       generation: record.generation,
       transaction: record.transaction,
+      event: record.event,
       position: record.position,
       previousDigest: record.previousDigest,
       content,
@@ -177,7 +212,9 @@ export function createLedgerRecord(input: Omit<LedgerRecord, 'version' | 'conten
   const content = snapshotContent(input.content);
   if (content === undefined) return fail('FC-INPUT', 'INVALID_RECORD_CONTENT');
   const staged = recordDigest({ ...input, content, version: LEDGER_VERSION });
-  return staged.ok ? validateRecord({ ...input, version: LEDGER_VERSION, contentDigest: staged.value }) : staged;
+  return staged.ok
+    ? validateRecord({ ...input, content, version: LEDGER_VERSION, contentDigest: staged.value })
+    : staged;
 }
 
 function validBinding(value: unknown): value is RunStoreBinding {
@@ -230,7 +267,7 @@ export function createScriptedLedger(): ScriptedLedger {
     records.set(binding.run, created);
     return { ok: true, value: created };
   };
-  const compareWitness = (run: string, recordsForRun: readonly LedgerRecord[]): LedgerResult<Readback | undefined> => {
+  const compareWitness = (run: string, recordsForRun: readonly LedgerRecord[]): LedgerResult<'current' | 'behind'> => {
     const verified = verifyChain(recordsForRun);
     if (!verified.ok) return verified;
     const witness = witnesses.get(run);
@@ -238,16 +275,14 @@ export function createScriptedLedger(): ScriptedLedger {
     if (witness.position > verified.value.position) return fail('FC-TRUST', 'WITNESS_AHEAD');
     if (witness.position === verified.value.position && witness.digest !== verified.value.digest)
       return fail('FC-TRUST', 'WITNESS_MISMATCH');
-    if (witness.position < verified.value.position)
-      return {
-        ok: true,
-        value: freeze({ kind: 'witness-behind', position: verified.value.position, digest: verified.value.digest }),
-      };
-    return { ok: true, value: undefined };
+    if (witness.position < verified.value.position) return { ok: true, value: 'behind' };
+    return { ok: true, value: 'current' };
   };
 
   return freeze({
     append(request, fault) {
+      const wait = waitWithinBound(request.wait);
+      if (!wait.ok) return wait;
       const state = forRun(request.binding);
       const record = validateRecord(request.record);
       if (!state.ok) return state;
@@ -273,13 +308,15 @@ export function createScriptedLedger(): ScriptedLedger {
     },
     readback(request, fault) {
       if (fault === 'indeterminate-read') return fail('FC-TRUST', 'INDETERMINATE_READ');
+      const wait = waitWithinBound(request.wait);
+      if (!wait.ok) return wait;
       const state = forRun(request.binding);
       if (!state.ok) return state;
       if (!position(request.position) || !nonEmpty(request.transaction) || !digest(request.contentDigest))
         return fail('FC-INPUT', 'INVALID_READBACK');
       const currency = compareWitness(request.binding.run, state.value);
       if (!currency.ok) return currency;
-      if (currency.value) return { ok: true, value: currency.value };
+      if (currency.value === 'behind') return fail('FC-TRUST', 'WITNESS_BEHIND');
       const record = state.value[request.position];
       if (!record) return { ok: true, value: freeze({ kind: 'absent', position: request.position }) };
       if (record.transaction === request.transaction && record.generation === request.binding.generation) {
@@ -295,12 +332,14 @@ export function createScriptedLedger(): ScriptedLedger {
       const verified = verifyChain(state.value);
       if (!verified.ok) return verified;
       const witness = witnesses.get(binding.run);
+      if (!witness) return fail('FC-TRUST', 'WITNESS_ABSENT');
       if (
         witness &&
         (witness.position > verified.value.position ||
           (witness.position === verified.value.position && witness.digest !== verified.value.digest))
       )
         return fail('FC-TRUST', 'WITNESS_MISMATCH');
+      if (witness.position === verified.value.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
       witnesses.set(binding.run, freeze(verified.value));
       return { ok: true, value: undefined };
     },
@@ -338,18 +377,43 @@ export function createScriptedLedger(): ScriptedLedger {
       intake.set(request.compositionDigest, result);
       if (request.successorCut && result.kind === 'acknowledged') cuts.set(request.successorCut, result);
       // The intake witness is deliberately separate from the pair's durable state and advances only after it.
-      intakeWitness = freeze({ position: result.position, digest: result.acknowledgementDigest });
+      const stagedHead = stageDigest({
+        domain: 'INTAKE-PAIR',
+        excludePaths: [],
+        value: { acknowledgement: result, cut: result.successorCut ?? null, position: result.position },
+      });
+      if (!stagedHead.ok) return fail('FC-TRUST', 'INTAKE_HEAD_INVALID');
+      intakeWitness = freeze({ position: result.position, digest: stagedHead.value.digest });
       if (!intakeWitness) return fail('FC-TRUST', 'WITNESS_ABSENT');
       return { ok: true, value: result };
+    },
+    readIntake(compositionDigest) {
+      if (!digest(compositionDigest)) return fail('FC-INPUT', 'INVALID_INTAKE_KEY');
+      const result = intake.get(compositionDigest);
+      if (!result || !intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
+      if (result.successorCut && cuts.get(result.successorCut) !== result)
+        return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      const stagedHead = stageDigest({
+        domain: 'INTAKE-PAIR',
+        excludePaths: [],
+        value: { acknowledgement: result, cut: result.successorCut ?? null, position: result.position },
+      });
+      if (
+        !stagedHead.ok ||
+        intakeWitness.position !== result.position ||
+        intakeWitness.digest !== stagedHead.value.digest
+      )
+        return fail('FC-TRUST', 'INTAKE_WITNESS_MISMATCH');
+      return { ok: true, value: freeze({ result, witnessedHeadDigest: intakeWitness.digest }) };
     },
     preflight(request) {
       if (
         !nonEmpty(request.key) ||
         (request.variant !== 'start' && request.variant !== 'result') ||
         !position(request.deadline) ||
-        (request.variant === 'start'
-          ? request.predecessor !== undefined
-          : request.predecessor !== `${request.key}/start`)
+        (request.observedAt !== undefined &&
+          (!position(request.observedAt) || request.observedAt > request.deadline)) ||
+        (request.variant === 'start' ? request.predecessor !== undefined : !digest(request.predecessor))
       )
         return fail('FC-INPUT', 'INVALID_PREFLIGHT');
       const bytes = snapshotContent(request.bytes);
@@ -363,6 +427,9 @@ export function createScriptedLedger(): ScriptedLedger {
         deadline: request.deadline,
       });
       const existing = preflight.get(result.key);
+      const start = preflight.get(`${request.key}/start`);
+      if (request.variant === 'result' && (!start || start.digest !== request.predecessor))
+        return fail('FC-INPUT', 'INVALID_PREFLIGHT_PREDECESSOR');
       if (existing)
         return existing.digest === result.digest && existing.deadline === result.deadline
           ? { ok: true, value: existing }

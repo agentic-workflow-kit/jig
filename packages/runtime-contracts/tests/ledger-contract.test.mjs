@@ -14,12 +14,13 @@ function record(
   position,
   previousDigest,
   generation = binding.generation,
-  transaction = `${fixture.run}/txn/${position + 1}`,
+  transaction = `${fixture.run}/txn/${position + 1}/${generation}|${fixture.generationDigest}`,
 ) {
   const created = runtime.createLedgerRecord({
     run: fixture.run,
     generation,
     transaction,
+    event: `${fixture.run}/event/${position + 1}`,
     position,
     previousDigest,
     content: { transition: position + 1 },
@@ -97,8 +98,7 @@ test('semantic ledger: flush precedes a separately controlled witness floor and 
     transaction: second.transaction,
     contentDigest: second.contentDigest,
   });
-  assert.equal(behind.ok, true);
-  assert.equal(behind.value.kind, 'witness-behind');
+  assert.deepEqual(behind, { ok: false, error: { family: 'FC-TRUST', code: 'WITNESS_BEHIND' } });
   assert.equal(ledger.advanceWitnessFloor(binding).ok, true);
   assert.equal(
     ledger.readback({ binding, position: 1, transaction: second.transaction, contentDigest: second.contentDigest })
@@ -166,7 +166,7 @@ test('semantic ledger: preflight is a deterministic non-Run primitive and snapsh
       key: 'provider/a/1',
       variant: 'result',
       bytes: { result: 'pass' },
-      predecessor: 'provider/a/1/start',
+      predecessor: initial.value.digest,
       deadline: 30,
     }).ok,
     true,
@@ -190,7 +190,8 @@ test('semantic ledger: records and preflight bytes are canonical immutable snaps
   const created = runtime.createLedgerRecord({
     run: fixture.run,
     generation: fixture.generation,
-    transaction: `${fixture.run}/txn/1`,
+    transaction: `${fixture.run}/txn/1/${fixture.generation}|${fixture.generationDigest}`,
+    event: `${fixture.run}/event/1`,
     position: 0,
     previousDigest: '0'.repeat(64),
     content,
@@ -200,6 +201,24 @@ test('semantic ledger: records and preflight bytes are canonical immutable snaps
   assert.equal(created.value.content.nested.value, 'original');
   assert.equal(Object.isFrozen(created.value.content), true);
   assert.equal(Object.isFrozen(created.value.content.nested), true);
+});
+
+test('semantic ledger: BND-WAIT-LEDGER has a 30-second default and fails closed on exhaustion', () => {
+  const ledger = runtime.createScriptedLedger();
+  const proposal = record(0, '0'.repeat(64));
+  assert.equal(
+    ledger.append({ binding, expectedPosition: -1, record: proposal, wait: { elapsedMs: 30_001 } }).error.family,
+    'FC-BOUND',
+  );
+  assert.equal(
+    ledger.append({ binding, expectedPosition: -1, record: proposal, wait: { elapsedMs: 1, limitMs: 999 } }).error
+      .family,
+    'FC-INPUT',
+  );
+  assert.equal(
+    ledger.append({ binding, expectedPosition: -1, record: proposal, wait: { elapsedMs: 1_000, limitMs: 1_000 } }).ok,
+    true,
+  );
 });
 
 test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncanonical proposals', () => {
@@ -212,4 +231,40 @@ test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncan
   assert.equal(ledger.append({ binding, expectedPosition: 0, record: proposal }).error.family, 'FC-SUBJECT');
   assert.equal(runtime.createLedgerRecord({ ...proposal, position: -1 }).error.family, 'FC-INPUT');
   assert.equal(runtime.createLedgerRecord({ ...proposal, content: { text: 'e\u0301' } }).error.family, 'FC-INPUT');
+});
+
+test('review regressions: recovery observations are private and semantic boundaries fail closed', () => {
+  const ledger = runtime.createScriptedLedger();
+  const [first] = append(ledger, 0, '0'.repeat(64));
+  const [second] = append(ledger, 1, first.contentDigest, 'after-flush');
+  const behind = ledger.readback({
+    binding,
+    position: 1,
+    transaction: second.transaction,
+    contentDigest: second.contentDigest,
+  });
+  assert.equal(behind.ok, false);
+  assert.equal(ledger.advanceWitnessFloor({ ...binding, run: 'run-without-witness' }).ok, false);
+  assert.equal(
+    ledger.preflight({
+      key: 'provider/result-before-start',
+      variant: 'result',
+      bytes: { result: 'pass' },
+      predecessor: digest('a'),
+      deadline: 30,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    runtime.createLedgerRecord({
+      run: 'not-a-run',
+      generation: 'not-a-generation',
+      transaction: 'not-a-transaction',
+      event: 'not-an-event',
+      position: 0,
+      previousDigest: '0'.repeat(64),
+      content: {},
+    }).ok,
+    false,
+  );
 });
