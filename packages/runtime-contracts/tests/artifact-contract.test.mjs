@@ -63,7 +63,15 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
   const result = store.putDisposable(put);
   assert.equal(result.ok, true);
   assert.deepEqual(
-    store.adopt({ ...base, holder: put.holder, operation: put.operation, mode: put.mode, pins, fact: result.value }),
+    store.adopt({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: put.mode,
+      putOperation: put.operation,
+      pins,
+      fact: result.value,
+    }),
     {
       ok: false,
       error: { family: 'FC-TRUST', code: 'WITNESS_NOT_CURRENT' },
@@ -71,7 +79,15 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
   );
   assert.equal(fixtureStore.witness.advance(result.value).ok, true);
   assert.equal(
-    store.adopt({ ...base, holder: put.holder, operation: put.operation, mode: put.mode, pins, fact: result.value }).ok,
+    store.adopt({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: put.mode,
+      putOperation: put.operation,
+      pins,
+      fact: result.value,
+    }).ok,
     true,
   );
   const release = store.release({
@@ -80,6 +96,8 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
     operation: 'op-2',
     mode: 'release-pin',
     pin: pins.temporary.tuple,
+    putOperation: put.operation,
+    pins,
   });
   assert.equal(release.ok, true);
   assert.equal(store.acknowledge(release.value).ok, false);
@@ -94,18 +112,40 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
   assert.equal(written.ok, true);
   assert.equal(fixtureStore.witness.advance(written.value).ok, true);
   assert.equal(
-    store.adopt({ ...base, holder: put.holder, operation: put.operation, mode: put.mode, pins, fact: written.value })
-      .ok,
+    store.adopt({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: put.mode,
+      putOperation: put.operation,
+      pins,
+      fact: written.value,
+    }).ok,
     true,
   );
   const lost = store.release(
-    { ...base, holder: put.holder, operation: 'op-2', mode: 'release-pin', pin: pins.temporary.tuple },
+    {
+      ...base,
+      holder: put.holder,
+      operation: 'op-2',
+      mode: 'release-pin',
+      pin: pins.temporary.tuple,
+      putOperation: put.operation,
+      pins,
+    },
     'lost-ack',
   );
   assert.equal(lost.ok, false);
   assert.equal(
-    store.release({ ...base, holder: put.holder, operation: 'op-2', mode: 'release-pin', pin: pins.temporary.tuple })
-      .ok,
+    store.release({
+      ...base,
+      holder: put.holder,
+      operation: 'op-2',
+      mode: 'release-pin',
+      pin: pins.temporary.tuple,
+      putOperation: put.operation,
+      pins,
+    }).ok,
     false,
   );
   const reconciled = store.reconcile({
@@ -114,11 +154,20 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
     operation: 'op-2',
     mode: 'release-pin',
     pin: pins.temporary.tuple,
+    putOperation: put.operation,
+    pins,
   });
   assert.equal(reconciled.ok, true);
   assert.equal(
-    store.reconcile({ ...base, holder: put.holder, operation: 'op-2', mode: 'release-pin', pin: pins.intended.tuple })
-      .ok,
+    store.reconcile({
+      ...base,
+      holder: put.holder,
+      operation: 'op-2',
+      mode: 'release-pin',
+      pin: pins.intended.tuple,
+      putOperation: put.operation,
+      pins,
+    }).ok,
     false,
   );
   assert.equal(
@@ -131,7 +180,7 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
   );
   assert.equal(
     store.reconcile({ ...base, holder: put.holder, operation: 'op-3', mode: 'dispose-bytes', facts }).ok,
-    true,
+    false,
   );
 });
 
@@ -141,30 +190,73 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
   const written = store.putDisposable(put);
   assert.equal(written.ok, true);
   assert.equal(fixtureStore.witness.advance(written.value).ok, true);
-  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get' }).ok, true);
-  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get' }).ok, true);
+  const registration = { putOperation: put.operation, pins };
+  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get', ...registration }).ok, true);
+  assert.equal(store.get({ ...base, holder: put.holder, operation: 'read-1', mode: 'get', ...registration }).ok, true);
+  assert.equal(
+    store.release({
+      ...base,
+      holder: put.holder,
+      operation: 'blocked',
+      mode: 'release-pin',
+      pin: pins.temporary.tuple,
+      ...registration,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    store.adopt({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: 'put',
+      fact: written.value,
+      ...registration,
+    }).ok,
+    true,
+  );
   const first = store.release({
     ...base,
     holder: put.holder,
     operation: 'release-1',
     mode: 'release-pin',
     pin: pins.temporary.tuple,
+    ...registration,
   });
   assert.equal(first.ok, true);
   assert.equal(fixtureStore.witness.advance(first.value).ok, true);
+  assert.equal(
+    store.retire({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: 'put',
+      fact: first.value,
+      ...registration,
+    }).ok,
+    true,
+  );
   const second = store.release({
     ...base,
     holder: put.holder,
     operation: 'release-2',
     mode: 'release-pin',
     pin: pins.intended.tuple,
+    ...registration,
   });
   assert.equal(second.ok, true);
   assert.equal(fixtureStore.witness.advance(second.value).ok, true);
-  const disposed = store.dispose({ ...base, holder: put.holder, operation: 'dispose-1', mode: 'dispose-bytes', facts });
+  const disposed = store.dispose({
+    ...base,
+    holder: put.holder,
+    operation: 'dispose-1',
+    mode: 'dispose-bytes',
+    facts,
+    ...registration,
+  });
   assert.equal(disposed.ok, true);
   assert.equal(fixtureStore.witness.advance(disposed.value).ok, true);
-  assert.deepEqual(store.get({ ...base, holder: put.holder, operation: 'read-2', mode: 'get' }), {
+  assert.deepEqual(store.get({ ...base, holder: put.holder, operation: 'read-2', mode: 'get', ...registration }), {
     ok: false,
     error: { family: 'FC-EVIDENCE', code: 'ARTIFACT_ABSENT' },
   });
@@ -183,14 +275,17 @@ test('GF-013 R05: hostile containers, unsafe bytes, and recovery mismatch fail c
     },
   );
   assert.equal(store.reconcile(hostile).ok, false);
-  assert.deepEqual(
-    store.reconcile({
-      ...put,
-      recovery: {
-        lookup: { position: 0, headDigest: fixture.digest },
-        witness: { position: 0, headDigest: fixture.digest },
-      },
-    }),
-    { ok: false, error: { family: 'FC-TRUST', code: 'RECOVERY_HEAD_MISMATCH' } },
+  const fixtureStore = artifact.createScriptedArtifactFixture();
+  const written = fixtureStore.store.putDisposable(put);
+  assert.equal(written.ok, true);
+  assert.equal(fixtureStore.witness.advance(written.value).ok, true);
+  const snapshot = fixtureStore.store.snapshot();
+  assert.equal(
+    artifact.restoreScriptedArtifactFixture(
+      snapshot,
+      { position: 0, headDigest: fixture.digest },
+      { position: 0, headDigest: fixture.digest },
+    ).ok,
+    false,
   );
 });
