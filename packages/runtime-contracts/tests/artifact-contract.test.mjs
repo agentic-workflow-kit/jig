@@ -27,7 +27,7 @@ const facts = Object.freeze({
   retention: 'expired',
   obligations: 'none',
 });
-const proof = (role) => {
+const proof = (role, fact) => {
   const registration = JSON.stringify({
     resourceScope: base.resourceScope,
     subject: base.subject,
@@ -47,6 +47,7 @@ const proof = (role) => {
     tuple: pin.tuple,
     subject: base.subject,
     fence: base.fence,
+    fact,
   });
   return {
     transition,
@@ -56,6 +57,7 @@ const proof = (role) => {
     tuple: pin.tuple,
     subject: base.subject,
     fence: base.fence,
+    fact,
     digest: createHash('sha256').update(canonical).digest('hex'),
   };
 };
@@ -104,7 +106,7 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
       putOperation: put.operation,
       pins,
       fact: result.value,
-      proof: proof('temporary'),
+      proof: proof('temporary', result.value),
     }),
     {
       ok: false,
@@ -121,7 +123,7 @@ test('GF-013 R02: only external fixture witness gates adoption and release ackno
       putOperation: put.operation,
       pins,
       fact: result.value,
-      proof: proof('temporary'),
+      proof: proof('temporary', result.value),
     }).ok,
     true,
   );
@@ -155,7 +157,7 @@ test('GF-013 R03: reconciliation is full-binding and uncertain disposal preserve
       putOperation: put.operation,
       pins,
       fact: written.value,
-      proof: proof('temporary'),
+      proof: proof('temporary', written.value),
     }).ok,
     true,
   );
@@ -237,7 +239,6 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'release-pin',
       pin: pins.temporary.tuple,
       ...registration,
-      proof: proof('temporary'),
     }).ok,
     false,
   );
@@ -249,7 +250,7 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'put',
       fact: written.value,
       ...registration,
-      proof: proof('temporary'),
+      proof: proof('temporary', written.value),
     }).ok,
     true,
   );
@@ -271,7 +272,7 @@ test('GF-013 R03/R04: read-only get, exact two-pin release, and guarded deletion
       mode: 'put',
       fact: first.value,
       ...registration,
-      proof: proof('intended'),
+      proof: proof('intended', first.value),
     }).ok,
     true,
   );
@@ -366,4 +367,23 @@ test('GF-013 R05: journal replay restores only the exact witnessed chain', () =>
     { position: lookup.position, headDigest: fixture.digest },
   ])
     assert.equal(artifact.restoreScriptedArtifactFixture(snapshot, invalid, lookup).ok, false);
+});
+
+test('GF-013 R05: protected continuity replays or stops on tamper', () => {
+  const fixtureStore = artifact.createScriptedArtifactFixture();
+  const protectedPut = {
+    ...base,
+    holder: 'SCH-CONFIG-ARTIFACT',
+    operation: 'protected-1',
+    mode: 'put',
+    bytes,
+  };
+  assert.equal(fixtureStore.store.putProtected(protectedPut).ok, true);
+  const snapshot = fixtureStore.store.snapshot();
+  const lookup = snapshot.lookup;
+  const restored = artifact.restoreScriptedArtifactFixture(snapshot, lookup, lookup);
+  assert.equal(restored.ok, true);
+  const tampered = structuredClone(snapshot);
+  tampered.journal[0].request.bytes[0] ^= 1;
+  assert.equal(artifact.restoreScriptedArtifactFixture(tampered, lookup, lookup).ok, false);
 });

@@ -31,7 +31,7 @@ type Binding = Readonly<{
 type StoredOperation = Readonly<{ fact: ArtifactFact; binding: string; pending: boolean }>;
 type Registration = Readonly<{ key: string; binding: Binding; pins: Pins }>;
 type JournalEntry = Readonly<{
-  kind: 'put' | 'adopt' | 'reject' | 'retire' | 'release' | 'dispose';
+  kind: 'protected' | 'put' | 'adopt' | 'reject' | 'retire' | 'release' | 'dispose';
   request: Readonly<Record<string, unknown>>;
   fact?: ArtifactFact;
 }>;
@@ -311,6 +311,7 @@ function createFixture(): ScriptedArtifactFixture {
     input: unknown,
     registration: Registration,
     role: 'temporary' | 'intended',
+    fact: ArtifactFact,
   ): ArtifactResult<void> => {
     const proof = fields(input, [
       'transition',
@@ -321,8 +322,23 @@ function createFixture(): ScriptedArtifactFixture {
       'tuple',
       'subject',
       'fence',
+      'fact',
     ]);
     const pin = registration.pins[role];
+    let releaseRegistration = false;
+    try {
+      const outer = JSON.parse(fact.binding) as { detail?: unknown };
+      const detail =
+        typeof outer.detail === 'string' ? (JSON.parse(outer.detail) as { registration?: unknown }) : undefined;
+      releaseRegistration = detail?.registration === registration.key;
+    } catch {
+      releaseRegistration = false;
+    }
+    const registrationFact =
+      (fact.operation === registration.binding.operation &&
+        fact.mode === 'put' &&
+        fact.binding === key(freeze({ ...registration.binding, detail: JSON.stringify(registration.pins) }))) ||
+      (fact.mode === 'release-pin' && releaseRegistration);
     const canonical = JSON.stringify({
       transition: proof?.transition,
       registration: registration.key,
@@ -331,6 +347,13 @@ function createFixture(): ScriptedArtifactFixture {
       tuple: pin.tuple,
       subject: registration.binding.subject,
       fence: registration.binding.fence,
+      fact: {
+        operation: fact.operation,
+        mode: fact.mode,
+        position: fact.position,
+        headDigest: fact.headDigest,
+        binding: fact.binding,
+      },
     });
     return proof &&
       text(proof.transition) &&
@@ -340,6 +363,8 @@ function createFixture(): ScriptedArtifactFixture {
       proof.tuple === pin.tuple &&
       proof.subject === registration.binding.subject &&
       proof.fence === registration.binding.fence &&
+      registrationFact &&
+      sameArtifactFact(proof.fact as ArtifactFact, fact) &&
       proof.digest === hash(canonical)
       ? { ok: true, value: undefined }
       : fail('FC-AUTHORITY', 'EXACT_RETIREMENT_TRANSITION_REQUIRED');
@@ -370,6 +395,7 @@ function createFixture(): ScriptedArtifactFixture {
       )
         return fail('FC-INPUT', 'INVALID_PROTECTED_CB_STORE');
       objects.set(`${bound.value.holder}/${bound.value.digest}`, new Uint8Array(value.bytes));
+      journal.push(freeze({ kind: 'protected', request: freeze({ ...value, bytes: [...value.bytes] }) }));
       return { ok: true, value: freeze({ digest: bound.value.digest }) };
     },
     putDisposable(request, fault) {
@@ -460,7 +486,7 @@ function createFixture(): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
-      const proof = transitionProof(value.proof, registration.value, 'temporary');
+      const proof = transitionProof(value.proof, registration.value, 'temporary', fact);
       if (!proof.ok) return proof;
       retiredPins.add(registrationPinKey(registration.value, 'temporary'));
       journal.push(freeze({ kind: 'adopt', request: freeze({ ...value }) }));
@@ -489,8 +515,8 @@ function createFixture(): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
-      const temporary = transitionProof(value.temporaryProof, registration.value, 'temporary');
-      const intended = transitionProof(value.intendedProof, registration.value, 'intended');
+      const temporary = transitionProof(value.temporaryProof, registration.value, 'temporary', fact);
+      const intended = transitionProof(value.intendedProof, registration.value, 'intended', fact);
       if (!temporary.ok) return temporary;
       if (!intended.ok) return intended;
       retiredPins.add(registrationPinKey(registration.value, 'temporary'));
@@ -520,7 +546,7 @@ function createFixture(): ScriptedArtifactFixture {
       if (!trust.ok) return trust;
       const registration = registered(value, bound.value);
       if (!registration.ok) return registration;
-      const proof = transitionProof(value.proof, registration.value, 'intended');
+      const proof = transitionProof(value.proof, registration.value, 'intended', fact);
       if (!proof.ok) return proof;
       retiredPins.add(registrationPinKey(registration.value, 'intended'));
       journal.push(freeze({ kind: 'retire', request: freeze({ ...value }) }));
@@ -750,22 +776,24 @@ function restore(snapshot: unknown, lookup: unknown, witness: unknown): Artifact
       if (!text(operation) || replayed.has(`${item.kind}/${operation}`))
         return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
       replayed.add(`${item.kind}/${operation}`);
-      if (item.kind === 'put' && Array.isArray(request.bytes))
+      if ((item.kind === 'put' || item.kind === 'protected') && Array.isArray(request.bytes))
         request.bytes = new Uint8Array(request.bytes as number[]);
       const result =
-        item.kind === 'put'
-          ? fixture.store.putDisposable(request)
-          : item.kind === 'adopt'
-            ? fixture.store.adopt(request)
-            : item.kind === 'reject'
-              ? fixture.store.reject(request)
-              : item.kind === 'retire'
-                ? fixture.store.retire(request)
-                : item.kind === 'release'
-                  ? fixture.store.release(request)
-                  : item.kind === 'dispose'
-                    ? fixture.store.dispose(request)
-                    : fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
+        item.kind === 'protected'
+          ? fixture.store.putProtected(request)
+          : item.kind === 'put'
+            ? fixture.store.putDisposable(request)
+            : item.kind === 'adopt'
+              ? fixture.store.adopt(request)
+              : item.kind === 'reject'
+                ? fixture.store.reject(request)
+                : item.kind === 'retire'
+                  ? fixture.store.retire(request)
+                  : item.kind === 'release'
+                    ? fixture.store.release(request)
+                    : item.kind === 'dispose'
+                      ? fixture.store.dispose(request)
+                      : fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
       if (!result.ok) return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
       if (item.kind === 'put' || item.kind === 'release' || item.kind === 'dispose') {
         const expected = item.fact as ArtifactFact;
