@@ -42,6 +42,7 @@ export type RecoveryProjection = Readonly<{
   state: AuthorityState;
   decisions: readonly ProposedTransition[];
   stateDigest: string;
+  decisionDigest: string;
 }>;
 export type RecoveryObservation = Readonly<{
   generation: string;
@@ -290,6 +291,43 @@ function replayStep(value: LedgerRecord): Readonly<{ event: unknown; bindings: u
   return freeze({ event: content.event, bindings: content.bindings });
 }
 
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((entry, index) => entry === right[index]);
+}
+
+function canonicalProjection(
+  position: number,
+  digest: string,
+  state: AuthorityState,
+  decisions: readonly ProposedTransition[],
+): CanonicalJson | undefined {
+  try {
+    const value = JSON.parse(JSON.stringify({ position, digest, state, decisions })) as CanonicalJson;
+    return encodeFrame(value).ok ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function replayProjection(
+  initialState: AuthorityState,
+  records: readonly LedgerRecord[],
+  claimedPosition: number,
+  position: number,
+  digest: string,
+): RecoveryResult<CanonicalJson> {
+  const steps = records
+    .filter((entry) => entry.position <= position && entry.position !== claimedPosition)
+    .map(replayStep);
+  if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
+  const replayed = replayAuthority(initialState, steps);
+  if (!replayed.ok)
+    return failure(replayed.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
+  const state = replayed.value.at(-1)?.next ?? initialState;
+  const projected = canonicalProjection(position, digest, state, replayed.value);
+  return projected ? { ok: true, value: projected } : failure('FC-INPUT', 'INVALID_PROJECTION');
+}
+
 /**
  * Private recovery seam. It accepts only a copied ledger read, verifies every byte-equivalent
  * record against the GF-010 contract, and returns a disposable projection. It dispatches nothing.
@@ -375,28 +413,65 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
 
   const requestedSnapshot = candidate.snapshot === undefined ? undefined : snapshot(candidate.snapshot);
   if (candidate.snapshot !== undefined && !requestedSnapshot) return failure('FC-INPUT', 'INVALID_SNAPSHOT');
-  const snapshotStatus: RecoveryObservation['snapshot'] = requestedSnapshot
-    ? requestedSnapshot.position <= verifiedPosition &&
-      ordered[requestedSnapshot.position]?.contentDigest === requestedSnapshot.digest
-      ? 'used'
-      : 'discarded'
-    : 'absent';
-  const steps = ordered.filter((entry) => entry.contentDigest !== claimed.contentDigest).map(replayStep);
-  if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
   if (candidate.crashAt === 'before-replay') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
-  const replayed = replayAuthority(candidate.initialState, steps);
-  if (!replayed.ok)
-    return failure(replayed.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
+  const projectionCanonical = replayProjection(
+    candidate.initialState as AuthorityState,
+    ordered,
+    claimed.position,
+    verifiedPosition,
+    verifiedDigest,
+  );
+  if (!projectionCanonical.ok) return projectionCanonical;
   if (candidate.crashAt === 'after-replay') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
-  const state = replayed.value.at(-1)?.next;
-  if (!state) return failure('FC-INPUT', 'MISSING_TRANSITION');
-  const projected = { position: verifiedPosition, digest: verifiedDigest, state, decisions: replayed.value };
-  const projectionCanonical = JSON.parse(JSON.stringify(projected)) as CanonicalJson;
-  const projectionDigest = stageDigest({ domain: 'RECOVERY-PROJECTION', excludePaths: [], value: projectionCanonical });
+  let effectiveProjection = projectionCanonical.value;
+  const replayedProjection = effectiveProjection as unknown as Readonly<{
+    position: number;
+    digest: string;
+    state: AuthorityState;
+    decisions: readonly ProposedTransition[];
+  }>;
+  if (!replayedProjection.decisions.length) return failure('FC-INPUT', 'MISSING_TRANSITION');
+  let snapshotStatus: RecoveryObservation['snapshot'] = 'absent';
+  if (requestedSnapshot) {
+    const covered =
+      requestedSnapshot.position <= verifiedPosition &&
+      ordered[requestedSnapshot.position]?.contentDigest === requestedSnapshot.digest
+        ? replayProjection(
+            candidate.initialState as AuthorityState,
+            ordered,
+            claimed.position,
+            requestedSnapshot.position,
+            requestedSnapshot.digest,
+          )
+        : undefined;
+    const expected = covered?.ok ? encodeFrame(covered.value) : undefined;
+    const supplied = encodeFrame(requestedSnapshot.projection);
+    if (expected?.ok && supplied.ok && sameBytes(expected.value, supplied.value)) {
+      effectiveProjection = requestedSnapshot.projection;
+      snapshotStatus = 'used';
+    } else snapshotStatus = 'discarded';
+  }
+  const projected = effectiveProjection as unknown as Readonly<{
+    position: number;
+    digest: string;
+    state: AuthorityState;
+    decisions: readonly ProposedTransition[];
+  }>;
+  const projectionDigest = stageDigest({ domain: 'RECOVERY-PROJECTION', excludePaths: [], value: effectiveProjection });
   if (!projectionDigest.ok) return failure('FC-INPUT', 'INVALID_PROJECTION');
+  const decisionDigest = stageDigest({
+    domain: 'RECOVERY-DECISIONS',
+    excludePaths: [],
+    value: JSON.parse(JSON.stringify(projected.decisions)) as CanonicalJson,
+  });
+  if (!decisionDigest.ok) return failure('FC-INPUT', 'INVALID_PROJECTION');
   if (candidate.crashAt === 'before-projection' || candidate.crashAt === 'after-projection')
     return failure('FC-TRUST', 'RECOVERY_REQUIRED');
-  const projection = freeze({ ...projected, stateDigest: projectionDigest.value.digest });
+  const projection = freeze({
+    ...projected,
+    stateDigest: projectionDigest.value.digest,
+    decisionDigest: decisionDigest.value.digest,
+  });
   const observation = freeze({
     generation: candidate.generation,
     position: verifiedPosition,
@@ -488,7 +563,7 @@ export function resolveLostClaimAcknowledgement(input: unknown): RecoveryResult<
       transaction: prepared.value.transaction,
       contentDigest: prepared.value.contentDigest,
     });
-    if (!readback.ok) return failure('FC-TRUST', 'RECOVERY_REQUIRED');
+    if (!readback.ok) return readback;
     if (readback.value.kind === 'committed') return { ok: true, value: readback.value.record };
     if (readback.value.kind === 'absent') return failure('FC-FENCE', 'GENERATION_CLAIM_RETRY_REQUIRED');
     if (readback.value.kind === 'competing') return failure('FC-FENCE', 'GENERATION_CLAIM_COMPETING');

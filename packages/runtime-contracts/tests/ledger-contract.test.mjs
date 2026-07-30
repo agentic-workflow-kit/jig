@@ -493,3 +493,30 @@ test('generation claims fence every stale PORT-LEDGER basis after the witnessed 
     { ok: false, error: { family: 'FC-FENCE', code: 'STALE_GENERATION' } },
   );
 });
+
+test('witness-floor recovery promotes a durably flushed generation claim before stale reuse', () => {
+  const ledger = runtime.createScriptedLedger();
+  const [first] = append(ledger, 0, '0'.repeat(64));
+  const recoveredGeneration = `${fixture.run}/gen/2|recovery`;
+  const claim = record(1, first.contentDigest, recoveredGeneration, undefined, {
+    recovery: 'generation-claim',
+    token: digest('a'),
+  });
+  assert.deepEqual(
+    ledger.append(
+      {
+        binding: { ...binding, generation: recoveredGeneration },
+        expectedPosition: 0,
+        record: claim,
+      },
+      'after-flush',
+    ),
+    { ok: false, error: { family: 'FC-TRUST', code: 'ACK_LOST' } },
+  );
+  assert.equal(ledger.advanceWitnessFloor({ ...binding, generation: recoveredGeneration }).ok, true);
+  const stale = record(2, claim.contentDigest);
+  assert.deepEqual(ledger.append({ binding, expectedPosition: 1, record: stale }), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'STALE_GENERATION' },
+  });
+});

@@ -384,9 +384,13 @@ function generationOrdinal(generation: string): number | undefined {
 function generationClaim(record: PreparedLedgerRecord): boolean {
   try {
     if (typeof record.content !== 'object' || record.content === null || Array.isArray(record.content)) return false;
-    const recovery = Object.getOwnPropertyDescriptor(record.content, 'recovery');
-    const token = Object.getOwnPropertyDescriptor(record.content, 'token');
-    return recovery?.value === 'generation-claim' && digest(token?.value);
+    const descriptors = Object.getOwnPropertyDescriptors(record.content);
+    if (
+      Object.keys(descriptors).length !== 2 ||
+      Object.keys(descriptors).some((key) => key !== 'recovery' && key !== 'token')
+    )
+      return false;
+    return descriptors.recovery?.value === 'generation-claim' && digest(descriptors.token?.value);
   } catch {
     return false;
   }
@@ -555,7 +559,23 @@ export function createScriptedLedger(): ScriptedLedger {
       )
         return fail('FC-TRUST', 'WITNESS_MISMATCH');
       if (witness.position === verified.value.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
+      const flushed = state.value.records.at(-1);
+      const currentGeneration = currentGenerations.get(state.value.binding.run);
+      const promotesFlushedClaim =
+        flushed?.run === state.value.binding.run &&
+        flushed.generation === state.value.binding.generation &&
+        generationClaim(flushed);
+      if (promotesFlushedClaim) {
+        const recoveredOrdinal = generationOrdinal(flushed.generation);
+        const currentOrdinal = currentGeneration ? generationOrdinal(currentGeneration) : undefined;
+        if (
+          recoveredOrdinal === undefined ||
+          (currentGeneration !== undefined && (currentOrdinal === undefined || recoveredOrdinal <= currentOrdinal))
+        )
+          return fail('FC-TRUST', 'INVALID_FLUSHED_GENERATION_CLAIM');
+      }
       witnesses.set(state.value.binding.run, freeze(verified.value));
+      if (promotesFlushedClaim) currentGenerations.set(state.value.binding.run, flushed.generation);
       return { ok: true, value: undefined };
     },
     intake(request, fault) {

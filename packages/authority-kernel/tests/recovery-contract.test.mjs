@@ -106,6 +106,35 @@ test('CF-ORDERING: caller permutations produce the same reconstructed authority 
   assert.equal(ordered.ok, true);
   assert.equal(reversed.ok, true);
   assert.deepEqual(reversed.value.projection, ordered.value.projection);
+  assert.equal(ordered.value.projection.stateDigest, fixture.expectedStateDigest);
+  assert.equal(ordered.value.projection.decisionDigest, fixture.expectedDecisionDigest);
+});
+
+test('CF-SNAPSHOT: only a byte-equivalent replay projection is used', () => {
+  const source = chain();
+  const withoutSnapshot = recover(source);
+  assert.equal(withoutSnapshot.ok, true);
+  const {
+    stateDigest: _stateDigest,
+    decisionDigest: _decisionDigest,
+    ...coveredProjection
+  } = withoutSnapshot.value.projection;
+  const snapshot = {
+    position: source.head.position,
+    digest: source.head.digest,
+    projection: coveredProjection,
+  };
+  const used = recover({ ...source, snapshot });
+  const forged = recover({
+    ...source,
+    snapshot: { ...snapshot, projection: { ...coveredProjection, decisions: [] } },
+  });
+  assert.equal(used.ok, true);
+  assert.equal(forged.ok, true);
+  assert.equal(used.value.snapshot, 'used');
+  assert.equal(forged.value.snapshot, 'discarded');
+  assert.deepEqual(used.value.projection, withoutSnapshot.value.projection);
+  assert.deepEqual(forged.value.projection, withoutSnapshot.value.projection);
 });
 
 test('CF-FENCE: a witnessed claim fences stale appends and recovery refuses absent claim proof', () => {
@@ -193,12 +222,54 @@ test('lost claim acknowledgement uses real five-way ledger readback outcomes wit
     }),
     { ok: false, error: { family: 'FC-FENCE', code: 'GENERATION_CLAIM_RETRY_REQUIRED' } },
   );
+  const competing = runtime.createLedgerRecord({
+    run,
+    generation,
+    transaction: `${run}/txn/2/${generation}|${digest('c')}`,
+    position: 1,
+    previousDigest: source.records[0].contentDigest,
+    content: { recovery: 'generation-claim', token: digest('c') },
+  });
+  assert.equal(competing.ok, true);
+  assert.deepEqual(
+    recovery.resolveLostClaimAcknowledgement({
+      ledger: source.ledger,
+      binding: { kind: 'run', run, generation },
+      record: competing.value,
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'GENERATION_CLAIM_COMPETING' } },
+  );
+  const corrupt = runtime.createLedgerRecord({
+    run,
+    generation,
+    transaction: source.claim.transaction,
+    position: source.claim.position,
+    previousDigest: source.records[0].contentDigest,
+    content: { recovery: 'generation-claim', token: digest('d') },
+  });
+  assert.equal(corrupt.ok, true);
+  assert.deepEqual(
+    recovery.resolveLostClaimAcknowledgement({
+      ledger: source.ledger,
+      binding: { kind: 'run', run, generation },
+      record: corrupt.value,
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'GENERATION_CLAIM_INTEGRITY_FAILURE' } },
+  );
+  assert.deepEqual(
+    recovery.resolveLostClaimAcknowledgement({
+      ledger: source.ledger,
+      binding: { kind: 'run', run, generation: priorGeneration },
+      record: source.claim,
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'STALE_GENERATION' } },
+  );
   assert.deepEqual(
     recovery.resolveLostClaimAcknowledgement({
       ledger: { ...source.ledger, readback: (...args) => source.ledger.readback(...args, 'indeterminate-read') },
       binding: { kind: 'run', run, generation },
       record: proposal.value,
     }),
-    { ok: false, error: { family: 'FC-TRUST', code: 'RECOVERY_REQUIRED' } },
+    { ok: false, error: { family: 'FC-TRUST', code: 'INDETERMINATE_READ' } },
   );
 });
