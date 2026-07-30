@@ -63,6 +63,19 @@ test('validateActiveRepository passes on the active package contract', () => {
   assert.deepEqual(validateActiveRepository(repoRoot), []);
 });
 
+test('workspace test tasks explicitly enumerate their co-located tests', () => {
+  const expectedScripts = new Map([
+    ['packages/authority-kernel/package.json', 'node --test "tests/**/*.test.mjs"'],
+    ['packages/codec/package.json', 'node --test "tests/**/*.test.mjs"'],
+    ['packages/conformance/package.json', 'node --test "tests/**/*.test.mjs"'],
+    ['packages/runtime-contracts/package.json', 'node --test "tests/**/*.test.mjs"'],
+    ['tools/repo-guard/package.json', 'node --test --test-concurrency=1 "tests/**/*.test.mjs"'],
+  ]);
+
+  for (const [path, expected] of expectedScripts)
+    assert.equal(JSON.parse(readFileSync(join(repoRoot, path), 'utf8')).scripts.test, expected, path);
+});
+
 test('rejects an unlisted repository-local skill path', () => {
   const errors = withTempRepo((root) => {
     const dir = join(root, '.agents', 'skills', 'other');

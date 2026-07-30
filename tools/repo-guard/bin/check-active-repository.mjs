@@ -124,7 +124,11 @@ const expectedTurbo = `{
 }
 `;
 
-const packageTaskScripts = { build: 'tsc -p tsconfig.json', lint: 'biome check .', test: 'node --test' };
+const packageTaskScripts = {
+  build: 'tsc -p tsconfig.json',
+  lint: 'biome check .',
+  test: 'node --test "tests/**/*.test.mjs"',
+};
 const packageToolchain = { '@biomejs/biome': 'catalog:', typescript: 'catalog:' };
 
 const expectedGuardTurbo = `{
@@ -526,7 +530,7 @@ export function validateActiveRepository(rootDir = repoRoot) {
       type: 'module',
       scripts: {
         lint: 'biome check .',
-        test: 'node --test --test-concurrency=1',
+        test: 'node --test --test-concurrency=1 "tests/**/*.test.mjs"',
         'test:delivery': 'node --test tests/check-delivery-track.test.mjs',
         'guard:structure': 'node bin/check-active-repository.mjs',
         'guard:delivery': 'node bin/check-delivery-track.mjs',
