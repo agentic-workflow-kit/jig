@@ -27,9 +27,11 @@ guard applies, launch every ready story within available distinct pair/worktree 
 distinct across stories and continuous within a story.
 
 The implementer writes; at explicit freeze the reviewer uses that same registered worktree read-only.
-Candidate, fix, or target move means commit, run affected checks with only the policy allowlisted
-environment names, inventory ignored state before/after, record evidence, and have the same reviewer
-incrementally inspect prior-reviewed..new, sibling occurrences, and invariants. `.env`/credential
+Candidate, fix, or target move means commit, run every applicable required check with only the policy
+allowlisted environment names, inventory ignored state before/after, record evidence, and have the
+same reviewer incrementally inspect prior-reviewed..new, sibling occurrences, and invariants.
+`pnpm check:affected` may provide local feedback but never replaces the full `pnpm check` evidence
+required for candidate or integration gates. `.env`/credential
 files, external workspace links, unexplained generated output, or unlisted residue fail closed;
 dependencies require frozen-lockfile/link-containment proof and generated/cache output must be
 regenerated or exact-candidate-keyed. Old verdicts never transfer. Story states are admitted,

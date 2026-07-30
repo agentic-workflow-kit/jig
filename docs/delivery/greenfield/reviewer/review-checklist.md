@@ -135,7 +135,7 @@ already-approved `P`; its verdict never mints or redefines `Q`, `R`, or `P`.
       configuration is included.
 - [ ] A target movement, rebase, correction, source/configuration/evidence change, posture/class-set/
       environment change, or subject-binding drift produced a new committed candidate, refreshed
-      base/containment facts, and affected check evidence.
+      base/containment facts, and evidence for every applicable required check.
 - [ ] The same continuous reviewer incrementally rechecked the prior-reviewed-to-new range, sibling
       occurrences, affected invariants, and new evidence. Conclusions carried forward only for
       unchanged paths and unaffected invariants; the old verdict did not transfer.

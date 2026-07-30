@@ -70,7 +70,8 @@ gates/profile evidence for the broader supported-profile claim; none is an extra
   `git diff --check <base>...<candidate>` is required when applicable. Hosted CI independently
   executes required checks; the coordinator inspects bindings and the semantic reviewer reads
   evidence rather than rerunning it.
-- A changed candidate or target needs affected check evidence and incremental read-only review by
-  the same reviewer. Final evidence includes the required local checks, `pnpm check` where required,
+- A changed candidate or target needs evidence for every applicable required check and incremental
+  read-only review by the same reviewer. Final evidence includes the required local checks, full
+  `pnpm check` candidate and integration-gate results,
   CI, and independent review of the exact candidate. No custom seal, envelope, detached clone, or
   fresh-clone workspace is a gate. These documents do not claim any candidate passed.
