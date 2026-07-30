@@ -26,12 +26,15 @@ export type LedgerRecord = Readonly<{
   content: CanonicalJson;
   contentDigest: string;
 }>;
-export type LedgerProposal = Readonly<Omit<LedgerRecord, 'event' | 'version'>>;
+export type LedgerProposal = Readonly<
+  Pick<LedgerRecord, 'run' | 'generation' | 'transaction' | 'position' | 'previousDigest' | 'content'>
+>;
+export type PreparedLedgerRecord = Readonly<Omit<LedgerRecord, 'event'>>;
 export type LedgerWait = Readonly<{ elapsedMs: number; limitMs?: number }>;
 export type AppendRequest = Readonly<{
   binding: RunStoreBinding;
   expectedPosition: number;
-  record: LedgerProposal;
+  record: PreparedLedgerRecord;
   wait?: LedgerWait;
 }>;
 export type ReadbackRequest = Readonly<{
@@ -51,13 +54,30 @@ export type IntakeRequest = Readonly<{
   acknowledgementDigest: string;
   successorCut?: string;
 }>;
-export type IntakeResult = Readonly<{
-  kind: 'acknowledged' | 'rejected';
+export type IntakeWinnerBinding = Readonly<{
   position: number;
   compositionDigest: string;
   acknowledgementDigest: string;
-  successorCut?: string;
+  successorCut: string;
+  run: string;
 }>;
+export type IntakeResult =
+  | Readonly<{
+      kind: 'acknowledged';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      successorCut?: string;
+      run: string;
+    }>
+  | Readonly<{
+      kind: 'rejected';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      reason: 'successor-cut-already-claimed';
+      winner: IntakeWinnerBinding;
+    }>;
 export type IntakeReadback = Readonly<{ result: IntakeResult; witnessedHeadDigest: string }>;
 export type PreflightRequest = Readonly<{
   key: string;
@@ -69,6 +89,7 @@ export type PreflightRequest = Readonly<{
 }>;
 export type PreflightResult = Readonly<{ key: string; digest: string; bytes: CanonicalJson; deadline: number }>;
 export type ScriptedLedgerFault =
+  | 'before-append'
   | 'after-flush'
   | 'after-witness'
   | 'lost-ack'
@@ -79,12 +100,13 @@ export type ScriptedLedgerFault =
   | 'fork'
   | 'rollback'
   | 'intake-after-flush'
-  | 'intake-missing-companion';
+  | 'intake-missing-companion'
+  | 'intake-mismatched-companion';
 
 export type ScriptedLedger = Readonly<{
   append(
     request: AppendRequest,
-    fault?: Extract<ScriptedLedgerFault, 'after-flush' | 'after-witness' | 'lost-ack'>,
+    fault?: Extract<ScriptedLedgerFault, 'before-append' | 'after-flush' | 'after-witness' | 'lost-ack'>,
   ): LedgerResult<LedgerRecord>;
   readback(
     request: ReadbackRequest,
@@ -93,7 +115,10 @@ export type ScriptedLedger = Readonly<{
   advanceWitnessFloor(binding: RunStoreBinding): LedgerResult<void>;
   intake(
     request: IntakeRequest,
-    fault?: Extract<ScriptedLedgerFault, 'intake-after-flush' | 'intake-missing-companion'>,
+    fault?: Extract<
+      ScriptedLedgerFault,
+      'intake-after-flush' | 'intake-missing-companion' | 'intake-mismatched-companion'
+    >,
   ): LedgerResult<IntakeResult>;
   readIntake(compositionDigest: string): LedgerResult<IntakeReadback>;
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
@@ -104,7 +129,17 @@ export type ScriptedLedger = Readonly<{
   ): LedgerResult<boolean>;
   injectFault(
     binding: RunStoreBinding,
-    fault: Exclude<ScriptedLedgerFault, 'after-flush' | 'after-witness' | 'lost-ack' | 'indeterminate-read'>,
+    fault: Exclude<
+      ScriptedLedgerFault,
+      | 'before-append'
+      | 'after-flush'
+      | 'after-witness'
+      | 'lost-ack'
+      | 'indeterminate-read'
+      | 'intake-after-flush'
+      | 'intake-missing-companion'
+      | 'intake-mismatched-companion'
+    >,
   ): LedgerResult<void>;
 }>;
 
@@ -146,6 +181,19 @@ function recordDigest(record: Omit<LedgerRecord, 'contentDigest'>): LedgerResult
   return staged.ok ? { ok: true, value: staged.value.digest } : fail('FC-INPUT', 'INVALID_RECORD');
 }
 
+function validTransaction(
+  run: string,
+  generation: string,
+  recordPosition: number,
+  transaction: unknown,
+): transaction is string {
+  return (
+    typeof transaction === 'string' &&
+    parseIdentity('ID-TXN', transaction).ok &&
+    transaction.startsWith(`${run}/txn/${recordPosition + 1}/${generation}|`)
+  );
+}
+
 function waitWithinBound(wait: LedgerWait | undefined): LedgerResult<void> {
   if (wait === undefined) return { ok: true, value: undefined };
   const limit = wait.limitMs ?? WAIT_DEFAULT_MS;
@@ -173,10 +221,9 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
   if (
     !parseIdentity('ID-RUN', record.run).ok ||
     !parseIdentity('ID-GEN', record.generation).ok ||
-    !parseIdentity('ID-TXN', record.transaction).ok ||
     !parseIdentity('ID-EVENT', record.event).ok ||
     !record.generation.startsWith(`${record.run}/gen/`) ||
-    !record.transaction.startsWith(`${record.run}/txn/${record.position + 1}/${record.generation}|`) ||
+    !validTransaction(record.run, record.generation, record.position, record.transaction) ||
     record.event !== `${record.run}/event/${record.position + 1}`
   )
     return fail('FC-SUBJECT', 'INVALID_IDENTITY_BINDING');
@@ -215,30 +262,63 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
   };
 }
 
-export function createLedgerRecord(input: LedgerProposal): LedgerResult<LedgerProposal> {
+function validateProposal(input: unknown): LedgerResult<LedgerProposal> {
   if (
     typeof input !== 'object' ||
     input === null ||
-    ![
-      'content,generation,position,previousDigest,run,transaction',
-      'content,contentDigest,generation,position,previousDigest,run,transaction',
-    ].includes(Object.keys(input).sort().join(','))
+    Object.keys(input).sort().join(',') !== 'content,generation,position,previousDigest,run,transaction'
   )
     return fail('FC-INPUT', 'INVALID_PROPOSAL');
+  const proposal = input as LedgerProposal;
   if (
-    !position(input.position) ||
-    !digest(input.previousDigest) ||
-    !parseIdentity('ID-RUN', input.run).ok ||
-    !parseIdentity('ID-GEN', input.generation).ok ||
-    !parseIdentity('ID-TXN', input.transaction).ok ||
-    !input.generation.startsWith(`${input.run}/gen/`) ||
-    !input.transaction.startsWith(`${input.run}/txn/${input.position + 1}/${input.generation}|`)
+    !position(proposal.position) ||
+    !digest(proposal.previousDigest) ||
+    !parseIdentity('ID-RUN', proposal.run).ok ||
+    !parseIdentity('ID-GEN', proposal.generation).ok ||
+    !proposal.generation.startsWith(`${proposal.run}/gen/`) ||
+    !validTransaction(proposal.run, proposal.generation, proposal.position, proposal.transaction)
   )
     return fail('FC-INPUT', 'INVALID_PROPOSAL');
-  const content = snapshotContent(input.content);
+  const content = snapshotContent(proposal.content);
   if (content === undefined) return fail('FC-INPUT', 'INVALID_RECORD_CONTENT');
-  const staged = recordDigest({ ...input, content, event: '', version: LEDGER_VERSION });
-  return staged.ok ? { ok: true, value: freeze({ ...input, content, contentDigest: staged.value }) } : staged;
+  return { ok: true, value: freeze({ ...proposal, content }) };
+}
+
+function validatePreparedRecord(input: unknown): LedgerResult<PreparedLedgerRecord> {
+  if (
+    typeof input !== 'object' ||
+    input === null ||
+    Object.keys(input).sort().join(',') !==
+      'content,contentDigest,generation,position,previousDigest,run,transaction,version'
+  )
+    return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
+  const prepared = input as PreparedLedgerRecord;
+  if (prepared.version !== LEDGER_VERSION || !digest(prepared.contentDigest))
+    return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
+  const proposal = validateProposal({
+    run: prepared.run,
+    generation: prepared.generation,
+    transaction: prepared.transaction,
+    position: prepared.position,
+    previousDigest: prepared.previousDigest,
+    content: prepared.content,
+  });
+  if (!proposal.ok) return proposal;
+  const staged = recordDigest({ ...proposal.value, event: '', version: LEDGER_VERSION });
+  if (!staged.ok || staged.value !== prepared.contentDigest) return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
+  return {
+    ok: true,
+    value: freeze({ version: LEDGER_VERSION, ...proposal.value, contentDigest: prepared.contentDigest }),
+  };
+}
+
+export function createLedgerRecord(input: LedgerProposal): LedgerResult<PreparedLedgerRecord> {
+  const proposal = validateProposal(input);
+  if (!proposal.ok) return proposal;
+  const staged = recordDigest({ ...proposal.value, event: '', version: LEDGER_VERSION });
+  return staged.ok
+    ? { ok: true, value: freeze({ version: LEDGER_VERSION, ...proposal.value, contentDigest: staged.value }) }
+    : staged;
 }
 
 function mintedEvent(run: string, position: number): LedgerResult<string> {
@@ -295,8 +375,10 @@ function verifyChain(records: readonly LedgerRecord[]): LedgerResult<Readonly<{ 
 export function createScriptedLedger(): ScriptedLedger {
   const records = new Map<string, LedgerRecord[]>();
   const witnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
-  const intake = new Map<string, IntakeResult>();
-  const cuts = new Map<string, IntakeResult>();
+  type PendingAcknowledgement = Readonly<Omit<Extract<IntakeResult, { kind: 'acknowledged' }>, 'run'>>;
+  type StoredIntakeResult = PendingAcknowledgement | Extract<IntakeResult, { kind: 'rejected' }>;
+  const intake = new Map<string, StoredIntakeResult>();
+  const cuts = new Map<string, PendingAcknowledgement>();
   const preflight = new Map<string, PreflightResult>();
   const intakeWitnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
 
@@ -319,13 +401,51 @@ export function createScriptedLedger(): ScriptedLedger {
     if (witness.position < verified.value.position) return { ok: true, value: 'behind' };
     return { ok: true, value: 'current' };
   };
+  const deriveIntakeRun = (result: PendingAcknowledgement): LedgerResult<string> => {
+    const run = formatIdentity('ID-RUN', {
+      runSequence: String(result.position).padStart(12, '0'),
+      runNonce: result.compositionDigest.slice(0, 16),
+    });
+    return run.ok ? { ok: true, value: run.value.value } : fail('FC-TRUST', 'INTAKE_RUN_DERIVATION_FAILED');
+  };
+  const publishedIntake = (result: StoredIntakeResult): LedgerResult<IntakeResult> => {
+    if (result.kind === 'rejected') return { ok: true, value: result };
+    const run = deriveIntakeRun(result);
+    return run.ok ? { ok: true, value: freeze({ ...result, run: run.value }) } : run;
+  };
+  const stagedIntakeHead = (result: StoredIntakeResult): LedgerResult<string> => {
+    const staged = stageDigest({
+      domain: 'INTAKE-PAIR',
+      excludePaths: [],
+      value: {
+        acknowledgement: result,
+        cut: result.kind === 'acknowledged' ? (result.successorCut ?? null) : null,
+        position: result.position,
+      },
+    });
+    return staged.ok ? { ok: true, value: staged.value.digest } : fail('FC-TRUST', 'INTAKE_HEAD_INVALID');
+  };
+  const verifyIntake = (compositionDigest: string): LedgerResult<IntakeReadback> => {
+    const result = intake.get(compositionDigest);
+    const intakeWitness = intakeWitnesses.get(compositionDigest);
+    if (!result || !intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
+    if (result.kind === 'acknowledged' && result.successorCut && cuts.get(result.successorCut) !== result)
+      return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+    const stagedHead = stagedIntakeHead(result);
+    if (!stagedHead.ok || intakeWitness.position !== result.position || intakeWitness.digest !== stagedHead.value)
+      return fail('FC-TRUST', 'INTAKE_WITNESS_MISMATCH');
+    const published = publishedIntake(result);
+    return published.ok
+      ? { ok: true, value: freeze({ result: published.value, witnessedHeadDigest: intakeWitness.digest }) }
+      : published;
+  };
 
   return freeze({
     append(request, fault) {
       const wait = waitWithinBound(request.wait);
       if (!wait.ok) return wait;
       const state = forRun(request.binding);
-      const proposal = createLedgerRecord(request.record);
+      const proposal = validatePreparedRecord(request.record);
       if (!state.ok) return state;
       if (!proposal.ok) return proposal;
       if (
@@ -338,6 +458,7 @@ export function createScriptedLedger(): ScriptedLedger {
       const actual = head(state.value);
       if (request.expectedPosition !== actual.position || proposal.value.previousDigest !== actual.digest)
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
+      if (fault === 'before-append') return fail('FC-TRUST', 'ACK_LOST');
       const event = mintedEvent(proposal.value.run, proposal.value.position);
       if (!event.ok) return event;
       const record = validateRecord({ ...proposal.value, event: event.value, version: LEDGER_VERSION });
@@ -357,8 +478,9 @@ export function createScriptedLedger(): ScriptedLedger {
       if (!wait.ok) return wait;
       const state = forRun(request.binding);
       if (!state.ok) return state;
-      if (!position(request.position) || !nonEmpty(request.transaction) || !digest(request.contentDigest))
-        return fail('FC-INPUT', 'INVALID_READBACK');
+      if (!position(request.position) || !digest(request.contentDigest)) return fail('FC-INPUT', 'INVALID_READBACK');
+      if (!validTransaction(request.binding.run, request.binding.generation, request.position, request.transaction))
+        return fail('FC-SUBJECT', 'INVALID_READBACK_BINDING');
       const currency = compareWitness(request.binding.run, state.value);
       if (!currency.ok) return currency;
       if (currency.value === 'behind') return fail('FC-TRUST', 'WITNESS_BEHIND');
@@ -397,68 +519,90 @@ export function createScriptedLedger(): ScriptedLedger {
         return fail('FC-INPUT', 'INVALID_INTAKE');
       const existing = intake.get(request.compositionDigest);
       if (existing) {
-        const read = this.readIntake(request.compositionDigest);
+        const read = verifyIntake(request.compositionDigest);
         if (!read.ok) return read;
-        return existing.acknowledgementDigest === request.acknowledgementDigest
-          ? { ok: true, value: existing }
-          : fail('FC-INPUT', 'INTAKE_DIGEST_MISMATCH');
+        if (
+          existing.acknowledgementDigest !== request.acknowledgementDigest ||
+          (existing.kind === 'acknowledged'
+            ? existing.successorCut !== request.successorCut
+            : existing.winner.successorCut !== request.successorCut)
+        )
+          return fail('FC-INPUT', 'INTAKE_REQUEST_MISMATCH');
+        if (existing.kind === 'rejected') {
+          const winner = verifyIntake(existing.winner.compositionDigest);
+          if (
+            !winner.ok ||
+            winner.value.result.kind !== 'acknowledged' ||
+            winner.value.result.position !== existing.winner.position ||
+            winner.value.result.acknowledgementDigest !== existing.winner.acknowledgementDigest ||
+            winner.value.result.successorCut !== existing.winner.successorCut ||
+            winner.value.result.run !== existing.winner.run
+          )
+            return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+        }
+        return { ok: true, value: read.value.result };
       }
       const position = intake.size;
       const winner = request.successorCut ? cuts.get(request.successorCut) : undefined;
-      const result: IntakeResult = freeze(
-        winner
-          ? {
-              kind: 'rejected',
-              position,
-              compositionDigest: request.compositionDigest,
-              acknowledgementDigest: request.acknowledgementDigest,
-            }
-          : {
-              kind: 'acknowledged',
-              position,
-              compositionDigest: request.compositionDigest,
-              acknowledgementDigest: request.acknowledgementDigest,
-              ...(request.successorCut ? { successorCut: request.successorCut } : {}),
-            },
-      );
+      const claimed = request.successorCut
+        ? [...intake.values()].find(
+            (result): result is PendingAcknowledgement =>
+              result.kind === 'acknowledged' && result.successorCut === request.successorCut,
+          )
+        : undefined;
+      if (claimed && winner !== claimed) return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      if (winner) {
+        const winnerReadback = verifyIntake(winner.compositionDigest);
+        if (!winnerReadback.ok || winnerReadback.value.result.kind !== 'acknowledged')
+          return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+        const publishedWinner = winnerReadback.value.result;
+        const result: StoredIntakeResult = freeze({
+          kind: 'rejected',
+          position,
+          compositionDigest: request.compositionDigest,
+          acknowledgementDigest: request.acknowledgementDigest,
+          reason: 'successor-cut-already-claimed',
+          winner: freeze({
+            position: publishedWinner.position,
+            compositionDigest: publishedWinner.compositionDigest,
+            acknowledgementDigest: publishedWinner.acknowledgementDigest,
+            successorCut: publishedWinner.successorCut as string,
+            run: publishedWinner.run,
+          }),
+        });
+        intake.set(request.compositionDigest, result);
+        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        const stagedHead = stagedIntakeHead(result);
+        if (!stagedHead.ok) return stagedHead;
+        intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
+        return { ok: true, value: result };
+      }
+      const result: PendingAcknowledgement = freeze({
+        kind: 'acknowledged',
+        position,
+        compositionDigest: request.compositionDigest,
+        acknowledgementDigest: request.acknowledgementDigest,
+        ...(request.successorCut ? { successorCut: request.successorCut } : {}),
+      });
       // The acknowledgement and unique successor cut are committed as one in-memory transaction.
       intake.set(request.compositionDigest, result);
-      if (request.successorCut && result.kind === 'acknowledged') cuts.set(request.successorCut, result);
+      if (request.successorCut) cuts.set(request.successorCut, result);
       if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
       if (fault === 'intake-missing-companion' && result.successorCut) cuts.delete(result.successorCut);
+      if (fault === 'intake-mismatched-companion' && result.successorCut)
+        cuts.set(result.successorCut, freeze({ ...result, compositionDigest: '0'.repeat(64) }));
       // The intake witness is deliberately separate from the pair's durable state and advances only after it.
-      const stagedHead = stageDigest({
-        domain: 'INTAKE-PAIR',
-        excludePaths: [],
-        value: { acknowledgement: result, cut: result.successorCut ?? null, position: result.position },
-      });
-      if (!stagedHead.ok) return fail('FC-TRUST', 'INTAKE_HEAD_INVALID');
+      const stagedHead = stagedIntakeHead(result);
+      if (!stagedHead.ok) return stagedHead;
       if (fault === 'intake-missing-companion') return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
-      intakeWitnesses.set(
-        request.compositionDigest,
-        freeze({ position: result.position, digest: stagedHead.value.digest }),
-      );
-      return { ok: true, value: result };
+      intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
+      if (fault === 'intake-mismatched-companion') return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      const published = publishedIntake(result);
+      return published.ok ? published : fail('FC-TRUST', 'INTAKE_RUN_DERIVATION_FAILED');
     },
     readIntake(compositionDigest) {
       if (!digest(compositionDigest)) return fail('FC-INPUT', 'INVALID_INTAKE_KEY');
-      const result = intake.get(compositionDigest);
-      const intakeWitness = intakeWitnesses.get(compositionDigest);
-      if (!result || !intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
-      if (result.successorCut && cuts.get(result.successorCut) !== result)
-        return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
-      const stagedHead = stageDigest({
-        domain: 'INTAKE-PAIR',
-        excludePaths: [],
-        value: { acknowledgement: result, cut: result.successorCut ?? null, position: result.position },
-      });
-      if (
-        !stagedHead.ok ||
-        intakeWitness.position !== result.position ||
-        intakeWitness.digest !== stagedHead.value.digest
-      )
-        return fail('FC-TRUST', 'INTAKE_WITNESS_MISMATCH');
-      return { ok: true, value: freeze({ result, witnessedHeadDigest: intakeWitness.digest }) };
+      return verifyIntake(compositionDigest);
     },
     preflight(request) {
       if (

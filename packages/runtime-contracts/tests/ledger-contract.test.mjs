@@ -9,6 +9,8 @@ const fixture = JSON.parse(
 );
 const binding = Object.freeze({ kind: 'run', run: fixture.run, generation: fixture.generation });
 const digest = (value) => value.repeat(64).slice(0, 64);
+const intakeRun = (position, compositionDigest) =>
+  `run-${String(position).padStart(12, '0')}-${compositionDigest.slice(0, 16)}`;
 
 function record(
   position,
@@ -57,10 +59,19 @@ test('semantic ledger: readback has the fixed five outcomes and never retries un
   const absent = ledger.readback({
     binding,
     position: 1,
-    transaction: `${fixture.run}/txn/2`,
+    transaction: `${fixture.run}/txn/2/${binding.generation}|${fixture.generationDigest}`,
     contentDigest: digest('e'),
   });
   assert.deepEqual(absent, { ok: true, value: { kind: 'absent', position: 1 } });
+  for (const transaction of [
+    `${fixture.run}/txn/2`,
+    `run-000000000002-bbbbbbbbbbbbbbbb/txn/2/run-000000000002-bbbbbbbbbbbbbbbb/gen/1|generation|${fixture.generationDigest}`,
+    `${fixture.run}/txn/2/${fixture.run}/gen/2|replacement|${fixture.generationDigest}`,
+    `${fixture.run}/txn/1/${binding.generation}|${fixture.generationDigest}`,
+  ]) {
+    const invalid = ledger.readback({ binding, position: 1, transaction, contentDigest: digest('e') });
+    assert.deepEqual(invalid, { ok: false, error: { family: 'FC-SUBJECT', code: 'INVALID_READBACK_BINDING' } });
+  }
   const mismatch = ledger.readback({
     binding,
     position: 0,
@@ -74,7 +85,7 @@ test('semantic ledger: readback has the fixed five outcomes and never retries un
   const competing = ledger.readback({
     binding,
     position: 1,
-    transaction: second.transaction,
+    transaction: `${fixture.run}/txn/2/${binding.generation}|${fixture.generationDigest}`,
     contentDigest: second.contentDigest,
   });
   assert.equal(competing.ok, true);
@@ -86,7 +97,24 @@ test('semantic ledger: readback has the fixed five outcomes and never retries un
   assert.deepEqual(indeterminate, { ok: false, error: { family: 'FC-TRUST', code: 'INDETERMINATE_READ' } });
 });
 
-test('semantic ledger: flush precedes a separately controlled witness floor and acknowledgement', () => {
+test('semantic ledger: crash points preserve only their public durable and witnessed states', () => {
+  const before = runtime.createScriptedLedger();
+  const beforeProposal = record(0, '0'.repeat(64));
+  assert.deepEqual(before.append({ binding, expectedPosition: -1, record: beforeProposal }, 'before-append'), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'ACK_LOST' },
+  });
+  assert.deepEqual(before.snapshot(binding), { ok: true, value: { position: -1, digest: '0'.repeat(64) } });
+  assert.deepEqual(
+    before.readback({
+      binding,
+      position: 0,
+      transaction: beforeProposal.transaction,
+      contentDigest: beforeProposal.contentDigest,
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'WITNESS_ABSENT' } },
+  );
+
   const ledger = runtime.createScriptedLedger();
   const [first] = append(ledger, 0, '0'.repeat(64));
   const [second, lost] = append(ledger, 1, first.contentDigest, 'after-flush');
@@ -104,6 +132,22 @@ test('semantic ledger: flush precedes a separately controlled witness floor and 
       .value.kind,
     'committed',
   );
+
+  for (const fault of ['after-witness', 'lost-ack']) {
+    const recovered = runtime.createScriptedLedger();
+    const [proposal, acknowledgement] = append(recovered, 0, '0'.repeat(64), fault);
+    assert.deepEqual(acknowledgement, { ok: false, error: { family: 'FC-TRUST', code: 'ACK_LOST' } });
+    assert.deepEqual(recovered.snapshot(binding), { ok: true, value: { position: 0, digest: proposal.contentDigest } });
+    assert.equal(
+      recovered.readback({
+        binding,
+        position: 0,
+        transaction: proposal.transaction,
+        contentDigest: proposal.contentDigest,
+      }).value.kind,
+      'committed',
+    );
+  }
 });
 
 test('semantic ledger: trust faults fail closed without repair or rewrite', () => {
@@ -131,12 +175,21 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   });
   assert.equal(first.ok, true);
   assert.equal(first.value.kind, 'acknowledged');
+  assert.equal(first.value.run, intakeRun(0, fixture.digests.compositionA));
   const replay = ledger.intake({
     compositionDigest: fixture.digests.compositionA,
     acknowledgementDigest: fixture.digests.acknowledgementA,
     successorCut: 'predecessor/4',
   });
   assert.deepEqual(replay, first);
+  assert.deepEqual(
+    ledger.intake({
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+      successorCut: 'predecessor/5',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INTAKE_REQUEST_MISMATCH' } },
+  );
   const contender = ledger.intake({
     compositionDigest: fixture.digests.compositionB,
     acknowledgementDigest: fixture.digests.acknowledgementB,
@@ -144,8 +197,24 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   });
   assert.equal(contender.ok, true);
   assert.equal(contender.value.kind, 'rejected');
-  assert.equal(contender.value.successorCut, undefined);
-  assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, true);
+  assert.equal(contender.value.reason, 'successor-cut-already-claimed');
+  assert.deepEqual(contender.value.winner, {
+    position: first.value.position,
+    compositionDigest: first.value.compositionDigest,
+    acknowledgementDigest: first.value.acknowledgementDigest,
+    successorCut: first.value.successorCut,
+    run: first.value.run,
+  });
+  const winnerReadback = ledger.readIntake(fixture.digests.compositionA);
+  assert.equal(winnerReadback.ok, true);
+  assert.deepEqual(
+    ledger.intake({
+      compositionDigest: fixture.digests.compositionB,
+      acknowledgementDigest: fixture.digests.acknowledgementB,
+      successorCut: 'predecessor/4',
+    }),
+    contender,
+  );
 });
 
 test('semantic ledger: intake crash and missing companions fail closed without repair', () => {
@@ -166,12 +235,37 @@ test('semantic ledger: intake crash and missing companions fail closed without r
     ok: false,
     error: { family: 'FC-TRUST', code: 'INTAKE_UNVERIFIABLE' },
   });
+  const mismatched = runtime.createScriptedLedger();
+  assert.equal(mismatched.intake(request, 'intake-mismatched-companion').ok, false);
+  assert.deepEqual(mismatched.readIntake(request.compositionDigest), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' },
+  });
+  const unverifiedWinner = runtime.createScriptedLedger();
+  assert.equal(unverifiedWinner.intake(request, 'intake-missing-companion').ok, false);
+  assert.deepEqual(
+    unverifiedWinner.intake({
+      compositionDigest: fixture.digests.compositionB,
+      acknowledgementDigest: fixture.digests.acknowledgementB,
+      successorCut: 'predecessor/4',
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' } },
+  );
 });
 
 test('semantic ledger fixture records semantic metadata without provider qualification', () => {
   assert.equal(fixture.sourceId, 'runtime-contracts/ledger.ts');
   assert.equal(fixture.suiteVersion, 'semantic-ledger-contract.v1');
-  assert.equal(fixture.probeVersion, 'scripted-fault-plane.v1');
+  assert.equal(fixture.probeVersion, 'scripted-fault-plane.v2');
+  assert.deepEqual(fixture.crashProbeInventory, [
+    'before-append',
+    'after-flush',
+    'after-witness',
+    'lost-ack',
+    'intake-after-flush',
+    'intake-missing-companion',
+    'intake-mismatched-companion',
+  ]);
   assert.equal(fixture.logicalControl, 'separate scripted witness state');
   assert.equal(fixture.providerQualification, 'none');
 });
@@ -257,6 +351,21 @@ test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncan
   );
   assert.equal(ledger.append({ binding, expectedPosition: 0, record: proposal }).ok, false);
   assert.equal(runtime.createLedgerRecord({ ...proposal, position: -1 }).error.family, 'FC-INPUT');
+  const normalProposal = {
+    run: fixture.run,
+    generation: fixture.generation,
+    transaction: `${fixture.run}/txn/1/${fixture.generation}|${fixture.generationDigest}`,
+    position: 0,
+    previousDigest: '0'.repeat(64),
+    content: { transition: 1 },
+  };
+  assert.equal(runtime.createLedgerRecord(normalProposal).ok, true);
+  for (const computed of [
+    { contentDigest: proposal.contentDigest },
+    { event: `${fixture.run}/event/1` },
+    { version: runtime.LEDGER_VERSION },
+  ])
+    assert.equal(runtime.createLedgerRecord({ ...normalProposal, ...computed }).error.family, 'FC-INPUT');
   assert.equal(runtime.createLedgerRecord({ ...proposal, content: { text: 'e\u0301' } }).error.family, 'FC-INPUT');
 });
 
