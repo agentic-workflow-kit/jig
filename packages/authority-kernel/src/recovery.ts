@@ -12,7 +12,7 @@ import {
   type PreparedLedgerRecord,
   type RunStoreBinding,
   type ScriptedLedger,
-} from './ledger.js';
+} from '@agentic-workflow-kit/jig-runtime-contracts';
 
 const GENESIS_DIGEST = '0'.repeat(64);
 const WAIT_MIN_MS = 1_000;

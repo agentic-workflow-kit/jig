@@ -1,6 +1,6 @@
 {
   "fixtureVersion": "recovery-contract-fixtures.v1",
-  "sourceId": "runtime-contracts/recovery.ts",
+  "sourceId": "authority-kernel/recovery.ts",
   "suiteVersion": "fenced-recovery-contract.v1",
   "probeVersion": "scripted-ledger-replay.v1",
   "providerQualification": "none",

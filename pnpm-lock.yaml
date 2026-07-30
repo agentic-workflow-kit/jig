@@ -32,6 +32,9 @@ importers:
 
   packages/authority-kernel:
     dependencies:
+      '@agentic-workflow-kit/jig-runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
       '@agentic-workflow-kit/jig-codec':
         specifier: workspace:*
         version: link:../codec
@@ -70,9 +73,6 @@ importers:
 
   packages/runtime-contracts:
     dependencies:
-      '@agentic-workflow-kit/jig-authority-kernel':
-        specifier: workspace:*
-        version: link:../authority-kernel
       '@agentic-workflow-kit/jig-codec':
         specifier: workspace:*
         version: link:../codec
