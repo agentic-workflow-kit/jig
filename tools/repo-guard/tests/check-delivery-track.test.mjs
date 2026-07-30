@@ -900,11 +900,18 @@ test('Git metadata failures fail closed instead of using filesystem fallback', (
 // probe is excluded: it depends on git history the fixture cannot carry in a shallow checkout.
 test('the structure-check fixture carries the full governed path corpus, so mutation tests start clean', () =>
   gitFixture((dir) => {
-    const baseline = runStructureCheck(dir)
-      .stderr.split('\n')
+    const archiveDiagnostic = '- archive ref or representative recovery path';
+    const result = runStructureCheck(dir);
+    assert.equal(result.error, undefined, 'structure check must be runnable');
+    assert.equal(result.signal, null, 'structure check must not be killed');
+    const baseline = result.stderr
+      .split('\n')
       .filter((line) => line.startsWith('- '))
-      .filter((line) => !line.startsWith('- archive ref or representative recovery path'));
+      .filter((line) => !line.startsWith(archiveDiagnostic));
     assert.deepEqual(baseline, []);
+    // A crash or an undiagnosed failure emits nothing dash-prefixed, so an empty `baseline` alone
+    // would pass silently. Any non-zero exit must be fully explained by the archive probe.
+    if (result.status !== 0) assert.ok(result.stderr.includes(archiveDiagnostic), result.stderr);
   }));
 test('structure check reports deleted governed paths and malformed package scripts without throwing', () => {
   gitFixture((dir) => {

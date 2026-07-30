@@ -104,13 +104,13 @@ strictPeerDependencies: true # surface peer mismatches early
 const expectedTurbo = `{
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
-  "globalDependencies": ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json"],
+  "globalDependencies": ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
   "futureFlags": { "affectedUsingTaskInputs": true },
   "tasks": {
     "topo": { "dependsOn": ["^topo"] },
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!tests/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["dist/**"]
     },
     "lint": {

@@ -58,7 +58,9 @@ Turbo owns the task graph. Every compiled package under `packages/` declares the
 declares `lint`, `test`, and the repository-level `guard:*` gates instead of a build. `pnpm check` therefore runs package build, lint, and test plus repository
 structure, package boundaries, runtime topology, the greenfield delivery track, documentation
 links, and formatting. `pnpm check:affected` restricts the same graph to what the current branch
-changed, using each task's declared inputs.
+changed, using each task's declared inputs. It is a local convenience, not the gate: selection is
+only as complete as the comparison base, so `pnpm check` is what CI runs and what a change must
+pass.
 
 ## Gate and conventions
 
