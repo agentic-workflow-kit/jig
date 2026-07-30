@@ -375,6 +375,23 @@ function verifyChain(records: readonly LedgerRecord[]): LedgerResult<Readonly<{ 
   return { ok: true, value: head(records) };
 }
 
+function generationOrdinal(generation: string): number | undefined {
+  const matched = /\/gen\/([0-9]+)\|/.exec(generation)?.[1];
+  const ordinal = matched === undefined ? undefined : Number(matched);
+  return ordinal !== undefined && Number.isSafeInteger(ordinal) ? ordinal : undefined;
+}
+
+function generationClaim(record: PreparedLedgerRecord): boolean {
+  try {
+    if (typeof record.content !== 'object' || record.content === null || Array.isArray(record.content)) return false;
+    const recovery = Object.getOwnPropertyDescriptor(record.content, 'recovery');
+    const token = Object.getOwnPropertyDescriptor(record.content, 'token');
+    return recovery?.value === 'generation-claim' && digest(token?.value);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Semantic-only fixture. Its witness map is intentionally a separate logical control plane from
  * the ledger records. It is unapproved, has no configuration path, and cannot qualify a provider.
@@ -382,6 +399,7 @@ function verifyChain(records: readonly LedgerRecord[]): LedgerResult<Readonly<{ 
 export function createScriptedLedger(): ScriptedLedger {
   const records = new Map<string, LedgerRecord[]>();
   const witnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
+  const currentGenerations = new Map<string, string>();
   type PendingAcknowledgement = Readonly<Omit<Extract<IntakeResult, { kind: 'acknowledged' }>, 'run'>>;
   type StoredIntakeResult = PendingAcknowledgement | Extract<IntakeResult, { kind: 'rejected' }>;
   const intake = new Map<string, StoredIntakeResult>();
@@ -466,6 +484,17 @@ export function createScriptedLedger(): ScriptedLedger {
       const actual = head(state.value.records);
       if (request.expectedPosition !== actual.position || proposal.value.previousDigest !== actual.digest)
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
+      const currentGeneration = currentGenerations.get(state.value.binding.run);
+      const isClaim = generationClaim(proposal.value);
+      if (
+        currentGeneration !== undefined &&
+        state.value.binding.generation !== currentGeneration &&
+        (!isClaim ||
+          (generationOrdinal(state.value.binding.generation) ?? -1) <= (generationOrdinal(currentGeneration) ?? -1))
+      )
+        return fail('FC-FENCE', 'STALE_GENERATION');
+      if (currentGeneration !== undefined && state.value.binding.generation === currentGeneration && isClaim)
+        return fail('FC-FENCE', 'DUPLICATE_GENERATION_CLAIM');
       if (fault === 'before-append') return fail('FC-TRUST', 'ACK_LOST');
       const event = mintedEvent(proposal.value.run, proposal.value.position);
       if (!event.ok) return event;
@@ -477,6 +506,7 @@ export function createScriptedLedger(): ScriptedLedger {
         state.value.binding.run,
         freeze({ position: record.value.position, digest: record.value.contentDigest }),
       );
+      currentGenerations.set(state.value.binding.run, state.value.binding.generation);
       if (fault === 'after-witness' || fault === 'lost-ack') return fail('FC-TRUST', 'ACK_LOST');
       return { ok: true, value: record.value };
     },
@@ -486,6 +516,9 @@ export function createScriptedLedger(): ScriptedLedger {
       if (!wait.ok) return wait;
       const state = forRun(request.binding);
       if (!state.ok) return state;
+      const currentGeneration = currentGenerations.get(state.value.binding.run);
+      if (currentGeneration !== undefined && state.value.binding.generation !== currentGeneration)
+        return fail('FC-FENCE', 'STALE_GENERATION');
       if (!position(request.position) || !digest(request.contentDigest)) return fail('FC-INPUT', 'INVALID_READBACK');
       if (
         !validTransaction(

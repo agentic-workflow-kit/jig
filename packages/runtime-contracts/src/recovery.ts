@@ -1,3 +1,8 @@
+import {
+  type AuthorityState,
+  type ProposedTransition,
+  replayAuthority,
+} from '@agentic-workflow-kit/jig-authority-kernel';
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import {
   createLedgerRecord,
@@ -12,6 +17,14 @@ import {
 const GENESIS_DIGEST = '0'.repeat(64);
 const WAIT_MIN_MS = 1_000;
 const WAIT_MAX_MS = 300_000;
+const CRASH_POINTS = new Set([
+  'before-claim',
+  'after-claim',
+  'before-replay',
+  'after-replay',
+  'before-projection',
+  'after-projection',
+]);
 
 export type RecoveryFailureFamily = LedgerFailure['family'];
 export type RecoveryResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: LedgerFailure }>;
@@ -19,7 +32,8 @@ export type RecoverySnapshot = Readonly<{ position: number; digest: string; proj
 export type RecoveryProjection = Readonly<{
   position: number;
   digest: string;
-  state: CanonicalJson | null;
+  state: AuthorityState;
+  decisions: readonly ProposedTransition[];
   stateDigest: string;
 }>;
 export type RecoveryObservation = Readonly<{
@@ -29,6 +43,7 @@ export type RecoveryObservation = Readonly<{
   snapshot: 'absent' | 'used' | 'discarded';
 }>;
 
+type RecoveryLedger = Pick<ScriptedLedger, 'append' | 'readback'>;
 type ClaimInput = Readonly<{
   ledger: Pick<ScriptedLedger, 'append'>;
   binding: RunStoreBinding;
@@ -38,10 +53,9 @@ type ClaimInput = Readonly<{
   previousDigest: string;
 }>;
 type LostClaimInput = Readonly<{
-  ledger: Pick<ScriptedLedger, 'readback'>;
+  ledger: RecoveryLedger;
   binding: RunStoreBinding;
   record: PreparedLedgerRecord;
-  outcome?: 'indeterminate';
 }>;
 
 const failure = (family: RecoveryFailureFamily, code: string): RecoveryResult<never> => ({
@@ -222,10 +236,29 @@ function snapshot(value: unknown): RecoverySnapshot | undefined {
   });
 }
 
-function lastState(content: CanonicalJson): CanonicalJson | null {
-  if (typeof content !== 'object' || content === null || Array.isArray(content)) return null;
-  const descriptor = Object.getOwnPropertyDescriptor(content, 'state');
-  return descriptor && 'value' in descriptor ? (descriptor.value as CanonicalJson) : null;
+function recoveryClaim(value: LedgerRecord, generation: string, token: string): boolean {
+  try {
+    if (
+      value.generation !== generation ||
+      typeof value.content !== 'object' ||
+      value.content === null ||
+      Array.isArray(value.content)
+    )
+      return false;
+    return (
+      Object.getOwnPropertyDescriptor(value.content, 'recovery')?.value === 'generation-claim' &&
+      Object.getOwnPropertyDescriptor(value.content, 'token')?.value === token
+    );
+  } catch {
+    return false;
+  }
+}
+
+function replayStep(value: LedgerRecord): Readonly<{ event: unknown; bindings: unknown }> | undefined {
+  const content = own(value.content, ['schema', 'event', 'bindings']);
+  if (!content || (content.schema !== 'jig.transition.v1' && content.schema !== 'jig.transition.v0')) return undefined;
+  // v0 and v1 have the same semantic fields; upcasting happens only in this recovered view.
+  return freeze({ event: content.event, bindings: content.bindings });
 }
 
 /**
@@ -242,8 +275,8 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
 > {
   const candidate = ownOptional(
     input,
-    ['binding', 'generation', 'recoveryToken', 'records', 'head'],
-    ['snapshot', 'wait'],
+    ['ledger', 'binding', 'generation', 'recoveryToken', 'records', 'head', 'claim', 'initialState'],
+    ['snapshot', 'wait', 'crashAt'],
   );
   if (!candidate) return failure('FC-INPUT', 'INVALID_RECOVERY_INPUT');
   const recoveredBinding = binding(candidate.binding);
@@ -263,6 +296,12 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     !digest(candidate.recoveryToken)
   )
     return failure('FC-INPUT', 'INVALID_RECOVERY_INPUT');
+  if (
+    candidate.crashAt !== undefined &&
+    (typeof candidate.crashAt !== 'string' || !CRASH_POINTS.has(candidate.crashAt))
+  )
+    return failure('FC-INPUT', 'INVALID_RECOVERY_INPUT');
+  if (candidate.crashAt === 'before-claim') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
 
   const normalized = records.map((entry) => record(entry, recoveredBinding.run));
   if (normalized.some((entry) => entry === undefined)) return failure('FC-INPUT', 'INVALID_RECORD');
@@ -280,6 +319,31 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   if (head.position !== verifiedPosition || head.digest !== verifiedDigest)
     return failure('FC-TRUST', 'WITNESS_MISMATCH');
 
+  const claimed = record(candidate.claim, recoveredBinding.run);
+  if (
+    !claimed ||
+    !ordered.some((entry) => entry.contentDigest === claimed.contentDigest) ||
+    !recoveryClaim(claimed, candidate.generation, candidate.recoveryToken) ||
+    typeof candidate.ledger !== 'object' ||
+    candidate.ledger === null
+  )
+    return failure('FC-FENCE', 'GENERATION_CLAIM_UNVERIFIED');
+  let claimReadback: ReturnType<RecoveryLedger['readback']>;
+  try {
+    claimReadback = (candidate.ledger as RecoveryLedger).readback({
+      binding: freeze({ kind: 'run', run: recoveredBinding.run, generation: candidate.generation }),
+      position: claimed.position,
+      transaction: claimed.transaction,
+      contentDigest: claimed.contentDigest,
+    });
+  } catch {
+    return failure('FC-TRUST', 'RECOVERY_REQUIRED');
+  }
+  if (!claimReadback.ok) return claimReadback;
+  if (claimReadback.value.kind !== 'committed' || claimReadback.value.record.contentDigest !== claimed.contentDigest)
+    return failure('FC-FENCE', 'GENERATION_CLAIM_UNVERIFIED');
+  if (candidate.crashAt === 'after-claim') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
+
   const requestedSnapshot = candidate.snapshot === undefined ? undefined : snapshot(candidate.snapshot);
   if (candidate.snapshot !== undefined && !requestedSnapshot) return failure('FC-INPUT', 'INVALID_SNAPSHOT');
   const snapshotStatus: RecoveryObservation['snapshot'] = requestedSnapshot
@@ -288,10 +352,21 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
       ? 'used'
       : 'discarded'
     : 'absent';
-  const state = ordered.reduce<CanonicalJson | null>((current, entry) => lastState(entry.content) ?? current, null);
-  const projected = { position: verifiedPosition, digest: verifiedDigest, state };
-  const projectionDigest = stageDigest({ domain: 'RECOVERY-PROJECTION', excludePaths: [], value: projected });
+  const steps = ordered.filter((entry) => entry.contentDigest !== claimed.contentDigest).map(replayStep);
+  if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
+  if (candidate.crashAt === 'before-replay') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
+  const replayed = replayAuthority(candidate.initialState, steps);
+  if (!replayed.ok)
+    return failure(replayed.error.failure === 'FC-FENCE' ? 'FC-FENCE' : 'FC-INPUT', 'INVALID_TRANSITION');
+  if (candidate.crashAt === 'after-replay') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
+  const state = replayed.value.at(-1)?.next;
+  if (!state) return failure('FC-INPUT', 'MISSING_TRANSITION');
+  const projected = { position: verifiedPosition, digest: verifiedDigest, state, decisions: replayed.value };
+  const projectionCanonical = JSON.parse(JSON.stringify(projected)) as CanonicalJson;
+  const projectionDigest = stageDigest({ domain: 'RECOVERY-PROJECTION', excludePaths: [], value: projectionCanonical });
   if (!projectionDigest.ok) return failure('FC-INPUT', 'INVALID_PROJECTION');
+  if (candidate.crashAt === 'before-projection' || candidate.crashAt === 'after-projection')
+    return failure('FC-TRUST', 'RECOVERY_REQUIRED');
   const projection = freeze({ ...projected, stateDigest: projectionDigest.value.digest });
   const observation = freeze({
     generation: candidate.generation,
@@ -353,19 +428,14 @@ export function claimRecoveryGeneration(input: unknown): RecoveryResult<LedgerRe
 }
 
 export function resolveLostClaimAcknowledgement(input: unknown): RecoveryResult<LedgerRecord> {
-  const candidate = ownOptional(input, ['ledger', 'binding', 'record'], ['outcome']);
+  const candidate = own(input, ['ledger', 'binding', 'record']);
   const claimBinding = candidate ? binding(candidate.binding) : undefined;
   const rawRecord = candidate
-    ? own(candidate.record, [
-        'version',
-        'run',
-        'generation',
-        'transaction',
-        'position',
-        'previousDigest',
-        'content',
-        'contentDigest',
-      ])
+    ? ownOptional(
+        candidate.record,
+        ['version', 'run', 'generation', 'transaction', 'position', 'previousDigest', 'content', 'contentDigest'],
+        ['event'],
+      )
     : undefined;
   const prepared = rawRecord
     ? createLedgerRecord({
@@ -381,7 +451,6 @@ export function resolveLostClaimAcknowledgement(input: unknown): RecoveryResult<
     return failure('FC-INPUT', 'INVALID_LOST_CLAIM');
   if (rawRecord?.version !== LEDGER_VERSION || rawRecord.contentDigest !== prepared.value.contentDigest)
     return failure('FC-INPUT', 'INVALID_LOST_CLAIM');
-  if (candidate.outcome === 'indeterminate') return failure('FC-TRUST', 'RECOVERY_REQUIRED');
   const ledger = candidate.ledger as LostClaimInput['ledger'];
   try {
     const readback = ledger.readback({
