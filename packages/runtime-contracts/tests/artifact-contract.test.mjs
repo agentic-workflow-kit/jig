@@ -387,3 +387,26 @@ test('GF-013 R05: protected continuity replays or stops on tamper', () => {
   tampered.journal[0].request.bytes[0] ^= 1;
   assert.equal(artifact.restoreScriptedArtifactFixture(tampered, lookup, lookup).ok, false);
 });
+
+test('GF-013 R03: a current fact from registration B cannot retire registration A', () => {
+  const fixtureStore = artifact.createScriptedArtifactFixture();
+  const first = fixtureStore.store.putDisposable(put);
+  assert.equal(first.ok, true);
+  assert.equal(fixtureStore.witness.advance(first.value).ok, true);
+  const second = fixtureStore.store.putDisposable({ ...put, subject: 'artifact/two', operation: 'op-b' });
+  assert.equal(second.ok, true);
+  assert.equal(fixtureStore.witness.advance(second.value).ok, true);
+  assert.equal(
+    fixtureStore.store.retire({
+      ...base,
+      holder: put.holder,
+      operation: put.operation,
+      mode: 'put',
+      putOperation: put.operation,
+      pins,
+      fact: second.value,
+      proof: proof('intended', second.value),
+    }).ok,
+    false,
+  );
+});
