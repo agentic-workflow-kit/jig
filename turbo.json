@@ -16,6 +16,10 @@
       "outputs": []
     },
     "test": { "dependsOn": ["build"], "outputs": [] },
+    "@agentic-workflow-kit/jig-authority-kernel#test": {
+      "dependsOn": ["build", "@agentic-workflow-kit/jig-runtime-contracts#build"],
+      "outputs": []
+    },
     "check": { "dependsOn": ["lint", "build", "test"] }
   }
 }

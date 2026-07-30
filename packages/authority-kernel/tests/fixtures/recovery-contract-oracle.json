@@ -1,0 +1,22 @@
+{
+  "fixtureVersion": "recovery-contract-fixtures.v1",
+  "sourceId": "authority-kernel/recovery.ts",
+  "suiteVersion": "fenced-recovery-contract.v1",
+  "probeVersion": "scripted-ledger-replay.v1",
+  "providerQualification": "none",
+  "run": "run-000000000001-aaaaaaaaaaaaaaaa",
+  "generation": "run-000000000001-aaaaaaaaaaaaaaaa/gen/2|recovery",
+  "priorGeneration": "run-000000000001-aaaaaaaaaaaaaaaa/gen/1|generation",
+  "recoveryToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "states": ["cold", "recorded", "replayed"],
+  "faultPoints": [
+    "before-claim",
+    "after-claim",
+    "before-replay",
+    "after-replay",
+    "before-projection",
+    "after-projection"
+  ],
+  "expectedStateDigest": "be3a616a3de0a5633c782a2827e53f09a98ba28dcfa2c5878b0a2aaa4fa9711c",
+  "expectedDecisionDigest": "b67554f91e76ad57b8795352be9ddc4eb07c9caceb5c9777f65fc5435072f0fa"
+}

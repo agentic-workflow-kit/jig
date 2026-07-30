@@ -69,6 +69,13 @@ function validateTurbo(turbo, errors) {
     if (!Array.isArray(dependencies) || required.some((dependency) => !dependencies.includes(dependency)))
       errors.push(`Turbo ${task} task must depend on ${required.join(', ').replace(/, ([^,]+)$/, ', and $1')}`);
   }
+
+  const authorityKernelTestDependencies = turbo.tasks?.['@agentic-workflow-kit/jig-authority-kernel#test']?.dependsOn;
+  if (
+    !Array.isArray(authorityKernelTestDependencies) ||
+    !authorityKernelTestDependencies.includes('@agentic-workflow-kit/jig-runtime-contracts#build')
+  )
+    errors.push('Turbo authority-kernel test task must depend on runtime-contracts build');
 }
 
 export function validateActiveRepository(rootDir = repoRoot) {

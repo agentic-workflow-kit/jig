@@ -1,4 +1,7 @@
 import { parseIdentity } from '@agentic-workflow-kit/jig-codec';
+import { OPERATION_TYPES, type OperationType } from './operation.js';
+
+export * from './operation.js';
 
 export const AUTHORITY_KERNEL_VERSION = 'jig.authority-kernel.v1';
 export const STORY_STATES = Object.freeze([
@@ -66,37 +69,6 @@ export const EVENT_TYPES = Object.freeze([
   'EV-WAKE-SETTLEMENT',
   'EV-RECOVERY-OBSERVATION',
 ] as const);
-export const OPERATION_TYPES = Object.freeze([
-  'OPC-SESSION-OPEN',
-  'OPC-SESSION-ASSIGN',
-  'OPC-SESSION-COLLECT',
-  'OPC-SESSION-RESPOND',
-  'OPC-SESSION-CLOSE',
-  'OPC-WS-PROVISION',
-  'OPC-WS-SETUP',
-  'OPC-WS-OBSERVE',
-  'OPC-WS-PRESERVE',
-  'OPC-WS-RETIRE',
-  'OPC-VERIFY-EXECUTE',
-  'OPC-REV-PUBLISH',
-  'OPC-REV-REQUEST',
-  'OPC-REV-STATUS',
-  'OPC-REV-COMMENT',
-  'OPC-REV-RETIRE-REF',
-  'OPC-REV-RETIRE-REQUEST',
-  'OPC-REV-RETIRE-STATUS',
-  'OPC-REV-RETIRE-COMMENT',
-  'OPC-DEL-ANCHOR',
-  'OPC-DEL-PUBLISH',
-  'OPC-DEL-REQUEST',
-  'OPC-DEL-STATUS',
-  'OPC-DEL-COMMENT',
-  'OPC-DEL-MERGE',
-  'OPC-DEL-OBSERVE',
-  'OPC-ART-PUT',
-  'OPC-ART-GET',
-  'OPC-ART-DISPOSE',
-] as const);
 export const FAILURE_CLASSES = Object.freeze([
   'FC-INPUT',
   'FC-AUTHORITY',
@@ -115,7 +87,6 @@ export const FAILURE_CLASSES = Object.freeze([
 export type StoryState = (typeof STORY_STATES)[number];
 export type RunPhase = (typeof RUN_PHASES)[number];
 export type EventType = (typeof EVENT_TYPES)[number];
-export type OperationType = (typeof OPERATION_TYPES)[number];
 export type FailureClass = (typeof FAILURE_CLASSES)[number];
 export type KernelFailure = Readonly<{ failure: FailureClass; code: string }>;
 export type KernelResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: KernelFailure }>;

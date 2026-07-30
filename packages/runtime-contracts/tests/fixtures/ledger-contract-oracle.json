@@ -1,0 +1,26 @@
+{
+  "fixtureVersion": "ledger-contract-fixtures.v2",
+  "sourceId": "runtime-contracts/ledger.ts",
+  "suiteVersion": "semantic-ledger-contract.v1",
+  "probeVersion": "scripted-fault-plane.v2",
+  "crashProbeInventory": [
+    "before-append",
+    "after-flush",
+    "after-witness",
+    "lost-ack",
+    "intake-after-flush",
+    "intake-missing-companion",
+    "intake-mismatched-companion"
+  ],
+  "logicalControl": "separate scripted witness state",
+  "providerQualification": "none",
+  "run": "run-000000000001-aaaaaaaaaaaaaaaa",
+  "generation": "run-000000000001-aaaaaaaaaaaaaaaa/gen/1|generation",
+  "generationDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "digests": {
+    "compositionA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "compositionB": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "acknowledgementA": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "acknowledgementB": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  }
+}
