@@ -58,6 +58,17 @@ type ArtifactGetRequest = Readonly<{
   putOperation: string;
   pins: Pins;
 }>;
+type AdoptionProof = Readonly<{
+  transition: string;
+  registration: string;
+  role: 'temporary';
+  holder: 'EV-ARTIFACT-FACT';
+  tuple: string;
+  subject: string;
+  fence: string;
+  fact: ArtifactFact;
+  digest: string;
+}>;
 type ManifestBasis = Readonly<{
   schemaVersion: string;
   subjectKind: SubjectKind;
@@ -121,6 +132,7 @@ type ReconciledEvidence = AdmittedEvidence | PendingEvidence | QuarantinedEviden
 type ArtifactReadPort = Readonly<{
   acknowledge(fact: unknown): ArtifactResult<void>;
   get(request: unknown): ArtifactResult<Readonly<{ bytes: Uint8Array; digest: string }>>;
+  snapshot(): Readonly<unknown>;
 }>;
 
 type SubjectConfiguration = Readonly<{ kind: SubjectKind; identity: string; claims: readonly string[] }>;
@@ -140,6 +152,7 @@ type AdmissionRecord = Readonly<{
   key: string;
   manifest: EvidenceManifest;
   getRequest: ArtifactGetRequest;
+  proof: AdoptionProof;
 }>;
 type OutcomeRecord =
   | Readonly<{ kind: 'quarantine'; key: string; outcome: QuarantinedEvidence }>
@@ -575,7 +588,7 @@ function exactProof(
   input: unknown,
   request: Omit<ArtifactPutRequest, 'bytes'>,
   fact: ArtifactFact,
-): EvidenceResult<Readonly<{ transition: string }>> {
+): EvidenceResult<AdoptionProof> {
   const proof = fields(input, [
     'transition',
     'registration',
@@ -617,14 +630,77 @@ function exactProof(
     proof.fence === request.fence &&
     JSON.stringify(proof.fact) === JSON.stringify(fact) &&
     proof.digest === sha256(canonical)
-    ? { ok: true, value: freeze({ transition: proof.transition }) }
+    ? {
+        ok: true,
+        value: deepFreeze({
+          transition: proof.transition,
+          registration,
+          role: 'temporary' as const,
+          holder: pin.holder,
+          tuple: pin.tuple,
+          subject: request.subject,
+          fence: request.fence,
+          fact,
+          digest: proof.digest as string,
+        }),
+      }
     : fail('FC-FENCE', 'INVALID_ADOPTION_BINDING');
 }
 
-function readArtifact(port: ArtifactReadPort, fact: ArtifactFact, request: ArtifactGetRequest): EvidenceResult<void> {
+function adoptionRecorded(
+  port: ArtifactReadPort,
+  request: Omit<ArtifactPutRequest, 'bytes'>,
+  fact: ArtifactFact,
+  proof: AdoptionProof,
+): boolean {
+  const snapshot = fields(port.snapshot(), ['journal', 'lookup']);
+  if (!snapshot || !Array.isArray(snapshot.journal)) return false;
+  for (const entry of snapshot.journal) {
+    const item = fields(entry, ['kind', 'request']);
+    if (item?.kind !== 'adopt') continue;
+    const adoption = fields(item.request, [
+      'resourceScope',
+      'subject',
+      'digest',
+      'fence',
+      'holder',
+      'operation',
+      'mode',
+      'pins',
+      'putOperation',
+      'fact',
+      'proof',
+    ]);
+    if (
+      adoption &&
+      adoption.resourceScope === request.resourceScope &&
+      adoption.subject === request.subject &&
+      adoption.digest === request.digest &&
+      adoption.fence === request.fence &&
+      adoption.holder === request.holder &&
+      adoption.operation === request.operation &&
+      adoption.mode === request.mode &&
+      adoption.putOperation === request.operation &&
+      JSON.stringify(adoption.pins) === JSON.stringify(request.pins) &&
+      JSON.stringify(adoption.fact) === JSON.stringify(fact) &&
+      JSON.stringify(adoption.proof) === JSON.stringify(proof)
+    )
+      return true;
+  }
+  return false;
+}
+
+function readArtifact(
+  port: ArtifactReadPort,
+  fact: ArtifactFact,
+  request: ArtifactGetRequest,
+  artifact: Omit<ArtifactPutRequest, 'bytes'>,
+  proof: AdoptionProof,
+): EvidenceResult<void> {
   try {
     const acknowledged = port.acknowledge(fact);
     if (!acknowledged.ok) return fail('FC-TRUST', 'ARTIFACT_WITNESS_NOT_CURRENT');
+    if (!adoptionRecorded(port, artifact, fact, proof)) return fail('FC-TRUST', 'ARTIFACT_ADOPTION_NOT_RECORDED');
     const read = port.get(request);
     if (!read.ok) return fail('FC-TRUST', 'ARTIFACT_READBACK_FAILED');
     if (
@@ -800,7 +876,7 @@ function createRuntime(configuration?: Configuration): Readonly<{
         if (!fact.ok) return fact;
         const proof = exactProof(value.proof, intent.artifact, fact.value);
         if (!proof.ok) return proof;
-        const read = readArtifact(port, fact.value, getRequest(intent.artifact));
+        const read = readArtifact(port, fact.value, getRequest(intent.artifact), intent.artifact, proof.value);
         if (!read.ok) return read;
         const existing = state.admissions.get(value.key);
         if (existing) return { ok: true, value: existing };
@@ -825,6 +901,7 @@ function createRuntime(configuration?: Configuration): Readonly<{
             key: value.key,
             manifest,
             getRequest: getRequest(intent.artifact),
+            proof: proof.value,
           }),
         );
         state.admissions.set(value.key, admitted);
@@ -932,7 +1009,13 @@ export function restoreScriptedEvidenceFixture(
             )
         )
           return fail('FC-TRUST', 'RECOVERY_JOURNAL_INVALID');
-        const read = portReadbackOnly(artifact, record.getRequest);
+        const read = portReadbackOnly(
+          artifact,
+          record.manifest.artifactFact,
+          record.getRequest,
+          intent.artifact,
+          record.proof,
+        );
         if (!read.ok) return read;
         const admitted = deepFreeze({ kind: 'admitted' as const, manifest: deepFreeze(record.manifest) });
         runtime.state.admissions.set(record.key, admitted);
@@ -967,8 +1050,15 @@ export function restoreScriptedEvidenceFixture(
   }
 }
 
-function portReadbackOnly(port: ArtifactReadPort, request: ArtifactGetRequest): EvidenceResult<void> {
+function portReadbackOnly(
+  port: ArtifactReadPort,
+  fact: ArtifactFact,
+  request: ArtifactGetRequest,
+  artifact: Omit<ArtifactPutRequest, 'bytes'>,
+  proof: AdoptionProof,
+): EvidenceResult<void> {
   try {
+    if (!adoptionRecorded(port, artifact, fact, proof)) return fail('FC-TRUST', 'RECOVERY_ARTIFACT_MISMATCH');
     const read = port.get(request);
     if (
       !read.ok ||

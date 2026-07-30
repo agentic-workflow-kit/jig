@@ -313,6 +313,24 @@ test('GF-014 R05: admission follows exact witnessed GF-013 put, adoption, and im
     error: { family: 'FC-TRUST', code: 'ARTIFACT_WITNESS_NOT_CURRENT' },
   });
   assert.equal(artifactFixture.witness.advance(fact.value).ok, true);
+  assert.deepEqual(admission.admit({ key: prepared.value.key, fact: fact.value, proof }, artifactFixture.store), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'ARTIFACT_ADOPTION_NOT_RECORDED' },
+  });
+  assert.deepEqual(
+    admission.admit(
+      {
+        key: prepared.value.key,
+        fact: fact.value,
+        proof: { ...proof, digest: '0'.repeat(64) },
+      },
+      artifactFixture.store,
+    ),
+    {
+      ok: false,
+      error: { family: 'FC-FENCE', code: 'INVALID_ADOPTION_BINDING' },
+    },
+  );
   const { bytes: _discarded, ...putBasis } = prepared.value.artifactRequest;
   assert.equal(
     artifactFixture.store.adopt({
@@ -344,6 +362,7 @@ test('GF-014 R05: admission follows exact witnessed GF-013 put, adoption, and im
       {
         acknowledge: () => ({ ok: true, value: undefined }),
         get: () => ({ ok: true, value: { digest: oracle.digest, bytes: new TextEncoder().encode('tampered') } }),
+        snapshot: () => artifactFixture.store.snapshot(),
       },
     ).ok,
     false,
