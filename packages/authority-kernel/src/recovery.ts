@@ -2,7 +2,7 @@ import {
   type AuthorityState,
   type ProposedTransition,
   replayAuthority,
-} from '@agentic-workflow-kit/jig-authority-kernel';
+} from './index.js';
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import {
   createLedgerRecord,
