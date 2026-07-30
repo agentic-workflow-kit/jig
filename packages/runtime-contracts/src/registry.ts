@@ -604,6 +604,7 @@ export function createScriptedRegistry() {
       if (!facts.ok) return facts;
       const validatedProof = releaseProof(proof, facts.value);
       if (!validatedProof.ok) return validatedProof;
+      if (newCandidate === facts.value.candidate) return fail('FC-AUTHORITY', 'UNCHANGED_CANDIDATE_REBIND');
       if (
         typeof newCandidate !== 'string' ||
         !parseIdentity('ID-CAND', newCandidate).ok ||

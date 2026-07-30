@@ -192,6 +192,16 @@ test('withdrawal wins a grant race, release requires proof, and atomic rebind ha
     }).error.code,
     'INVALID_RELEASE_PROOF',
   );
+  assert.equal(
+    store.release({
+      binding,
+      expectedPosition: 3,
+      expectedDigest: grant.value.contentDigest,
+      authority: grant.value.authority,
+      proof: digest('f'),
+    }).error.code,
+    'INVALID_RELEASE_PROOF',
+  );
   const rebound = store.atomicRebind({
     binding,
     expectedPosition: 3,
@@ -370,5 +380,37 @@ test('regression R2-R3: grants consume the exact handle and typed proofs bind ev
       proof: digest('f'),
     }).error.code,
     'STALE_AUTHORITY',
+  );
+});
+
+test('regression R5: an unchanged Candidate cannot mint a fresh authority fence', () => {
+  const store = registry.createScriptedRegistry();
+  const queued = store.waiter({
+    binding: canonicalBinding,
+    expectedPosition: -1,
+    expectedDigest: digest('0'),
+    waiter: waiter(),
+  });
+  const grant = store.grant({
+    binding: canonicalBinding,
+    expectedPosition: 0,
+    expectedDigest: queued.value.contentDigest,
+    waiter: queued.value.handle,
+    eligibilityBasis: fixture.digests.basisA,
+  });
+  assert.equal(grant.ok, true);
+  assert.deepEqual(
+    store.atomicRebind({
+      binding: canonicalBinding,
+      expectedPosition: 1,
+      expectedDigest: grant.value.contentDigest,
+      authority: grant.value.authority,
+      releaseProof: structuralProof(grant.value),
+      candidate: grant.value.content.candidate,
+      candidateContentDigest: grant.value.content.candidateContentDigest,
+      eligibilityBasis: grant.value.content.eligibilityBasis,
+      generation: grant.value.content.fence.generation,
+    }),
+    { ok: false, error: { family: 'FC-AUTHORITY', code: 'UNCHANGED_CANDIDATE_REBIND' } },
   );
 });
