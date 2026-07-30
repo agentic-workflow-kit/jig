@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "gf015-mediated-ports.v1",
+  "ports": {
+    "OPC-SESSION-OPEN": ["PORT-SESSION", "CB-SESSION", "effectful"],
+    "OPC-WS-OBSERVE": ["PORT-WORKSPACE", "CB-WORKSPACE", "observation"],
+    "OPC-VERIFY-EXECUTE": ["PORT-VERIFY", "CB-VERIFY", "observation"],
+    "OPC-REV-PUBLISH": ["PORT-DELIVERY", "CB-REVIEW-PUBLICATION", "effectful"],
+    "OPC-DEL-MERGE": ["PORT-DELIVERY", "CB-DELIVERY", "effectful"],
+    "OPC-ART-GET": ["PORT-ARTIFACT", "CB-STORE", "observation"]
+  },
+  "scriptedMechanisms": {
+    "PORT-SESSION": "scripted-session.v1",
+    "PORT-WORKSPACE": "scripted-workspace.v1",
+    "PORT-VERIFY": "scripted-verify.v1",
+    "PORT-DELIVERY": "scripted-delivery.v1",
+    "PORT-ARTIFACT": "scripted-artifact.v1"
+  }
+}

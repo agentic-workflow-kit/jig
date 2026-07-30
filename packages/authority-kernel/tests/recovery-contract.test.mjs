@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const runtime = await import('../../runtime-contracts/dist/index.js');
+const operation = await import('../dist/operation.js');
 const recovery = await import('../dist/recovery.js');
 const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/recovery-contract-oracle.json'), 'utf8'),
@@ -356,5 +357,145 @@ test('lost claim acknowledgement uses real five-way ledger readback outcomes wit
       record: proposal.value,
     }),
     { ok: false, error: { family: 'FC-TRUST', code: 'INDETERMINATE_READ' } },
+  );
+});
+
+test('GF-015 recovery derives pending effects only from an exact journal bound to authorized ledger bytes', () => {
+  const ledger = runtime.createScriptedLedger();
+  const operationInitialState = Object.freeze({
+    ...initialState,
+    storyState: 'Eligible',
+  });
+  const transaction = `${run}/txn/1/${priorGeneration}|${basis}`;
+  const event = Object.freeze({
+    type: 'EV-WAKE-CAPACITY',
+    edge: 'eligible-preparing',
+    id: `${run}/event/1`,
+    subject,
+    fence: priorFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+  });
+  const bindings = Object.freeze({
+    transaction,
+    event: event.id,
+    operation: `${transaction}/op/1`,
+    subject,
+    fence: priorFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+  });
+  const operationFence = Object.freeze({
+    ...priorFence,
+    candidateContentDigest: digest('6'),
+    targetBasisDigest: digest('7'),
+  });
+  const unsignedCapability = {
+    kind: 'CB-WORKSPACE',
+    port: 'PORT-WORKSPACE',
+    operationClass: 'OPC-WS-PROVISION',
+    subject: subject.story,
+    fence: operationFence,
+    resourceScope: 'workspace/story-1',
+    manifest: `provider/${digest('3')}/authority/${digest('4')}`,
+  };
+  const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(capabilityDigest.ok, true);
+  const intentRecord = {
+    kind: 'intent',
+    version: operation.OPERATION_STATE_VERSION,
+    operation: bindings.operation,
+    transaction,
+    event: event.id,
+    type: 'OPC-WS-PROVISION',
+    subject,
+    payloadBasisDigest: digest('2'),
+    fence: operationFence,
+    capability: { ...unsignedCapability, digest: capabilityDigest.value },
+    authority: null,
+    role: 'controller',
+    lifecycle: 'Preparing',
+    effect: 'effectful',
+    purpose: 'semantic',
+    predecessor: null,
+    bounds: { waitMs: 900000, retryLimit: 3, recoveryLimit: 3 },
+  };
+  const intentCarrier = operation.deriveOperationRecordCarrier(intentRecord);
+  assert.equal(intentCarrier.ok, true);
+  const first = append(ledger, 0, digest('0'), priorGeneration, {
+    schema: 'jig.transition.v1',
+    event,
+    bindings,
+    operation: intentCarrier.value,
+  });
+  const attemptCarrier = operation.deriveOperationRecordCarrier({
+    kind: 'attempt',
+    operation: bindings.operation,
+    ordinal: 1,
+    generation: priorGeneration,
+    fence: operationFence,
+    capability: { ...unsignedCapability, digest: capabilityDigest.value },
+    authority: null,
+    role: 'controller',
+    lifecycle: 'Preparing',
+    startedAt: 1000,
+    deadline: 901000,
+    reauthorization: null,
+  });
+  assert.equal(attemptCarrier.ok, true);
+  const attemptFact = append(ledger, 1, first.contentDigest, priorGeneration, attemptCarrier.value);
+  const dispatchCarrier = operation.deriveOperationRecordCarrier({
+    kind: 'dispatch',
+    operation: bindings.operation,
+    ordinal: 1,
+  });
+  assert.equal(dispatchCarrier.ok, true);
+  const dispatchFact = append(ledger, 2, attemptFact.contentDigest, priorGeneration, dispatchCarrier.value);
+  const claim = append(ledger, 3, dispatchFact.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const recoveryInput = {
+    ledger,
+    records: [first, attemptFact, dispatchFact, claim],
+    claim,
+    head: { position: claim.position, digest: claim.contentDigest },
+    binding: { kind: 'run', run, generation: priorGeneration },
+    generation,
+    recoveryToken: basis,
+    initialState: operationInitialState,
+  };
+  const recovered = recovery.recoverFencedRun(recoveryInput);
+  assert.equal(recovered.ok, true);
+  assert.deepEqual(
+    recovered.value.pendingEffects.map((entry) => [entry.operation, entry.status]),
+    [[bindings.operation, 'dispatch-crossed']],
+  );
+
+  const missingDispatch = recovery.recoverFencedRun({
+    ...recoveryInput,
+    records: [first, attemptFact, claim],
+  });
+  assert.deepEqual(missingDispatch, { ok: false, error: { family: 'FC-TRUST', code: 'BROKEN_CHAIN' } });
+
+  const proofReuseLedger = runtime.createScriptedLedger();
+  const proofReuseFirst = append(proofReuseLedger, 0, digest('0'), priorGeneration, {
+    schema: 'jig.transition.v1',
+    event,
+    bindings,
+    operation: intentCarrier.value,
+  });
+  const unrelated = append(proofReuseLedger, 1, proofReuseFirst.contentDigest, priorGeneration, transition(1));
+  const proofReuseClaim = append(proofReuseLedger, 2, unrelated.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ...recoveryInput,
+      ledger: proofReuseLedger,
+      records: [proofReuseFirst, unrelated, proofReuseClaim],
+      claim: proofReuseClaim,
+      head: { position: proofReuseClaim.position, digest: proofReuseClaim.contentDigest },
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_TRANSITION' } },
   );
 });

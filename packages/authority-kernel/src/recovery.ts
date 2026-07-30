@@ -1,5 +1,11 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
+import {
+  OPERATION_RECORD_SCHEMA,
+  type OperationProjection,
+  type OperationRecordCarrier,
+  restoreOperationRecords,
+} from './operation.js';
 
 const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
@@ -292,10 +298,46 @@ function generationControl(value: LedgerRecord): GenerationControl {
 }
 
 function replayStep(value: LedgerRecord): Readonly<{ event: unknown; bindings: unknown }> | undefined {
-  const content = own(value.content, ['schema', 'event', 'bindings']);
+  const content = ownOptional(value.content, ['schema', 'event', 'bindings'], ['operation']);
   if (!content || (content.schema !== 'jig.transition.v1' && content.schema !== 'jig.transition.v0')) return undefined;
   // v0 and v1 have the same semantic fields; upcasting happens only in this recovered view.
   return freeze({ event: content.event, bindings: content.bindings });
+}
+
+function operationCarrier(value: unknown): OperationRecordCarrier | undefined {
+  const carrier = own(value, ['schema', 'record']);
+  if (
+    !carrier ||
+    carrier.schema !== OPERATION_RECORD_SCHEMA ||
+    typeof carrier.record !== 'object' ||
+    carrier.record === null ||
+    Array.isArray(carrier.record) ||
+    !encodeFrame(carrier.record as CanonicalJson).ok
+  )
+    return undefined;
+  return freeze({
+    schema: OPERATION_RECORD_SCHEMA,
+    record: carrier.record as CanonicalJson,
+  });
+}
+
+function carrierFromLedger(value: LedgerRecord):
+  | Readonly<{
+      carrier: OperationRecordCarrier;
+      intentTransition: boolean;
+    }>
+  | undefined {
+  const direct = operationCarrier(value.content);
+  if (direct) return freeze({ carrier: direct, intentTransition: false });
+  const transition = ownOptional(value.content, ['schema', 'event', 'bindings'], ['operation']);
+  if (
+    !transition ||
+    (transition.schema !== 'jig.transition.v1' && transition.schema !== 'jig.transition.v0') ||
+    transition.operation === undefined
+  )
+    return undefined;
+  const embedded = operationCarrier(transition.operation);
+  return embedded ? freeze({ carrier: embedded, intentTransition: true }) : undefined;
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -325,6 +367,7 @@ function replayProjection(
 ): RecoveryResult<CanonicalJson> {
   const steps = records
     .filter((entry) => entry.position <= position && !generationControlPositions.has(entry.position))
+    .filter((entry) => operationCarrier(entry.content) === undefined)
     .map(replayStep);
   if (steps.some((step) => step === undefined)) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
   const replayed = replayAuthority(initialState, steps);
@@ -344,7 +387,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     projection: RecoveryProjection;
     observation: RecoveryObservation;
     snapshot: 'absent' | 'used' | 'discarded';
-    pendingEffects: readonly [];
+    pendingEffects: readonly OperationProjection[];
   }>
 > {
   const candidate = ownOptional(
@@ -489,6 +532,85 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     stateDigest: projectionDigest.value.digest,
     decisionDigest: decisionDigest.value.digest,
   });
+  const authorizedOperations = projected.decisions.flatMap((decision) => decision.operations);
+  let pendingEffects: readonly OperationProjection[] = freeze([]);
+  const operationRecords: CanonicalJson[] = [];
+  const journalIntentIds: string[] = [];
+  for (const ledgerRecord of ordered) {
+    const source = carrierFromLedger(ledgerRecord);
+    if (!source) continue;
+    const recordValue = source.carrier.record;
+    const recordKind =
+      typeof recordValue === 'object' && recordValue !== null && !Array.isArray(recordValue)
+        ? Object.getOwnPropertyDescriptor(recordValue, 'kind')?.value
+        : undefined;
+    if ((recordKind === 'intent') !== source.intentTransition)
+      return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+    const proof = freeze({
+      kind: 'committed-witnessed' as const,
+      position: ledgerRecord.position,
+      event: ledgerRecord.event,
+      transaction: ledgerRecord.transaction,
+      recordDigest: ledgerRecord.contentDigest,
+      witnessDigest: ledgerRecord.contentDigest,
+    });
+    const completeRecord = freeze({
+      ...(recordValue as Record<string, CanonicalJson>),
+      proof,
+    }) as unknown as CanonicalJson;
+    operationRecords.push(completeRecord);
+    if (recordKind === 'intent') {
+      const operationId = Object.getOwnPropertyDescriptor(recordValue, 'operation')?.value;
+      if (typeof operationId !== 'string') return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+      const intent = recordValue as Record<string, CanonicalJson>;
+      const intentSubject = intent.subject as Record<string, CanonicalJson> | undefined;
+      const intentFence = intent.fence as Record<string, CanonicalJson> | undefined;
+      const decisionOperation = authorizedOperations.find((operation) => operation.operation === operationId);
+      if (
+        !decisionOperation ||
+        decisionOperation.type !== intent.type ||
+        decisionOperation.transaction !== intent.transaction ||
+        decisionOperation.event !== intent.event ||
+        decisionOperation.subject.run !== intentSubject?.run ||
+        decisionOperation.subject.story !== intentSubject?.story ||
+        decisionOperation.subject.basis !== intentSubject?.basis ||
+        decisionOperation.fence.generation !== intentFence?.generation ||
+        decisionOperation.fence.basis !== intentFence?.basis
+      )
+        return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+      journalIntentIds.push(operationId);
+    }
+  }
+  if (authorizedOperations.length > 0 && operationRecords.length === 0)
+    return failure('FC-TRUST', 'OPERATION_JOURNAL_REQUIRED');
+  if (operationRecords.length > 0) {
+    const restored = restoreOperationRecords(operationRecords, {
+      verify: (proof, expectedCarrier) => {
+        const ledgerCarrier = ordered[proof.position];
+        const actual = ledgerCarrier ? carrierFromLedger(ledgerCarrier)?.carrier : undefined;
+        const actualBytes = actual ? encodeFrame(actual as unknown as CanonicalJson) : undefined;
+        const expectedBytes = encodeFrame(expectedCarrier as unknown as CanonicalJson);
+        return ledgerCarrier &&
+          actualBytes?.ok &&
+          expectedBytes.ok &&
+          sameBytes(actualBytes.value, expectedBytes.value) &&
+          ledgerCarrier.event === proof.event &&
+          ledgerCarrier.transaction === proof.transaction &&
+          ledgerCarrier.contentDigest === proof.recordDigest &&
+          proof.recordDigest === proof.witnessDigest
+          ? { ok: true, value: undefined }
+          : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_COMMIT_PROOF_MISMATCH' } };
+      },
+    });
+    if (!restored.ok) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
+    const authorizedIds = authorizedOperations.map((operation) => operation.operation).sort();
+    if (
+      journalIntentIds.length !== authorizedIds.length ||
+      journalIntentIds.sort().some((operation, index) => operation !== authorizedIds[index])
+    )
+      return failure('FC-TRUST', 'OPERATION_JOURNAL_COVERAGE_MISMATCH');
+    pendingEffects = restored.value.pendingEffects();
+  }
   const observation = freeze({
     generation: candidate.generation,
     position: verifiedPosition,
@@ -497,7 +619,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   });
   return {
     ok: true,
-    value: freeze({ projection, observation, snapshot: snapshotStatus, pendingEffects: freeze([]) as readonly [] }),
+    value: freeze({ projection, observation, snapshot: snapshotStatus, pendingEffects }),
   };
 }
 
