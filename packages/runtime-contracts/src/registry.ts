@@ -13,7 +13,7 @@ const GENESIS_DIGEST = '0'.repeat(64);
 export type RegistryFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST' | 'FC-AUTHORITY';
 export type RegistryFailure = Readonly<{ family: RegistryFailureFamily; code: string }>;
 export type RegistryResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: RegistryFailure }>;
-export type RegistryBinding = Readonly<{ registry: string; target: string }>;
+export type RegistryBinding = Readonly<{ descriptor: string; registry: string; target: string }>;
 type Comparator = Readonly<{ priority: number; ordinal: number; story: string }>;
 type Waiter = Readonly<{
   run: string;
@@ -30,8 +30,11 @@ export type RegistryRecord = Readonly<{
   version: typeof REGISTRY_VERSION;
   registry: string;
   target: string;
+  expectedHeadPosition: number;
+  expectedHeadDigest: string;
   position: number;
   previousDigest: string;
+  predecessorDigest: string;
   contentDigest: string;
   variant: 'waiter' | 'withdrawal' | 'grant' | 'release' | 'atomic-rebind';
   handle: Handle;
@@ -101,20 +104,24 @@ export function createRegistryBinding(input: unknown): RegistryResult<RegistryBi
   const registry = formatIdentity('ID-REGISTRY', { registryDigest: descriptor });
   const target = formatIdentity('ID-TARGET', { targetKey });
   return registry.ok && target.ok
-    ? ok(freeze({ registry: registry.value.value, target: target.value.value }))
+    ? ok(freeze({ descriptor, registry: registry.value.value, target: target.value.value }))
     : fail('FC-SUBJECT', 'INVALID_REGISTRY_DESCRIPTOR');
 }
 
 function binding(input: unknown): RegistryResult<RegistryBinding> {
-  if (!plain(input) || !exact(input, ['registry', 'target'])) return fail('FC-SUBJECT', 'INVALID_REGISTRY_BINDING');
+  if (!plain(input) || !exact(input, ['descriptor', 'registry', 'target']))
+    return fail('FC-SUBJECT', 'INVALID_REGISTRY_BINDING');
+  const descriptor = data(input, 'descriptor');
   const registry = data(input, 'registry');
   const target = data(input, 'target');
-  return typeof registry === 'string' &&
+  return isDigest(descriptor) &&
+    typeof registry === 'string' &&
     typeof target === 'string' &&
     parseIdentity('ID-REGISTRY', registry).ok &&
-    parseIdentity('ID-TARGET', target).ok
-    ? ok(freeze({ registry, target }))
-    : fail('FC-SUBJECT', 'INVALID_REGISTRY_BINDING');
+    parseIdentity('ID-TARGET', target).ok &&
+    registry === `registry/${descriptor}`
+    ? ok(freeze({ descriptor, registry, target }))
+    : fail('FC-AUTHORITY', 'FOREIGN_REGISTRY_BINDING');
 }
 function waiter(input: unknown): RegistryResult<Waiter> {
   if (
@@ -211,9 +218,104 @@ function compare(left: Waiter, right: Waiter): number {
   }
   return 0;
 }
+type AuthorityFacts = Readonly<{
+  authority: string;
+  candidate: string;
+  candidateContentDigest: string;
+  eligibilityBasis: string;
+  generation: string;
+  registry: string;
+  target: string;
+  story: string;
+}>;
+function authorityFacts(record: RegistryRecord): RegistryResult<AuthorityFacts> {
+  const content = record.content as Record<string, CanonicalJson>;
+  const source = record.variant === 'atomic-rebind' ? content.newAuthority : content;
+  if (!plain(source)) return fail('FC-TRUST', 'INVALID_AUTHORITY_RECORD');
+  const authority = record.variant === 'atomic-rebind' ? data(source, 'authority') : record.authority;
+  const candidate = data(source, 'candidate');
+  const candidateContentDigest = data(source, 'candidateContentDigest');
+  const eligibilityBasis = data(source, 'eligibilityBasis');
+  const story = data(source, 'story');
+  const fence = data(source, 'fence');
+  if (!plain(fence) || !exact(fence, ['generation', 'registry', 'target']))
+    return fail('FC-TRUST', 'INVALID_AUTHORITY_RECORD');
+  const generation = data(fence, 'generation');
+  const registry = data(fence, 'registry');
+  const target = data(fence, 'target');
+  if (
+    typeof authority !== 'string' ||
+    typeof candidate !== 'string' ||
+    !isDigest(candidateContentDigest) ||
+    !isDigest(eligibilityBasis) ||
+    typeof generation !== 'string' ||
+    typeof registry !== 'string' ||
+    typeof target !== 'string' ||
+    typeof story !== 'string' ||
+    authority !== record.authority ||
+    !parseIdentity('ID-AUTH', authority).ok ||
+    !parseIdentity('ID-CAND', candidate).ok ||
+    !parseIdentity('ID-GEN', generation).ok ||
+    !parseIdentity('ID-STORY', story).ok ||
+    registry !== record.registry ||
+    target !== record.target
+  )
+    return fail('FC-TRUST', 'INVALID_AUTHORITY_RECORD');
+  return ok(
+    freeze({ authority, candidate, candidateContentDigest, eligibilityBasis, generation, registry, target, story }),
+  );
+}
+function releaseProof(input: unknown, held: AuthorityFacts): RegistryResult<CanonicalJson> {
+  const proof = canonical(input);
+  if (!plain(proof)) return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+  const kind = data(proof, 'kind');
+  const authority = data(proof, 'authority');
+  const candidate = data(proof, 'candidate');
+  const generation = data(proof, 'generation');
+  const registry = data(proof, 'registry');
+  const target = data(proof, 'target');
+  if (
+    authority !== held.authority ||
+    candidate !== held.candidate ||
+    generation !== held.generation ||
+    registry !== held.registry ||
+    target !== held.target
+  )
+    return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+  if (kind === 'structural-no-effect') {
+    return exact(proof, ['authority', 'candidate', 'generation', 'kind', 'registry', 'target'])
+      ? ok(proof)
+      : fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+  }
+  if (
+    kind !== 'reconciled-operations' ||
+    !exact(proof, ['authority', 'candidate', 'generation', 'kind', 'operations', 'registry', 'target'])
+  )
+    return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+  const operations = data(proof, 'operations');
+  if (!Array.isArray(operations) || operations.length === 0) return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+  const ids = new Set<string>();
+  for (const operation of operations) {
+    if (!plain(operation) || !exact(operation, ['evidenceDigest', 'operation', 'outcome']))
+      return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+    const operationId = data(operation, 'operation');
+    if (
+      typeof operationId !== 'string' ||
+      !parseIdentity('ID-OP', operationId).ok ||
+      !isDigest(data(operation, 'evidenceDigest')) ||
+      data(operation, 'outcome') !== 'resolved' ||
+      ids.has(operationId)
+    )
+      return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
+    ids.add(operationId);
+  }
+  return ok(proof);
+}
 function record(
   bindingValue: RegistryBinding,
   state: RegistryRecord[],
+  expectedHeadPosition: number,
+  expectedHeadDigest: string,
   variant: RegistryRecord['variant'],
   content: CanonicalJson,
   authority?: string,
@@ -228,8 +330,11 @@ function record(
       version: REGISTRY_VERSION,
       registry: bindingValue.registry,
       target: bindingValue.target,
+      expectedHeadPosition,
+      expectedHeadDigest,
       position,
       previousDigest,
+      predecessorDigest: previousDigest,
       variant,
       authority: authority ?? null,
       waiter: waiterHandle ?? null,
@@ -245,8 +350,11 @@ function record(
       version: REGISTRY_VERSION,
       registry: bindingValue.registry,
       target: bindingValue.target,
+      expectedHeadPosition,
+      expectedHeadDigest,
       position,
       previousDigest,
+      predecessorDigest: previousDigest,
       contentDigest: staged.value.digest,
       variant,
       handle,
@@ -310,7 +418,16 @@ export function createScriptedRegistry() {
     if (!checked.ok) return checked;
     const currency = records.length ? trusted(rawBinding.value, records) : ok(undefined);
     if (!currency.ok) return currency;
-    const created = record(rawBinding.value, records, variant, content, authority, waiterHandle);
+    const created = record(
+      rawBinding.value,
+      records,
+      checked.value.expectedPosition,
+      checked.value.expectedDigest,
+      variant,
+      content,
+      authority,
+      waiterHandle,
+    );
     if (!created.ok) return created;
     records.push(created.value);
     if (fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
@@ -339,7 +456,16 @@ export function createScriptedRegistry() {
         .filter((entry) => entry.variant === 'withdrawal')
         .map((entry) => (entry.content as Record<string, CanonicalJson>).waiterDigest),
     );
-    return records.filter((entry) => entry.variant === 'waiter' && !withdrawn.has(entry.contentDigest));
+    const consumed = new Set(
+      records
+        .filter((entry) => entry.variant === 'grant' || entry.variant === 'atomic-rebind')
+        .map((entry) => entry.waiter?.contentDigest)
+        .filter((value): value is string => value !== undefined),
+    );
+    return records.filter(
+      (entry) =>
+        entry.variant === 'waiter' && !withdrawn.has(entry.contentDigest) && !consumed.has(entry.contentDigest),
+    );
   };
   const currentAuthority = (records: readonly RegistryRecord[]) =>
     records.reduce<RegistryRecord | undefined>(
@@ -383,6 +509,14 @@ export function createScriptedRegistry() {
       if (!selected.ok) return selected;
       if (currentAuthority(records)) return fail('FC-AUTHORITY', 'AUTHORITY_ALREADY_HELD');
       if (selected.value.variant !== 'waiter') return fail('FC-AUTHORITY', 'INVALID_WAITER');
+      if (
+        records.some(
+          (entry) =>
+            (entry.variant === 'grant' || entry.variant === 'atomic-rebind') &&
+            entry.waiter?.contentDigest === selected.value.contentDigest,
+        )
+      )
+        return fail('FC-AUTHORITY', 'WAITER_ALREADY_CONSUMED');
       const details = (selected.value.content as Record<string, CanonicalJson>).waiter as unknown;
       const parsed = waiter(details);
       if (!parsed.ok || basis !== parsed.value.eligibilityBasis) return fail('FC-AUTHORITY', 'STALE_ELIGIBILITY');
@@ -401,7 +535,19 @@ export function createScriptedRegistry() {
         eligible.push(item.value);
       }
       const least = eligible.sort(compare)[0];
-      if (!least || least.story !== parsed.value.story) return fail('FC-AUTHORITY', 'NOT_LEAST_ELIGIBLE_WAITER');
+      const leastRecord = active(records)
+        .map((entry) => ({ entry, parsed: waiter((entry.content as Record<string, CanonicalJson>).waiter) }))
+        .find((entry) => entry.parsed.ok && entry.parsed.value.story === least?.story)?.entry;
+      if (!least || !leastRecord || leastRecord.contentDigest !== selected.value.contentDigest)
+        return fail('FC-AUTHORITY', 'NOT_LEAST_ELIGIBLE_WAITER');
+      if (
+        records.some(
+          (entry) =>
+            (entry.variant === 'grant' || entry.variant === 'atomic-rebind') &&
+            (entry.content as Record<string, CanonicalJson>).story === parsed.value.story,
+        )
+      )
+        return fail('FC-AUTHORITY', 'STORY_ALREADY_GRANTED');
       const authority = `${raw.value.target}/auth/${records.filter((entry) => entry.variant === 'grant' || entry.variant === 'atomic-rebind').length + 1}`;
       if (!parseIdentity('ID-AUTH', authority).ok) return fail('FC-SUBJECT', 'INVALID_AUTHORITY');
       const content = canonical({
@@ -410,6 +556,7 @@ export function createScriptedRegistry() {
         candidate: parsed.value.candidate,
         candidateContentDigest: parsed.value.candidateContentDigest,
         fence: { registry: raw.value.registry, target: raw.value.target, generation: parsed.value.generation },
+        story: parsed.value.story,
       });
       return content
         ? append(
@@ -429,8 +576,15 @@ export function createScriptedRegistry() {
       const authority = plain(input) ? data(input, 'authority') : undefined;
       const proof = plain(input) ? data(input, 'proof') : undefined;
       if (!held || authority !== held.authority) return fail('FC-FENCE', 'STALE_AUTHORITY');
-      if (!isDigest(proof)) return fail('FC-AUTHORITY', 'INVALID_RELEASE_PROOF');
-      const content = canonical({ authority: held.authority, releaseProof: proof });
+      const facts = authorityFacts(held);
+      if (!facts.ok) return facts;
+      const validatedProof = releaseProof(proof, facts.value);
+      if (!validatedProof.ok) return validatedProof;
+      const content = canonical({
+        authority: held.authority,
+        authorityBinding: facts.value,
+        releaseProof: validatedProof.value,
+      });
       return content
         ? append(input, 'release', content, held.authority, held.waiter)
         : fail('FC-INPUT', 'INVALID_RELEASE');
@@ -440,27 +594,43 @@ export function createScriptedRegistry() {
       if (!raw.ok) return raw;
       const held = currentAuthority(state(raw.value));
       const authority = plain(input) ? data(input, 'authority') : undefined;
-      const releaseProof = plain(input) ? data(input, 'releaseProof') : undefined;
+      const proof = plain(input) ? data(input, 'releaseProof') : undefined;
       const newCandidate = plain(input) ? data(input, 'candidate') : undefined;
       const candidateContentDigest = plain(input) ? data(input, 'candidateContentDigest') : undefined;
       const eligibilityBasis = plain(input) ? data(input, 'eligibilityBasis') : undefined;
+      const generation = plain(input) ? data(input, 'generation') : undefined;
       if (!held || authority !== held.authority) return fail('FC-FENCE', 'STALE_AUTHORITY');
+      const facts = authorityFacts(held);
+      if (!facts.ok) return facts;
+      const validatedProof = releaseProof(proof, facts.value);
+      if (!validatedProof.ok) return validatedProof;
       if (
-        !isDigest(releaseProof) ||
         typeof newCandidate !== 'string' ||
         !parseIdentity('ID-CAND', newCandidate).ok ||
         !isDigest(candidateContentDigest) ||
-        !isDigest(eligibilityBasis)
+        !isDigest(eligibilityBasis) ||
+        typeof generation !== 'string' ||
+        !parseIdentity('ID-GEN', generation).ok ||
+        !newCandidate.startsWith(`${facts.value.story}/cand/`) ||
+        !generation.startsWith(`${facts.value.story.split('/story/')[0]}/gen/`)
       )
         return fail('FC-AUTHORITY', 'INVALID_REBIND');
       const next = `${raw.value.target}/auth/${state(raw.value).filter((entry) => entry.variant === 'grant' || entry.variant === 'atomic-rebind').length + 1}`;
-      const content = canonical({
-        oldAuthority: authority,
-        releaseProof,
+      const newAuthority = {
+        authority: next,
         candidate: newCandidate,
         candidateContentDigest,
         eligibilityBasis,
-        fence: { registry: raw.value.registry, target: raw.value.target },
+        generation,
+        registry: raw.value.registry,
+        target: raw.value.target,
+        story: facts.value.story,
+        fence: { registry: raw.value.registry, target: raw.value.target, generation },
+      };
+      const content = canonical({
+        oldAuthority: facts.value,
+        releaseProof: validatedProof.value,
+        newAuthority,
       });
       return content
         ? append(input, 'atomic-rebind', content, next, held.waiter, plain(input) ? data(input, 'fault') : undefined)

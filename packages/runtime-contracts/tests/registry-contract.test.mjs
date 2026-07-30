@@ -11,6 +11,7 @@ const digest = (character) => character.repeat(64);
 const descriptor = fixture.registryDescriptor;
 const target = `target/${fixture.targetKey}`;
 const registryId = `registry/${descriptor}`;
+const canonicalBinding = registry.createRegistryBinding({ descriptor, targetKey: fixture.targetKey }).value;
 const candidate = (suffix, contentDigest = fixture.digests.candidateA) =>
   `${fixture.story}/cand/${suffix}|${contentDigest}`;
 const waiter = ({
@@ -31,16 +32,24 @@ const waiter = ({
   comparator: { priority, ordinal, story },
   waitedAt,
 });
+const structuralProof = (grant) => ({
+  kind: 'structural-no-effect',
+  authority: grant.authority,
+  candidate: grant.content.candidate,
+  generation: grant.content.fence.generation,
+  registry: grant.content.fence.registry,
+  target: grant.content.fence.target,
+});
 
 test('registry IDs and records are canonical, realization-bound, and expected-head-plus-one staged', () => {
   assert.equal(registry.REGISTRY_VERSION, 'jig.registry.v1');
   assert.deepEqual(registry.createRegistryBinding({ descriptor, targetKey: fixture.targetKey }), {
     ok: true,
-    value: { registry: registryId, target },
+    value: canonicalBinding,
   });
   const store = registry.createScriptedRegistry();
   const appended = store.waiter({
-    binding: { registry: registryId, target },
+    binding: canonicalBinding,
     expectedPosition: -1,
     expectedDigest: digest('0'),
     waiter: waiter(),
@@ -52,12 +61,12 @@ test('registry IDs and records are canonical, realization-bound, and expected-he
   assert.equal(appended.value.target, target);
   assert.equal(appended.value.variant, 'waiter');
   assert.equal(appended.value.content.waiter.waitedAt, 10);
-  assert.equal(store.snapshot({ registry: registryId, target }).value.position, 0);
+  assert.equal(store.snapshot(canonicalBinding).value.position, 0);
 });
 
 test('least eligible unwithdrawn waiter grants without preemption and allocates the only authority', () => {
   const store = registry.createScriptedRegistry();
-  const binding = { registry: registryId, target };
+  const binding = canonicalBinding;
   const later = store.waiter({
     binding,
     expectedPosition: -1,
@@ -111,7 +120,7 @@ test('least eligible unwithdrawn waiter grants without preemption and allocates 
       expectedPosition: 1,
       expectedDigest: earlier.value.contentDigest,
       authority: grant.value.authority,
-      proof: digest('f'),
+      proof: structuralProof(grant.value),
     }),
     { ok: false, error: { family: 'FC-FENCE', code: 'EXPECTED_HEAD_MISMATCH' } },
   );
@@ -119,7 +128,7 @@ test('least eligible unwithdrawn waiter grants without preemption and allocates 
 
 test('stale eligibility cannot mint authority after a conditional head re-read', () => {
   const store = registry.createScriptedRegistry();
-  const binding = { registry: registryId, target };
+  const binding = canonicalBinding;
   const queued = store.waiter({ binding, expectedPosition: -1, expectedDigest: digest('0'), waiter: waiter() });
   assert.deepEqual(
     store.grant({
@@ -135,7 +144,7 @@ test('stale eligibility cannot mint authority after a conditional head re-read',
 
 test('withdrawal wins a grant race, release requires proof, and atomic rebind has no unowned interval', () => {
   const store = registry.createScriptedRegistry();
-  const binding = { registry: registryId, target };
+  const binding = canonicalBinding;
   const queued = store.waiter({ binding, expectedPosition: -1, expectedDigest: digest('0'), waiter: waiter() });
   const withdrawn = store.withdrawal({
     binding,
@@ -188,18 +197,31 @@ test('withdrawal wins a grant race, release requires proof, and atomic rebind ha
     expectedPosition: 3,
     expectedDigest: grant.value.contentDigest,
     authority: grant.value.authority,
-    releaseProof: digest('f'),
-    candidate: candidate(2, fixture.digests.candidateA),
+    releaseProof: structuralProof(grant.value),
+    candidate: `${fixture.run}/story/next/cand/2|${fixture.digests.candidateA}`,
     candidateContentDigest: fixture.digests.candidateA,
     eligibilityBasis: fixture.digests.basisA,
+    generation: fixture.generation,
   });
   assert.equal(rebound.ok, true);
   assert.equal(rebound.value.variant, 'atomic-rebind');
   assert.equal(rebound.value.authority, `${target}/auth/2`);
+  assert.deepEqual(rebound.value.content.oldAuthority.authority, grant.value.authority);
+  assert.deepEqual(rebound.value.content.newAuthority, {
+    authority: `${target}/auth/2`,
+    candidate: `${fixture.run}/story/next/cand/2|${fixture.digests.candidateA}`,
+    candidateContentDigest: fixture.digests.candidateA,
+    eligibilityBasis: fixture.digests.basisA,
+    generation: fixture.generation,
+    registry: registryId,
+    target,
+    story: `${fixture.run}/story/next`,
+    fence: { registry: registryId, target, generation: fixture.generation },
+  });
 });
 
 test('witness flushes before acknowledgement; crashes, lost ack, fork, rollback, mismatch, and missing witness stop trust', () => {
-  const binding = { registry: registryId, target };
+  const binding = canonicalBinding;
   for (const fault of ['after-flush', 'after-witness', 'lost-ack']) {
     const store = registry.createScriptedRegistry();
     const result = store.waiter({
@@ -226,7 +248,7 @@ test('witness flushes before acknowledgement; crashes, lost ack, fork, rollback,
 
 test('registry-first mirror reconciliation is audit-only and hostile inputs fail closed without getters', () => {
   const store = registry.createScriptedRegistry();
-  const binding = { registry: registryId, target };
+  const binding = canonicalBinding;
   const created = store.waiter({ binding, expectedPosition: -1, expectedDigest: digest('0'), waiter: waiter() });
   assert.deepEqual(store.reconcileMirror({ binding, mirrorDigest: digest('f') }), {
     ok: true,
@@ -251,4 +273,102 @@ test('registry-first mirror reconciliation is audit-only and hostile inputs fail
     assert.equal(operation().ok, false);
   }
   assert.equal(gets, 0);
+});
+
+test('regression R1-R4: descriptor-bound adoption, one-time waiter consumption, typed release proof, and staged head facts', () => {
+  const expected = registry.createRegistryBinding({ descriptor, targetKey: fixture.targetKey });
+  assert.equal(expected.ok, true);
+  assert.equal(expected.value.descriptor, descriptor);
+  const foreign = { ...expected.value, registry: `registry/${digest('f')}` };
+  const store = registry.createScriptedRegistry();
+  assert.equal(
+    store.waiter({
+      binding: foreign,
+      expectedPosition: -1,
+      expectedDigest: digest('0'),
+      waiter: waiter(),
+    }).error.code,
+    'FOREIGN_REGISTRY_BINDING',
+  );
+  const queued = store.waiter({
+    binding: expected.value,
+    expectedPosition: -1,
+    expectedDigest: digest('0'),
+    waiter: waiter(),
+  });
+  assert.equal(queued.value.expectedHeadPosition, -1);
+  assert.equal(queued.value.expectedHeadDigest, digest('0'));
+  assert.equal(queued.value.predecessorDigest, digest('0'));
+  assert.equal(
+    store.waiter({ binding: expected.value, expectedPosition: -1, waiter: waiter() }).error.code,
+    'INVALID_EXPECTED_HEAD',
+  );
+  for (const operation of [
+    () => store.snapshot(foreign),
+    () => store.readback({ binding: foreign, position: 0 }),
+    () => store.reconcileMirror({ binding: foreign, mirrorDigest: digest('0') }),
+  ])
+    assert.equal(operation().error.code, 'FOREIGN_REGISTRY_BINDING');
+});
+
+test('regression R2-R3: grants consume the exact handle and typed proofs bind every authority fact', () => {
+  const store = registry.createScriptedRegistry();
+  const first = store.waiter({
+    binding: canonicalBinding,
+    expectedPosition: -1,
+    expectedDigest: digest('0'),
+    waiter: waiter(),
+  });
+  const grant = store.grant({
+    binding: canonicalBinding,
+    expectedPosition: 0,
+    expectedDigest: first.value.contentDigest,
+    waiter: first.value.handle,
+    eligibilityBasis: fixture.digests.basisA,
+  });
+  assert.equal(grant.ok, true);
+  const released = store.release({
+    binding: canonicalBinding,
+    expectedPosition: 1,
+    expectedDigest: grant.value.contentDigest,
+    authority: grant.value.authority,
+    proof: structuralProof(grant.value),
+  });
+  assert.equal(released.ok, true);
+  assert.equal(
+    store.grant({
+      binding: canonicalBinding,
+      expectedPosition: 2,
+      expectedDigest: released.value.contentDigest,
+      waiter: first.value.handle,
+      eligibilityBasis: fixture.digests.basisA,
+    }).error.code,
+    'WAITER_ALREADY_CONSUMED',
+  );
+  const alternate = store.waiter({
+    binding: canonicalBinding,
+    expectedPosition: 2,
+    expectedDigest: released.value.contentDigest,
+    waiter: waiter({ candidateId: candidate(2), candidateContentDigest: fixture.digests.candidateB }),
+  });
+  assert.equal(
+    store.grant({
+      binding: canonicalBinding,
+      expectedPosition: 3,
+      expectedDigest: alternate.value.contentDigest,
+      waiter: alternate.value.handle,
+      eligibilityBasis: fixture.digests.basisA,
+    }).error.code,
+    'STORY_ALREADY_GRANTED',
+  );
+  assert.equal(
+    store.release({
+      binding: canonicalBinding,
+      expectedPosition: 3,
+      expectedDigest: alternate.value.contentDigest,
+      authority: grant.value.authority,
+      proof: digest('f'),
+    }).error.code,
+    'STALE_AUTHORITY',
+  );
 });

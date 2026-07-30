@@ -1,11 +1,18 @@
 {
-  "fixtureVersion": "registry-contract-fixtures.v1",
+  "fixtureVersion": "registry-contract-fixtures.v2",
   "sourceId": "runtime-contracts/registry.ts",
   "suiteVersion": "semantic-registry-contract.v1",
   "probeVersion": "scripted-registry-witness.v1",
   "logicalControl": "separate scripted registry witness state",
   "faultSurface": "separate from registry records",
   "providerQualification": "none",
+  "regressionCorpus": [
+    "foreign-registry-binding",
+    "consumed-waiter-replay",
+    "same-story-alternate-waiter",
+    "opaque-release-proof",
+    "missing-or-substituted-expected-head"
+  ],
   "registryDescriptor": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "targetKey": "repository-main",
   "run": "run-000000000001-aaaaaaaaaaaaaaaa",
