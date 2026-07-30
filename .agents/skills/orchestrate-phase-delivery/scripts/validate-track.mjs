@@ -1,12 +1,44 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const defaultRepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const defaultTrackPath = join(defaultRepoRoot, 'docs/delivery/greenfield/track.json');
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+function duplicateJsonKeys(source) {
+  const duplicates = [];
+  const containers = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const value = source[index];
+    if (value === '{') containers.push({ type: 'object', keys: new Set() });
+    else if (value === '[') containers.push({ type: 'array' });
+    else if (value === '}' || value === ']') containers.pop();
+    else if (value === '"') {
+      let end = index + 1;
+      for (; end < source.length; end += 1) {
+        if (source[end] === '\\') end += 1;
+        else if (source[end] === '"') break;
+      }
+      let next = end + 1;
+      while (next < source.length && /\s/.test(source[next])) next += 1;
+      const container = containers.at(-1);
+      if (container?.type === 'object' && source[next] === ':') {
+        try {
+          const key = JSON.parse(source.slice(index, end + 1));
+          if (container.keys.has(key)) duplicates.push(key);
+          else container.keys.add(key);
+        } catch {
+          // The full JSON parse below reports malformed string syntax.
+        }
+      }
+      index = end;
+    }
+  }
+  return [...new Set(duplicates)];
+}
 
 export function validateTrack(track) {
   const errors = [];
@@ -90,9 +122,18 @@ export function validateTrack(track) {
 }
 
 export function validateTrackFile(trackPath = defaultTrackPath, repoRoot = defaultRepoRoot) {
+  let source;
+  try {
+    source = readFileSync(trackPath, 'utf8');
+  } catch (error) {
+    return [`cannot read track JSON: ${error instanceof Error ? error.message : String(error)}`];
+  }
+  const duplicateKeys = duplicateJsonKeys(source);
+  if (duplicateKeys.length) return duplicateKeys.map((key) => `duplicate JSON key: ${key}`);
+
   let track;
   try {
-    track = JSON.parse(readFileSync(trackPath, 'utf8'));
+    track = JSON.parse(source);
   } catch (error) {
     return [`cannot read track JSON: ${error instanceof Error ? error.message : String(error)}`];
   }
@@ -102,7 +143,7 @@ export function validateTrackFile(trackPath = defaultTrackPath, repoRoot = defau
       if (typeof story?.story_file !== 'string') continue;
       const storyPath = join(repoRoot, story.story_file);
       if (!existsSync(storyPath)) errors.push(`story file is missing: ${story.story_file}`);
-      else if (!statSync(storyPath).isFile()) errors.push(`story file is not a regular file: ${story.story_file}`);
+      else if (!lstatSync(storyPath).isFile()) errors.push(`story file is not a regular file: ${story.story_file}`);
     }
   return errors;
 }

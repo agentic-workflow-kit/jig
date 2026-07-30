@@ -49,10 +49,26 @@ function validateWorkflow(workflow, errors) {
     errors.push('CI workflow must retain read-only repository permissions');
   if (!/persist-credentials:\s+false/.test(workflow)) errors.push('CI checkout must disable credential persistence');
   if (!/pnpm install --frozen-lockfile/.test(workflow)) errors.push('CI workflow must use the frozen lockfile');
-  if (!/run:\s+pnpm check/.test(workflow)) errors.push('CI workflow must run the full pnpm check gate');
+  if (!/^\s+run:\s+pnpm check\s*(?:#.*)?$/m.test(workflow))
+    errors.push('CI workflow must run the full pnpm check gate');
 
   for (const line of workflow.split('\n').filter((value) => /^\s*uses:/.test(value)))
     if (!immutableAction.test(line.trim())) errors.push(`CI action must use an immutable commit: ${line.trim()}`);
+}
+
+function validateTurbo(turbo, errors) {
+  const requiredDependencies = {
+    topo: ['^topo'],
+    build: ['^build'],
+    lint: ['topo'],
+    test: ['build'],
+    check: ['lint', 'build', 'test'],
+  };
+  for (const [task, required] of Object.entries(requiredDependencies)) {
+    const dependencies = turbo.tasks?.[task]?.dependsOn;
+    if (!Array.isArray(dependencies) || required.some((dependency) => !dependencies.includes(dependency)))
+      errors.push(`Turbo ${task} task must depend on ${required.join(', ').replace(/, ([^,]+)$/, ', and $1')}`);
+  }
 }
 
 export function validateActiveRepository(rootDir = repoRoot) {
@@ -73,7 +89,8 @@ export function validateActiveRepository(rootDir = repoRoot) {
   for (const pattern of ['packages/*', 'tools/*'])
     if (!packagePatterns.has(pattern)) errors.push(`pnpm workspace must include ${pattern}`);
 
-  readJson(rootDir, 'turbo.json', errors);
+  const turbo = readJson(rootDir, 'turbo.json', errors);
+  if (turbo) validateTurbo(turbo, errors);
   validateWorkflow(readText(rootDir, '.github/workflows/check.yml', errors) ?? '', errors);
 
   for (const path of forbiddenRootSurfaces)

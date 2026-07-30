@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -109,6 +109,44 @@ test('requires each story ID to reference its canonical regular file', () => {
     );
     assert.ok(
       validateTrackFile(directoryTrack, root).some((error) => error.includes('story file is not a regular file')),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects duplicate JSON keys before validating a track', () => {
+  const root = mkdtempSync(join(tmpdir(), 'delivery-track-test-'));
+  try {
+    const trackPath = join(root, 'track.json');
+    writeFileSync(trackPath, '{"schema_version":1,"stories":[],"stories":[],"phases":[]}');
+    assert.ok(validateTrackFile(trackPath, root).includes('duplicate JSON key: stories'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects a symlink in place of a canonical story brief', () => {
+  const root = mkdtempSync(join(tmpdir(), 'delivery-track-test-'));
+  try {
+    const storiesDir = join(root, 'docs/delivery/greenfield/stories');
+    mkdirSync(storiesDir, { recursive: true });
+    writeFileSync(join(storiesDir, 'GF-002.md'), '# Different brief\n');
+    symlinkSync('GF-002.md', join(storiesDir, 'GF-001.md'));
+
+    const trackPath = join(root, 'track.json');
+    writeFileSync(
+      trackPath,
+      JSON.stringify({
+        schema_version: 1,
+        stories: [story('GF-001', 0)],
+        phases: [{ id: 0, stories: ['GF-001'] }],
+      }),
+    );
+    assert.ok(
+      validateTrackFile(trackPath, root).includes(
+        'story file is not a regular file: docs/delivery/greenfield/stories/GF-001.md',
+      ),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

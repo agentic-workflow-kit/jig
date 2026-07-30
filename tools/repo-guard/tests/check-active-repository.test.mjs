@@ -66,3 +66,26 @@ test('rejects unsafe CI and a mutable root package boundary', () => {
   assert.ok(errors.includes('CI checkout must disable credential persistence'));
   assert.ok(errors.some((error) => error.includes('CI action must use an immutable commit')));
 });
+
+test('requires the essential Turbo aggregation edges', () => {
+  const errors = withRepository((root) => {
+    const turboPath = join(root, 'turbo.json');
+    const turbo = JSON.parse(readFileSync(turboPath, 'utf8'));
+    turbo.tasks.check.dependsOn = ['lint', 'build'];
+    turbo.tasks.build.dependsOn = [];
+    writeFileSync(turboPath, `${JSON.stringify(turbo)}\n`);
+  });
+  assert.ok(errors.includes('Turbo check task must depend on lint, build, and test'));
+  assert.ok(errors.includes('Turbo build task must depend on ^build'));
+});
+
+test('does not accept a commented-out CI check command', () => {
+  const errors = withRepository((root) => {
+    const workflowPath = join(root, '.github/workflows/check.yml');
+    writeFileSync(
+      workflowPath,
+      readFileSync(workflowPath, 'utf8').replace('        run: pnpm check', '        # run: pnpm check'),
+    );
+  });
+  assert.ok(errors.includes('CI workflow must run the full pnpm check gate'));
+});
