@@ -2,6 +2,7 @@ import {
   type CanonicalJson,
   decodeFrame,
   encodeFrame,
+  formatIdentity,
   parseIdentity,
   stageDigest,
   validateStagedDigest,
@@ -25,11 +26,12 @@ export type LedgerRecord = Readonly<{
   content: CanonicalJson;
   contentDigest: string;
 }>;
+export type LedgerProposal = Readonly<Omit<LedgerRecord, 'event' | 'version'>>;
 export type LedgerWait = Readonly<{ elapsedMs: number; limitMs?: number }>;
 export type AppendRequest = Readonly<{
   binding: RunStoreBinding;
   expectedPosition: number;
-  record: LedgerRecord;
+  record: LedgerProposal;
   wait?: LedgerWait;
 }>;
 export type ReadbackRequest = Readonly<{
@@ -138,7 +140,7 @@ function snapshotContent(value: unknown): CanonicalJson | undefined {
 function recordDigest(record: Omit<LedgerRecord, 'contentDigest'>): LedgerResult<string> {
   const staged = stageDigest({
     domain: 'LEDGER-RECORD',
-    excludePaths: ['contentDigest'],
+    excludePaths: ['contentDigest', 'event'],
     value: { ...record, contentDigest: '' },
   });
   return staged.ok ? { ok: true, value: staged.value.digest } : fail('FC-INPUT', 'INVALID_RECORD');
@@ -182,7 +184,7 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
   if (content === undefined) return fail('FC-INPUT', 'INVALID_RECORD_CONTENT');
   const staged = validateStagedDigest({
     domain: 'LEDGER-RECORD',
-    excludePaths: ['contentDigest'],
+    excludePaths: ['contentDigest', 'event'],
     digest: record.contentDigest,
     value: {
       version: record.version,
@@ -213,13 +215,40 @@ function validateRecord(value: unknown): LedgerResult<LedgerRecord> {
   };
 }
 
-export function createLedgerRecord(input: Omit<LedgerRecord, 'version' | 'contentDigest'>): LedgerResult<LedgerRecord> {
+export function createLedgerRecord(input: LedgerProposal): LedgerResult<LedgerProposal> {
+  if (
+    typeof input !== 'object' ||
+    input === null ||
+    !['content,generation,position,previousDigest,run,transaction', 'content,contentDigest,generation,position,previousDigest,run,transaction'].includes(
+      Object.keys(input).sort().join(','),
+    )
+  )
+    return fail('FC-INPUT', 'INVALID_PROPOSAL');
+  if (
+    !position(input.position) ||
+    !digest(input.previousDigest) ||
+    !parseIdentity('ID-RUN', input.run).ok ||
+    !parseIdentity('ID-GEN', input.generation).ok ||
+    !parseIdentity('ID-TXN', input.transaction).ok ||
+    !input.generation.startsWith(`${input.run}/gen/`) ||
+    !input.transaction.startsWith(`${input.run}/txn/${input.position + 1}/${input.generation}|`)
+  )
+    return fail('FC-INPUT', 'INVALID_PROPOSAL');
   const content = snapshotContent(input.content);
   if (content === undefined) return fail('FC-INPUT', 'INVALID_RECORD_CONTENT');
-  const staged = recordDigest({ ...input, content, version: LEDGER_VERSION });
-  return staged.ok
-    ? validateRecord({ ...input, content, version: LEDGER_VERSION, contentDigest: staged.value })
-    : staged;
+  const staged = recordDigest({ ...input, content, event: '', version: LEDGER_VERSION });
+  return staged.ok ? { ok: true, value: freeze({ ...input, content, contentDigest: staged.value }) } : staged;
+}
+
+function mintedEvent(run: string, position: number): LedgerResult<string> {
+  const match = /^run-([0-9]{12})-([0-9a-f]{16})$/.exec(run);
+  if (!match) return fail('FC-SUBJECT', 'INVALID_EVENT_SCOPE');
+  const event = formatIdentity('ID-EVENT', {
+    runSequence: match[1] as string,
+    runNonce: match[2] as string,
+    eventOrdinal: String(position + 1),
+  });
+  return event.ok ? { ok: true, value: event.value.value } : fail('FC-SUBJECT', 'INVALID_EVENT_SCOPE');
 }
 
 function validBinding(value: unknown): value is RunStoreBinding {
@@ -295,19 +324,23 @@ export function createScriptedLedger(): ScriptedLedger {
       const wait = waitWithinBound(request.wait);
       if (!wait.ok) return wait;
       const state = forRun(request.binding);
-      const record = validateRecord(request.record);
+      const proposal = createLedgerRecord(request.record);
       if (!state.ok) return state;
-      if (!record.ok) return record;
+      if (!proposal.ok) return proposal;
       if (
         !expectedPosition(request.expectedPosition) ||
-        record.value.run !== request.binding.run ||
-        record.value.generation !== request.binding.generation ||
-        record.value.position !== request.expectedPosition + 1
+        proposal.value.run !== request.binding.run ||
+        proposal.value.generation !== request.binding.generation ||
+        proposal.value.position !== request.expectedPosition + 1
       )
         return fail('FC-SUBJECT', 'APPEND_BINDING_MISMATCH');
       const actual = head(state.value);
-      if (request.expectedPosition !== actual.position || record.value.previousDigest !== actual.digest)
+      if (request.expectedPosition !== actual.position || proposal.value.previousDigest !== actual.digest)
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
+      const event = mintedEvent(proposal.value.run, proposal.value.position);
+      if (!event.ok) return event;
+      const record = validateRecord({ ...proposal.value, event: event.value, version: LEDGER_VERSION });
+      if (!record.ok) return record;
       state.value.push(record.value); // durable flush is modeled before every witness step.
       if (fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
       witnesses.set(

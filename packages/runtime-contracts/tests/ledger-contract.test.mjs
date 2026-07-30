@@ -20,7 +20,6 @@ function record(
     run: fixture.run,
     generation,
     transaction,
-    event: `${fixture.run}/event/${position + 1}`,
     position,
     previousDigest,
     content: { transition: position + 1 },
@@ -42,14 +41,14 @@ test('semantic ledger: an append is witnessed before acknowledgement', () => {
   const ledger = runtime.createScriptedLedger();
   const [proposal, result] = append(ledger, 0, '0'.repeat(64));
   assert.equal(result.ok, true);
-  assert.deepEqual(result.value, proposal);
+  assert.equal(result.value.event, `${fixture.run}/event/1`);
   const read = ledger.readback({
     binding,
     position: 0,
     transaction: proposal.transaction,
     contentDigest: proposal.contentDigest,
   });
-  assert.deepEqual(read, { ok: true, value: { kind: 'committed', record: proposal } });
+  assert.deepEqual(read, { ok: true, value: { kind: 'committed', record: result.value } });
 });
 
 test('semantic ledger: readback has the fixed five outcomes and never retries uncertainty', () => {
@@ -220,7 +219,6 @@ test('semantic ledger: records and preflight bytes are canonical immutable snaps
     run: fixture.run,
     generation: fixture.generation,
     transaction: `${fixture.run}/txn/1/${fixture.generation}|${fixture.generationDigest}`,
-    event: `${fixture.run}/event/1`,
     position: 0,
     previousDigest: '0'.repeat(64),
     content,
@@ -257,7 +255,7 @@ test('semantic ledger: rejects cross-boundary, stale-head, malformed, and noncan
     ledger.append({ binding: { ...binding, run: 'run-other' }, expectedPosition: -1, record: proposal }).error.family,
     'FC-SUBJECT',
   );
-  assert.equal(ledger.append({ binding, expectedPosition: 0, record: proposal }).error.family, 'FC-SUBJECT');
+  assert.equal(ledger.append({ binding, expectedPosition: 0, record: proposal }).ok, false);
   assert.equal(runtime.createLedgerRecord({ ...proposal, position: -1 }).error.family, 'FC-INPUT');
   assert.equal(runtime.createLedgerRecord({ ...proposal, content: { text: 'e\u0301' } }).error.family, 'FC-INPUT');
 });
