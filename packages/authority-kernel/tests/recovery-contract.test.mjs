@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const runtime = await import('../../runtime-contracts/dist/index.js');
+const operation = await import('../dist/operation.js');
 const recovery = await import('../dist/recovery.js');
 const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/recovery-contract-oracle.json'), 'utf8'),
@@ -356,5 +357,127 @@ test('lost claim acknowledgement uses real five-way ledger readback outcomes wit
       record: proposal.value,
     }),
     { ok: false, error: { family: 'FC-TRUST', code: 'INDETERMINATE_READ' } },
+  );
+});
+
+test('GF-015 recovery derives pending effects only from an exact journal bound to authorized ledger bytes', () => {
+  const ledger = runtime.createScriptedLedger();
+  const operationInitialState = Object.freeze({
+    ...initialState,
+    storyState: 'Eligible',
+  });
+  const transaction = `${run}/txn/1/${priorGeneration}|${basis}`;
+  const event = Object.freeze({
+    type: 'EV-WAKE-CAPACITY',
+    edge: 'eligible-preparing',
+    id: `${run}/event/1`,
+    subject,
+    fence: priorFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+  });
+  const bindings = Object.freeze({
+    transaction,
+    event: event.id,
+    operation: `${transaction}/op/1`,
+    subject,
+    fence: priorFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+  });
+  const first = append(ledger, 0, digest('0'), priorGeneration, {
+    schema: 'jig.transition.v1',
+    event,
+    bindings,
+  });
+  const operationJournal = operation.createOperationJournal({
+    verify: (proof) => {
+      const readback = ledger.readback({
+        binding: { kind: 'run', run, generation: priorGeneration },
+        position: proof.position,
+        transaction: proof.transaction,
+        contentDigest: proof.recordDigest,
+      });
+      const snapshot = ledger.snapshot({ kind: 'run', run, generation: priorGeneration });
+      return readback.ok &&
+        readback.value.kind === 'committed' &&
+        snapshot.ok &&
+        snapshot.value.position === proof.position &&
+        snapshot.value.digest === proof.witnessDigest
+        ? { ok: true, value: undefined }
+        : { ok: false, error: { family: 'FC-TRUST', code: 'UNVERIFIED' } };
+    },
+  });
+  assert.equal(
+    operationJournal.recordIntent({
+      version: operation.OPERATION_STATE_VERSION,
+      operation: bindings.operation,
+      transaction,
+      event: event.id,
+      type: 'OPC-WS-PROVISION',
+      subject,
+      payloadBasisDigest: digest('2'),
+      fence: priorFence,
+      capability: {
+        kind: 'CB-WORKSPACE',
+        port: 'PORT-WORKSPACE',
+        operationClass: 'OPC-WS-PROVISION',
+        subject: subject.story,
+        fence: priorFence,
+        resourceScope: 'workspace/story-1',
+        manifest: `provider/${digest('3')}/authority/${digest('4')}`,
+        digest: digest('5'),
+      },
+      authority: null,
+      role: 'controller',
+      lifecycle: 'Preparing',
+      effect: 'effectful',
+      purpose: 'semantic',
+      predecessor: null,
+      bounds: { waitMs: 900000, retryLimit: 3, recoveryLimit: 3 },
+      proof: {
+        kind: 'committed-witnessed',
+        position: first.position,
+        event: first.event,
+        transaction: first.transaction,
+        recordDigest: first.contentDigest,
+        witnessDigest: first.contentDigest,
+      },
+    }).ok,
+    true,
+  );
+  const claim = append(ledger, 1, first.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const snapshot = operationJournal.snapshot();
+  const recovered = recovery.recoverFencedRun({
+    ledger,
+    records: [first, claim],
+    claim,
+    head: { position: claim.position, digest: claim.contentDigest },
+    binding: { kind: 'run', run, generation: priorGeneration },
+    generation,
+    recoveryToken: basis,
+    initialState: operationInitialState,
+    operationState: { snapshot, head: snapshot.head },
+  });
+  assert.equal(recovered.ok, true);
+  assert.deepEqual(
+    recovered.value.pendingEffects.map((entry) => [entry.operation, entry.status]),
+    [[bindings.operation, 'intent-recorded']],
+  );
+
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ledger,
+      records: [first, claim],
+      claim,
+      head: { position: claim.position, digest: claim.contentDigest },
+      binding: { kind: 'run', run, generation: priorGeneration },
+      generation,
+      recoveryToken: basis,
+      initialState: operationInitialState,
+      operationState: { snapshot, head: { ...snapshot.head, digest: digest('f') } },
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_JOURNAL_UNVERIFIED' } },
   );
 });

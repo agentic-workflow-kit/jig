@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "gf015-crash-corpus.v1",
+  "points": [
+    "before-intent-commit",
+    "after-intent-flush",
+    "after-intent-witness",
+    "before-dispatch",
+    "after-dispatch",
+    "after-response",
+    "after-fact-flush",
+    "after-fact-witness",
+    "before-adoption",
+    "after-adoption"
+  ],
+  "safeOutcomes": {
+    "before-intent-commit": "absent",
+    "after-intent-flush": "recovery-required",
+    "after-intent-witness": "pending",
+    "before-dispatch": "pending",
+    "after-dispatch": "uncertain",
+    "after-response": "uncertain",
+    "after-fact-flush": "recovery-required",
+    "after-fact-witness": "confirmed-effect",
+    "before-adoption": "confirmed-effect",
+    "after-adoption": "adopted"
+  }
+}

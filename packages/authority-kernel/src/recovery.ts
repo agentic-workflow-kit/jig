@@ -1,5 +1,6 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { type AuthorityState, type ProposedTransition, replayAuthority } from './index.js';
+import { type OperationJournalSnapshot, type OperationProjection, restoreOperationJournal } from './operation.js';
 
 const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
@@ -344,13 +345,13 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     projection: RecoveryProjection;
     observation: RecoveryObservation;
     snapshot: 'absent' | 'used' | 'discarded';
-    pendingEffects: readonly [];
+    pendingEffects: readonly OperationProjection[];
   }>
 > {
   const candidate = ownOptional(
     input,
     ['ledger', 'binding', 'generation', 'recoveryToken', 'records', 'head', 'claim', 'initialState'],
-    ['snapshot', 'wait', 'crashAt'],
+    ['snapshot', 'wait', 'crashAt', 'operationState'],
   );
   if (!candidate) return failure('FC-INPUT', 'INVALID_RECOVERY_INPUT');
   const recoveredBinding = binding(candidate.binding);
@@ -489,6 +490,55 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     stateDigest: projectionDigest.value.digest,
     decisionDigest: decisionDigest.value.digest,
   });
+  let pendingEffects: readonly OperationProjection[] = freeze([]);
+  if (candidate.operationState !== undefined) {
+    const operationState = own(candidate.operationState, ['snapshot', 'head']);
+    if (!operationState) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
+    const restored = restoreOperationJournal(operationState.snapshot, operationState.head, {
+      verify: (proof) => {
+        const carrier = ordered[proof.position];
+        return carrier &&
+          carrier.event === proof.event &&
+          carrier.transaction === proof.transaction &&
+          carrier.contentDigest === proof.recordDigest &&
+          proof.recordDigest === proof.witnessDigest
+          ? { ok: true, value: undefined }
+          : { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_COMMIT_PROOF_MISMATCH' } };
+      },
+    });
+    if (!restored.ok) return failure('FC-TRUST', 'OPERATION_JOURNAL_UNVERIFIED');
+    const operationSnapshot = operationState.snapshot as OperationJournalSnapshot;
+    for (const entry of operationSnapshot.entries) {
+      const proof = entry.record.proof;
+      const carrier = ordered[proof.position];
+      if (
+        !carrier ||
+        carrier.event !== proof.event ||
+        carrier.transaction !== proof.transaction ||
+        carrier.contentDigest !== proof.recordDigest ||
+        proof.recordDigest !== proof.witnessDigest
+      )
+        return failure('FC-TRUST', 'OPERATION_COMMIT_PROOF_MISMATCH');
+      if (entry.record.kind === 'intent') {
+        const decisionOperation = projected.decisions
+          .flatMap((decision) => decision.operations)
+          .find((operation) => operation.operation === entry.record.operation);
+        if (
+          !decisionOperation ||
+          decisionOperation.type !== entry.record.type ||
+          decisionOperation.transaction !== entry.record.transaction ||
+          decisionOperation.event !== entry.record.event ||
+          decisionOperation.subject.run !== entry.record.subject.run ||
+          decisionOperation.subject.story !== entry.record.subject.story ||
+          decisionOperation.subject.basis !== entry.record.subject.basis ||
+          decisionOperation.fence.generation !== entry.record.fence.generation ||
+          decisionOperation.fence.basis !== entry.record.fence.basis
+        )
+          return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
+      }
+    }
+    pendingEffects = restored.value.pendingEffects();
+  }
   const observation = freeze({
     generation: candidate.generation,
     position: verifiedPosition,
@@ -497,7 +547,7 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
   });
   return {
     ok: true,
-    value: freeze({ projection, observation, snapshot: snapshotStatus, pendingEffects: freeze([]) as readonly [] }),
+    value: freeze({ projection, observation, snapshot: snapshotStatus, pendingEffects }),
   };
 }
 

@@ -74,6 +74,9 @@ importers:
         specifier: workspace:*
         version: link:../codec
     devDependencies:
+      '@agentic-workflow-kit/jig-authority-kernel':
+        specifier: workspace:*
+        version: link:../authority-kernel
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.5.2
