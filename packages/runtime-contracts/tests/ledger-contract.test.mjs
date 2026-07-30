@@ -169,6 +169,16 @@ test('semantic ledger: trust faults fail closed without repair or rewrite', () =
 test('semantic ledger: hostile binding containers fail closed without reflection', () => {
   const ledger = runtime.createScriptedLedger();
   const proposal = record(0, '0'.repeat(64));
+  let validGetCount = 0;
+  const validProxy = new Proxy(
+    { kind: 'run', run: fixture.run, generation: fixture.generation },
+    {
+      get() {
+        validGetCount += 1;
+        throw new Error('valid trap');
+      },
+    },
+  );
   for (const binding of [
     null,
     [],
@@ -200,6 +210,22 @@ test('semantic ledger: hostile binding containers fail closed without reflection
       assert.equal(operation().ok, false);
     }
   }
+  for (const operation of [
+    () => ledger.append({ binding: validProxy, expectedPosition: -1, record: proposal }),
+    () =>
+      ledger.readback({
+        binding: validProxy,
+        position: 0,
+        transaction: proposal.transaction,
+        contentDigest: proposal.contentDigest,
+      }),
+    () => ledger.advanceWitnessFloor(validProxy),
+    () => ledger.snapshot(validProxy),
+    () => ledger.verifySnapshot(validProxy, { position: -1, digest: '0'.repeat(64) }),
+    () => ledger.injectFault(validProxy, 'witness-absent'),
+  ])
+    assert.doesNotThrow(operation);
+  assert.equal(validGetCount, 0);
 });
 
 test('semantic ledger: intake acknowledgement and successor cut are atomic and contention cannot create a Run', () => {

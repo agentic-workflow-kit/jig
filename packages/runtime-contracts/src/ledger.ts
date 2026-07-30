@@ -332,25 +332,30 @@ function mintedEvent(run: string, position: number): LedgerResult<string> {
   return event.ok ? { ok: true, value: event.value.value } : fail('FC-SUBJECT', 'INVALID_EVENT_SCOPE');
 }
 
-function validBinding(value: unknown): value is RunStoreBinding {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+function normalizedBinding(value: unknown): LedgerResult<RunStoreBinding> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
   try {
     const candidate = value as Record<string, unknown>;
     const keys = Object.getOwnPropertyNames(candidate).sort().join(',');
     const kind = Object.getOwnPropertyDescriptor(candidate, 'kind');
     const run = Object.getOwnPropertyDescriptor(candidate, 'run');
     const generation = Object.getOwnPropertyDescriptor(candidate, 'generation');
-    return (
-      keys === 'generation,kind,run' &&
-      kind?.value === 'run' &&
-      typeof run?.value === 'string' &&
-      typeof generation?.value === 'string' &&
-      parseIdentity('ID-RUN', run.value).ok &&
-      parseIdentity('ID-GEN', generation.value).ok &&
-      generation.value.startsWith(`${run.value}/gen/`)
-    );
+    if (
+      !(
+        keys === 'generation,kind,run' &&
+        kind?.value === 'run' &&
+        typeof run?.value === 'string' &&
+        typeof generation?.value === 'string' &&
+        parseIdentity('ID-RUN', run.value).ok &&
+        parseIdentity('ID-GEN', generation.value).ok &&
+        generation.value.startsWith(`${run.value}/gen/`)
+      )
+    )
+      return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
+    return { ok: true, value: freeze({ kind: 'run', run: run.value, generation: generation.value }) };
   } catch {
-    return false;
+    return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
   }
 }
 
@@ -384,13 +389,14 @@ export function createScriptedLedger(): ScriptedLedger {
   const preflight = new Map<string, PreflightResult>();
   const intakeWitnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
 
-  const forRun = (binding: RunStoreBinding): LedgerResult<LedgerRecord[]> => {
-    if (!validBinding(binding)) return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
-    const existing = records.get(binding.run);
-    if (existing) return { ok: true, value: existing };
+  const forRun = (input: unknown): LedgerResult<Readonly<{ binding: RunStoreBinding; records: LedgerRecord[] }>> => {
+    const binding = normalizedBinding(input);
+    if (!binding.ok) return binding;
+    const existing = records.get(binding.value.run);
+    if (existing) return { ok: true, value: freeze({ binding: binding.value, records: existing }) };
     const created: LedgerRecord[] = [];
-    records.set(binding.run, created);
-    return { ok: true, value: created };
+    records.set(binding.value.run, created);
+    return { ok: true, value: freeze({ binding: binding.value, records: created }) };
   };
   const compareWitness = (run: string, recordsForRun: readonly LedgerRecord[]): LedgerResult<'current' | 'behind'> => {
     const verified = verifyChain(recordsForRun);
@@ -452,12 +458,12 @@ export function createScriptedLedger(): ScriptedLedger {
       if (!proposal.ok) return proposal;
       if (
         !expectedPosition(request.expectedPosition) ||
-        proposal.value.run !== request.binding.run ||
-        proposal.value.generation !== request.binding.generation ||
+        proposal.value.run !== state.value.binding.run ||
+        proposal.value.generation !== state.value.binding.generation ||
         proposal.value.position !== request.expectedPosition + 1
       )
         return fail('FC-SUBJECT', 'APPEND_BINDING_MISMATCH');
-      const actual = head(state.value);
+      const actual = head(state.value.records);
       if (request.expectedPosition !== actual.position || proposal.value.previousDigest !== actual.digest)
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
       if (fault === 'before-append') return fail('FC-TRUST', 'ACK_LOST');
@@ -465,10 +471,10 @@ export function createScriptedLedger(): ScriptedLedger {
       if (!event.ok) return event;
       const record = validateRecord({ ...proposal.value, event: event.value, version: LEDGER_VERSION });
       if (!record.ok) return record;
-      state.value.push(record.value); // durable flush is modeled before every witness step.
+      state.value.records.push(record.value); // durable flush is modeled before every witness step.
       if (fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
       witnesses.set(
-        request.binding.run,
+        state.value.binding.run,
         freeze({ position: record.value.position, digest: record.value.contentDigest }),
       );
       if (fault === 'after-witness' || fault === 'lost-ack') return fail('FC-TRUST', 'ACK_LOST');
@@ -481,14 +487,21 @@ export function createScriptedLedger(): ScriptedLedger {
       const state = forRun(request.binding);
       if (!state.ok) return state;
       if (!position(request.position) || !digest(request.contentDigest)) return fail('FC-INPUT', 'INVALID_READBACK');
-      if (!validTransaction(request.binding.run, request.binding.generation, request.position, request.transaction))
+      if (
+        !validTransaction(
+          state.value.binding.run,
+          state.value.binding.generation,
+          request.position,
+          request.transaction,
+        )
+      )
         return fail('FC-SUBJECT', 'INVALID_READBACK_BINDING');
-      const currency = compareWitness(request.binding.run, state.value);
+      const currency = compareWitness(state.value.binding.run, state.value.records);
       if (!currency.ok) return currency;
       if (currency.value === 'behind') return fail('FC-TRUST', 'WITNESS_BEHIND');
-      const record = state.value[request.position];
+      const record = state.value.records[request.position];
       if (!record) return { ok: true, value: freeze({ kind: 'absent', position: request.position }) };
-      if (record.transaction === request.transaction && record.generation === request.binding.generation) {
+      if (record.transaction === request.transaction && record.generation === state.value.binding.generation) {
         return record.contentDigest === request.contentDigest
           ? { ok: true, value: freeze({ kind: 'committed', record }) }
           : { ok: true, value: freeze({ kind: 'integrity-failure', record }) };
@@ -498,9 +511,9 @@ export function createScriptedLedger(): ScriptedLedger {
     advanceWitnessFloor(binding) {
       const state = forRun(binding);
       if (!state.ok) return state;
-      const verified = verifyChain(state.value);
+      const verified = verifyChain(state.value.records);
       if (!verified.ok) return verified;
-      const witness = witnesses.get(binding.run);
+      const witness = witnesses.get(state.value.binding.run);
       if (!witness) return fail('FC-TRUST', 'WITNESS_ABSENT');
       if (
         witness &&
@@ -509,7 +522,7 @@ export function createScriptedLedger(): ScriptedLedger {
       )
         return fail('FC-TRUST', 'WITNESS_MISMATCH');
       if (witness.position === verified.value.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
-      witnesses.set(binding.run, freeze(verified.value));
+      witnesses.set(state.value.binding.run, freeze(verified.value));
       return { ok: true, value: undefined };
     },
     intake(request, fault) {
@@ -640,13 +653,13 @@ export function createScriptedLedger(): ScriptedLedger {
     snapshot(binding) {
       const state = forRun(binding);
       if (!state.ok) return state;
-      const verified = verifyChain(state.value);
+      const verified = verifyChain(state.value.records);
       return verified.ok ? { ok: true, value: freeze(verified.value) } : verified;
     },
     verifySnapshot(binding, snapshot) {
       const state = forRun(binding);
       if (!state.ok) return state;
-      const verified = verifyChain(state.value);
+      const verified = verifyChain(state.value.records);
       if (!verified.ok) return verified;
       return {
         ok: true,
@@ -660,16 +673,16 @@ export function createScriptedLedger(): ScriptedLedger {
     injectFault(binding, fault) {
       const state = forRun(binding);
       if (!state.ok) return state;
-      const current = head(state.value);
-      if (fault === 'witness-absent') witnesses.delete(binding.run);
+      const current = head(state.value.records);
+      if (fault === 'witness-absent') witnesses.delete(state.value.binding.run);
       else if (fault === 'witness-ahead')
-        witnesses.set(binding.run, freeze({ position: current.position + 1, digest: current.digest }));
+        witnesses.set(state.value.binding.run, freeze({ position: current.position + 1, digest: current.digest }));
       else if (fault === 'witness-contradiction')
-        witnesses.set(binding.run, freeze({ position: current.position, digest: GENESIS_DIGEST }));
-      else if (fault === 'rollback') state.value.pop();
-      else if (fault === 'fork' && state.value.length > 0) {
-        const previous = state.value.at(-1);
-        if (previous) state.value.push(freeze({ ...previous, transaction: `${previous.transaction}-fork` }));
+        witnesses.set(state.value.binding.run, freeze({ position: current.position, digest: GENESIS_DIGEST }));
+      else if (fault === 'rollback') state.value.records.pop();
+      else if (fault === 'fork' && state.value.records.length > 0) {
+        const previous = state.value.records.at(-1);
+        if (previous) state.value.records.push(freeze({ ...previous, transaction: `${previous.transaction}-fork` }));
       }
       return { ok: true, value: undefined };
     },
