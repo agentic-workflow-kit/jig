@@ -24,9 +24,9 @@ records the lookup as non-governing provenance.
 ## Working rules
 
 - Start every implementation story from the mandatory [story contract](./greenfield/story-contract.md).
-- Keep immutable planning/authority provenance, the approved delivery-package tuple, each observed
-  per-story execution base, and every reviewed implementation candidate distinct. A passing
-  package or earlier base is not evidence that a later candidate passed review.
+- Keep immutable planning/authority provenance, explicit implementation scope, each observed
+  per-story execution base, and every reviewed implementation candidate distinct. Earlier
+  authority or a passing candidate is not evidence that a later candidate passed review.
 - A provider, adapter, or effect path is unavailable until its named qualification evidence passes;
   configuration must not expose an unqualified path.
 - Fail closed on malformed, stale, missing, ambiguous, or unverifiable inputs and evidence. Never
@@ -45,8 +45,8 @@ records the lookup as non-governing provenance.
   supports this documentation track is allowed.
 - Phase coordination is local to this repository: use `greenfield/phase-orchestration.md` and the
   Codex-discoverable repository-local `.agents/skills/orchestrate-phase-delivery/` skill. They
-  coordinate the declared
-  `track.json` DAG and external ledger only; they cannot add dependencies or grant activation.
+  coordinate the declared `track.json` DAG and external operational ledger only; they cannot add
+  dependencies or widen implementation authority.
 
 ## Focused track gate
 

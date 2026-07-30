@@ -37,11 +37,21 @@ const STORY_AUTHORITY_BINDING_KEYS = [
   'imported_commitments',
 ];
 const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
-const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'dcc06a79538354e7cfd7779c7ff16ab972e87780575a7bf2312c40678469e57f';
+const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'd3f1e04fc4d24fac79ad02b1616ec7dcdbd4400d5a2ccedb7ad89cc6a9355ccb';
 const APPROVED_PROVIDER_SPLITS_SHA256 = 'aaac34c0612c51f08d11ab3c467a414966468057a1222def001624bc6ba95834';
 const APPROVED_DELEGATED_CHOICES_SHA256 = 'e8fb8713126d05bf59c850606d43af542e6214467e05bdd64402e822b5065746';
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = 'de7bdd92f248de65756a2cb6a2e3cb5d1eb098c8471121f084dd00b9d4f682b6';
 const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'c1545bdfa9547700b8dffb340b2d1bc21c9c4c8fc22a4b2ce2baf206784c6524';
+const RETIRED_DELIVERY_GATE_PATTERNS = [
+  /\bP\s*=\s*Q\b/i,
+  /\bdelivery-package review\b/i,
+  /\bdelivery-package candidate\b/i,
+  /\blanding-equivalence\b/i,
+  /\bowner-ratification\/activation record\b/i,
+  /\bexternal activation record\b/i,
+  /\bapproved package `?P`?\b/i,
+  /\bpre-verdict `?Q`?\b/i,
+];
 const WAIT_PROGRESS_SURFACES =
   'review_or_rework operation_or_source_retry refresh human_decision mediated_response capacity ledger_acknowledgement target_stability idle_progress session_silence effect_reconciliation retirement_or_stop capability_proof configuration_read finalizer_queue residual_obligation'.split(
     ' ',
@@ -742,7 +752,7 @@ export function deliveryAllowlist() {
     ...STORY_IDS.map((id) => `docs/delivery/greenfield/stories/${id}.md`),
   ]);
 }
-function candidatePackagePaths() {
+function deliverySurfacePaths() {
   const paths = [
     ...deliveryAllowlist(),
     '.github/workflows/check.yml',
@@ -774,11 +784,11 @@ function candidatePackagePaths() {
     '.agents/skills/orchestrate-phase-delivery/scripts/validate_evals.py',
   ].sort();
   if (paths.length !== 93 || new Set(paths).size !== paths.length)
-    throw new Error(`candidate package manifest requires exactly 93 paths, got ${paths.length}`);
+    throw new Error(`delivery surface manifest requires exactly 93 paths, got ${paths.length}`);
   return paths;
 }
-export function candidatePackageManifest(rootDir = repoRoot) {
-  const paths = candidatePackagePaths();
+export function deliverySurfaceManifest(rootDir = repoRoot) {
+  const paths = deliverySurfacePaths();
   const rows = paths
     .map((path) => {
       assertOwnedRegularFile(rootDir, path);
@@ -788,9 +798,9 @@ export function candidatePackageManifest(rootDir = repoRoot) {
     .join('');
   return sha(rows);
 }
-export function verifyCandidatePackageManifest(expected, rootDir = repoRoot) {
-  const actual = candidatePackageManifest(rootDir);
-  if (actual !== expected) throw new Error(`candidate package manifest mismatch: expected ${expected}, got ${actual}`);
+export function verifyDeliverySurfaceManifest(expected, rootDir = repoRoot) {
+  const actual = deliverySurfaceManifest(rootDir);
+  if (actual !== expected) throw new Error(`delivery surface manifest mismatch: expected ${expected}, got ${actual}`);
   return actual;
 }
 
@@ -1564,6 +1574,19 @@ export function validateDeliveryTrack(track, { exists, isFile = exists, readText
     const actual = new Set(activeFiles(rootDir, 'docs/delivery'));
     if (!eqSet([...actual], [...deliveryAllowlist()]))
       errors.push('active docs/delivery path set does not match exact allowlist');
+    const activeDeliveryPolicyPaths = [
+      ...deliveryAllowlist(),
+      'README.md',
+      '.agents/skills/orchestrate-phase-delivery/README.md',
+      '.agents/skills/orchestrate-phase-delivery/SKILL.md',
+      '.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md',
+    ];
+    if (
+      activeDeliveryPolicyPaths.some((path) =>
+        RETIRED_DELIVERY_GATE_PATTERNS.some((pattern) => pattern.test(readText(path))),
+      )
+    )
+      errors.push('active delivery policy contains retired package qualification or external activation gate');
     const corpus = normativeCorpusPaths(rootDir);
     const rows = corpus.map((path) => `${sha(readText(path))}  ${path}\n`).join('');
     if (corpus.length !== 67 || sha(rows) !== APPROVED_NORMATIVE_CORPUS_SHA256)
@@ -1589,12 +1612,12 @@ export function validateDeliveryTrackPackage(rootDir = repoRoot) {
   if (!exists(TRACK_PATH)) return ['delivery track is missing'];
   if (!isFile(TRACK_PATH)) return ['docs/delivery/greenfield/track.json is not an owned regular file'];
   try {
-    for (const path of candidatePackagePaths()) {
+    for (const path of deliverySurfacePaths()) {
       assertOwnedRegularFile(rootDir, path);
       readText(path);
     }
   } catch (error) {
-    return [error instanceof Error ? error.message : 'candidate package ownership preflight failed'];
+    return [error instanceof Error ? error.message : 'delivery surface ownership preflight failed'];
   }
   let track;
   try {
@@ -1622,6 +1645,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exitCode = 1;
   } else {
     console.log('Delivery track structural, source, two-way, and corpus validation passed (48 stories, 7 phases).');
-    console.log(`Candidate package manifest (unpinned): ${candidatePackageManifest()}`);
+    console.log(`Delivery surface integrity digest (informational; not authorization): ${deliverySurfaceManifest()}`);
   }
 }

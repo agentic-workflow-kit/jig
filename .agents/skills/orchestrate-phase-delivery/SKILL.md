@@ -1,6 +1,6 @@
 ---
 name: orchestrate-phase-delivery
-description: "Coordinate a Jig delivery phase with declared track dependencies, registered Git worktrees, continuous independent story review, bounded parallelism, and one final phase PR. Use when starting, resuming, recovering, or closing an approved Jig delivery phase; do not use to author product/design decisions, change the track DAG, or implement a scheduler service."
+description: "Coordinate a Jig delivery phase with declared track dependencies, registered Git worktrees, continuous independent story review, bounded parallelism, and one final phase PR. Use when starting, resuming, recovering, or closing an explicitly owner-requested Jig delivery phase; do not use to author product/design decisions, change the track DAG, or implement a scheduler service."
 ---
 
 # Orchestrate phase delivery
@@ -8,9 +8,11 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 1. Resolve the current approved product package from `docs/product/` and approved architecture
    package from `docs/redesign/design/`. Only then read
    `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
-   `phase-orchestration.md`. Confirm current external activation and ledger records; delivery-track
-   or ordinary Git evidence identifies a candidate but never overrides product/design authority or
-   grants authority.
+   `phase-orchestration.md`. Confirm that the current owner or named delegate explicitly requested
+   implementation of the named phase/story. That request is sufficient implementation
+   authorization within current product/design/track authority; do not require package
+   qualification, a package digest approval, an external activation issue, or a landed-commit
+   equivalence record. Start the external operational ledger when delivery begins.
 2. Establish or reconcile one registered phase integration worktree and one registered story
    worktree per admitted story. Use Git worktrees for every local delivery, check, review, and
    recovery operation; no fresh clone is an exception. Read `references/phase-protocol.md` before
@@ -34,7 +36,9 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 6. Retain story worktrees/pairs through final PR feedback. Run integration checks, obtain closure
    review, and create one normal hosted-CI-backed phase PR only after the phase is ready.
 
-Stop `OWNER_DECISION_REQUIRED` for missing or contradictory authority, dependencies, predecessor
-landing, worktree/branch/object, evidence, sanitized-environment/ignored-state facts, reviewer
-independence, or required-check facts. Record runtime facts in the external ledger, not repository
-files.
+Stop `OWNER_DECISION_REQUIRED` only for a genuine material ambiguity or conflict in product/design
+authority, tracked scope or dependencies, selected realization, provider reachability, or accepted
+trade-off. Missing or contradictory predecessor-landing, worktree/branch/object, evidence,
+sanitized-environment/ignored-state, reviewer-independence, or required-check facts block the
+affected story until repaired; they do not revoke authorization or block independent ready stories.
+Record runtime facts in the external ledger, not repository files.

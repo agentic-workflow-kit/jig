@@ -17,10 +17,10 @@ import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  candidatePackageManifest,
   deliveryAllowlist,
+  deliverySurfaceManifest,
   validateDeliveryTrackPackage,
-  verifyCandidatePackageManifest,
+  verifyDeliverySurfaceManifest,
 } from '../bin/check-delivery-track.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -656,7 +656,7 @@ test('candidate and corpus inputs reject symlinked bytes before reads', () => {
     rmSync(p);
     symlinkSync(target, p);
     assert.deepEqual(validateDeliveryTrackPackage(dir), ['README.md is not an owned regular file']);
-    assert.throws(() => candidatePackageManifest(dir), /README.md is not an owned regular file/);
+    assert.throws(() => deliverySurfaceManifest(dir), /README.md is not an owned regular file/);
   });
 });
 test('story schema and nested mapping records reject paired structural drift', () => {
@@ -848,7 +848,7 @@ test('inventory coverage cannot be the sole governing-path authority connection'
         .replace(/\]\([^)]*\)/g, '](../../../redesign/design/invariants.md)'),
     );
   }, 'GF-062 governing paths must anchor a claimed stable ID or DR delegation scope'));
-test('candidate package rejects symlinked parent directories', () =>
+test('delivery surface rejects symlinked parent directories', () =>
   fixture((dir) => {
     const path = join(dir, 'docs/delivery/greenfield/reviewer');
     const outside = join(dir, 'outside-reviewer');
@@ -857,7 +857,7 @@ test('candidate package rejects symlinked parent directories', () =>
     symlinkSync(outside, path);
     const expected = 'docs/delivery/greenfield/reviewer/README.md is not an owned regular file';
     assert.deepEqual(validateDeliveryTrackPackage(dir), [expected]);
-    assert.throws(() => candidatePackageManifest(dir), new RegExp(expected));
+    assert.throws(() => deliverySurfaceManifest(dir), new RegExp(expected));
   }));
 test('Git-backed delivery enumeration ignores ignored files and rejects untracked governed files', () =>
   gitFixture((dir) => {
@@ -1038,7 +1038,7 @@ test('structure check fails closed on no-op pipeline wiring and active source pa
 test('CI runs the immutable structure preflight before the mutable pipeline and the workflow is package-bound', () =>
   gitFixture((dir) => {
     const workflow = join(dir, '.github/workflows/check.yml');
-    const baseline = candidatePackageManifest(dir);
+    const baseline = deliverySurfaceManifest(dir);
     const result = runStructureCheck(dir);
     assert.doesNotMatch(
       result.stderr,
@@ -1052,7 +1052,7 @@ test('CI runs the immutable structure preflight before the mutable pipeline and 
         '      - name: Install dependencies\n        run: pnpm install --frozen-lockfile\n\n      - name: Active repository preflight\n        run: node tools/repo-guard/bin/check-active-repository.mjs',
       ),
     );
-    assert.notEqual(candidatePackageManifest(dir), baseline);
+    assert.notEqual(deliverySurfaceManifest(dir), baseline);
     const mutated = runStructureCheck(dir);
     assert.notEqual(mutated.status, 0);
     assert.match(
@@ -1156,21 +1156,21 @@ test('CI preflight must be unconditional, failure-blocking, and in the check job
     );
   });
 });
-test('candidate package binds the document-link validator implementation', () =>
+test('delivery surface binds the document-link validator implementation', () =>
   fixture((dir) => {
-    const baseline = candidatePackageManifest(dir);
+    const baseline = deliverySurfaceManifest(dir);
     const path = join(dir, 'tools/repo-guard/bin/check-doc-links.mjs');
     writeFileSync(path, `${readFileSync(path, 'utf8')}\n// coherent validator mutation\n`);
-    assert.notEqual(candidatePackageManifest(dir), baseline);
-    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+    assert.notEqual(deliverySurfaceManifest(dir), baseline);
+    assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
   }));
-test('candidate package binds the repository-local phase skill', () =>
+test('delivery surface binds the repository-local phase skill', () =>
   fixture((dir) => {
-    const baseline = candidatePackageManifest(dir);
+    const baseline = deliverySurfaceManifest(dir);
     const path = join(dir, '.agents/skills/orchestrate-phase-delivery/SKILL.md');
     writeFileSync(path, `${readFileSync(path, 'utf8')}\n`);
-    assert.notEqual(candidatePackageManifest(dir), baseline);
-    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+    assert.notEqual(deliverySurfaceManifest(dir), baseline);
+    assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
   }));
 test('story narratives reject invented suffixed delivery story IDs', () =>
   fixture((dir) => {
@@ -1180,7 +1180,7 @@ test('story narratives reject invented suffixed delivery story IDs', () =>
       validateDeliveryTrackPackage(dir).includes('GF-001 narrative must not invent a suffixed delivery story ID'),
     );
   }));
-test('candidate package binds every validation, install, ignore, and local-runtime configuration input', () => {
+test('delivery surface binds every validation, install, ignore, and local-runtime configuration input', () => {
   for (const relativePath of [
     '.gitignore',
     '.nvmrc',
@@ -1194,11 +1194,11 @@ test('candidate package binds every validation, install, ignore, and local-runti
     'tools/repo-guard/tests/check-active-repository.test.mjs',
   ])
     fixture((dir) => {
-      const baseline = candidatePackageManifest(dir);
+      const baseline = deliverySurfaceManifest(dir);
       const path = join(dir, relativePath);
       writeFileSync(path, `${readFileSync(path, 'utf8')}\n# candidate-bound mutation\n`);
-      assert.notEqual(candidatePackageManifest(dir), baseline, relativePath);
-      assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+      assert.notEqual(deliverySurfaceManifest(dir), baseline, relativePath);
+      assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
     });
 });
 test('malformed shape diagnostics are unique and invalid story roots short-circuit', () => {
@@ -1304,39 +1304,44 @@ test('phase records, story membership, parallel lanes, and gate edges are exact'
     'gate_edges must exactly preserve',
   );
 });
-test('candidate manifest is an unpinned exact-package digest', () =>
-  assert.match(candidatePackageManifest(root), /^[a-f0-9]{64}$/));
-test('candidate manifest binds normalized regular-file mode as well as path and bytes', () =>
+test('delivery surface digest is an unpinned exact-surface digest', () =>
+  assert.match(deliverySurfaceManifest(root), /^[a-f0-9]{64}$/));
+test('delivery surface digest binds normalized regular-file mode as well as path and bytes', () =>
   fixture((dir) => {
-    const baseline = candidatePackageManifest(dir);
+    const baseline = deliverySurfaceManifest(dir);
     chmodSync(join(dir, 'README.md'), 0o755);
-    assert.notEqual(candidatePackageManifest(dir), baseline);
-    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+    assert.notEqual(deliverySurfaceManifest(dir), baseline);
+    assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
   }));
-test('candidate manifest hashes raw bytes while package validation rejects invalid UTF-8', () =>
+test('delivery surface digest hashes raw bytes while surface validation rejects invalid UTF-8', () =>
   fixture((dir) => {
     const path = join(dir, 'README.md');
     writeFileSync(path, Buffer.from([0x23, 0x20, 0x80, 0x0a]));
-    const first = candidatePackageManifest(dir);
+    const first = deliverySurfaceManifest(dir);
     assert.ok(validateDeliveryTrackPackage(dir).includes('README.md is not valid UTF-8 text'));
 
     writeFileSync(path, Buffer.from([0x23, 0x20, 0x81, 0x0a]));
-    const second = candidatePackageManifest(dir);
+    const second = deliverySurfaceManifest(dir);
     assert.ok(validateDeliveryTrackPackage(dir).includes('README.md is not valid UTF-8 text'));
     assert.notEqual(first, second);
   }));
-test('external review tuple rejects a coherent candidate after its package digest changes', () =>
+test('delivery surface digest changes after a coherent policy-surface edit', () =>
   fixture((dir) => {
-    const baseline = candidatePackageManifest(dir);
+    const baseline = deliverySurfaceManifest(dir);
     edit(dir, (track) => {
       track.stories[0].outcome = 'Co-edited outcome';
     });
     const story = join(dir, 'docs/delivery/greenfield/stories/GF-001.md');
     writeFileSync(story, readFileSync(story, 'utf8').replace(/outcome: .*/, 'outcome: "Co-edited outcome"'));
     assert.deepEqual(validateDeliveryTrackPackage(dir), []);
-    assert.notEqual(candidatePackageManifest(dir), baseline);
-    assert.throws(() => verifyCandidatePackageManifest(baseline, dir), /candidate package manifest mismatch/);
+    assert.notEqual(deliverySurfaceManifest(dir), baseline);
+    assert.throws(() => verifyDeliverySurfaceManifest(baseline, dir), /delivery surface manifest mismatch/);
   }));
+test('retired package qualification and external activation gates cannot re-enter delivery policy', () =>
+  reject((dir) => {
+    const path = join(dir, 'docs/delivery/greenfield/delivery-policy.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\nP = Q requires an external activation record.\n`);
+  }, 'active delivery policy contains retired package qualification or external activation gate'));
 test('source catalogs fail closed on missing headings and duplicate first-column rows', () => {
   reject((dir) => {
     const p = join(dir, 'docs/redesign/design/runtime.md');

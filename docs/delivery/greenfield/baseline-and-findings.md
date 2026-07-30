@@ -24,9 +24,10 @@ last_verified: 2026-07-23
 | Planning provenance tree         | `763fa777c62999795fb679cc05a61be1190d93b6`                         | tree for that immutable planning provenance                                 |
 
 The final readiness record confirms the 67 current normative files are byte-identical to the
-passing subject and manifest. This delivery documentation is a new planning surface; it must not
-claim that its authored candidate has an approved package `P` or `PASS` verdict. The
-[reviewer packet](./reviewer/README.md) defines how those values are frozen later.
+passing subject and manifest. This delivery documentation is a planning surface, not implementation
+authorization. An explicit current owner or named-delegate request supplies implementation
+authorization for its named scope; the [reviewer packet](./reviewer/README.md) defines how each
+later committed candidate is frozen and reviewed.
 
 ## Source ledger
 
@@ -57,8 +58,9 @@ claim that its authored candidate has an approved package `P` or `PASS` verdict.
   fallback outcome. A generic “adapter works” assertion is insufficient.
 - The package includes the manifest's exact story set. Before implementation, each contract must
   still be revalidated against then-current merged dependency evidence, applicable `DR-*` gates,
-  provider qualification, its approved delivery package `P`, and observed implementation-candidate
-  base; completion of a planning contract is not start authorization by itself.
+  provider qualification, explicit current implementation scope, and observed
+  implementation-candidate base; completion of a planning contract is not start authorization by
+  itself.
 
 ### Contradictions checked
 
@@ -88,9 +90,9 @@ claim that its authored candidate has an approved package `P` or `PASS` verdict.
 - Node/TypeScript/pnpm/Turbo, strict JSON initially, local Git host, local verifier, Codex, disjoint
   GitHub review-publication and final-delivery providers/credentials, terminal/file notices,
   private CLI, and private MCP are planning defaults only, not product promises or implementation
-  authorization. They remain inactive and unconfigured until the
-  applicable story has the exact external owner-ratification/activation record and current
-  qualification. D11's single-host append-only
+  authorization. They remain inactive and unconfigured until an explicit current owner or
+  named-delegate request selects them for the applicable story and current qualification passes.
+  D11's single-host append-only
   file reference realization is instead owner-approved design authority; only its segment sizing,
   batching, and directory layout remain deferred.
 - Unsupported provider modes and postures remain unconfigurable. A future provider expansion is a
@@ -98,43 +100,23 @@ claim that its authored candidate has an approved package `P` or `PASS` verdict.
 
 ## Candidate-freeze procedure
 
-The protocol depends on the subject:
-
-- **Delivery package:** before review, the coordinator records delivery-package candidate identity `Q`: the exact
-  candidate commit/tree to be reviewed; exact package-only path set; each path's bytes/type/mode; and aggregate
-  computed unpinned digest. The coordinator supplies `Q` and available checks/evidence separately,
-  without a verdict. The independent reviewer writes external review record `R`: protocol; reviewer
-  identity/independence; exact `Q`; checked scope; checks/evidence; findings; verdict; and a durable
-  external record identifier. Only `R` with `PASS` creates approved package
-  `P = Q + durable R identifier + PASS`. A later squash OID differs without fresh review only through an
-  authoritative landing-equivalence record binding approved `P` (and therefore exact `Q`) to the
-  target ref and landed commit/tree and proving full-tree equality or complete `Q` path-set
-  byte/type/mode equality reproducing `Q`'s digest; it does not make the landed commit reviewed.
-- **Implementation candidate:** before a story review, record the exact external
-  owner-ratification/activation record: authenticated owner or explicitly named delegated
-  principal with independently verifiable delegation and current validity; durable record ID/URL;
-  approved package `P`; any required authoritative landing-equivalence record; immutable planning/authority
-  provenance; activation target scope; selected realization tuple; and expiry/revocation. Also
-  record story ID; observed target base ref;
-  resolved base commit/tree; candidate commit/tree; proof that
-  `merge-base(candidate, base) == base`; target-content proof that required predecessor landings
-  are contained in the base; approved delivery package `P` and any required
-  authoritative landing-equivalence record; a current 67-file normative-corpus comparison against
-  immutable authority provenance; the story-owned source/config/test/evidence path set; applied
-  `DR-*` choices; pre-review check/CI/evidence digests; and the selected final-verification
-  posture, policy-selected required check-class set, verification configuration/environment, and
-  subject binding, including every check deferred until `Accepted`. This tuple does not require
-  fresh package digest computation or a full package corpus review.
+Before a story review, record in the external operational ledger: explicit authorized phase/story
+scope and constraints; current product/design/track provenance; story ID; observed target base ref;
+resolved base commit/tree; candidate commit/tree; proof that
+`merge-base(candidate, base) == base`; target-content proof that required predecessor landings are
+contained in the base; a current 67-file normative-corpus comparison against immutable authority
+provenance; the story-owned source/config/test/evidence path set; applied bounded `DR-*` choices;
+pre-review check/CI/evidence digests; and the selected final-verification posture,
+policy-selected required check-class set, verification configuration/environment, and subject
+binding, including every check deferred until `Accepted`.
 
 Any candidate/source/configuration/pre-acceptance-evidence edit, target-ref movement, rebase, changed
-posture, required check-class set, verification configuration/environment, subject binding, or
-delivery-package identity creates a new tuple. Resolve the new base, re-prove merge-base equality
-and containment, recompute the normative-corpus comparison, and rerun affected proof and CI. If
-`Q` changes, obtain a fresh external `R` and approved `P`; never retrospectively attach a verdict to
-a moving branch. A different squash OID is the narrow exception only when the required
-authoritative landing-equivalence record proves approved `P`/`Q` unchanged; otherwise obtain a new
-`R` and `P`. Recording after `Accepted` only the subject-matching final-verification observations
+posture, required check-class set, verification configuration/environment, or subject binding
+creates a new tuple. Resolve the new base, re-prove merge-base equality and containment, recompute
+the normative-corpus comparison, and rerun every applicable proof and CI; never retrospectively
+attach a verdict to a moving branch. Recording after `Accepted` only the subject-matching
+final-verification observations
 already authorized by the unchanged reviewed candidate, posture, required class set,
 configuration/environment, and binding is continuation evidence and does not create another review
-loop. Neither identity grants the external owner-ratification/activation record, approval, landing,
-finalization, or dependency release.
+loop. A candidate verdict does not authorize scope, finalization, integration, landing, or
+dependency release.

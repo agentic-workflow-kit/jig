@@ -1,16 +1,18 @@
 # Phase protocol reference
 
 Use this operational reference only after reading the active policy, story contract, tracker, and
-phase contract. Product/design activation and `P` remain higher authority; this skill coordinates
-only.
+phase contract. Current product/design authority and the explicit owner or named-delegate
+implementation request govern; this skill coordinates only.
 
 ## Inputs and ledger schema
 
-Before admission verify active owner activation/`P`, phase target, `track.json`, safe-overlap facts,
-and external ledger. Record per story: ID; phase integration ref; registered worktree path/branch;
-base commit/tree and candidate commit/tree; merge-base and declared-predecessor containment;
-required check command/set, result, timestamp and durable log; minimal non-secret environment-name
-allowlist; tracked/untracked clean status and exact
+Before admission verify the explicit requested phase/story scope, current product/design/track
+authority, phase target, safe-overlap facts, and predecessor containment. Create or reconcile the
+external operational ledger when delivery starts; it records execution state but is not an
+approval gate. Record per story: ID; authorized scope and constraints; phase integration ref;
+registered worktree path/branch; base commit/tree and candidate commit/tree; merge-base and
+declared-predecessor containment; required check command/set, result, timestamp and durable log;
+minimal non-secret environment-name allowlist; tracked/untracked clean status and exact
 `git ls-files --others --ignored --exclude-standard` inventories before checks and after review;
 ignored-state allowlist decision; continuous implementer and independent reviewer identities;
 findings/verdict/timestamp; integration result/commit; current state and terminal boundary. Pair
@@ -20,8 +22,8 @@ files.
 ## Ready-set and ownership loop
 
 At phase start and every terminal story boundary, inspect tracker, ledger, and integration HEAD.
-Select only phase stories whose declared predecessors are landed in that base and whose activation
-and DoR are current. Apply the safe-overlap guard: a capacity or ownership conflict is a temporary
+Select only stories within the explicit request whose declared predecessors are landed in that base
+and whose DoR is current. Apply the safe-overlap guard: a capacity or ownership conflict is a temporary
 ledger-recorded admission hold, never a dependency or permission to idle other ready stories. If no
 guard applies, launch every ready story within available distinct pair/worktree capacity. Pairs are
 distinct across stories and continuous within a story.
@@ -52,9 +54,9 @@ final candidate change.
 
 All local delivery, check, review, and recovery workspaces are registered Git worktrees. One durable
 phase integration worktree and one story worktree per admitted story are mandatory. Cleanup happens
-only after confirmed landing and explicit keep-list/scope; terminally blocked work remains until an
-owner decision. Provider-managed hosted CI is the sole workspace exception and cannot replace local
-evidence or review.
+only after confirmed landing and explicit keep-list/scope; terminally blocked work remains until
+reconciliation, an applicable material owner decision, or explicit scoped cleanup. Provider-managed
+hosted CI is the sole workspace exception and cannot replace local evidence or review.
 
 Create a new phase branch/worktree with `pnpm worktree:new <phase-branch> <authorized-target>`.
 Create a new story branch/worktree with `pnpm worktree:new <story-branch>
@@ -71,4 +73,6 @@ missing path, and ledger/base/evidence/clean facts reconcile:
 missing-worktree registration already reconciled by those prerequisites; it is not permission to
 replace a live or mismatched worktree. `pnpm worktree:new` creates a new branch and is not recovery.
 Any missing, ambiguous, dirty, mismatched, or irreconcilable branch/object/path/base/evidence fact
-stops `OWNER_DECISION_REQUIRED`. Never use a local clone.
+blocks the affected story and its descendants until reconciled; independent ready stories continue.
+Use `OWNER_DECISION_REQUIRED` only if recovery requires a material authority, scope, dependency,
+realization, provider-reachability, or accepted-trade-off decision. Never use a local clone.

@@ -1,6 +1,6 @@
 ---
 title: "Jig greenfield delivery — reviewer packet"
-purpose: "Provide independent read-only review procedures for delivery packages and committed story candidates."
+purpose: "Provide independent read-only review procedures for committed story and phase candidates."
 audience:
   - independent reviewers
   - Jig owner
@@ -16,8 +16,7 @@ last_verified: 2026-07-29
 
 Judge one frozen subject against current active authority. Do not choose architecture, invent a
 solution, or trust a branch name, prior verdict, implementer narrative, CI result, or historical
-seal. Delivery-package review and implementation-candidate review are separate protocols with
-different subjects and consequences.
+seal. Review binds one exact committed story candidate or the frozen phase integration candidate.
 
 ## Reviewer operation boundary
 
@@ -31,46 +30,22 @@ incorrectly bound verification evidence is a finding; never repair it by rerunni
 implementation owner owns executable verification, hosted CI independently runs its required
 checks, and the coordinator verifies orchestration facts and evidence bindings.
 
-## Choose the review protocol
+## Implementation-candidate review
 
-### A. Delivery-package review
-
-Use this protocol only for the delivery package itself.
-
-The coordinator freezes external pre-verdict `Q`: exact package candidate commit/tree, exact
-package-only path set, every path's bytes/type/mode, and aggregate computed unpinned digest. It
-supplies checks/evidence separately. The independent reviewer verifies the full active package
-corpus and writes external `R`: protocol, reviewer identity/independence, exact `Q`, checked scope,
-checks/evidence, findings, verdict, and durable external identifier. Only `R = PASS` creates
-`P = Q + durable R identifier + PASS`.
-
-Verify the live 67-file normative comparison, manifest/brief projection, exact story set and DAG,
-fixed inventories and routes, delegated choices, provider-split closure, package path allowlist,
-validator adversarial coverage, and product/design traceability. Do not pin an expected package
-digest into the candidate. Any package byte or path-set change requires new `Q`, independent `R`,
-and `P`.
-
-Where squash landing changes the OID, require an authoritative landing-equivalence record binding
-approved `P`/`Q` to target ref and landed commit/tree and proving full-tree equality or complete
-`Q` path-set byte/type/mode equality reproducing `Q`'s digest. That record does not make the landed
-commit reviewed.
-
-### B. Implementation-candidate review
-
-Use this protocol for one implementation attempt of one `GF-*` story whose exact external
-owner-ratification/activation and approved `P` are current. It permits bounded story-owned source,
-configuration, test, and evidence paths. It does not require a new package digest or full
-delivery-package review, and its verdict never mints or redefines `Q`, `R`, or `P`.
+Use this protocol for one implementation attempt of one `GF-*` story covered by an explicit current
+owner or named-delegate implementation request. It permits bounded story-owned source,
+configuration, test, and evidence paths. No package qualification, digest approval, or separate
+external approval issue is required.
 
 The external phase ledger or reviewer record supplies:
 
 | Required field                          | Reviewer check                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| owner-ratification/activation           | Verify authenticated owner or delegated principal, independently verifiable delegation/current validity, durable ID/URL, approved `P`, immutable provenance, target scope, selected realization, expiry/revocation, and any landing-equivalence record.                                                                                               |
+| authorized scope and constraints        | Verify that the explicit current implementation request covers this phase/story and that current product/design/track authority plus any selected bounded realization remain compatible. No durable external approval URL is required.                                                                                                                |
 | registered worktree and continuous pair | Resolve the exact story worktree path/branch; verify explicit freeze, clean status, implementer identity, reviewer independence, distinct-across-story pairing, and any exceptional replacement reason/handoff.                                                                                                                                       |
 | integration base ref/commit/tree        | Resolve the ref and Git objects at freeze; do not use planning provenance as a rolling execution base.                                                                                                                                                                                                                                                |
 | candidate commit/tree and merge-base    | Resolve exact frozen `HEAD`/tree, prove base ancestry, and verify every declared predecessor landing is contained.                                                                                                                                                                                                                                    |
-| current normative-corpus comparison     | Verify the candidate's 67 authority files against immutable provenance; keep this separate from package approval.                                                                                                                                                                                                                                     |
+| current normative-corpus comparison     | Verify the candidate's 67 authority files against immutable provenance; this is integrity evidence, not authorization.                                                                                                                                                                                                                                |
 | owned source/config/test/evidence paths | Confirm changed paths match the bounded story contract and contain no unrelated authority or behavior.                                                                                                                                                                                                                                                |
 | governing paths/IDs and `DR-*` choices  | Trace behavior, failure/recovery/security, provider reachability, authority, and delegated bounds to active product/design.                                                                                                                                                                                                                           |
 | required checks and evidence            | Bind exact command/set, result, timestamp, durable log/reference, verification posture/classes/environment, minimal non-secret environment-name allowlist, candidate-bound `git diff --check` where applicable, tracked/untracked clean status, and exact ignored-state inventory/allowlist decision before checks and after review to the candidate. |
@@ -112,8 +87,9 @@ no-op and authorizes no verification Operation.
 
 Post-`Accepted` observations are continuation evidence only while candidate, posture, class set,
 verification configuration/environment, and subject binding remain unchanged. Any drift requires
-every applicable required check and incremental review by the same reviewer. Owner activation, independent review,
-required CI, finalization, landing, and dependency release remain separate.
+every applicable required check and incremental review by the same reviewer. Explicit
+implementation scope, independent review, required CI, finalization, landing, and dependency
+release remain separate.
 
 ## Phase integration and closure
 
@@ -161,8 +137,7 @@ Research is non-governing and may not select behavior.
   guarantee, or accepted-tradeoff decision not already delegated. Stop rather than proposing it.
 
 `PASS` validates only the frozen subject. It is not approval for a changed candidate, final landing
-proof, a later phase gate, or authorization to skip independent review, finalization, CI, or owner
-activation.
+proof, a later phase gate, or authorization to skip independent review, finalization, or CI.
 
 ## Finding criteria
 

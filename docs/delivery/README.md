@@ -52,10 +52,12 @@ supports this documentation track remains in scope.
 2. [`docs/product/`](../product/) — product outcome, boundaries, and guarantees.
 3. [`docs/redesign/design/`](../redesign/design/) — architecture, IDs, invariants, decisions,
    ports, lifecycle, recovery, and conformance.
-4. The [final readiness gate](../archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md)
+4. An explicit current request from Arye Kogan or a named delegate — implementation authorization
+   for only the named phase/story within the authority above.
+5. The [final readiness gate](../archive/reviews/2026-07-18-empty-repository-implementation-readiness-gate.md)
    — immutable reviewed-baseline and lock evidence.
-5. This delivery package — faithful sequencing and story-level planning only.
-6. [Reference research](./greenfield/research-ledger.md) — non-governing, constrained input.
+6. This delivery package — faithful sequencing and story-level planning only.
+7. [Reference research](./greenfield/research-ledger.md) — non-governing, constrained input.
 
 ## Navigation
 
@@ -96,16 +98,12 @@ product gate.
 
 ## Validator and reviewer boundary
 
-The local delivery validator proves governing-source projection, package consistency, and corpus
-integrity only; it does not semantically approve plan-authored outcomes or prose. An independent
-review begins from delivery-package candidate identity `Q`: the exact candidate commit/tree to be reviewed; exact
-package-only path set; each path's bytes/type/mode; and aggregate computed unpinned digest. External
-review record `R` records: protocol; reviewer identity/independence; exact `Q`; checked scope;
-checks/evidence; findings; verdict; and a durable external record identifier. Only `R` with `PASS`
-creates approved package `P = Q + durable R identifier + PASS`. Do not copy an expected candidate/package
-digest into `track.json`, validator constants, fixtures, or candidate-authored review prose. Any
-package byte or path-set change invalidates `Q` and requires a fresh full review. The pre-existing
-67-file normative digest remains corpus-drift evidence only, not a candidate approval digest.
+The local delivery validator proves governing-source projection, delivery-surface consistency, and
+corpus integrity only; it does not approve implementation or semantically approve plan-authored
+outcomes or prose. Its computed unpinned delivery-surface digest is informational integrity
+evidence, not authorization. Do not copy an expected delivery-surface digest into `track.json`,
+validator constants, fixtures, or candidate-authored review prose. The pre-existing 67-file
+normative digest remains separate corpus-drift evidence only.
 
 For a later implementation candidate, independent review freezes the committed candidate in its
 registered worktree together with its
@@ -115,8 +113,9 @@ passing, subject-matching `EV-CHECK-OBSERVATION` for every required class and th
 inside `Finalizing` before any target-changing Operation; `none` is an explicit no-op. Recording
 those observations under the unchanged reviewed binding is authorized continuation evidence, not a
 review-invalidating edit. Candidate, posture, class-set, configuration/environment, or binding
-drift requires every applicable required check and incremental review by the same reviewer. Custom sealing,
-detached clones, and fresh-clone review workspaces are not active gates.
+drift requires every applicable required check and incremental review by the same reviewer. No
+package-qualification review, separate external approval issue, custom sealing, detached clone, or
+fresh-clone review workspace is an active gate.
 
 ## Focused track gate
 

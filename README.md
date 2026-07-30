@@ -50,19 +50,19 @@ the same graph to what the current branch changed — a local convenience whose 
 complete as the comparison base, so `pnpm check` stays the gate — and `pnpm delivery:check` for the
 focused delivery validator and its mutation tests.
 
-## Next implementation prerequisite
+## Next implementation prerequisites
 
-The next owner-authorized implementation session must use the active greenfield delivery track and:
+An explicit current request from Arye Kogan or a named delegate to implement a named phase or story
+is sufficient implementation authorization. The session must use the active greenfield delivery
+track and:
 
-1. resolve the approved delivery package `P = Q + durable R identifier + PASS` and verify that package's
-   landing on the target ref; when landing produced
-   a different commit, verify the authoritative landing-equivalence record without treating the
-   landed commit as the reviewed subject;
+1. record the authorized phase/story scope and explicit constraints in an external operational
+   ledger when delivery begins;
 2. resolve the target ref's then-current commit/tree as the story execution base rather than
    treating immutable planning provenance as a rolling base;
-3. independently verify the exact external owner-ratification/activation record binding `P`,
-   planning/authority provenance, target scope, selected realization tuple, and expiry/revocation;
-4. freeze the final-verification posture, policy-selected required check-class set, verification
+3. verify current product/design/track authority, declared predecessor containment, and any
+   selected bounded `DR-*` realization;
+4. freeze the exact committed candidate, final-verification posture, policy-selected required check-class set, verification
    configuration/environment, and candidate binding for independent implementation review; after
    `Accepted`, `deterministic` requires a passing, subject-matching `EV-CHECK-OBSERVATION` for every
    required class and the complete set inside `Finalizing` before any target-changing Operation,
@@ -73,10 +73,11 @@ The next owner-authorized implementation session must use the active greenfield 
    register as planning inputs; and
 7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
-The four landed private packages establish only Phase 0; they do not activate a Phase 1 story or authorize
-downstream implementation. The active track remains a planning stop line until a story's merged
-predecessors, exact evidence, delegated-choice gate, external activation, and independent review
-requirements are met.
+The four landed private packages establish only Phase 0; they do not themselves request Phase 1
+implementation. Once the owner explicitly requests Phase 1, no separate package qualification,
+digest approval, external activation issue, or landed-commit equivalence record is required.
+Merged predecessors, exact candidate evidence, delegated-choice gates, provider qualification,
+independent review, required CI, and Definition of Ready/Done remain mandatory.
 
 ## License
 

@@ -19,32 +19,32 @@ fact into a safe delivery discipline: small closed stories, exact authority, dur
 independent review rather than speculative scaffolding or retrospective proof. The approved product
 and redesign remain authoritative; this policy never authorizes implementation by itself.
 
-## Canonical delivery-package identities
+## Implementation authorization and candidate identity
 
-- Delivery-package candidate identity `Q` is the exact candidate commit/tree to be reviewed; exact
-  package-only path set; each path's bytes/type/mode; and aggregate computed unpinned digest.
-- External review record `R` records: protocol; reviewer identity/independence; exact `Q`; checked
-  scope; checks/evidence; findings; verdict; and a durable external record identifier. The
-  coordinator supplies `Q` and available checks/evidence separately; neither `PASS` nor `R` is a
-  field of pre-verdict `Q`.
-- Only an `R` whose verdict is `PASS` creates approved delivery package
-  `P = Q + durable R identifier + PASS`.
+An explicit current request from Arye Kogan or a named delegate to implement a named phase or story
+is sufficient implementation authorization. No separate package qualification, package digest
+approval, external activation issue, or landed-commit equivalence record is required.
 
-Ordinary Git facts identify an implementation candidate; they never mint or replace `Q`, `R`, or
-`P`, grant activation, or substitute for product/design authority.
+Authorization incorporates the current product/design corpus, `track.json`, and story contract. It
+does not authorize a new product/design choice, dependency edge, provider, effect path, consumer
+surface, or realization outside an existing bounded `DR-*` delegation. Routine documentation,
+tooling, test, formatting, or Git-byte drift does not revoke authorization. Material drift in
+product/design authority, tracked scope or dependencies, selected realization, or provider
+reachability requires fresh explicit direction.
+
+Ordinary Git facts identify the exact implementation candidate. For review, record the phase/story
+scope, base commit/tree, candidate commit/tree, predecessor containment, applicable required checks,
+and reviewer verdict in the external phase ledger.
 
 ## Mandatory delivery rules
 
-1. Implement only a story whose [mandatory contract](./story-contract.md#mandatory-greenfield-story-contract),
-   including Definition of Ready, is satisfied, whose exact external owner-ratification/activation
-   record is recorded and independently verified: authenticated owner or explicitly named delegated
-   principal with independently verifiable delegation and current validity; durable record ID/URL;
-   approved package `P` and immutable planning/authority provenance; any required external
-   authoritative landing-equivalence record; activation target scope; selected realization tuple;
-   and expiry/revocation. Generic authorization cannot pass. Its declared predecessors must have
-   verified landing evidence contained in the observed implementation-candidate base. Record that
-   provenance in the external durable activation record, reviewer packet, or phase ledger, and
-   verify it at readiness.
+1. Implement only a story covered by an explicit current owner or named-delegate request whose
+   [mandatory contract](./story-contract.md#mandatory-greenfield-story-contract), including
+   Definition of Ready, is satisfied. Record the authorized phase/story scope and explicit
+   constraints in the external phase ledger when delivery begins; no durable external approval URL
+   is required. Its declared predecessors must have verified landing evidence contained in the
+   observed implementation-candidate base. Verify current product/design/track authority,
+   predecessor containment, and any selected bounded `DR-*` realization at readiness.
 2. Treat the product and approved redesign as authority. `track.json` owns the exact story set,
    phases, declared dependencies, edge types, and gates. The delivery track may select only an
    explicitly delegated `DR-*` realization choice, record its owner/constraints/evidence/fallback,
@@ -93,11 +93,9 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     repository gate required for a changed candidate or integration branch. Hosted CI independently
     executes its required checks.
     The coordinator verifies orchestration facts and evidence bindings. Every implementation
-    candidate needs independent review under the reviewer packet; that protocol reviews the
-    story-owned source, configuration, tests, and evidence paths, not a fresh delivery-package
-    corpus review or digest computation. At candidate freeze, record approved `P`, the current
-    67-file normative-corpus comparison, and exact committed-candidate evidence in the external
-    ledger or reviewer record; the independent reviewer verifies them read-only.
+    candidate needs independent review under the reviewer packet. At candidate freeze, record the
+    current 67-file normative-corpus comparison and exact committed-candidate evidence in the
+    external ledger or reviewer record; the independent reviewer verifies them read-only.
 11. Every local delivery, implementation, verification, review, and recovery workspace is a
     registered Git worktree. For each candidate, the external ledger records: story ID; registered
     story worktree path/branch; phase integration ref and resolved base commit/tree; candidate
@@ -135,19 +133,13 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     authorized recording after `Accepted` of final-verification observations already required by
     the unchanged reviewed candidate, posture, check-class set, configuration/environment, and
     binding. Those observations do not by themselves reopen review.
-15. Keep the two review protocols distinct. For delivery-package review, the coordinator freezes
-    pre-verdict `Q` and supplies checks/evidence separately. An independent reviewer verifies the
-    manifest's full package corpus and writes external `R`; only `PASS` creates `P`. An
-    implementation-candidate review freezes one story binding: observed base ref/commit/tree,
-    candidate commit/tree, merge-base equality, predecessor containment, approved `P`, current
-    normative-corpus comparison, owned path set, worktree identity, and exact check evidence. Its
-    verdict binds only that implementation candidate; it never mints or redefines `P`. A
-    squash-produced landed commit may have a different OID without fresh package review only when
-    an external authoritative landing-equivalence record binds approved `P` and its exact `Q` to
-    the target ref and landed commit/tree and proves full-tree equality or complete `Q` path-set
-    byte/type/mode equality reproducing `Q`'s aggregate digest. That record does not make the landed
-    commit reviewed. Missing, ambiguous, or drifting add/remove/rename/mode/byte evidence requires
-    a new `Q`, `R`, and `P`; the 67-file normative-corpus comparison remains separate.
+15. Freeze one exact implementation-candidate binding for review: authorized phase/story scope and
+    constraints; observed base ref/commit/tree; candidate commit/tree; merge-base equality;
+    predecessor containment; current normative-corpus comparison; owned path set; worktree
+    identity; and exact check evidence. The independent verdict binds only that candidate. A
+    changed candidate or target requires the check and incremental re-review loop in Rule 14.
+    Integration and final phase landing remain separate facts proven by ordinary Git ancestry,
+    hosted checks, and the final phase review.
 16. Under D15, the recorded transition into `Reviewing` and only its fenced `OPC-REV-*`
     draft/non-mergeable review-publication Operations may occur before independent review or
     acceptance. They are not approval, acceptance, finalization, landing, or dependency release.
@@ -161,22 +153,18 @@ Ordinary Git facts identify an implementation candidate; they never mint or repl
     and authorizes no verification Operation. Post-`Accepted` observations are authorized
     continuation evidence only while the reviewed candidate, posture, required class set,
     configuration/environment, and subject binding remain unchanged; drift requires every
-    applicable required check and incremental review by the same reviewer. The exact external
-    owner-ratification/activation record remains required and cannot be inferred from publication,
-    CI, or a reviewer verdict.
-17. The local validator proves governing-source projection, package consistency, and corpus
-    integrity only; it does not semantically approve plan-authored outcomes or prose. For a
-    delivery-package subject, the coordinator records immutable pre-verdict `Q` outside the
-    candidate and supplies checks/evidence separately; the independent reviewer records external
-    `R`, and only `PASS` creates `P`. Never pin or copy an expected package digest into
-    `track.json`, validator constants, fixtures, or candidate-authored review prose. Any package
-    byte or path-set change invalidates `Q` and requires fresh package review; the 67-file
-    normative digest is corpus-drift evidence only.
+    applicable required check and incremental review by the same reviewer.
+17. The local validator proves governing-source projection, delivery-surface consistency, and
+    corpus integrity only; it does not approve implementation, authorize a phase, or semantically
+    approve plan-authored outcomes or prose. Its unpinned delivery-surface digest is informational
+    integrity evidence. Never pin or copy an expected delivery-surface digest into `track.json`,
+    validator constants, fixtures, or candidate-authored review prose. The 67-file normative digest
+    remains separate corpus-drift evidence.
 18. Keep delivery-process state out of repository source, tests, fixtures, and CI configuration.
     Within those places, do not commit live process provenance or review state—commit SHAs, tree
     hashes, candidate or story branch refs, worktree paths, PR or issue URLs, reviewer identities,
-    verdicts, approval records, or package digests—and do not use a story ID as an identifier in a
-    source, test, fixture, or script file or directory name. Canonical story files under
+    verdicts, approval records, or delivery-surface digests—and do not use a story ID as an
+    identifier in a source, test, fixture, or script file or directory name. Canonical story files under
     `docs/delivery/greenfield/stories/` and ordinary CI branch triggers are unaffected. Tests remain
     named and organized by package or behavior; oracle fixtures remain named for the oracle; one
     generic evidence writer may accept a story ID as a CI-time argument and write workflow-uploaded
@@ -190,6 +178,13 @@ its exact commit, base, required checks, and reviewer verdict can be reconstruct
 ledger; otherwise it receives current checks and review. No external pull request is a prerequisite
 solely because it carried sealer hardening.
 
+The former package-qualification and separately hosted activation-artifact gate is also
+superseded. Historical qualification or activation artifacts remain historical evidence only. In
+particular, PR #112 is not a prerequisite under this policy, and no hosted-state action is required
+solely to perform this transition. In-flight work migrates by recording the explicit current
+implementation request, scope and constraints, exact candidate/base, required checks, and reviewer
+verdict in the operational ledger.
+
 ## Required evidence ladder
 
 Every story names proportionate proof from this ladder: unit and schema tests; contract tests across
@@ -201,11 +196,11 @@ manifest, environment, suite, probe, and output digests.
 ## Delivery lifecycle
 
 1. Keep immutable planning/authority provenance and complete the story contract.
-2. Independently review the contract's readiness and `DR-*` selection.
-3. Record and independently verify the exact external owner-ratification/activation record,
-   approved `P`, any required authoritative landing-equivalence record, the then-current phase
-   integration base ref/commit/tree, declared-predecessor containment, and a clean current 67-file
-   normative-corpus comparison against immutable authority provenance.
+2. Confirm that an explicit current owner or named-delegate request names the phase/story scope and
+   that the contract's readiness and any bounded `DR-*` selection are current.
+3. Record the authorized scope and constraints, then-current phase integration base ref/commit/tree,
+   declared-predecessor containment, and current 67-file normative-corpus comparison in the
+   external operational ledger.
 4. Register the phase integration branch/worktree and continuous story pair/worktree in the
    external ledger. Implement the smallest closed subject; retain fail-closed adapters until
    qualified.
@@ -221,8 +216,7 @@ manifest, environment, suite, probe, and output digests.
    draft/non-mergeable review subject as needed for hosted CI or review. Freeze the registered
    story worktree and supply the committed-candidate ledger evidence for the continuous independent
    reviewer. Target movement or any candidate/binding change requires a new commit, every applicable
-   required check, and incremental review by the same reviewer. A changed delivery-package `Q` first requires new
-   external `R` and approved `P`.
+   required check, and incremental review by the same reviewer.
 8. Resolve findings through the same continuous pair. The implementation owner corrects and
    commits; the reviewer rechecks the prior-reviewed-to-new range, sibling occurrences, affected
    invariants, and new evidence until `PASS` or an owner stop. After `Accepted`, enter `Finalizing`
@@ -242,7 +236,9 @@ manifest, environment, suite, probe, and output digests.
 12. Remove phase/story worktrees and branches only after confirmed landing and explicit cleanup
     scope/keep-list. Recovery follows the worktree-only rules in
     [phase orchestration](./phase-orchestration.md); missing or irreconcilable facts stop
-    `OWNER_DECISION_REQUIRED`.
+    the affected story and its descendants until reconciled, while independent ready stories
+    continue. Use `OWNER_DECISION_REQUIRED` only when recovery requires a material authority,
+    scope, dependency, realization, provider-reachability, or accepted-trade-off decision.
 
 ## Explicit non-goals
 
