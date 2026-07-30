@@ -506,7 +506,10 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
       if (!pin || !livePins.has(pinKey) || !retiredPins.has(pinKey)) return fail('FC-AUTHORITY', 'RELEASE_NOT_RETIRED');
       const witnessed = witnessedCurrent();
       if (!witnessed.ok) return witnessed;
-      const exactBinding = freeze({ ...bound.value, detail: value.pin });
+      const exactBinding = freeze({
+        ...bound.value,
+        detail: JSON.stringify({ registration: registration.value.key, pin: value.pin }),
+      });
       const operationKey = `${bound.value.operation}/release-pin`;
       const prior = operations.get(operationKey);
       if (prior && prior.binding !== key(exactBinding))
@@ -567,7 +570,9 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
         (fact.mode !== 'put' && fact.mode !== 'release-pin' && fact.mode !== 'dispose-bytes') ||
         typeof fact.position !== 'number' ||
         !digest(fact.headDigest) ||
-        !text(fact.binding)
+        typeof fact.binding !== 'string' ||
+        fact.binding.length === 0 ||
+        fact.binding.length > 4096
       )
         return fail('FC-EVIDENCE', 'INVALID_ARTIFACT_FACT');
       return witnessedFact(fact);
@@ -633,7 +638,15 @@ function createFixture(seed?: Seed): ScriptedArtifactFixture {
               })()
             : mode === 'release-pin'
               ? text(value.pin)
-                ? freeze({ ...bound.value, detail: value.pin })
+                ? (() => {
+                    const registration = registered(value, bound.value);
+                    return registration.ok
+                      ? freeze({
+                          ...bound.value,
+                          detail: JSON.stringify({ registration: registration.value.key, pin: value.pin }),
+                        })
+                      : undefined;
+                  })()
                 : undefined
               : bound.value;
         if (!exactBinding) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
