@@ -333,23 +333,25 @@ function mintedEvent(run: string, position: number): LedgerResult<string> {
 }
 
 function validBinding(value: unknown): value is RunStoreBinding {
-  const candidate = value as Record<string, unknown>;
-  const run = candidate.run;
-  const generation = candidate.generation;
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    candidate.kind === 'run' &&
-    typeof run === 'string' &&
-    typeof generation === 'string' &&
-    parseIdentity('ID-RUN', run).ok &&
-    parseIdentity('ID-GEN', generation).ok &&
-    generation.startsWith(`${run}/gen/`) &&
-    Object.keys(value as object)
-      .sort()
-      .join(',') === 'generation,kind,run'
-  );
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  try {
+    const candidate = value as Record<string, unknown>;
+    const keys = Object.getOwnPropertyNames(candidate).sort().join(',');
+    const kind = Object.getOwnPropertyDescriptor(candidate, 'kind');
+    const run = Object.getOwnPropertyDescriptor(candidate, 'run');
+    const generation = Object.getOwnPropertyDescriptor(candidate, 'generation');
+    return (
+      keys === 'generation,kind,run' &&
+      kind?.value === 'run' &&
+      typeof run?.value === 'string' &&
+      typeof generation?.value === 'string' &&
+      parseIdentity('ID-RUN', run.value).ok &&
+      parseIdentity('ID-GEN', generation.value).ok &&
+      generation.value.startsWith(`${run.value}/gen/`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function head(records: readonly LedgerRecord[]): Readonly<{ position: number; digest: string }> {
