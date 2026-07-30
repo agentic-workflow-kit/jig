@@ -10,9 +10,9 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
    `phase-orchestration.md`. Confirm that the current owner or named delegate explicitly requested
    implementation of the named phase/story. That request is sufficient implementation
-   authorization within current product/design/track authority; do not require package
-   qualification, a package digest approval, an external activation issue, or a landed-commit
-   equivalence record. Start the external operational ledger when delivery begins.
+   authorization within current product/design/track authority; do not require delivery-package
+   qualification, delivery-surface digest approval, an external activation issue, or a
+   landed-commit equivalence record. Start the external operational ledger when delivery begins.
 2. Establish or reconcile one registered phase integration worktree and one registered story
    worktree per admitted story. Use Git worktrees for every local delivery, check, review, and
    recovery operation; no fresh clone is an exception. Read `references/phase-protocol.md` before
@@ -38,7 +38,8 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 
 Stop `OWNER_DECISION_REQUIRED` only for a genuine material ambiguity or conflict in product/design
 authority, tracked scope or dependencies, selected realization, provider reachability, or accepted
-trade-off. Missing or contradictory predecessor-landing, worktree/branch/object, evidence,
-sanitized-environment/ignored-state, reviewer-independence, or required-check facts block the
-affected story until repaired; they do not revoke authorization or block independent ready stories.
-Record runtime facts in the external ledger, not repository files.
+trade-off. Missing or contradictory tracker, predecessor-landing, worktree path/branch/object,
+base, clean-status, sanitized-environment, ignored-state, evidence, reviewer-independence,
+required-check, or ownership facts block the affected story and its descendants until repaired;
+they do not revoke authorization or block independent ready stories. Record runtime facts in the
+external ledger, not repository files.

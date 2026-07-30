@@ -28,8 +28,10 @@ evidence`; `N/A` never means “not considered.”
 
 Use this section for one implementation attempt of one `GF-*` story covered by an explicit current
 owner or named-delegate implementation request. It permits bounded story-owned source,
-configuration, test, and evidence paths. No package qualification, digest approval, or separate
-external approval issue is required.
+configuration, test, and evidence paths. No delivery-package qualification, delivery-surface
+digest approval, or separate external approval issue is required. Provider qualification remains
+mandatory: configuration cannot expose a provider until its named evidence, including
+`CF-GATE-PROVIDER` where applicable, passes.
 
 ### Subject, base, and authorization
 

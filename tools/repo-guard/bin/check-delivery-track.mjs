@@ -37,12 +37,20 @@ const STORY_AUTHORITY_BINDING_KEYS = [
   'imported_commitments',
 ];
 const APPROVED_NORMATIVE_CORPUS_SHA256 = 'fca18fcb768fe11ef00393958077b0f13b8e045d394e9c0e3a9e953925ef632c';
-const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'd3f1e04fc4d24fac79ad02b1616ec7dcdbd4400d5a2ccedb7ad89cc6a9355ccb';
+const APPROVED_GLOBAL_TRACK_FIELDS_SHA256 = 'a3cc7eced59284ff115485506b3f3948b3665f4dac8afe2e1257594db217da0a';
 const APPROVED_PROVIDER_SPLITS_SHA256 = 'aaac34c0612c51f08d11ab3c467a414966468057a1222def001624bc6ba95834';
 const APPROVED_DELEGATED_CHOICES_SHA256 = 'e8fb8713126d05bf59c850606d43af542e6214467e05bdd64402e822b5065746';
 const APPROVED_IMPORTED_COMMITMENTS_SHA256 = 'de7bdd92f248de65756a2cb6a2e3cb5d1eb098c8471121f084dd00b9d4f682b6';
 const APPROVED_STORY_AUTHORITY_BINDINGS_SHA256 = 'c1545bdfa9547700b8dffb340b2d1bc21c9c4c8fc22a4b2ce2baf206784c6524';
 const RETIRED_DELIVERY_GATE_PATTERNS = [
+  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?delivery[- ]package qualification\b/i,
+  /\bdelivery[- ]package qualification (?:is required|must pass|gates? delivery)\b/i,
+  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?(?:delivery[- ]surface |package )?digest approval\b/i,
+  /\b(?:delivery[- ]surface |package )?digest approval (?:is required|must pass|gates? delivery)\b/i,
+  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?hosted activation artifact\b/i,
+  /\bhosted activation artifact (?:is required|must exist|gates? delivery)\b/i,
+  /(?<!not )\b(?:requires?|must obtain|depends? on) (?:a |the )?landed[- ]commit equivalence(?: record)?\b/i,
+  /\blanded[- ]commit equivalence(?: record)? (?:is required|must exist|gates? delivery)\b/i,
   /\bP\s*=\s*Q\b/i,
   /\bdelivery-package review\b/i,
   /\bdelivery-package candidate\b/i,

@@ -22,8 +22,9 @@ and redesign remain authoritative; this policy never authorizes implementation b
 ## Implementation authorization and candidate identity
 
 An explicit current request from Arye Kogan or a named delegate to implement a named phase or story
-is sufficient implementation authorization. No separate package qualification, package digest
-approval, external activation issue, or landed-commit equivalence record is required.
+is sufficient implementation authorization. Delivery does not require a separate delivery-package
+qualification, delivery-surface digest approval, external activation issue, or landed-commit
+equivalence record.
 
 Authorization incorporates the current product/design corpus, `track.json`, and story contract. It
 does not authorize a new product/design choice, dependency edge, provider, effect path, consumer
@@ -178,7 +179,7 @@ its exact commit, base, required checks, and reviewer verdict can be reconstruct
 ledger; otherwise it receives current checks and review. No external pull request is a prerequisite
 solely because it carried sealer hardening.
 
-The former package-qualification and separately hosted activation-artifact gate is also
+The former delivery-package qualification and separately hosted activation-artifact gate is also
 superseded. Historical qualification or activation artifacts remain historical evidence only. In
 particular, PR #112 is not a prerequisite under this policy, and no hosted-state action is required
 solely to perform this transition. In-flight work migrates by recording the explicit current

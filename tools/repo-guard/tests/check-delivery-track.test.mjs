@@ -1344,6 +1344,13 @@ test('retired package qualification, activation, and ratification gates cannot r
     'Engineering may proceed after exact owner activation.',
     'Use only the owner-ratified toolchain.',
     'The exact activation authorizes this realization.',
+    'Delivery requires delivery-package qualification.',
+    'Delivery must obtain delivery-surface digest approval.',
+    'Delivery-surface digest approval is required.',
+    'Delivery depends on a hosted activation artifact.',
+    'A hosted activation artifact must exist before delivery.',
+    'Delivery requires landed-commit equivalence.',
+    'Landed-commit equivalence is required.',
   ])
     reject((dir) => {
       const path = join(dir, 'docs/delivery/greenfield/delivery-policy.md');

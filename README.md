@@ -74,10 +74,11 @@ track and:
 7. avoid the retired generation unless an already-specified active story needs a bounded lookup.
 
 The four landed private packages establish only Phase 0; they do not themselves request Phase 1
-implementation. Once the owner explicitly requests Phase 1, no separate package qualification,
-digest approval, external activation issue, or landed-commit equivalence record is required.
-Merged predecessors, exact candidate evidence, delegated-choice gates, provider qualification,
-independent review, required CI, and Definition of Ready/Done remain mandatory.
+implementation. Once the owner explicitly requests Phase 1, delivery does not require a separate
+delivery-package qualification, delivery-surface digest approval, external activation issue, or
+landed-commit equivalence record. Merged predecessors, exact candidate evidence, delegated-choice
+gates, provider qualification, independent review, required CI, and Definition of Ready/Done remain
+mandatory.
 
 ## License
 

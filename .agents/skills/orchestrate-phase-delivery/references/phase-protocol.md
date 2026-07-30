@@ -53,10 +53,13 @@ final candidate change.
 ## Worktree lifecycle and recovery
 
 All local delivery, check, review, and recovery workspaces are registered Git worktrees. One durable
-phase integration worktree and one story worktree per admitted story are mandatory. Cleanup happens
-only after confirmed landing and explicit keep-list/scope; terminally blocked work remains until
-reconciliation, an applicable material owner decision, or explicit scoped cleanup. Provider-managed
-hosted CI is the sole workspace exception and cannot replace local evidence or review.
+phase integration worktree and one story worktree per admitted story are mandatory. Confirmed
+landing plus an explicit keep-list/scope is the normal cleanup prerequisite. A terminally blocked
+story is the sole non-landed cleanup exception: first reconcile it or obtain any applicable
+material owner decision, retain its ledger/evidence including terminal disposition, and obtain
+explicit authorization for the exact scoped cleanup before deleting its worktree or branch.
+Provider-managed hosted CI is the sole workspace exception and cannot replace local evidence or
+review; it does not create another cleanup exception.
 
 Create a new phase branch/worktree with `pnpm worktree:new <phase-branch> <authorized-target>`.
 Create a new story branch/worktree with `pnpm worktree:new <story-branch>
@@ -68,11 +71,14 @@ exact approved cleanup scope.
 Recover by running `git worktree list --porcelain`, then reconcile registered paths, branches,
 HEADs, bases, and clean states to the ledger. Reuse a matching worktree. Reattach a missing path
 only after verifying its recorded branch/object exists, the destination path is the registered
-missing path, and ledger/base/evidence/clean facts reconcile:
+missing path, and all tracker, base, clean-status, sanitized-environment, ignored-state, evidence,
+reviewer-independence, required-check, and ownership facts reconcile:
 `git worktree add --force <registered-path> <recorded-branch>`. `--force` overrides only the stale
 missing-worktree registration already reconciled by those prerequisites; it is not permission to
 replace a live or mismatched worktree. `pnpm worktree:new` creates a new branch and is not recovery.
-Any missing, ambiguous, dirty, mismatched, or irreconcilable branch/object/path/base/evidence fact
-blocks the affected story and its descendants until reconciled; independent ready stories continue.
-Use `OWNER_DECISION_REQUIRED` only if recovery requires a material authority, scope, dependency,
-realization, provider-reachability, or accepted-trade-off decision. Never use a local clone.
+Any missing, ambiguous, dirty, mismatched, or irreconcilable tracker, branch/object, registered path,
+base, clean-status, sanitized-environment, ignored-state, evidence, reviewer-independence,
+required-check, or ownership fact blocks the affected story and its descendants until reconciled;
+independent ready stories continue. Use `OWNER_DECISION_REQUIRED` only if recovery requires a
+material authority, scope, dependency, realization, provider-reachability, or accepted-trade-off
+decision. Never use a local clone.

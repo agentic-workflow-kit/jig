@@ -29,7 +29,12 @@ paths, identities, verdicts, or URLs into this repository.
 - Create one durable phase integration branch and registered integration worktree from the authorized target using `pnpm worktree:new`. Record its path, branch, target ref, and initial commit in the ledger.
 - For every admitted story, create one temporary registered story branch/worktree from the current integration commit that contains its declared predecessors. Record its path, branch, base ref and commit, current `HEAD`, clean status, and continuous implementer/reviewer pair before editing.
 - The implementer owns writes. At an explicit review freeze, the same independent reviewer uses that registered story worktree read-only; they never write concurrently. A replacement is exceptional, must be explicit, and is recorded with its reason and handoff.
-- Retain each story worktree, branch, and pair quiescent after integration through final-PR feedback and confirmed landing/closure. Cleanup requires confirmed landing and an explicit keep-list/scope; retain terminally blocked work until reconciliation, an applicable material owner decision, or explicit scoped cleanup.
+- Retain each story worktree, branch, and pair quiescent after integration through final-PR
+  feedback and confirmed landing/closure. Confirmed landing plus an explicit keep-list/scope is the
+  normal cleanup prerequisite. A terminally blocked story is the sole non-landed exception: first
+  reconcile it or obtain any applicable material owner decision, retain its external-ledger
+  evidence including terminal disposition, and obtain explicit authorization for the exact scoped
+  cleanup before deleting its worktree or branch.
 
 No local fresh clone is a delivery, verification, review, or recovery workspace. A provider-managed hosted-CI checkout is allowed only as CI infrastructure and cannot replace local worktree evidence or read-only review.
 
@@ -59,6 +64,17 @@ After every required phase story has approved integration, run required integrat
 
 ## Recovery and migration
 
-Begin recovery with `git worktree list --porcelain` and reconcile every registered ledger path, branch, `HEAD`, base, and status. Reuse an existing matching worktree. If its path is missing but the recorded branch/object exists, follow the exact reattachment procedure in the repository-local skill's [`phase-protocol.md`](../../../.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md); `pnpm worktree:new` creates a new branch and is not recovery. If an object, branch, base, evidence record, or clean reconciliation is missing, ambiguous, dirty, or irreconcilable, block the affected story and its descendants until reconciled; independent ready stories continue. Use `OWNER_DECISION_REQUIRED` only if recovery requires a material authority, scope, dependency, realization, provider-reachability, or accepted-trade-off decision. Never clone or invent evidence.
+Begin recovery with `git worktree list --porcelain` and reconcile every registered ledger path,
+branch, `HEAD`, base, and status. Reuse an existing matching worktree. If its path is missing but
+the recorded branch/object exists, follow the exact reattachment procedure in the repository-local
+skill's
+[`phase-protocol.md`](../../../.agents/skills/orchestrate-phase-delivery/references/phase-protocol.md);
+`pnpm worktree:new` creates a new branch and is not recovery. If any tracker, branch/object,
+registered path, base, clean-status, sanitized-environment, ignored-state, evidence,
+reviewer-independence, required-check, or ownership fact is missing, ambiguous, dirty, mismatched,
+or irreconcilable, block the affected story and its descendants until reconciled; independent ready
+stories continue. Use `OWNER_DECISION_REQUIRED` only if recovery requires a material authority,
+scope, dependency, realization, provider-reachability, or accepted-trade-off decision. Never clone
+or invent evidence.
 
 This policy supersedes the former custom candidate sealer, envelope, detached-clone review, and resealing gate. Historical seals remain historical evidence but are neither required nor sufficient for new or in-flight candidates. An in-flight candidate may migrate only when the required committed candidate, base, check, and reviewer evidence can be recorded; otherwise re-check and re-review it. No external pull request is a prerequisite solely because it carried sealer hardening.

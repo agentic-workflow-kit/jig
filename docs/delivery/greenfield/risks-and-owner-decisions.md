@@ -29,8 +29,10 @@ request selects the bounded choice, as defined in
 
 No entry above selects itself. An explicit current request to implement a named phase/story is
 sufficient implementation authorization within current product/design/track authority. It selects
-only the bounded defaults it names or necessarily incorporates. Genuine authority, scope,
-realization, or provider-reachability ambiguity is `OWNER_DECISION_REQUIRED`.
+only bounded defaults it explicitly names or that the named phase/story's current authority
+deterministically binds; the external ledger enumerates each selection and binding. Never infer a
+choice merely because implementation appears to require it. Genuine authority, scope, realization,
+or provider-reachability ambiguity is `OWNER_DECISION_REQUIRED`.
 
 ## Risks, containment, and escalation
 

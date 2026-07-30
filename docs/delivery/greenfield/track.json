@@ -44,7 +44,7 @@
     "open_delegated_choices": 10
   },
   "global_definition_of_ready": [
-    "Immutable planning provenance remains recorded; each story starts only when an explicit current owner or named-delegate implementation request covers its phase/story, current product/design/track authority and any selected bounded realization are recorded in the external operational ledger, and its dynamically observed execution base contains all declared predecessors with exact evidence current. No separate package qualification, digest approval, external approval issue, or landed-commit equivalence record is required.",
+    "Immutable planning provenance remains recorded; each story starts only when an explicit current owner or named-delegate implementation request covers its phase/story, current product/design/track authority and any selected bounded realization are recorded in the external operational ledger, and its dynamically observed execution base contains all declared predecessors with exact evidence current. Delivery does not require a separate delivery-package qualification, delivery-surface digest approval, external approval issue, or landed-commit equivalence record.",
     "Governing paths and stable IDs are named; applicable DR ownership, constraints, evidence, and fallback are recorded.",
     "Port, principal, authority, durable facts, failure paths, and conformance oracles are explicit.",
     "No unapproved capability or partial provider path is reachable."

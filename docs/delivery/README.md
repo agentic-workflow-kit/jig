@@ -114,8 +114,9 @@ inside `Finalizing` before any target-changing Operation; `none` is an explicit 
 those observations under the unchanged reviewed binding is authorized continuation evidence, not a
 review-invalidating edit. Candidate, posture, class-set, configuration/environment, or binding
 drift requires every applicable required check and incremental review by the same reviewer. No
-package-qualification review, separate external approval issue, custom sealing, detached clone, or
-fresh-clone review workspace is an active gate.
+delivery-package qualification review, separate external approval issue, custom sealing, or
+detached/fresh-clone gate is active. Local clones are invalid delivery, verification, review, and
+recovery workspaces; they cannot replace registered-worktree evidence.
 
 ## Focused track gate
 
