@@ -1,5 +1,5 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { createScriptedLedger, type ScriptedLedger } from './ledger.js';
+import { createScriptedLedger, isScriptedLedger, type ScriptedLedger } from './ledger.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -179,11 +179,8 @@ const basis = (value: unknown): Basis | undefined => {
 
 export function createProviderAdmissionFixture(input: unknown): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
-  const ledger =
-    config?.ledger && typeof (config.ledger as { preflight?: unknown }).preflight === 'function'
-      ? (config.ledger as ScriptedLedger)
-      : createScriptedLedger();
-  const configured = config && exactBytes(config.manifestBytes) ? approval(config.approval) : undefined;
+  const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
+  const configured = config && ledger && exactBytes(config.manifestBytes) ? approval(config.approval) : undefined;
   const attempts = new Map<string, Attempt>();
   const approvalBinding = configured;
   const approve = (input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>> =>
@@ -266,7 +263,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
             predecessor: data.predecessor,
             outcome: data.outcome,
           };
-    const durable = ledger.preflight({
+    const durable = ledger?.preflight({
       key: `${basisDigest}/${ordinal}`,
       variant: kind,
       bytes: recordBasis as CanonicalJson,
@@ -274,7 +271,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
       deadline: data.deadline,
       observedAt: data.observedAt,
     });
-    if (!durable.ok) return fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
+    if (!durable || !durable.ok) return fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
     const record = freeze({ ...recordBasis, key, digest: durable.value.digest }) as Attempt;
     const existing = attempts.get(key);
     if (existing) return existing.digest === record.digest ? ok(existing) : fail('FC-INPUT', 'PREFLIGHT_MISMATCH');
