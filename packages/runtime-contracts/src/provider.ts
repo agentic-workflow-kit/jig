@@ -528,8 +528,8 @@ export function structuredFileProviderGate(
     !same(approval.scope, STRUCTURED_FILE_CATALOGUE.scope) ||
     data.capability !== STRUCTURED_FILE_CATALOGUE.capability ||
     data.policyMinimum !== STRUCTURED_FILE_CATALOGUE.policyMinimum ||
-    !safeDigest(data.providerBuildDigest) ||
-    !safeDigest(data.resourceDigest) ||
+    data.providerBuildDigest !== STRUCTURED_FILE_CATALOGUE.providerBuildDigest ||
+    data.resourceDigest !== STRUCTURED_FILE_CATALOGUE.resourceDigest ||
     data.environment !== STRUCTURED_FILE_CATALOGUE.environment ||
     !same(data.scope, STRUCTURED_FILE_CATALOGUE.scope)
   )
@@ -551,4 +551,252 @@ export function structuredFileQualificationGate(
   return claims && claims.subject.providerId === 'structured-json-file-source/v1'
     ? gate
     : fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
+}
+
+type StructuredFileAttempt = Readonly<{
+  kind: 'start' | 'result';
+  key: string;
+  digest: string;
+  basisDigest: string;
+  certificateSubjectDigest: string;
+  ordinal: number;
+  deadline: number;
+  observedAt: number;
+  retryLimit: number;
+  predecessor: string | null;
+  outcome?: 'positive' | 'negative' | 'timeout' | 'exhausted';
+}>;
+export type StructuredFileAdmission = Readonly<{
+  start(input: unknown): ProviderAdmissionResult<StructuredFileAttempt>;
+  result(input: unknown): ProviderAdmissionResult<StructuredFileAttempt>;
+  admit(
+    input: unknown,
+  ): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>>;
+  readback(input: unknown): ProviderAdmissionResult<StructuredFileAttempt>;
+  reachability(): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>>;
+}>;
+const CONFORMANCE_AGE_DEFAULT_MS = 86_400_000;
+const CONFORMANCE_AGE_MIN_MS = 300_000;
+const CONFORMANCE_AGE_MAX_MS = 2_592_000_000;
+const SOURCE_WAIT_DEFAULT_MS = 900_000;
+const SOURCE_WAIT_MIN_MS = 5_000;
+const SOURCE_WAIT_MAX_MS = 7_200_000;
+const SOURCE_RETRY_DEFAULT = 3;
+const SOURCE_RETRY_MIN = 1;
+const SOURCE_RETRY_MAX = 5;
+
+/**
+ * GF-020's private qualification path. The immutable preflight variants hold only
+ * qualification lineage; they are not EP-SOURCE attempt storage and cannot enable a provider.
+ */
+export function createStructuredFileAdmission(input: unknown): StructuredFileAdmission {
+  const config =
+    fields(input, ['certificate', 'conformanceMaxAgeMs', 'gate', 'ledger', 'observedAt']) ??
+    fields(input, ['certificate', 'gate', 'ledger', 'observedAt']);
+  const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
+  const certificate = config?.certificate;
+  const claims =
+    certificate && typeof certificate === 'object' ? qualificationCertificates.get(certificate) : undefined;
+  const gate = config && structuredFileQualificationGate({ certificate, gate: config.gate });
+  const conformanceMaxAgeMs = config?.conformanceMaxAgeMs ?? CONFORMANCE_AGE_DEFAULT_MS;
+  const validConformanceMaxAge =
+    Number.isSafeInteger(conformanceMaxAgeMs) &&
+    (conformanceMaxAgeMs as number) >= CONFORMANCE_AGE_MIN_MS &&
+    (conformanceMaxAgeMs as number) <= CONFORMANCE_AGE_MAX_MS;
+  const configured =
+    ledger &&
+    gate?.ok &&
+    claims &&
+    safeTime(config?.observedAt) &&
+    validConformanceMaxAge &&
+    config.observedAt >= (claims.subject.recordedAt as number) &&
+    config.observedAt - (claims.subject.recordedAt as number) <= (conformanceMaxAgeMs as number);
+  const subjectDigest = claims && digest('STRUCTURED-FILE-CONFORMANCE-SUBJECT', claims.subject);
+  const basisDigest =
+    configured &&
+    subjectDigest &&
+    digest('STRUCTURED-FILE-QUALIFICATION-BASIS', {
+      certificateSubjectDigest: subjectDigest,
+      capability: claims.capability,
+      environment: STRUCTURED_FILE_CATALOGUE.environment,
+      manifestId: STRUCTURED_FILE_CATALOGUE.manifestId,
+      policyMinimum: claims.policyMinimum,
+      providerBuildDigest: STRUCTURED_FILE_CATALOGUE.providerBuildDigest,
+      resourceDigest: claims.resourceDigest,
+      scope: STRUCTURED_FILE_CATALOGUE.scope,
+    });
+  const read = (ordinal: number, variant: StructuredFileAttempt['kind']): StructuredFileAttempt | undefined => {
+    try {
+      if (!basisDigest || !subjectDigest) return undefined;
+      const response = ledger?.readPreflight(`${basisDigest}/${ordinal}`, variant);
+      if (!response?.ok || 'kind' in response.value) return undefined;
+      const stored = response.value;
+      const names =
+        variant === 'start'
+          ? [
+              'basisDigest',
+              'certificateSubjectDigest',
+              'deadline',
+              'kind',
+              'observedAt',
+              'ordinal',
+              'predecessor',
+              'retryLimit',
+            ]
+          : [
+              'basisDigest',
+              'certificateSubjectDigest',
+              'deadline',
+              'kind',
+              'observedAt',
+              'ordinal',
+              'outcome',
+              'predecessor',
+              'retryLimit',
+            ];
+      const bytes = fields(stored.bytes, names);
+      if (
+        !bytes ||
+        stored.key !== `${basisDigest}/${ordinal}/${variant}` ||
+        digest('PREFLIGHT-ATTEMPT', stored.bytes) !== stored.digest ||
+        bytes.kind !== variant ||
+        bytes.basisDigest !== basisDigest ||
+        bytes.certificateSubjectDigest !== subjectDigest ||
+        bytes.ordinal !== ordinal ||
+        bytes.deadline !== stored.deadline ||
+        !safeTime(bytes.deadline) ||
+        !safeTime(bytes.observedAt) ||
+        bytes.observedAt > bytes.deadline ||
+        !Number.isSafeInteger(bytes.retryLimit) ||
+        (bytes.retryLimit as number) < SOURCE_RETRY_MIN ||
+        (bytes.retryLimit as number) > SOURCE_RETRY_MAX ||
+        (variant === 'start'
+          ? !(bytes.predecessor === null || safeDigest(bytes.predecessor))
+          : !safeDigest(bytes.predecessor) ||
+            !['positive', 'negative', 'timeout', 'exhausted'].includes(bytes.outcome as string))
+      )
+        return undefined;
+      return freeze({ ...bytes, key: stored.key, digest: stored.digest }) as StructuredFileAttempt;
+    } catch {
+      return undefined;
+    }
+  };
+  const write = (
+    input: unknown,
+    kind: StructuredFileAttempt['kind'],
+  ): ProviderAdmissionResult<StructuredFileAttempt> => {
+    if (!configured || !basisDigest || !subjectDigest) return fail('FC-AUTHORITY', 'EXACT_QUALIFICATION_REQUIRED');
+    const names =
+      kind === 'start'
+        ? ['deadline', 'observedAt', 'ordinal', 'predecessor', 'retryLimit']
+        : ['deadline', 'observedAt', 'ordinal', 'outcome', 'predecessor', 'retryLimit'];
+    const data =
+      fields(input, names) ??
+      fields(
+        input,
+        names.filter((name) => name !== 'deadline' && name !== 'retryLimit'),
+      );
+    const deadline = data?.deadline ?? SOURCE_WAIT_DEFAULT_MS;
+    const retryLimit = data?.retryLimit ?? SOURCE_RETRY_DEFAULT;
+    if (
+      !data ||
+      !safeTime(deadline) ||
+      !safeTime(data.observedAt) ||
+      deadline < SOURCE_WAIT_MIN_MS ||
+      deadline > SOURCE_WAIT_MAX_MS ||
+      data.observedAt > deadline ||
+      !Number.isSafeInteger(data.ordinal) ||
+      (data.ordinal as number) < 1 ||
+      !Number.isSafeInteger(retryLimit) ||
+      (retryLimit as number) < SOURCE_RETRY_MIN ||
+      (retryLimit as number) > SOURCE_RETRY_MAX ||
+      (data.ordinal as number) > (retryLimit as number) ||
+      (kind === 'start'
+        ? !(data.predecessor === null || safeDigest(data.predecessor))
+        : !safeDigest(data.predecessor)) ||
+      (kind === 'result' && !['positive', 'negative', 'timeout', 'exhausted'].includes(data.outcome as string))
+    )
+      return fail('FC-INPUT', 'INVALID_STRUCTURED_FILE_QUALIFICATION_ATTEMPT');
+    const ordinal = data.ordinal as number;
+    const retryLimitValue = retryLimit as number;
+    if (kind === 'start') {
+      if (ordinal === 1 ? data.predecessor !== null : !data.predecessor)
+        return fail('FC-INPUT', 'INVALID_PREFLIGHT_PREDECESSOR');
+      if (ordinal > 1) {
+        const predecessor = read(ordinal - 1, 'result');
+        if (
+          !predecessor ||
+          predecessor.digest !== data.predecessor ||
+          predecessor.retryLimit !== retryLimitValue ||
+          data.observedAt < predecessor.observedAt ||
+          predecessor.outcome === 'positive' ||
+          predecessor.outcome === 'exhausted'
+        )
+          return fail('FC-TRUST', 'TERMINAL_PREDECESSOR_REQUIRED');
+      }
+    } else {
+      const predecessor = read(ordinal, 'start');
+      if (
+        !predecessor ||
+        predecessor.digest !== data.predecessor ||
+        predecessor.deadline !== deadline ||
+        predecessor.retryLimit !== retryLimitValue ||
+        data.observedAt < predecessor.observedAt
+      )
+        return fail('FC-TRUST', 'START_PREDECESSOR_REQUIRED');
+    }
+    const bytes = freeze({
+      kind,
+      basisDigest,
+      certificateSubjectDigest: subjectDigest,
+      ordinal,
+      deadline: deadline as number,
+      observedAt: data.observedAt as number,
+      retryLimit: retryLimitValue,
+      predecessor: data.predecessor as string | null,
+      ...(kind === 'result' ? { outcome: data.outcome as StructuredFileAttempt['outcome'] } : {}),
+    });
+    const durable = ledger?.preflight({
+      key: `${basisDigest}/${ordinal}`,
+      variant: kind,
+      bytes: bytes as CanonicalJson,
+      ...(kind === 'result' ? { predecessor: data.predecessor as string } : {}),
+      deadline: deadline as number,
+      observedAt: data.observedAt as number,
+    });
+    const committed = read(ordinal, kind);
+    return durable?.ok && committed ? ok(committed) : fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
+  };
+  return freeze({
+    start: (attempt) => write(attempt, 'start'),
+    result: (attempt) => write(attempt, 'result'),
+    admit(admission) {
+      const data = fields(admission, ['maxAgeMs', 'observedAt', 'proof']);
+      if (!data || !safeTime(data.maxAgeMs) || !safeTime(data.observedAt) || !plain(data.proof))
+        return fail('FC-INPUT', 'INVALID_ADMISSION');
+      const proof = data.proof as StructuredFileAttempt;
+      const stored = Number.isSafeInteger(proof.ordinal) ? read(proof.ordinal, 'result') : undefined;
+      if (!stored || !same(proof, stored) || stored.outcome !== 'positive')
+        return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
+      if (data.observedAt < stored.observedAt || data.observedAt - stored.observedAt > data.maxAgeMs)
+        return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
+      return ok({
+        kind: 'eligible',
+        manifestId: STRUCTURED_FILE_CATALOGUE.manifestId,
+        providerEnabled: false as const,
+      });
+    },
+    readback(request) {
+      const data = fields(request, ['ordinal', 'variant']);
+      const committed =
+        data &&
+        Number.isSafeInteger(data.ordinal) &&
+        (data.ordinal as number) >= 1 &&
+        (data.variant === 'start' || data.variant === 'result')
+          ? read(data.ordinal as number, data.variant)
+          : undefined;
+      return committed ? ok(committed) : fail('FC-TRUST', 'ATTEMPT_ABSENT');
+    },
+    reachability: () => ok({ kind: 'unavailable', providerEnabled: false as const }),
+  });
 }

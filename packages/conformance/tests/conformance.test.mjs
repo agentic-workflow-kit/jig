@@ -594,6 +594,101 @@ test('only a branded passing exact PORT-SOURCE observation mints an opaque runti
   };
   assert.equal(runtime.structuredFileQualificationGate({ certificate, gate }).ok, true);
   assert.equal(runtime.structuredFileQualificationGate({ certificate: {}, gate }).ok, false);
+
+  const ledger = runtime.createScriptedLedger();
+  const admitted = runtime.createStructuredFileAdmission({
+    certificate,
+    gate,
+    ledger,
+    observedAt: providerSubject.recordedAt,
+  });
+  const started = admitted.start({
+    deadline: 900_000,
+    observedAt: providerSubject.recordedAt,
+    ordinal: 1,
+    predecessor: null,
+    retryLimit: 3,
+  });
+  assert.equal(started.ok, true, JSON.stringify(started));
+  if (!started.ok) return;
+  assert.deepEqual(
+    admitted.start({
+      deadline: 900_000,
+      observedAt: providerSubject.recordedAt,
+      ordinal: 1,
+      predecessor: null,
+      retryLimit: 3,
+    }),
+    started,
+  );
+  const completed = admitted.result({
+    deadline: 900_000,
+    observedAt: providerSubject.recordedAt + 1,
+    ordinal: 1,
+    outcome: 'positive',
+    predecessor: started.value.digest,
+    retryLimit: 3,
+  });
+  assert.equal(completed.ok, true);
+  if (!completed.ok) return;
+  assert.equal(
+    admitted.admit({ maxAgeMs: 1_000, observedAt: providerSubject.recordedAt + 2, proof: completed.value }).ok,
+    true,
+  );
+  const recovered = runtime.createStructuredFileAdmission({
+    certificate,
+    gate,
+    ledger,
+    observedAt: providerSubject.recordedAt,
+  });
+  assert.deepEqual(recovered.readback({ ordinal: 1, variant: 'result' }), completed);
+  assert.equal(recovered.start({ ...started.value, ordinal: 2, predecessor: completed.value.digest }).ok, false);
+  assert.equal(
+    runtime
+      .createStructuredFileAdmission({ certificate: {}, gate, ledger, observedAt: providerSubject.recordedAt })
+      .start({
+        deadline: 900_000,
+        observedAt: providerSubject.recordedAt,
+        ordinal: 1,
+        predecessor: null,
+        retryLimit: 3,
+      }).ok,
+    false,
+  );
+  assert.equal(
+    runtime
+      .createStructuredFileAdmission({
+        certificate,
+        gate: { ...gate, resourceDigest: '0'.repeat(64) },
+        ledger: runtime.createScriptedLedger(),
+        observedAt: providerSubject.recordedAt,
+      })
+      .start({
+        deadline: 900_000,
+        observedAt: providerSubject.recordedAt,
+        ordinal: 1,
+        predecessor: null,
+        retryLimit: 3,
+      }).ok,
+    false,
+  );
+  assert.equal(
+    runtime
+      .createStructuredFileAdmission({
+        certificate,
+        gate,
+        ledger: runtime.createScriptedLedger(),
+        observedAt: providerSubject.recordedAt + 86_400_001,
+      })
+      .start({
+        deadline: 900_000,
+        observedAt: providerSubject.recordedAt,
+        ordinal: 1,
+        predecessor: null,
+        retryLimit: 3,
+      }).ok,
+    false,
+  );
 });
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({

@@ -1,5 +1,6 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import {
+  createStructuredFileAdmission,
   decodeSourceRequest,
   encodeSourceCandidate,
   type SourceExchange,
@@ -217,7 +218,16 @@ function _readStructuredFileSource(requestFrame: unknown): FileSourceResult<Sour
 }
 
 /** The owner-selected source is absent; no positive external qualification is represented in this package. */
-export function createQualifiedStructuredFileSource(): FileSourceResult<never> {
+export function createQualifiedStructuredFileSource(input?: unknown): FileSourceResult<never> {
+  if (input !== undefined) {
+    const data = plainFields(input, ['admission', 'maxAgeMs', 'observedAt', 'proof']);
+    const admission = data && createStructuredFileAdmission(data.admission);
+    const eligibility =
+      admission && data
+        ? admission.admit({ maxAgeMs: data.maxAgeMs, observedAt: data.observedAt, proof: data.proof })
+        : undefined;
+    if (!eligibility?.ok) return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
+  }
   // This carrier is private and immutable. It binds the only catalogue entry but
   // cannot turn eligibility into reachability; live qualification additionally
   // requires the absent exact resource and conformance-owned proof lineage.
@@ -239,4 +249,24 @@ export function createQualifiedStructuredFileSource(): FileSourceResult<never> {
   });
   if (!gate.ok) return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
   return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
+}
+
+function plainFields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== names.length || keys.some((key) => typeof key !== 'string')) return undefined;
+    if (![...keys].sort().every((key, index) => key === [...names].sort()[index])) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (!names.every((name) => descriptors[name]?.enumerable && 'value' in descriptors[name])) return undefined;
+    return Object.fromEntries(names.map((name) => [name, descriptors[name].value]));
+  } catch {
+    return undefined;
+  }
 }
