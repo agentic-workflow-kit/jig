@@ -21,6 +21,8 @@ export const SOURCE_WAIT_MIN_MS = 5_000;
 export const SOURCE_WAIT_MAX_MS = 7_200_000;
 export const SOURCE_RETRY_MIN = 1;
 export const SOURCE_RETRY_MAX = 5;
+const STRUCTURED_FILE_BUILD_DIGEST = '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81';
+const STRUCTURED_FILE_RESOURCE_DIGEST = 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd';
 const MAX_BYTES = 65_536;
 const MAX_JSON_DEPTH = 32;
 
@@ -170,7 +172,7 @@ function readOpenedFile(fd: number, size: number): FileSourceResult<Uint8Array> 
 }
 
 /** This mechanism is deliberately private: only the manifest-scoped exact path can reach it. */
-function readStructuredFileSource(requestFrame: unknown): FileSourceResult<SourceExchange> {
+function _readStructuredFileSource(requestFrame: unknown): FileSourceResult<SourceExchange> {
   const filePath = STRUCTURED_FILE_SOURCE_PATH;
   const bounded = validateStructuredFileSourceRequest(requestFrame);
   if (!bounded.ok) return bounded;
@@ -216,11 +218,23 @@ function readStructuredFileSource(requestFrame: unknown): FileSourceResult<Sourc
 
 /** The owner-selected source is absent; no positive external qualification is represented in this package. */
 export function createQualifiedStructuredFileSource(): FileSourceResult<never> {
+  // This carrier is private and immutable. It binds the only catalogue entry but
+  // cannot turn eligibility into reachability; live qualification additionally
+  // requires the absent exact resource and conformance-owned proof lineage.
   const gate = structuredFileProviderGate({
     manifestBytes: STRUCTURED_FILE_SOURCE_MANIFEST,
     manifestId: STRUCTURED_FILE_SOURCE_MANIFEST_ID,
-    providerBuild: 'build/unqualified',
+    approval: {
+      principal: 'principal/arye',
+      manifestId: STRUCTURED_FILE_SOURCE_MANIFEST_ID,
+      manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+      scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
+    },
+    capability: 'PORT-SOURCE/read-structured-json',
     environment: 'environment/local-file-source',
+    policyMinimum: 'policy/structured-file-source/v1',
+    providerBuildDigest: STRUCTURED_FILE_BUILD_DIGEST,
+    resourceDigest: STRUCTURED_FILE_RESOURCE_DIGEST,
     scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
   });
   if (!gate.ok) return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');

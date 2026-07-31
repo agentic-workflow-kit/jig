@@ -32,6 +32,11 @@ test('the package exposes no caller-directed file probe or provider registration
 
 test('the adapter boundary retains the fixed wait and retry ranges', () => {
   assert.equal(provider.validateStructuredFileSourceRequest(request(900_000, 3)).ok, true);
-  for (const [wait, retry] of [[4_999, 3], [7_200_001, 3], [900_000, 0], [900_000, 6]])
+  for (const [wait, retry] of [
+    [4_999, 3],
+    [7_200_001, 3],
+    [900_000, 0],
+    [900_000, 6],
+  ])
     assert.equal(provider.validateStructuredFileSourceRequest(request(wait, retry)).ok, false);
 });

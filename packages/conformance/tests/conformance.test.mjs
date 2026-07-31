@@ -526,6 +526,25 @@ test('conformance claimed independent recorder labels cannot qualify a provider 
     Object.values(conformance.MECHANISM_PORTS).map((port) => `provider-proof:${port}`),
   );
 });
+test('conformance owns exact-subject provider observations and rejects forged or wrong-port proof', () => {
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const source = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const observation = conformance.observeProvider('PORT-SOURCE', source, providerSubject);
+  assert.equal(observation.ok, true);
+  assert.equal(conformance.evaluateProvider('PORT-SOURCE', [observation.record], providerSubject).passed, true);
+  assert.equal(conformance.evaluateProvider('PORT-LEDGER', [observation.record], providerSubject).passed, false);
+
+  const forged = { ...observation.record, independentRecorder: 'recorder/jig-conformance/v1' };
+  assert.equal(conformance.evaluateProvider('PORT-SOURCE', [forged], providerSubject).passed, false);
+  assert.equal(
+    conformance.observeProvider('PORT-SOURCE', source, { ...providerSubject, manifestDigest: 'b'.repeat(64) }).ok,
+    false,
+  );
+});
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
     route: route.id,
