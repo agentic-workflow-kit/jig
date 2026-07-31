@@ -1,4 +1,15 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs';
+
+export {
+  createQualifiedLocalFileLedgerProvider,
+  LOCAL_FILE_LEDGER_MANIFEST,
+  LOCAL_FILE_LEDGER_MANIFEST_DIGEST,
+  LOCAL_FILE_LEDGER_MANIFEST_ID,
+  LOCAL_FILE_LEDGER_PROVIDER_IDENTITY,
+  LOCAL_FILE_LEDGER_ROOT,
+  LOCAL_FILE_WITNESS_ROOT,
+} from './local-file-ledger.js';
+
 import {
   createStructuredFileAdmission,
   decodeSourceRequest,
