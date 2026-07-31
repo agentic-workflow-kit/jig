@@ -16,6 +16,10 @@ const knownDependencyDirections = {
     '@agentic-workflow-kit/jig-runtime-contracts',
   ]),
   '@agentic-workflow-kit/jig-runtime-contracts': new Set(['@agentic-workflow-kit/jig-codec']),
+  '@agentic-workflow-kit/jig-local-file-providers': new Set(['@agentic-workflow-kit/jig-runtime-contracts']),
+};
+const knownNativeCapabilities = {
+  '@agentic-workflow-kit/jig-local-file-providers': new Set(['node:fs']),
 };
 
 function readJson(path, errors, label) {
@@ -243,6 +247,7 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
       const source = readFileSync(path, 'utf8');
       for (const specifier of importSpecifiers(source))
         if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
+        else if (knownNativeCapabilities[manifest.name]?.has(specifier)) continue;
         else if (!specifier.startsWith(packagePrefix))
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);
         else if (!Object.hasOwn(manifest.dependencies ?? {}, specifier))
