@@ -1,5 +1,5 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { createScriptedLedger, isScriptedLedger, type ScriptedLedger } from './ledger.js';
+import { isScriptedLedger } from './ledger.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -181,8 +181,47 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const configured = config && ledger && exactBytes(config.manifestBytes) ? approval(config.approval) : undefined;
-  const attempts = new Map<string, Attempt>();
   const approvalBinding = configured;
+  const readAttempt = (basisDigest: string, ordinal: number, variant: Attempt['kind']): Attempt | undefined => {
+    try {
+      const read = ledger?.readPreflight(`${basisDigest}/${ordinal}`, variant);
+      if (!read?.ok) return undefined;
+      const committed = read.value;
+      if ('kind' in committed) return undefined;
+      const names =
+        variant === 'start'
+          ? ['basisDigest', 'deadline', 'kind', 'observedAt', 'ordinal', 'predecessor', 'retryLimit']
+          : ['basisDigest', 'deadline', 'kind', 'observedAt', 'ordinal', 'outcome', 'predecessor', 'retryLimit'];
+      const bytes = fields(committed.bytes, names);
+      const expectedKey = `${basisDigest}/${ordinal}/${variant}`;
+      const expectedDigest = digest('PREFLIGHT-ATTEMPT', committed.bytes);
+      if (
+        !bytes ||
+        committed.key !== expectedKey ||
+        !safeDigest(committed.digest) ||
+        expectedDigest !== committed.digest ||
+        !safeTime(committed.deadline) ||
+        bytes.kind !== variant ||
+        bytes.basisDigest !== basisDigest ||
+        bytes.ordinal !== ordinal ||
+        bytes.deadline !== committed.deadline ||
+        !safeTime(bytes.deadline) ||
+        !safeTime(bytes.observedAt) ||
+        bytes.observedAt > bytes.deadline ||
+        !Number.isSafeInteger(bytes.retryLimit) ||
+        (bytes.retryLimit as number) < 1 ||
+        bytes.ordinal > (bytes.retryLimit as number) ||
+        (variant === 'start'
+          ? !(bytes.predecessor === null || safeDigest(bytes.predecessor))
+          : !safeDigest(bytes.predecessor) ||
+            !['positive', 'negative', 'timeout', 'exhausted'].includes(bytes.outcome as string))
+      )
+        return undefined;
+      return freeze({ ...bytes, key: committed.key, digest: committed.digest }) as Attempt;
+    } catch {
+      return undefined;
+    }
+  };
   const approve = (input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>> =>
     approval(input) && approvalBinding && same(approval(input), approvalBinding)
       ? ok({ kind: 'approved', manifestId: approvalBinding.manifestId })
@@ -221,10 +260,12 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
       if (ordinal === 1 ? data.predecessor !== null : !data.predecessor)
         return fail('FC-INPUT', 'INVALID_PREFLIGHT_PREDECESSOR');
       if (ordinal > 1) {
-        const predecessor = attempts.get(`${basisDigest}/${ordinal - 1}/result`);
+        const predecessor = readAttempt(basisDigest, ordinal - 1, 'result');
         if (
           !predecessor ||
           predecessor.digest !== data.predecessor ||
+          predecessor.retryLimit !== retryLimit ||
+          data.observedAt < predecessor.observedAt ||
           !predecessor.outcome ||
           predecessor.outcome === 'positive' ||
           predecessor.outcome === 'exhausted'
@@ -232,7 +273,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
           return fail('FC-TRUST', 'TERMINAL_PREDECESSOR_REQUIRED');
       }
     } else {
-      const predecessor = attempts.get(`${basisDigest}/${ordinal}/start`);
+      const predecessor = readAttempt(basisDigest, ordinal, 'start');
       if (
         !predecessor ||
         predecessor.digest !== data.predecessor ||
@@ -271,12 +312,9 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
       deadline: data.deadline,
       observedAt: data.observedAt,
     });
-    if (!durable || !durable.ok) return fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
-    const record = freeze({ ...recordBasis, key, digest: durable.value.digest }) as Attempt;
-    const existing = attempts.get(key);
-    if (existing) return existing.digest === record.digest ? ok(existing) : fail('FC-INPUT', 'PREFLIGHT_MISMATCH');
-    attempts.set(key, record);
-    return ok(record);
+    if (!durable?.ok) return fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
+    const committed = readAttempt(basisDigest, ordinal, kind);
+    return committed && committed.key === key ? ok(committed) : fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
   };
   return freeze({
     approve,
@@ -287,12 +325,18 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
       const bound = data && basis(data.basis);
       if (!data || !bound || !safeTime(data.maxAgeMs) || !safeTime(data.observedAt) || !plain(data.proof))
         return fail('FC-INPUT', 'INVALID_ADMISSION');
-      const proof = data.proof as Attempt;
-      const stored = attempts.get(proof.key);
-      if (!stored || stored !== proof || proof.kind !== 'result' || proof.outcome !== 'positive')
-        return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
       const basisDigest = digest('CAPABILITY-PROOF-BASIS', bound);
-      if (!basisDigest || proof.basisDigest !== basisDigest || data.observedAt - proof.observedAt > data.maxAgeMs)
+      const proof = data.proof as Attempt;
+      const stored = basisDigest && readAttempt(basisDigest, proof.ordinal, 'result');
+      if (
+        !stored ||
+        !same(proof, stored) ||
+        stored.kind !== 'result' ||
+        stored.outcome !== 'positive' ||
+        proof.basisDigest !== basisDigest
+      )
+        return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
+      if (data.observedAt < stored.observedAt || data.observedAt - stored.observedAt > data.maxAgeMs)
         return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
       return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
     },
@@ -308,8 +352,8 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
       )
         return fail('FC-INPUT', 'INVALID_READBACK');
       const basisDigest = digest('CAPABILITY-PROOF-BASIS', bound);
-      const matched = basisDigest && attempts.get(`${basisDigest}/${data.ordinal as number}/${data.variant}`);
-      return matched ? ok(matched) : fail('FC-TRUST', 'ATTEMPT_ABSENT');
+      const committed = basisDigest && readAttempt(basisDigest, data.ordinal as number, data.variant);
+      return committed ? ok(committed) : fail('FC-TRUST', 'ATTEMPT_ABSENT');
     },
     reachability: () => ok({ kind: 'unavailable', providerEnabled: false as const }),
   });

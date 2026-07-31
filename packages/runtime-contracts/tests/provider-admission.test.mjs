@@ -183,3 +183,80 @@ test('review regression: approved authority is exact bytes and proof storage sur
     'positive proof consumes the retry chain',
   );
 });
+
+test('provider admission: only a system-created protected ledger is admitted and every readback is durable', () => {
+  const fakeLedger = {
+    preflight: () => ({ ok: true, value: { key: 'forged', digest: '0'.repeat(64), bytes: {}, deadline: 1 } }),
+    readPreflight: () => ({ ok: true, value: { kind: 'absent' } }),
+  };
+  for (const ledger of [fakeLedger, new Proxy(runtime.createScriptedLedger(), {})]) {
+    const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: approvedBytes, approval, ledger });
+    assert.equal(fixture.start(start).ok, false);
+    assert.equal(fixture.readback({ basis, ordinal: 1, variant: 'start' }).ok, false);
+  }
+
+  const ledger = runtime.createScriptedLedger();
+  const fixture = runtime.createProviderAdmissionFixture(configured(ledger));
+  assert.deepEqual(fixture.readback({ basis, ordinal: 1, variant: 'start' }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'ATTEMPT_ABSENT' },
+  });
+  const committed = fixture.start(start);
+  assert.equal(committed.ok, true);
+  const read = fixture.readback({ basis, ordinal: 1, variant: 'start' });
+  assert.deepEqual(read, committed);
+  assert.throws(() => {
+    read.value.deadline = 1;
+  }, TypeError);
+  assert.deepEqual(fixture.readback({ basis, ordinal: 1, variant: 'start' }), committed);
+});
+
+test('provider admission: durable lineage preserves retry bound, time order, terminal consumption, and fresh recovery', () => {
+  const ledger = runtime.createScriptedLedger();
+  const first = runtime.createProviderAdmissionFixture(configured(ledger));
+  const started = first.start(start);
+  assert.equal(started.ok, true);
+  const negative = first.result({
+    ...start,
+    predecessor: started.value.digest,
+    outcome: 'negative',
+    observedAt: 1_100,
+  });
+  assert.equal(negative.ok, true);
+
+  const recovered = runtime.createProviderAdmissionFixture(configured(ledger));
+  assert.deepEqual(recovered.readback({ basis, ordinal: 1, variant: 'result' }), negative);
+  assert.equal(
+    recovered.start({ ...start, ordinal: 2, predecessor: negative.value.digest, retryLimit: 3, observedAt: 1_101 }).ok,
+    false,
+    'a successor cannot widen its original retry limit',
+  );
+  assert.equal(
+    recovered.start({ ...start, ordinal: 2, predecessor: negative.value.digest, observedAt: 1_099 }).ok,
+    false,
+    'a successor cannot observe before its terminal predecessor',
+  );
+  const second = recovered.start({ ...start, ordinal: 2, predecessor: negative.value.digest, observedAt: 1_101 });
+  assert.equal(second.ok, true);
+  assert.equal(
+    recovered.result({ ...start, ordinal: 2, predecessor: second.value.digest, outcome: 'positive', observedAt: 1_100 })
+      .ok,
+    false,
+    'a result cannot observe before its start',
+  );
+
+  for (const outcome of ['positive', 'exhausted']) {
+    const terminalLedger = runtime.createScriptedLedger();
+    const terminal = runtime.createProviderAdmissionFixture(configured(terminalLedger));
+    const opened = terminal.start(start);
+    assert.equal(opened.ok, true);
+    const closed = terminal.result({ ...start, predecessor: opened.value.digest, outcome, observedAt: 1_100 });
+    assert.equal(closed.ok, true);
+    const fresh = runtime.createProviderAdmissionFixture(configured(terminalLedger));
+    assert.equal(
+      fresh.start({ ...start, ordinal: 2, predecessor: closed.value.digest, observedAt: 1_101 }).ok,
+      false,
+      outcome,
+    );
+  }
+});

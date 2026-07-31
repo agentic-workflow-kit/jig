@@ -372,6 +372,25 @@ test('semantic ledger: preflight is a deterministic non-Run primitive and snapsh
   assert.equal(ledger.verifySnapshot(binding, { ...snapshot.value, digest: proposal.previousDigest }).value, false);
 });
 
+test('semantic ledger: protected preflight readback distinguishes exact committed bytes from absence', () => {
+  const ledger = runtime.createScriptedLedger();
+  assert.deepEqual(ledger.readPreflight('provider/readback/1', 'start'), { ok: true, value: { kind: 'absent' } });
+  const committed = ledger.preflight({
+    key: 'provider/readback/1',
+    variant: 'start',
+    bytes: { attempt: 'start', ordinal: 1 },
+    deadline: 30,
+    observedAt: 10,
+  });
+  assert.equal(committed.ok, true);
+  const read = ledger.readPreflight('provider/readback/1', 'start');
+  assert.deepEqual(read, committed);
+  assert.throws(() => {
+    read.value.bytes.ordinal = 2;
+  }, TypeError);
+  assert.deepEqual(ledger.readPreflight('provider/readback/1', 'start'), committed);
+});
+
 test('semantic ledger: records and preflight bytes are canonical immutable snapshots', () => {
   const content = { nested: { value: 'original' } };
   const created = runtime.createLedgerRecord({

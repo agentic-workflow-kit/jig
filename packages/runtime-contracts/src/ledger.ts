@@ -145,7 +145,11 @@ export type ScriptedLedger = Readonly<{
 }>;
 const scriptedLedgers = new WeakSet<object>();
 export const isScriptedLedger = (value: unknown): value is ScriptedLedger => {
-  try { return typeof value === 'object' && value !== null && scriptedLedgers.has(value); } catch { return false; }
+  try {
+    return typeof value === 'object' && value !== null && scriptedLedgers.has(value);
+  } catch {
+    return false;
+  }
 };
 
 const fail = (family: LedgerFailureFamily, code: string): LedgerResult<never> => ({
@@ -709,7 +713,8 @@ export function createScriptedLedger(): ScriptedLedger {
       return { ok: true, value: result };
     },
     readPreflight(key, variant) {
-      if (!nonEmpty(key) || (variant !== 'start' && variant !== 'result')) return fail('FC-INPUT', 'INVALID_PREFLIGHT_READ');
+      if (!nonEmpty(key) || (variant !== 'start' && variant !== 'result'))
+        return fail('FC-INPUT', 'INVALID_PREFLIGHT_READ');
       return { ok: true, value: preflight.get(`${key}/${variant}`) ?? freeze({ kind: 'absent' as const }) };
     },
     snapshot(binding) {
