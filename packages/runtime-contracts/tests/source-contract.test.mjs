@@ -125,40 +125,30 @@ test('source contract: bounded scripted recovery returns the same candidate or t
   const delivered = provider.value.exchange(request, { kind: 'return', observedAt: oracle.request.deadline - 1 });
   assert.equal(delivered.ok, true);
   const lost = provider.value.exchange(request, { kind: 'lost-result', observedAt: oracle.request.deadline - 1 });
-  assert.deepEqual(lost, { ok: false, error: { family: 'FC-MECHANISM', code: 'RESULT_UNAVAILABLE' } });
+  assert.equal(lost.ok, false);
+  assert.equal(lost.error.family, 'FC-MECHANISM');
+  assert.equal(lost.error.code, 'RESULT_UNAVAILABLE');
+  assert.equal(typeof lost.error.retryRecord, 'object');
   const replay = provider.value.recover(request, oracle.request.deadline - 1);
   assert.deepEqual(replay, delivered);
   const crashed = provider.value.exchange(request, { kind: 'crash', observedAt: oracle.request.deadline - 1 });
-  assert.deepEqual(crashed, { ok: false, error: { family: 'FC-MECHANISM', code: 'RESULT_UNAVAILABLE' } });
+  assert.equal(crashed.ok, false);
+  assert.equal(crashed.error.family, 'FC-MECHANISM');
+  assert.equal(crashed.error.code, 'RESULT_UNAVAILABLE');
+  assert.equal(typeof crashed.error.retryRecord, 'object');
   assert.deepEqual(provider.value.recover(request, oracle.request.deadline - 1), delivered);
-  assert.deepEqual(provider.value.exchange(request, { kind: 'return', observedAt: oracle.request.deadline }), {
-    ok: false,
-    error: { family: 'FC-BOUND', code: 'BND_WAIT_MECHANISM_EXHAUSTED' },
-  });
+  const expired = provider.value.exchange(request, { kind: 'return', observedAt: oracle.request.deadline });
+  assert.equal(expired.ok, false);
+  assert.equal(expired.error.family, 'FC-BOUND');
+  assert.equal(expired.error.code, 'BND_WAIT_MECHANISM_EXHAUSTED');
+  assert.equal(typeof expired.error.retryRecord, 'object');
 
   const exhausted = requestInput();
   exhausted.retry.ordinal = exhausted.retry.limit;
-  const original = runtime.decodeSourceRequest(request);
-  assert.equal(original.ok, true);
-  exhausted.predecessor = {
-    requestId: original.value.requestId,
-    requestBasisDigest: original.value.requestBasisDigest,
-    track: original.value.track,
-    deadline: original.value.deadline,
-    retryLimit: original.value.retry.limit,
-    ordinal: exhausted.retry.ordinal - 1,
-    disposition: 'expired',
-    resultDigest: syntheticDigest('9'),
-  };
-  const exhaustedFrame = runtime.encodeSourceRequest(exhausted);
-  assert.equal(exhaustedFrame.ok, true);
-  assert.deepEqual(
-    provider.value.exchange(exhaustedFrame.value, { kind: 'return', observedAt: exhausted.deadline - 1 }),
-    {
-      ok: false,
-      error: { family: 'FC-BOUND', code: 'BND_RETRY_EXHAUSTED' },
-    },
-  );
+  assert.deepEqual(runtime.encodeSourceRequest(exhausted), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'RETRY_RECEIPT_REQUIRED' },
+  });
 });
 
 test('source contract: changed content is a distinct candidate and invalid bindings cannot replace it', () => {
@@ -256,74 +246,68 @@ test('source contract: conformance evidence binds the exchange, corpus, build, s
   }
 });
 
-test('source contract: retry progression requires one exact terminal predecessor without changing identity or bounds', () => {
-  const initial = { ...requestInput(), track: 'track/one', predecessor: null };
-  const initialFrame = runtime.encodeSourceRequest(initial);
-  assert.equal(initialFrame.ok, true);
-  const decoded = runtime.decodeSourceRequest(initialFrame.value);
-  assert.equal(decoded.ok, true);
-  const predecessor = {
-    requestId: decoded.value.requestId,
-    requestBasisDigest: decoded.value.requestBasisDigest,
-    track: decoded.value.track,
-    deadline: decoded.value.deadline,
-    retryLimit: decoded.value.retry.limit,
-    ordinal: 0,
-    disposition: 'terminal-unavailable',
-    resultDigest: syntheticDigest('7'),
-  };
-  const retry = {
-    ...initial,
-    retry: { ordinal: 1, limit: initial.retry.limit },
-    predecessor,
-  };
-  const legal = runtime.encodeSourceRequest(retry);
-  assert.equal(legal.ok, true);
-  const legalDecoded = runtime.decodeSourceRequest(legal.value);
-  assert.equal(legalDecoded.ok, true);
-  assert.equal(legalDecoded.value.requestId, decoded.value.requestId);
-  assert.equal(legalDecoded.value.deadline, decoded.value.deadline);
-  assert.equal(legalDecoded.value.retry.limit, decoded.value.retry.limit);
+test('source contract: retry progression consumes an opaque fixture receipt with the original binding', () => {
+  const request = requestFrame();
+  const candidate = candidateFrame(request);
+  const expected = runtime.validateSourceExchange(request, candidate);
+  assert.equal(expected.ok, true);
+  const first = runtime.createScriptedWorkSource(candidate);
+  const second = runtime.createScriptedWorkSource(candidate);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
 
-  for (const [name, mutate] of [
-    [
-      'skipped',
-      (value) => {
-        value.retry.ordinal = 2;
-      },
-    ],
-    [
-      'mismatched',
-      (value) => {
-        value.predecessor.requestId = `source/${'f'.repeat(64)}/request/${'e'.repeat(64)}`;
-      },
-    ],
-    [
-      'nonterminal',
-      (value) => {
-        value.predecessor.disposition = 'pending';
-      },
-    ],
-    [
-      'altered-basis',
-      (value) => {
-        value.predecessor.requestBasisDigest = syntheticDigest('8');
-      },
-    ],
-    [
-      'exhausted',
-      (value) => {
-        value.retry.ordinal = value.retry.limit;
-        value.predecessor.disposition = 'exhausted';
-      },
-    ],
-  ]) {
-    const invalid = structuredClone(retry);
-    mutate(invalid);
-    const result = runtime.encodeSourceRequest(invalid);
-    assert.equal(result.ok, false, name);
-    assert.equal(result.error.family, 'FC-INPUT', name);
-  }
+  const terminal = first.value.exchange(request, { kind: 'lost-result', observedAt: oracle.request.deadline - 1 });
+  assert.equal(terminal.ok, false);
+  assert.equal(terminal.error.family, 'FC-MECHANISM');
+  assert.equal(terminal.error.code, 'RESULT_UNAVAILABLE');
+  const receipt = terminal.error.retryRecord;
+  assert.equal(typeof receipt, 'object');
+  assert.notEqual(receipt, null);
+  assert.equal(Object.isFrozen(receipt), true);
+
+  const fabricated = Object.freeze({ ...receipt });
+  assert.deepEqual(first.value.retry(fabricated, { kind: 'return', observedAt: oracle.request.deadline - 1 }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_RETRY_RECEIPT' },
+  });
+  assert.deepEqual(second.value.retry(receipt, { kind: 'return', observedAt: oracle.request.deadline - 1 }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_RETRY_RECEIPT' },
+  });
+
+  const legal = first.value.retry(receipt, { kind: 'return', observedAt: oracle.request.deadline - 1 });
+  assert.equal(legal.ok, true);
+  assert.equal(legal.value.retry.ordinal, 1);
+  assert.equal(legal.value.requestId, expected.value.requestId);
+  assert.equal(legal.value.requestBasisDigest, expected.value.requestBasisDigest);
+  assert.equal(legal.value.track, expected.value.track);
+  assert.equal(legal.value.deadline, expected.value.deadline);
+  assert.equal(legal.value.retry.limit, expected.value.retry.limit);
+  assert.notEqual(legal.value.exchangeDigest, expected.value.exchangeDigest);
+  assert.equal(legal.value.attestation, expected.value.attestation);
+  assert.equal(legal.value.contentDigest, expected.value.contentDigest);
+
+  const nextTerminal = first.value.retry(receipt, { kind: 'crash', observedAt: oracle.request.deadline - 1 });
+  assert.equal(nextTerminal.ok, false);
+  assert.equal(nextTerminal.error.family, 'FC-MECHANISM');
+  const nextReceipt = nextTerminal.error.retryRecord;
+  assert.equal(typeof nextReceipt, 'object');
+  assert.deepEqual(first.value.retry(nextReceipt, { kind: 'return', observedAt: oracle.request.deadline - 1 }), {
+    ok: false,
+    error: { family: 'FC-BOUND', code: 'BND_RETRY_EXHAUSTED' },
+  });
+
+  const changed = requestInput();
+  changed.basis.repository = 'repo/changed';
+  const changedFrame = runtime.encodeSourceRequest(changed);
+  assert.equal(changedFrame.ok, true);
+  assert.deepEqual(
+    first.value.exchange(changedFrame.value, { kind: 'lost-result', observedAt: changed.deadline - 1 }),
+    {
+      ok: false,
+      error: { family: 'FC-SUBJECT', code: 'REQUEST_BINDING_MISMATCH' },
+    },
+  );
 });
 
 test('source contract: requested track is canonical request basis and binds the returned plan', () => {
@@ -413,4 +397,17 @@ test('source contract: every public raw boundary rejects hostile containers befo
       .ok,
     false,
   );
+
+  const poisoned = candidateFrame(request);
+  Object.defineProperty(poisoned, 'slice', {
+    configurable: true,
+    get() {
+      throw new Error('caller-owned slice accessor');
+    },
+  });
+  assert.doesNotThrow(() => runtime.createScriptedWorkSource(poisoned));
+  assert.deepEqual(runtime.createScriptedWorkSource(poisoned), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_FIXTURE_FRAME' },
+  });
 });

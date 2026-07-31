@@ -13,22 +13,17 @@ import {
 export const SOURCE_VERSION = 'jig.source.v1';
 export const PLAN_VERSION = 'jig.plan.v1';
 
+declare const sourceRetryRecordBrand: unique symbol;
+
+/** Opaque fixture-issued retry capability; its bindings remain private to the fixture. */
+export type SourceRetryRecord = Readonly<{ readonly [sourceRetryRecordBrand]: 'source-retry-record' }>;
 export type SourceFailure = Readonly<{
   family: 'FC-INPUT' | 'FC-SUBJECT' | 'FC-BOUND' | 'FC-MECHANISM';
   code: string;
+  retryRecord?: SourceRetryRecord;
 }>;
 export type SourceResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: SourceFailure }>;
 export type SourceRetry = Readonly<{ ordinal: number; limit: number }>;
-export type SourceRetryPredecessor = Readonly<{
-  requestId: string;
-  requestBasisDigest: string;
-  track: string;
-  deadline: number;
-  retryLimit: number;
-  ordinal: number;
-  disposition: 'terminal-unavailable' | 'expired';
-  resultDigest: string;
-}>;
 export type SourceRequest = Readonly<{
   version: typeof SOURCE_VERSION;
   sourceIdentity: string;
@@ -38,7 +33,7 @@ export type SourceRequest = Readonly<{
   track: string;
   deadline: number;
   retry: SourceRetry;
-  predecessor: SourceRetryPredecessor | null;
+  predecessor: null;
 }>;
 export type SourcePlan = Readonly<{
   version: typeof PLAN_VERSION;
@@ -98,10 +93,14 @@ export type SourceConformanceEvidence = Readonly<{
 export type ScriptedWorkSource = Readonly<{
   exchange(request: unknown, observation: unknown): SourceResult<SourceExchange>;
   recover(request: unknown, observedAt: number): SourceResult<SourceExchange>;
+  retry(receipt: unknown, observation: unknown): SourceResult<SourceExchange>;
 }>;
 
-const fail = (family: SourceFailure['family'], code: string): SourceResult<never> =>
-  Object.freeze({ ok: false, error: Object.freeze({ family, code }) });
+const fail = (family: SourceFailure['family'], code: string, retryRecord?: SourceRetryRecord): SourceResult<never> =>
+  Object.freeze({
+    ok: false,
+    error: Object.freeze(retryRecord === undefined ? { family, code } : { family, code, retryRecord }),
+  });
 const ok = <T>(value: T): SourceResult<T> => Object.freeze({ ok: true, value });
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 const text = (value: unknown, expression: RegExp): value is string =>
@@ -117,6 +116,10 @@ const positive = (value: unknown): value is number =>
 const nonnegative = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const frozen = <T>(value: T): T => Object.freeze(value);
+const MAX_FRAME_BYTES = 65_536;
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const typedArrayByteLength = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteLength')?.get;
+const intrinsicTypedArraySet = Uint8Array.prototype.set;
 
 function exact(value: unknown, names: readonly string[]): Record<string, CanonicalJson> | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
@@ -207,6 +210,32 @@ function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
 
 function framed(value: unknown): value is Uint8Array {
   return ArrayBuffer.isView(value) && value instanceof Uint8Array;
+}
+
+function frameSnapshot(value: unknown): SourceResult<Uint8Array> {
+  if (!framed(value) || !typedArrayByteLength) return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+  try {
+    const byteLength = Reflect.apply(typedArrayByteLength, value, []);
+    if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_FRAME_BYTES)
+      return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+    const keys = Reflect.ownKeys(value);
+    if (
+      keys.length !== byteLength ||
+      keys.some(
+        (key) =>
+          typeof key !== 'string' ||
+          !/^(?:0|[1-9][0-9]*)$/u.test(key) ||
+          Number(key) >= byteLength ||
+          String(Number(key)) !== key,
+      )
+    )
+      return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+    const output = new Uint8Array(byteLength);
+    Reflect.apply(intrinsicTypedArraySet, output, [value]);
+    return ok(output);
+  } catch {
+    return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+  }
 }
 
 function canonical(input: unknown): SourceResult<CanonicalJson> {
@@ -386,20 +415,6 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
   const raw = exact(value, ['version', 'sourceIdentity', 'basis', 'track', 'deadline', 'retry', 'predecessor']);
   const retry = raw && exact(raw.retry, ['ordinal', 'limit']);
   const basis = raw && exactMap(raw.basis);
-  const predecessor =
-    raw?.predecessor === null
-      ? null
-      : raw &&
-        exact(raw.predecessor, [
-          'requestId',
-          'requestBasisDigest',
-          'track',
-          'deadline',
-          'retryLimit',
-          'ordinal',
-          'disposition',
-          'resultDigest',
-        ]);
   if (
     !raw ||
     raw.version !== SOURCE_VERSION ||
@@ -423,23 +438,8 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
     requestDigest: requestBasisDigest.value,
   });
   if (!identity.ok) return fail('FC-SUBJECT', 'INVALID_SOURCE_REQUEST_ID');
-  if (retry.ordinal === 0 && predecessor !== null) return fail('FC-INPUT', 'INVALID_RETRY_PREDECESSOR');
-  if (retry.ordinal > 0) {
-    const prior = predecessor;
-    if (
-      !prior ||
-      prior.requestId !== identity.value.value ||
-      prior.requestBasisDigest !== requestBasisDigest.value ||
-      prior.track !== raw.track ||
-      prior.deadline !== raw.deadline ||
-      prior.retryLimit !== retry.limit ||
-      prior.ordinal !== retry.ordinal - 1 ||
-      !['terminal-unavailable', 'expired'].includes(prior.disposition as string) ||
-      !digest(prior.resultDigest)
-    )
-      return fail('FC-INPUT', 'INVALID_RETRY_PREDECESSOR');
-  }
-  const normalizedPredecessor = predecessor ?? null;
+  if (raw.predecessor !== null) return fail('FC-INPUT', 'INVALID_RETRY_PREDECESSOR');
+  if (retry.ordinal !== 0) return fail('FC-INPUT', 'RETRY_RECEIPT_REQUIRED');
   return ok(
     frozen({
       version: SOURCE_VERSION,
@@ -450,19 +450,7 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
       track: raw.track,
       deadline: raw.deadline,
       retry: frozen({ ordinal: retry.ordinal, limit: retry.limit }),
-      predecessor:
-        normalizedPredecessor === null
-          ? null
-          : frozen({
-              requestId: normalizedPredecessor.requestId as string,
-              requestBasisDigest: normalizedPredecessor.requestBasisDigest as string,
-              track: normalizedPredecessor.track as string,
-              deadline: normalizedPredecessor.deadline as number,
-              retryLimit: normalizedPredecessor.retryLimit as number,
-              ordinal: normalizedPredecessor.ordinal as number,
-              disposition: normalizedPredecessor.disposition as 'terminal-unavailable' | 'expired',
-              resultDigest: normalizedPredecessor.resultDigest as string,
-            }),
+      predecessor: null,
     }),
   );
 }
@@ -659,32 +647,141 @@ export function validateSourceExchange(requestFrame: unknown, resultFrame: unkno
   return result.ok ? parseExchange(request.value, result.value) : result;
 }
 
+type SourceRetryBinding = Readonly<{
+  requestId: string;
+  requestBasisDigest: string;
+  track: string;
+  deadline: number;
+  retryLimit: number;
+  ordinal: number;
+  disposition: 'terminal-unavailable' | 'expired';
+  resultDigest: string;
+  candidateDigest: string;
+  request: SourceRequest;
+  exchange: SourceExchange;
+}>;
+
+function retargetExchange(template: SourceExchange, request: SourceRequest): SourceResult<SourceExchange> {
+  if (
+    template.requestId !== request.requestId ||
+    template.requestBasisDigest !== request.requestBasisDigest ||
+    template.track !== request.track ||
+    template.deadline !== request.deadline
+  )
+    return fail('FC-SUBJECT', 'REQUEST_BINDING_MISMATCH');
+  const exchange: Omit<SourceExchange, 'exchangeDigest'> = {
+    ...template,
+    requestId: request.requestId,
+    requestBasisDigest: request.requestBasisDigest,
+    track: request.track,
+    retry: request.retry,
+    deadline: request.deadline,
+  };
+  const calculated = exchangeDigest(exchange);
+  return calculated.ok ? ok(frozen({ ...exchange, exchangeDigest: calculated.value })) : calculated;
+}
+
 export function createScriptedWorkSource(candidateFrame: unknown): SourceResult<ScriptedWorkSource> {
-  if (!framed(candidateFrame)) return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
-  const stored = candidateFrame.slice();
-  const result = (request: unknown, observedAt: number): SourceResult<SourceExchange> => {
-    const parsed = decodeSourceRequest(request);
-    if (!parsed.ok) return parsed;
-    if (!nonnegative(observedAt)) return fail('FC-INPUT', 'INVALID_OBSERVED_AT');
-    if (parsed.value.retry.ordinal >= parsed.value.retry.limit) return fail('FC-BOUND', 'BND_RETRY_EXHAUSTED');
-    if (observedAt >= parsed.value.deadline) return fail('FC-BOUND', 'BND_WAIT_MECHANISM_EXHAUSTED');
-    return validateSourceExchange(request, stored);
+  const copied = frameSnapshot(candidateFrame);
+  if (!copied.ok) return copied;
+  const stored = copied.value;
+  const receipts = new WeakMap<object, SourceRetryBinding>();
+  const parseObservation = (
+    value: unknown,
+  ): SourceResult<Readonly<{ kind: 'return' | 'lost-result' | 'crash'; observedAt: number }>> => {
+    const observed = entryFields(value, ['kind', 'observedAt']);
+    if (
+      !observed ||
+      !nonnegative(observed.observedAt) ||
+      !['return', 'lost-result', 'crash'].includes(observed.kind as string)
+    )
+      return fail('FC-INPUT', 'INVALID_OBSERVATION');
+    return ok(
+      frozen({ kind: observed.kind as 'return' | 'lost-result' | 'crash', observedAt: observed.observedAt as number }),
+    );
+  };
+  const issueReceipt = (
+    request: SourceRequest,
+    exchange: SourceExchange,
+    disposition: SourceRetryBinding['disposition'],
+  ): SourceRetryRecord => {
+    const record = frozen({}) as SourceRetryRecord;
+    receipts.set(
+      record as object,
+      frozen({
+        requestId: request.requestId,
+        requestBasisDigest: request.requestBasisDigest,
+        track: request.track,
+        deadline: request.deadline,
+        retryLimit: request.retry.limit,
+        ordinal: request.retry.ordinal,
+        disposition,
+        resultDigest: exchange.exchangeDigest,
+        candidateDigest: exchange.contentDigest,
+        request,
+        exchange,
+      }),
+    );
+    return record;
+  };
+  const exchangeFor = (request: SourceRequest, template?: SourceExchange): SourceResult<SourceExchange> => {
+    if (template !== undefined) return retargetExchange(template, request);
+    const encoded = encodeSourceRequest({
+      version: request.version,
+      sourceIdentity: request.sourceIdentity,
+      basis: request.basis,
+      track: request.track,
+      deadline: request.deadline,
+      retry: request.retry,
+      predecessor: null,
+    });
+    return encoded.ok ? validateSourceExchange(encoded.value, stored) : encoded;
+  };
+  const execute = (
+    request: SourceRequest,
+    observed: Readonly<{ kind: 'return' | 'lost-result' | 'crash'; observedAt: number }>,
+    template?: SourceExchange,
+  ): SourceResult<SourceExchange> => {
+    if (request.retry.ordinal >= request.retry.limit) return fail('FC-BOUND', 'BND_RETRY_EXHAUSTED');
+    const exchange = exchangeFor(request, template);
+    if (!exchange.ok) return exchange;
+    if (observed.observedAt >= request.deadline)
+      return fail('FC-BOUND', 'BND_WAIT_MECHANISM_EXHAUSTED', issueReceipt(request, exchange.value, 'expired'));
+    return observed.kind === 'return'
+      ? exchange
+      : fail('FC-MECHANISM', 'RESULT_UNAVAILABLE', issueReceipt(request, exchange.value, 'terminal-unavailable'));
   };
   return ok(
     frozen({
       exchange: (request, observation) => {
-        const observed = entryFields(observation, ['kind', 'observedAt']);
-        if (
-          !observed ||
-          !nonnegative(observed.observedAt) ||
-          !['return', 'lost-result', 'crash'].includes(observed.kind as string)
-        )
-          return fail('FC-INPUT', 'INVALID_OBSERVATION');
-        const valid = result(request, observed.observedAt);
-        if (!valid.ok) return valid;
-        return observed.kind === 'return' ? valid : fail('FC-MECHANISM', 'RESULT_UNAVAILABLE');
+        const parsed = decodeSourceRequest(request);
+        const observed = parseObservation(observation);
+        if (!parsed.ok) return parsed;
+        if (!observed.ok) return observed;
+        return execute(parsed.value, observed.value);
       },
-      recover: (request, observedAt) => result(request, observedAt),
+      recover: (request, observedAt) => {
+        const parsed = decodeSourceRequest(request);
+        return parsed.ok && nonnegative(observedAt)
+          ? execute(parsed.value, frozen({ kind: 'return', observedAt }))
+          : parsed.ok
+            ? fail('FC-INPUT', 'INVALID_OBSERVED_AT')
+            : parsed;
+      },
+      retry: (record, retryObservation) => {
+        if (typeof record !== 'object' || record === null) return fail('FC-INPUT', 'INVALID_RETRY_RECEIPT');
+        const binding = receipts.get(record);
+        const observed = parseObservation(retryObservation);
+        if (!binding) return fail('FC-INPUT', 'INVALID_RETRY_RECEIPT');
+        if (!observed.ok) return observed;
+        if (binding.ordinal + 1 >= binding.retryLimit) return fail('FC-BOUND', 'BND_RETRY_EXHAUSTED');
+        const request = frozen({
+          ...binding.request,
+          retry: frozen({ ordinal: binding.ordinal + 1, limit: binding.retryLimit }),
+          predecessor: null,
+        });
+        return execute(request, observed.value, binding.exchange);
+      },
     }),
   );
 }
