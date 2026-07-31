@@ -179,7 +179,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     return fail('MISSING_COMPOSITION_INPUT');
   if (containsCredential(root)) return fail('CREDENTIAL_SHAPED_INPUT');
   if (
-    !exactKeys(policyInput, ['track', 'floors', 'selections', 'bounds', 'capacities', 'reserves']) ||
+    !exactKeys(policyInput, ['track', 'selections', 'bounds', 'capacities', 'reserves']) ||
     !exactKeys(profile, [
       'track',
       'version',
@@ -233,21 +233,16 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     rules.track !== track
   )
     return fail('CROSS_TRACK_INPUT');
-  const floors = object(policyInput.floors);
   const selected = object(policyInput.selections);
-  if (!floors || !selected) return fail('INVALID_POLICY');
-  if (
-    !exactKeys(floors, Object.keys(REPOSITORY_POLICY_CATALOGUE.floors)) ||
-    Object.entries(REPOSITORY_POLICY_CATALOGUE.floors).some(([key, floor]) => floors[key] !== floor)
-  )
-    return fail('UNTRUSTED_POLICY_CATALOGUE');
+  if (!selected) return fail('INVALID_POLICY');
   const policy: Record<string, number> = {};
   for (const [key, floor] of Object.entries(REPOSITORY_POLICY_CATALOGUE.floors)) {
     const choice = selected[key];
     if (!integer(floor) || !integer(choice) || choice < floor) return fail('WEAKENED_FLOOR');
     policy[key] = choice;
   }
-  if (Object.keys(selected).some((key) => !(key in floors) || !integer(selected[key]))) return fail('UNKNOWN_RULE');
+  if (Object.keys(selected).some((key) => !(key in REPOSITORY_POLICY_CATALOGUE.floors) || !integer(selected[key])))
+    return fail('UNKNOWN_RULE');
   const promptStrategy = object(profile.promptStrategy);
   if (
     !digest(profile.promptDigest) ||
@@ -367,11 +362,12 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     const capacity = capacities[resource];
     const reserve = reserves[resource];
     if (
-      resource === 'RC-FINALIZER' ||
-      typeof capacity !== 'number' ||
-      capacity > hardCapacity ||
-      typeof reserve !== 'number' ||
-      reserve < (normalizedPlan.reserves[resource] as number)
+      resource === 'RC-FINALIZER'
+        ? hardCapacity !== 1 || normalizedPlan.reserves[resource] !== 0
+        : typeof capacity !== 'number' ||
+          capacity > hardCapacity ||
+          typeof reserve !== 'number' ||
+          reserve < (normalizedPlan.reserves[resource] as number)
     )
       return fail('CONFIGURATION_INCOMPATIBLE');
   }
@@ -406,7 +402,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const canonical = {
     version: ENVELOPE_POLICY_VERSION,
     track,
-    policy: { floors, selections: selected, capacities, reserves },
+    policy: { catalogue: REPOSITORY_POLICY_CATALOGUE, selections: selected, capacities, reserves },
     bounds,
     plan: approvedPlan.value as unknown as CanonicalJson,
     normalizedPlan,

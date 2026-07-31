@@ -291,6 +291,13 @@ function numericMap(value: CanonicalJson): Readonly<Record<string, number>> | un
   if (!entries.every(([key, amount]) => /^[a-z][a-z0-9-]{0,31}$/u.test(key) && positive(amount))) return undefined;
   return frozen(Object.fromEntries(entries) as Record<string, number>);
 }
+function reserveMap(value: CanonicalJson): Readonly<Record<string, number>> | undefined {
+  const record = exactMap(value);
+  if (!record || Object.keys(record).length === 0) return undefined;
+  const entries = Object.entries(record);
+  if (!entries.every(([key, amount]) => /^[a-z][a-z0-9-]{0,31}$/u.test(key) && nonnegative(amount))) return undefined;
+  return frozen(Object.fromEntries(entries) as Record<string, number>);
+}
 
 function exactMap(value: CanonicalJson): Record<string, CanonicalJson> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -303,7 +310,7 @@ function parsePlan(value: CanonicalJson): SourceResult<SourcePlan> {
   const policy = raw && exact(raw.policy, ['frozenCheckClasses', 'capacities', 'reserves']);
   const frozenCheckClasses = policy && boundedTextArray(policy.frozenCheckClasses, checkClass);
   const capacities = policy && numericMap(policy.capacities);
-  const reserves = policy && numericMap(policy.reserves);
+  const reserves = policy && reserveMap(policy.reserves);
   const stories = raw && asArray(raw.stories);
   if (
     !raw ||
@@ -316,9 +323,14 @@ function parsePlan(value: CanonicalJson): SourceResult<SourcePlan> {
     !stories ||
     stories.length === 0 ||
     Object.keys(capacities).length !== Object.keys(reserves).length ||
-    Object.keys(capacities).some(
-      (key) => !Object.hasOwn(reserves, key) || (reserves[key] ?? 0) >= (capacities[key] ?? 0),
-    )
+    Object.keys(capacities).some((key) => {
+      const reserve = reserves[key];
+      const capacity = capacities[key];
+      return (
+        !Object.hasOwn(reserves, key) ||
+        (key === 'rc-finalizer' ? capacity !== 1 || reserve !== 0 : reserve < 1 || reserve >= capacity)
+      );
+    })
   )
     return fail('FC-INPUT', 'INVALID_PLAN');
 

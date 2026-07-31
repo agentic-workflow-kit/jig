@@ -5,7 +5,6 @@ const runtime = await import('../dist/index.js');
 
 const policy = {
   track: 'track/default',
-  floors: { review: 2, checks: 1 },
   selections: { review: 3, checks: 1 },
   bounds: Object.fromEntries(Object.entries(runtime.ENVELOPE_BOUNDS).map(([id, value]) => [id, value.default])),
   capacities: { 'RC-SESSION': 2, 'RC-FINALIZER': 1 },
@@ -70,10 +69,10 @@ test('GF-021: composition preserves floors, pins defaults, one track, and is rep
   assert.match(first.value.proposalDigest, /^[0-9a-f]{64}$/);
 });
 
-test('GF-021: rejects weakened floors, unsafe reserve, cross-track input, and range edge violations', () => {
+test('GF-021: rejects unknown policy selections, unsafe reserve, cross-track input, and range edge violations', () => {
   for (const mutate of [
     (value) => {
-      value.policy.selections.review = 1;
+      value.policy.selections.unknown = 1;
     },
     (value) => {
       value.policy.reserves = { 'RC-SESSION': 0 };

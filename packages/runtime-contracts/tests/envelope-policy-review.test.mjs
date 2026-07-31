@@ -26,7 +26,6 @@ const input = () => ({
   plan: plan(),
   policy: {
     track: 'track/default',
-    floors: { review: 2, checks: 1 },
     selections: { review: 2, checks: 1 },
     bounds: Object.fromEntries(Object.entries(runtime.ENVELOPE_BOUNDS).map(([id, value]) => [id, value.default])),
     capacities: { 'RC-SESSION': 2, 'RC-FINALIZER': 1 },
@@ -164,7 +163,20 @@ test('R11: role prompt binding rejects a matching digest on a different artifact
 });
 test('R12: caller policy maps cannot mint a repository policy rule', () => {
   const value = input();
-  value.policy.floors.extra = 1;
   value.policy.selections.extra = 1;
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R13: caller-supplied floors are rejected and cannot replace the internal catalogue', () => {
+  const value = input();
+  value.policy.floors = { review: 0 };
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R14: accepts only the structural finalizer plan encoding', () => {
+  const value = input();
+  value.plan.policy.capacities['rc-finalizer'] = 1;
+  value.plan.policy.reserves['rc-finalizer'] = 0;
+  value.plan.stories[0].demand['rc-finalizer'] = 1;
+  assert.equal(runtime.composeEnvelope(value).ok, true);
+  value.plan.policy.reserves['rc-finalizer'] = 1;
   assert.equal(runtime.composeEnvelope(value).ok, false);
 });
