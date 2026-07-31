@@ -215,7 +215,7 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       : undefined;
   const availableBinding = verifier ? approvalVerifiers.get(verifier) : undefined;
   const approvalBinding =
-    verifier && availableBinding && !claimedApprovalVerifiers.has(verifier) ? availableBinding : undefined;
+    ledger && verifier && availableBinding && !claimedApprovalVerifiers.has(verifier) ? availableBinding : undefined;
   if (verifier && approvalBinding) claimedApprovalVerifiers.add(verifier);
   const previews = new WeakSet<object>();
   const previewsByDigest = new Map<string, DevelopmentPreview>();

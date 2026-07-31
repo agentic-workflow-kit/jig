@@ -385,6 +385,15 @@ test('intake rejects a missing terminal acknowledgement disposition without pers
     error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' },
   });
   assert.equal(intake.read(digest('a')).ok, false);
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'unknown',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+  assert.equal(intake.read(digest('c')).ok, false);
 });
 
 test('preflight variants are immutable, predecessor-bound, and replay-safe', (t) => {

@@ -152,6 +152,25 @@ test('provider manifest digest is derived from canonical bytes and authority-fre
     profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes({ providerEnabled: true }) }).ok,
     false,
   );
+  for (const change of [
+    { dispatchEnabled: true },
+    { recovery: 'autonomous-restore' },
+    { lineage: { kind: 'derived' } },
+    { runtimeAuthority: { kind: 'subprocess' } },
+    { scope: { phase: 2, purpose: 'development-only' } },
+    { scope: { phase: 3, purpose: 'production' } },
+    { credentialAuthority: ['secret'] },
+    { externalServiceAuthority: ['service'] },
+    { filesystemAuthority: ['/tmp'] },
+    { nativePermissionPostures: ['granted'] },
+    { networkAuthority: ['example.test'] },
+    { subprocessAuthority: ['sh'] },
+  ])
+    assert.equal(
+      profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes(change) }).ok,
+      false,
+      `manifest must be rejected: ${JSON.stringify(change)}`,
+    );
   assert.equal(
     profile.preview({
       envelope: envelopeInput(),
@@ -281,5 +300,34 @@ test('development intake classifies malformed disposition and successor cuts as 
       successorCut: '',
     }),
     { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+});
+
+test('an unusable profile construction does not consume the owner verifier', () => {
+  const authority = runtime.createDevelopmentApprovalAuthority();
+  const unusable = runtime.createDevelopmentPreRun({ ledger: {}, approvalVerifier: authority.verifier });
+  assert.deepEqual(unusable.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'SCRIPTED_LEDGER_REQUIRED' },
+  });
+
+  const profile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
+  assert.equal(preview.ok, true);
+  const proposalApproval = authority.consumer.approveProposal({ preview: preview.value });
+  const manifestApproval = authority.consumer.approveProviderManifest({ preview: preview.value });
+  assert.equal(proposalApproval.ok, true);
+  assert.equal(manifestApproval.ok, true);
+  assert.equal(
+    profile.submit({
+      preview: preview.value,
+      proposalApproval: proposalApproval.value,
+      manifestApproval: manifestApproval.value,
+      terminalAck: 'accepted',
+    }).ok,
+    true,
   );
 });
