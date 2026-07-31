@@ -411,3 +411,47 @@ test('source contract: every public raw boundary rejects hostile containers befo
     error: { family: 'FC-INPUT', code: 'INVALID_FIXTURE_FRAME' },
   });
 });
+
+test('source contract: raw-frame boundaries snapshot intrinsic byte length before codec decoding', () => {
+  const request = requestFrame();
+  const candidate = candidateFrame(request);
+  const provider = runtime.createScriptedWorkSource(candidate);
+  assert.equal(provider.ok, true);
+  const evidence = {
+    request,
+    result: candidate,
+    corpusDigest: syntheticDigest('1'),
+    buildDigest: syntheticDigest('2'),
+    suiteDigest: syntheticDigest('3'),
+    probeDigest: syntheticDigest('4'),
+    boundDigest: syntheticDigest('5'),
+    candidateDigest: syntheticDigest('6'),
+  };
+  let byteLengthRead = false;
+  const oversized = new Uint8Array(65_537);
+  oversized.fill(0x20);
+  oversized.set(request, oversized.length - request.length);
+  Object.defineProperty(oversized, 'byteLength', {
+    configurable: true,
+    get() {
+      byteLengthRead = true;
+      return request.length;
+    },
+  });
+  const expectInputFailure = (invoke) => {
+    byteLengthRead = false;
+    assert.doesNotThrow(invoke);
+    const result = invoke();
+    assert.equal(byteLengthRead, false);
+    assert.deepEqual(result, { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_FRAME' } });
+  };
+
+  expectInputFailure(() => runtime.decodeSourceRequest(oversized));
+  expectInputFailure(() => runtime.validateSourceExchange(request, oversized));
+  expectInputFailure(() => runtime.encodeSourceCandidate(oversized, candidateInput()));
+  expectInputFailure(() =>
+    provider.value.exchange(oversized, { kind: 'return', observedAt: oracle.request.deadline - 1 }),
+  );
+  expectInputFailure(() => provider.value.recover(oversized, oracle.request.deadline - 1));
+  expectInputFailure(() => runtime.createSourceConformanceEvidence({ ...evidence, request: oversized }));
+});

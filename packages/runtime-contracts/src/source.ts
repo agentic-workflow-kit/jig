@@ -212,12 +212,12 @@ function framed(value: unknown): value is Uint8Array {
   return ArrayBuffer.isView(value) && value instanceof Uint8Array;
 }
 
-function frameSnapshot(value: unknown): SourceResult<Uint8Array> {
-  if (!framed(value) || !typedArrayByteLength) return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+function frameSnapshot(value: unknown, failureCode: string): SourceResult<Uint8Array> {
+  if (!framed(value) || !typedArrayByteLength) return fail('FC-INPUT', failureCode);
   try {
     const byteLength = Reflect.apply(typedArrayByteLength, value, []);
     if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_FRAME_BYTES)
-      return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+      return fail('FC-INPUT', failureCode);
     const keys = Reflect.ownKeys(value);
     if (
       keys.length !== byteLength ||
@@ -229,12 +229,12 @@ function frameSnapshot(value: unknown): SourceResult<Uint8Array> {
           String(Number(key)) !== key,
       )
     )
-      return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+      return fail('FC-INPUT', failureCode);
     const output = new Uint8Array(byteLength);
     Reflect.apply(intrinsicTypedArraySet, output, [value]);
     return ok(output);
   } catch {
-    return fail('FC-INPUT', 'INVALID_FIXTURE_FRAME');
+    return fail('FC-INPUT', failureCode);
   }
 }
 
@@ -248,8 +248,9 @@ function canonical(input: unknown): SourceResult<CanonicalJson> {
 }
 
 function decode(input: unknown): SourceResult<CanonicalJson> {
-  if (!framed(input)) return fail('FC-INPUT', 'INVALID_FRAME');
-  const decoded = decodeFrame(input);
+  const copied = frameSnapshot(input, 'INVALID_FRAME');
+  if (!copied.ok) return copied;
+  const decoded = decodeFrame(copied.value);
   return decoded.ok ? ok(decoded.value) : fail('FC-INPUT', decoded.error.code);
 }
 
@@ -682,7 +683,7 @@ function retargetExchange(template: SourceExchange, request: SourceRequest): Sou
 }
 
 export function createScriptedWorkSource(candidateFrame: unknown): SourceResult<ScriptedWorkSource> {
-  const copied = frameSnapshot(candidateFrame);
+  const copied = frameSnapshot(candidateFrame, 'INVALID_FIXTURE_FRAME');
   if (!copied.ok) return copied;
   const stored = copied.value;
   const receipts = new WeakMap<object, SourceRetryBinding>();
