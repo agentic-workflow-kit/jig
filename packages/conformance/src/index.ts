@@ -643,11 +643,8 @@ export function observeProvider(
   return Object.freeze({ ok: true, record });
 }
 
-/** Only a conformance-created, passing PORT-SOURCE observation can cross the friend seam. */
-export function mintStructuredFileQualificationCertificate(
-  observation: unknown,
-  resourceDigest: unknown,
-): object | undefined {
+/** Private bridge helper; no public conformance API can invoke it. */
+function mintStructuredFileQualificationCertificate(observation: unknown, resourceDigest: unknown): object | undefined {
   if (!plain(observation) || !qualifiedProviderObservations.has(observation)) return undefined;
   const record = observation as EvidenceRecord;
   if (
@@ -664,25 +661,6 @@ export function mintStructuredFileQualificationCertificate(
     capability: 'PORT-SOURCE/read-structured-json',
     policyMinimum: 'policy/structured-file-source/v1',
   });
-}
-
-/** The only positive qualification execution constructs and brands its own observation. */
-export function executeStructuredFileQualification(subject: Subject, resourceDigest: unknown): object | undefined {
-  const frame = encodeFrame({
-    key: 'qualification/structured-file-source',
-    bytes: 'qualification/structured-file-source',
-    suite: 'CF-MECH-SOURCE',
-    status: 'pass',
-    subject,
-    independentRecorder: PROVIDER_RECORDER_ID,
-    complete: true,
-    attempt: 1,
-  });
-  if (!frame.ok) return undefined;
-  const observed = observeProvider('PORT-SOURCE', append([], frame.value).records, subject);
-  if (!observed.ok) return undefined;
-  qualifiedProviderObservations.add(observed.record);
-  return mintStructuredFileQualificationCertificate(observed.record, resourceDigest);
 }
 
 const SUBJECT_FIELDS = Object.freeze([

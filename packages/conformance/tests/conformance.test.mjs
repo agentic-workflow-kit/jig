@@ -546,7 +546,7 @@ test('conformance owns exact-subject provider observations and rejects forged or
   );
 });
 
-test('only a branded passing exact PORT-SOURCE observation mints an opaque runtime certificate', async () => {
+test('public conformance cannot manufacture a qualification certificate', () => {
   const providerSubject = {
     ...subject,
     providerId: 'structured-json-file-source/v1',
@@ -560,141 +560,29 @@ test('only a branded passing exact PORT-SOURCE observation mints an opaque runti
   assert.equal(observation.ok, true);
   if (!observation.ok) return;
   assert.equal(
-    conformance.mintStructuredFileQualificationCertificate(
+    conformance.mintStructuredFileQualificationCertificate?.(
       observation.record,
       'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
     ),
     undefined,
   );
-  const certificate = conformance.executeStructuredFileQualification(
-    providerSubject,
-    'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-  );
-  assert.ok(certificate);
+  assert.equal('executeStructuredFileQualification' in conformance, false);
+  assert.equal('mintStructuredFileQualificationCertificate' in conformance, false);
   assert.equal(
-    conformance.mintStructuredFileQualificationCertificate(
+    conformance.mintStructuredFileQualificationCertificate?.(
       { ...observation.record },
       'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
     ),
     undefined,
   );
-  const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-  const gate = {
-    manifestBytes: new TextEncoder().encode(
-      '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"/Users/aryekogan/.local/share/jig/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+  assert.equal('issueQualificationCertificate' in conformance, false);
+  const copied = { ...observation.record };
+  assert.equal(
+    conformance.mintStructuredFileQualificationCertificate?.(
+      copied,
+      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
     ),
-    manifestId:
-      'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
-    approval: {
-      principal: 'principal/arye',
-      manifestId:
-        'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
-      manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
-      scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
-    },
-    capability: 'PORT-SOURCE/read-structured-json',
-    environment: 'environment/local-file-source',
-    policyMinimum: 'policy/structured-file-source/v1',
-    providerBuildDigest: providerSubject.providerBuildDigest,
-    resourceDigest: 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-    scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
-  };
-  assert.equal(runtime.structuredFileQualificationGate({ certificate, gate }).ok, true);
-  assert.equal(runtime.structuredFileQualificationGate({ certificate: {}, gate }).ok, false);
-
-  const ledger = runtime.createScriptedLedger();
-  const admitted = runtime.createStructuredFileAdmission({
-    certificate,
-    gate,
-    ledger,
-    observedAt: providerSubject.recordedAt,
-  });
-  const started = admitted.start({
-    deadline: 900_000,
-    observedAt: providerSubject.recordedAt,
-    ordinal: 1,
-    predecessor: null,
-    retryLimit: 3,
-  });
-  assert.equal(started.ok, true, JSON.stringify(started));
-  if (!started.ok) return;
-  assert.deepEqual(
-    admitted.start({
-      deadline: 900_000,
-      observedAt: providerSubject.recordedAt,
-      ordinal: 1,
-      predecessor: null,
-      retryLimit: 3,
-    }),
-    started,
-  );
-  const completed = admitted.result({
-    deadline: 900_000,
-    observedAt: providerSubject.recordedAt + 1,
-    ordinal: 1,
-    outcome: 'positive',
-    predecessor: started.value.digest,
-    retryLimit: 3,
-  });
-  assert.equal(completed.ok, true);
-  if (!completed.ok) return;
-  assert.equal(
-    admitted.admit({ maxAgeMs: 86_400_000, observedAt: providerSubject.recordedAt + 2, proof: completed.value }).ok,
-    true,
-  );
-  const recovered = runtime.createStructuredFileAdmission({
-    certificate,
-    gate,
-    ledger,
-    observedAt: providerSubject.recordedAt,
-  });
-  assert.deepEqual(recovered.readback({ ordinal: 1, variant: 'result' }), completed);
-  assert.equal(recovered.start({ ...started.value, ordinal: 2, predecessor: completed.value.digest }).ok, false);
-  assert.equal(
-    runtime
-      .createStructuredFileAdmission({ certificate: {}, gate, ledger, observedAt: providerSubject.recordedAt })
-      .start({
-        deadline: 900_000,
-        observedAt: providerSubject.recordedAt,
-        ordinal: 1,
-        predecessor: null,
-        retryLimit: 3,
-      }).ok,
-    false,
-  );
-  assert.equal(
-    runtime
-      .createStructuredFileAdmission({
-        certificate,
-        gate: { ...gate, resourceDigest: '0'.repeat(64) },
-        ledger: runtime.createScriptedLedger(),
-        observedAt: providerSubject.recordedAt,
-      })
-      .start({
-        deadline: 900_000,
-        observedAt: providerSubject.recordedAt,
-        ordinal: 1,
-        predecessor: null,
-        retryLimit: 3,
-      }).ok,
-    false,
-  );
-  assert.equal(
-    runtime
-      .createStructuredFileAdmission({
-        certificate,
-        gate,
-        ledger: runtime.createScriptedLedger(),
-        observedAt: providerSubject.recordedAt + 86_400_001,
-      })
-      .start({
-        deadline: 900_000,
-        observedAt: providerSubject.recordedAt,
-        ordinal: 1,
-        predecessor: null,
-        retryLimit: 3,
-      }).ok,
-    false,
+    undefined,
   );
 });
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
