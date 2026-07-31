@@ -73,7 +73,8 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    Reviewers inspect recorded check evidence, including `git diff --check`, but never rerun it or any
    project check. An incomplete but advancing correction keeps the same pair. Pair replacement is
    exceptional and follows the bounded non-progress and boundary-breach rules in
-   `references/phase-protocol.md`.
+   `references/phase-protocol.md`; if a replacement repeats the same qualifying failure, stop the
+   affected story instead of forming another replacement chain.
    `pnpm check:affected` is optional local feedback only; it never replaces the full `pnpm check`
    evidence required for candidate or integration gates.
 6. Merge only approved story commits into the integration branch while preserving them as

@@ -257,7 +257,8 @@ forming an unbounded chain.
 A reviewer that once runs a prohibited non-mutating check has that command discarded as review
 evidence and receives the same bounded review again. Replace only after a repeated boundary breach,
 mutation, evidence writing, or loss of availability. This recovery rule does not authorize reviewer
-verification.
+verification. If the replacement repeats the same qualifying failure, stop the affected story under
+the existing execution-blocking rules instead of creating another reviewer replacement chain.
 
 ## Minimal task shapes
 

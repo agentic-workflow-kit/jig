@@ -116,7 +116,9 @@ If a reviewer once runs a prohibited but non-mutating check, discard that comman
 and reissue the bounded review to the same reviewer. Replace the reviewer only after a repeated
 boundary breach, repository/provider mutation, evidence writing, or loss of availability. Every
 replacement remains exceptional and records the existing reason and handoff; these recovery rules do
-not permit reviewers to execute verification.
+not permit reviewers to execute verification. If the replacement reviewer repeats the same
+boundary, mutation, evidence-writing, or availability failure, stop the affected story under the
+existing execution-blocking rules instead of replacing again.
 
 ## Integration and closure
 
