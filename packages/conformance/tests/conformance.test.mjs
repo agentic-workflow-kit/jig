@@ -471,6 +471,37 @@ test('conformance product gate retains total input checks while provider qualifi
     false,
   );
 });
+
+test('conformance product gate requires an exact branded observation for every mechanism port', () => {
+  const providerSubject = { ...subject, recorderIdentity: 'recorder/jig-conformance/v1' };
+  const records = conformance.SUITES.map(
+    (suite) =>
+      conformance.append([], input(suite, { subject: providerSubject, independentRecorder: 'independent' })).records[0],
+  );
+  const observed = Object.entries(conformance.MECHANISM_PORTS).map(([suite, port]) => {
+    const source = records.filter((record) => record.suite === suite);
+    const result = conformance.observeProvider(port, source, providerSubject);
+    assert.equal(result.ok, true, port);
+    if (!result.ok) throw new Error(port);
+    return [suite, port, result.record];
+  });
+  const complete = records.map((record) => observed.find(([suite]) => suite === record.suite)?.[2] ?? record);
+  const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
+    route: route.id,
+    elements: route.elements.map((element) => ({ ...element, status: 'pass' })),
+  }));
+  assert.equal(conformance.evaluateProduct(complete, routes, providerSubject).passed, true);
+  for (const [suite, port, record] of observed) {
+    const index = complete.findIndex((candidate) => candidate.suite === suite);
+    const crossPort = observed.find(([, other]) => other !== port)?.[2];
+    for (const replacement of [undefined, { ...record }, { ...record, key: `${record.key}/altered` }, crossPort]) {
+      const mutated = [...complete];
+      if (replacement === undefined) mutated.splice(index, 1);
+      else mutated[index] = replacement;
+      assert.equal(conformance.evaluateProduct(mutated, routes, providerSubject).passed, false, `${port}`);
+    }
+  }
+});
 test('conformance provider gate binds the exact port mechanism but remains unqualified in Phase 0', () => {
   const providerSubject = {
     ...subject,
