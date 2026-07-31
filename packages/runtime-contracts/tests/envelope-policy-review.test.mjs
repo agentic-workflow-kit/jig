@@ -171,6 +171,13 @@ test('R13: caller-supplied floors are rejected and cannot replace the internal c
   value.policy.floors = { review: 0 };
   assert.equal(runtime.composeEnvelope(value).ok, false);
 });
+test('R15: inherited and special rule names cannot bypass catalogue membership', () => {
+  for (const key of ['toString', 'constructor', '__proto__']) {
+    const value = input();
+    Object.defineProperty(value.policy.selections, key, { value: 1, enumerable: true });
+    assert.equal(runtime.composeEnvelope(value).ok, false);
+  }
+});
 test('R14: accepts only the structural finalizer plan encoding', () => {
   const value = input();
   value.plan.policy.capacities['rc-finalizer'] = 1;

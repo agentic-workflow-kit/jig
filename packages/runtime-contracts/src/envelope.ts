@@ -241,7 +241,11 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     if (!integer(floor) || !integer(choice) || choice < floor) return fail('WEAKENED_FLOOR');
     policy[key] = choice;
   }
-  if (Object.keys(selected).some((key) => !(key in REPOSITORY_POLICY_CATALOGUE.floors) || !integer(selected[key])))
+  if (
+    Object.keys(selected).some(
+      (key) => !Object.hasOwn(REPOSITORY_POLICY_CATALOGUE.floors, key) || !integer(selected[key]),
+    )
+  )
     return fail('UNKNOWN_RULE');
   const promptStrategy = object(profile.promptStrategy);
   if (
