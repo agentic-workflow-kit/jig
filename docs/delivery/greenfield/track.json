@@ -88,7 +88,7 @@
         "GF-023",
         "GF-024"
       ],
-      "exit_gate": "Exact source contract/provider, preview and two approvals, qualified proof, and witnessed accepted/rejected acknowledgement; no Run on rejection."
+      "exit_gate": "Development handoff requires effect-free preview, two exact approvals, and witnessed accepted/rejected semantic intake with no Run on rejection; full supported-profile closure additionally requires exact GF-020/GF-025/GF-026 real-provider qualification."
     },
     {
       "id": 3,
@@ -1070,11 +1070,9 @@
       "phase": 2,
       "dependencies": [
         "GF-014",
-        "GF-020",
+        "GF-019",
         "GF-021",
-        "GF-022",
-        "GF-025",
-        "GF-026"
+        "GF-022"
       ],
       "dependency_edges": [
         {
@@ -1082,8 +1080,8 @@
           "type": "implementation"
         },
         {
-          "from": "GF-020",
-          "type": "evidence"
+          "from": "GF-019",
+          "type": "implementation"
         },
         {
           "from": "GF-021",
@@ -1092,14 +1090,6 @@
         {
           "from": "GF-022",
           "type": "decision"
-        },
-        {
-          "from": "GF-025",
-          "type": "evidence"
-        },
-        {
-          "from": "GF-026",
-          "type": "evidence"
         }
       ],
       "size": "M",
@@ -1281,7 +1271,7 @@
       "id": "GF-024",
       "title": "Witnessed idempotent intake and Run birth",
       "phase": 2,
-      "dependencies": ["GF-010", "GF-011", "GF-013", "GF-020", "GF-023"],
+      "dependencies": ["GF-010", "GF-011", "GF-013", "GF-023"],
       "dependency_edges": [
         {
           "from": "GF-010",
@@ -1294,10 +1284,6 @@
         {
           "from": "GF-013",
           "type": "implementation"
-        },
-        {
-          "from": "GF-020",
-          "type": "evidence"
         },
         {
           "from": "GF-023",
@@ -3818,8 +3804,7 @@
     "GF-005",
     "GF-010",
     "GF-013",
-    "GF-022",
-    "GF-020",
+    "GF-014",
     "GF-023",
     "GF-024",
     "GF-030",
@@ -3844,7 +3829,7 @@
   "parallel_lanes": [
     "After GF-004, source-contract/composition and durable-core work may proceed independently.",
     "After GF-010, controller/recovery, registry, and artifact lanes may proceed independently.",
-    "After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging at GF-023.",
+    "After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel without blocking GF-023's semantic-only development path; real-provider activation still requires every exact gate.",
     "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
     "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
     "GF-041 review publication may proceed after GF-015/GF-035; GF-040 acceptance then waits for GF-041 plus its other prerequisites, while GF-042 verification semantics may proceed independently before GF-043 joins GF-040/GF-042; GF-047 qualifies independently of final delivery.",

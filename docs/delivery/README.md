@@ -84,13 +84,27 @@ supports this documentation track remains in scope.
 - [Research ledger](./greenfield/research-ledger.md) — allowed comparative inputs and limits.
 - [Reviewer packet](./greenfield/reviewer/README.md) — independent exact-candidate procedure.
 
-The phase-2 topological sequence is GF-019, GF-021, GF-022, GF-020, GF-025, GF-026, GF-023, then
-GF-024. After GF-022 and each lane's own prerequisites, GF-020, GF-025, and GF-026 may proceed in
-parallel. GF-023 is effect-free and cannot create a Run or dispatch: it starts only after the
-qualified source, ledger/registry/witness, and artifact provider evidence gates close, then records
-separate exact Arye approvals for the proposal and provider manifest.
+After GF-022 and each lane's own prerequisites, GF-020, GF-025, and GF-026 may proceed in parallel
+as real-provider qualification lanes. They do not block the semantic-only development path:
+GF-023 follows GF-014/GF-019/GF-021/GF-022, records separate exact Arye approvals for the proposal
+and a development-only provider manifest, and remains unable to create a Run or dispatch. GF-024
+then creates the sole scripted witnessed accepted/rejected acknowledgement; rejection creates no
+Run. Once its exact candidate is reviewed and merged, GF-030 may start while the external
+qualification lanes remain open.
 
-Before Phase 3 starts, Phase 2 must complete these required tasks and close its declared exit gate:
+Before Phase 3 **development** starts:
+
+- Complete GF-023 under the explicit `development-semantic-only` posture. Its manifest must keep
+  `providerEnabled: false` and `dispatchEnabled: false`, and its recovery posture must be
+  `fail-closed-no-autonomous-restore`.
+- Complete GF-024 against the scripted semantic ledger/witness, including separate exact approvals,
+  witnessed accepted and rejected acknowledgements, replay, crash, contention, and no-Run-on-
+  rejection evidence.
+- Obtain exact review and required check/CI evidence for both stories. This handoff permits Phase 3
+  lifecycle implementation only; it does not close Phase 2 or authorize a real provider.
+
+Before any real-provider activation, autonomous-restore claim, supported-profile claim, or final
+Phase 2 closure:
 
 - Resolve the untracked `JIG_DATA_HOME` owner configuration to an absolute canonical directory and
   provision the exact GF-020 structured source at `${JIG_DATA_HOME}/work-sources/work-plan.json`;
@@ -101,8 +115,8 @@ Before Phase 3 starts, Phase 2 must complete these required tasks and close its 
   outside the primary filesystem and its backups, then record current GF-025 ledger/witness and
   GF-026 artifact mechanism/provider qualification evidence. A same-filesystem substitute is
   ineligible.
-- Complete GF-023 and GF-024 from those current qualification facts. Phase 3 is not ready while
-  any external qualification task or any remaining Phase 2 story is incomplete.
+- Recompose the exact preview and refresh both approvals against the qualified manifests before
+  real intake. Development-profile evidence never substitutes for these qualification facts.
 
 `CF-GATE-PRODUCT` is narrower than the supported-profile claim: it requires exactly 39 recorded
 suite results plus every named element/governance record of all 44 settled `PC-*` proof routes. The

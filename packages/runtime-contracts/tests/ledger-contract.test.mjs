@@ -282,6 +282,36 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   );
 });
 
+test('semantic ledger: a witnessed terminal rejection is replayable and never derives a Run', () => {
+  const ledger = runtime.createScriptedLedger();
+  const request = {
+    compositionDigest: fixture.digests.compositionA,
+    acknowledgementDigest: fixture.digests.acknowledgementA,
+    terminalAck: 'rejected',
+  };
+  const rejected = ledger.intake(request);
+  assert.deepEqual(rejected, {
+    ok: true,
+    value: {
+      kind: 'rejected',
+      position: 0,
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+      reason: 'envelope-rejected',
+    },
+  });
+  assert.equal('run' in rejected.value, false);
+  assert.deepEqual(ledger.intake(request), rejected);
+  const readback = ledger.readIntake(fixture.digests.compositionA);
+  assert.equal(readback.ok, true);
+  assert.deepEqual(readback.value.result, rejected.value);
+  assert.equal(
+    ledger.intake({ ...request, terminalAck: 'accepted' }).ok,
+    false,
+    'a rejected composition cannot be replayed as accepted',
+  );
+});
+
 test('semantic ledger: intake crash and missing companions fail closed without repair', () => {
   const request = {
     compositionDigest: fixture.digests.compositionA,

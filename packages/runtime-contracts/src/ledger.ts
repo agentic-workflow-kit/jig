@@ -52,6 +52,7 @@ export type Readback =
 export type IntakeRequest = Readonly<{
   compositionDigest: string;
   acknowledgementDigest: string;
+  terminalAck?: 'accepted' | 'rejected';
   successorCut?: string;
 }>;
 export type IntakeWinnerBinding = Readonly<{
@@ -69,6 +70,13 @@ export type IntakeResult =
       acknowledgementDigest: string;
       successorCut?: string;
       run: string;
+    }>
+  | Readonly<{
+      kind: 'rejected';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      reason: 'envelope-rejected';
     }>
   | Readonly<{
       kind: 'rejected';
@@ -588,9 +596,12 @@ export function createScriptedLedger(): ScriptedLedger {
       return { ok: true, value: undefined };
     },
     intake(request, fault) {
+      const terminalAck = request.terminalAck ?? 'accepted';
       if (
         !digest(request.compositionDigest) ||
         !digest(request.acknowledgementDigest) ||
+        (terminalAck !== 'accepted' && terminalAck !== 'rejected') ||
+        (terminalAck === 'rejected' && request.successorCut !== undefined) ||
         (request.successorCut && !nonEmpty(request.successorCut))
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
@@ -598,14 +609,21 @@ export function createScriptedLedger(): ScriptedLedger {
       if (existing) {
         const read = verifyIntake(request.compositionDigest);
         if (!read.ok) return read;
+        const existingTerminal =
+          existing.kind === 'rejected' && existing.reason === 'envelope-rejected' ? 'rejected' : 'accepted';
+        const existingCut =
+          existing.kind === 'acknowledged'
+            ? existing.successorCut
+            : existing.reason === 'successor-cut-already-claimed'
+              ? existing.winner.successorCut
+              : undefined;
         if (
           existing.acknowledgementDigest !== request.acknowledgementDigest ||
-          (existing.kind === 'acknowledged'
-            ? existing.successorCut !== request.successorCut
-            : existing.winner.successorCut !== request.successorCut)
+          existingTerminal !== terminalAck ||
+          existingCut !== request.successorCut
         )
           return fail('FC-INPUT', 'INTAKE_REQUEST_MISMATCH');
-        if (existing.kind === 'rejected') {
+        if (existing.kind === 'rejected' && existing.reason === 'successor-cut-already-claimed') {
           const winner = verifyIntake(existing.winner.compositionDigest);
           if (
             !winner.ok ||
@@ -620,6 +638,21 @@ export function createScriptedLedger(): ScriptedLedger {
         return { ok: true, value: read.value.result };
       }
       const position = intake.size;
+      if (terminalAck === 'rejected') {
+        const result: StoredIntakeResult = freeze({
+          kind: 'rejected',
+          position,
+          compositionDigest: request.compositionDigest,
+          acknowledgementDigest: request.acknowledgementDigest,
+          reason: 'envelope-rejected',
+        });
+        intake.set(request.compositionDigest, result);
+        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        const stagedHead = stagedIntakeHead(result);
+        if (!stagedHead.ok) return stagedHead;
+        intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
+        return { ok: true, value: result };
+      }
       const winner = request.successorCut ? cuts.get(request.successorCut) : undefined;
       const claimed = request.successorCut
         ? [...intake.values()].find(

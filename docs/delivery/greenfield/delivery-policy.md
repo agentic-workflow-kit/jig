@@ -65,6 +65,12 @@ and reviewer verdict in the external phase ledger.
    provider configurable. GF-041→057 review publication and GF-044→061 final delivery share
    `PORT-DELIVERY`/`CF-MECH-DELIVERY` only; their credentials, Operations, authority subjects,
    qualification evidence, and reachability gates remain disjoint.
+   The owner-selected `development-semantic-only` posture is not a provider exception: it may use
+   only the scripted semantic source/ledger/witness/artifact surfaces, must expose
+   `providerEnabled: false` and `dispatchEnabled: false`, and must declare
+   `fail-closed-no-autonomous-restore`. Its reviewed GF-023/GF-024 result may satisfy GF-030's
+   implementation dependency while GF-020/GF-025/GF-026 qualify independently. It cannot satisfy a
+   provider story, full Phase 2 closure, real intake, autonomous restore, or supported-profile claim.
 5. Record operation intent before dispatch. Applicable runtime failures use cataloged typed `FC-*`
    failure classes; non-runtime failures remain typed under their bounded story contract. For an
    uncertain external effect, reconcile using its stable identity. Same-identity retry is

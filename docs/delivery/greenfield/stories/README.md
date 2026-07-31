@@ -45,10 +45,13 @@ dependencies, inventories, provider gates, and counts.
 - [GF-023 — Effect-free preview and distinct owner approvals](./GF-023.md)
 - [GF-024 — Witnessed idempotent intake and Run birth](./GF-024.md)
 
-This is the required topological phase-2 order. After GF-022 and their own prerequisites, GF-020,
-GF-025, and GF-026 may proceed in parallel. GF-023 is evidence-gated by the qualified source,
-ledger/registry/witness, and artifact provider closures; it remains effect-free and records
-separate exact Arye proposal and provider-manifest approvals before GF-024 can attempt intake.
+After GF-022 and their own prerequisites, GF-020, GF-025, and GF-026 may qualify in parallel. The
+semantic-only development path does not wait for those external facts: GF-023 follows its declared
+semantic dependencies, remains effect-free, and records separate exact Arye proposal and
+provider-manifest approvals with every real provider disabled. GF-024 then attempts scripted
+witnessed intake. GF-030 may start after that semantic candidate is reviewed and merged; real
+provider activation and full Phase 2 closure still wait for GF-020/GF-025/GF-026 qualification and
+fresh exact preview/approval bindings.
 
 ## Phase 3 — lifecycle and execution
 

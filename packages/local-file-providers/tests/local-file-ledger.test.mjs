@@ -293,6 +293,28 @@ test('intake commits acknowledgement and successor claim in one witnessed record
   assert.equal(intake.read(digest('a')).ok, true);
 });
 
+test('intake persists and witnesses a terminal rejection without deriving a Run', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
+  const rejected = intake.create({
+    compositionDigest: digest('c'),
+    acknowledgementDigest: digest('d'),
+    terminalAck: 'rejected',
+  });
+  assert.deepEqual(rejected, {
+    ok: true,
+    value: {
+      kind: 'rejected',
+      position: 0,
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      reason: 'envelope-rejected',
+    },
+  });
+  assert.equal('run' in rejected.value, false);
+  assert.deepEqual(intake.read(digest('c')).value.result, rejected.value);
+});
+
 test('intake crash after durable pair flush requires witness reconciliation before read or progress', (t) => {
   const { primary, witness, independenceEvidence } = roots(t);
   const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
