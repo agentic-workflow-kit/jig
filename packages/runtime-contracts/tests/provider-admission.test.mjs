@@ -6,6 +6,9 @@ import test from 'node:test';
 const runtime = await import('../dist/index.js');
 const manifestBytes = readFileSync(resolve(import.meta.dirname, './fixtures/provider-authority-manifest.json'));
 const manifest = JSON.parse(manifestBytes);
+const approvedBytes = Buffer.from(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}',
+);
 const manifestDigest = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
 const providerDigest = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
 const manifestId = `provider/${providerDigest}/authority/${manifestDigest}`;
@@ -28,10 +31,11 @@ const start = Object.freeze({
   retryLimit: 2,
   predecessor: null,
 });
+const configured = (ledger = runtime.createScriptedLedger()) => ({ manifestBytes: approvedBytes, approval, ledger });
 
 test('provider admission: exact Arye manifest approval and positive exact-subject proof are necessary but never configure a provider', () => {
   assert.equal(typeof runtime.createProviderAdmissionFixture, 'function');
-  const fixture = runtime.createProviderAdmissionFixture({ manifest, approval });
+  const fixture = runtime.createProviderAdmissionFixture(configured());
   assert.equal(fixture.approve(approval).ok, true);
   const started = fixture.start(start);
   assert.equal(started.ok, true);
@@ -48,7 +52,7 @@ test('provider admission: exact Arye manifest approval and positive exact-subjec
 });
 
 test('provider admission: approval and evidence substitutions, hostile values, stale/negative/timeout/exhausted proofs fail closed', () => {
-  const fixture = runtime.createProviderAdmissionFixture({ manifest, approval });
+  const fixture = runtime.createProviderAdmissionFixture(configured());
   const rejected = [
     { ...approval, principal: 'principal/other' },
     { ...approval, scope: { ...manifest.scope, purpose: 'wider' } },
@@ -66,7 +70,7 @@ test('provider admission: approval and evidence substitutions, hostile values, s
   const started = fixture.start(start);
   assert.equal(started.ok, true);
   for (const outcome of ['negative', 'timeout', 'exhausted']) {
-    const bounded = runtime.createProviderAdmissionFixture({ manifest, approval });
+    const bounded = runtime.createProviderAdmissionFixture(configured());
     const started = bounded.start(start);
     assert.equal(started.ok, true);
     const proof = bounded.result({ ...start, predecessor: started.value.digest, outcome, observedAt: 1_100 });
@@ -77,7 +81,7 @@ test('provider admission: approval and evidence substitutions, hostile values, s
 });
 
 test('provider admission: variant replay, predecessor, ordinal, deadline, readback and secret rejection are immutable', () => {
-  const fixture = runtime.createProviderAdmissionFixture({ manifest, approval });
+  const fixture = runtime.createProviderAdmissionFixture(configured());
   const one = fixture.start(start);
   assert.equal(one.ok, true);
   assert.deepEqual(fixture.start(start), one);
@@ -86,6 +90,19 @@ test('provider admission: variant replay, predecessor, ordinal, deadline, readba
     fixture.result({ ...start, predecessor: '0'.repeat(64), outcome: 'positive', observedAt: 1_100 }).ok,
     false,
   );
+  assert.equal(
+    fixture.result({ ...start, predecessor: one.value.digest, outcome: 'positive', deadline: 2_001, observedAt: 1_100 })
+      .ok,
+    false,
+  );
+  const exhausted = fixture.result({
+    ...start,
+    predecessor: one.value.digest,
+    outcome: 'exhausted',
+    observedAt: 1_100,
+  });
+  assert.equal(exhausted.ok, true);
+  assert.equal(fixture.start({ ...start, ordinal: 2, predecessor: exhausted.value.digest }).ok, false);
   assert.equal(fixture.start({ ...start, ordinal: 2, predecessor: one.value.digest }).ok, false);
   assert.equal(fixture.start({ ...start, ordinal: 2, predecessor: one.value.digest, observedAt: 2_001 }).ok, false);
   assert.equal(fixture.start({ ...start, basis: { ...basis, credentialName: 'SECRET=not-durable' } }).ok, false);
@@ -94,11 +111,11 @@ test('provider admission: variant replay, predecessor, ordinal, deadline, readba
 
 test('provider admission: malformed, oversize, special-key and unapproved inputs cannot produce a proof or leak secrets', () => {
   const unapproved = runtime.createProviderAdmissionFixture({
-    manifest,
+    manifestBytes: approvedBytes,
     approval: { ...approval, principal: 'principal/nope' },
   });
   assert.equal(unapproved.start(start).ok, false);
-  const fixture = runtime.createProviderAdmissionFixture({ manifest, approval });
+  const fixture = runtime.createProviderAdmissionFixture(configured());
   const hostile = [
     { ...start, extra: true },
     { ...start, basis: { ...basis, __proto__: { widened: true } } },
@@ -114,4 +131,20 @@ test('provider admission: malformed, oversize, special-key and unapproved inputs
     assert.equal(result.ok, false);
     assert.equal(JSON.stringify(result).includes('not-durable'), false);
   }
+});
+
+test('review regression: approved authority is exact bytes and proof storage survives fixture recreation', () => {
+  const ledger = runtime.createScriptedLedger();
+  const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: approvedBytes, approval, ledger });
+  assert.equal(fixture.approve(approval).ok, true);
+  assert.equal(
+    runtime
+      .createProviderAdmissionFixture({
+        manifestBytes: Buffer.concat([approvedBytes, Buffer.from(' ')]),
+        approval,
+        ledger,
+      })
+      .approve(approval).ok,
+    false,
+  );
 });

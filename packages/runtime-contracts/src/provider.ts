@@ -1,4 +1,7 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { createScriptedLedger, type ScriptedLedger } from './ledger.js';
+
+declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
 export const PROVIDER_ADMISSION_VERSION = 'jig.provider-admission.v1';
 
@@ -46,19 +49,9 @@ type Fixture = Readonly<{
 const APPROVED_MANIFEST_DIGEST = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
 const APPROVED_PROVIDER_DIGEST = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
 const APPROVED_SCOPE = Object.freeze({ phase: 2, purpose: 'semantic-admission-fixture', story: 'GF-022' });
-const APPROVED_MANIFEST = Object.freeze({
-  credentialAuthority: Object.freeze([]),
-  externalServiceAuthority: Object.freeze([]),
-  filesystemAuthority: Object.freeze([]),
-  lineage: Object.freeze({ kind: 'genesis' }),
-  manifestVersion: 'provider-authority/v1',
-  nativePermissionPostures: Object.freeze([]),
-  networkAuthority: Object.freeze([]),
-  providerIdentity: 'scripted-capability-proof-fixture/v1',
-  runtimeAuthority: Object.freeze({ kind: 'in-process-pure-fixture' }),
-  scope: APPROVED_SCOPE,
-  subprocessAuthority: Object.freeze([]),
-});
+const APPROVED_MANIFEST_BYTES = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}',
+);
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const DIGEST = /^[0-9a-f]{64}$/u;
 
@@ -119,7 +112,27 @@ const scope = (value: unknown): Scope | undefined => {
     ? freeze({ phase: data.phase, purpose: data.purpose, story: data.story })
     : undefined;
 };
-const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
+const same = (left: unknown, right: unknown): boolean => {
+  const leftFrame = encodeFrame(left as CanonicalJson);
+  const rightFrame = encodeFrame(right as CanonicalJson);
+  return (
+    leftFrame.ok &&
+    rightFrame.ok &&
+    leftFrame.value.length === rightFrame.value.length &&
+    leftFrame.value.every((byte, index) => byte === rightFrame.value[index])
+  );
+};
+const exactBytes = (value: unknown): boolean => {
+  try {
+    return (
+      value instanceof Uint8Array &&
+      value.byteLength === APPROVED_MANIFEST_BYTES.byteLength &&
+      APPROVED_MANIFEST_BYTES.every((byte, index) => value[index] === byte)
+    );
+  } catch {
+    return false;
+  }
+};
 const manifestId = (): string | undefined => {
   const formatted = formatIdentity('ID-MANIFEST', {
     providerDigest: APPROVED_PROVIDER_DIGEST,
@@ -127,7 +140,6 @@ const manifestId = (): string | undefined => {
   });
   return formatted.ok ? formatted.value.value : undefined;
 };
-const approved = (value: unknown): boolean => same(value, APPROVED_MANIFEST);
 const basis = (value: unknown): Basis | undefined => {
   const data = fields(value, [
     'capability',
@@ -145,7 +157,7 @@ const basis = (value: unknown): Basis | undefined => {
     !exactManifestId ||
     data.manifestId !== exactManifestId ||
     data.manifestDigest !== APPROVED_MANIFEST_DIGEST ||
-    data.providerIdentity !== APPROVED_MANIFEST.providerIdentity ||
+    data.providerIdentity !== 'scripted-capability-proof-fixture/v1' ||
     !safeText(data.providerBuild) ||
     !safeText(data.environment) ||
     !safeText(data.capability) ||
@@ -166,8 +178,12 @@ const basis = (value: unknown): Basis | undefined => {
 };
 
 export function createProviderAdmissionFixture(input: unknown): Fixture {
-  const config = fields(input, ['approval', 'manifest']);
-  const configured = config && approved(config.manifest) ? approval(config.approval) : undefined;
+  const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
+  const ledger =
+    config?.ledger && typeof (config.ledger as { preflight?: unknown }).preflight === 'function'
+      ? (config.ledger as ScriptedLedger)
+      : createScriptedLedger();
+  const configured = config && exactBytes(config.manifestBytes) ? approval(config.approval) : undefined;
   const attempts = new Map<string, Attempt>();
   const approvalBinding = configured;
   const approve = (input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>> =>
@@ -213,13 +229,20 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
           !predecessor ||
           predecessor.digest !== data.predecessor ||
           !predecessor.outcome ||
-          predecessor.outcome === 'positive'
+          predecessor.outcome === 'positive' ||
+          predecessor.outcome === 'exhausted'
         )
           return fail('FC-TRUST', 'TERMINAL_PREDECESSOR_REQUIRED');
       }
     } else {
       const predecessor = attempts.get(`${basisDigest}/${ordinal}/start`);
-      if (!predecessor || predecessor.digest !== data.predecessor)
+      if (
+        !predecessor ||
+        predecessor.digest !== data.predecessor ||
+        predecessor.deadline !== data.deadline ||
+        predecessor.retryLimit !== data.retryLimit ||
+        data.observedAt < predecessor.observedAt
+      )
         return fail('FC-TRUST', 'START_PREDECESSOR_REQUIRED');
     }
     const recordBasis =
@@ -243,9 +266,16 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
             predecessor: data.predecessor,
             outcome: data.outcome,
           };
-    const recordDigest = digest('CAPABILITY-PROOF-ATTEMPT', recordBasis);
-    if (!recordDigest) return fail('FC-INPUT', 'INVALID_CAPABILITY_PROOF_ATTEMPT');
-    const record = freeze({ ...recordBasis, key, digest: recordDigest }) as Attempt;
+    const durable = ledger.preflight({
+      key: `${basisDigest}/${ordinal}`,
+      variant: kind,
+      bytes: recordBasis as CanonicalJson,
+      ...(kind === 'result' ? { predecessor: data.predecessor as string } : {}),
+      deadline: data.deadline,
+      observedAt: data.observedAt,
+    });
+    if (!durable.ok) return fail('FC-TRUST', 'PREFLIGHT_STORAGE_MISMATCH');
+    const record = freeze({ ...recordBasis, key, digest: durable.value.digest }) as Attempt;
     const existing = attempts.get(key);
     if (existing) return existing.digest === record.digest ? ok(existing) : fail('FC-INPUT', 'PREFLIGHT_MISMATCH');
     attempts.set(key, record);
