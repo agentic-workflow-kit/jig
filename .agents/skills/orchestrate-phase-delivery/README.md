@@ -11,7 +11,10 @@ worktree and continuous independent pair per admitted story, bounded ready-set p
 final phase PR. The pair also classifies implementer effort from semantic risk, forwards concise
 read-only reviewer preparation before writes, records implementer proof in the normal handoff, and
 returns all presently supportable candidate-bound blockers grouped by root cause without adding an
-agent, gate, artifact, or ledger field.
+agent, gate, artifact, or ledger field. Semantic implementer/reviewer roles do not select runtime
+agent types: the global `offload` skill plans compatible model, effort, context, and runtime routing
+before dispatch. Candidate freeze requires concrete proof mapping for every must-cover item, and
+unresolved public authority stops before writes.
 
 The skill keeps detailed state and recovery rules in
 [`references/phase-protocol.md`](./references/phase-protocol.md). Authored output and trigger evals

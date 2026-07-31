@@ -55,7 +55,7 @@
   },
   {
     "id": "positive-review-loop",
-    "query": "Coordinate a Jig candidate review so the read-only reviewer reports all supportable blockers grouped by root cause before same-reviewer re-review.",
+    "query": "Coordinate a Jig candidate freeze and review so every must-cover item has concrete proof and the read-only reviewer reports all supportable blockers by root cause.",
     "should_trigger": true,
     "split": "train"
   },
@@ -109,7 +109,7 @@
   },
   {
     "id": "positive-phase-start",
-    "query": "Start an approved Jig phase by classifying implementer effort from semantic risk and forwarding each stable reviewer's must-cover bullets.",
+    "query": "Start an approved Jig phase by using offload to plan semantic implementer and reviewer routes before forwarding stable-ID must-cover proof requirements.",
     "should_trigger": true,
     "split": "train"
   },

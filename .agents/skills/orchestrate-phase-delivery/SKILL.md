@@ -21,33 +21,59 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 3. At phase start and after each terminal story boundary, re-run `pnpm delivery:check`, then inspect
    the declared DAG, ledger, and integration branch. Launch every ready story within available
    continuous implementer/reviewer pair capacity and any already-authorized safe-overlap guard. A
-   blocked story blocks only descendants. Before implementation, select implementer effort from
-   semantic risk as well as boundedness. Medium remains available when current authority directly
-   determines a local realization with straightforward positive and negative tests. Use high when
-   authority, fencing, recovery, replay, idempotency, witness/admission, persistence, identity,
-   ordering, lifecycle, cross-package type closure, a later-constraining seam, reconciliation of
-   multiple authority sources, or another non-local guarantee materially shapes correctness. A
-   short file list does not lower that risk. Use xhigh only for an exceptional release-critical or
-   architecture-wide decision under the global routing policy. This repository-local assessment
-   supplies Jig-specific effort reasoning and task content; the global `offload` skill still owns
-   generic sub-agent context and provider routing.
+   blocked story blocks only descendants. Before dispatch, select implementer effort from semantic
+   risk as well as boundedness, then use the global `offload` skill to plan each semantic
+   implementer and reviewer role. Those Jig role names establish ownership and independence; they
+   do not select a runtime agent type. The existing dispatch/handoff must state the story and role,
+   root work replaced, model class, planned model, effort and reason, offload-selected runtime type,
+   context mode, hard budget, expected output, verification owner, actual route, and any fallback.
+   Default to isolated context. A fixed runtime type is ineligible when its model or effort conflicts
+   with the plan, and no implementation writes begin until the accepted spawn configuration
+   preserves that route. Retry rejected spawns and model unavailability only under offload's
+   provider rules; never inherit defaults or lower effort silently. Do not add a tracked dispatch
+   artifact or ledger field.
+
+   Medium is eligible only when current authority directly determines a local realization, behavior
+   and failure effects are local, no authority, fencing, recovery, replay, idempotency,
+   witness/admission, persistence, identity, ordering, deadline, lifecycle, cross-package type
+   closure, later-constraining seam, multiple-authority reconciliation, or other non-local guarantee
+   materially shapes correctness, and straightforward positive and negative tests suffice. Use high
+   when any such risk materially applies, regardless of file count. Use xhigh only for an exceptional
+   release-critical or architecture-wide decision under the global routing policy. Jig supplies the
+   risk reasoning and task content; offload owns generic context and provider routing.
+
 4. After assigning the continuous pair and before writes, have the already-assigned reviewer
    prepare read-only against the exact story, current authority, predecessor surface, and affected
-   package seams. The reviewer returns a concise set of normally five to twelve must-cover bullets;
-   each names the invariant or failure mode, its source, and expected observable proof in code,
-   types, or tests. Put the selected effort and reason plus those bullets in the implementer task.
-   They supplement rather than expand the story contract, create no new artifact or ledger field,
-   and do not replace `OWNER_DECISION_REQUIRED` for genuine ambiguity. Read
+   package seams. The reviewer returns a concise set of normally five to twelve stable-ID must-cover
+   bullets; each names the source and invariant or failure mode, expected observable code/type
+   behavior, applicable test category, and sibling operations, states, or types. The same response
+   returns either `resolved` with the exact authority source or `OWNER_DECISION_REQUIRED` with the
+   missing or conflicting authority. Public identity, durable authority, policy, fencing, or
+   ownership semantics require an exact source; clearly authorized package-private bookkeeping may
+   proceed. Put the selected route plus those bullets in the implementer task. They supplement rather
+   than expand the story contract, create no new artifact or ledger field, and do not replace the
+   existing owner-decision rule. Read
    `references/phase-protocol.md` for the implementer proof handoff, complete-pass verdict, and
    conditional structural-defect loop.
 5. Keep each pair stable through implementation, committed-candidate checks, read-only review,
-   fixes, and incremental re-review. Before each check, enforce the policy's minimal non-secret
+   fixes, and incremental re-review. A candidate cannot freeze until the implementer's normal
+   handoff maps every must-cover ID to concrete implementation and applicable type/test locations,
+   sibling-search scope/result, and implementation-owner verification evidence. Generic coverage
+   claims are insufficient; missing or non-concrete mappings remain `implementing`, unresolved
+   authority stops before writes, and a false or inadequate mapping found in review is
+   `CHANGES_REQUIRED`. One test may prove multiple bullets, and a justified non-testable designation
+   is allowed; do not add a test-per-bullet rule or proof artifact. Before each check, enforce the
+   policy's minimal non-secret
    environment-name allowlist and record exact ignored-state inventories/allowlist decisions. Bind
    the reviewer verdict to the exact candidate in the external ledger. After final review and before
    merge, record tracked/untracked status and the exact
    `git ls-files --others --ignored --exclude-standard` output; bind that final residue snapshot to
    the reviewed candidate alongside the pre-check inventories and allowlist decisions. A changed
    candidate or target requires every applicable required check and re-review by that same reviewer.
+   Reviewers inspect recorded check evidence, including `git diff --check`, but never rerun it or any
+   project check. An incomplete but advancing correction keeps the same pair. Pair replacement is
+   exceptional and follows the bounded non-progress and boundary-breach rules in
+   `references/phase-protocol.md`.
    `pnpm check:affected` is optional local feedback only; it never replaces the full `pnpm check`
    evidence required for candidate or integration gates.
 6. Merge only approved story commits into the integration branch while preserving them as

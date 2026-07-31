@@ -2,58 +2,54 @@
   "skill_name": "orchestrate-phase-delivery",
   "evals": [
     {
-      "id": "phase-one-ready-set",
-      "prompt": "The owner explicitly asks you to implement Phase 1 after GF-010 has landed. There is no separate delivery-package qualification or external activation issue. GF-011, GF-012, and GF-013 are initially ready; one story is bounded and directly specified with local failure modes, while another has authority, recovery, witness, and cross-package type-closure seams despite a short file list. The continuous reviewers are already assigned. GF-012 then becomes terminally blocked.",
-      "expected_output": "Treat the explicit current owner request as sufficient implementation authorization within the current product/design/track scope, start the operational ledger, and initially admit all three within capacity. Keep medium available for the genuinely local story, but make a concrete high-effort assessment for the semantic-risk story instead of routing it by file count. Before writes, have each assigned read-only reviewer prepare concise must-cover bullets naming the invariant or failure mode, source, and observable code/type/test proof, then place those bullets in the implementer task. Continue GF-011 and GF-013 while localizing the GF-012 block; GF-014 follows GF-013 and GF-015 waits for GF-011 and GF-014. Do not require a new reviewer, planning gate, package review, digest approval, external activation issue, or ledger field.",
-      "files": ["docs/delivery/greenfield/track.json"],
+      "id": "offload-planned-ready-set",
+      "prompt": "The owner starts an approved Jig phase with three ready stories and already-assigned semantic implementer/reviewer pairs. One story is bounded, directly specified, local, and has straightforward positive/negative proof. A GF-020-like story would add public identity, durable ledger authority, and policy fields but no exact source authorizes those public semantics; package-private bookkeeping is separately and clearly authorized. A GF-022-like story requires exact bytes, restart recovery, retry lineage, and deadline integrity. Offload plans the two risky implementations on Luna/high. A fixed Codex implementer type would instead force Terra/medium, and the provider explicitly reports Luna unavailable for the exact-bytes story. Describe risk classification, pre-write preparation, dispatch, fallback, authority handling, and admission.",
+      "expected_output": "Keep the genuinely local story eligible for medium, but require high for both authority/identity and exact-bytes/recovery/retry/deadline work regardless of file count. Treat implementer/reviewer as semantic ownership roles, use global offload to plan each role's model, effort, compatible runtime type, isolated context, budget, output, verification owner, and trace, and reject the fixed Terra/medium type because it conflicts with Luna/high. Begin no writes until the accepted spawn preserves the route. For explicit Luna unavailability, retain Luna as planned_model, use Terra as actual_model at high effort, and record model_unavailable. The reviewer prepares stable-ID must-cover bullets plus an authority result before writes: public identity/ledger/policy work returns OWNER_DECISION_REQUIRED without an exact source, while clearly authorized package-private bookkeeping may proceed. Continue independent ready stories and add no agent, artifact, approval, or ledger field.",
+      "files": ["docs/delivery/greenfield/stories/GF-020.md", "docs/delivery/greenfield/stories/GF-022.md"],
       "assertions": [
-        "Uses declared dependencies only",
-        "Treats the explicit current owner request as sufficient implementation authorization",
-        "Does not require delivery-package qualification, delivery-surface digest approval, or an external activation issue",
-        "Starts the operational ledger and initially admits GF-011, GF-012, and GF-013 within capacity",
-        "Records GF-012 as terminally blocked while allowing independent ready stories to continue",
-        "Does not require a new reviewer, planning gate, package review, digest approval, external activation issue, or ledger field",
-        "States that GF-012 does not block GF-011 or GF-013 to GF-014, and that GF-015 waits for GF-011 and GF-014",
-        "Requires registered worktrees and continuous pairs",
-        "Keeps medium effort available for bounded directly specified work with local failure modes",
-        "Requires a concrete high-effort assessment for authority, recovery, witness, persistence, lifecycle, cross-package type-closure, or architecture-shaping seams even when the file list is bounded",
-        "Uses the already-assigned read-only reviewer before writes to produce concise must-cover bullets with invariant or failure mode, source, and expected observable proof without running checks, repairing evidence, or mutating repository or provider state",
-        "Places the must-cover bullets in the implementer task without adding an agent, gate, artifact, or ledger field"
+        "Keeps medium eligible only for the directly specified local story with local effects and straightforward positive and negative proof",
+        "Requires high for GF-020-like authority and identity semantics and GF-022-like exact bytes, recovery, retry, and deadline semantics regardless of file count",
+        "Treats implementer and reviewer as semantic roles that do not choose runtime agent types",
+        "Uses offload to resolve explicit model, effort, compatible runtime type, isolated context, budget, output, verification ownership, and trace before dispatch",
+        "Rejects a fixed Terra medium runtime type that conflicts with the planned Luna high route and begins no writes on a mismatched route",
+        "Preserves Luna as planned model and high effort while recording Terra as actual model with model_unavailable only after explicit provider unavailability",
+        "Requires stable-ID must-cover preparation and an authority-boundary result before writes",
+        "Returns OWNER_DECISION_REQUIRED for unauthorized public identity, durable authority, or policy semantics while allowing clearly authorized package-private bookkeeping",
+        "Continues independent ready stories without adding an agent, artifact, approval stage, tracked dispatch artifact, or ledger field"
       ]
     },
     {
-      "id": "candidate-refresh",
-      "prompt": "Before freezing a Jig story candidate, the implementer has reviewer-prepared must-cover bullets for an invariant that applies to a family of operations. During review, the read-only reviewer finds one local blocker and one structural root cause affecting several sibling types. The story is later rebased onto the integration branch after another story lands. Describe the handoff, review verdict, correction paths, and what must happen before integration.",
-      "expected_output": "Before freeze, the implementer identifies the code/type/test proof for every must-cover bullet in the normal handoff and searches sibling operations, states, and types. The reviewer does not run checks or stop after the first blocker: it completes the presently supportable candidate-bound inspection, returns PASS or CHANGES_REQUIRED, groups all current blockers by root cause with their source/invariant, and names exact re-review scope plus any evidence limitation. The local defect follows the ordinary same-pair fix, every applicable required check, new candidate, and incremental re-review loop. Before changing code for the structural defect, the implementer restates the corrected realization and affected surface in the normal handoff; this is conditional, not a new approval gate, and OWNER_DECISION_REQUIRED applies only if material product/design authority, tracked scope or dependencies, selected realization, provider reachability, or an accepted trade-off would change. The later rebase also creates a new committed candidate, runs every applicable required check with a minimal non-secret environment allowlist and exact ignored-state inventory, records ledger evidence, and receives same-reviewer incremental read-only re-review. pnpm check:affected remains optional local feedback and never replaces full pnpm check evidence.",
+      "id": "candidate-proof-and-review",
+      "prompt": "A Jig implementer receives eight stable-ID must-cover bullets. Its handoff names concrete code and tests for five, says only 'covered' for two hostile-input and recovery bullets, and omits the sibling-operation bullet. The implementation owner has not yet run the candidate checks. After the handoff is repaired and owner-run evidence is recorded, the read-only reviewer inspects the exact candidate, accidentally reruns git diff --check once, and finds one local blocker plus one structural root cause affecting several sibling types. Describe candidate state, required proof mapping, reviewer recovery and input/output, and the correction path.",
+      "expected_output": "Keep the story implementing: every must-cover ID needs concrete implementation and applicable type/test locations or a justified non-testable designation, sibling-search scope/result, and implementation-owner verification evidence; 'covered' and omission cannot freeze a candidate. One test may prove multiple bullets, but hostile, negative, adversarial, and recovery requirements need their applicable proof. After the complete mapping and owner-run checks produce a committed candidate, give the reviewer the exact candidate/diff, authority, bullets, proof mapping, recorded evidence, prior findings, and incremental range. Discard the reviewer's prohibited git diff --check run as review evidence and reissue the bounded review to the same reviewer. The reviewer consumes recorded checks, completes the presently supportable pass, returns PASS or CHANGES_REQUIRED, groups every blocker by root cause with source/invariant, affected sibling surface, evidence gaps, and exact re-review scope. A false mapping is CHANGES_REQUIRED; local defects use the same-pair loop, while structural defects first restate the corrected realization before changes and full owner verification.",
       "files": [],
       "assertions": [
-        "Requires implementer proof notes for every must-cover bullet in the normal handoff without a new artifact",
-        "Requires sibling-occurrence search across applicable operations, states, or types before candidate freeze",
-        "Requires the read-only reviewer to complete the current pass after the first blocker and report all presently supportable blockers",
-        "Groups findings by root cause, cites the source or invariant, and names exact re-review scope and evidence limitations",
-        "Keeps local defects in the ordinary same-pair fix, applicable-check, new-candidate, and incremental re-review loop",
-        "Requires a corrected-realization and affected-surface restatement before code changes only for structural defects, without adding an approval gate",
-        "Uses OWNER_DECISION_REQUIRED only when the corrected realization changes material product/design authority, tracked scope or dependencies, selected realization, provider reachability, or an accepted trade-off",
-        "After rebase, requires a new committed candidate, every applicable required check, ledger evidence, and same-reviewer incremental re-review while the reviewer remains read-only and does not run checks",
-        "Rejects transfer of the old verdict",
-        "Does not require a sealer or clone",
-        "Preserves reviewer read-only boundary",
-        "Requires sanitized environment-name and ignored-state evidence without restoring a sealer",
-        "Rejects pnpm check:affected as a substitute for the full pnpm check evidence required for candidate or integration gates"
+        "Keeps the story implementing when any must-cover ID is omitted or supported only by a generic coverage claim",
+        "Requires concrete implementation, applicable type and test proof or justified non-testable status, sibling-search scope and result, and owner-run verification evidence for every must-cover ID",
+        "Allows one test to prove multiple bullets without weakening hostile, negative, adversarial, recovery, or sibling proof",
+        "Requires implementation-owner checks before candidate freeze and gives their recorded evidence to the reviewer",
+        "Requires exact candidate, authority, bullets, proof mapping, prior findings, and exact incremental range as reviewer input",
+        "Discards a one-off prohibited non-mutating reviewer check as evidence and reissues the bounded review to the same reviewer",
+        "Requires a complete review pass with all supportable blockers grouped by root cause, source or invariant, affected siblings, evidence gaps, and exact re-review scope",
+        "Treats false or inadequate proof mapping as CHANGES_REQUIRED",
+        "Keeps local defects in the same-pair loop and requires a structural realization restatement before code changes and owner-run verification"
       ]
     },
     {
-      "id": "worktree-recovery-matrix",
-      "prompt": "Recover a ledger-listed story worktree in three cases: its exact recorded branch/object exists and reconciles cleanly; the object is missing; or the surviving workspace is dirty/mismatched. Explain whether a fresh clone or hosted-CI checkout can be used.",
-      "expected_output": "Treat recovery as semantic-risk input to the existing dispatch assessment rather than assuming medium from a bounded command list. Reattach the clean existing branch/object as a registered worktree; block the affected story for missing or dirty/mismatched facts while independent ready stories continue; use OWNER_DECISION_REQUIRED only if recovery requires a material authority decision; reject a local clone and treat hosted CI only as independent CI infrastructure.",
+      "id": "pair-continuity-and-recovery",
+      "prompt": "During a Jig story correction, the implementer first returns an incomplete patch with concrete code/test progress, then later produces two consecutive turns with no concrete progress. In another branch of the scenario, the same root semantic defect survives two correction candidates, the exceptional replacement reproduces it, and the reviewer repeats a prohibited check after an earlier corrected reminder. Separately, recover a ledger-listed worktree when its exact branch/object reconciles cleanly, when the object is missing, and when the surviving workspace is dirty or mismatched. Describe continuity, replacement/stop behavior, recovery, and whether a fresh clone is allowed.",
+      "expected_output": "Keep the advancing implementer and same reviewer; incompleteness alone is not replacement. Permit exceptional implementer replacement only after the two consecutive no-progress turns or after the same root defect survives two correction candidates, recording the existing reason and handoff. If the replacement reproduces that defect, stop the affected story under existing execution-blocking rules instead of spawning another chain. Replace the reviewer after the repeated boundary breach, while a single prohibited non-mutating check would only have its evidence discarded and the same bounded review reissued; mutation, evidence writing, unavailability, or an incompatible runtime route are also exceptional replacement causes. For worktree recovery, reconcile git worktree list, reattach only the exact clean recorded branch/object at its registered path, block the affected story for missing/dirty/mismatched facts while independent stories continue, use OWNER_DECISION_REQUIRED only for a material authority decision, and reject a fresh local clone.",
       "files": [],
       "assertions": [
-        "Treats recovery semantics as a reason for concrete high-effort assessment without making high universal",
-        "Starts with git worktree list porcelain reconciliation",
-        "Reattaches only an exact recorded branch and object at the registered path",
-        "Blocks only the affected story and descendants on missing objects or dirty and mismatched evidence",
-        "Uses OWNER_DECISION_REQUIRED only when recovery requires a material authority decision",
-        "Rejects fresh-clone recovery and permits provider-managed checkout only for hosted CI"
+        "Retains an incomplete implementer when the turn contains concrete code or test progress",
+        "Allows exceptional implementer replacement after two consecutive no-progress turns or the same root semantic defect survives two correction candidates",
+        "Stops the affected story instead of creating an unbounded chain when the replacement reproduces the same root defect",
+        "Replaces a reviewer only after a repeated boundary breach or immediate mutation, evidence writing, or loss of availability",
+        "Treats an incompatible approved runtime route as an exceptional replacement cause without lowering the planned route",
+        "Records replacement using the existing reason and handoff rather than adding schema",
+        "Starts worktree recovery with git worktree list reconciliation and reattaches only the exact clean recorded branch and object at the registered path",
+        "Blocks only the affected story and descendants for missing objects or dirty and mismatched evidence while independent ready stories continue",
+        "Uses OWNER_DECISION_REQUIRED only for a material authority decision and rejects fresh-clone recovery"
       ]
     }
   ]
