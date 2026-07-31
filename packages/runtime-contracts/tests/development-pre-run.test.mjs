@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const runtime = await import('../dist/index.js');
+const codec = await import('@agentic-workflow-kit/jig-codec');
 const digest = (character) => character.repeat(64);
 
 const envelopeInput = () => ({
@@ -64,21 +65,44 @@ const envelopeInput = () => ({
   guidance: { rationale: 'why', suitableUse: 'when', tradeoffs: 'cost' },
 });
 
-const manifest = () => ({
-  manifestId: 'provider/development/authority/semantic-only',
-  manifestDigest: digest('d'),
+const manifest = (changes = {}) => ({
+  credentialAuthority: [],
+  dispatchEnabled: false,
+  externalServiceAuthority: [],
+  filesystemAuthority: [],
+  lineage: { kind: 'genesis' },
+  manifestVersion: 'provider-authority/v1',
+  nativePermissionPostures: [],
+  networkAuthority: [],
+  providerEnabled: false,
+  providerIdentity: 'development-semantic-only/v1',
+  recovery: 'fail-closed-no-autonomous-restore',
+  runtimeAuthority: { kind: 'in-process-pure-fixture' },
   scope: { phase: 3, purpose: 'development-only' },
+  subprocessAuthority: [],
+  ...changes,
 });
 
+const manifestBytes = (changes) => {
+  const framed = codec.encodeFrame(manifest(changes));
+  assert.equal(framed.ok, true);
+  return framed.value;
+};
+
 function approvedFixture() {
-  const profile = runtime.createDevelopmentPreRun({ ledger: runtime.createScriptedLedger() });
-  const preview = profile.preview({ envelope: envelopeInput(), providerManifest: manifest() });
+  const authority = runtime.createDevelopmentApprovalAuthority();
+  const profile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
-  const proposalApproval = profile.approveProposal({ principal: 'principal/arye', preview: preview.value });
-  const manifestApproval = profile.approveProviderManifest({ principal: 'principal/arye', preview: preview.value });
+  const proposalApproval = authority.consumer.approveProposal({ preview: preview.value });
+  const manifestApproval = authority.consumer.approveProviderManifest({ preview: preview.value });
   assert.equal(proposalApproval.ok, true);
   assert.equal(manifestApproval.ok, true);
   return {
+    authority,
     profile,
     preview: preview.value,
     proposalApproval: proposalApproval.value,
@@ -87,8 +111,12 @@ function approvedFixture() {
 }
 
 test('development profile preview recomposes the envelope and carries no provider or dispatch authority', () => {
-  const profile = runtime.createDevelopmentPreRun({ ledger: runtime.createScriptedLedger() });
-  const preview = profile.preview({ envelope: envelopeInput(), providerManifest: manifest() });
+  const authority = runtime.createDevelopmentApprovalAuthority();
+  const profile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
   assert.equal(preview.value.posture, 'development-semantic-only');
   assert.equal(preview.value.recovery, 'fail-closed-no-autonomous-restore');
@@ -99,22 +127,52 @@ test('development profile preview recomposes the envelope and carries no provide
 
   const changed = envelopeInput();
   changed.policy.selections.review = 3;
-  const second = profile.preview({ envelope: changed, providerManifest: manifest() });
+  const second = profile.preview({ envelope: changed, providerManifestBytes: manifestBytes() });
   assert.equal(second.ok, true);
   assert.notEqual(second.value.compositionDigest, preview.value.compositionDigest);
 });
 
-test('proposal and provider-manifest approvals are distinct, exact, immutable, and Arye-only', () => {
-  const { profile, preview, proposalApproval, manifestApproval } = approvedFixture();
+test('provider manifest digest is derived from canonical bytes and authority-free posture', () => {
+  const authority = runtime.createDevelopmentApprovalAuthority();
+  const profile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
+  assert.equal(preview.ok, true);
+  const expected = codec.stageDigest({
+    domain: 'DEVELOPMENT-PROVIDER-MANIFEST',
+    excludePaths: [],
+    value: manifest(),
+  });
+  assert.equal(expected.ok, true);
+  assert.equal(preview.value.manifestDigest, expected.value.digest);
+  assert.equal(preview.value.manifestId, `provider/development/authority/${expected.value.digest}`);
+  assert.equal(
+    profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes({ providerEnabled: true }) }).ok,
+    false,
+  );
+  assert.equal(
+    profile.preview({
+      envelope: envelopeInput(),
+      providerManifest: { manifestId: preview.value.manifestId, manifestDigest: preview.value.manifestDigest },
+    }).ok,
+    false,
+  );
+});
+
+test('proposal and provider-manifest approvals are distinct, exact, immutable owner capabilities', () => {
+  const { authority, profile, preview, proposalApproval, manifestApproval } = approvedFixture();
   assert.equal(proposalApproval.kind, 'proposal-approved');
   assert.equal(manifestApproval.kind, 'provider-manifest-approved');
   assert.notEqual(proposalApproval.approvalDigest, manifestApproval.approvalDigest);
-  assert.deepEqual(profile.approveProposal({ principal: 'principal/arye', preview }), {
+  assert.deepEqual(authority.consumer.approveProposal({ preview }), {
     ok: true,
     value: proposalApproval,
   });
-  assert.equal(profile.approveProposal({ principal: 'principal/not-arye', preview }).ok, false);
-  assert.equal(profile.approveProposal({ principal: 'principal/arye', preview: { ...preview } }).ok, false);
+  assert.equal(authority.consumer.approveProposal({ preview: { ...preview } }).ok, false);
+  assert.equal('approveProposal' in profile, false);
+  assert.equal('approveProviderManifest' in profile, false);
 });
 
 test('accepted development intake is witnessed, idempotent, and is the only path that derives a Run', () => {
@@ -153,7 +211,7 @@ test('rejected development intake is witnessed and can never derive a Run', () =
 });
 
 test('development intake rejects approval substitution, copied carriers, and changed previews', () => {
-  const { profile, preview, proposalApproval, manifestApproval } = approvedFixture();
+  const { authority, profile, preview, proposalApproval, manifestApproval } = approvedFixture();
   assert.equal(
     profile.submit({
       preview,
@@ -172,6 +230,33 @@ test('development intake rejects approval substitution, copied carriers, and cha
     }).ok,
     false,
   );
-  for (const forbidden of ['configureProvider', 'enableProvider', 'dispatch', 'execute'])
+  const secondProfile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const secondPreview = secondProfile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
+  assert.equal(secondPreview.ok, true);
+  const secondProposalApproval = authority.consumer.approveProposal({ preview: secondPreview.value });
+  const secondManifestApproval = authority.consumer.approveProviderManifest({ preview: secondPreview.value });
+  assert.equal(secondProposalApproval.ok, true);
+  assert.equal(secondManifestApproval.ok, true);
+  assert.equal(
+    secondProfile.submit({
+      preview: secondPreview.value,
+      proposalApproval: secondProposalApproval.value,
+      manifestApproval: secondManifestApproval.value,
+      terminalAck: 'accepted',
+    }).ok,
+    false,
+    'one owner verifier cannot be reused to authorize a second profile',
+  );
+  for (const forbidden of [
+    'approveProposal',
+    'approveProviderManifest',
+    'configureProvider',
+    'enableProvider',
+    'dispatch',
+    'execute',
+  ])
     assert.equal(forbidden in profile, false);
 });

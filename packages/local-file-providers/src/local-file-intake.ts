@@ -86,9 +86,7 @@ export function createLocalFileIntakeForConformance(
       if (
         !isDigest(request?.compositionDigest) ||
         !isDigest(request?.acknowledgementDigest) ||
-        (request.terminalAck !== undefined &&
-          request.terminalAck !== 'accepted' &&
-          request.terminalAck !== 'rejected') ||
+        (request.terminalAck !== 'accepted' && request.terminalAck !== 'rejected') ||
         (request.terminalAck === 'rejected' && request.successorCut !== undefined) ||
         (request.successorCut !== undefined &&
           (typeof request.successorCut !== 'string' ||
@@ -110,7 +108,7 @@ export function createLocalFileIntakeForConformance(
               ? result.winner.successorCut
               : undefined;
         return result.acknowledgementDigest === request.acknowledgementDigest &&
-          terminalAck === (request.terminalAck ?? 'accepted') &&
+          terminalAck === request.terminalAck &&
           cut === request.successorCut
           ? ok(publicResult(result))
           : fail('FC-FENCE', 'INTAKE_REQUEST_MISMATCH');

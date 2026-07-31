@@ -1,4 +1,4 @@
-import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { type CanonicalJson, decodeFrame, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { composeEnvelope, type EnvelopeProposal } from './envelope.js';
 import {
   type IntakeReadback,
@@ -39,17 +39,21 @@ export type DevelopmentApproval = Readonly<{
   scopeDigest: string;
   approvalDigest: string;
 }>;
+declare const developmentApprovalVerifierBrand: unique symbol;
+export type DevelopmentApprovalVerifier = Readonly<{
+  readonly [developmentApprovalVerifierBrand]: 'development-approval-verifier';
+}>;
+export type DevelopmentApprovalConsumer = Readonly<{
+  approveProposal(input: unknown): Result<DevelopmentApproval>;
+  approveProviderManifest(input: unknown): Result<DevelopmentApproval>;
+}>;
 
 type DevelopmentPreRun = Readonly<{
   preview(input: unknown): Result<DevelopmentPreview>;
-  approveProposal(input: unknown): Result<DevelopmentApproval>;
-  approveProviderManifest(input: unknown): Result<DevelopmentApproval>;
   submit(input: unknown): Result<IntakeResult>;
   readback(compositionDigest: string): LedgerResult<IntakeReadback>;
 }>;
 
-const DIGEST = /^[0-9a-f]{64}$/u;
-const MANIFEST_ID = /^provider\/[a-z0-9][a-z0-9/-]{0,255}$/u;
 const freeze = <T>(value: T): T => Object.freeze(value);
 const ok = <T>(value: T): Result<T> => freeze({ ok: true, value: freeze(value) });
 const fail = (family: Failure['family'], code: string): Result<never> =>
@@ -85,44 +89,88 @@ function staged(domain: string, value: CanonicalJson): string | undefined {
   return result.ok ? result.value.digest : undefined;
 }
 
-function manifest(value: unknown): ProviderManifest | undefined {
-  const data = fields(value, ['manifestDigest', 'manifestId', 'scope']);
-  const scope = data && fields(data.scope, ['phase', 'purpose']);
-  if (
-    !data ||
-    !scope ||
-    typeof data.manifestId !== 'string' ||
-    !MANIFEST_ID.test(data.manifestId) ||
-    typeof data.manifestDigest !== 'string' ||
-    !DIGEST.test(data.manifestDigest) ||
-    scope.phase !== 3 ||
-    scope.purpose !== 'development-only'
-  )
-    return undefined;
-  return freeze({
-    manifestId: data.manifestId,
-    manifestDigest: data.manifestDigest,
-    scope: freeze({ phase: 3, purpose: 'development-only' }),
-  });
+function empty(value: unknown): boolean {
+  return Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype && value.length === 0;
 }
 
-export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
-  const config = fields(input, ['ledger']);
-  const ledger: ScriptedLedger | undefined = config && isScriptedLedger(config.ledger) ? config.ledger : undefined;
-  const previews = new WeakSet<object>();
+function manifest(value: unknown): ProviderManifest | undefined {
+  try {
+    if (!(value instanceof Uint8Array)) return undefined;
+    const decoded = decodeFrame(value);
+    if (!decoded.ok) return undefined;
+    const data = fields(decoded.value, [
+      'credentialAuthority',
+      'dispatchEnabled',
+      'externalServiceAuthority',
+      'filesystemAuthority',
+      'lineage',
+      'manifestVersion',
+      'nativePermissionPostures',
+      'networkAuthority',
+      'providerEnabled',
+      'providerIdentity',
+      'recovery',
+      'runtimeAuthority',
+      'scope',
+      'subprocessAuthority',
+    ]);
+    const lineage = data && fields(data.lineage, ['kind']);
+    const runtimeAuthority = data && fields(data.runtimeAuthority, ['kind']);
+    const scope = data && fields(data.scope, ['phase', 'purpose']);
+    if (
+      !data ||
+      !lineage ||
+      !runtimeAuthority ||
+      !scope ||
+      data.manifestVersion !== 'provider-authority/v1' ||
+      data.providerIdentity !== 'development-semantic-only/v1' ||
+      data.providerEnabled !== false ||
+      data.dispatchEnabled !== false ||
+      data.recovery !== 'fail-closed-no-autonomous-restore' ||
+      runtimeAuthority.kind !== 'in-process-pure-fixture' ||
+      lineage.kind !== 'genesis' ||
+      scope.phase !== 3 ||
+      scope.purpose !== 'development-only' ||
+      !empty(data.credentialAuthority) ||
+      !empty(data.externalServiceAuthority) ||
+      !empty(data.filesystemAuthority) ||
+      !empty(data.nativePermissionPostures) ||
+      !empty(data.networkAuthority) ||
+      !empty(data.subprocessAuthority)
+    )
+      return undefined;
+    const manifestDigest = staged('DEVELOPMENT-PROVIDER-MANIFEST', decoded.value);
+    if (!manifestDigest) return undefined;
+    return freeze({
+      manifestId: `provider/development/authority/${manifestDigest}`,
+      manifestDigest,
+      scope: freeze({ phase: 3, purpose: 'development-only' }),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+type ApprovalBinding = Readonly<{
+  proposalApprovals: WeakSet<object>;
+  manifestApprovals: WeakSet<object>;
+}>;
+
+const issuedPreviews = new WeakSet<object>();
+const approvalVerifiers = new WeakMap<object, ApprovalBinding>();
+const claimedApprovalVerifiers = new WeakSet<object>();
+
+export function createDevelopmentApprovalAuthority(): Readonly<{
+  consumer: DevelopmentApprovalConsumer;
+  verifier: DevelopmentApprovalVerifier;
+}> {
   const proposalApprovals = new WeakSet<object>();
   const manifestApprovals = new WeakSet<object>();
-  const previewsByDigest = new Map<string, DevelopmentPreview>();
   const approvalsByDigest = new Map<string, DevelopmentApproval>();
 
   const approve = (input: unknown, kind: DevelopmentApproval['kind']): Result<DevelopmentApproval> => {
-    const data = fields(input, ['preview', 'principal']);
-    if (
-      data?.principal !== 'principal/arye' ||
-      typeof data.preview !== 'object' ||
-      data.preview === null ||
-      !previews.has(data.preview)
-    )
+    const data = fields(input, ['preview']);
+    if (typeof data?.preview !== 'object' || data.preview === null || !issuedPreviews.has(data.preview))
       return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
     const preview = data.preview as DevelopmentPreview;
     const subjectDigest = kind === 'proposal-approved' ? preview.proposalDigest : preview.manifestDigest;
@@ -147,11 +195,36 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
     return ok(approval);
   };
 
+  const verifier = freeze({}) as DevelopmentApprovalVerifier;
+  approvalVerifiers.set(verifier, freeze({ proposalApprovals, manifestApprovals }));
+  return freeze({
+    consumer: freeze({
+      approveProposal: (input: unknown) => approve(input, 'proposal-approved'),
+      approveProviderManifest: (input: unknown) => approve(input, 'provider-manifest-approved'),
+    }),
+    verifier,
+  });
+}
+
+export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
+  const config = fields(input, ['approvalVerifier', 'ledger']);
+  const ledger: ScriptedLedger | undefined = config && isScriptedLedger(config.ledger) ? config.ledger : undefined;
+  const verifier =
+    config && typeof config.approvalVerifier === 'object' && config.approvalVerifier !== null
+      ? config.approvalVerifier
+      : undefined;
+  const availableBinding = verifier ? approvalVerifiers.get(verifier) : undefined;
+  const approvalBinding =
+    verifier && availableBinding && !claimedApprovalVerifiers.has(verifier) ? availableBinding : undefined;
+  if (verifier && approvalBinding) claimedApprovalVerifiers.add(verifier);
+  const previews = new WeakSet<object>();
+  const previewsByDigest = new Map<string, DevelopmentPreview>();
+
   return freeze({
     preview(input) {
       if (!ledger) return fail('FC-TRUST', 'SCRIPTED_LEDGER_REQUIRED');
-      const data = fields(input, ['envelope', 'providerManifest']);
-      const providerManifest = data && manifest(data.providerManifest);
+      const data = fields(input, ['envelope', 'providerManifestBytes']);
+      const providerManifest = data && manifest(data.providerManifestBytes);
       const proposal = data && composeEnvelope(data.envelope);
       if (!data || !providerManifest || !proposal?.ok) return fail('FC-INPUT', 'INVALID_DEVELOPMENT_PREVIEW');
       const scopeDigest = staged('DEVELOPMENT-PROVIDER-SCOPE', providerManifest.scope);
@@ -184,10 +257,9 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       });
       previewsByDigest.set(compositionDigest, preview);
       previews.add(preview);
+      issuedPreviews.add(preview);
       return ok(preview);
     },
-    approveProposal: (input) => approve(input, 'proposal-approved'),
-    approveProviderManifest: (input) => approve(input, 'provider-manifest-approved'),
     submit(input) {
       if (!ledger) return fail('FC-TRUST', 'SCRIPTED_LEDGER_REQUIRED');
       const accepted = fields(input, ['manifestApproval', 'preview', 'proposalApproval', 'terminalAck']);
@@ -200,10 +272,10 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
         !previews.has(data.preview) ||
         typeof data.proposalApproval !== 'object' ||
         data.proposalApproval === null ||
-        !proposalApprovals.has(data.proposalApproval) ||
+        !approvalBinding?.proposalApprovals.has(data.proposalApproval) ||
         typeof data.manifestApproval !== 'object' ||
         data.manifestApproval === null ||
-        !manifestApprovals.has(data.manifestApproval) ||
+        !approvalBinding.manifestApprovals.has(data.manifestApproval) ||
         (data.terminalAck !== 'accepted' && data.terminalAck !== 'rejected') ||
         (data.terminalAck === 'rejected' && data.successorCut !== undefined) ||
         (data.successorCut !== undefined &&

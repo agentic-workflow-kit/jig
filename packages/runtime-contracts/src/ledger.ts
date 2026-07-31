@@ -52,7 +52,7 @@ export type Readback =
 export type IntakeRequest = Readonly<{
   compositionDigest: string;
   acknowledgementDigest: string;
-  terminalAck?: 'accepted' | 'rejected';
+  terminalAck: 'accepted' | 'rejected';
   successorCut?: string;
 }>;
 export type IntakeWinnerBinding = Readonly<{
@@ -596,7 +596,7 @@ export function createScriptedLedger(): ScriptedLedger {
       return { ok: true, value: undefined };
     },
     intake(request, fault) {
-      const terminalAck = request.terminalAck ?? 'accepted';
+      const terminalAck = request.terminalAck;
       if (
         !digest(request.compositionDigest) ||
         !digest(request.acknowledgementDigest) ||
