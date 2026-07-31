@@ -265,8 +265,15 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       const accepted = fields(input, ['manifestApproval', 'preview', 'proposalApproval', 'terminalAck']);
       const withCut = fields(input, ['manifestApproval', 'preview', 'proposalApproval', 'successorCut', 'terminalAck']);
       const data = accepted ?? withCut;
+      if (!data) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
       if (
-        !data ||
+        (data.terminalAck !== 'accepted' && data.terminalAck !== 'rejected') ||
+        (data.terminalAck === 'rejected' && data.successorCut !== undefined) ||
+        (data.successorCut !== undefined &&
+          (typeof data.successorCut !== 'string' || data.successorCut.length === 0 || data.successorCut.length > 512))
+      )
+        return fail('FC-INPUT', 'INVALID_INTAKE');
+      if (
         typeof data.preview !== 'object' ||
         data.preview === null ||
         !previews.has(data.preview) ||
@@ -275,11 +282,7 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
         !approvalBinding?.proposalApprovals.has(data.proposalApproval) ||
         typeof data.manifestApproval !== 'object' ||
         data.manifestApproval === null ||
-        !approvalBinding.manifestApprovals.has(data.manifestApproval) ||
-        (data.terminalAck !== 'accepted' && data.terminalAck !== 'rejected') ||
-        (data.terminalAck === 'rejected' && data.successorCut !== undefined) ||
-        (data.successorCut !== undefined &&
-          (typeof data.successorCut !== 'string' || data.successorCut.length === 0 || data.successorCut.length > 512))
+        !approvalBinding.manifestApprovals.has(data.manifestApproval)
       )
         return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
       const preview = data.preview as DevelopmentPreview;

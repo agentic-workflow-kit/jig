@@ -602,7 +602,7 @@ export function createScriptedLedger(): ScriptedLedger {
         !digest(request.acknowledgementDigest) ||
         (terminalAck !== 'accepted' && terminalAck !== 'rejected') ||
         (terminalAck === 'rejected' && request.successorCut !== undefined) ||
-        (request.successorCut && !nonEmpty(request.successorCut))
+        (request.successorCut !== undefined && !nonEmpty(request.successorCut))
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
       const existing = intake.get(request.compositionDigest);

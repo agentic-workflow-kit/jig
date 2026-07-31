@@ -365,6 +365,15 @@ test('semantic ledger: missing terminal acknowledgement disposition cannot creat
     { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
   );
   assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, false);
+  assert.deepEqual(
+    ledger.intake({
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+      terminalAck: 'accepted',
+      successorCut: '',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
 });
 
 test('semantic ledger fixture records semantic metadata without provider qualification', () => {

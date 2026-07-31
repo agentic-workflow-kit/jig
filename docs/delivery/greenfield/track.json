@@ -88,7 +88,7 @@
         "GF-023",
         "GF-024"
       ],
-      "exit_gate": "Development handoff requires effect-free preview, two exact approvals, and witnessed accepted/rejected semantic intake with no Run on rejection; full supported-profile closure additionally requires exact GF-020/GF-025/GF-026 real-provider qualification."
+      "exit_gate": "Development handoff requires effect-free preview, providerEnabled: false, dispatchEnabled: false, fail-closed-no-autonomous-restore, two exact approvals, and witnessed accepted/rejected semantic intake with no Run on rejection; full supported-profile closure additionally requires exact GF-020/GF-025/GF-026 real-provider qualification, recomposition of the exact preview, and both approvals refreshed against the qualified manifests before real intake."
     },
     {
       "id": 3,
@@ -1068,12 +1068,7 @@
       "id": "GF-023",
       "title": "Effect-free preview and distinct owner approvals",
       "phase": 2,
-      "dependencies": [
-        "GF-014",
-        "GF-019",
-        "GF-021",
-        "GF-022"
-      ],
+      "dependencies": ["GF-014", "GF-019", "GF-021", "GF-022"],
       "dependency_edges": [
         {
           "from": "GF-014",

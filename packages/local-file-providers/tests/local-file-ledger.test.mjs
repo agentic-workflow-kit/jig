@@ -330,6 +330,31 @@ test('intake persists and witnesses a terminal rejection without deriving a Run'
   });
   assert.equal('run' in rejected.value, false);
   assert.deepEqual(intake.read(digest('c')).value.result, rejected.value);
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'rejected',
+    }),
+    rejected,
+  );
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'accepted',
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'INTAKE_REQUEST_MISMATCH' } },
+  );
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('e'),
+      acknowledgementDigest: digest('f'),
+      terminalAck: 'rejected',
+      successorCut: 'predecessor/5',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
 });
 
 test('intake crash after durable pair flush requires witness reconciliation before read or progress', (t) => {

@@ -260,3 +260,26 @@ test('development intake rejects approval substitution, copied carriers, and cha
   ])
     assert.equal(forbidden in profile, false);
 });
+
+test('development intake classifies malformed disposition and successor cuts as input failures', () => {
+  const { profile, preview, proposalApproval, manifestApproval } = approvedFixture();
+  assert.deepEqual(
+    profile.submit({
+      preview,
+      proposalApproval,
+      manifestApproval,
+      terminalAck: 'unknown',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+  assert.deepEqual(
+    profile.submit({
+      preview,
+      proposalApproval,
+      manifestApproval,
+      terminalAck: 'accepted',
+      successorCut: '',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+});

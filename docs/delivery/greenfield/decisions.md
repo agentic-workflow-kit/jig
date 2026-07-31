@@ -107,9 +107,11 @@ GF-024 may then use only the scripted semantic ledger/witness to prove witnessed
 intake, replay, contention, and no Run on rejection. This is implementation evidence, not provider
 qualification, provider selection, autonomous-recovery evidence, or a supported-profile claim.
 
-After the local file ledger realization is explicitly selected, GF-025 may separately qualify its
-ledger, registry, and independently trusted witness through `PORT-LEDGER` and `CF-MECH-LEDGER`;
-GF-026 may qualify the local file artifact provider through `PORT-ARTIFACT` and
-`CF-MECH-ARTIFACT`; GF-020 qualifies the structured-file source. A real intake must recompose the
-preview and refresh both exact approvals against those current provider gates. Implementation
-authorization never makes an unqualified provider reachable or waives a provider gate.
+After GF-019 and GF-022, GF-020 may qualify the structured-file source. After GF-010, GF-012, and
+GF-022, and only once the local file ledger realization is explicitly selected, GF-025 may qualify
+its ledger, registry, and independently trusted witness through `PORT-LEDGER` and
+`CF-MECH-LEDGER`. After GF-013 and GF-022, and only once the local file artifact realization is
+explicitly selected, GF-026 may qualify that provider through `PORT-ARTIFACT` and
+`CF-MECH-ARTIFACT`. A real intake must recompose the preview and refresh both exact approvals
+against those current provider gates. Implementation authorization never makes an unqualified
+provider reachable or waives a provider gate.
