@@ -138,6 +138,18 @@ test('source contract: bounded scripted recovery returns the same candidate or t
 
   const exhausted = requestInput();
   exhausted.retry.ordinal = exhausted.retry.limit;
+  const original = runtime.decodeSourceRequest(request);
+  assert.equal(original.ok, true);
+  exhausted.predecessor = {
+    requestId: original.value.requestId,
+    requestBasisDigest: original.value.requestBasisDigest,
+    track: original.value.track,
+    deadline: original.value.deadline,
+    retryLimit: original.value.retry.limit,
+    ordinal: exhausted.retry.ordinal - 1,
+    disposition: 'expired',
+    resultDigest: syntheticDigest('9'),
+  };
   const exhaustedFrame = runtime.encodeSourceRequest(exhausted);
   assert.equal(exhaustedFrame.ok, true);
   assert.deepEqual(
@@ -242,4 +254,163 @@ test('source contract: conformance evidence binds the exchange, corpus, build, s
     const tampered = { ...evidence.value, [field]: 'f'.repeat(64) };
     assert.equal(runtime.validateSourceConformanceEvidence(tampered).ok, false, field);
   }
+});
+
+test('source contract: retry progression requires one exact terminal predecessor without changing identity or bounds', () => {
+  const initial = { ...requestInput(), track: 'track/one', predecessor: null };
+  const initialFrame = runtime.encodeSourceRequest(initial);
+  assert.equal(initialFrame.ok, true);
+  const decoded = runtime.decodeSourceRequest(initialFrame.value);
+  assert.equal(decoded.ok, true);
+  const predecessor = {
+    requestId: decoded.value.requestId,
+    requestBasisDigest: decoded.value.requestBasisDigest,
+    track: decoded.value.track,
+    deadline: decoded.value.deadline,
+    retryLimit: decoded.value.retry.limit,
+    ordinal: 0,
+    disposition: 'terminal-unavailable',
+    resultDigest: syntheticDigest('7'),
+  };
+  const retry = {
+    ...initial,
+    retry: { ordinal: 1, limit: initial.retry.limit },
+    predecessor,
+  };
+  const legal = runtime.encodeSourceRequest(retry);
+  assert.equal(legal.ok, true);
+  const legalDecoded = runtime.decodeSourceRequest(legal.value);
+  assert.equal(legalDecoded.ok, true);
+  assert.equal(legalDecoded.value.requestId, decoded.value.requestId);
+  assert.equal(legalDecoded.value.deadline, decoded.value.deadline);
+  assert.equal(legalDecoded.value.retry.limit, decoded.value.retry.limit);
+
+  for (const [name, mutate] of [
+    [
+      'skipped',
+      (value) => {
+        value.retry.ordinal = 2;
+      },
+    ],
+    [
+      'mismatched',
+      (value) => {
+        value.predecessor.requestId = `source/${'f'.repeat(64)}/request/${'e'.repeat(64)}`;
+      },
+    ],
+    [
+      'nonterminal',
+      (value) => {
+        value.predecessor.disposition = 'pending';
+      },
+    ],
+    [
+      'altered-basis',
+      (value) => {
+        value.predecessor.requestBasisDigest = syntheticDigest('8');
+      },
+    ],
+    [
+      'exhausted',
+      (value) => {
+        value.retry.ordinal = value.retry.limit;
+        value.predecessor.disposition = 'exhausted';
+      },
+    ],
+  ]) {
+    const invalid = structuredClone(retry);
+    mutate(invalid);
+    const result = runtime.encodeSourceRequest(invalid);
+    assert.equal(result.ok, false, name);
+    assert.equal(result.error.family, 'FC-INPUT', name);
+  }
+});
+
+test('source contract: requested track is canonical request basis and binds the returned plan', () => {
+  const input = { ...requestInput(), track: 'track/one', predecessor: null };
+  const first = runtime.encodeSourceRequest(input);
+  const reordered = runtime.encodeSourceRequest(Object.fromEntries(Object.entries(input).reverse()));
+  assert.equal(first.ok, true);
+  assert.deepEqual(reordered, first);
+  const mismatchedBasis = structuredClone(input);
+  mismatchedBasis.track = 'track/other';
+  assert.deepEqual(runtime.encodeSourceRequest(mismatchedBasis), {
+    ok: false,
+    error: { family: 'FC-SUBJECT', code: 'REQUEST_TRACK_MISMATCH' },
+  });
+  const changedPlan = candidateInput();
+  changedPlan.plan.track = 'track/other';
+  for (const story of changedPlan.plan.stories) story.track = 'track/other';
+  const candidate = runtime.encodeSourceCandidate(first.value, changedPlan);
+  assert.deepEqual(candidate, { ok: false, error: { family: 'FC-SUBJECT', code: 'PLAN_TRACK_MISMATCH' } });
+});
+
+test('source contract: every public raw boundary rejects hostile containers before semantic processing', () => {
+  const request = requestFrame();
+  const candidate = candidateFrame(request);
+  const provider = runtime.createScriptedWorkSource(candidate);
+  assert.equal(provider.ok, true);
+  const evidence = {
+    request,
+    result: candidate,
+    corpusDigest: syntheticDigest('1'),
+    buildDigest: syntheticDigest('2'),
+    suiteDigest: syntheticDigest('3'),
+    probeDigest: syntheticDigest('4'),
+    boundDigest: syntheticDigest('5'),
+    candidateDigest: syntheticDigest('6'),
+  };
+  const validEvidence = runtime.createSourceConformanceEvidence(evidence);
+  assert.equal(validEvidence.ok, true);
+  const hostile = [
+    new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('proxy getter');
+        },
+      },
+    ),
+    Object.create({ request }),
+    Object.defineProperty({ ...evidence }, 'request', {
+      enumerable: true,
+      get() {
+        throw new Error('getter');
+      },
+    }),
+    Object.defineProperty({ ...evidence }, 'request', { enumerable: false, value: request }),
+    { ...evidence, credential: 'rejected' },
+  ];
+  for (const input of hostile) {
+    assert.doesNotThrow(() => runtime.createSourceConformanceEvidence(input));
+    assert.equal(runtime.createSourceConformanceEvidence(input).ok, false);
+    assert.doesNotThrow(() => runtime.validateSourceConformanceEvidence(input));
+    assert.equal(runtime.validateSourceConformanceEvidence(input).ok, false);
+    assert.doesNotThrow(() => runtime.encodeSourceRequest(input));
+    assert.equal(runtime.encodeSourceRequest(input).ok, false);
+    assert.doesNotThrow(() => runtime.encodeSourceCandidate(request, input));
+    assert.equal(runtime.encodeSourceCandidate(request, input).ok, false);
+    assert.doesNotThrow(() => runtime.validateSourceExchange(request, input));
+    assert.equal(runtime.validateSourceExchange(request, input).ok, false);
+    assert.doesNotThrow(() => runtime.createScriptedWorkSource(input));
+    assert.equal(runtime.createScriptedWorkSource(input).ok, false);
+  }
+  const hostileObservation = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('observation getter');
+      },
+    },
+  );
+  assert.doesNotThrow(() => provider.value.exchange(request, hostileObservation));
+  assert.deepEqual(provider.value.exchange(request, hostileObservation), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_OBSERVATION' },
+  });
+  assert.equal(
+    runtime.encodeSourceRequest({ ...requestInput(), track: 'track/one', predecessor: null, credential: 'rejected' })
+      .ok,
+    false,
+  );
 });

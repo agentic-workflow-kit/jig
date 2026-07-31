@@ -19,14 +19,26 @@ export type SourceFailure = Readonly<{
 }>;
 export type SourceResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: SourceFailure }>;
 export type SourceRetry = Readonly<{ ordinal: number; limit: number }>;
+export type SourceRetryPredecessor = Readonly<{
+  requestId: string;
+  requestBasisDigest: string;
+  track: string;
+  deadline: number;
+  retryLimit: number;
+  ordinal: number;
+  disposition: 'terminal-unavailable' | 'expired';
+  resultDigest: string;
+}>;
 export type SourceRequest = Readonly<{
   version: typeof SOURCE_VERSION;
   sourceIdentity: string;
   basis: CanonicalJson;
   requestBasisDigest: string;
   requestId: string;
+  track: string;
   deadline: number;
   retry: SourceRetry;
+  predecessor: SourceRetryPredecessor | null;
 }>;
 export type SourcePlan = Readonly<{
   version: typeof PLAN_VERSION;
@@ -51,6 +63,7 @@ export type SourceExchange = Readonly<{
   requestId: string;
   sourceIdentity: string;
   requestBasisDigest: string;
+  track: string;
   itemKey: string;
   revision: string;
   cursor: string;
@@ -83,10 +96,7 @@ export type SourceConformanceEvidence = Readonly<{
   evidenceDigest: string;
 }>;
 export type ScriptedWorkSource = Readonly<{
-  exchange(
-    request: unknown,
-    observation: Readonly<{ kind: 'return' | 'lost-result' | 'crash'; observedAt: number }>,
-  ): SourceResult<SourceExchange>;
+  exchange(request: unknown, observation: unknown): SourceResult<SourceExchange>;
   recover(request: unknown, observedAt: number): SourceResult<SourceExchange>;
 }>;
 
@@ -116,12 +126,93 @@ function exact(value: unknown, names: readonly string[]): Record<string, Canonic
   return keys.length === expected.length && keys.every((key, index) => key === expected[index]) ? record : undefined;
 }
 
+function entryFields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key !== 'string')) return undefined;
+    const expected = [...names].sort();
+    if (keys.length !== expected.length || [...keys].sort().some((key, index) => key !== expected[index]))
+      return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (
+      !Object.values(descriptors).every(
+        (descriptor) => descriptor.enumerable && 'value' in descriptor && descriptor.configurable !== undefined,
+      )
+    )
+      return undefined;
+    return frozen(
+      Object.fromEntries(
+        names.map((name) => [name, (descriptors[name] as PropertyDescriptor & { value: unknown }).value]),
+      ),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
+  try {
+    if (depth > 32) return undefined;
+    if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string')
+      return value;
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) return undefined;
+      const keys = Reflect.ownKeys(value);
+      if (keys.some((key) => typeof key !== 'string')) return undefined;
+      const descriptors = Object.getOwnPropertyDescriptors(value) as unknown as Record<string, PropertyDescriptor>;
+      const length = descriptors.length;
+      if (
+        !length ||
+        !('value' in length) ||
+        typeof length.value !== 'number' ||
+        !Number.isSafeInteger(length.value) ||
+        length.value > 256
+      )
+        return undefined;
+      if (keys.length !== length.value + 1 || !keys.includes('length')) return undefined;
+      const output: CanonicalJson[] = [];
+      for (let index = 0; index < length.value; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
+        const child = snapshot(descriptor.value, depth + 1);
+        if (child === undefined) return undefined;
+        output.push(child);
+      }
+      return output;
+    }
+    if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key !== 'string') || keys.length > 256) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const output: Record<string, CanonicalJson> = {};
+    for (const key of keys) {
+      const descriptor = descriptors[key as string];
+      if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
+      const child = snapshot(descriptor.value, depth + 1);
+      if (child === undefined) return undefined;
+      output[key as string] = child;
+    }
+    return output;
+  } catch {
+    return undefined;
+  }
+}
+
 function framed(value: unknown): value is Uint8Array {
   return ArrayBuffer.isView(value) && value instanceof Uint8Array;
 }
 
 function canonical(input: unknown): SourceResult<CanonicalJson> {
-  const encoded = encodeFrame(input as CanonicalJson);
+  const copied = snapshot(input);
+  if (copied === undefined) return fail('FC-INPUT', 'INVALID_RAW_INPUT');
+  const encoded = encodeFrame(copied);
   if (!encoded.ok) return fail('FC-INPUT', encoded.error.code);
   const decoded = decodeFrame(encoded.value);
   return decoded.ok ? ok(decoded.value) : fail('FC-INPUT', decoded.error.code);
@@ -292,12 +383,29 @@ function parsePlan(value: CanonicalJson): SourceResult<SourcePlan> {
 }
 
 function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
-  const raw = exact(value, ['version', 'sourceIdentity', 'basis', 'deadline', 'retry']);
+  const raw = exact(value, ['version', 'sourceIdentity', 'basis', 'track', 'deadline', 'retry', 'predecessor']);
   const retry = raw && exact(raw.retry, ['ordinal', 'limit']);
+  const basis = raw && exactMap(raw.basis);
+  const predecessor =
+    raw?.predecessor === null
+      ? null
+      : raw &&
+        exact(raw.predecessor, [
+          'requestId',
+          'requestBasisDigest',
+          'track',
+          'deadline',
+          'retryLimit',
+          'ordinal',
+          'disposition',
+          'resultDigest',
+        ]);
   if (
     !raw ||
     raw.version !== SOURCE_VERSION ||
     !sourceIdentity(raw.sourceIdentity) ||
+    !track(raw.track) ||
+    !basis ||
     !positive(raw.deadline) ||
     !retry ||
     !nonnegative(retry.ordinal) ||
@@ -305,6 +413,7 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
     retry.ordinal > retry.limit
   )
     return fail('FC-INPUT', 'INVALID_SOURCE_REQUEST');
+  if (basis.track !== raw.track) return fail('FC-SUBJECT', 'REQUEST_TRACK_MISMATCH');
   const requestBasisDigest = staged('SOURCE-REQUEST-BASIS', raw.basis);
   if (!requestBasisDigest.ok) return requestBasisDigest;
   const sourceDigest = staged('SOURCE-IDENTITY', raw.sourceIdentity);
@@ -314,6 +423,23 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
     requestDigest: requestBasisDigest.value,
   });
   if (!identity.ok) return fail('FC-SUBJECT', 'INVALID_SOURCE_REQUEST_ID');
+  if (retry.ordinal === 0 && predecessor !== null) return fail('FC-INPUT', 'INVALID_RETRY_PREDECESSOR');
+  if (retry.ordinal > 0) {
+    const prior = predecessor;
+    if (
+      !prior ||
+      prior.requestId !== identity.value.value ||
+      prior.requestBasisDigest !== requestBasisDigest.value ||
+      prior.track !== raw.track ||
+      prior.deadline !== raw.deadline ||
+      prior.retryLimit !== retry.limit ||
+      prior.ordinal !== retry.ordinal - 1 ||
+      !['terminal-unavailable', 'expired'].includes(prior.disposition as string) ||
+      !digest(prior.resultDigest)
+    )
+      return fail('FC-INPUT', 'INVALID_RETRY_PREDECESSOR');
+  }
+  const normalizedPredecessor = predecessor ?? null;
   return ok(
     frozen({
       version: SOURCE_VERSION,
@@ -321,8 +447,22 @@ function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
       basis: raw.basis,
       requestBasisDigest: requestBasisDigest.value,
       requestId: identity.value.value,
+      track: raw.track,
       deadline: raw.deadline,
       retry: frozen({ ordinal: retry.ordinal, limit: retry.limit }),
+      predecessor:
+        normalizedPredecessor === null
+          ? null
+          : frozen({
+              requestId: normalizedPredecessor.requestId as string,
+              requestBasisDigest: normalizedPredecessor.requestBasisDigest as string,
+              track: normalizedPredecessor.track as string,
+              deadline: normalizedPredecessor.deadline as number,
+              retryLimit: normalizedPredecessor.retryLimit as number,
+              ordinal: normalizedPredecessor.ordinal as number,
+              disposition: normalizedPredecessor.disposition as 'terminal-unavailable' | 'expired',
+              resultDigest: normalizedPredecessor.resultDigest as string,
+            }),
     }),
   );
 }
@@ -337,6 +477,7 @@ function parseExchange(request: SourceRequest, value: CanonicalJson): SourceResu
     'requestId',
     'sourceIdentity',
     'requestBasisDigest',
+    'track',
     'itemKey',
     'revision',
     'cursor',
@@ -357,6 +498,7 @@ function parseExchange(request: SourceRequest, value: CanonicalJson): SourceResu
     raw.requestId !== request.requestId ||
     raw.sourceIdentity !== request.sourceIdentity ||
     raw.requestBasisDigest !== request.requestBasisDigest ||
+    raw.track !== request.track ||
     raw.deadline !== request.deadline ||
     !nonnegative(retry.ordinal) ||
     !positive(retry.limit) ||
@@ -392,11 +534,13 @@ function parseExchange(request: SourceRequest, value: CanonicalJson): SourceResu
   if (!attestation.ok || attestation.value !== raw.attestation) return fail('FC-SUBJECT', 'UNVERIFIABLE_PROVENANCE');
   const plan = parsePlan(raw.plan);
   if (!plan.ok) return plan;
+  if (plan.value.track !== request.track) return fail('FC-SUBJECT', 'PLAN_TRACK_MISMATCH');
   const exchange: Omit<SourceExchange, 'exchangeDigest'> = {
     version: SOURCE_VERSION,
     requestId: raw.requestId,
     sourceIdentity: raw.sourceIdentity,
     requestBasisDigest: raw.requestBasisDigest,
+    track: raw.track as string,
     itemKey: raw.itemKey,
     revision: raw.revision,
     cursor: raw.cursor,
@@ -428,8 +572,10 @@ export function encodeSourceRequest(input: unknown): SourceResult<Uint8Array> {
     version: request.value.version,
     sourceIdentity: request.value.sourceIdentity,
     basis: request.value.basis,
+    track: request.value.track,
     deadline: request.value.deadline,
     retry: request.value.retry,
+    predecessor: request.value.predecessor,
   });
   return encoded.ok ? ok(encoded.value) : fail('FC-INPUT', encoded.error.code);
 }
@@ -464,6 +610,7 @@ export function encodeSourceCandidate(requestFrame: unknown, input: unknown): So
     return fail('FC-INPUT', 'INVALID_SOURCE_CANDIDATE');
   const plan = parsePlan(candidate.plan);
   if (!plan.ok) return plan;
+  if (plan.value.track !== request.value.track) return fail('FC-SUBJECT', 'PLAN_TRACK_MISMATCH');
   const contentDigest = staged('SOURCE-CONTENT', candidate.content);
   if (!contentDigest.ok) return contentDigest;
   const attestation = staged('SOURCE-ATTESTATION', {
@@ -481,6 +628,7 @@ export function encodeSourceCandidate(requestFrame: unknown, input: unknown): So
     requestId: request.value.requestId,
     sourceIdentity: candidate.sourceIdentity,
     requestBasisDigest: request.value.requestBasisDigest,
+    track: request.value.track,
     itemKey: candidate.itemKey,
     revision: candidate.revision,
     cursor: candidate.cursor,
@@ -525,10 +673,16 @@ export function createScriptedWorkSource(candidateFrame: unknown): SourceResult<
   return ok(
     frozen({
       exchange: (request, observation) => {
-        if (!observation || !nonnegative(observation.observedAt)) return fail('FC-INPUT', 'INVALID_OBSERVATION');
-        const valid = result(request, observation.observedAt);
+        const observed = entryFields(observation, ['kind', 'observedAt']);
+        if (
+          !observed ||
+          !nonnegative(observed.observedAt) ||
+          !['return', 'lost-result', 'crash'].includes(observed.kind as string)
+        )
+          return fail('FC-INPUT', 'INVALID_OBSERVATION');
+        const valid = result(request, observed.observedAt);
         if (!valid.ok) return valid;
-        return observation.kind === 'return' ? valid : fail('FC-MECHANISM', 'RESULT_UNAVAILABLE');
+        return observed.kind === 'return' ? valid : fail('FC-MECHANISM', 'RESULT_UNAVAILABLE');
       },
       recover: (request, observedAt) => result(request, observedAt),
     }),
@@ -540,8 +694,17 @@ function evidenceDigest(value: Omit<SourceConformanceEvidence, 'evidenceDigest'>
 }
 
 export function createSourceConformanceEvidence(input: unknown): SourceResult<SourceConformanceEvidence> {
-  const raw = input as Record<string, unknown> | null;
-  if (!raw || typeof raw !== 'object') return fail('FC-INPUT', 'INVALID_CONFORMANCE_EVIDENCE');
+  const raw = entryFields(input, [
+    'request',
+    'result',
+    'corpusDigest',
+    'buildDigest',
+    'suiteDigest',
+    'probeDigest',
+    'boundDigest',
+    'candidateDigest',
+  ]);
+  if (!raw) return fail('FC-INPUT', 'INVALID_CONFORMANCE_EVIDENCE');
   const exchange = validateSourceExchange(raw.request, raw.result);
   if (!exchange.ok) return exchange;
   const request = decodeSourceRequest(raw.request);
@@ -575,7 +738,9 @@ export function createSourceConformanceEvidence(input: unknown): SourceResult<So
 }
 
 export function validateSourceConformanceEvidence(input: unknown): SourceResult<SourceConformanceEvidence> {
-  const raw = exact(input, [
+  const copied = snapshot(input);
+  if (copied === undefined) return fail('FC-INPUT', 'INVALID_CONFORMANCE_EVIDENCE');
+  const raw = exact(copied, [
     'version',
     'requestDigest',
     'resultDigest',

@@ -3,8 +3,10 @@
     "version": "jig.source.v1",
     "sourceIdentity": "source/scripted-work",
     "basis": { "repository": "repo/example", "track": "track/one" },
+    "track": "track/one",
     "deadline": 200,
-    "retry": { "ordinal": 0, "limit": 2 }
+    "retry": { "ordinal": 0, "limit": 2 },
+    "predecessor": null
   },
   "candidate": {
     "version": "jig.source.v1",
