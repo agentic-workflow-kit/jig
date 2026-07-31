@@ -22,7 +22,8 @@ notes stay in the existing dispatch and handoff; do not add ledger fields or rep
 for them. The same dispatch/trace carries semantic role and story ID, root work replaced, model
 class, planned model, effort and reason, runtime agent type, context mode, hard budget, expected
 output, verification owner, actual route, and fallback reason. Jig's implementer/reviewer names are
-semantic ownership roles, not runtime agent types.
+semantic ownership roles, not runtime agent types. Jig assigns and records the verification owner
+under its local ownership rules; offload does not choose that responsibility.
 
 ## Ready-set and ownership loop
 
@@ -32,6 +33,10 @@ and whose DoR is current. Apply the safe-overlap guard: a capacity or ownership 
 ledger-recorded admission hold, never a dependency or permission to idle other ready stories. If no
 guard applies, launch every ready story within available distinct pair/worktree capacity. Pairs are
 distinct across stories and continuous within a story.
+
+Before admission, confirm that the global `offload` skill is available as an orchestration
+prerequisite. If it is absent, stop with a missing-dependency error before admitting stories; do not
+invent local routing, lower effort, or return `OWNER_DECISION_REQUIRED` for that operational gap.
 
 Before writes, classify implementer effort from both scope clarity and semantic risk. Medium is
 eligible only when current authority directly determines the realization, behavior and failure
@@ -60,9 +65,12 @@ invariant or failure mode, expected observable code/type behavior, applicable te
 relevant sibling operations, states, or types. The same response gives one authority-boundary
 result: `resolved` with the exact governing source, or `OWNER_DECISION_REQUIRED` with the missing or
 conflicting authority. Public identity, durable authority, policy, fencing, or ownership semantics
-require an exact source; clearly authorized package-private bookkeeping may proceed. The coordinator
-includes the selected offload route plus those bullets in the implementer task. They supplement the
-story contract without expanding it or adding a gate, artifact, or ledger field.
+require an exact source. Clearly authorized package-private bookkeeping may proceed only when the
+admitted story has no unresolved required authority. Any unresolved required authority blocks every
+write for that story until the authority is resolved or the owner explicitly reauthorizes a narrower
+story scope; independent ready stories continue. The coordinator includes the selected offload route
+plus those bullets in the implementer task. They supplement the story contract without expanding it
+or adding a gate, artifact, or ledger field.
 
 Before candidate freeze, the implementer maps every must-cover ID in the normal handoff to concrete
 implementation locations, applicable type/contract locations, concrete tests or a justified

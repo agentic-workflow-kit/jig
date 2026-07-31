@@ -16,6 +16,10 @@ agent types: the global `offload` skill plans compatible model, effort, context,
 before dispatch. Candidate freeze requires concrete proof mapping for every must-cover item, and
 unresolved public authority stops before writes.
 
+Runtime prerequisite: the global `offload` skill must be available before story admission. If it is
+missing, stop with a dependency error; do not substitute local routing, silently lower effort, or
+treat the missing skill as an owner decision.
+
 The skill keeps detailed state and recovery rules in
 [`references/phase-protocol.md`](./references/phase-protocol.md). Authored output and trigger evals
 are under [`evals/`](./evals/).

@@ -5,7 +5,10 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
 
 # Orchestrate phase delivery
 
-1. Run `pnpm delivery:check` and stop before scheduling if the declared track is malformed. Resolve
+1. Run `pnpm delivery:check` and stop before scheduling if the declared track is malformed. Confirm
+   that the global `offload` skill is available as an orchestration prerequisite; if it is absent,
+   stop before story admission with a missing-dependency error rather than inventing a local route,
+   lowering effort, or returning `OWNER_DECISION_REQUIRED`. Resolve
    the current approved product package from `docs/product/` and approved architecture package from
    `docs/redesign/design/`. Only then read
    `docs/delivery/greenfield/delivery-policy.md`, `story-contract.md`, `track.json`, and
@@ -27,6 +30,8 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    do not select a runtime agent type. The existing dispatch/handoff must state the story and role,
    root work replaced, model class, planned model, effort and reason, offload-selected runtime type,
    context mode, hard budget, expected output, verification owner, actual route, and any fallback.
+   Jig assigns and records the verification owner under its local ownership rules; offload does not
+   choose that responsibility.
    Default to isolated context. A fixed runtime type is ineligible when its model or effort conflicts
    with the plan, and no implementation writes begin until the accepted spawn configuration
    preserves that route. Retry rejected spawns and model unavailability only under offload's
@@ -49,10 +54,13 @@ description: "Coordinate a Jig delivery phase with declared track dependencies, 
    behavior, applicable test category, and sibling operations, states, or types. The same response
    returns either `resolved` with the exact authority source or `OWNER_DECISION_REQUIRED` with the
    missing or conflicting authority. Public identity, durable authority, policy, fencing, or
-   ownership semantics require an exact source; clearly authorized package-private bookkeeping may
-   proceed. Put the selected route plus those bullets in the implementer task. They supplement rather
-   than expand the story contract, create no new artifact or ledger field, and do not replace the
-   existing owner-decision rule. Read
+   ownership semantics require an exact source. Clearly authorized package-private bookkeeping may
+   proceed only when the admitted story has no unresolved required authority. If any required
+   authority is unresolved, block every write for that story until the authority is resolved or the
+   owner explicitly reauthorizes a narrower story scope; independent ready stories continue. Put the
+   selected route plus those bullets in the implementer task. They supplement rather than expand the
+   story contract, create no new artifact or ledger field, and do not replace the existing
+   owner-decision rule. Read
    `references/phase-protocol.md` for the implementer proof handoff, complete-pass verdict, and
    conditional structural-defect loop.
 5. Keep each pair stable through implementation, committed-candidate checks, read-only review,

@@ -170,13 +170,18 @@ routing policy. It is not the default for a large story.
 
 The classification belongs in the existing dispatch reasoning. It needs no new ledger field.
 
+Before admission, require the global `offload` skill as an orchestration dependency. If it is absent,
+stop with a missing-dependency error rather than inventing a Jig-local route, lowering effort, or
+returning `OWNER_DECISION_REQUIRED`.
+
 Before dispatch, use global offload planning for each semantic implementer and reviewer role. Record
 the role/story, root work replaced, model class, planned model, effort/reason, compatible runtime
 type, context mode, hard budget, expected output, verification owner, actual route, and fallback in
-the existing dispatch/handoff and runtime trace. Semantic role names never choose the runtime type.
-Default to isolated context; reject a fixed type whose model/effort conflicts with the plan; and do
-not begin writes until the accepted spawn configuration preserves the route. Provider fallback may
-change the actual model, never the planned model or effort.
+the existing dispatch/handoff and runtime trace. Jig assigns and records the verification owner from
+its local ownership rules; offload does not choose that responsibility. Semantic role names never
+choose the runtime type. Default to isolated context; reject a fixed type whose model/effort
+conflicts with the plan; and do not begin writes until the accepted spawn configuration preserves
+the route. Provider fallback may change the actual model, never the planned model or effort.
 
 ### 2. Prepare once, before writes
 
@@ -195,7 +200,10 @@ bullet states:
 The same response returns `resolved` with the exact authority source, or
 `OWNER_DECISION_REQUIRED` with the missing/conflicting authority. Public identity, durable
 authority, policy, fencing, or ownership semantics cannot proceed without an exact source. Clearly
-authorized package-private bookkeeping remains eligible.
+authorized package-private bookkeeping remains eligible only when the admitted story has no
+unresolved required authority. Any unresolved required authority blocks every write for that story
+until the authority is resolved or the owner explicitly reauthorizes a narrower story scope;
+independent ready stories continue.
 
 The coordinator includes those bullets in the implementer task. They supplement the story contract;
 they do not replace or expand it. A genuine ambiguity still follows the existing
