@@ -412,6 +412,12 @@ function parsePlan(value: CanonicalJson): SourceResult<SourcePlan> {
   );
 }
 
+/** Shared GF-019 SCH-PLAN validation boundary for Builder consumers. */
+export function validateSourcePlan(input: unknown): SourceResult<SourcePlan> {
+  const value = canonical(input);
+  return value.ok ? parsePlan(value.value) : value;
+}
+
 function parseRequest(value: CanonicalJson): SourceResult<SourceRequest> {
   const raw = exact(value, ['version', 'sourceIdentity', 'basis', 'track', 'deadline', 'retry', 'predecessor']);
   const retry = raw && exact(raw.retry, ['ordinal', 'limit']);

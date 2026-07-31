@@ -3,6 +3,7 @@
  * ports, providers, setup execution, approval, intake, or controller imports.
  */
 import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { validateSourcePlan } from './source.js';
 
 export const ENVELOPE_POLICY_VERSION = 'jig.envelope-policy.v1';
 
@@ -40,7 +41,7 @@ export type EnvelopeProposal = Readonly<{
   policy: Readonly<Record<string, number>>;
   bounds: Readonly<Record<string, Readonly<{ value: number; rangeVersion: 'jig.envelope-bounds.v1' }>>>;
   digests: Readonly<
-    Record<'policy' | 'profile' | 'artifacts' | 'setup' | 'ranges' | 'candidate' | 'suite' | 'probe', string>
+    Record<'plan' | 'policy' | 'profile' | 'artifacts' | 'setup' | 'ranges' | 'candidate' | 'suite' | 'probe', string>
   >;
   proposalDigest: string;
 }>;
@@ -87,17 +88,26 @@ function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
     )
       return value;
     if (Array.isArray(value)) {
-      if (Object.getPrototypeOf(value) !== Array.prototype || value.length > 128) return undefined;
+      if (Object.getPrototypeOf(value) !== Array.prototype) return undefined;
       const descriptors = Object.getOwnPropertyDescriptors(value);
+      const length = descriptors.length as PropertyDescriptor | undefined;
+      if (
+        !length ||
+        !('value' in length) ||
+        typeof length.value !== 'number' ||
+        !Number.isSafeInteger(length.value) ||
+        length.value > 128
+      )
+        return undefined;
       const output: CanonicalJson[] = [];
-      for (let index = 0; index < value.length; index += 1) {
+      for (let index = 0; index < length.value; index += 1) {
         const descriptor = descriptors[String(index)];
         if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
         const child = snapshot(descriptor.value, depth + 1);
         if (child === undefined) return undefined;
         output.push(child);
       }
-      if (Reflect.ownKeys(value).length !== value.length + 1) return undefined;
+      if (Reflect.ownKeys(value).length !== length.value + 1) return undefined;
       return output;
     }
     if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return undefined;
@@ -110,7 +120,12 @@ function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
       if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
       const child = snapshot(descriptor.value, depth + 1);
       if (child === undefined) return undefined;
-      result[key as string] = child;
+      Object.defineProperty(result, key as string, {
+        value: child,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return result;
   } catch {
@@ -130,25 +145,28 @@ function stage(domain: string, value: CanonicalJson): string | undefined {
 
 export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal> {
   const root = object(snapshot(input));
-  if (!root || !exactKeys(root, ['plan', 'policy', 'profile', 'artifacts', 'setup', 'ruleSurface']))
+  if (!root || !exactKeys(root, ['plan', 'policy', 'profile', 'artifacts', 'setup', 'ruleSurface', 'guidance']))
     return fail('INVALID_ENVELOPE_INPUT');
   const plan = object(root.plan);
   const policyInput = object(root.policy);
   const profile = object(root.profile);
   const setup = object(root.setup);
   const rules = object(root.ruleSurface);
+  const guidance = object(root.guidance);
   const artifacts = root.artifacts;
-  if (!plan || !policyInput || !profile || !setup || !rules || !Array.isArray(artifacts))
+  if (!plan || !policyInput || !profile || !setup || !rules || !guidance || !Array.isArray(artifacts))
     return fail('MISSING_COMPOSITION_INPUT');
   if (
-    !exactKeys(plan, ['track', 'stories']) ||
     !exactKeys(policyInput, ['track', 'floors', 'bounds', 'capacities', 'reserves']) ||
-    !exactKeys(profile, ['track', 'version', 'promptDigest']) ||
-    !exactKeys(setup, ['track', 'recipeDigest', 'inputFingerprintRule']) ||
-    !exactKeys(rules, ['track', 'version', 'rules'])
+    !exactKeys(profile, ['track', 'version', 'promptDigest', 'roles']) ||
+    !exactKeys(setup, ['track', 'recipeDigest', 'inputFingerprintRule', 'pathManifest', 'ruleManifest']) ||
+    !exactKeys(rules, ['track', 'version', 'rules']) ||
+    !exactKeys(guidance, ['rationale', 'suitableUse', 'tradeoffs'])
   )
     return fail('UNKNOWN_COMPOSITION_FIELD');
-  const track = plan.track;
+  const approvedPlan = validateSourcePlan(plan);
+  if (!approvedPlan.ok) return fail(approvedPlan.error.code);
+  const track = approvedPlan.value.track;
   if (
     !name(track, 'track') ||
     policyInput.track !== track ||
@@ -167,7 +185,15 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     policy[key] = choice;
   }
   if (Object.keys(selected).some((key) => !(key in floors) || !integer(selected[key]))) return fail('UNKNOWN_RULE');
-  if (!digest(profile.promptDigest) || !digest(setup.recipeDigest) || typeof setup.inputFingerprintRule !== 'string')
+  if (
+    !digest(profile.promptDigest) ||
+    !digest(setup.recipeDigest) ||
+    typeof setup.inputFingerprintRule !== 'string' ||
+    !Array.isArray(profile.roles) ||
+    !Array.isArray(setup.pathManifest) ||
+    !Array.isArray(setup.ruleManifest) ||
+    ![guidance.rationale, guidance.suitableUse, guidance.tradeoffs].every((value) => typeof value === 'string')
+  )
     return fail('INVALID_PROFILE_OR_SETUP');
   const artifactIds = new Set<string>();
   for (const artifact of artifacts) {
@@ -180,10 +206,25 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
       !digest(item.digest)
     )
       return fail('INVALID_ARTIFACT');
-    if (!exactKeys(item, ['track', 'kind', 'version', 'digest'])) return fail('INVALID_ARTIFACT');
-    const id = `${item.kind}:${item.version}:${item.digest}`;
+    if (!exactKeys(item, ['track', 'kind', 'version', 'digest', 'id']) || typeof item.id !== 'string')
+      return fail('INVALID_ARTIFACT');
+    const id = `${item.id}:${item.kind}:${item.version}:${item.digest}`;
     if (artifactIds.has(id)) return fail('INVALID_ARTIFACT');
     artifactIds.add(id);
+  }
+  const prompts = new Set<string>();
+  for (const role of profile.roles) {
+    const entry = object(role);
+    if (
+      !entry ||
+      !exactKeys(entry, ['role', 'prompt']) ||
+      typeof entry.role !== 'string' ||
+      typeof entry.prompt !== 'string' ||
+      prompts.has(entry.prompt) ||
+      ![...artifactIds].some((id) => id.startsWith(`${entry.prompt}:role-prompt:`))
+    )
+      return fail('INVALID_PROFILE_REFERENCE');
+    prompts.add(entry.prompt);
   }
   const requestedBounds = object(policyInput.bounds);
   if (!requestedBounds) return fail('INVALID_BOUNDS');
@@ -196,14 +237,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   if (Object.keys(requestedBounds).some((id) => !(id in ENVELOPE_BOUNDS))) return fail('UNKNOWN_BOUND');
   const capacities = object(policyInput.capacities);
   const reserves = object(policyInput.reserves);
-  const stories = plan.stories;
-  if (
-    !capacities ||
-    !reserves ||
-    !Array.isArray(stories) ||
-    capacities['RC-FINALIZER'] !== 1 ||
-    'RC-FINALIZER' in reserves
-  )
+  if (!capacities || !reserves || capacities['RC-FINALIZER'] !== 1 || 'RC-FINALIZER' in reserves)
     return fail('INVALID_CAPACITY');
   for (const [resource, capacity] of Object.entries(capacities)) {
     if (
@@ -225,34 +259,12 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     )
   )
     return fail('INVALID_RESERVE');
-  for (const story of stories) {
-    const record = object(story);
-    const demand = record && object(record.demand);
-    if (
-      !record ||
-      !exactKeys(record, ['key', 'track', 'demand']) ||
-      record.track !== track ||
-      !name(record.key, 'story') ||
-      !demand
-    )
-      return fail('INVALID_PLAN');
-    for (const [resource, amount] of Object.entries(demand)) {
-      const capacity = capacities[resource];
-      if (
-        !integer(amount) ||
-        !integer(capacity) ||
-        amount > capacity ||
-        (resource !== 'RC-FINALIZER' && amount + (reserves[resource] as number) > capacity)
-      )
-        return fail('INFEASIBLE_PATH');
-    }
-  }
   const canonical = {
     version: ENVELOPE_POLICY_VERSION,
     track,
     policy,
     bounds,
-    plan,
+    plan: approvedPlan.value as unknown as CanonicalJson,
     profile,
     artifacts,
     setup,
@@ -264,11 +276,13 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const artifactDigest = stage('EP-ARTIFACTS', artifacts);
   const setupDigest = stage('EP-SETUP', setup);
   const rangeDigest = stage('EP-RANGES', bounds);
-  const candidateDigest = stage('EP-CANDIDATE', plan);
+  const planDigest = stage('EP-PLAN', approvedPlan.value as unknown as CanonicalJson);
+  const candidateDigest = stage('EP-CANDIDATE', approvedPlan.value as unknown as CanonicalJson);
   const suiteDigest = stage('EP-SUITE', rules);
   const probeDigest = stage('EP-PROBE', { capacities, reserves });
   if (
     !digest(proposalDigest) ||
+    !digest(planDigest) ||
     !digest(policyDigest) ||
     !digest(profileDigest) ||
     !digest(artifactDigest) ||
@@ -286,6 +300,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
       policy,
       bounds,
       digests: {
+        plan: planDigest,
         policy: policyDigest,
         profile: profileDigest,
         artifacts: artifactDigest,

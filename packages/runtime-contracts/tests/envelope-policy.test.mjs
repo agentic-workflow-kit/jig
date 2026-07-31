@@ -13,14 +13,38 @@ const policy = {
 
 const input = () => ({
   plan: {
+    version: 'jig.plan.v1',
     track: 'track/default',
-    stories: [{ key: 'story/one', track: 'track/default', demand: { 'RC-SESSION': 1, 'RC-FINALIZER': 1 } }],
+    policy: { frozenCheckClasses: ['check/unit'], capacities: { cpu: 3 }, reserves: { cpu: 1 } },
+    stories: [
+      {
+        key: 'story/one',
+        track: 'track/default',
+        dependsOn: [],
+        done: { kind: 'checks-pass', checkClasses: ['check/unit'] },
+        requirements: ['req'],
+        acceptanceCriteria: ['accept'],
+        demand: { cpu: 1 },
+      },
+    ],
   },
   policy: structuredClone(policy),
-  profile: { track: 'track/default', version: 'v1', promptDigest: 'a'.repeat(64) },
-  artifacts: [{ track: 'track/default', kind: 'preset', version: 'v1', digest: 'b'.repeat(64) }],
-  setup: { track: 'track/default', recipeDigest: 'c'.repeat(64), inputFingerprintRule: 'workspace-v1' },
+  profile: {
+    track: 'track/default',
+    version: 'v1',
+    promptDigest: 'a'.repeat(64),
+    roles: [{ role: 'implementer', prompt: 'prompt/one' }],
+  },
+  artifacts: [{ track: 'track/default', kind: 'role-prompt', version: 'v1', digest: 'a'.repeat(64), id: 'prompt/one' }],
+  setup: {
+    track: 'track/default',
+    recipeDigest: 'c'.repeat(64),
+    inputFingerprintRule: 'workspace-v1',
+    pathManifest: ['src'],
+    ruleManifest: ['review'],
+  },
   ruleSurface: { track: 'track/default', version: 'v1', rules: { review: 3, checks: 1 } },
+  guidance: { rationale: 'why', suitableUse: 'when', tradeoffs: 'cost' },
 });
 
 test('GF-021: composition preserves floors, pins defaults, one track, and is replayable', () => {

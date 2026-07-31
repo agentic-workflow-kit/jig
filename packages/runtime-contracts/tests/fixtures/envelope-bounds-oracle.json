@@ -1,0 +1,15 @@
+{
+  "version": "jig.envelope-bounds.v1",
+  "BND-REWORK": { "default": 2, "lower": 1, "upper": 5, "unit": "count" },
+  "BND-RETRY": { "default": 3, "lower": 1, "upper": 5, "unit": "count" },
+  "BND-REFRESH": { "default": 2, "lower": 1, "upper": 5, "unit": "count" },
+  "BND-WAIT-DECISION": { "default": 259200, "lower": 3600, "upper": 2592000, "unit": "seconds" },
+  "BND-WAIT-MECHANISM": { "default": 900, "lower": 5, "upper": 7200, "unit": "seconds" },
+  "BND-WAIT-CAPACITY": { "default": 86400, "lower": 3600, "upper": 2592000, "unit": "seconds" },
+  "BND-WAIT-LEDGER": { "default": 30, "lower": 1, "upper": 300, "unit": "seconds" },
+  "BND-WAIT-TARGET": { "default": 1800, "lower": 60, "upper": 86400, "unit": "seconds" },
+  "BND-IDLE": { "default": 1800, "lower": 300, "upper": 28800, "unit": "seconds" },
+  "BND-SILENCE": { "default": 300, "lower": 10, "upper": 1800, "unit": "seconds" },
+  "BND-RECOVERY": { "default": 3, "lower": 1, "upper": 5, "unit": "count" },
+  "BND-RETIRE": { "default": 3, "lower": 1, "upper": 5, "unit": "count" }
+}
