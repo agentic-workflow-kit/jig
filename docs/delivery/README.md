@@ -90,6 +90,18 @@ parallel. GF-023 is effect-free and cannot create a Run or dispatch: it starts o
 qualified source, ledger/registry/witness, and artifact provider evidence gates close, then records
 separate exact Arye approvals for the proposal and provider manifest.
 
+Before Phase 3 starts, Phase 2 must complete these required tasks and close its declared exit gate:
+
+- Provision the exact GF-020 structured source at
+  `/Users/aryekogan/.local/share/jig/work-sources/work-plan.json`, then record current exact source
+  mechanism and provider-gate qualification evidence. File presence alone is insufficient.
+- Mount `/Volumes/JigWitness/jig` as the independently administered witness root, verify that it is
+  outside the primary filesystem and its backups, then record current GF-025 ledger/witness and
+  GF-026 artifact mechanism/provider qualification evidence. A same-filesystem substitute is
+  ineligible.
+- Complete GF-023 and GF-024 from those current qualification facts. Phase 3 is not ready while
+  either external qualification task or either remaining Phase 2 story is incomplete.
+
 `CF-GATE-PRODUCT` is narrower than the supported-profile claim: it requires exactly 39 recorded
 suite results plus every named element/governance record of all 44 settled `PC-*` proof routes. The
 56 imports remain a separate matrix-plus-suite disposition audit for the broader supported-profile
