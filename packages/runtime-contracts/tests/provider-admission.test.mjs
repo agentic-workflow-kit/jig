@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -7,7 +8,7 @@ const runtime = await import('../dist/index.js');
 const manifestBytes = readFileSync(resolve(import.meta.dirname, './fixtures/provider-authority-manifest.json'));
 const manifest = JSON.parse(manifestBytes);
 const approvedBytes = Buffer.from(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}',
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
 );
 const manifestDigest = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
 const providerDigest = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
@@ -35,6 +36,9 @@ const configured = (ledger = runtime.createScriptedLedger()) => ({ manifestBytes
 
 test('provider admission: exact Arye manifest approval and positive exact-subject proof are necessary but never configure a provider', () => {
   assert.equal(typeof runtime.createProviderAdmissionFixture, 'function');
+  assert.equal(manifestBytes.byteLength, 418);
+  assert.equal(createHash('sha256').update(manifestBytes).digest('hex'), manifestDigest);
+  assert.deepEqual(manifestBytes, approvedBytes);
   const fixture = runtime.createProviderAdmissionFixture(configured());
   assert.equal(fixture.approve(approval).ok, true);
   const started = fixture.start(start);
@@ -137,6 +141,12 @@ test('review regression: approved authority is exact bytes and proof storage sur
   const ledger = runtime.createScriptedLedger();
   const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: approvedBytes, approval, ledger });
   assert.equal(fixture.approve(approval).ok, true);
+  assert.equal(
+    runtime
+      .createProviderAdmissionFixture({ manifestBytes: approvedBytes.subarray(0, -1), approval, ledger })
+      .approve(approval).ok,
+    false,
+  );
   assert.equal(
     runtime
       .createProviderAdmissionFixture({
