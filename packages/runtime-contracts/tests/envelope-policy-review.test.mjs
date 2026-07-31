@@ -9,7 +9,7 @@ const digest = (c) => c.repeat(64);
 const plan = () => ({
   version: 'jig.plan.v1',
   track: 'track/default',
-  policy: { frozenCheckClasses: ['check/unit'], capacities: { cpu: 3 }, reserves: { cpu: 1 } },
+  policy: { frozenCheckClasses: ['check/unit'], capacities: { 'rc-session': 3 }, reserves: { 'rc-session': 1 } },
   stories: [
     {
       key: 'story/one',
@@ -18,7 +18,7 @@ const plan = () => ({
       done: { kind: 'checks-pass', checkClasses: ['check/unit'] },
       requirements: ['req'],
       acceptanceCriteria: ['accept'],
-      demand: { cpu: 1 },
+      demand: { 'rc-session': 1 },
     },
   ],
 });
@@ -35,10 +35,18 @@ const input = () => ({
   profile: {
     track: 'track/default',
     version: 'v1',
+    model: 'model/default',
+    provider: 'provider/declarative',
+    effort: 'standard',
+    cost: 'balanced',
+    promptStrategy: { artifact: 'strategy/default', version: 'v1', digest: digest('a') },
     promptDigest: digest('a'),
     roles: [{ role: 'implementer', prompt: 'prompt/one' }],
   },
-  artifacts: [{ track: 'track/default', kind: 'role-prompt', version: 'v1', digest: digest('a'), id: 'prompt/one' }],
+  artifacts: [
+    { track: 'track/default', kind: 'role-prompt', version: 'v1', digest: digest('a'), id: 'prompt/one' },
+    { track: 'track/default', kind: 'prompt-strategy', version: 'v1', digest: digest('a'), id: 'strategy/default' },
+  ],
   setup: {
     track: 'track/default',
     recipeDigest: digest('c'),
@@ -86,4 +94,61 @@ test('R02 second-review RED: prompt digest must bind the referenced prompt artif
   const value = input();
   value.profile.promptDigest = digest('f');
   assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+
+test('R05 RED: generic approved-plan resources are composition-incompatible', () => {
+  const value = input();
+  value.plan.policy.capacities = { cpu: 3 };
+  value.plan.policy.reserves = { cpu: 1 };
+  value.plan.stories[0].demand = { cpu: 1 };
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R05: composition rejects cumulative dependency demand that exhausts the reserve', () => {
+  const value = input();
+  value.plan.stories.push({
+    ...value.plan.stories[0],
+    key: 'story/two',
+    dependsOn: ['story/one'],
+    demand: { 'rc-session': 1 },
+  });
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R06 RED: floor mutation changes proposal identity', () => {
+  const a = input();
+  const b = input();
+  b.policy.floors.review = 1;
+  const left = runtime.composeEnvelope(a);
+  const right = runtime.composeEnvelope(b);
+  assert.equal(left.ok, true);
+  assert.equal(right.ok, true);
+  assert.notEqual(left.value.proposalDigest, right.value.proposalDigest);
+});
+test('R07 RED: declarative model profile is accepted but no provider authority appears', () => {
+  const value = input();
+  value.profile.model = 'model/x';
+  const result = runtime.composeEnvelope(value);
+  assert.equal(result.ok, true);
+  assert.equal('provider' in result.value, false);
+});
+test('R08 RED: bearer credential-shaped guidance rejects without disclosure', () => {
+  const value = input();
+  value.guidance.rationale = 'Bearer abc.def.ghi';
+  const result = runtime.composeEnvelope(value);
+  assert.equal(result.ok, false);
+  assert.equal('message' in result.error, false);
+});
+test('R08: benign prose mentioning a token remains accepted', () => {
+  const value = input();
+  value.guidance.rationale = 'A token budget is part of the cost tradeoff.';
+  assert.equal(runtime.composeEnvelope(value).ok, true);
+});
+test('R09 RED: guidance-only mutation changes proposal digest', () => {
+  const a = input();
+  const b = input();
+  b.guidance.rationale = 'different';
+  const left = runtime.composeEnvelope(a);
+  const right = runtime.composeEnvelope(b);
+  assert.equal(left.ok, true);
+  assert.equal(right.ok, true);
+  assert.notEqual(left.value.proposalDigest, right.value.proposalDigest);
 });

@@ -70,6 +70,21 @@ const RESOURCE_CLASSES = new Set([
   'RC-DELIVERY',
   'RC-FINALIZER',
 ]);
+const RESOURCE_WIRE_IDS = Object.freeze({
+  'rc-isolation': 'RC-ISOLATION',
+  'rc-session': 'RC-SESSION',
+  'rc-impl-turn': 'RC-IMPL-TURN',
+  'rc-review-turn': 'RC-REVIEW-TURN',
+  'rc-verify': 'RC-VERIFY',
+  'rc-delivery': 'RC-DELIVERY',
+  'rc-finalizer': 'RC-FINALIZER',
+} as const);
+const CREDENTIAL_SHAPES = [
+  /\bbearer\s+[a-z0-9._~+/-]{8,}/iu,
+  /\b(?:api[ _-]?key|token|secret|password)\s*[:=]\s*\S{8,}/iu,
+  /\b(?:ghp|gho|github_pat|sk|rk|pk)_[a-z0-9_-]{8,}/iu,
+  /\beyJ[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/u,
+] as const;
 const exactKeys = (value: Record<string, CanonicalJson>, keys: readonly string[]): boolean => {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
@@ -142,6 +157,11 @@ function stage(domain: string, value: CanonicalJson): string | undefined {
   const result = stageDigest({ domain, value, excludePaths: [] });
   return result.ok ? result.value.digest : undefined;
 }
+function containsCredential(value: CanonicalJson): boolean {
+  if (typeof value === 'string') return CREDENTIAL_SHAPES.some((shape) => shape.test(value));
+  if (Array.isArray(value)) return value.some(containsCredential);
+  return value !== null && typeof value === 'object' && Object.values(value).some(containsCredential);
+}
 
 export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal> {
   const root = object(snapshot(input));
@@ -156,9 +176,20 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const artifacts = root.artifacts;
   if (!plan || !policyInput || !profile || !setup || !rules || !guidance || !Array.isArray(artifacts))
     return fail('MISSING_COMPOSITION_INPUT');
+  if (containsCredential(root)) return fail('CREDENTIAL_SHAPED_INPUT');
   if (
     !exactKeys(policyInput, ['track', 'floors', 'selections', 'bounds', 'capacities', 'reserves']) ||
-    !exactKeys(profile, ['track', 'version', 'promptDigest', 'roles']) ||
+    !exactKeys(profile, [
+      'track',
+      'version',
+      'model',
+      'provider',
+      'effort',
+      'cost',
+      'promptStrategy',
+      'promptDigest',
+      'roles',
+    ]) ||
     !exactKeys(setup, ['track', 'recipeDigest', 'inputFingerprintRule', 'pathManifest', 'ruleManifest']) ||
     !exactKeys(rules, ['track', 'version', 'entries']) ||
     !exactKeys(guidance, ['rationale', 'suitableUse', 'tradeoffs'])
@@ -166,6 +197,32 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     return fail('UNKNOWN_COMPOSITION_FIELD');
   const approvedPlan = validateSourcePlan(plan);
   if (!approvedPlan.ok) return fail(approvedPlan.error.code);
+  const normalizeResource = (wire: string): string | undefined =>
+    RESOURCE_WIRE_IDS[wire as keyof typeof RESOURCE_WIRE_IDS];
+  const normalizedPlanResources = Object.keys(approvedPlan.value.policy.capacities).map(normalizeResource);
+  if (
+    normalizedPlanResources.some((resource) => resource === undefined) ||
+    new Set(normalizedPlanResources).size !== normalizedPlanResources.length ||
+    Object.keys(approvedPlan.value.policy.reserves).some((wire) => normalizeResource(wire) === undefined) ||
+    approvedPlan.value.stories.some((story) =>
+      Object.keys(story.demand).some((wire) => normalizeResource(wire) === undefined),
+    )
+  )
+    return fail('CONFIGURATION_INCOMPATIBLE');
+  const normalizedPlan = {
+    capacities: Object.fromEntries(
+      Object.entries(approvedPlan.value.policy.capacities).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+    ),
+    reserves: Object.fromEntries(
+      Object.entries(approvedPlan.value.policy.reserves).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+    ),
+    demands: Object.fromEntries(
+      approvedPlan.value.stories.map((story) => [
+        story.key,
+        Object.fromEntries(Object.entries(story.demand).map(([wire, amount]) => [normalizeResource(wire)!, amount])),
+      ]),
+    ),
+  };
   const track = approvedPlan.value.track;
   if (
     !name(track, 'track') ||
@@ -185,9 +242,20 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     policy[key] = choice;
   }
   if (Object.keys(selected).some((key) => !(key in floors) || !integer(selected[key]))) return fail('UNKNOWN_RULE');
+  const promptStrategy = object(profile.promptStrategy);
   if (
     !digest(profile.promptDigest) ||
     !digest(setup.recipeDigest) ||
+    typeof profile.model !== 'string' ||
+    typeof profile.provider !== 'string' ||
+    typeof profile.effort !== 'string' ||
+    typeof profile.cost !== 'string' ||
+    !promptStrategy ||
+    !exactKeys(promptStrategy, ['artifact', 'digest', 'version']) ||
+    typeof promptStrategy.artifact !== 'string' ||
+    !digest(promptStrategy.digest) ||
+    typeof promptStrategy.version !== 'string' ||
+    promptStrategy.digest !== profile.promptDigest ||
     typeof setup.inputFingerprintRule !== 'string' ||
     !Array.isArray(profile.roles) ||
     !Array.isArray(setup.pathManifest) ||
@@ -213,6 +281,12 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     artifactIds.add(id);
   }
   const prompts = new Set<string>();
+  if (
+    ![...artifactIds].some(
+      (id) => id === `${promptStrategy.artifact}:prompt-strategy:${promptStrategy.version}:${promptStrategy.digest}`,
+    )
+  )
+    return fail('INVALID_PROFILE_REFERENCE');
   for (const role of profile.roles) {
     const entry = object(role);
     if (
@@ -275,12 +349,41 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     )
   )
     return fail('INVALID_RESERVE');
+  const byStoryKey = new Map(approvedPlan.value.stories.map((story) => [story.key, story]));
+  const demandAt = (key: string, resource: string, memo = new Map<string, number>()): number => {
+    const memoKey = `${key}\u0000${resource}`;
+    const known = memo.get(memoKey);
+    if (known !== undefined) return known;
+    const story = byStoryKey.get(key)!;
+    const demand =
+      ((normalizedPlan.demands[story.key] as Record<string, number>)[resource] ?? 0) +
+      Math.max(0, ...story.dependsOn.map((dependency) => demandAt(dependency, resource, memo)));
+    memo.set(memoKey, demand);
+    return demand;
+  };
+  for (const resource of RESOURCE_CLASSES) {
+    const demand = approvedPlan.value.stories.map((story) => demandAt(story.key, resource));
+    const capacity = capacities[resource];
+    if (capacity === undefined) {
+      if (demand.some((value) => value > 0)) return fail('CONFIGURATION_INCOMPATIBLE');
+    } else if (
+      resource === 'RC-FINALIZER'
+        ? demand.some((value) => value > 1)
+        : demand.some(
+            (value) =>
+              value + (typeof reserves[resource] === 'number' ? reserves[resource] : 0) >
+              (typeof capacity === 'number' ? capacity : 0),
+          )
+    )
+      return fail('PLAN_FEASIBILITY_FAILED');
+  }
   const canonical = {
     version: ENVELOPE_POLICY_VERSION,
     track,
-    policy,
+    policy: { floors, selections: selected, capacities, reserves },
     bounds,
     plan: approvedPlan.value as unknown as CanonicalJson,
+    normalizedPlan,
     profile,
     artifacts,
     setup,

@@ -16,7 +16,7 @@ const input = () => ({
   plan: {
     version: 'jig.plan.v1',
     track: 'track/default',
-    policy: { frozenCheckClasses: ['check/unit'], capacities: { cpu: 3 }, reserves: { cpu: 1 } },
+    policy: { frozenCheckClasses: ['check/unit'], capacities: { 'rc-session': 3 }, reserves: { 'rc-session': 1 } },
     stories: [
       {
         key: 'story/one',
@@ -25,7 +25,7 @@ const input = () => ({
         done: { kind: 'checks-pass', checkClasses: ['check/unit'] },
         requirements: ['req'],
         acceptanceCriteria: ['accept'],
-        demand: { cpu: 1 },
+        demand: { 'rc-session': 1 },
       },
     ],
   },
@@ -33,10 +33,18 @@ const input = () => ({
   profile: {
     track: 'track/default',
     version: 'v1',
+    model: 'model/default',
+    provider: 'provider/declarative',
+    effort: 'standard',
+    cost: 'balanced',
+    promptStrategy: { artifact: 'strategy/default', version: 'v1', digest: 'a'.repeat(64) },
     promptDigest: 'a'.repeat(64),
     roles: [{ role: 'implementer', prompt: 'prompt/one' }],
   },
-  artifacts: [{ track: 'track/default', kind: 'role-prompt', version: 'v1', digest: 'a'.repeat(64), id: 'prompt/one' }],
+  artifacts: [
+    { track: 'track/default', kind: 'role-prompt', version: 'v1', digest: 'a'.repeat(64), id: 'prompt/one' },
+    { track: 'track/default', kind: 'prompt-strategy', version: 'v1', digest: 'a'.repeat(64), id: 'strategy/default' },
+  ],
   setup: {
     track: 'track/default',
     recipeDigest: 'c'.repeat(64),
