@@ -9,6 +9,8 @@ import {
   validateSourceExchange,
 } from '@agentic-workflow-kit/jig-runtime-contracts';
 
+export * from './local-file-artifact.js';
+
 export const STRUCTURED_FILE_SOURCE_IDENTITY = 'source/structured-json-file-source';
 export const STRUCTURED_FILE_SOURCE_PATH = '/Users/aryekogan/.local/share/jig/work-sources/work-plan.json';
 export const STRUCTURED_FILE_SOURCE_MANIFEST = new TextEncoder().encode(
