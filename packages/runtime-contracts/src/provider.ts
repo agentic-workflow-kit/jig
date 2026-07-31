@@ -61,6 +61,9 @@ const STRUCTURED_FILE_CATALOGUE = Object.freeze({
     'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
   scope: Object.freeze({ phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' }),
   environment: 'environment/local-file-source',
+  principal: 'principal/arye',
+  capability: 'PORT-SOURCE/read-structured-json',
+  policyMinimum: 'policy/structured-file-source/v1',
 });
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const DIGEST = /^[0-9a-f]{64}$/u;
@@ -403,17 +406,36 @@ function approval(value: unknown): Approval | undefined {
 /** Exact GF-020 catalogue gate; no caller can register a different manifest or self-enable it. */
 export function structuredFileProviderGate(
   input: unknown,
-): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>> {
-  const data = fields(input, ['environment', 'manifestBytes', 'manifestId', 'providerBuild', 'scope']);
+): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>> {
+  const data = fields(input, [
+    'approval',
+    'capability',
+    'environment',
+    'manifestBytes',
+    'manifestId',
+    'policyMinimum',
+    'providerBuildDigest',
+    'resourceDigest',
+    'scope',
+  ]);
+  const approval = data && fields(data.approval, ['manifestDigest', 'manifestId', 'principal', 'scope']);
   if (
     !data ||
     !exactCatalogueBytes(data.manifestBytes) ||
     data.manifestId !== STRUCTURED_FILE_CATALOGUE.manifestId ||
-    !safeText(data.providerBuild) ||
+    !approval ||
+    approval.principal !== STRUCTURED_FILE_CATALOGUE.principal ||
+    approval.manifestId !== STRUCTURED_FILE_CATALOGUE.manifestId ||
+    approval.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
+    !same(approval.scope, STRUCTURED_FILE_CATALOGUE.scope) ||
+    data.capability !== STRUCTURED_FILE_CATALOGUE.capability ||
+    data.policyMinimum !== STRUCTURED_FILE_CATALOGUE.policyMinimum ||
+    !safeDigest(data.providerBuildDigest) ||
+    !safeDigest(data.resourceDigest) ||
     data.environment !== STRUCTURED_FILE_CATALOGUE.environment ||
     !same(data.scope, STRUCTURED_FILE_CATALOGUE.scope)
   )
     return fail('FC-AUTHORITY', 'EXACT_MANIFEST_BINDING_REQUIRED');
-  // The selected file and independent current conformance record are absent; fail closed.
-  return ok({ kind: 'unavailable', providerEnabled: false as const });
+  // Eligibility is proof only. Reachability remains separately unavailable until live qualification.
+  return ok({ kind: 'eligible', manifestId: STRUCTURED_FILE_CATALOGUE.manifestId, providerEnabled: false as const });
 }

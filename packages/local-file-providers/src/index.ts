@@ -150,10 +150,9 @@ function readOpenedFile(fd: number, size: number): FileSourceResult<Uint8Array> 
   return { ok: true, value: bytes };
 }
 
-/** Probe-only mechanism. It never creates a configurable provider; admission remains unavailable until independent qualification. */
-export function probeStructuredFileSource(filePath: string, requestFrame: unknown): FileSourceResult<SourceExchange> {
-  if (!filePath.startsWith('/') || filePath.includes('/../') || filePath.endsWith('/..'))
-    return fail('FC-INPUT', 'PATH_OUT_OF_SCOPE');
+/** This mechanism is deliberately private: only the manifest-scoped exact path can reach it. */
+function readStructuredFileSource(requestFrame: unknown): FileSourceResult<SourceExchange> {
+  const filePath = STRUCTURED_FILE_SOURCE_PATH;
   let fd: number | undefined;
   try {
     const before = lstatSync(filePath);
@@ -161,7 +160,14 @@ export function probeStructuredFileSource(filePath: string, requestFrame: unknow
     if (realpathSync(filePath) !== filePath) return fail('FC-INPUT', 'PATH_OUT_OF_SCOPE');
     fd = openSync(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
     const opened = fstatSync(fd);
-    if (!opened.isFile() || opened.nlink !== 1 || opened.size > MAX_BYTES) return fail('FC-INPUT', 'UNSAFE_FILE');
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.size > MAX_BYTES ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino
+    )
+      return fail('FC-MECHANISM', 'TOCTOU_DETECTED');
     const bytes = readOpenedFile(fd, opened.size);
     if (!bytes.ok) return bytes;
     const parsed = strictJson(bytes.value);

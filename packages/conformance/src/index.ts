@@ -280,11 +280,6 @@ export type RecordInput = Readonly<{
   attempt: number;
 }>;
 export type EvidenceRecord = Readonly<RecordInput & { readonly schemaVersion: typeof CONFORMANCE_VERSION }>;
-declare const providerRecorderEvidenceBrand: unique symbol;
-/** Opaque capability minted only by this module after an independent-recorder binding check. */
-export type ProviderRecorderEvidence = Readonly<{
-  readonly [providerRecorderEvidenceBrand]: 'recorder/jig-conformance/v1';
-}>;
 export type GateResult = Readonly<{
   gate: GateId;
   passed: boolean;
@@ -332,10 +327,8 @@ export type AttemptLog = Readonly<{
   bytes: string;
 }>;
 const gateResults = new WeakSet<object>();
-const providerRecorderEvidence = new WeakMap<
-  object,
-  Readonly<{ subject: Subject; records: readonly EvidenceRecord[] }>
->();
+const PROVIDER_RECORDER_ID = 'recorder/jig-conformance/v1';
+const providerRecorderEvidence = new WeakSet<object>();
 export function deterministicHarness(clock: number, seed: string): DeterministicHarness {
   let ordinal = 0;
   const safeClock = nonnegativeSafeInteger(clock) ? clock : 0;
@@ -608,9 +601,16 @@ export function append(
           reason: 'duplicate:key-bytes',
           failureClass: 'FC-INPUT',
         };
+  const record = Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION });
+  if (
+    input.subject.recorderIdentity === PROVIDER_RECORDER_ID &&
+    input.independentRecorder === PROVIDER_RECORDER_ID &&
+    input.subject.providerId !== undefined
+  )
+    providerRecorderEvidence.add(record);
   return {
     status: input.status,
-    records: Object.freeze([...prepared.records, Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION })]),
+    records: Object.freeze([...prepared.records, record]),
   };
 }
 
@@ -761,45 +761,7 @@ function suiteGate(
 export function evaluateRealization(records: readonly EvidenceRecord[], subject: Subject): GateResult {
   return suiteGate('CF-GATE-REALIZATION', REALIZATION_SUITES, records, subject);
 }
-/**
- * This is intentionally the sole minting point. Provider packages only receive the resulting
- * opaque value through configuration; they cannot construct a passing recorder identity.
- */
-export function recordProviderEvidence(
-  records: readonly EvidenceRecord[],
-  subject: Subject,
-  independentRecorder: string,
-): ProviderRecorderEvidence | undefined {
-  const expectedSubject = snapshotSubject(subject);
-  const prepared = prepareRecords(records);
-  if (
-    !expectedSubject ||
-    prepared.reasons.length > 0 ||
-    expectedSubject.recorderIdentity !== 'recorder/jig-conformance/v1' ||
-    independentRecorder !== expectedSubject.recorderIdentity ||
-    prepared.records.some((record) => record.independentRecorder !== independentRecorder)
-  )
-    return undefined;
-  const token = Object.freeze({}) as ProviderRecorderEvidence;
-  providerRecorderEvidence.set(token as object, Object.freeze({ subject, records }));
-  return token;
-}
-function matchingProviderEvidence(evidence: unknown, records: readonly EvidenceRecord[], subject: Subject): boolean {
-  if (typeof evidence !== 'object' || evidence === null) return false;
-  const bound = providerRecorderEvidence.get(evidence);
-  return (
-    bound !== undefined &&
-    bound.subject === subject &&
-    bound.records === records &&
-    subject.recorderIdentity === 'recorder/jig-conformance/v1'
-  );
-}
-export function evaluateProvider(
-  port: PortId,
-  records: readonly EvidenceRecord[],
-  subject: Subject,
-  evidence?: ProviderRecorderEvidence,
-): GateResult {
+export function evaluateProvider(port: PortId, records: readonly EvidenceRecord[], subject: Subject): GateResult {
   const expectedSubject = snapshotSubject(subject);
   if (!expectedSubject) return gateResult('CF-GATE-PROVIDER', ['invalid:subject']);
   const prepared = prepareRecords(records);
@@ -819,7 +781,11 @@ export function evaluateProvider(
     !expectedSubject.environmentDigest
   )
     reasons.push('missing:provider-binding');
-  if (!matchingProviderEvidence(evidence, records, subject)) reasons.push('missing:independent-recorder-provenance');
+  if (
+    expectedSubject.recorderIdentity !== PROVIDER_RECORDER_ID ||
+    !prepared.records.every((record) => providerRecorderEvidence.has(record))
+  )
+    reasons.push('missing:independent-recorder-provenance');
   return gateResult('CF-GATE-PROVIDER', reasons);
 }
 export function evaluateProduct(
