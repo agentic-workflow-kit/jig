@@ -1,5 +1,6 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { isScriptedLedger } from './ledger.js';
+import { certificateClaims } from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -45,14 +46,6 @@ type Fixture = Readonly<{
   readback(input: unknown): ProviderAdmissionResult<Attempt>;
   reachability(): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>>;
 }>;
-type QualificationClaims = Readonly<{
-  subject: Readonly<Record<string, unknown>>;
-  resourceDigest: string;
-  capability: string;
-  policyMinimum: string;
-}>;
-export type QualificationCertificate = object;
-const qualificationCertificates = new WeakMap<object, QualificationClaims>();
 
 const APPROVED_MANIFEST_DIGEST = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
 const APPROVED_PROVIDER_DIGEST = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
@@ -77,92 +70,6 @@ const STRUCTURED_FILE_CATALOGUE = Object.freeze({
   resourceDigest: 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
 });
 
-/**
- * Internal friend-only issuer. It is deliberately absent from the package root:
- * conformance is the sole repository package permitted to import the subpath.
- */
-export function issueQualificationCertificate(input: unknown): QualificationCertificate | undefined {
-  const data = fields(input, ['capability', 'policyMinimum', 'resourceDigest', 'subject']);
-  const subject =
-    data &&
-    fields(data.subject, [
-      'buildDigest',
-      'candidateCommit',
-      'candidateContentDigest',
-      'candidateTree',
-      'catalogDigest',
-      'clockId',
-      'environmentDigest',
-      'executionBaseCommit',
-      'executionBaseTree',
-      'fixtureDigest',
-      'manifestDigest',
-      'mergeBaseCommit',
-      'probeVersion',
-      'providerBuildDigest',
-      'providerId',
-      'recorderIdentity',
-      'recordedAt',
-      'seed',
-      'suiteVersion',
-      'toolchainDigest',
-      'topologyVersion',
-    ]);
-  if (
-    !data ||
-    !subject ||
-    data.capability !== STRUCTURED_FILE_CATALOGUE.capability ||
-    data.policyMinimum !== STRUCTURED_FILE_CATALOGUE.policyMinimum ||
-    data.resourceDigest !== STRUCTURED_FILE_CATALOGUE.resourceDigest ||
-    subject.providerId !== 'structured-json-file-source/v1' ||
-    subject.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
-    subject.environmentDigest !== STRUCTURED_FILE_CATALOGUE.environmentDigest ||
-    subject.providerBuildDigest !== STRUCTURED_FILE_CATALOGUE.providerBuildDigest ||
-    !validQualificationSubject(subject)
-  )
-    return undefined;
-  const certificate = Object.freeze({});
-  qualificationCertificates.set(
-    certificate,
-    Object.freeze({
-      subject: Object.freeze({ ...subject }),
-      resourceDigest: data.resourceDigest as string,
-      capability: data.capability as string,
-      policyMinimum: data.policyMinimum as string,
-    }),
-  );
-  return certificate;
-}
-
-function validQualificationSubject(subject: Record<string, unknown>): boolean {
-  return (
-    [
-      'candidateContentDigest',
-      'candidateTree',
-      'executionBaseTree',
-      'buildDigest',
-      'toolchainDigest',
-      'catalogDigest',
-      'fixtureDigest',
-      'providerBuildDigest',
-      'manifestDigest',
-      'environmentDigest',
-    ].every((key) => safeDigest(subject[key])) &&
-    [
-      'candidateCommit',
-      'executionBaseCommit',
-      'mergeBaseCommit',
-      'providerId',
-      'suiteVersion',
-      'probeVersion',
-      'clockId',
-      'seed',
-      'recorderIdentity',
-      'topologyVersion',
-    ].every((key) => safeText(subject[key])) &&
-    safeTime(subject.recordedAt)
-  );
-}
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const DIGEST = /^[0-9a-f]{64}$/u;
 
@@ -543,11 +450,11 @@ export function structuredFileQualificationGate(
   input: unknown,
 ): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>> {
   const data = fields(input, ['certificate', 'gate']);
-  if (!data || !plain(data.certificate) || !qualificationCertificates.has(data.certificate))
+  if (!data || !plain(data.certificate) || !certificateClaims.has(data.certificate))
     return fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
   const gate = structuredFileProviderGate(data.gate);
   if (!gate.ok) return gate;
-  const claims = qualificationCertificates.get(data.certificate);
+  const claims = certificateClaims.get(data.certificate);
   return claims && claims.subject.providerId === 'structured-json-file-source/v1'
     ? gate
     : fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
@@ -595,8 +502,7 @@ export function createStructuredFileAdmission(input: unknown): StructuredFileAdm
     fields(input, ['certificate', 'gate', 'ledger', 'observedAt']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const certificate = config?.certificate;
-  const claims =
-    certificate && typeof certificate === 'object' ? qualificationCertificates.get(certificate) : undefined;
+  const claims = certificate && typeof certificate === 'object' ? certificateClaims.get(certificate) : undefined;
   const gate = config && structuredFileQualificationGate({ certificate, gate: config.gate });
   const conformanceMaxAgeMs = config?.conformanceMaxAgeMs ?? CONFORMANCE_AGE_DEFAULT_MS;
   const validConformanceMaxAge =
@@ -772,7 +678,13 @@ export function createStructuredFileAdmission(input: unknown): StructuredFileAdm
     result: (attempt) => write(attempt, 'result'),
     admit(admission) {
       const data = fields(admission, ['maxAgeMs', 'observedAt', 'proof']);
-      if (!data || !safeTime(data.maxAgeMs) || !safeTime(data.observedAt) || !plain(data.proof))
+      if (
+        !data ||
+        !safeTime(data.maxAgeMs) ||
+        data.maxAgeMs !== conformanceMaxAgeMs ||
+        !safeTime(data.observedAt) ||
+        !plain(data.proof)
+      )
         return fail('FC-INPUT', 'INVALID_ADMISSION');
       const proof = data.proof as StructuredFileAttempt;
       const stored = Number.isSafeInteger(proof.ordinal) ? read(proof.ordinal, 'result') : undefined;

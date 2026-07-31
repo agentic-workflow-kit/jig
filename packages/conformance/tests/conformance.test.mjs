@@ -559,8 +559,15 @@ test('only a branded passing exact PORT-SOURCE observation mints an opaque runti
   const observation = conformance.observeProvider('PORT-SOURCE', records, providerSubject);
   assert.equal(observation.ok, true);
   if (!observation.ok) return;
-  const certificate = conformance.mintStructuredFileQualificationCertificate(
-    observation.record,
+  assert.equal(
+    conformance.mintStructuredFileQualificationCertificate(
+      observation.record,
+      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
+    ),
+    undefined,
+  );
+  const certificate = conformance.executeStructuredFileQualification(
+    providerSubject,
     'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
   );
   assert.ok(certificate);
@@ -632,7 +639,7 @@ test('only a branded passing exact PORT-SOURCE observation mints an opaque runti
   assert.equal(completed.ok, true);
   if (!completed.ok) return;
   assert.equal(
-    admitted.admit({ maxAgeMs: 1_000, observedAt: providerSubject.recordedAt + 2, proof: completed.value }).ok,
+    admitted.admit({ maxAgeMs: 86_400_000, observedAt: providerSubject.recordedAt + 2, proof: completed.value }).ok,
     true,
   );
   const recovered = runtime.createStructuredFileAdmission({

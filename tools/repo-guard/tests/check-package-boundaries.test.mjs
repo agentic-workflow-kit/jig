@@ -146,3 +146,13 @@ test('permits the qualification friend subpath only from conformance', () => {
   );
   assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
 });
+
+test('rejects computed dynamic imports that could bypass friend restrictions', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-file-providers', 'src', 'index.ts'),
+      "const name = '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate'; import(name);\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('cannot use dynamic import')));
+});

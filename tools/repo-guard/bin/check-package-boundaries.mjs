@@ -264,6 +264,8 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);
     for (const path of sources) {
       const source = readFileSync(path, 'utf8');
+      if (/\bimport\s*\(/u.test(executableSource(source)))
+        errors.push(`${manifest.name} source cannot use dynamic import`);
       for (const specifier of importSpecifiers(source))
         if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
         else if (knownNativeCapabilities[manifest.name]?.has(specifier)) continue;

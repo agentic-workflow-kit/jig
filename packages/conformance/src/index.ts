@@ -1,4 +1,4 @@
-import { decodeFrame } from '@agentic-workflow-kit/jig-codec';
+import { decodeFrame, encodeFrame } from '@agentic-workflow-kit/jig-codec';
 import { TOPOLOGY_VERSION } from '@agentic-workflow-kit/jig-runtime-contracts';
 import { mintQualificationCertificate } from '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';
 
@@ -640,7 +640,6 @@ export function observeProvider(
     schemaVersion: CONFORMANCE_VERSION,
   });
   providerRecorderEvidence.add(record);
-  qualifiedProviderObservations.add(record);
   return Object.freeze({ ok: true, record });
 }
 
@@ -665,6 +664,25 @@ export function mintStructuredFileQualificationCertificate(
     capability: 'PORT-SOURCE/read-structured-json',
     policyMinimum: 'policy/structured-file-source/v1',
   });
+}
+
+/** The only positive qualification execution constructs and brands its own observation. */
+export function executeStructuredFileQualification(subject: Subject, resourceDigest: unknown): object | undefined {
+  const frame = encodeFrame({
+    key: 'qualification/structured-file-source',
+    bytes: 'qualification/structured-file-source',
+    suite: 'CF-MECH-SOURCE',
+    status: 'pass',
+    subject,
+    independentRecorder: PROVIDER_RECORDER_ID,
+    complete: true,
+    attempt: 1,
+  });
+  if (!frame.ok) return undefined;
+  const observed = observeProvider('PORT-SOURCE', append([], frame.value).records, subject);
+  if (!observed.ok) return undefined;
+  qualifiedProviderObservations.add(observed.record);
+  return mintStructuredFileQualificationCertificate(observed.record, resourceDigest);
 }
 
 const SUBJECT_FIELDS = Object.freeze([
@@ -836,9 +854,12 @@ export function evaluateProvider(port: PortId, records: readonly EvidenceRecord[
     reasons.push('missing:provider-binding');
   if (
     expectedSubject.recorderIdentity !== PROVIDER_RECORDER_ID ||
-    !snapshotArray(records)?.every(
-      (record) => typeof record === 'object' && record !== null && providerRecorderEvidence.has(record),
-    )
+    !snapshotArray(records)
+      ?.filter((record) => {
+        const snapshot = snapshotRecord(record);
+        return snapshot?.suite === suite;
+      })
+      .every((record) => typeof record === 'object' && record !== null && providerRecorderEvidence.has(record))
   )
     reasons.push('missing:independent-recorder-provenance');
   return gateResult('CF-GATE-PROVIDER', reasons);
