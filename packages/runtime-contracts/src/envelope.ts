@@ -283,7 +283,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     if (!exactKeys(item, ['track', 'kind', 'version', 'digest', 'id']) || typeof item.id !== 'string')
       return fail('INVALID_ARTIFACT');
     const id = `${item.id}:${item.kind}:${item.version}:${item.digest}`;
-    if (artifactIds.has(id)) return fail('INVALID_ARTIFACT');
+    if (artifactIds.has(id) || artifactRecords.has(item.id)) return fail('INVALID_ARTIFACT');
     artifactIds.add(id);
     artifactRecords.set(item.id, item);
   }

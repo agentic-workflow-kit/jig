@@ -15,14 +15,14 @@ import {
 
 /** Exact owner-selected authority manifest. Construction still fails closed below. */
 export const LOCAL_FILE_ARTIFACT_MANIFEST = new TextEncoder().encode(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"mode":"immutable-create-read-no-move-no-alias-no-dispose","root":"/Users/aryekogan/.local/share/jig/artifacts/protected"},{"mode":"immutable-create-read-two-pin-lookup-guarded-dispose","root":"/Users/aryekogan/.local/share/jig/artifacts/disposable"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"local-file-artifact-provider/v1","runtimeAuthority":{"environment":"local-user-machine/v1","kind":"artifact-port-only","package":"packages/local-file-providers"},"scope":{"phase":2,"purpose":"local-file-artifact-provider","story":"GF-026"},"subprocessAuthority":[]}\n',
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"mode":"immutable-create-read-no-move-no-alias-no-dispose","root":"<JIG_DATA_HOME>/artifacts/protected"},{"mode":"immutable-create-read-two-pin-lookup-guarded-dispose","root":"<JIG_DATA_HOME>/artifacts/disposable"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"local-file-artifact-provider/v1","runtimeAuthority":{"environment":"local-user-machine/v1","kind":"artifact-port-only","package":"packages/local-file-providers"},"scope":{"phase":2,"purpose":"local-file-artifact-provider","story":"GF-026"},"subprocessAuthority":[]}\n',
 );
-export const LOCAL_FILE_ARTIFACT_MANIFEST_DIGEST = '7381945e9ecb91a1e80b6a9f1fba8e6829590bc0ee6f7df3510fc81273304c1f';
+export const LOCAL_FILE_ARTIFACT_MANIFEST_DIGEST = '34a4035163a3b67d51e518f96307622ed043753832eb434872cb089c7b94f2df';
 export const LOCAL_FILE_ARTIFACT_MANIFEST_ID =
-  'provider/29398e4851f5eed7fcca59f7f9eb84869cf34a70545349f227adabe41483227e/authority/7381945e9ecb91a1e80b6a9f1fba8e6829590bc0ee6f7df3510fc81273304c1f';
+  'provider/29398e4851f5eed7fcca59f7f9eb84869cf34a70545349f227adabe41483227e/authority/34a4035163a3b67d51e518f96307622ed043753832eb434872cb089c7b94f2df';
 export const LOCAL_FILE_ARTIFACT_ROOTS = Object.freeze({
-  protected: '/Users/aryekogan/.local/share/jig/artifacts/protected',
-  disposable: '/Users/aryekogan/.local/share/jig/artifacts/disposable',
+  protected: '<JIG_DATA_HOME>/artifacts/protected',
+  disposable: '<JIG_DATA_HOME>/artifacts/disposable',
 });
 
 export const ARTIFACT_WAIT_DEFAULT_MS = 900_000;
@@ -367,6 +367,11 @@ function createOracle(
         hash(value.bytes) !== bound.value.digest
       )
         return fail('FC-INPUT', 'INVALID_PROTECTED_CB_STORE');
+      const prior = operations.get(`${bound.value.operation}/put`);
+      if (prior)
+        return prior.binding === canonical(bound.value)
+          ? fail('FC-TRUST', 'RECONCILE_REQUIRED')
+          : fail('FC-FENCE', 'OPERATION_BINDING_MISMATCH');
       const authorized = intent(bound.value);
       if (!authorized.ok) return authorized;
       const interrupted = effectFailure(fault);
@@ -378,8 +383,11 @@ function createOracle(
       }
       protectedPosition += 1;
       protectedHead = hash(`${protectedHead}\0${canonical(bound.value)}`);
-      journal.push({ kind: 'protected', request: serializable(value) });
-      return ok(Object.freeze({ digest: bound.value.digest }));
+      const fact = record(bound.value, fault === 'lost-ack');
+      journal.push({ kind: 'protected', request: serializable(value), fact });
+      return fault === 'lost-ack'
+        ? fail('FC-EFFECT', 'ACK_LOST_RECONCILE_REQUIRED')
+        : ok(Object.freeze({ digest: bound.value.digest }));
     },
     getProtected(request) {
       const value = fields(request, ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode']);
@@ -1003,13 +1011,20 @@ function reconcile(
               ]
             : undefined;
     if (!names) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
-    const value = fields(request, names);
+    const value =
+      fields(request, names) ??
+      (mode === 'put'
+        ? fields(request, ['resourceScope', 'subject', 'digest', 'fence', 'holder', 'operation', 'mode', 'bytes'])
+        : undefined);
     const bound = binding(value, mode as Mode, resourceScope);
     if (!value || !bound.ok) return fail('FC-INPUT', 'INVALID_RECONCILIATION');
     let exactBinding: Binding | undefined = bound.value;
     if (mode === 'put') {
-      const pins = exactPins(value.pins, bound.value.holder);
-      exactBinding = pins.ok ? Object.freeze({ ...bound.value, detail: canonical(pins.value) }) : undefined;
+      if (routeContext(bound.value.holder) === 'protected') exactBinding = bound.value;
+      else {
+        const pins = exactPins(value.pins, bound.value.holder);
+        exactBinding = pins.ok ? Object.freeze({ ...bound.value, detail: canonical(pins.value) }) : undefined;
+      }
     } else if (mode === 'release-pin') {
       const pins = exactPins(value.pins, bound.value.holder);
       const registration =

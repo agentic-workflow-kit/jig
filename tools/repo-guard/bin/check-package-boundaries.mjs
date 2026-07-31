@@ -24,6 +24,7 @@ const knownNativeCapabilities = {
 const friendSubpaths = {
   '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',
 };
+const distTarget = (value) => value.startsWith('./dist/') && !value.split('/').includes('..');
 
 function readJson(path, errors, label) {
   try {
@@ -40,6 +41,15 @@ function sourceFiles(root) {
     const path = join(root, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
     return entry.isFile() && /\.[cm]?ts$/.test(entry.name) ? [path] : [];
+  });
+}
+
+function codeFiles(root) {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) return codeFiles(path);
+    return entry.isFile() && /\.[cm]?[jt]s$/.test(entry.name) ? [path] : [];
   });
 }
 
@@ -203,13 +213,12 @@ function validateManifest(manifest, packageDir, workspaceNames, errors) {
   if (
     manifest.exports &&
     !(
-      (typeof manifest.exports === 'string' && manifest.exports.startsWith('./dist/')) ||
-      (plainExportMap(manifest.exports) &&
-        Object.values(manifest.exports).every((value) => value.startsWith('./dist/')))
+      (typeof manifest.exports === 'string' && distTarget(manifest.exports)) ||
+      (plainExportMap(manifest.exports) && Object.values(manifest.exports).every(distTarget))
     )
   )
     errors.push(`${label} exports must resolve only from dist`);
-  if (manifest.types && (typeof manifest.types !== 'string' || !manifest.types.startsWith('./dist/')))
+  if (manifest.types && (typeof manifest.types !== 'string' || !distTarget(manifest.types)))
     errors.push(`${label} types must resolve only from dist`);
   if (Object.keys(manifest.scripts ?? {}).some((name) => name === 'start' || forbiddenLifecycleScript.test(name)))
     errors.push(`${label} exposes a start or package lifecycle script`);
@@ -260,6 +269,12 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
 
   for (const { directory, manifest } of manifests) {
     validateManifest(manifest, directory, workspaceNames, errors);
+    if (manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts')
+      for (const path of codeFiles(directory)) {
+        const source = readFileSync(path, 'utf8');
+        if (importSpecifiers(source).some((specifier) => /(?:^|\/)qualification-registry(?:\.js)?$/u.test(specifier)))
+          errors.push(`${manifest.name} bypasses the private qualification registry boundary`);
+      }
     const sources = sourceFiles(join(directory, 'src'));
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);
     for (const path of sources) {

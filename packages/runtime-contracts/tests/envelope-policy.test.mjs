@@ -90,6 +90,13 @@ test('GF-021: rejects unknown policy selections, unsafe reserve, cross-track inp
   }
 });
 
+test('GF-021: artifact identifiers are unique independently of kind and digest', () => {
+  const value = input();
+  value.artifacts[1].id = value.artifacts[0].id;
+  value.artifacts[1].digest = 'b'.repeat(64);
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+
 test('GF-021: every design-owned bound accepts lower/default/upper and rejects just outside', () => {
   for (const [id, definition] of Object.entries(runtime.ENVELOPE_BOUNDS)) {
     for (const selected of [definition.lower, definition.default, definition.upper]) {

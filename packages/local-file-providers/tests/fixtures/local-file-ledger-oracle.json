@@ -1,9 +1,9 @@
 {
   "providerIdentity": "local-file-ledger-provider/v1",
-  "manifestDigest": "80fa6ad9e8b06e2cb0c78864ee12ec9a990d7677b37533665d17d0520b680d7d",
-  "manifestId": "provider/073c62ae4abcbc443acf11f78151943758eb1a1f91fddee12c22b204dc6d0351/authority/80fa6ad9e8b06e2cb0c78864ee12ec9a990d7677b37533665d17d0520b680d7d",
-  "primaryRoot": "/Users/aryekogan/.local/share/jig/state",
-  "witnessRoot": "/Volumes/JigWitness/jig",
+  "manifestDigest": "81fd7b308b9772cfab08468add8f6977788738b493e85d57f134eed7149387ff",
+  "manifestId": "provider/073c62ae4abcbc443acf11f78151943758eb1a1f91fddee12c22b204dc6d0351/authority/81fd7b308b9772cfab08468add8f6977788738b493e85d57f134eed7149387ff",
+  "primaryRoot": "<JIG_DATA_HOME>/state",
+  "witnessRoot": "<JIG_WITNESS_ROOT>",
   "wait": { "defaultMs": 30000, "minimumMs": 1000, "maximumMs": 300000 },
   "fiveWay": ["committed", "absent", "competing", "integrity-failure", "indeterminate-read"]
 }

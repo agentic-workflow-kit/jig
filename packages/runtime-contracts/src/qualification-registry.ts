@@ -98,7 +98,7 @@ export function snapshotQualificationClaims(value: unknown): QualificationClaims
     claims.resourceDigest !== 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd' ||
     subject.providerId !== 'structured-json-file-source/v1' ||
     subject.providerBuildDigest !== '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81' ||
-    subject.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
+    subject.manifestDigest !== '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18' ||
     subject.environmentDigest !== 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536' ||
     subject.recorderIdentity !== 'recorder/jig-conformance/v1' ||
     subject.topologyVersion !== 'jig.runtime-topology.v1' ||
@@ -120,5 +120,21 @@ export function snapshotQualificationClaims(value: unknown): QualificationClaims
   }) as QualificationClaims;
 }
 
-export const certificateClaims = new WeakMap<object, QualificationClaims>();
-export const executionClaims = new WeakMap<object, QualificationClaims>();
+const certificateClaims = new WeakMap<object, QualificationClaims>();
+const executionClaims = new WeakMap<object, QualificationClaims>();
+
+export function registerExecutionClaims(carrier: object, claims: QualificationClaims): void {
+  executionClaims.set(carrier, claims);
+}
+
+export function readExecutionClaims(carrier: object): QualificationClaims | undefined {
+  return executionClaims.get(carrier);
+}
+
+export function registerCertificateClaims(certificate: object, claims: QualificationClaims): void {
+  certificateClaims.set(certificate, claims);
+}
+
+export function readCertificateClaims(certificate: object): QualificationClaims | undefined {
+  return certificateClaims.get(certificate);
+}

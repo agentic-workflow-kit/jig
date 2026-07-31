@@ -3,7 +3,7 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const request = (deadline, limit) =>
+const encodeRequest = (deadline, limit) =>
   runtime.encodeSourceRequest({
     version: 'jig.source.v1',
     sourceIdentity: 'source/structured-json-file-source',
@@ -12,7 +12,12 @@ const request = (deadline, limit) =>
     deadline,
     retry: { ordinal: 0, limit },
     predecessor: null,
-  }).value;
+  });
+const request = (deadline, limit) => {
+  const encoded = encodeRequest(deadline, limit);
+  assert.equal(encoded.ok, true);
+  return encoded.value;
+};
 
 test('the live provider is structurally unavailable before qualification', () =>
   assert.deepEqual(provider.createQualifiedStructuredFileSource(), {
@@ -37,6 +42,10 @@ test('the adapter boundary retains the fixed wait and retry ranges', () => {
     [7_200_001, 3],
     [900_000, 0],
     [900_000, 6],
-  ])
-    assert.equal(provider.validateStructuredFileSourceRequest(request(wait, retry)).ok, false);
+  ]) {
+    const encoded = encodeRequest(wait, retry);
+    if (encoded.ok) assert.equal(provider.validateStructuredFileSourceRequest(encoded.value).ok, false);
+    else assert.equal(encoded.error.family, 'FC-INPUT');
+  }
+  assert.equal(provider.validateStructuredFileSourceRequest(undefined).ok, false);
 });

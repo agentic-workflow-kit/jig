@@ -23,13 +23,13 @@ import {
 } from './path-confinement.js';
 
 export const LOCAL_FILE_LEDGER_PROVIDER_IDENTITY = 'local-file-ledger-provider/v1';
-export const LOCAL_FILE_LEDGER_MANIFEST_DIGEST = '80fa6ad9e8b06e2cb0c78864ee12ec9a990d7677b37533665d17d0520b680d7d';
+export const LOCAL_FILE_LEDGER_MANIFEST_DIGEST = '81fd7b308b9772cfab08468add8f6977788738b493e85d57f134eed7149387ff';
 export const LOCAL_FILE_LEDGER_MANIFEST_ID =
-  'provider/073c62ae4abcbc443acf11f78151943758eb1a1f91fddee12c22b204dc6d0351/authority/80fa6ad9e8b06e2cb0c78864ee12ec9a990d7677b37533665d17d0520b680d7d';
-export const LOCAL_FILE_LEDGER_ROOT = '/Users/aryekogan/.local/share/jig/state';
-export const LOCAL_FILE_WITNESS_ROOT = '/Volumes/JigWitness/jig';
+  'provider/073c62ae4abcbc443acf11f78151943758eb1a1f91fddee12c22b204dc6d0351/authority/81fd7b308b9772cfab08468add8f6977788738b493e85d57f134eed7149387ff';
+export const LOCAL_FILE_LEDGER_ROOT = '<JIG_DATA_HOME>/state';
+export const LOCAL_FILE_WITNESS_ROOT = '<JIG_WITNESS_ROOT>';
 export const LOCAL_FILE_LEDGER_MANIFEST = new TextEncoder().encode(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"/Users/aryekogan/.local/share/jig/state/intake-preflight"},{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"/Users/aryekogan/.local/share/jig/state/registries"},{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"/Users/aryekogan/.local/share/jig/state/run-ledgers"},{"access":["create","read"],"confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"/Users/aryekogan/.local/share/jig/state/snapshots","semantics":"non-authoritative-verified-replay-only"},{"access":["append","create","read"],"backupSeparation":"excluded-from-primary-filesystem-backups","commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"/Volumes/JigWitness/jig","trustBasis":"separately-administered-witness-filesystem"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"local-file-ledger-provider/v1","runtimeAuthority":{"environment":"local-os-user-execution-context","kind":"node-local-file-provider","package":"packages/local-file-providers"},"scope":{"phase":2,"purpose":"local-file-ledger-registry-witness-provider","story":"GF-025"},"subprocessAuthority":[]}\n',
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"<JIG_DATA_HOME>/state/intake-preflight"},{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"<JIG_DATA_HOME>/state/registries"},{"access":["append","create","read"],"commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"<JIG_DATA_HOME>/state/run-ledgers"},{"access":["create","read"],"confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"<JIG_DATA_HOME>/state/snapshots","semantics":"non-authoritative-verified-replay-only"},{"access":["append","create","read"],"backupSeparation":"excluded-from-primary-filesystem-backups","commit":"same-root-create-if-absent-non-replacing","confinement":["canonical-path","regular-file-only","reject-symlink","reject-traversal","toctou-fail-closed"],"root":"<JIG_WITNESS_ROOT>","trustBasis":"separately-administered-witness-filesystem"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"local-file-ledger-provider/v1","runtimeAuthority":{"environment":"local-os-user-execution-context","kind":"node-local-file-provider","package":"packages/local-file-providers"},"scope":{"phase":2,"purpose":"local-file-ledger-registry-witness-provider","story":"GF-025"},"subprocessAuthority":[]}\n',
 );
 
 export type LocalFileLedgerFailure = Readonly<{
@@ -97,6 +97,16 @@ function binding(value: unknown): FileMechanismResult<RunStoreBinding> {
     return ok(Object.freeze({ kind: 'run', run, generation }));
   } catch {
     return fail('FC-SUBJECT', 'INVALID_STORE_BINDING');
+  }
+}
+
+function dataProperty(value: unknown, name: string): unknown {
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(value, name);
+    return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -181,7 +191,12 @@ export function createLocalFileRunLedgerForConformance(
   const trustedHead = (run: string, records: readonly LedgerRecord[]): FileMechanismResult<WitnessHead> => {
     const ledgerHead = head(records);
     const witnessed = witness.read(`run:${run}`);
-    if (!witnessed.ok) return witnessed;
+    if (!witnessed.ok)
+      return witnessed.error.code === 'WITNESS_ABSENT' && ledgerHead.position === GENESIS.position
+        ? ok(ledgerHead)
+        : witnessed.error.code === 'WITNESS_ABSENT'
+          ? fail('FC-TRUST', 'WITNESS_BEHIND')
+          : witnessed;
     if (witnessed.value.position > ledgerHead.position) return fail('FC-TRUST', 'WITNESS_AHEAD');
     if (witnessed.value.position < ledgerHead.position) return fail('FC-TRUST', 'WITNESS_BEHIND');
     if (witnessed.value.digest !== ledgerHead.digest) return fail('FC-TRUST', 'WITNESS_MISMATCH');
@@ -194,81 +209,110 @@ export function createLocalFileRunLedgerForConformance(
       fault?: 'before-append' | 'after-flush' | 'after-witness' | 'lost-ack',
     ): FileMechanismResult<LedgerRecord> {
       if (!independent.ok) return independent;
-      const bounded = wait(request?.wait);
+      const bounded = wait(dataProperty(request, 'wait'));
       if (!bounded.ok) return bounded;
-      const bound = binding(request?.binding);
+      const bound = binding(dataProperty(request, 'binding'));
       if (!bound.ok) return bound;
       const records = recordsFor(bound.value.run);
       if (!records.ok) return records;
-      const prepared = createLedgerRecord({
-        run: request.record.run,
-        generation: request.record.generation,
-        transaction: request.record.transaction,
-        position: request.record.position,
-        previousDigest: request.record.previousDigest,
-        content: request.record.content,
-      });
-      if (!prepared.ok || prepared.value.contentDigest !== request.record.contentDigest)
+      const currentTrust = trustedHead(bound.value.run, records.value);
+      if (!currentTrust.ok) return currentTrust;
+      const recordInput = dataProperty(request, 'record');
+      if (typeof recordInput !== 'object' || recordInput === null || Array.isArray(recordInput))
         return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
-      const current = head(records.value);
+      const run = dataProperty(recordInput, 'run');
+      const generation = dataProperty(recordInput, 'generation');
+      const transaction = dataProperty(recordInput, 'transaction');
+      const position = dataProperty(recordInput, 'position');
+      const previousDigest = dataProperty(recordInput, 'previousDigest');
+      const content = dataProperty(recordInput, 'content');
       if (
-        request.expectedPosition !== current.position ||
-        request.record.position !== current.position + 1 ||
-        request.record.previousDigest !== current.digest
+        typeof run !== 'string' ||
+        typeof generation !== 'string' ||
+        typeof transaction !== 'string' ||
+        !isPosition(position) ||
+        typeof previousDigest !== 'string'
+      )
+        return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
+      const prepared = createLedgerRecord({
+        run,
+        generation,
+        transaction,
+        position,
+        previousDigest,
+        content: content as LedgerRecord['content'],
+      });
+      if (!prepared.ok || prepared.value.contentDigest !== dataProperty(recordInput, 'contentDigest'))
+        return fail('FC-INPUT', 'INVALID_PREPARED_RECORD');
+      const record = prepared.value;
+      const expectedPosition = dataProperty(request, 'expectedPosition');
+      const current = currentTrust.value;
+      if (
+        expectedPosition !== current.position ||
+        record.position !== current.position + 1 ||
+        record.previousDigest !== current.digest
       )
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
-      if (request.record.run !== bound.value.run || request.record.generation !== bound.value.generation)
+      if (record.run !== bound.value.run || record.generation !== bound.value.generation)
         return fail('FC-SUBJECT', 'APPEND_BINDING_MISMATCH');
       const lastGeneration = records.value.at(-1)?.generation;
       if (lastGeneration && lastGeneration !== bound.value.generation) {
         const priorOrdinal = generationOrdinal(lastGeneration);
         const nextOrdinal = generationOrdinal(bound.value.generation);
         if (
-          !isGenerationClaim(request.record.content) ||
+          !isGenerationClaim(record.content) ||
           priorOrdinal === undefined ||
           nextOrdinal === undefined ||
           nextOrdinal <= priorOrdinal
         )
           return fail('FC-FENCE', 'STALE_GENERATION');
-      } else if (lastGeneration && isGenerationClaim(request.record.content)) {
+      } else if (lastGeneration && isGenerationClaim(record.content)) {
         return fail('FC-FENCE', 'DUPLICATE_GENERATION_CLAIM');
       }
       if (fault === 'before-append') return fail('FC-TRUST', 'ACK_LOST');
-      const position = request.record.position;
-      const record = Object.freeze({ ...request.record, event: `${bound.value.run}/event/${position + 1}` });
+      const storedPosition = record.position;
+      const storedRecord = Object.freeze({ ...record, event: `${bound.value.run}/event/${storedPosition + 1}` });
       const intent = writeCreateOnlyJson(
         ledgerRoot,
         [resourceKey(bound.value.run), 'intents'],
-        `${String(position).padStart(12, '0')}-${record.contentDigest}.json`,
-        { run: bound.value.run, generation: bound.value.generation, position, contentDigest: record.contentDigest },
+        `${String(storedPosition).padStart(12, '0')}-${storedRecord.contentDigest}.json`,
+        {
+          run: bound.value.run,
+          generation: bound.value.generation,
+          position: storedPosition,
+          contentDigest: storedRecord.contentDigest,
+        },
       );
       if (!intent.ok && intent.error.code !== 'ALREADY_EXISTS') return intent;
       const stored = writeCreateOnlyJson(
         ledgerRoot,
         [resourceKey(bound.value.run), 'records'],
-        `${String(position).padStart(12, '0')}.json`,
-        record,
+        `${String(storedPosition).padStart(12, '0')}.json`,
+        storedRecord,
       );
       if (!stored.ok) return stored;
       if (fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
       const advanced = witness.advance(`run:${bound.value.run}`, current, {
-        position,
-        digest: record.contentDigest,
+        position: storedPosition,
+        digest: storedRecord.contentDigest,
       });
       if (!advanced.ok) return advanced;
       if (fault === 'after-witness' || fault === 'lost-ack') return fail('FC-TRUST', 'ACK_LOST');
-      return ok(record);
+      return ok(storedRecord);
     },
     readback(request: ReadbackRequest, fault?: 'indeterminate-read'): FileMechanismResult<Readback> {
       if (!independent.ok) return independent;
       if (fault === 'indeterminate-read') return fail('FC-TRUST', 'INDETERMINATE_READ');
-      const bounded = wait(request?.wait);
+      const bounded = wait(dataProperty(request, 'wait'));
       if (!bounded.ok) return bounded;
-      const bound = binding(request?.binding);
+      const bound = binding(dataProperty(request, 'binding'));
       if (!bound.ok) return bound;
-      if (!isPosition(request.position) || request.position < 0 || !isDigest(request.contentDigest))
+      const position = dataProperty(request, 'position');
+      const transaction = dataProperty(request, 'transaction');
+      const contentDigest = dataProperty(request, 'contentDigest');
+      if (!isPosition(position) || position < 0 || !isDigest(contentDigest) || typeof transaction !== 'string')
         return fail('FC-INPUT', 'INVALID_READBACK');
-      if (!request.transaction.startsWith(`${bound.value.run}/txn/${request.position + 1}/${bound.value.generation}|`))
+      if (!transaction.startsWith(`${bound.value.run}/txn/${position + 1}/${bound.value.generation}|`))
         return fail('FC-SUBJECT', 'INVALID_READBACK_BINDING');
       const records = recordsFor(bound.value.run);
       if (!records.ok) return records;
@@ -277,13 +321,13 @@ export function createLocalFileRunLedgerForConformance(
         return fail('FC-FENCE', 'STALE_GENERATION');
       const trust = trustedHead(bound.value.run, records.value);
       if (!trust.ok) return trust;
-      const found = records.value[request.position];
-      if (!found) return ok(Object.freeze({ kind: 'absent', position: request.position }));
-      if (found.transaction !== request.transaction || found.generation !== bound.value.generation)
+      const found = records.value[position];
+      if (!found) return ok(Object.freeze({ kind: 'absent', position }));
+      if (found.transaction !== transaction || found.generation !== bound.value.generation)
         return ok(Object.freeze({ kind: 'competing', record: found }));
       return ok(
         Object.freeze(
-          found.contentDigest === request.contentDigest
+          found.contentDigest === contentDigest
             ? { kind: 'committed', record: found }
             : { kind: 'integrity-failure', record: found },
         ),
@@ -295,7 +339,7 @@ export function createLocalFileRunLedgerForConformance(
       if (!bound.ok) return bound;
       const records = recordsFor(bound.value.run);
       if (!records.ok) return records;
-      return records.value.length === 0 ? ok(GENESIS) : trustedHead(bound.value.run, records.value);
+      return trustedHead(bound.value.run, records.value);
     },
     advanceWitnessFloor(bindingValue: unknown): FileMechanismResult<void> {
       if (!independent.ok) return independent;
@@ -305,11 +349,12 @@ export function createLocalFileRunLedgerForConformance(
       if (!records.ok) return records;
       const ledgerHead = head(records.value);
       const witnessed = witness.read(`run:${bound.value.run}`);
-      if (!witnessed.ok) return witnessed;
-      if (witnessed.value.position >= ledgerHead.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
-      const target = records.value[witnessed.value.position + 1];
+      if (!witnessed.ok && witnessed.error.code !== 'WITNESS_ABSENT') return witnessed;
+      const witnessHead = witnessed.ok ? witnessed.value : GENESIS;
+      if (witnessHead.position >= ledgerHead.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
+      const target = records.value[witnessHead.position + 1];
       if (!target) return fail('FC-TRUST', 'BROKEN_CHAIN');
-      const advanced = witness.advance(`run:${bound.value.run}`, witnessed.value, {
+      const advanced = witness.advance(`run:${bound.value.run}`, witnessHead, {
         position: target.position,
         digest: target.contentDigest,
       });

@@ -63,7 +63,12 @@ export function createLocalFileIntakeForConformance(
   const trusted = (): FileMechanismResult<readonly IntakeEntry[]> => {
     const all = entries();
     if (!all.ok) return all;
-    if (all.value.length === 0) return all;
+    if (all.value.length === 0) {
+      const head = witness.read('intake');
+      return !head.ok && head.error.code === 'WITNESS_ABSENT'
+        ? all
+        : fail('FC-TRUST', head.ok ? 'WITNESS_AHEAD' : head.error.code);
+    }
     const current = all.value.at(-1) as IntakeEntry;
     const head = witness.read('intake');
     if (!head.ok) return head;
@@ -87,12 +92,8 @@ export function createLocalFileIntakeForConformance(
             request.successorCut.length > 512))
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
-      const all = entries();
+      const all = trusted();
       if (!all.ok) return all;
-      if (all.value.length > 0) {
-        const trust = trusted();
-        if (!trust.ok) return trust;
-      }
       const existing = all.value.find((entry) => entry.result.compositionDigest === request.compositionDigest);
       if (existing) {
         const result = existing.result;

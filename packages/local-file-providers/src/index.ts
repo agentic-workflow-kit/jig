@@ -23,12 +23,12 @@ import {
 export * from './local-file-artifact.js';
 
 export const STRUCTURED_FILE_SOURCE_IDENTITY = 'source/structured-json-file-source';
-export const STRUCTURED_FILE_SOURCE_PATH = '/Users/aryekogan/.local/share/jig/work-sources/work-plan.json';
+export const STRUCTURED_FILE_SOURCE_PATH = '<JIG_DATA_HOME>/work-sources/work-plan.json';
 export const STRUCTURED_FILE_SOURCE_MANIFEST = new TextEncoder().encode(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"/Users/aryekogan/.local/share/jig/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"<JIG_DATA_HOME>/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
 );
 export const STRUCTURED_FILE_SOURCE_MANIFEST_ID =
-  'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd';
+  'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18';
 export const SOURCE_WAIT_DEFAULT_MS = 900_000;
 export const SOURCE_RETRY_DEFAULT = 3;
 export const SOURCE_WAIT_MIN_MS = 5_000;
@@ -250,7 +250,7 @@ export function createQualifiedStructuredFileSource(input?: unknown): FileSource
     approval: {
       principal: 'principal/arye',
       manifestId: STRUCTURED_FILE_SOURCE_MANIFEST_ID,
-      manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+      manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
       scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
     },
     capability: 'PORT-SOURCE/read-structured-json',

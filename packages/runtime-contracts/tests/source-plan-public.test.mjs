@@ -9,6 +9,7 @@ test('R03 second-review RED: public plan validator rejects special-key maps', ()
   for (const key of ['__proto__', 'constructor', 'prototype']) {
     const value = structuredClone(plan);
     Object.defineProperty(value.policy.capacities, key, { value: 2, enumerable: true });
+    Object.defineProperty(value.policy.reserves, key, { value: 1, enumerable: true });
     assert.equal(runtime.validateSourcePlan(value).ok, false);
   }
 });

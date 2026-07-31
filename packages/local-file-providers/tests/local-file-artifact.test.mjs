@@ -147,11 +147,11 @@ function dispose(operation = 'operation/dispose/one') {
 test('selected manifest and mechanism bounds are exact and construction remains unavailable', () => {
   assert.equal(
     createHash('sha256').update(provider.LOCAL_FILE_ARTIFACT_MANIFEST).digest('hex'),
-    '7381945e9ecb91a1e80b6a9f1fba8e6829590bc0ee6f7df3510fc81273304c1f',
+    '34a4035163a3b67d51e518f96307622ed043753832eb434872cb089c7b94f2df',
   );
   assert.equal(
     provider.LOCAL_FILE_ARTIFACT_MANIFEST_DIGEST,
-    '7381945e9ecb91a1e80b6a9f1fba8e6829590bc0ee6f7df3510fc81273304c1f',
+    '34a4035163a3b67d51e518f96307622ed043753832eb434872cb089c7b94f2df',
   );
   assert.equal(provider.ARTIFACT_WAIT_DEFAULT_MS, 900_000);
   assert.deepEqual([provider.ARTIFACT_WAIT_MIN_MS, provider.ARTIFACT_WAIT_MAX_MS], [5_000, 7_200_000]);
@@ -282,6 +282,27 @@ test('physical put, get, two-pin retirement, release and guarded disposal preser
 
 test('lost acknowledgements never replay effects and reconcile only the exact operation binding', (t) => {
   const fixture = harness(t);
+  const protectedPut = {
+    ...base,
+    holder: 'SCH-CONFIG-ARTIFACT',
+    operation: 'operation/protected/lost',
+    mode: 'put',
+    bytes,
+  };
+  fixture.authorize(protectedPut.operation, protectedPut.mode);
+  assert.deepEqual(fixture.store.putProtected(protectedPut, 'lost-ack'), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'ACK_LOST_RECONCILE_REQUIRED' },
+  });
+  assert.deepEqual(fixture.store.putProtected(protectedPut), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'RECONCILE_REQUIRED' },
+  });
+  const recoveredProtected = fixture.store.reconcile(protectedPut);
+  assert.equal(recoveredProtected.ok, true);
+  fixture.sync();
+  assert.equal(fixture.store.acknowledge(recoveredProtected.value).ok, true);
+
   fixture.authorize(put.operation, put.mode);
   assert.deepEqual(fixture.store.putDisposable(put, 'lost-ack'), {
     ok: false,

@@ -118,9 +118,12 @@ export function createLocalFileRegistryForConformance(
     return ok(Object.freeze(records));
   };
   const trusted = (bound: RegistryBinding, records: readonly RegistryRecord[]): FileMechanismResult<void> => {
-    if (records.length === 0) return ok(undefined);
-    const latest = records.at(-1) as RegistryRecord;
     const witnessed = witness.read(`registry:${bound.registry}:${bound.target}`);
+    if (records.length === 0)
+      return !witnessed.ok && witnessed.error.code === 'WITNESS_ABSENT'
+        ? ok(undefined)
+        : fail('FC-TRUST', witnessed.ok ? 'REGISTRY_WITNESS_AHEAD' : witnessed.error.code);
+    const latest = records.at(-1) as RegistryRecord;
     return witnessed.ok &&
       witnessed.value.position === latest.position &&
       witnessed.value.digest === latest.contentDigest
@@ -158,6 +161,7 @@ export function createLocalFileRegistryForConformance(
         record.target !== bound.value.target ||
         record.position !== currentPosition + 1 ||
         record.previousDigest !== currentDigest ||
+        record.predecessorDigest !== currentDigest ||
         record.expectedHeadPosition !== currentPosition ||
         record.expectedHeadDigest !== currentDigest
       )

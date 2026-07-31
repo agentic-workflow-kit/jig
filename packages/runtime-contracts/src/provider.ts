@@ -1,6 +1,6 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { isScriptedLedger } from './ledger.js';
-import { certificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
+import { readCertificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -56,10 +56,10 @@ const APPROVED_MANIFEST_BYTES = new TextEncoder().encode(
 /** Private immutable catalogue; callers can select no entry and cannot register one. */
 const STRUCTURED_FILE_CATALOGUE = Object.freeze({
   manifestBytes: new TextEncoder().encode(
-    '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"/Users/aryekogan/.local/share/jig/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+    '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"<JIG_DATA_HOME>/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
   ),
   manifestId:
-    'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
   scope: Object.freeze({ phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' }),
   environment: 'environment/local-file-source',
   environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
@@ -352,10 +352,31 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     admit(input) {
       const data = fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
       const bound = data && basis(data.basis);
-      if (!data || !bound || !safeTime(data.maxAgeMs) || !safeTime(data.observedAt) || !plain(data.proof))
+      const proofData =
+        data &&
+        fields(data.proof, [
+          'basisDigest',
+          'deadline',
+          'digest',
+          'key',
+          'kind',
+          'observedAt',
+          'ordinal',
+          'outcome',
+          'predecessor',
+          'retryLimit',
+        ]);
+      if (
+        !data ||
+        !bound ||
+        !safeTime(data.maxAgeMs) ||
+        !safeTime(data.observedAt) ||
+        !proofData ||
+        !Number.isSafeInteger(proofData.ordinal)
+      )
         return fail('FC-INPUT', 'INVALID_ADMISSION');
       const basisDigest = digest('CAPABILITY-PROOF-BASIS', bound);
-      const proof = data.proof as Attempt;
+      const proof = proofData as Attempt;
       const stored = basisDigest && readAttempt(basisDigest, proof.ordinal, 'result');
       if (
         !stored ||
@@ -431,7 +452,7 @@ export function structuredFileProviderGate(
     !approval ||
     approval.principal !== STRUCTURED_FILE_CATALOGUE.principal ||
     approval.manifestId !== STRUCTURED_FILE_CATALOGUE.manifestId ||
-    approval.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
+    approval.manifestDigest !== '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18' ||
     !same(approval.scope, STRUCTURED_FILE_CATALOGUE.scope) ||
     data.capability !== STRUCTURED_FILE_CATALOGUE.capability ||
     data.policyMinimum !== STRUCTURED_FILE_CATALOGUE.policyMinimum ||
@@ -450,11 +471,10 @@ export function structuredFileQualificationGate(
   input: unknown,
 ): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>> {
   const data = fields(input, ['certificate', 'gate']);
-  if (!data || !plain(data.certificate) || !certificateClaims.has(data.certificate))
-    return fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
+  if (!data || !plain(data.certificate)) return fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
   const gate = structuredFileProviderGate(data.gate);
   if (!gate.ok) return gate;
-  const claims = certificateClaims.get(data.certificate);
+  const claims = readCertificateClaims(data.certificate);
   const snapshot = snapshotQualificationClaims(claims);
   if (
     !claims ||
@@ -466,7 +486,7 @@ export function structuredFileQualificationGate(
     claims.resourceDigest !== STRUCTURED_FILE_CATALOGUE.resourceDigest ||
     claims.subject.providerId !== 'structured-json-file-source/v1' ||
     claims.subject.providerBuildDigest !== STRUCTURED_FILE_CATALOGUE.providerBuildDigest ||
-    claims.subject.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
+    claims.subject.manifestDigest !== '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18' ||
     claims.subject.environmentDigest !== 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536' ||
     claims.subject.recorderIdentity !== 'recorder/jig-conformance/v1'
   )
@@ -516,7 +536,7 @@ export function createStructuredFileAdmission(input: unknown): StructuredFileAdm
     fields(input, ['certificate', 'gate', 'ledger', 'observedAt']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const certificate = config?.certificate;
-  const claims = certificate && typeof certificate === 'object' ? certificateClaims.get(certificate) : undefined;
+  const claims = certificate && typeof certificate === 'object' ? readCertificateClaims(certificate) : undefined;
   const gate = config && structuredFileQualificationGate({ certificate, gate: config.gate });
   const conformanceMaxAgeMs = config?.conformanceMaxAgeMs ?? CONFORMANCE_AGE_DEFAULT_MS;
   const validConformanceMaxAge =
@@ -692,16 +712,32 @@ export function createStructuredFileAdmission(input: unknown): StructuredFileAdm
     result: (attempt) => write(attempt, 'result'),
     admit(admission) {
       const data = fields(admission, ['maxAgeMs', 'observedAt', 'proof']);
+      const proofData =
+        data &&
+        fields(data.proof, [
+          'basisDigest',
+          'certificateSubjectDigest',
+          'deadline',
+          'digest',
+          'key',
+          'kind',
+          'observedAt',
+          'ordinal',
+          'outcome',
+          'predecessor',
+          'retryLimit',
+        ]);
       if (
         !data ||
         !safeTime(data.maxAgeMs) ||
         data.maxAgeMs !== conformanceMaxAgeMs ||
         !safeTime(data.observedAt) ||
-        !plain(data.proof)
+        !proofData ||
+        !Number.isSafeInteger(proofData.ordinal)
       )
         return fail('FC-INPUT', 'INVALID_ADMISSION');
-      const proof = data.proof as StructuredFileAttempt;
-      const stored = Number.isSafeInteger(proof.ordinal) ? read(proof.ordinal, 'result') : undefined;
+      const proof = proofData as StructuredFileAttempt;
+      const stored = read(proof.ordinal, 'result');
       if (!stored || !same(proof, stored) || stored.outcome !== 'positive')
         return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
       if (data.observedAt < stored.observedAt || data.observedAt - stored.observedAt > data.maxAgeMs)

@@ -92,15 +92,17 @@ separate exact Arye approvals for the proposal and provider manifest.
 
 Before Phase 3 starts, Phase 2 must complete these required tasks and close its declared exit gate:
 
-- Provision the exact GF-020 structured source at
-  `/Users/aryekogan/.local/share/jig/work-sources/work-plan.json`, then record current exact source
-  mechanism and provider-gate qualification evidence. File presence alone is insufficient.
-- Mount `/Volumes/JigWitness/jig` as the independently administered witness root, verify that it is
+- Resolve the untracked `JIG_DATA_HOME` owner configuration to an absolute canonical directory and
+  provision the exact GF-020 structured source at `${JIG_DATA_HOME}/work-sources/work-plan.json`;
+  then record current exact source mechanism and provider-gate qualification evidence. File
+  presence alone is insufficient.
+- Resolve the untracked `JIG_WITNESS_ROOT` owner configuration to an absolute canonical mount,
+  verify that it is
   outside the primary filesystem and its backups, then record current GF-025 ledger/witness and
   GF-026 artifact mechanism/provider qualification evidence. A same-filesystem substitute is
   ineligible.
 - Complete GF-023 and GF-024 from those current qualification facts. Phase 3 is not ready while
-  either external qualification task or either remaining Phase 2 story is incomplete.
+  any external qualification task or any remaining Phase 2 story is incomplete.
 
 `CF-GATE-PRODUCT` is narrower than the supported-profile claim: it requires exactly 39 recorded
 suite results plus every named element/governance record of all 44 settled `PC-*` proof routes. The

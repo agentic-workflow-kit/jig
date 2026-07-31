@@ -50,6 +50,15 @@ test('provider admission: exact Arye manifest approval and positive exact-subjec
   assert.equal(completed.ok, true);
   const admission = fixture.admit({ basis, proof: completed.value, observedAt: 1_200, maxAgeMs: 86_400_000 });
   assert.deepEqual(admission, { ok: true, value: { kind: 'eligible', manifestId, providerEnabled: false } });
+  const hostileProof = { ...completed.value };
+  Object.defineProperty(hostileProof, 'ordinal', {
+    enumerable: true,
+    get() {
+      throw new Error('proof getter must not run');
+    },
+  });
+  assert.doesNotThrow(() => fixture.admit({ basis, proof: hostileProof, observedAt: 1_200, maxAgeMs: 86_400_000 }));
+  assert.equal(fixture.admit({ basis, proof: hostileProof, observedAt: 1_200, maxAgeMs: 86_400_000 }).ok, false);
   assert.deepEqual(fixture.reachability(), { ok: true, value: { kind: 'unavailable', providerEnabled: false } });
 });
 
@@ -77,9 +86,28 @@ test('provider admission: approval and evidence substitutions, hostile values, s
     assert.equal(started.ok, true);
     const proof = bounded.result({ ...start, predecessor: started.value.digest, outcome, observedAt: 1_100 });
     assert.equal(proof.ok, true);
-    assert.equal(bounded.admit({ basis, proof: proof.value, observedAt: 1_200, maxAgeMs: 1 }).ok, false, outcome);
+    assert.deepEqual(
+      bounded.admit({ basis, proof: proof.value, observedAt: 1_200, maxAgeMs: 86_400_000 }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'POSITIVE_EXACT_PROOF_REQUIRED' } },
+      outcome,
+    );
   }
-  assert.equal(fixture.admit({ basis: { ...basis, capability: 'capability/other' }, proof: started.value }).ok, false);
+  const completed = fixture.result({
+    ...start,
+    predecessor: started.value.digest,
+    outcome: 'positive',
+    observedAt: 1_100,
+  });
+  assert.equal(completed.ok, true);
+  assert.deepEqual(
+    fixture.admit({
+      basis: { ...basis, capability: 'capability/other' },
+      proof: completed.value,
+      observedAt: 1_200,
+      maxAgeMs: 86_400_000,
+    }),
+    { ok: false, error: { family: 'FC-AUTHORITY', code: 'POSITIVE_EXACT_PROOF_REQUIRED' } },
+  );
 });
 
 test('provider admission: variant replay, predecessor, ordinal, deadline, readback and secret rejection are immutable', () => {

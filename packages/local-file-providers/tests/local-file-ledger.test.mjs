@@ -117,6 +117,10 @@ test('run ledger persists a witnessed chain and classifies the five readback out
   const { primary, witness, independenceEvidence } = roots(t);
   const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
   const first = proposal(0, digest('0'));
+  assert.deepEqual(ledger.append({ binding, expectedPosition: -1, record: undefined }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_PREPARED_RECORD' },
+  });
   const committed = ledger.append({ binding, expectedPosition: -1, record: first });
   assert.equal(committed.ok, true);
   assert.equal(committed.value.event, `${run}/event/1`);
@@ -128,6 +132,10 @@ test('run ledger persists a witnessed chain and classifies the five readback out
   assert.deepEqual(ledger.readback({ binding, position: 1, transaction: transaction(1), contentDigest: digest('b') }), {
     ok: true,
     value: { kind: 'absent', position: 1 },
+  });
+  assert.deepEqual(ledger.readback({ binding, position: 1, transaction: undefined, contentDigest: digest('b') }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_READBACK' },
   });
   assert.equal(
     ledger.readback({ binding, position: 0, transaction: transaction(0, 'b'), contentDigest: first.contentDigest })
@@ -172,6 +180,46 @@ test('flush-before-witness crash recovery and rollback detection fail closed', (
   const runKey = createHash('sha256').update(run).digest('hex');
   unlinkSync(join(primary, runKey, 'records', '000000000001.json'));
   assert.deepEqual(restored.snapshot(binding), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'WITNESS_AHEAD' },
+  });
+});
+
+test('first-record recovery advances an absent witness exactly once', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
+  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
+  const first = proposal(0, digest('0'));
+  assert.deepEqual(ledger.append({ binding, expectedPosition: -1, record: first }, 'after-flush'), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'ACK_LOST' },
+  });
+  assert.deepEqual(ledger.advanceWitnessFloor(binding), { ok: true, value: undefined });
+  assert.deepEqual(ledger.advanceWitnessFloor(binding), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'WITNESS_ALREADY_CURRENT' },
+  });
+  assert.equal(
+    ledger.readback({ binding, position: 0, transaction: first.transaction, contentDigest: first.contentDigest }).value
+      .kind,
+    'committed',
+  );
+});
+
+test('empty authoritative stores cannot bypass advanced witness state', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
+  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
+  const first = proposal(0, digest('0'));
+  assert.equal(ledger.append({ binding, expectedPosition: -1, record: first }).ok, true);
+  rmSync(join(primary, pathModule.resourceKey(run), 'records'), { recursive: true });
+  assert.deepEqual(ledger.snapshot(binding), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'WITNESS_AHEAD' },
+  });
+
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
+  assert.equal(intake.create({ compositionDigest: digest('a'), acknowledgementDigest: digest('b') }).ok, true);
+  rmSync(join(primary, 'entries'), { recursive: true });
+  assert.deepEqual(intake.create({ compositionDigest: digest('c'), acknowledgementDigest: digest('d') }), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'WITNESS_AHEAD' },
   });
@@ -289,6 +337,13 @@ test('preflight variants are immutable, predecessor-bound, and replay-safe', (t)
   });
   assert.equal(result.ok, true);
   assert.equal(store.read('proof/1', 'result').value.digest, result.value.digest);
+  const corruptDirectory = join(primary, pathModule.resourceKey('proof/corrupt'));
+  mkdirSync(corruptDirectory);
+  writeFileSync(join(corruptDirectory, 'start.json'), '{not-json}\n');
+  assert.deepEqual(store.read('proof/corrupt', 'start'), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'UNTRUSTED_FILE' },
+  });
 });
 
 test('registry journals exact semantic records, witnesses them, and fences a second writer', (t) => {
@@ -385,6 +440,26 @@ test('registry journals exact semantic records, witnesses them, and fences a sec
     handle: { registry, position: 1, contentDigest: secondStaged.value.digest },
     content: secondContent,
   };
+  const poisonedBasis = { ...second, predecessorDigest: digest('e'), contentDigest: '', handle: null };
+  const poisonedDigest = codec.stageDigest({
+    domain: 'REGISTRY-RECORD',
+    excludePaths: ['contentDigest', 'handle'],
+    value: poisonedBasis,
+  });
+  assert.equal(poisonedDigest.ok, true);
+  const poisoned = {
+    ...second,
+    predecessorDigest: digest('e'),
+    contentDigest: poisonedDigest.value.digest,
+    handle: { registry, position: 1, contentDigest: poisonedDigest.value.digest },
+  };
+  assert.deepEqual(
+    store.append({ binding, expectedPosition: 0, expectedDigest: record.contentDigest, record: poisoned }),
+    {
+      ok: false,
+      error: { family: 'FC-SUBJECT', code: 'REGISTRY_RECORD_BINDING_MISMATCH' },
+    },
+  );
   assert.deepEqual(
     store.append({ binding, expectedPosition: 0, expectedDigest: record.contentDigest, record: second }, 'after-flush'),
     { ok: false, error: { family: 'FC-TRUST', code: 'REGISTRY_ACK_LOST' } },
@@ -396,6 +471,11 @@ test('registry journals exact semantic records, witnesses them, and fences a sec
   });
   assert.deepEqual(restored.advanceWitnessFloor(binding), { ok: true, value: undefined });
   assert.equal(restored.readback({ binding, position: 1 }).value.kind, 'committed');
+  rmSync(join(primary, pathModule.resourceKey(`${registry}\0${target}`), 'records'), { recursive: true });
+  assert.deepEqual(restored.snapshot(binding), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'REGISTRY_WITNESS_AHEAD' },
+  });
 });
 
 test('snapshots remain disposable and verify only against the exact current head', (t) => {

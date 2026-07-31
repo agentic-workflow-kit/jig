@@ -582,7 +582,7 @@ test('public conformance cannot manufacture a qualification certificate', () => 
     ...subject,
     providerId: 'structured-json-file-source/v1',
     providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
-    manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
     environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
     recorderIdentity: 'recorder/jig-conformance/v1',
   };
@@ -590,41 +590,22 @@ test('public conformance cannot manufacture a qualification certificate', () => 
   const observation = conformance.observeProvider('PORT-SOURCE', records, providerSubject);
   assert.equal(observation.ok, true);
   if (!observation.ok) return;
-  assert.equal(
-    conformance.mintStructuredFileQualificationCertificate?.(
-      observation.record,
-      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-    ),
-    undefined,
-  );
-  assert.equal('executeStructuredFileQualification' in conformance, false);
-  assert.equal('mintStructuredFileQualificationCertificate' in conformance, false);
-  assert.equal(
-    conformance.mintStructuredFileQualificationCertificate?.(
-      { ...observation.record },
-      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-    ),
-    undefined,
-  );
-  assert.equal('issueQualificationCertificate' in conformance, false);
-  const copied = { ...observation.record };
-  assert.equal(
-    conformance.mintStructuredFileQualificationCertificate?.(
-      copied,
-      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-    ),
-    undefined,
-  );
+  for (const name of [
+    'executeStructuredFileQualification',
+    'executeExactStructuredFileQualification',
+    'mintStructuredFileQualificationCertificate',
+    'issueQualificationCertificate',
+  ])
+    assert.equal(name in conformance, false, name);
 });
 
 test('private structured-file execution mints only an opaque runtime certificate', async () => {
   const internal = await import('../dist/structured-file-qualification.js');
-  const registry = await import('../../runtime-contracts/dist/qualification-registry.js');
   const providerSubject = {
     ...subject,
     providerId: 'structured-json-file-source/v1',
     providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
-    manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
     environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
     recorderIdentity: 'recorder/jig-conformance/v1',
   };
@@ -657,7 +638,7 @@ test('private structured-file execution mints only an opaque runtime certificate
   exactClaims.resourceDigest = '0'.repeat(64);
   const isolatedCertificate = friend.mintQualificationCertificate(carrier);
   assert.ok(isolatedCertificate, 'mutating caller-owned input cannot alter the registered snapshot');
-  const stored = registry.certificateClaims.get(isolatedCertificate);
+  const stored = friend.readQualificationCertificateClaims(isolatedCertificate);
   assert.ok(stored);
   assert.equal(Object.isFrozen(stored), true);
   assert.equal(Object.isFrozen(stored.subject), true);

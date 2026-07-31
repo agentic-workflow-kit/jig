@@ -55,7 +55,7 @@ export function createLocalFileWitness(root: string) {
       return fail('FC-SUBJECT', 'INVALID_WITNESS_LINE');
     const directory = [resourceKey(line)];
     const files = listConfinedFiles(root, directory);
-    if (!files.ok) return files.error.code === 'READ_FAILED' ? fail('FC-TRUST', 'WITNESS_ABSENT') : files;
+    if (!files.ok) return files.error.code === 'FILE_ABSENT' ? fail('FC-TRUST', 'WITNESS_ABSENT') : files;
     if (files.value.length === 0) return fail('FC-TRUST', 'WITNESS_ABSENT');
     let previous = GENESIS;
     for (let index = 0; index < files.value.length; index += 1) {

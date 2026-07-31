@@ -19,6 +19,7 @@ declare module 'node:fs' {
     mtimeMs: number;
   };
   export function fsyncSync(fd: number): void;
+  export function linkSync(existingPath: string, newPath: string): void;
   export function lstatSync(path: string): {
     isDirectory(): boolean;
     isFile(): boolean;
@@ -29,12 +30,14 @@ declare module 'node:fs' {
     dev: number;
   };
   export function mkdirSync(path: string, options?: { recursive?: boolean; mode?: number }): void;
+  export function mkdtempSync(prefix: string): string;
   export function openSync(path: string, flags: number | string, mode?: number): number;
   export function readdirSync(path: string): string[];
   export function readFileSync(path: string): Uint8Array;
   export function readFileSync(path: string, encoding: 'utf8'): string;
   export function readSync(fd: number, buffer: Uint8Array, offset: number, length: number, position: number): number;
   export function realpathSync(path: string): string;
+  export function rmdirSync(path: string): void;
   export function unlinkSync(path: string): void;
   export function writeSync(fd: number, buffer: Uint8Array, offset: number, length: number, position?: number): number;
 }

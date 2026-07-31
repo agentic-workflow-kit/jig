@@ -288,15 +288,18 @@ function numericMap(value: CanonicalJson): Readonly<Record<string, number>> | un
   const record = exactMap(value);
   if (!record || Object.keys(record).length === 0) return undefined;
   const entries = Object.entries(record);
-  if (!entries.every(([key, amount]) => /^[a-z][a-z0-9-]{0,31}$/u.test(key) && positive(amount))) return undefined;
+  if (!entries.every(([key, amount]) => safeMapKey(key) && positive(amount))) return undefined;
   return frozen(Object.fromEntries(entries) as Record<string, number>);
 }
 function reserveMap(value: CanonicalJson): Readonly<Record<string, number>> | undefined {
   const record = exactMap(value);
   if (!record || Object.keys(record).length === 0) return undefined;
   const entries = Object.entries(record);
-  if (!entries.every(([key, amount]) => /^[a-z][a-z0-9-]{0,31}$/u.test(key) && nonnegative(amount))) return undefined;
+  if (!entries.every(([key, amount]) => safeMapKey(key) && nonnegative(amount))) return undefined;
   return frozen(Object.fromEntries(entries) as Record<string, number>);
+}
+function safeMapKey(value: string): boolean {
+  return /^[a-z][a-z0-9-]{0,31}$/u.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value);
 }
 
 function exactMap(value: CanonicalJson): Record<string, CanonicalJson> | undefined {

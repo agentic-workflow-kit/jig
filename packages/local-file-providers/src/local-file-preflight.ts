@@ -20,7 +20,7 @@ export function createLocalFilePreflightForConformance(root: string) {
     if (typeof key !== 'string' || key.length === 0 || (variant !== 'start' && variant !== 'result'))
       return fail('FC-INPUT', 'INVALID_PREFLIGHT_READ');
     const decoded = readJsonFile(root, [resourceKey(key), `${variant}.json`]);
-    if (!decoded.ok) return decoded.error.code === 'READ_FAILED' ? ok(Object.freeze({ kind: 'absent' })) : decoded;
+    if (!decoded.ok) return decoded.error.code === 'FILE_ABSENT' ? ok(Object.freeze({ kind: 'absent' })) : decoded;
     try {
       const result = decoded.value as PreflightResult;
       if (

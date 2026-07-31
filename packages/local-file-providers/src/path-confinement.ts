@@ -4,12 +4,16 @@ import {
   existsSync,
   fstatSync,
   fsyncSync,
+  linkSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readSync,
   realpathSync,
+  rmdirSync,
+  unlinkSync,
   writeSync,
 } from 'node:fs';
 
@@ -298,6 +302,12 @@ export function ensureConfinedDirectory(root: string, parts: readonly string[]):
   }
 }
 
+function errorCode(error: unknown): unknown {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+}
+
 export function readJsonFile(root: string, parts: readonly string[]): FileMechanismResult<unknown> {
   const path = confinedPath(root, parts);
   if (!path.ok) return path;
@@ -362,14 +372,22 @@ export function readJsonFile(root: string, parts: readonly string[]): FileMechan
       return fail('FC-TRUST', 'UNTRUSTED_FILE');
     closeSync(descriptor);
     descriptor = undefined;
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    if (!text.endsWith('\n')) return fail('FC-TRUST', 'UNTRUSTED_FILE');
-    const value = snapshot(JSON.parse(text));
-    return `${canonicalText(value)}\n` === text ? ok(value) : fail('FC-TRUST', 'UNTRUSTED_FILE');
-  } catch {
-    return fail('FC-MECHANISM', 'READ_FAILED');
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      if (!text.endsWith('\n')) return fail('FC-TRUST', 'UNTRUSTED_FILE');
+      const value = snapshot(JSON.parse(text));
+      return `${canonicalText(value)}\n` === text ? ok(value) : fail('FC-TRUST', 'UNTRUSTED_FILE');
+    } catch {
+      return fail('FC-TRUST', 'UNTRUSTED_FILE');
+    }
+  } catch (error) {
+    return fail('FC-MECHANISM', errorCode(error) === 'ENOENT' ? 'FILE_ABSENT' : 'READ_FAILED');
   } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
+    if (descriptor !== undefined) {
+      try {
+        closeSync(descriptor);
+      } catch {}
+    }
   }
 }
 
@@ -382,8 +400,8 @@ export function listConfinedFiles(root: string, parts: readonly string[]): FileM
     const names = readdirSync(directory.value);
     if (names.some((name) => !safePart(name))) return fail('FC-TRUST', 'UNTRUSTED_DIRECTORY_ENTRY');
     return ok(Object.freeze([...names].sort()));
-  } catch {
-    return fail('FC-MECHANISM', 'READ_FAILED');
+  } catch (error) {
+    return fail('FC-MECHANISM', errorCode(error) === 'ENOENT' ? 'FILE_ABSENT' : 'READ_FAILED');
   }
 }
 
@@ -399,12 +417,19 @@ export function writeCreateOnlyJson(
   const path = confinedPath(root, [...directoryParts, file]);
   if (!path.ok) return path;
   let descriptor: number | undefined;
+  let directoryDescriptor: number | undefined;
+  let temporaryFile: string | undefined;
+  let temporaryDirectory: string | undefined;
   try {
     const canonical = canonicalSnapshot(value);
     if (!canonical.ok) return canonical;
     const bytes = new TextEncoder().encode(`${canonicalText(canonical.value)}\n`);
     if (bytes.byteLength > MAX_FILE_BYTES) return fail('FC-INPUT', 'VALUE_TOO_LARGE');
-    descriptor = openSync(path.value, 'wx', 0o600);
+    const staging = ensureConfinedDirectory(root, ['staging']);
+    if (!staging.ok) return staging;
+    temporaryDirectory = mkdtempSync(`${staging.value}/write-`);
+    temporaryFile = `${temporaryDirectory}/payload`;
+    descriptor = openSync(temporaryFile, 'wx', 0o600);
     let offset = 0;
     while (offset < bytes.byteLength) {
       const written = writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
@@ -414,15 +439,35 @@ export function writeCreateOnlyJson(
     fsyncSync(descriptor);
     closeSync(descriptor);
     descriptor = undefined;
+    linkSync(temporaryFile, path.value);
+    unlinkSync(temporaryFile);
+    temporaryFile = undefined;
+    rmdirSync(temporaryDirectory);
+    temporaryDirectory = undefined;
     const parent = path.value.slice(0, path.value.lastIndexOf('/'));
-    const directoryDescriptor = openSync(parent, constants.O_RDONLY | constants.O_DIRECTORY);
+    directoryDescriptor = openSync(parent, constants.O_RDONLY | constants.O_DIRECTORY);
     fsyncSync(directoryDescriptor);
     closeSync(directoryDescriptor);
+    directoryDescriptor = undefined;
     return ok(undefined);
   } catch (error) {
-    if (descriptor !== undefined) closeSync(descriptor);
-    const code =
-      typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+    for (const open of [descriptor, directoryDescriptor]) {
+      if (open === undefined) continue;
+      try {
+        closeSync(open);
+      } catch {}
+    }
+    if (temporaryFile !== undefined) {
+      try {
+        unlinkSync(temporaryFile);
+      } catch {}
+    }
+    if (temporaryDirectory !== undefined) {
+      try {
+        rmdirSync(temporaryDirectory);
+      } catch {}
+    }
+    const code = errorCode(error);
     return fail(code === 'EEXIST' ? 'FC-FENCE' : 'FC-MECHANISM', code === 'EEXIST' ? 'ALREADY_EXISTS' : 'WRITE_FAILED');
   }
 }
