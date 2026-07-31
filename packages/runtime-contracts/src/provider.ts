@@ -52,6 +52,16 @@ const APPROVED_SCOPE = Object.freeze({ phase: 2, purpose: 'semantic-admission-fi
 const APPROVED_MANIFEST_BYTES = new TextEncoder().encode(
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
 );
+/** Private immutable catalogue; callers can select no entry and cannot register one. */
+const STRUCTURED_FILE_CATALOGUE = Object.freeze({
+  manifestBytes: new TextEncoder().encode(
+    '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"/Users/aryekogan/.local/share/jig/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+  ),
+  manifestId:
+    'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+  scope: Object.freeze({ phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' }),
+  environment: 'environment/local-file-source',
+});
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const DIGEST = /^[0-9a-f]{64}$/u;
 
@@ -128,6 +138,17 @@ const exactBytes = (value: unknown): boolean => {
       value instanceof Uint8Array &&
       value.byteLength === APPROVED_MANIFEST_BYTES.byteLength &&
       APPROVED_MANIFEST_BYTES.every((byte, index) => value[index] === byte)
+    );
+  } catch {
+    return false;
+  }
+};
+const exactCatalogueBytes = (value: unknown): boolean => {
+  try {
+    return (
+      value instanceof Uint8Array &&
+      value.byteLength === STRUCTURED_FILE_CATALOGUE.manifestBytes.byteLength &&
+      STRUCTURED_FILE_CATALOGUE.manifestBytes.every((byte, index) => value[index] === byte)
     );
   } catch {
     return false;
@@ -377,4 +398,22 @@ function approval(value: unknown): Approval | undefined {
     manifestDigest: data.manifestDigest,
     scope: scope(data.scope) as Scope,
   });
+}
+
+/** Exact GF-020 catalogue gate; no caller can register a different manifest or self-enable it. */
+export function structuredFileProviderGate(
+  input: unknown,
+): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>> {
+  const data = fields(input, ['environment', 'manifestBytes', 'manifestId', 'providerBuild', 'scope']);
+  if (
+    !data ||
+    !exactCatalogueBytes(data.manifestBytes) ||
+    data.manifestId !== STRUCTURED_FILE_CATALOGUE.manifestId ||
+    !safeText(data.providerBuild) ||
+    data.environment !== STRUCTURED_FILE_CATALOGUE.environment ||
+    !same(data.scope, STRUCTURED_FILE_CATALOGUE.scope)
+  )
+    return fail('FC-AUTHORITY', 'EXACT_MANIFEST_BINDING_REQUIRED');
+  // The selected file and independent current conformance record are absent; fail closed.
+  return ok({ kind: 'unavailable', providerEnabled: false as const });
 }
