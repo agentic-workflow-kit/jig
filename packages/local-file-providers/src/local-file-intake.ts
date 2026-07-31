@@ -86,6 +86,8 @@ export function createLocalFileIntakeForConformance(
       if (
         !isDigest(request?.compositionDigest) ||
         !isDigest(request?.acknowledgementDigest) ||
+        (request.terminalAck !== 'accepted' && request.terminalAck !== 'rejected') ||
+        (request.terminalAck === 'rejected' && request.successorCut !== undefined) ||
         (request.successorCut !== undefined &&
           (typeof request.successorCut !== 'string' ||
             request.successorCut.length === 0 ||
@@ -97,8 +99,17 @@ export function createLocalFileIntakeForConformance(
       const existing = all.value.find((entry) => entry.result.compositionDigest === request.compositionDigest);
       if (existing) {
         const result = existing.result;
-        const cut = result.kind === 'acknowledged' ? result.successorCut : result.winner.successorCut;
-        return result.acknowledgementDigest === request.acknowledgementDigest && cut === request.successorCut
+        const terminalAck =
+          result.kind === 'rejected' && result.reason === 'envelope-rejected' ? 'rejected' : 'accepted';
+        const cut =
+          result.kind === 'acknowledged'
+            ? result.successorCut
+            : result.reason === 'successor-cut-already-claimed'
+              ? result.winner.successorCut
+              : undefined;
+        return result.acknowledgementDigest === request.acknowledgementDigest &&
+          terminalAck === request.terminalAck &&
+          cut === request.successorCut
           ? ok(publicResult(result))
           : fail('FC-FENCE', 'INTAKE_REQUEST_MISMATCH');
       }
@@ -108,29 +119,38 @@ export function createLocalFileIntakeForConformance(
           )
         : undefined;
       const position = all.value.length;
-      const result: IntakeResult = winner
-        ? Object.freeze({
-            kind: 'rejected',
-            position,
-            compositionDigest: request.compositionDigest,
-            acknowledgementDigest: request.acknowledgementDigest,
-            reason: 'successor-cut-already-claimed',
-            winner: Object.freeze({
-              position: winner.result.position,
-              compositionDigest: winner.result.compositionDigest,
-              acknowledgementDigest: winner.result.acknowledgementDigest,
-              successorCut: request.successorCut as string,
-              run: runFor(winner.result.position, winner.result.compositionDigest),
-            }),
-          })
-        : Object.freeze({
-            kind: 'acknowledged',
-            position,
-            compositionDigest: request.compositionDigest,
-            acknowledgementDigest: request.acknowledgementDigest,
-            ...(request.successorCut ? { successorCut: request.successorCut } : {}),
-            run: runFor(position, request.compositionDigest),
-          });
+      const result: IntakeResult =
+        request.terminalAck === 'rejected'
+          ? Object.freeze({
+              kind: 'rejected',
+              position,
+              compositionDigest: request.compositionDigest,
+              acknowledgementDigest: request.acknowledgementDigest,
+              reason: 'envelope-rejected',
+            })
+          : winner
+            ? Object.freeze({
+                kind: 'rejected',
+                position,
+                compositionDigest: request.compositionDigest,
+                acknowledgementDigest: request.acknowledgementDigest,
+                reason: 'successor-cut-already-claimed',
+                winner: Object.freeze({
+                  position: winner.result.position,
+                  compositionDigest: winner.result.compositionDigest,
+                  acknowledgementDigest: winner.result.acknowledgementDigest,
+                  successorCut: request.successorCut as string,
+                  run: runFor(winner.result.position, winner.result.compositionDigest),
+                }),
+              })
+            : Object.freeze({
+                kind: 'acknowledged',
+                position,
+                compositionDigest: request.compositionDigest,
+                acknowledgementDigest: request.acknowledgementDigest,
+                ...(request.successorCut ? { successorCut: request.successorCut } : {}),
+                run: runFor(position, request.compositionDigest),
+              });
       const previous = all.value.at(-1)?.digest ?? GENESIS.digest;
       const staged = stagedDigest('LOCAL-FILE-INTAKE', { position, previousDigest: previous, digest: '', result }, [
         'digest',

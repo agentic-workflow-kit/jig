@@ -30,10 +30,9 @@ flowchart LR
     C3 -. evidence .-> C1
     C3 -. evidence .-> C25["GF-025 file ledger/registry/witness provider"]
     C3 -. evidence .-> C26["GF-026 file artifact provider"]
-    C1 -. evidence .-> C4["GF-023 preview/approvals"]
+    C0 -->|implementation| C4["GF-023 preview/approvals"]
+    C3 == decision ==> C4
     C4 == decision ==> C5["GF-024 intake"]
-    C25 -. evidence .-> C4
-    C26 -. evidence .-> C4
   end
   subgraph P3["Phase 3 — lifecycle and execution"]
     D0["GF-030 lifecycle"] -->|implementation| D1["GF-031 scheduler"] -->|implementation| D2["GF-032 bounds"]
@@ -114,18 +113,24 @@ The DAG is the declared `track.json` graph. Phase orchestration may inspect it a
 terminal story boundaries to derive a ready set, but it must not author edges, reinterpret edge
 types, or wait for an unrelated blocked story. See [phase orchestration](./phase-orchestration.md).
 
-There are exactly 18 maximum-length paths of 29 stories. One representative is `GF-001 → 002 →
-003 → 004 → 005 → 010 → 013 → 022 → 020 → 023 → 024 → 030 → 031 → 032 → 035 → 036 → 037 →
-040 → 043 → 044 → 045 → 046 → 050 → 051 → 052 → 053 → 054 → 055 → 062`. The 18 paths are the
-cartesian product of three co-critical branch choices: GF-020/GF-025/GF-026 before GF-023,
+There are exactly 12 maximum-length paths of 28 stories. One representative is `GF-001 → 002 →
+003 → 004 → 005 → 010 → 013 → 014 → 023 → 024 → 030 → 031 → 032 → 035 → 036 → 037 → 040 →
+043 → 044 → 045 → 046 → 050 → 051 → 052 → 053 → 054 → 055 → 062`. The 12 paths are the
+cartesian product of three co-critical branch choices: GF-014/GF-022 before GF-023,
 GF-032/GF-033/GF-034 before GF-035, and GF-055/GF-056 before GF-062. These are alternate dependency
 edges, not sequential edges; every story still must complete because GF-062 joins all 47 predecessors.
 
-Parallel work is allowed only after the complete listed dependencies in `track.json` are merged:
-source contract/composition beside durable core after GF-004; controller/recovery, registry, and
-artifacts after GF-010; after GF-022 plus their respective complete prerequisites, GF-020
-(GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel before converging
-at GF-023; GF-031 only after GF-030/GF-012, then bounds/workspace/session in parallel after GF-031
+Readiness follows each declared `dependency_edges` type: an `implementation` predecessor must be
+contained in the execution base, an `evidence` edge needs exact current conformance evidence, a
+`decision` edge needs its recorded owner/DR basis revalidated, and only a `merge` edge specifically
+requires merge containment. Under those gates, source contract/composition may proceed beside the
+durable core after GF-004; controller/recovery, registry, and artifacts after GF-010; and after the
+recorded GF-022 decision plus their respective complete implementation prerequisites, GF-020
+(GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel without blocking the
+semantic-only GF-023→GF-024 development path. GF-030 may begin after GF-024 while those external
+qualification lanes remain open, but no real provider, autonomous restore, full Phase 2 closure,
+or supported-profile claim follows from that overlap. GF-031 only after GF-030/GF-012, then
+bounds/workspace/session in parallel after GF-031
 plus each lane's remaining prerequisites; GF-041 review publication after GF-015/GF-035, then
 GF-040 acceptance after GF-041 plus its other prerequisites, while GF-042 verification semantics
 may proceed independently before GF-043 joins GF-040/GF-042; GF-047 qualifies independently of

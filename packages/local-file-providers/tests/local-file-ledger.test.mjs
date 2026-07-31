@@ -217,12 +217,26 @@ test('empty authoritative stores cannot bypass advanced witness state', (t) => {
   });
 
   const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
-  assert.equal(intake.create({ compositionDigest: digest('a'), acknowledgementDigest: digest('b') }).ok, true);
+  assert.equal(
+    intake.create({
+      compositionDigest: digest('a'),
+      acknowledgementDigest: digest('b'),
+      terminalAck: 'accepted',
+    }).ok,
+    true,
+  );
   rmSync(join(primary, 'entries'), { recursive: true });
-  assert.deepEqual(intake.create({ compositionDigest: digest('c'), acknowledgementDigest: digest('d') }), {
-    ok: false,
-    error: { family: 'FC-TRUST', code: 'WITNESS_AHEAD' },
-  });
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'accepted',
+    }),
+    {
+      ok: false,
+      error: { family: 'FC-TRUST', code: 'WITNESS_AHEAD' },
+    },
+  );
 });
 
 test('generation recovery requires a strictly newer generation claim and retains the original wait bound', (t) => {
@@ -270,6 +284,7 @@ test('intake commits acknowledgement and successor claim in one witnessed record
   const first = intake.create({
     compositionDigest: digest('a'),
     acknowledgementDigest: digest('b'),
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   });
   assert.equal(first.ok, true);
@@ -278,6 +293,7 @@ test('intake commits acknowledgement and successor claim in one witnessed record
     intake.create({
       compositionDigest: digest('a'),
       acknowledgementDigest: digest('b'),
+      terminalAck: 'accepted',
       successorCut: 'predecessor/4',
     }),
     first,
@@ -285,6 +301,7 @@ test('intake commits acknowledgement and successor claim in one witnessed record
   const contender = intake.create({
     compositionDigest: digest('c'),
     acknowledgementDigest: digest('d'),
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   });
   assert.equal(contender.ok, true);
@@ -293,12 +310,64 @@ test('intake commits acknowledgement and successor claim in one witnessed record
   assert.equal(intake.read(digest('a')).ok, true);
 });
 
+test('intake persists and witnesses a terminal rejection without deriving a Run', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
+  const rejected = intake.create({
+    compositionDigest: digest('c'),
+    acknowledgementDigest: digest('d'),
+    terminalAck: 'rejected',
+  });
+  assert.deepEqual(rejected, {
+    ok: true,
+    value: {
+      kind: 'rejected',
+      position: 0,
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      reason: 'envelope-rejected',
+    },
+  });
+  assert.equal('run' in rejected.value, false);
+  assert.deepEqual(intake.read(digest('c')).value.result, rejected.value);
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'rejected',
+    }),
+    rejected,
+  );
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'accepted',
+    }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'INTAKE_REQUEST_MISMATCH' } },
+  );
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('e'),
+      acknowledgementDigest: digest('f'),
+      terminalAck: 'rejected',
+      successorCut: 'predecessor/5',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+});
+
 test('intake crash after durable pair flush requires witness reconciliation before read or progress', (t) => {
   const { primary, witness, independenceEvidence } = roots(t);
   const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
   assert.deepEqual(
     intake.create(
-      { compositionDigest: digest('e'), acknowledgementDigest: digest('f'), successorCut: 'predecessor/8' },
+      {
+        compositionDigest: digest('e'),
+        acknowledgementDigest: digest('f'),
+        terminalAck: 'accepted',
+        successorCut: 'predecessor/8',
+      },
       'after-flush',
     ),
     { ok: false, error: { family: 'FC-TRUST', code: 'INTAKE_ACK_LOST' } },
@@ -306,6 +375,25 @@ test('intake crash after durable pair flush requires witness reconciliation befo
   assert.equal(intake.read(digest('e')).ok, false);
   assert.equal(intake.advanceWitnessFloor().ok, true);
   assert.equal(intake.read(digest('e')).ok, true);
+});
+
+test('intake rejects a missing terminal acknowledgement disposition without persisting', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
+  assert.deepEqual(intake.create({ compositionDigest: digest('a'), acknowledgementDigest: digest('b') }), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' },
+  });
+  assert.equal(intake.read(digest('a')).ok, false);
+  assert.deepEqual(
+    intake.create({
+      compositionDigest: digest('c'),
+      acknowledgementDigest: digest('d'),
+      terminalAck: 'unknown',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+  assert.equal(intake.read(digest('c')).ok, false);
 });
 
 test('preflight variants are immutable, predecessor-bound, and replay-safe', (t) => {

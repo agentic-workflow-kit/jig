@@ -97,8 +97,21 @@ realization choice, provider reachability ambiguity, or a material scope/depende
 `OWNER_DECISION_REQUIRED`. Routine documentation, tooling, tests, formatting, or Git-byte drift
 does not revoke authorization.
 
-After the local file ledger realization is explicitly selected, GF-025 may qualify its ledger,
-registry, and independently trusted witness through `PORT-LEDGER` and `CF-MECH-LEDGER`; GF-026 may
-separately qualify the local file artifact provider through `PORT-ARTIFACT` and
-`CF-MECH-ARTIFACT`. GF-023 must consume both exact provider gates before proposal approval can
-select a store. Implementation authorization never waives semantic or provider gates.
+## Owner-selected Phase 3 development posture
+
+Arye's explicit 2026-07-31 instruction selects a semantic-only development posture so lifecycle
+implementation is not blocked on host provisioning. GF-023 may preview and record its two distinct
+exact approvals against a development manifest only when that manifest fixes
+`providerEnabled: false`, `dispatchEnabled: false`, and `fail-closed-no-autonomous-restore`.
+GF-024 may then use only the scripted semantic ledger/witness to prove witnessed accepted/rejected
+intake, replay, contention, and no Run on rejection. This is implementation evidence, not provider
+qualification, provider selection, autonomous-recovery evidence, or a supported-profile claim.
+
+After GF-019 and GF-022, GF-020 may qualify the structured-file source. After GF-010, GF-012, and
+GF-022, and only once the local file ledger realization is explicitly selected, GF-025 may qualify
+its ledger, registry, and independently trusted witness through `PORT-LEDGER` and
+`CF-MECH-LEDGER`. After GF-013 and GF-022, and only once the local file artifact realization is
+explicitly selected, GF-026 may qualify that provider through `PORT-ARTIFACT` and
+`CF-MECH-ARTIFACT`. A real intake must recompose the preview and refresh both exact approvals
+against those current provider gates. Implementation authorization never makes an unqualified
+provider reachable or waives a provider gate.

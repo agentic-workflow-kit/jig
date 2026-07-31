@@ -53,6 +53,15 @@ not invent an edge or wait for an unrelated blocked story: a blocked story stops
 
 For Phase 1, after GF-010 lands, GF-011, GF-012, and GF-013 are initially ready. If GF-012 later blocks, it does not stop GF-011 or GF-013; GF-013 may enable GF-014, while GF-015 waits for both GF-011 and GF-014 (and its other declared predecessors). Phase closure still waits for GF-012.
 
+For the owner-selected Phase 2→3 development overlap, an exact reviewed and integrated GF-024 may
+release GF-030 after every declared GF-030 predecessor is contained. GF-020, GF-025, and GF-026 may
+continue as independent qualification lanes and still block full Phase 2 closure, real-provider
+intake, autonomous restore, and supported-profile claims. The overlap is valid only while the
+GF-023/GF-024 posture remains `development-semantic-only`, provider and dispatch reachability remain
+false, recovery remains fail-closed without autonomous restore, and the external ledger records
+that safe-overlap guard. Any attempt to use a real provider closes the overlap until the applicable
+exact qualification evidence, recomposed preview, and refreshed approvals pass.
+
 ## Story candidate and integration loop
 
 The implementer commits the candidate and runs the story's required checks in its registered worktree with the policy's minimal non-secret environment-name allowlist. Before checks and after review, record tracked/untracked clean status and the exact `git ls-files --others --ignored --exclude-standard` inventory; fail closed on any residue outside the policy allowlist. The ledger binds the exact candidate commit, base, required command/set and result, timestamp and durable log reference, sanitized environment-name allowlist, ignored-state inventory/decision, reviewer identity, independence, findings and verdict. The reviewer reads the frozen `HEAD`, base, diff, predecessor containment, checks, environment/residue evidence, and status under the [reviewer protocol](./reviewer/README.md); it never runs checks or mutates state.

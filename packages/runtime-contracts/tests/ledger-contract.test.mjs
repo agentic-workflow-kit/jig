@@ -236,6 +236,7 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   const first = ledger.intake({
     compositionDigest: fixture.digests.compositionA,
     acknowledgementDigest: fixture.digests.acknowledgementA,
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   });
   assert.equal(first.ok, true);
@@ -244,6 +245,7 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   const replay = ledger.intake({
     compositionDigest: fixture.digests.compositionA,
     acknowledgementDigest: fixture.digests.acknowledgementA,
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   });
   assert.deepEqual(replay, first);
@@ -251,6 +253,7 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
     ledger.intake({
       compositionDigest: fixture.digests.compositionA,
       acknowledgementDigest: fixture.digests.acknowledgementA,
+      terminalAck: 'accepted',
       successorCut: 'predecessor/5',
     }),
     { ok: false, error: { family: 'FC-INPUT', code: 'INTAKE_REQUEST_MISMATCH' } },
@@ -258,6 +261,7 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   const contender = ledger.intake({
     compositionDigest: fixture.digests.compositionB,
     acknowledgementDigest: fixture.digests.acknowledgementB,
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   });
   assert.equal(contender.ok, true);
@@ -276,9 +280,40 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
     ledger.intake({
       compositionDigest: fixture.digests.compositionB,
       acknowledgementDigest: fixture.digests.acknowledgementB,
+      terminalAck: 'accepted',
       successorCut: 'predecessor/4',
     }),
     contender,
+  );
+});
+
+test('semantic ledger: a witnessed terminal rejection is replayable and never derives a Run', () => {
+  const ledger = runtime.createScriptedLedger();
+  const request = {
+    compositionDigest: fixture.digests.compositionA,
+    acknowledgementDigest: fixture.digests.acknowledgementA,
+    terminalAck: 'rejected',
+  };
+  const rejected = ledger.intake(request);
+  assert.deepEqual(rejected, {
+    ok: true,
+    value: {
+      kind: 'rejected',
+      position: 0,
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+      reason: 'envelope-rejected',
+    },
+  });
+  assert.equal('run' in rejected.value, false);
+  assert.deepEqual(ledger.intake(request), rejected);
+  const readback = ledger.readIntake(fixture.digests.compositionA);
+  assert.equal(readback.ok, true);
+  assert.deepEqual(readback.value.result, rejected.value);
+  assert.equal(
+    ledger.intake({ ...request, terminalAck: 'accepted' }).ok,
+    false,
+    'a rejected composition cannot be replayed as accepted',
   );
 });
 
@@ -286,6 +321,7 @@ test('semantic ledger: intake crash and missing companions fail closed without r
   const request = {
     compositionDigest: fixture.digests.compositionA,
     acknowledgementDigest: fixture.digests.acknowledgementA,
+    terminalAck: 'accepted',
     successorCut: 'predecessor/4',
   };
   const lost = runtime.createScriptedLedger();
@@ -312,9 +348,31 @@ test('semantic ledger: intake crash and missing companions fail closed without r
     unverifiedWinner.intake({
       compositionDigest: fixture.digests.compositionB,
       acknowledgementDigest: fixture.digests.acknowledgementB,
+      terminalAck: 'accepted',
       successorCut: 'predecessor/4',
     }),
     { ok: false, error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' } },
+  );
+});
+
+test('semantic ledger: missing terminal acknowledgement disposition cannot create a Run', () => {
+  const ledger = runtime.createScriptedLedger();
+  assert.deepEqual(
+    ledger.intake({
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
+  );
+  assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, false);
+  assert.deepEqual(
+    ledger.intake({
+      compositionDigest: fixture.digests.compositionA,
+      acknowledgementDigest: fixture.digests.acknowledgementA,
+      terminalAck: 'accepted',
+      successorCut: '',
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
   );
 });
 
