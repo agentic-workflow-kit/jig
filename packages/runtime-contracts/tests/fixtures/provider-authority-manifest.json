@@ -1,1 +1,13 @@
-{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}
+{
+  "credentialAuthority": [],
+  "externalServiceAuthority": [],
+  "filesystemAuthority": [],
+  "lineage": { "kind": "genesis" },
+  "manifestVersion": "provider-authority/v1",
+  "nativePermissionPostures": [],
+  "networkAuthority": [],
+  "providerIdentity": "scripted-capability-proof-fixture/v1",
+  "runtimeAuthority": { "kind": "in-process-pure-fixture" },
+  "scope": { "phase": 2, "purpose": "semantic-admission-fixture", "story": "GF-022" },
+  "subprocessAuthority": []
+}
