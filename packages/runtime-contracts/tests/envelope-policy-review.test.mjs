@@ -26,8 +26,8 @@ const input = () => ({
   plan: plan(),
   policy: {
     track: 'track/default',
-    floors: { review: 2 },
-    selections: { review: 2 },
+    floors: { review: 2, checks: 1 },
+    selections: { review: 2, checks: 1 },
     bounds: Object.fromEntries(Object.entries(runtime.ENVELOPE_BOUNDS).map(([id, value]) => [id, value.default])),
     capacities: { 'RC-SESSION': 2, 'RC-FINALIZER': 1 },
     reserves: { 'RC-SESSION': 1 },
@@ -113,10 +113,10 @@ test('R05: composition rejects cumulative dependency demand that exhausts the re
   });
   assert.equal(runtime.composeEnvelope(value).ok, false);
 });
-test('R06 RED: floor mutation changes proposal identity', () => {
+test('R06 RED: policy selection mutation changes proposal identity', () => {
   const a = input();
   const b = input();
-  b.policy.floors.review = 1;
+  b.policy.selections.review = 3;
   const left = runtime.composeEnvelope(a);
   const right = runtime.composeEnvelope(b);
   assert.equal(left.ok, true);
@@ -151,4 +151,20 @@ test('R09 RED: guidance-only mutation changes proposal digest', () => {
   assert.equal(left.ok, true);
   assert.equal(right.ok, true);
   assert.notEqual(left.value.proposalDigest, right.value.proposalDigest);
+});
+test('R10: envelope capacity cannot exceed the normalized approved-plan hard capacity', () => {
+  const value = input();
+  value.policy.capacities['RC-SESSION'] = 4;
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R11: role prompt binding rejects a matching digest on a different artifact version', () => {
+  const value = input();
+  value.artifacts[0].version = 'v2';
+  assert.equal(runtime.composeEnvelope(value).ok, false);
+});
+test('R12: caller policy maps cannot mint a repository policy rule', () => {
+  const value = input();
+  value.policy.floors.extra = 1;
+  value.policy.selections.extra = 1;
+  assert.equal(runtime.composeEnvelope(value).ok, false);
 });

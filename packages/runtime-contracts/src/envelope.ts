@@ -3,6 +3,7 @@
  * ports, providers, setup execution, approval, intake, or controller imports.
  */
 import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { REPOSITORY_POLICY_CATALOGUE } from './repository-policy-catalogue.js';
 import { validateSourcePlan } from './source.js';
 
 export const ENVELOPE_POLICY_VERSION = 'jig.envelope-policy.v1';
@@ -235,8 +236,13 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const floors = object(policyInput.floors);
   const selected = object(policyInput.selections);
   if (!floors || !selected) return fail('INVALID_POLICY');
+  if (
+    !exactKeys(floors, Object.keys(REPOSITORY_POLICY_CATALOGUE.floors)) ||
+    Object.entries(REPOSITORY_POLICY_CATALOGUE.floors).some(([key, floor]) => floors[key] !== floor)
+  )
+    return fail('UNTRUSTED_POLICY_CATALOGUE');
   const policy: Record<string, number> = {};
-  for (const [key, floor] of Object.entries(floors)) {
+  for (const [key, floor] of Object.entries(REPOSITORY_POLICY_CATALOGUE.floors)) {
     const choice = selected[key];
     if (!integer(floor) || !integer(choice) || choice < floor) return fail('WEAKENED_FLOOR');
     policy[key] = choice;
@@ -264,6 +270,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   )
     return fail('INVALID_PROFILE_OR_SETUP');
   const artifactIds = new Set<string>();
+  const artifactRecords = new Map<string, Record<string, CanonicalJson>>();
   for (const artifact of artifacts) {
     const item = object(artifact);
     if (
@@ -279,6 +286,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     const id = `${item.id}:${item.kind}:${item.version}:${item.digest}`;
     if (artifactIds.has(id)) return fail('INVALID_ARTIFACT');
     artifactIds.add(id);
+    artifactRecords.set(item.id, item);
   }
   const prompts = new Set<string>();
   if (
@@ -295,9 +303,15 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
       typeof entry.role !== 'string' ||
       typeof entry.prompt !== 'string' ||
       prompts.has(entry.prompt) ||
-      ![...artifactIds].some(
-        (id) => id.startsWith(`${entry.prompt}:role-prompt:`) && id.endsWith(profile.promptDigest as string),
-      )
+      !(() => {
+        const artifact = artifactRecords.get(entry.prompt);
+        return (
+          artifact?.track === track &&
+          artifact.kind === 'role-prompt' &&
+          artifact.version === profile.version &&
+          artifact.digest === profile.promptDigest
+        );
+      })()
     )
       return fail('INVALID_PROFILE_REFERENCE');
     prompts.add(entry.prompt);
@@ -349,6 +363,18 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     )
   )
     return fail('INVALID_RESERVE');
+  for (const [resource, hardCapacity] of Object.entries(normalizedPlan.capacities)) {
+    const capacity = capacities[resource];
+    const reserve = reserves[resource];
+    if (
+      resource === 'RC-FINALIZER' ||
+      typeof capacity !== 'number' ||
+      capacity > hardCapacity ||
+      typeof reserve !== 'number' ||
+      reserve < (normalizedPlan.reserves[resource] as number)
+    )
+      return fail('CONFIGURATION_INCOMPATIBLE');
+  }
   const byStoryKey = new Map(approvedPlan.value.stories.map((story) => [story.key, story]));
   const demandAt = (key: string, resource: string, memo = new Map<string, number>()): number => {
     const memoKey = `${key}\u0000${resource}`;
