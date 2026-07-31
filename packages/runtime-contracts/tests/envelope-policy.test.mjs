@@ -6,7 +6,8 @@ const runtime = await import('../dist/index.js');
 const policy = {
   track: 'track/default',
   floors: { review: 2, checks: 1 },
-  bounds: {},
+  selections: { review: 3, checks: 1 },
+  bounds: Object.fromEntries(Object.entries(runtime.ENVELOPE_BOUNDS).map(([id, value]) => [id, value.default])),
   capacities: { 'RC-SESSION': 2, 'RC-FINALIZER': 1 },
   reserves: { 'RC-SESSION': 1 },
 };
@@ -43,7 +44,7 @@ const input = () => ({
     pathManifest: ['src'],
     ruleManifest: ['review'],
   },
-  ruleSurface: { track: 'track/default', version: 'v1', rules: { review: 3, checks: 1 } },
+  ruleSurface: { track: 'track/default', version: 'v1', entries: [{ path: 'src', rule: 'review' }] },
   guidance: { rationale: 'why', suitableUse: 'when', tradeoffs: 'cost' },
 });
 
@@ -64,7 +65,7 @@ test('GF-021: composition preserves floors, pins defaults, one track, and is rep
 test('GF-021: rejects weakened floors, unsafe reserve, cross-track input, and range edge violations', () => {
   for (const mutate of [
     (value) => {
-      value.ruleSurface.rules.review = 1;
+      value.policy.selections.review = 1;
     },
     (value) => {
       value.policy.reserves = { 'RC-SESSION': 0 };
@@ -73,7 +74,7 @@ test('GF-021: rejects weakened floors, unsafe reserve, cross-track input, and ra
       value.profile.track = 'track/other';
     },
     (value) => {
-      value.policy.bounds = { 'BND-REWORK': 6 };
+      value.policy.bounds['BND-REWORK'] = 6;
     },
   ]) {
     const value = input();
@@ -86,14 +87,14 @@ test('GF-021: every design-owned bound accepts lower/default/upper and rejects j
   for (const [id, definition] of Object.entries(runtime.ENVELOPE_BOUNDS)) {
     for (const selected of [definition.lower, definition.default, definition.upper]) {
       const value = input();
-      value.policy.bounds = { [id]: selected };
+      value.policy.bounds[id] = selected;
       const result = runtime.composeEnvelope(value);
       assert.equal(result.ok, true, `${id}:${selected}`);
       assert.equal(result.value.bounds[id].rangeVersion, 'jig.envelope-bounds.v1');
     }
     for (const selected of [definition.lower - 1, definition.upper + 1]) {
       const value = input();
-      value.policy.bounds = { [id]: selected };
+      value.policy.bounds[id] = selected;
       assert.equal(runtime.composeEnvelope(value).ok, false, `${id}:${selected}`);
     }
   }
@@ -130,7 +131,7 @@ test('GF-021: hostile or hidden input is rejected without invoking getters', () 
 test('GF-021: changed validated input creates a new proposal and result contains no authority surface', () => {
   const first = runtime.composeEnvelope(input());
   const changed = input();
-  changed.ruleSurface.rules.review = 4;
+  changed.policy.selections.review = 4;
   const second = runtime.composeEnvelope(changed);
   assert.equal(first.ok, true);
   assert.equal(second.ok, true);

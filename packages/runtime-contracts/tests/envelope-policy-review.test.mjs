@@ -27,7 +27,8 @@ const input = () => ({
   policy: {
     track: 'track/default',
     floors: { review: 2 },
-    bounds: {},
+    selections: { review: 2 },
+    bounds: Object.fromEntries(Object.entries(runtime.ENVELOPE_BOUNDS).map(([id, value]) => [id, value.default])),
     capacities: { 'RC-SESSION': 2, 'RC-FINALIZER': 1 },
     reserves: { 'RC-SESSION': 1 },
   },
@@ -45,7 +46,7 @@ const input = () => ({
     pathManifest: ['src'],
     ruleManifest: ['review'],
   },
-  ruleSurface: { track: 'track/default', version: 'v1', rules: { review: 2 } },
+  ruleSurface: { track: 'track/default', version: 'v1', entries: [{ path: 'src', rule: 'review' }] },
   guidance: { rationale: 'why', suitableUse: 'when', tradeoffs: 'cost' },
 });
 
@@ -79,4 +80,10 @@ test('R04 RED: independent literal bounds oracle is the catalogue', () => {
     runtime.ENVELOPE_BOUNDS,
     Object.fromEntries(Object.entries(bounds).filter(([key]) => key !== 'version')),
   );
+});
+
+test('R02 second-review RED: prompt digest must bind the referenced prompt artifact and guidance changes proposal', () => {
+  const value = input();
+  value.profile.promptDigest = digest('f');
+  assert.equal(runtime.composeEnvelope(value).ok, false);
 });

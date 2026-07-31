@@ -200,7 +200,12 @@ function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
       if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
       const child = snapshot(descriptor.value, depth + 1);
       if (child === undefined) return undefined;
-      output[key as string] = child;
+      Object.defineProperty(output, key as string, {
+        value: child,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return output;
   } catch {

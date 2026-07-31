@@ -157,10 +157,10 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   if (!plan || !policyInput || !profile || !setup || !rules || !guidance || !Array.isArray(artifacts))
     return fail('MISSING_COMPOSITION_INPUT');
   if (
-    !exactKeys(policyInput, ['track', 'floors', 'bounds', 'capacities', 'reserves']) ||
+    !exactKeys(policyInput, ['track', 'floors', 'selections', 'bounds', 'capacities', 'reserves']) ||
     !exactKeys(profile, ['track', 'version', 'promptDigest', 'roles']) ||
     !exactKeys(setup, ['track', 'recipeDigest', 'inputFingerprintRule', 'pathManifest', 'ruleManifest']) ||
-    !exactKeys(rules, ['track', 'version', 'rules']) ||
+    !exactKeys(rules, ['track', 'version', 'entries']) ||
     !exactKeys(guidance, ['rationale', 'suitableUse', 'tradeoffs'])
   )
     return fail('UNKNOWN_COMPOSITION_FIELD');
@@ -176,7 +176,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   )
     return fail('CROSS_TRACK_INPUT');
   const floors = object(policyInput.floors);
-  const selected = object(rules.rules);
+  const selected = object(policyInput.selections);
   if (!floors || !selected) return fail('INVALID_POLICY');
   const policy: Record<string, number> = {};
   for (const [key, floor] of Object.entries(floors)) {
@@ -221,7 +221,9 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
       typeof entry.role !== 'string' ||
       typeof entry.prompt !== 'string' ||
       prompts.has(entry.prompt) ||
-      ![...artifactIds].some((id) => id.startsWith(`${entry.prompt}:role-prompt:`))
+      ![...artifactIds].some(
+        (id) => id.startsWith(`${entry.prompt}:role-prompt:`) && id.endsWith(profile.promptDigest as string),
+      )
     )
       return fail('INVALID_PROFILE_REFERENCE');
     prompts.add(entry.prompt);
@@ -229,12 +231,26 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const requestedBounds = object(policyInput.bounds);
   if (!requestedBounds) return fail('INVALID_BOUNDS');
   const bounds: Record<string, { value: number; rangeVersion: 'jig.envelope-bounds.v1' }> = {};
+  if (!exactKeys(requestedBounds, Object.keys(ENVELOPE_BOUNDS))) return fail('INVALID_BOUNDS');
   for (const [id, definition] of Object.entries(ENVELOPE_BOUNDS)) {
-    const value = requestedBounds[id] === undefined ? definition.default : requestedBounds[id];
+    const value = requestedBounds[id];
     if (!integer(value) || value < definition.lower || value > definition.upper) return fail('BOUND_OUT_OF_RANGE');
     bounds[id] = { value, rangeVersion: 'jig.envelope-bounds.v1' };
   }
-  if (Object.keys(requestedBounds).some((id) => !(id in ENVELOPE_BOUNDS))) return fail('UNKNOWN_BOUND');
+  if (!Array.isArray(rules.entries) || rules.entries.length === 0) return fail('INVALID_RULE_SURFACE');
+  const ruleEntries = new Set<string>();
+  for (const entry of rules.entries) {
+    const item = object(entry);
+    if (
+      !item ||
+      !exactKeys(item, ['path', 'rule']) ||
+      typeof item.path !== 'string' ||
+      typeof item.rule !== 'string' ||
+      ruleEntries.has(`${item.path}\u0000${item.rule}`)
+    )
+      return fail('INVALID_RULE_SURFACE');
+    ruleEntries.add(`${item.path}\u0000${item.rule}`);
+  }
   const capacities = object(policyInput.capacities);
   const reserves = object(policyInput.reserves);
   if (!capacities || !reserves || capacities['RC-FINALIZER'] !== 1 || 'RC-FINALIZER' in reserves)
@@ -269,6 +285,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     artifacts,
     setup,
     ruleSurface: rules,
+    guidance,
   } as CanonicalJson;
   const proposalDigest = stage('EP-PROPOSAL', canonical);
   const policyDigest = stage('EP-POLICY', policy);
@@ -278,7 +295,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const rangeDigest = stage('EP-RANGES', bounds);
   const planDigest = stage('EP-PLAN', approvedPlan.value as unknown as CanonicalJson);
   const candidateDigest = stage('EP-CANDIDATE', approvedPlan.value as unknown as CanonicalJson);
-  const suiteDigest = stage('EP-SUITE', rules);
+  const suiteDigest = stage('EP-RULE-SURFACE', rules);
   const probeDigest = stage('EP-PROBE', { capacities, reserves });
   if (
     !digest(proposalDigest) ||
