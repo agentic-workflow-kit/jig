@@ -1,6 +1,6 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { isScriptedLedger } from './ledger.js';
-import { certificateClaims } from './qualification-registry.js';
+import { certificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -455,9 +455,23 @@ export function structuredFileQualificationGate(
   const gate = structuredFileProviderGate(data.gate);
   if (!gate.ok) return gate;
   const claims = certificateClaims.get(data.certificate);
-  return claims && claims.subject.providerId === 'structured-json-file-source/v1'
-    ? gate
-    : fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
+  const snapshot = snapshotQualificationClaims(claims);
+  if (
+    !claims ||
+    !snapshot ||
+    !Object.isFrozen(claims) ||
+    !Object.isFrozen(claims.subject) ||
+    claims.capability !== STRUCTURED_FILE_CATALOGUE.capability ||
+    claims.policyMinimum !== STRUCTURED_FILE_CATALOGUE.policyMinimum ||
+    claims.resourceDigest !== STRUCTURED_FILE_CATALOGUE.resourceDigest ||
+    claims.subject.providerId !== 'structured-json-file-source/v1' ||
+    claims.subject.providerBuildDigest !== STRUCTURED_FILE_CATALOGUE.providerBuildDigest ||
+    claims.subject.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd' ||
+    claims.subject.environmentDigest !== 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536' ||
+    claims.subject.recorderIdentity !== 'recorder/jig-conformance/v1'
+  )
+    return fail('FC-TRUST', 'EXACT_CONFORMANCE_CERTIFICATE_REQUIRED');
+  return gate;
 }
 
 type StructuredFileAttempt = Readonly<{
