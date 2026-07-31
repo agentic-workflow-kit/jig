@@ -8,6 +8,7 @@ import {
 
 export * from './envelope.js';
 export * from './ledger.js';
+export * from './provider.js';
 export * from './source.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
