@@ -616,6 +616,25 @@ test('public conformance cannot manufacture a qualification certificate', () => 
     undefined,
   );
 });
+
+test('private structured-file execution mints only an opaque runtime certificate', async () => {
+  const internal = await import('../dist/structured-file-qualification.js');
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
+    manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const records = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const certificate = internal.executeExactStructuredFileQualification(records, providerSubject);
+  assert.ok(certificate);
+  assert.equal('executeExactStructuredFileQualification' in conformance, false);
+  const friend = await import('@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate');
+  assert.equal(friend.mintQualificationCertificate({}), undefined);
+  assert.equal(friend.mintQualificationCertificate({ ...certificate }), undefined);
+});
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
     route: route.id,

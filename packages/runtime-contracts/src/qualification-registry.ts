@@ -5,3 +5,4 @@ export type QualificationClaims = Readonly<{
   policyMinimum: string;
 }>;
 export const certificateClaims = new WeakMap<object, QualificationClaims>();
+export const executionClaims = new WeakMap<object, QualificationClaims>();
