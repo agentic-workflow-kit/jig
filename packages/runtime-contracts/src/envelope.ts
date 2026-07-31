@@ -60,6 +60,20 @@ const name = (value: unknown, prefix: string): value is string =>
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 const integer = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const RESOURCE_CLASSES = new Set([
+  'RC-ISOLATION',
+  'RC-SESSION',
+  'RC-IMPL-TURN',
+  'RC-REVIEW-TURN',
+  'RC-VERIFY',
+  'RC-DELIVERY',
+  'RC-FINALIZER',
+]);
+const exactKeys = (value: Record<string, CanonicalJson>, keys: readonly string[]): boolean => {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
 
 /** Copies plain data through descriptors, never invoking an attacker supplied getter or proxy trap. */
 function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
@@ -67,7 +81,7 @@ function snapshot(value: unknown, depth = 0): CanonicalJson | undefined {
     if (depth > 32) return undefined;
     if (
       value === null ||
-      typeof value === 'string' ||
+      (typeof value === 'string' && [...value].length <= 4_096) ||
       typeof value === 'boolean' ||
       (typeof value === 'number' && Number.isFinite(value))
     )
@@ -116,7 +130,8 @@ function stage(domain: string, value: CanonicalJson): string | undefined {
 
 export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal> {
   const root = object(snapshot(input));
-  if (!root) return fail('INVALID_ENVELOPE_INPUT');
+  if (!root || !exactKeys(root, ['plan', 'policy', 'profile', 'artifacts', 'setup', 'ruleSurface']))
+    return fail('INVALID_ENVELOPE_INPUT');
   const plan = object(root.plan);
   const policyInput = object(root.policy);
   const profile = object(root.profile);
@@ -125,6 +140,14 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   const artifacts = root.artifacts;
   if (!plan || !policyInput || !profile || !setup || !rules || !Array.isArray(artifacts))
     return fail('MISSING_COMPOSITION_INPUT');
+  if (
+    !exactKeys(plan, ['track', 'stories']) ||
+    !exactKeys(policyInput, ['track', 'floors', 'bounds', 'capacities', 'reserves']) ||
+    !exactKeys(profile, ['track', 'version', 'promptDigest']) ||
+    !exactKeys(setup, ['track', 'recipeDigest', 'inputFingerprintRule']) ||
+    !exactKeys(rules, ['track', 'version', 'rules'])
+  )
+    return fail('UNKNOWN_COMPOSITION_FIELD');
   const track = plan.track;
   if (
     !name(track, 'track') ||
@@ -157,6 +180,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
       !digest(item.digest)
     )
       return fail('INVALID_ARTIFACT');
+    if (!exactKeys(item, ['track', 'kind', 'version', 'digest'])) return fail('INVALID_ARTIFACT');
     const id = `${item.kind}:${item.version}:${item.digest}`;
     if (artifactIds.has(id)) return fail('INVALID_ARTIFACT');
     artifactIds.add(id);
@@ -182,7 +206,12 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
   )
     return fail('INVALID_CAPACITY');
   for (const [resource, capacity] of Object.entries(capacities)) {
-    if (!integer(capacity) || capacity < 1 || (resource !== 'RC-FINALIZER' && capacity < 2))
+    if (
+      !RESOURCE_CLASSES.has(resource) ||
+      !integer(capacity) ||
+      capacity < 1 ||
+      (resource !== 'RC-FINALIZER' && capacity < 2)
+    )
       return fail('INVALID_CAPACITY');
     if (
       resource !== 'RC-FINALIZER' &&
@@ -190,10 +219,23 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     )
       return fail('INVALID_RESERVE');
   }
+  if (
+    Object.keys(reserves).some(
+      (resource) => !RESOURCE_CLASSES.has(resource) || resource === 'RC-FINALIZER' || !(resource in capacities),
+    )
+  )
+    return fail('INVALID_RESERVE');
   for (const story of stories) {
     const record = object(story);
     const demand = record && object(record.demand);
-    if (!record || record.track !== track || !name(record.key, 'story') || !demand) return fail('INVALID_PLAN');
+    if (
+      !record ||
+      !exactKeys(record, ['key', 'track', 'demand']) ||
+      record.track !== track ||
+      !name(record.key, 'story') ||
+      !demand
+    )
+      return fail('INVALID_PLAN');
     for (const [resource, amount] of Object.entries(demand)) {
       const capacity = capacities[resource];
       if (
