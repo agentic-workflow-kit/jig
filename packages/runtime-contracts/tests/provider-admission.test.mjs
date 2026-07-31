@@ -147,4 +147,39 @@ test('review regression: approved authority is exact bytes and proof storage sur
       .approve(approval).ok,
     false,
   );
+  const first = runtime.createProviderAdmissionFixture(configured(ledger));
+  const persistedStart = first.start(start);
+  assert.equal(persistedStart.ok, true);
+  const persistedResult = first.result({
+    ...start,
+    predecessor: persistedStart.value.digest,
+    outcome: 'positive',
+    observedAt: 1_100,
+  });
+  assert.equal(persistedResult.ok, true);
+  const recovered = runtime.createProviderAdmissionFixture(configured(ledger));
+  const recoveredStart = recovered.start(start);
+  assert.deepEqual(recoveredStart, persistedStart, 'exact start bytes replay from protected preflight storage');
+  const recoveredResult = recovered.result({
+    ...start,
+    predecessor: recoveredStart.value.digest,
+    outcome: 'positive',
+    observedAt: 1_100,
+  });
+  assert.deepEqual(recoveredResult, persistedResult, 'exact result bytes replay from protected preflight storage');
+  assert.equal(
+    recovered.admit({
+      basis,
+      proof: { ...recoveredResult.value, outcome: 'negative' },
+      observedAt: 1_200,
+      maxAgeMs: 1_000,
+    }).ok,
+    false,
+  );
+  assert.equal(recovered.admit({ basis, proof: recoveredResult.value, observedAt: 1_200, maxAgeMs: 1_000 }).ok, true);
+  assert.equal(
+    recovered.start({ ...start, ordinal: 2, predecessor: recoveredResult.value.digest }).ok,
+    false,
+    'positive proof consumes the retry chain',
+  );
 });
