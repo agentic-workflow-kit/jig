@@ -78,7 +78,10 @@ export function createLocalFilePreflightForConformance(root: string) {
       const stored = writeCreateOnlyJson(root, [resourceKey(request.key)], `${request.variant}.json`, result);
       if (!stored.ok && stored.error.code === 'ALREADY_EXISTS') {
         const raced = read(request.key, request.variant);
-        return raced.ok && !('kind' in raced.value) && raced.value.digest === result.digest
+        return raced.ok &&
+          !('kind' in raced.value) &&
+          raced.value.digest === result.digest &&
+          raced.value.deadline === result.deadline
           ? ok(raced.value)
           : fail('FC-FENCE', 'PREFLIGHT_MISMATCH');
       }

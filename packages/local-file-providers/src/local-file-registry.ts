@@ -3,6 +3,7 @@ import {
   ensureConfinedDirectory,
   type FileMechanismResult,
   fail,
+  type IndependentRootEvidence,
   isDigest,
   listConfinedFiles,
   ok,
@@ -78,8 +79,12 @@ function recordDigest(record: RegistryRecord): FileMechanismResult<string> {
   return staged.ok ? ok(staged.value) : fail('FC-TRUST', 'INVALID_REGISTRY_RECORD');
 }
 
-export function createLocalFileRegistryForConformance(root: string, witnessRoot: string) {
-  const independent = verifySeparateRoots(root, witnessRoot);
+export function createLocalFileRegistryForConformance(
+  root: string,
+  witnessRoot: string,
+  independenceEvidence?: IndependentRootEvidence,
+) {
+  const independent = verifySeparateRoots(root, witnessRoot, independenceEvidence);
   const witness = createLocalFileWitness(witnessRoot);
   const recordsFor = (bound: RegistryBinding): FileMechanismResult<readonly RegistryRecord[]> => {
     const key = resourceKey(`${bound.registry}\0${bound.target}`);
@@ -123,12 +128,15 @@ export function createLocalFileRegistryForConformance(root: string, witnessRoot:
       : fail('FC-TRUST', 'REGISTRY_WITNESS_MISMATCH');
   };
   return Object.freeze({
-    append(input: {
-      binding: RegistryBinding;
-      expectedPosition: number;
-      expectedDigest: string;
-      record: RegistryRecord;
-    }): FileMechanismResult<RegistryRecord> {
+    append(
+      input: {
+        binding: RegistryBinding;
+        expectedPosition: number;
+        expectedDigest: string;
+        record: RegistryRecord;
+      },
+      fault?: 'after-flush' | 'lost-ack',
+    ): FileMechanismResult<RegistryRecord> {
       if (!independent.ok) return independent;
       const bound = binding(input?.binding);
       if (!bound.ok) return bound;
@@ -174,12 +182,14 @@ export function createLocalFileRegistryForConformance(root: string, witnessRoot:
         record,
       );
       if (!stored.ok) return stored;
+      if (fault === 'after-flush') return fail('FC-TRUST', 'REGISTRY_ACK_LOST');
       const advanced = witness.advance(
         `registry:${bound.value.registry}:${bound.value.target}`,
         { position: currentPosition, digest: currentDigest },
         { position: record.position, digest: record.contentDigest },
       );
-      return advanced.ok ? ok(Object.freeze(record)) : advanced;
+      if (!advanced.ok) return advanced;
+      return fault === 'lost-ack' ? fail('FC-TRUST', 'REGISTRY_ACK_LOST') : ok(Object.freeze(record));
     },
     readback(input: {
       binding: RegistryBinding;
@@ -212,6 +222,33 @@ export function createLocalFileRegistryForConformance(root: string, witnessRoot:
       if (!trust.ok) return trust;
       const latest = records.value.at(-1);
       return ok(Object.freeze({ position: latest?.position ?? -1, digest: latest?.contentDigest ?? GENESIS.digest }));
+    },
+    advanceWitnessFloor(bindingValue: unknown): FileMechanismResult<void> {
+      if (!independent.ok) return independent;
+      const bound = binding(bindingValue);
+      if (!bound.ok) return bound;
+      const records = recordsFor(bound.value);
+      if (!records.ok || records.value.length === 0)
+        return records.ok ? fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT') : records;
+      const line = `registry:${bound.value.registry}:${bound.value.target}`;
+      const witnessed = witness.read(line);
+      const witnessHead = witnessed.ok
+        ? witnessed.value
+        : witnessed.error.code === 'WITNESS_ABSENT'
+          ? GENESIS
+          : undefined;
+      if (!witnessHead) return fail('FC-TRUST', witnessed.ok ? 'REGISTRY_WITNESS_MISMATCH' : witnessed.error.code);
+      const latest = records.value.at(-1) as RegistryRecord;
+      if (witnessHead.position >= latest.position) return fail('FC-FENCE', 'WITNESS_ALREADY_CURRENT');
+      const prior = witnessHead.position < 0 ? GENESIS.digest : records.value[witnessHead.position]?.contentDigest;
+      const target = records.value[witnessHead.position + 1];
+      if (!prior || prior !== witnessHead.digest || !target || target.previousDigest !== witnessHead.digest)
+        return fail('FC-TRUST', 'INVALID_REGISTRY_RECORD');
+      const advanced = witness.advance(line, witnessHead, {
+        position: target.position,
+        digest: target.contentDigest,
+      });
+      return advanced.ok ? ok(undefined) : advanced;
     },
   });
 }

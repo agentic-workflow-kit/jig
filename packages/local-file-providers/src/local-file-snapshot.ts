@@ -30,7 +30,21 @@ export function createLocalFileSnapshotForConformance(root: string) {
         `${String(snapshot.position).padStart(12, '0')}-${snapshot.digest}.json`,
         snapshot,
       );
-      if (!stored.ok && stored.error.code !== 'ALREADY_EXISTS') return stored;
+      if (!stored.ok && stored.error.code === 'ALREADY_EXISTS') {
+        const existing = readJsonFile(root, [
+          resourceKey(subject),
+          `${String(snapshot.position).padStart(12, '0')}-${snapshot.digest}.json`,
+        ]);
+        const persisted = existing.ok ? (existing.value as Snapshot) : undefined;
+        return persisted &&
+          persisted.subject === snapshot.subject &&
+          persisted.position === snapshot.position &&
+          persisted.digest === snapshot.digest &&
+          persisted.stateDigest === snapshot.stateDigest
+          ? ok(Object.freeze(persisted))
+          : fail('FC-FENCE', 'SNAPSHOT_MISMATCH');
+      }
+      if (!stored.ok) return stored;
       return ok(snapshot);
     },
     verify(subject: string, head: unknown, snapshot: unknown): FileMechanismResult<boolean> {

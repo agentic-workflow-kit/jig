@@ -4,6 +4,7 @@ import {
   ensureConfinedDirectory,
   type FileMechanismResult,
   fail,
+  type IndependentRootEvidence,
   isDigest,
   listConfinedFiles,
   ok,
@@ -22,8 +23,12 @@ type IntakeEntry = Readonly<{
 const GENESIS = Object.freeze({ position: -1, digest: '0'.repeat(64) });
 const runFor = (position: number, digest: string) => `run-${String(position).padStart(12, '0')}-${digest.slice(0, 16)}`;
 
-export function createLocalFileIntakeForConformance(root: string, witnessRoot: string) {
-  const independent = verifySeparateRoots(root, witnessRoot);
+export function createLocalFileIntakeForConformance(
+  root: string,
+  witnessRoot: string,
+  independenceEvidence?: IndependentRootEvidence,
+) {
+  const independent = verifySeparateRoots(root, witnessRoot, independenceEvidence);
   const witness = createLocalFileWitness(witnessRoot);
   const entries = (): FileMechanismResult<readonly IntakeEntry[]> => {
     const prepared = ensureConfinedDirectory(root, ['entries']);

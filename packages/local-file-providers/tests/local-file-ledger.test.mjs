@@ -51,8 +51,18 @@ function roots(t) {
   const witness = join(scratch, 'witness');
   mkdirSync(primary);
   mkdirSync(witness);
+  const evidence = pathModule.createSyntheticIndependentRootsForConformance(
+    realpathSync(primary),
+    realpathSync(witness),
+  );
+  assert.equal(evidence.ok, true);
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
-  return { scratch, primary: realpathSync(primary), witness: realpathSync(witness) };
+  return {
+    scratch,
+    primary: realpathSync(primary),
+    witness: realpathSync(witness),
+    independenceEvidence: evidence.value,
+  };
 }
 
 test('GF-025 public catalogue pins the exact manifest and remains unavailable without the witness', () => {
@@ -78,8 +88,8 @@ test('GF-025 public catalogue pins the exact manifest and remains unavailable wi
     assert.equal(internal in publicProvider, false);
 });
 
-test('path confinement rejects traversal, symlinks, and witness nesting', (t) => {
-  const { primary } = roots(t);
+test('path confinement rejects traversal, symlinks, witness nesting, and same-device witness roots', (t) => {
+  const { primary, witness, independenceEvidence } = roots(t);
   assert.equal(pathModule.confinedPath(primary, ['..', 'escape']).ok, false);
   const outside = join(primary, 'outside');
   mkdirSync(outside);
@@ -89,6 +99,14 @@ test('path confinement rejects traversal, symlinks, and witness nesting', (t) =>
     ok: false,
     error: { family: 'FC-TRUST', code: 'WITNESS_NOT_INDEPENDENT' },
   });
+  assert.deepEqual(pathModule.verifySeparateRoots(primary, witness), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'WITNESS_NOT_INDEPENDENT' },
+  });
+  assert.deepEqual(pathModule.verifySeparateRoots(primary, witness, independenceEvidence), {
+    ok: true,
+    value: undefined,
+  });
   assert.equal(pathModule.canonicalSnapshot({ text: 'e\u0301' }).ok, false);
   assert.equal(pathModule.canonicalSnapshot({ text: 'x'.repeat(4_097) }).ok, false);
   writeFileSync(join(primary, 'duplicate.json'), '{"value":1,"value":2}\n');
@@ -96,8 +114,8 @@ test('path confinement rejects traversal, symlinks, and witness nesting', (t) =>
 });
 
 test('run ledger persists a witnessed chain and classifies the five readback outcomes', (t) => {
-  const { primary, witness } = roots(t);
-  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
   const first = proposal(0, digest('0'));
   const committed = ledger.append({ binding, expectedPosition: -1, record: first });
   assert.equal(committed.ok, true);
@@ -131,8 +149,8 @@ test('run ledger persists a witnessed chain and classifies the five readback out
 });
 
 test('flush-before-witness crash recovery and rollback detection fail closed', (t) => {
-  const { primary, witness } = roots(t);
-  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
   const first = proposal(0, digest('0'));
   assert.equal(ledger.append({ binding, expectedPosition: -1, record: first }).ok, true);
   const second = proposal(1, first.contentDigest, 'b');
@@ -145,7 +163,7 @@ test('flush-before-witness crash recovery and rollback detection fail closed', (
     { ok: false, error: { family: 'FC-TRUST', code: 'WITNESS_BEHIND' } },
   );
   assert.equal(ledger.advanceWitnessFloor(binding).ok, true);
-  const restored = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness);
+  const restored = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
   assert.equal(
     restored.readback({ binding, position: 1, transaction: second.transaction, contentDigest: second.contentDigest })
       .value.kind,
@@ -160,8 +178,8 @@ test('flush-before-witness crash recovery and rollback detection fail closed', (
 });
 
 test('generation recovery requires a strictly newer generation claim and retains the original wait bound', (t) => {
-  const { primary, witness } = roots(t);
-  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const ledger = ledgerModule.createLocalFileRunLedgerForConformance(primary, witness, independenceEvidence);
   const first = proposal(0, digest('0'));
   assert.equal(ledger.append({ binding, expectedPosition: -1, record: first }).ok, true);
   const nextGeneration = `${run}/gen/2|recovery`;
@@ -199,8 +217,8 @@ test('generation recovery requires a strictly newer generation claim and retains
 });
 
 test('intake commits acknowledgement and successor claim in one witnessed record', (t) => {
-  const { primary, witness } = roots(t);
-  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
   const first = intake.create({
     compositionDigest: digest('a'),
     acknowledgementDigest: digest('b'),
@@ -228,8 +246,8 @@ test('intake commits acknowledgement and successor claim in one witnessed record
 });
 
 test('intake crash after durable pair flush requires witness reconciliation before read or progress', (t) => {
-  const { primary, witness } = roots(t);
-  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const intake = intakeModule.createLocalFileIntakeForConformance(primary, witness, independenceEvidence);
   assert.deepEqual(
     intake.create(
       { compositionDigest: digest('e'), acknowledgementDigest: digest('f'), successorCut: 'predecessor/8' },
@@ -248,6 +266,10 @@ test('preflight variants are immutable, predecessor-bound, and replay-safe', (t)
   const start = store.create({ key: 'proof/1', variant: 'start', bytes: { attempt: 1 }, deadline: 30_000 });
   assert.equal(start.ok, true);
   assert.deepEqual(store.create({ key: 'proof/1', variant: 'start', bytes: { attempt: 1 }, deadline: 30_000 }), start);
+  assert.deepEqual(store.create({ key: 'proof/1', variant: 'start', bytes: { attempt: 1 }, deadline: 30_001 }), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'PREFLIGHT_MISMATCH' },
+  });
   assert.equal(
     store.create({
       key: 'proof/1',
@@ -270,8 +292,8 @@ test('preflight variants are immutable, predecessor-bound, and replay-safe', (t)
 });
 
 test('registry journals exact semantic records, witnesses them, and fences a second writer', (t) => {
-  const { primary, witness } = roots(t);
-  const store = registryModule.createLocalFileRegistryForConformance(primary, witness);
+  const { primary, witness, independenceEvidence } = roots(t);
+  const store = registryModule.createLocalFileRegistryForConformance(primary, witness, independenceEvidence);
   const descriptor = digest('a');
   const registry = `registry/${descriptor}`;
   const target = 'target/repository';
@@ -327,6 +349,53 @@ test('registry journals exact semantic records, witnesses them, and fences a sec
     }).ok,
     false,
   );
+  const secondContent = { withdrawal: { story: 'story/example' } };
+  const secondStaged = codec.stageDigest({
+    domain: 'REGISTRY-RECORD',
+    excludePaths: ['contentDigest', 'handle'],
+    value: {
+      version: 'jig.registry.v1',
+      registry,
+      target,
+      expectedHeadPosition: 0,
+      expectedHeadDigest: record.contentDigest,
+      position: 1,
+      previousDigest: record.contentDigest,
+      predecessorDigest: record.contentDigest,
+      variant: 'withdrawal',
+      authority: null,
+      waiter: null,
+      content: secondContent,
+      contentDigest: '',
+      handle: null,
+    },
+  });
+  assert.equal(secondStaged.ok, true);
+  const second = {
+    version: 'jig.registry.v1',
+    registry,
+    target,
+    expectedHeadPosition: 0,
+    expectedHeadDigest: record.contentDigest,
+    position: 1,
+    previousDigest: record.contentDigest,
+    predecessorDigest: record.contentDigest,
+    contentDigest: secondStaged.value.digest,
+    variant: 'withdrawal',
+    handle: { registry, position: 1, contentDigest: secondStaged.value.digest },
+    content: secondContent,
+  };
+  assert.deepEqual(
+    store.append({ binding, expectedPosition: 0, expectedDigest: record.contentDigest, record: second }, 'after-flush'),
+    { ok: false, error: { family: 'FC-TRUST', code: 'REGISTRY_ACK_LOST' } },
+  );
+  const restored = registryModule.createLocalFileRegistryForConformance(primary, witness, independenceEvidence);
+  assert.deepEqual(restored.readback({ binding, position: 1 }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'REGISTRY_WITNESS_MISMATCH' },
+  });
+  assert.deepEqual(restored.advanceWitnessFloor(binding), { ok: true, value: undefined });
+  assert.equal(restored.readback({ binding, position: 1 }).value.kind, 'committed');
 });
 
 test('snapshots remain disposable and verify only against the exact current head', (t) => {
@@ -335,6 +404,10 @@ test('snapshots remain disposable and verify only against the exact current head
   const head = { position: 4, digest: digest('a') };
   const created = snapshots.write(run, head, digest('b'));
   assert.equal(created.ok, true);
+  assert.deepEqual(snapshots.write(run, head, digest('c')), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'SNAPSHOT_MISMATCH' },
+  });
   assert.deepEqual(snapshots.verify(run, head, created.value), { ok: true, value: true });
   assert.deepEqual(snapshots.verify(run, { position: 5, digest: digest('c') }, created.value), {
     ok: true,

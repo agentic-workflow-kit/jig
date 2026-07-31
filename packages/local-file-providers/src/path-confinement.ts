@@ -2,12 +2,13 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
   readdirSync,
-  readFileSync,
+  readSync,
   realpathSync,
   writeSync,
 } from 'node:fs';
@@ -30,6 +31,13 @@ const MAX_CANONICAL_BYTES = 65_536;
 const MAX_DEPTH = 32;
 const MAX_COLLECTION_ENTRIES = 256;
 const MAX_STRING_CODE_POINTS = 4_096;
+const syntheticIndependentRoots = new WeakSet<object>();
+
+export type IndependentRootEvidence = Readonly<{
+  kind: 'synthetic-conformance-only';
+  primaryRoot: string;
+  witnessRoot: string;
+}>;
 
 function sha256(bytes: Uint8Array): string {
   const constants = [
@@ -219,7 +227,11 @@ export function confinedPath(root: string, parts: readonly string[]): FileMechan
   return ok(candidate);
 }
 
-export function verifySeparateRoots(primaryRoot: string, witnessRoot: string): FileMechanismResult<void> {
+/** Test-only evidence for exercising mechanism semantics without claiming live witness qualification. */
+export function createSyntheticIndependentRootsForConformance(
+  primaryRoot: string,
+  witnessRoot: string,
+): FileMechanismResult<IndependentRootEvidence> {
   const primary = checkedRoot(primaryRoot);
   const witness = checkedRoot(witnessRoot);
   if (!primary.ok) return primary;
@@ -230,7 +242,41 @@ export function verifySeparateRoots(primaryRoot: string, witnessRoot: string): F
     primary.value.startsWith(`${witness.value}/`)
   )
     return fail('FC-TRUST', 'WITNESS_NOT_INDEPENDENT');
-  return ok(undefined);
+  const evidence = Object.freeze({
+    kind: 'synthetic-conformance-only' as const,
+    primaryRoot: primary.value,
+    witnessRoot: witness.value,
+  });
+  syntheticIndependentRoots.add(evidence);
+  return ok(evidence);
+}
+
+export function verifySeparateRoots(
+  primaryRoot: string,
+  witnessRoot: string,
+  evidence?: IndependentRootEvidence,
+): FileMechanismResult<void> {
+  const primary = checkedRoot(primaryRoot);
+  const witness = checkedRoot(witnessRoot);
+  if (!primary.ok) return primary;
+  if (!witness.ok) return witness;
+  if (
+    primary.value === witness.value ||
+    witness.value.startsWith(`${primary.value}/`) ||
+    primary.value.startsWith(`${witness.value}/`)
+  )
+    return fail('FC-TRUST', 'WITNESS_NOT_INDEPENDENT');
+  try {
+    if (lstatSync(primary.value).dev !== lstatSync(witness.value).dev) return ok(undefined);
+    return evidence &&
+      syntheticIndependentRoots.has(evidence) &&
+      evidence.primaryRoot === primary.value &&
+      evidence.witnessRoot === witness.value
+      ? ok(undefined)
+      : fail('FC-TRUST', 'WITNESS_NOT_INDEPENDENT');
+  } catch {
+    return fail('FC-MECHANISM', 'ROOT_UNAVAILABLE');
+  }
 }
 
 export function ensureConfinedDirectory(root: string, parts: readonly string[]): FileMechanismResult<string> {
@@ -255,18 +301,75 @@ export function ensureConfinedDirectory(root: string, parts: readonly string[]):
 export function readJsonFile(root: string, parts: readonly string[]): FileMechanismResult<unknown> {
   const path = confinedPath(root, parts);
   if (!path.ok) return path;
+  let descriptor: number | undefined;
   try {
-    const stat = lstatSync(path.value);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size < 2 || stat.size > MAX_FILE_BYTES)
+    const directoryParts = parts.slice(0, -1);
+    const directories = [
+      root,
+      ...directoryParts.map((_, index) => `${root}/${directoryParts.slice(0, index + 1).join('/')}`),
+    ].map((directory) => {
+      const stat = lstatSync(directory);
+      if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync(directory) !== directory)
+        throw new Error('untrusted directory');
+      return Object.freeze({ directory, dev: stat.dev, ino: stat.ino });
+    });
+    const pathStat = lstatSync(path.value);
+    if (
+      !pathStat.isFile() ||
+      pathStat.isSymbolicLink() ||
+      pathStat.nlink !== 1 ||
+      pathStat.size < 2 ||
+      pathStat.size > MAX_FILE_BYTES ||
+      realpathSync(path.value) !== path.value
+    )
       return fail('FC-TRUST', 'UNTRUSTED_FILE');
-    const before = realpathSync(path.value);
-    if (before !== path.value) return fail('FC-TRUST', 'UNTRUSTED_FILE');
-    const text = readFileSync(path.value, 'utf8');
+    descriptor = openSync(path.value, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = fstatSync(descriptor);
+    if (
+      !opened.isFile() ||
+      opened.dev !== pathStat.dev ||
+      opened.ino !== pathStat.ino ||
+      opened.nlink !== 1 ||
+      opened.size !== pathStat.size
+    )
+      return fail('FC-TRUST', 'UNTRUSTED_FILE');
+    for (const expected of directories) {
+      const current = lstatSync(expected.directory);
+      if (
+        !current.isDirectory() ||
+        current.isSymbolicLink() ||
+        current.dev !== expected.dev ||
+        current.ino !== expected.ino ||
+        realpathSync(expected.directory) !== expected.directory
+      )
+        return fail('FC-TRUST', 'UNTRUSTED_PATH_COMPONENT');
+    }
+    const bytes = new Uint8Array(opened.size);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, offset);
+      if (!Number.isSafeInteger(count) || count <= 0) throw new Error('short read');
+      offset += count;
+    }
+    const after = fstatSync(descriptor);
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.nlink !== opened.nlink ||
+      after.size !== opened.size ||
+      after.mtimeMs !== opened.mtimeMs
+    )
+      return fail('FC-TRUST', 'UNTRUSTED_FILE');
+    closeSync(descriptor);
+    descriptor = undefined;
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     if (!text.endsWith('\n')) return fail('FC-TRUST', 'UNTRUSTED_FILE');
     const value = snapshot(JSON.parse(text));
     return `${canonicalText(value)}\n` === text ? ok(value) : fail('FC-TRUST', 'UNTRUSTED_FILE');
   } catch {
     return fail('FC-MECHANISM', 'READ_FAILED');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
 }
 

@@ -11,6 +11,7 @@ import {
   ensureConfinedDirectory,
   type FileMechanismResult,
   fail,
+  type IndependentRootEvidence,
   isDigest,
   isPosition,
   listConfinedFiles,
@@ -146,8 +147,12 @@ function isGenerationClaim(content: unknown): boolean {
   }
 }
 
-export function createLocalFileRunLedgerForConformance(ledgerRoot: string, witnessRoot: string) {
-  const independent = verifySeparateRoots(ledgerRoot, witnessRoot);
+export function createLocalFileRunLedgerForConformance(
+  ledgerRoot: string,
+  witnessRoot: string,
+  independenceEvidence?: IndependentRootEvidence,
+) {
+  const independent = verifySeparateRoots(ledgerRoot, witnessRoot, independenceEvidence);
   const witness = createLocalFileWitness(witnessRoot);
   const recordsFor = (run: string): FileMechanismResult<readonly LedgerRecord[]> => {
     const directory = [resourceKey(run), 'records'];
