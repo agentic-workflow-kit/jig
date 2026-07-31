@@ -6,7 +6,10 @@ import {
   FRAME_VERSION,
 } from '@agentic-workflow-kit/jig-codec';
 
+export * from './envelope.js';
 export * from './ledger.js';
+export * from './provider.js';
+export * from './source.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare const TextDecoder: {

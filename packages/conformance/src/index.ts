@@ -327,6 +327,8 @@ export type AttemptLog = Readonly<{
   bytes: string;
 }>;
 const gateResults = new WeakSet<object>();
+const PROVIDER_RECORDER_ID = 'recorder/jig-conformance/v1';
+const providerRecorderEvidence = new WeakSet<object>();
 export function deterministicHarness(clock: number, seed: string): DeterministicHarness {
   let ordinal = 0;
   const safeClock = nonnegativeSafeInteger(clock) ? clock : 0;
@@ -599,10 +601,44 @@ export function append(
           reason: 'duplicate:key-bytes',
           failureClass: 'FC-INPUT',
         };
+  const record = Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION });
   return {
     status: input.status,
-    records: Object.freeze([...prepared.records, Object.freeze({ ...input, schemaVersion: CONFORMANCE_VERSION })]),
+    records: Object.freeze([...prepared.records, record]),
   };
+}
+
+/**
+ * Produce the provider proof only inside conformance from a recorded mechanism result.
+ * The caller supplies neither a provider-proof status nor recorder identity: both are
+ * derived here and the returned record carries module-private provenance.
+ */
+export function observeProvider(
+  port: PortId,
+  records: readonly EvidenceRecord[],
+  subject: Subject,
+): Readonly<{ ok: true; record: EvidenceRecord }> | Readonly<{ ok: false; reasons: readonly string[] }> {
+  const expectedSubject = snapshotSubject(subject);
+  const prepared = prepareRecords(records);
+  const suite = (Object.entries(MECHANISM_PORTS).find(([, value]) => value === port)?.[0] ?? '') as SuiteId;
+  if (!expectedSubject || prepared.reasons.length || !suite)
+    return Object.freeze({
+      ok: false,
+      reasons: Object.freeze([...(prepared.reasons.length ? prepared.reasons : ['invalid:subject'])]),
+    });
+  const matching = prepared.records.filter((record) => record.suite === suite);
+  const gate = suiteGate('CF-GATE-PROVIDER', [suite], matching, expectedSubject);
+  if (!gate.passed) return Object.freeze({ ok: false, reasons: gate.reasons });
+  const source = matching[0] as EvidenceRecord;
+  const record = Object.freeze({
+    ...source,
+    subject: expectedSubject,
+    status: 'pass' as const,
+    independentRecorder: PROVIDER_RECORDER_ID,
+    schemaVersion: CONFORMANCE_VERSION,
+  });
+  providerRecorderEvidence.add(record);
+  return Object.freeze({ ok: true, record });
 }
 
 const SUBJECT_FIELDS = Object.freeze([
@@ -772,8 +808,16 @@ export function evaluateProvider(port: PortId, records: readonly EvidenceRecord[
     !expectedSubject.environmentDigest
   )
     reasons.push('missing:provider-binding');
-  // Phase 0 records carry fixture labels but no authenticated recorder-provenance primitive.
-  reasons.push('missing:independent-recorder-provenance');
+  if (
+    expectedSubject.recorderIdentity !== PROVIDER_RECORDER_ID ||
+    !snapshotArray(records)
+      ?.filter((record) => {
+        const snapshot = snapshotRecord(record);
+        return snapshot?.suite === suite;
+      })
+      .every((record) => typeof record === 'object' && record !== null && providerRecorderEvidence.has(record))
+  )
+    reasons.push('missing:independent-recorder-provenance');
   return gateResult('CF-GATE-PROVIDER', reasons);
 }
 export function evaluateProduct(
@@ -790,7 +834,7 @@ export function evaluateProduct(
   const result = suiteGate('CF-GATE-PRODUCT', SUITES, prepared.records, expectedSubject);
   const reasons = [...result.reasons];
   for (const port of Object.values(MECHANISM_PORTS)) {
-    const provider = evaluateProvider(port, prepared.records, expectedSubject);
+    const provider = evaluateProvider(port, records, expectedSubject);
     if (!provider.passed) reasons.push(`provider-proof:${port}`);
   }
   if (safeRoutes.length !== PRODUCT_ROUTE_ORACLE.length) reasons.push('routes:length');

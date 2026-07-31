@@ -63,6 +63,17 @@ test('rejects public, runnable, and externally dependent packages', () => {
   assert.ok(errors.some((error) => error.includes('production dependencies must be private workspace packages')));
 });
 
+test('rejects export and type targets that traverse out of dist', () => {
+  const errors = withPackages((root) =>
+    editManifest(root, 'codec', (manifest) => {
+      manifest.exports = './dist/../src/index.js';
+      manifest.types = './dist/../src/index.d.ts';
+    }),
+  );
+  assert.ok(errors.some((error) => error.includes('exports must resolve only from dist')));
+  assert.ok(errors.some((error) => error.includes('types must resolve only from dist')));
+});
+
 test('rejects forbidden imports and ambient runtime capabilities', () => {
   const errors = withPackages((root) =>
     writeFileSync(
@@ -135,4 +146,34 @@ test('allows package-local relative imports', () => {
     writeFileSync(join(root, 'packages', 'codec', 'src', 'index.ts'), "export { helper } from './helper.js';\n");
   });
   assert.deepEqual(errors, []);
+});
+
+test('permits the qualification friend subpath only from conformance', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-file-providers', 'src', 'index.ts'),
+      "import '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
+});
+
+test('rejects filesystem deep imports of the private qualification registry', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'conformance', 'tests', 'conformance.test.mjs'),
+      "import '../../runtime-contracts/dist/qualification-registry.js';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('bypasses the private qualification registry boundary')));
+});
+
+test('rejects computed dynamic imports that could bypass friend restrictions', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-file-providers', 'src', 'index.ts'),
+      "const name = '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate'; import(name);\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('cannot use dynamic import')));
 });

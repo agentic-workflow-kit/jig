@@ -1,0 +1,285 @@
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs';
+
+export {
+  createQualifiedLocalFileLedgerProvider,
+  LOCAL_FILE_LEDGER_MANIFEST,
+  LOCAL_FILE_LEDGER_MANIFEST_DIGEST,
+  LOCAL_FILE_LEDGER_MANIFEST_ID,
+  LOCAL_FILE_LEDGER_PROVIDER_IDENTITY,
+  LOCAL_FILE_LEDGER_ROOT,
+  LOCAL_FILE_WITNESS_ROOT,
+} from './local-file-ledger.js';
+
+import {
+  createStructuredFileAdmission,
+  decodeSourceRequest,
+  encodeSourceCandidate,
+  type SourceExchange,
+  type SourceResult,
+  structuredFileProviderGate,
+  validateSourceExchange,
+} from '@agentic-workflow-kit/jig-runtime-contracts';
+
+export * from './local-file-artifact.js';
+
+export const STRUCTURED_FILE_SOURCE_IDENTITY = 'source/structured-json-file-source';
+export const STRUCTURED_FILE_SOURCE_PATH = '<JIG_DATA_HOME>/work-sources/work-plan.json';
+export const STRUCTURED_FILE_SOURCE_MANIFEST = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"<JIG_DATA_HOME>/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+);
+export const STRUCTURED_FILE_SOURCE_MANIFEST_ID =
+  'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18';
+export const SOURCE_WAIT_DEFAULT_MS = 900_000;
+export const SOURCE_RETRY_DEFAULT = 3;
+export const SOURCE_WAIT_MIN_MS = 5_000;
+export const SOURCE_WAIT_MAX_MS = 7_200_000;
+export const SOURCE_RETRY_MIN = 1;
+export const SOURCE_RETRY_MAX = 5;
+const STRUCTURED_FILE_BUILD_DIGEST = '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81';
+const STRUCTURED_FILE_RESOURCE_DIGEST = 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd';
+const MAX_BYTES = 65_536;
+const MAX_JSON_DEPTH = 32;
+
+export type FileSourceFailure = Readonly<{ family: 'FC-INPUT' | 'FC-MECHANISM'; code: string }>;
+export type FileSourceResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: FileSourceFailure }>;
+const fail = (family: FileSourceFailure['family'], code: string): FileSourceResult<never> => ({
+  ok: false,
+  error: { family, code },
+});
+const sourceFail = <T>(value: SourceResult<T>): FileSourceResult<T> =>
+  value.ok
+    ? { ok: true, value: value.value }
+    : fail(value.error.family === 'FC-MECHANISM' ? 'FC-MECHANISM' : 'FC-INPUT', value.error.code);
+
+/** Effect-free guard: it preserves GF-019's request identity and opaque retry receipt semantics. */
+export function validateStructuredFileSourceRequest(requestFrame: unknown): FileSourceResult<void> {
+  const request = decodeSourceRequest(requestFrame);
+  if (!request.ok || request.value.sourceIdentity !== STRUCTURED_FILE_SOURCE_IDENTITY)
+    return fail('FC-INPUT', 'REQUEST_BINDING_MISMATCH');
+  if (
+    request.value.deadline < SOURCE_WAIT_MIN_MS ||
+    request.value.deadline > SOURCE_WAIT_MAX_MS ||
+    request.value.retry.limit < SOURCE_RETRY_MIN ||
+    request.value.retry.limit > SOURCE_RETRY_MAX
+  )
+    return fail('FC-INPUT', 'SOURCE_BOUND_OUT_OF_RANGE');
+  return { ok: true, value: undefined };
+}
+
+function strictJson(bytes: Uint8Array): FileSourceResult<unknown> {
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return fail('FC-INPUT', 'INVALID_FILE_BYTES');
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return fail('FC-INPUT', 'INVALID_FILE_BYTES');
+  }
+  const duplicate = duplicateJsonKey(text);
+  if (duplicate) return fail('FC-INPUT', duplicate);
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return fail('FC-INPUT', 'INVALID_JSON');
+  }
+}
+
+/** Walk JSON syntax before JSON.parse: the native parser otherwise silently accepts duplicate keys. */
+function duplicateJsonKey(text: string): 'DUPLICATE_JSON_KEY' | 'JSON_DEPTH_EXCEEDED' | undefined {
+  let index = 0;
+  const whitespace = () => {
+    while (/\s/u.test(text[index] ?? '')) index += 1;
+  };
+  const string = (): string | undefined => {
+    if (text[index] !== '"') return undefined;
+    const start = index++;
+    let escaped = false;
+    while (index < text.length) {
+      const character = text[index++] as string;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (character === '"') {
+        try {
+          return JSON.parse(text.slice(start, index)) as string;
+        } catch {
+          return undefined;
+        }
+      }
+      if (character < ' ') return undefined;
+    }
+    return undefined;
+  };
+  const scalar = () => {
+    const match = /^(?:true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)/u.exec(text.slice(index));
+    if (!match) return false;
+    index += match[0].length;
+    return true;
+  };
+  const value = (depth: number): boolean | 'DUPLICATE_JSON_KEY' | 'JSON_DEPTH_EXCEEDED' => {
+    if (depth > MAX_JSON_DEPTH) return 'JSON_DEPTH_EXCEEDED';
+    whitespace();
+    if (text[index] === '"') return string() !== undefined;
+    if (text[index] === '[') {
+      index += 1;
+      whitespace();
+      if (text[index] === ']') {
+        index += 1;
+        return true;
+      }
+      while (true) {
+        const nested = value(depth + 1);
+        if (nested !== true) return nested;
+        whitespace();
+        if (text[index] === ']') {
+          index += 1;
+          return true;
+        }
+        if (text[index++] !== ',') return false;
+      }
+    }
+    if (text[index] !== '{') return scalar();
+    index += 1;
+    const keys = new Set<string>();
+    whitespace();
+    if (text[index] === '}') {
+      index += 1;
+      return true;
+    }
+    while (true) {
+      whitespace();
+      const key = string();
+      if (key === undefined) return false;
+      if (keys.has(key)) return 'DUPLICATE_JSON_KEY';
+      keys.add(key);
+      whitespace();
+      if (text[index++] !== ':') return false;
+      const nested = value(depth + 1);
+      if (nested !== true) return nested;
+      whitespace();
+      if (text[index] === '}') {
+        index += 1;
+        return true;
+      }
+      if (text[index++] !== ',') return false;
+    }
+  };
+  const parsed = value(0);
+  whitespace();
+  return parsed === true && index === text.length ? undefined : parsed === true ? undefined : parsed || undefined;
+}
+
+function readOpenedFile(fd: number, size: number): FileSourceResult<Uint8Array> {
+  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return fail('FC-INPUT', 'UNSAFE_FILE');
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const count = readSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (!Number.isSafeInteger(count) || count <= 0) return fail('FC-MECHANISM', 'SOURCE_UNAVAILABLE');
+    offset += count;
+  }
+  return { ok: true, value: bytes };
+}
+
+/** This mechanism is deliberately private: only the manifest-scoped exact path can reach it. */
+function _readStructuredFileSource(requestFrame: unknown): FileSourceResult<SourceExchange> {
+  const filePath = STRUCTURED_FILE_SOURCE_PATH;
+  const bounded = validateStructuredFileSourceRequest(requestFrame);
+  if (!bounded.ok) return bounded;
+  let fd: number | undefined;
+  try {
+    const before = lstatSync(filePath);
+    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) return fail('FC-INPUT', 'UNSAFE_FILE');
+    if (realpathSync(filePath) !== filePath) return fail('FC-INPUT', 'PATH_OUT_OF_SCOPE');
+    fd = openSync(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = fstatSync(fd);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.size > MAX_BYTES ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino
+    )
+      return fail('FC-MECHANISM', 'TOCTOU_DETECTED');
+    const bytes = readOpenedFile(fd, opened.size);
+    if (!bytes.ok) return bytes;
+    const parsed = strictJson(bytes.value);
+    const after = fstatSync(fd);
+    if (
+      opened.dev !== after.dev ||
+      opened.ino !== after.ino ||
+      opened.size !== after.size ||
+      opened.mtimeMs !== after.mtimeMs
+    )
+      return fail('FC-MECHANISM', 'TOCTOU_DETECTED');
+    if (!parsed.ok) return parsed;
+    const request = decodeSourceRequest(requestFrame);
+    if (!request.ok || request.value.sourceIdentity !== STRUCTURED_FILE_SOURCE_IDENTITY)
+      return fail('FC-INPUT', 'REQUEST_BINDING_MISMATCH');
+    const candidate = encodeSourceCandidate(requestFrame, parsed.value);
+    if (!candidate.ok) return sourceFail(candidate);
+    return sourceFail(validateSourceExchange(requestFrame, candidate.value));
+  } catch {
+    return fail('FC-MECHANISM', 'SOURCE_UNAVAILABLE');
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** The owner-selected source is absent; no positive external qualification is represented in this package. */
+export function createQualifiedStructuredFileSource(input?: unknown): FileSourceResult<never> {
+  if (input !== undefined) {
+    const data = plainFields(input, ['admission', 'maxAgeMs', 'observedAt', 'proof']);
+    const admission = data && createStructuredFileAdmission(data.admission);
+    const eligibility =
+      admission && data
+        ? admission.admit({ maxAgeMs: data.maxAgeMs, observedAt: data.observedAt, proof: data.proof })
+        : undefined;
+    if (!eligibility?.ok) return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
+  }
+  // This carrier is private and immutable. It binds the only catalogue entry but
+  // cannot turn eligibility into reachability; live qualification additionally
+  // requires the absent exact resource and conformance-owned proof lineage.
+  const gate = structuredFileProviderGate({
+    manifestBytes: STRUCTURED_FILE_SOURCE_MANIFEST,
+    manifestId: STRUCTURED_FILE_SOURCE_MANIFEST_ID,
+    approval: {
+      principal: 'principal/arye',
+      manifestId: STRUCTURED_FILE_SOURCE_MANIFEST_ID,
+      manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
+      scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
+    },
+    capability: 'PORT-SOURCE/read-structured-json',
+    environment: 'environment/local-file-source',
+    policyMinimum: 'policy/structured-file-source/v1',
+    providerBuildDigest: STRUCTURED_FILE_BUILD_DIGEST,
+    resourceDigest: STRUCTURED_FILE_RESOURCE_DIGEST,
+    scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
+  });
+  if (!gate.ok) return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
+  return fail('FC-MECHANISM', 'PROVIDER_UNAVAILABLE_UNQUALIFIED');
+}
+
+function plainFields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== names.length || keys.some((key) => typeof key !== 'string')) return undefined;
+    if (![...keys].sort().every((key, index) => key === [...names].sort()[index])) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (!names.every((name) => descriptors[name]?.enumerable && 'value' in descriptors[name])) return undefined;
+    return Object.fromEntries(names.map((name) => [name, descriptors[name].value]));
+  } catch {
+    return undefined;
+  }
+}

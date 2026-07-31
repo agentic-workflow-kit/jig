@@ -471,6 +471,37 @@ test('conformance product gate retains total input checks while provider qualifi
     false,
   );
 });
+
+test('conformance product gate requires an exact branded observation for every mechanism port', () => {
+  const providerSubject = { ...subject, recorderIdentity: 'recorder/jig-conformance/v1' };
+  const records = conformance.SUITES.map(
+    (suite) =>
+      conformance.append([], input(suite, { subject: providerSubject, independentRecorder: 'independent' })).records[0],
+  );
+  const observed = Object.entries(conformance.MECHANISM_PORTS).map(([suite, port]) => {
+    const source = records.filter((record) => record.suite === suite);
+    const result = conformance.observeProvider(port, source, providerSubject);
+    assert.equal(result.ok, true, port);
+    if (!result.ok) throw new Error(port);
+    return [suite, port, result.record];
+  });
+  const complete = records.map((record) => observed.find(([suite]) => suite === record.suite)?.[2] ?? record);
+  const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
+    route: route.id,
+    elements: route.elements.map((element) => ({ ...element, status: 'pass' })),
+  }));
+  assert.equal(conformance.evaluateProduct(complete, routes, providerSubject).passed, true);
+  for (const [suite, port, record] of observed) {
+    const index = complete.findIndex((candidate) => candidate.suite === suite);
+    const crossPort = observed.find(([, other]) => other !== port)?.[2];
+    for (const replacement of [undefined, { ...record }, { ...record, key: `${record.key}/altered` }, crossPort]) {
+      const mutated = [...complete];
+      if (replacement === undefined) mutated.splice(index, 1);
+      else mutated[index] = replacement;
+      assert.equal(conformance.evaluateProduct(mutated, routes, providerSubject).passed, false, `${port}`);
+    }
+  }
+});
 test('conformance provider gate binds the exact port mechanism but remains unqualified in Phase 0', () => {
   const providerSubject = {
     ...subject,
@@ -525,6 +556,95 @@ test('conformance claimed independent recorder labels cannot qualify a provider 
     product.reasons,
     Object.values(conformance.MECHANISM_PORTS).map((port) => `provider-proof:${port}`),
   );
+});
+test('conformance owns exact-subject provider observations and rejects forged or wrong-port proof', () => {
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const source = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const observation = conformance.observeProvider('PORT-SOURCE', source, providerSubject);
+  assert.equal(observation.ok, true);
+  assert.equal(conformance.evaluateProvider('PORT-SOURCE', [observation.record], providerSubject).passed, true);
+  assert.equal(conformance.evaluateProvider('PORT-LEDGER', [observation.record], providerSubject).passed, false);
+
+  const forged = { ...observation.record, independentRecorder: 'recorder/jig-conformance/v1' };
+  assert.equal(conformance.evaluateProvider('PORT-SOURCE', [forged], providerSubject).passed, false);
+  assert.equal(
+    conformance.observeProvider('PORT-SOURCE', source, { ...providerSubject, manifestDigest: 'b'.repeat(64) }).ok,
+    false,
+  );
+});
+
+test('public conformance cannot manufacture a qualification certificate', () => {
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
+    manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
+    environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const records = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const observation = conformance.observeProvider('PORT-SOURCE', records, providerSubject);
+  assert.equal(observation.ok, true);
+  if (!observation.ok) return;
+  for (const name of [
+    'executeStructuredFileQualification',
+    'executeExactStructuredFileQualification',
+    'mintStructuredFileQualificationCertificate',
+    'issueQualificationCertificate',
+  ])
+    assert.equal(name in conformance, false, name);
+});
+
+test('private structured-file execution mints only an opaque runtime certificate', async () => {
+  const internal = await import('../dist/structured-file-qualification.js');
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
+    manifestDigest: '91821429bca10e93438c9a15bb6309366ca5809f2d1cff972425adde54667a18',
+    environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const records = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const certificate = internal.executeExactStructuredFileQualification(records, providerSubject);
+  assert.ok(certificate);
+  assert.equal('executeExactStructuredFileQualification' in conformance, false);
+  const friend = await import('@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate');
+  assert.equal(friend.mintQualificationCertificate({}), undefined);
+  assert.equal(friend.mintQualificationCertificate({ ...certificate }), undefined);
+
+  const exactClaims = {
+    subject: { ...providerSubject },
+    resourceDigest: 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
+    capability: 'PORT-SOURCE/read-structured-json',
+    policyMinimum: 'policy/structured-file-source/v1',
+  };
+  const { candidateTree, ...incompleteSubject } = exactClaims.subject;
+  assert.equal(
+    friend.recordExactStructuredFileExecution({ ...exactClaims, subject: incompleteSubject }),
+    undefined,
+    'every exact conformance-subject field is required before carrier registration',
+  );
+  assert.equal(candidateTree, hash);
+
+  const carrier = friend.recordExactStructuredFileExecution(exactClaims);
+  assert.ok(carrier);
+  exactClaims.subject.providerBuildDigest = '0'.repeat(64);
+  exactClaims.subject.candidateTree = '0'.repeat(64);
+  exactClaims.resourceDigest = '0'.repeat(64);
+  const isolatedCertificate = friend.mintQualificationCertificate(carrier);
+  assert.ok(isolatedCertificate, 'mutating caller-owned input cannot alter the registered snapshot');
+  const stored = friend.readQualificationCertificateClaims(isolatedCertificate);
+  assert.ok(stored);
+  assert.equal(Object.isFrozen(stored), true);
+  assert.equal(Object.isFrozen(stored.subject), true);
+  assert.equal(stored.subject.providerBuildDigest, providerSubject.providerBuildDigest);
+  assert.equal(stored.subject.candidateTree, providerSubject.candidateTree);
+  assert.equal(stored.resourceDigest, 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd');
 });
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({

@@ -122,6 +122,7 @@ export type ScriptedLedger = Readonly<{
   ): LedgerResult<IntakeResult>;
   readIntake(compositionDigest: string): LedgerResult<IntakeReadback>;
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
+  readPreflight(key: string, variant: 'start' | 'result'): LedgerResult<PreflightResult | Readonly<{ kind: 'absent' }>>;
   snapshot(binding: RunStoreBinding): LedgerResult<Readonly<{ position: number; digest: string }>>;
   verifySnapshot(
     binding: RunStoreBinding,
@@ -142,6 +143,14 @@ export type ScriptedLedger = Readonly<{
     >,
   ): LedgerResult<void>;
 }>;
+const scriptedLedgers = new WeakSet<object>();
+export const isScriptedLedger = (value: unknown): value is ScriptedLedger => {
+  try {
+    return typeof value === 'object' && value !== null && scriptedLedgers.has(value);
+  } catch {
+    return false;
+  }
+};
 
 const fail = (family: LedgerFailureFamily, code: string): LedgerResult<never> => ({
   ok: false,
@@ -470,7 +479,7 @@ export function createScriptedLedger(): ScriptedLedger {
       : published;
   };
 
-  return freeze({
+  const ledger: ScriptedLedger = freeze({
     append(request, fault) {
       const wait = waitWithinBound(request.wait);
       if (!wait.ok) return wait;
@@ -703,6 +712,11 @@ export function createScriptedLedger(): ScriptedLedger {
       preflight.set(result.key, result);
       return { ok: true, value: result };
     },
+    readPreflight(key, variant) {
+      if (!nonEmpty(key) || (variant !== 'start' && variant !== 'result'))
+        return fail('FC-INPUT', 'INVALID_PREFLIGHT_READ');
+      return { ok: true, value: preflight.get(`${key}/${variant}`) ?? freeze({ kind: 'absent' as const }) };
+    },
     snapshot(binding) {
       const state = forRun(binding);
       if (!state.ok) return state;
@@ -740,4 +754,6 @@ export function createScriptedLedger(): ScriptedLedger {
       return { ok: true, value: undefined };
     },
   });
+  scriptedLedgers.add(ledger);
+  return ledger;
 }
