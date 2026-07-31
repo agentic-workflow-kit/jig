@@ -1,5 +1,6 @@
 import { decodeFrame } from '@agentic-workflow-kit/jig-codec';
 import { TOPOLOGY_VERSION } from '@agentic-workflow-kit/jig-runtime-contracts';
+import { mintQualificationCertificate } from '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';
 
 function freezeCatalog<T>(catalog: T): T {
   if (typeof catalog === 'object' && catalog !== null && !Object.isFrozen(catalog)) {
@@ -329,6 +330,7 @@ export type AttemptLog = Readonly<{
 const gateResults = new WeakSet<object>();
 const PROVIDER_RECORDER_ID = 'recorder/jig-conformance/v1';
 const providerRecorderEvidence = new WeakSet<object>();
+const qualifiedProviderObservations = new WeakSet<object>();
 export function deterministicHarness(clock: number, seed: string): DeterministicHarness {
   let ordinal = 0;
   const safeClock = nonnegativeSafeInteger(clock) ? clock : 0;
@@ -638,7 +640,31 @@ export function observeProvider(
     schemaVersion: CONFORMANCE_VERSION,
   });
   providerRecorderEvidence.add(record);
+  qualifiedProviderObservations.add(record);
   return Object.freeze({ ok: true, record });
+}
+
+/** Only a conformance-created, passing PORT-SOURCE observation can cross the friend seam. */
+export function mintStructuredFileQualificationCertificate(
+  observation: unknown,
+  resourceDigest: unknown,
+): object | undefined {
+  if (!plain(observation) || !qualifiedProviderObservations.has(observation)) return undefined;
+  const record = observation as EvidenceRecord;
+  if (
+    record.suite !== 'CF-MECH-SOURCE' ||
+    record.status !== 'pass' ||
+    record.independentRecorder !== PROVIDER_RECORDER_ID ||
+    record.subject.providerId !== 'structured-json-file-source/v1' ||
+    record.subject.manifestDigest !== '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd'
+  )
+    return undefined;
+  return mintQualificationCertificate({
+    subject: record.subject,
+    resourceDigest,
+    capability: 'PORT-SOURCE/read-structured-json',
+    policyMinimum: 'policy/structured-file-source/v1',
+  });
 }
 
 const SUBJECT_FIELDS = Object.freeze([

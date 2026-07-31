@@ -136,3 +136,13 @@ test('allows package-local relative imports', () => {
   });
   assert.deepEqual(errors, []);
 });
+
+test('permits the qualification friend subpath only from conformance', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-file-providers', 'src', 'index.ts'),
+      "import '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
+});

@@ -21,6 +21,9 @@ const knownDependencyDirections = {
 const knownNativeCapabilities = {
   '@agentic-workflow-kit/jig-local-file-providers': new Set(['node:fs']),
 };
+const friendSubpaths = {
+  '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',
+};
 
 function readJson(path, errors, label) {
   try {
@@ -197,7 +200,14 @@ function validateManifest(manifest, packageDir, workspaceNames, errors) {
   if (manifest.private !== true) errors.push(`${label} must remain private`);
   if (forbiddenManifestFields.some((field) => Object.hasOwn(manifest, field)))
     errors.push(`${label} exposes a runtime or publishing entrypoint`);
-  if (manifest.exports && (typeof manifest.exports !== 'string' || !manifest.exports.startsWith('./dist/')))
+  if (
+    manifest.exports &&
+    !(
+      (typeof manifest.exports === 'string' && manifest.exports.startsWith('./dist/')) ||
+      (plainExportMap(manifest.exports) &&
+        Object.values(manifest.exports).every((value) => value.startsWith('./dist/')))
+    )
+  )
     errors.push(`${label} exports must resolve only from dist`);
   if (manifest.types && (typeof manifest.types !== 'string' || !manifest.types.startsWith('./dist/')))
     errors.push(`${label} types must resolve only from dist`);
@@ -221,6 +231,15 @@ function validateManifest(manifest, packageDir, workspaceNames, errors) {
   else
     for (const dependency of Object.keys(dependencies))
       if (!allowed.has(dependency)) errors.push(`${label} has a forbidden dependency direction to ${dependency}`);
+}
+
+function plainExportMap(value) {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  );
 }
 
 export function validatePackageBoundaries(rootDir = repoRoot) {
@@ -248,7 +267,10 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
       for (const specifier of importSpecifiers(source))
         if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
         else if (knownNativeCapabilities[manifest.name]?.has(specifier)) continue;
-        else if (!specifier.startsWith(packagePrefix))
+        else if (Object.hasOwn(friendSubpaths, specifier)) {
+          if (friendSubpaths[specifier] !== manifest.name)
+            errors.push(`${manifest.name} imports restricted friend subpath ${specifier}`);
+        } else if (!specifier.startsWith(packagePrefix))
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);
         else if (!Object.hasOwn(manifest.dependencies ?? {}, specifier))
           errors.push(`${manifest.name} source imports an undeclared workspace dependency: ${specifier}`);

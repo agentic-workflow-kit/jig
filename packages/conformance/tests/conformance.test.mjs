@@ -545,6 +545,56 @@ test('conformance owns exact-subject provider observations and rejects forged or
     false,
   );
 });
+
+test('only a branded passing exact PORT-SOURCE observation mints an opaque runtime certificate', async () => {
+  const providerSubject = {
+    ...subject,
+    providerId: 'structured-json-file-source/v1',
+    providerBuildDigest: '0d842ed9d3bf39f51f1c10f36b1e4c2414df93bf214ec80da1dde92a890e1b81',
+    manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    environmentDigest: 'b880653890190d5da3ac311736401fd1fa02f2d221bee8258eae231717143536',
+    recorderIdentity: 'recorder/jig-conformance/v1',
+  };
+  const records = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
+  const observation = conformance.observeProvider('PORT-SOURCE', records, providerSubject);
+  assert.equal(observation.ok, true);
+  if (!observation.ok) return;
+  const certificate = conformance.mintStructuredFileQualificationCertificate(
+    observation.record,
+    'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
+  );
+  assert.ok(certificate);
+  assert.equal(
+    conformance.mintStructuredFileQualificationCertificate(
+      { ...observation.record },
+      'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
+    ),
+    undefined,
+  );
+  const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
+  const gate = {
+    manifestBytes: new TextEncoder().encode(
+      '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":"read-only","discovery":"none","locator":{"kind":"exact-file","path":"/Users/aryekogan/.local/share/jig/work-sources/work-plan.json"},"regularFileOnly":true,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"packageIdentity":"packages/local-file-providers","providerIdentity":"structured-json-file-source/v1","runtimeAuthority":{"environmentIdentity":"environment/local-file-source","kind":"in-process-local-file-provider"},"scope":{"phase":2,"purpose":"structured-file-work-source","story":"GF-020"},"subprocessAuthority":[]}\n',
+    ),
+    manifestId:
+      'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+    approval: {
+      principal: 'principal/arye',
+      manifestId:
+        'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+      manifestDigest: '982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd',
+      scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
+    },
+    capability: 'PORT-SOURCE/read-structured-json',
+    environment: 'environment/local-file-source',
+    policyMinimum: 'policy/structured-file-source/v1',
+    providerBuildDigest: providerSubject.providerBuildDigest,
+    resourceDigest: 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
+    scope: { phase: 2, purpose: 'structured-file-work-source', story: 'GF-020' },
+  };
+  assert.equal(runtime.structuredFileQualificationGate({ certificate, gate }).ok, true);
+  assert.equal(runtime.structuredFileQualificationGate({ certificate: {}, gate }).ok, false);
+});
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
     route: route.id,
