@@ -17,6 +17,10 @@ export const STRUCTURED_FILE_SOURCE_MANIFEST_ID =
   'provider/332e924db587773fae8b38359c47e715e2064d3ba3f1a7091130e4da661dc73e/authority/982a0cde5b335759925af0003f58a87f1bfd2e03a25f046216bd4aa9569994cd';
 export const SOURCE_WAIT_DEFAULT_MS = 900_000;
 export const SOURCE_RETRY_DEFAULT = 3;
+export const SOURCE_WAIT_MIN_MS = 5_000;
+export const SOURCE_WAIT_MAX_MS = 7_200_000;
+export const SOURCE_RETRY_MIN = 1;
+export const SOURCE_RETRY_MAX = 5;
 const MAX_BYTES = 65_536;
 const MAX_JSON_DEPTH = 32;
 
@@ -30,6 +34,21 @@ const sourceFail = <T>(value: SourceResult<T>): FileSourceResult<T> =>
   value.ok
     ? { ok: true, value: value.value }
     : fail(value.error.family === 'FC-MECHANISM' ? 'FC-MECHANISM' : 'FC-INPUT', value.error.code);
+
+/** Effect-free guard: it preserves GF-019's request identity and opaque retry receipt semantics. */
+export function validateStructuredFileSourceRequest(requestFrame: unknown): FileSourceResult<void> {
+  const request = decodeSourceRequest(requestFrame);
+  if (!request.ok || request.value.sourceIdentity !== STRUCTURED_FILE_SOURCE_IDENTITY)
+    return fail('FC-INPUT', 'REQUEST_BINDING_MISMATCH');
+  if (
+    request.value.deadline < SOURCE_WAIT_MIN_MS ||
+    request.value.deadline > SOURCE_WAIT_MAX_MS ||
+    request.value.retry.limit < SOURCE_RETRY_MIN ||
+    request.value.retry.limit > SOURCE_RETRY_MAX
+  )
+    return fail('FC-INPUT', 'SOURCE_BOUND_OUT_OF_RANGE');
+  return { ok: true, value: undefined };
+}
 
 function strictJson(bytes: Uint8Array): FileSourceResult<unknown> {
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return fail('FC-INPUT', 'INVALID_FILE_BYTES');
@@ -153,6 +172,8 @@ function readOpenedFile(fd: number, size: number): FileSourceResult<Uint8Array> 
 /** This mechanism is deliberately private: only the manifest-scoped exact path can reach it. */
 function readStructuredFileSource(requestFrame: unknown): FileSourceResult<SourceExchange> {
   const filePath = STRUCTURED_FILE_SOURCE_PATH;
+  const bounded = validateStructuredFileSourceRequest(requestFrame);
+  if (!bounded.ok) return bounded;
   let fd: number | undefined;
   try {
     const before = lstatSync(filePath);
