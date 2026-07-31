@@ -19,7 +19,11 @@ findings/verdict/timestamp; integration result/commit; current state and termina
 replacement is exceptional and records reason plus handoff. Live facts never enter repository
 files. Implementer effort reasoning, reviewer-prepared must-cover bullets, and implementer proof
 notes stay in the existing dispatch and handoff; do not add ledger fields or repository artifacts
-for them.
+for them. The same dispatch/trace carries semantic role and story ID, root work replaced, model
+class, planned model, effort and reason, runtime agent type, context mode, hard budget, expected
+output, verification owner, actual route, and fallback reason. Jig's implementer/reviewer names are
+semantic ownership roles, not runtime agent types. Jig assigns and records the verification owner
+under its local ownership rules; offload does not choose that responsibility.
 
 ## Ready-set and ownership loop
 
@@ -30,28 +34,52 @@ ledger-recorded admission hold, never a dependency or permission to idle other r
 guard applies, launch every ready story within available distinct pair/worktree capacity. Pairs are
 distinct across stories and continuous within a story.
 
-Before writes, classify implementer effort from both scope clarity and semantic risk. Medium remains
-available for bounded work whose realization is directly determined by current authority, whose
-failure modes are local, and whose positive and negative proof is straightforward. Use high when
-authority, fencing, recovery, replay, idempotency, witness or admission behavior, persistence,
-identity, ordering, lifecycle, cross-package type closure, a seam that constrains later stories,
-multiple authority sources, or a non-local guarantee materially shapes correctness. File count or
-declared size alone cannot lower the classification. Use xhigh only for an exceptional
-release-critical or architecture-wide decision under the global routing policy. This
-repository-local assessment supplies Jig-specific effort reasoning and task content; generic
-sub-agent context and provider routing remain owned by the global `offload` skill.
+Before admission, confirm that the global `offload` skill is available as an orchestration
+prerequisite. If it is absent, stop with a missing-dependency error before admitting stories; do not
+invent local routing, lower effort, or return `OWNER_DECISION_REQUIRED` for that operational gap.
+
+Before writes, classify implementer effort from both scope clarity and semantic risk. Medium is
+eligible only when current authority directly determines the realization, behavior and failure
+effects are local, no authority, fencing, recovery, replay, idempotency, witness/admission,
+persistence, identity, ordering, deadline, lifecycle, cross-package type closure,
+later-constraining seam, multiple-authority reconciliation, or other non-local guarantee materially
+shapes correctness, and straightforward positive and negative tests suffice. Use high when any such
+risk materially applies; file count or declared size cannot lower it. Use xhigh only for an
+exceptional release-critical or architecture-wide decision under the global routing policy.
+
+Use the global `offload` skill to plan each bounded semantic implementer and reviewer role before
+dispatch. Offload resolves model class, planned model, effort, compatible runtime agent type,
+context mode, and provider fallback; the Jig role name never selects those values. Default to
+isolated, self-contained context. Reject a fixed runtime type whose model or effort conflicts with
+the plan, and do not begin implementation writes until the accepted spawn configuration preserves
+the planned route. If the provider explicitly reports model unavailability, preserve the planned
+model and effort and record only the actual fallback plus reason. Retry a rejected spawn under
+offload's rules, never by silently inheriting defaults or reducing effort. This uses the existing
+dispatch/handoff and runtime trace; it creates no tracked dispatch artifact or ledger field.
 
 After the continuous pair is assigned and before the implementer writes, the reviewer prepares
 read-only against the exact story, current product/design authority, predecessor surface, and
 affected package seams. The reviewer does not run checks. It returns a concise set of normally five
-to twelve must-cover bullets, each containing the invariant or failure mode, exact source, and
-expected observable proof in code, types, or tests. The coordinator includes the selected effort
-and reason plus those bullets in the implementer task. They supplement the story contract without
-expanding it; a genuine ambiguity follows the existing `OWNER_DECISION_REQUIRED` rule.
+to twelve must-cover bullets. Every bullet has a stable ID and contains the exact source and
+invariant or failure mode, expected observable code/type behavior, applicable test category, and
+relevant sibling operations, states, or types. The same response gives one authority-boundary
+result: `resolved` with the exact governing source, or `OWNER_DECISION_REQUIRED` with the missing or
+conflicting authority. Public identity, durable authority, policy, fencing, or ownership semantics
+require an exact source. Clearly authorized package-private bookkeeping may proceed only when the
+admitted story has no unresolved required authority. Any unresolved required authority blocks every
+write for that story until the authority is resolved or the owner explicitly reauthorizes a narrower
+story scope; independent ready stories continue. The coordinator includes the selected offload route
+plus those bullets in the implementer task. They supplement the story contract without expanding it
+or adding a gate, artifact, or ledger field.
 
-Before candidate freeze, the implementer identifies in the normal handoff where code, types, or
-tests prove each must-cover bullet. When an invariant applies to a family of operations, states, or
-types, the implementer searches sibling occurrences rather than proving only one happy path.
+Before candidate freeze, the implementer maps every must-cover ID in the normal handoff to concrete
+implementation locations, applicable type/contract locations, concrete tests or a justified
+non-testable designation, sibling-search scope/result, and implementation-owner verification
+evidence. A generic statement such as `covered` is not a mapping. One test may prove multiple
+bullets; no test-per-bullet rule applies. Missing or non-concrete mappings remain `implementing`, and
+unresolved authority stops before writes. When an invariant applies to a family of operations,
+states, or types, the implementer searches sibling occurrences rather than proving only one happy
+path. A false or semantically inadequate mapping found by the reviewer is `CHANGES_REQUIRED`.
 Candidate, fix, or target move means commit, run every applicable required check with only the policy
 allowlisted environment names, inventory ignored state before/after, record evidence, and have the
 same reviewer incrementally inspect prior-reviewed..new, sibling occurrences, and invariants.
@@ -64,14 +92,17 @@ implementing, frozen-for-review, changes-required, approved, integrated/quiescen
 terminally-blocked; inspect the ready set after every transition to approved, integrated, or
 terminally-blocked.
 
-The candidate-bound reviewer inspects the full authorized diff, must-cover bullets, implementer
-proof notes, sibling occurrences, relevant tests, and recorded check evidence. It returns `PASS` or
-`CHANGES_REQUIRED` and, after finding a blocker, completes the rest of the presently supportable
-inspection pass instead of intentionally stopping. Report all current blocking findings ordered by
-severity, group findings sharing a root cause, name the invariant or source for each group, and give
-the exact re-review scope. Report missing evidence that limits further judgment. Complete-pass
-review does not require speculation beyond available evidence, and the reviewer remains permanently
-read-only: it never runs checks, repairs evidence, or mutates repository or provider state.
+The candidate-bound reviewer receives the exact candidate and authorized diff, current story and
+authority, must-cover bullets, implementer proof mapping, recorded implementation-owner verification
+evidence, and—when incremental—the prior findings and exact range. It inspects those inputs,
+sibling occurrences, and relevant tests. It returns `PASS` or `CHANGES_REQUIRED` and, after finding
+a blocker, completes the rest of the presently supportable inspection pass instead of intentionally
+stopping. Report all current blocking findings ordered by severity, group findings sharing a root
+cause, name the invariant/source and affected sibling surface for each group, identify missing or
+contradictory evidence, and give the exact re-review scope. Complete-pass review does not require
+speculation beyond available evidence. The reviewer remains permanently read-only: it inspects
+recorded `git diff --check`, test, and gate evidence but never reruns those commands, repairs
+evidence, or mutates repository or provider state.
 
 A local defect stays in the ordinary loop: the same implementer fixes it, runs every applicable
 required check, freezes a new candidate, and returns it to the same reviewer for incremental
@@ -81,6 +112,21 @@ corrected realization and affected surface in the normal handoff, then changes c
 full candidate gate. This conditional rethink is not a new approval stage. Use
 `OWNER_DECISION_REQUIRED` only if the correction would change approved architecture, tracked scope
 or dependencies, provider reachability, selected realization, or an accepted trade-off.
+
+An incomplete correction that shows concrete code/test progress keeps the same implementer. Replace
+an implementer only when the session is unavailable or unusable, its runtime route is incompatible
+with the approved offload plan, two consecutive turns produce no concrete code/test progress, or the
+same root semantic defect survives two correction candidates. If the replacement reproduces that
+same root defect, stop the affected story under the existing execution-blocking rules instead of
+starting an unbounded replacement chain.
+
+If a reviewer once runs a prohibited but non-mutating check, discard that command as review evidence
+and reissue the bounded review to the same reviewer. Replace the reviewer only after a repeated
+boundary breach, repository/provider mutation, evidence writing, or loss of availability. Every
+replacement remains exceptional and records the existing reason and handoff; these recovery rules do
+not permit reviewers to execute verification. If the replacement reviewer repeats the same
+boundary, mutation, evidence-writing, or availability failure, stop the affected story under the
+existing execution-blocking rules instead of replacing again.
 
 ## Integration and closure
 
