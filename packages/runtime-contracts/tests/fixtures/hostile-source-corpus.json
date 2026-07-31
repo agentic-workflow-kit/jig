@@ -1,0 +1,8 @@
+{
+  "frames": [
+    "{",
+    "{\"version\":\"jig.source.v1\",\"version\":\"jig.source.v1\",\"payload\":{}}",
+    "{ \"payload\":{},\"version\":\"jig.codec.v1\"}",
+    "{\"payload\":{},\"version\":\"jig.codec.v9\"}"
+  ]
+}

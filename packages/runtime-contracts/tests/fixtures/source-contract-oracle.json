@@ -1,0 +1,46 @@
+{
+  "request": {
+    "version": "jig.source.v1",
+    "sourceIdentity": "source/scripted-work",
+    "basis": { "repository": "repo/example", "track": "track/one" },
+    "deadline": 200,
+    "retry": { "ordinal": 0, "limit": 2 }
+  },
+  "candidate": {
+    "version": "jig.source.v1",
+    "sourceIdentity": "source/scripted-work",
+    "itemKey": "item/one",
+    "revision": "rev-1",
+    "cursor": "cursor-1",
+    "content": { "title": "Candidate", "summary": "Bounded candidate" },
+    "plan": {
+      "version": "jig.plan.v1",
+      "track": "track/one",
+      "policy": {
+        "frozenCheckClasses": ["check/unit", "check/lint"],
+        "capacities": { "cpu": 3 },
+        "reserves": { "cpu": 1 }
+      },
+      "stories": [
+        {
+          "key": "story/one",
+          "track": "track/one",
+          "dependsOn": [],
+          "done": { "kind": "checks-pass", "checkClasses": ["check/unit"] },
+          "requirements": ["bounded requirement"],
+          "acceptanceCriteria": ["bounded acceptance"],
+          "demand": { "cpu": 1 }
+        },
+        {
+          "key": "story/two",
+          "track": "track/one",
+          "dependsOn": ["story/one"],
+          "done": { "kind": "checks-pass", "checkClasses": ["check/lint"] },
+          "requirements": ["second bounded requirement"],
+          "acceptanceCriteria": ["second bounded acceptance"],
+          "demand": { "cpu": 1 }
+        }
+      ]
+    }
+  }
+}

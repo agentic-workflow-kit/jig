@@ -7,6 +7,7 @@ import {
 } from '@agentic-workflow-kit/jig-codec';
 
 export * from './ledger.js';
+export * from './source.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare const TextDecoder: {
