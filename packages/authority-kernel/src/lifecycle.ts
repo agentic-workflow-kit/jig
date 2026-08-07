@@ -20,6 +20,7 @@ import {
 /** The only lifecycle writer; this module has no port, provider, or dispatch capability. */
 export const LIFECYCLE_CONTROLLER = 'RT-CONTROLLER';
 export const RUN_BASIS_SCHEMA = 'jig.run-basis.v1';
+export const INTAKE_ACK_SCHEMA = 'jig.intake-ack.v1';
 export const LIFECYCLE_TRANSITION_SCHEMA = 'jig.lifecycle-transition.v1';
 export const GENERATION_CLAIM_SCHEMA = 'jig.generation-claim.v1';
 export const RESUME_INTEGRITY_SCHEMA = 'jig.resume-integrity.v1';
@@ -35,6 +36,15 @@ export type DirectBlockerRoot = Readonly<{
   event: string;
 }>;
 export type OwnerDecision = Readonly<{ kind: 'none' | 'reject-story'; story?: string }>;
+export type IntakeAdmission = Readonly<{
+  schema: typeof INTAKE_ACK_SCHEMA;
+  terminalAck: 'accepted';
+  run: string;
+  compositionDigest: string;
+  acknowledgementDigest: string;
+  position: number;
+  witnessedHeadDigest: string;
+}>;
 export type StoryBasisFact = Readonly<{
   story: string;
   dependencies: readonly string[];
@@ -46,6 +56,7 @@ export type RunBasis = Readonly<{
   run: string;
   basis: string;
   generation: string;
+  intake: IntakeAdmission;
   stories: readonly StoryBasisFact[];
   basisDigest: string;
 }>;
@@ -103,6 +114,9 @@ type WitnessLedger = Readonly<{
       contentDigest: string;
     }>,
   ): unknown;
+}>;
+type IntakeWitness = Readonly<{
+  readback(input: Readonly<{ compositionDigest: string }>): unknown;
 }>;
 export type LifecycleController = Readonly<{
   propose(input: unknown): LifecycleResult<LifecycleTransition>;
@@ -246,6 +260,29 @@ function parseDecision(value: unknown, story: string): OwnerDecision | undefined
     : undefined;
 }
 
+function validateIntake(value: unknown): IntakeAdmission | undefined {
+  const raw = fields(value, [
+    'schema',
+    'terminalAck',
+    'run',
+    'compositionDigest',
+    'acknowledgementDigest',
+    'position',
+    'witnessedHeadDigest',
+  ]);
+  return raw &&
+    raw.schema === INTAKE_ACK_SCHEMA &&
+    raw.terminalAck === 'accepted' &&
+    typeof raw.run === 'string' &&
+    digest(raw.compositionDigest) &&
+    digest(raw.acknowledgementDigest) &&
+    position(raw.position) &&
+    digest(raw.witnessedHeadDigest) &&
+    parseIdentity('ID-RUN', raw.run).ok
+    ? freeze(raw as IntakeAdmission)
+    : undefined;
+}
+
 function parseBinding(value: unknown): AuthorityBindings | undefined {
   const basic = fields(value, ['transaction', 'event', 'operation', 'subject', 'fence', 'catalogVersion']);
   if (basic) return basic as AuthorityBindings;
@@ -320,7 +357,8 @@ function basisDigest(value: Omit<RunBasis, 'basisDigest'>): string | undefined {
 }
 
 function validateBasis(value: unknown): RunBasis | undefined {
-  const raw = fields(value, ['schema', 'controller', 'run', 'basis', 'generation', 'stories', 'basisDigest']);
+  const raw = fields(value, ['schema', 'controller', 'run', 'basis', 'generation', 'intake', 'stories', 'basisDigest']);
+  const intake = raw && validateIntake(raw.intake);
   const storyValues = raw && array(raw.stories);
   if (
     !raw ||
@@ -329,6 +367,8 @@ function validateBasis(value: unknown): RunBasis | undefined {
     typeof raw.run !== 'string' ||
     !digest(raw.basis) ||
     typeof raw.generation !== 'string' ||
+    !intake ||
+    intake.run !== raw.run ||
     !digest(raw.basisDigest) ||
     !storyValues ||
     !parseIdentity('ID-RUN', raw.run).ok ||
@@ -354,7 +394,7 @@ function validateBasis(value: unknown): RunBasis | undefined {
       initial.value.fence.basis !== raw.basis ||
       initial.value.fence.generation !== raw.generation ||
       initial.value.catalogVersion !== AUTHORITY_KERNEL_VERSION ||
-      (initial.value.storyState !== 'Pending' && initial.value.storyState !== 'Landed')
+      initial.value.storyState !== 'Pending'
     )
       return undefined;
     const normalizedDeps: string[] = [];
@@ -399,6 +439,7 @@ function validateBasis(value: unknown): RunBasis | undefined {
     run: raw.run,
     basis: raw.basis,
     generation: raw.generation,
+    intake,
     stories: Object.freeze(stories),
   } as const;
   return basisDigest(candidate) === raw.basisDigest
@@ -407,10 +448,11 @@ function validateBasis(value: unknown): RunBasis | undefined {
 }
 
 export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
-  const raw = fields(value, ['run', 'basis', 'generation', 'stories']);
+  const raw = fields(value, ['run', 'basis', 'generation', 'intake', 'stories']);
   if (!raw) return fail('FC-INPUT', 'RUN_BASIS_SHAPE');
   const stories = array(raw.stories);
-  if (!stories || typeof raw.run !== 'string' || !digest(raw.basis) || typeof raw.generation !== 'string')
+  const intake = validateIntake(raw.intake);
+  if (!stories || !intake || typeof raw.run !== 'string' || !digest(raw.basis) || typeof raw.generation !== 'string')
     return fail('FC-INPUT', 'RUN_BASIS_VALUE');
   const candidate = {
     schema: RUN_BASIS_SCHEMA,
@@ -418,6 +460,7 @@ export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
     run: raw.run,
     basis: raw.basis,
     generation: raw.generation,
+    intake,
     stories,
   } as const;
   const parsed = validateBasis({
@@ -435,16 +478,43 @@ export function validateRunBasis(value: unknown): LifecycleResult<RunBasis> {
 
 function witnessedBasis(
   value: unknown,
+  intakeWitness: unknown,
 ): LifecycleResult<Readonly<{ carrier: RunBasis; reference: RunBasisReference; record: LedgerRecord }>> {
   const record = ledgerRecord(value);
   const carrier = record && validateBasis(record.content);
+  let intakeReadback: unknown;
+  try {
+    if (
+      typeof intakeWitness !== 'object' ||
+      intakeWitness === null ||
+      typeof (intakeWitness as IntakeWitness).readback !== 'function'
+    )
+      return fail('FC-TRUST', 'INTAKE_WITNESS_REQUIRED');
+    intakeReadback = (intakeWitness as IntakeWitness).readback({
+      compositionDigest: carrier?.intake.compositionDigest ?? '',
+    });
+  } catch {
+    return fail('FC-TRUST', 'INTAKE_WITNESS_FAILED');
+  }
+  const readback = fields(intakeReadback, ['ok', 'value']);
+  const witnessed = readback?.ok === true && fields(readback.value, ['result', 'witnessedHeadDigest']);
+  const result =
+    witnessed && fields(witnessed.result, ['kind', 'position', 'compositionDigest', 'acknowledgementDigest', 'run']);
   if (
     !record ||
     !carrier ||
     record.position !== 0 ||
     record.previousDigest !== GENESIS_DIGEST ||
     record.run !== carrier.run ||
-    record.generation !== carrier.generation
+    record.generation !== carrier.generation ||
+    !carrier.intake ||
+    !result ||
+    result.kind !== 'acknowledged' ||
+    result.position !== carrier.intake.position ||
+    result.compositionDigest !== carrier.intake.compositionDigest ||
+    result.acknowledgementDigest !== carrier.intake.acknowledgementDigest ||
+    result.run !== carrier.run ||
+    witnessed.witnessedHeadDigest !== carrier.intake.witnessedHeadDigest
   )
     return fail('FC-TRUST', 'RUN_BASIS_NOT_WITNESSED');
   return ok({
@@ -768,9 +838,9 @@ function validateProjectionTransition(
 
 export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProjection> {
   try {
-    const raw = fields(input, ['basisRecord', 'records']);
+    const raw = fields(input, ['basisRecord', 'records', 'intakeWitness']);
     const records = raw && array(raw.records);
-    const basisResult = raw && witnessedBasis(raw.basisRecord);
+    const basisResult = raw && witnessedBasis(raw.basisRecord, raw.intakeWitness);
     if (!raw || !records || !basisResult?.ok) return fail('FC-INPUT', 'LIFECYCLE_PROJECTION_SHAPE');
     const basis = basisResult.value.carrier;
     const reference = basisResult.value.reference;
@@ -806,6 +876,8 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
         })
       ) {
         integrity = ledger;
+      } else if (claim && !integrity) {
+        return fail('FC-FENCE', 'RC_RESUME_INTEGRITY_REQUIRED');
       } else {
         const lifecycle = parseTransition(ledger.content);
         if (!lifecycle) return fail('FC-INPUT', 'INVALID_LIFECYCLE_RECORD');
@@ -892,11 +964,15 @@ function transitionLedgerDigest(candidate: LifecycleTransition, previousDigest: 
 }
 
 export function createLifecycleController(input: unknown): LifecycleResult<LifecycleController> {
-  const raw = fields(input, ['basisRecord', 'records', 'ledger']);
+  const raw = fields(input, ['basisRecord', 'records', 'ledger', 'intakeWitness']);
   if (!raw || typeof raw.ledger !== 'object' || raw.ledger === null) return fail('FC-INPUT', 'CONTROLLER_INIT');
-  const projection = projectLifecycle({ basisRecord: raw.basisRecord, records: raw.records });
+  const projection = projectLifecycle({
+    basisRecord: raw.basisRecord,
+    records: raw.records,
+    intakeWitness: raw.intakeWitness,
+  });
   if (!projection.ok) return projection;
-  const basisResult = witnessedBasis(raw.basisRecord);
+  const basisResult = witnessedBasis(raw.basisRecord, raw.intakeWitness);
   const sourceRecords = array(raw.records);
   if (!basisResult?.ok || !sourceRecords) return fail('FC-TRUST', 'CONTROLLER_PREFIX_UNVERIFIED');
   const basis = basisResult.value;
@@ -950,9 +1026,39 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
         decision,
       } as const;
       const transitionDigestValue = transitionDigest(candidate);
-      return transitionDigestValue
-        ? ok({ ...candidate, transitionDigest: transitionDigestValue })
-        : fail('FC-INPUT', 'CONTROLLER_DIGEST');
+      if (!transitionDigestValue) return fail('FC-INPUT', 'CONTROLLER_DIGEST');
+      const authoritative = { ...candidate, transitionDigest: transitionDigestValue };
+      const recordDigest = transitionLedgerDigest(authoritative, projection.value.headDigest);
+      const semanticRecord =
+        recordDigest &&
+        ledgerRecord(
+          {
+            version: LEDGER_RECORD_SCHEMA,
+            run: authoritative.basis.run,
+            generation: authoritative.bindings.fence.generation,
+            transaction: authoritative.bindings.transaction,
+            event: authoritative.event.id,
+            position: authoritative.position - 1,
+            previousDigest: projection.value.headDigest,
+            content: authoritative,
+            contentDigest: recordDigest,
+          },
+          authoritative.basis.run,
+        );
+      if (!semanticRecord) return fail('FC-AUTHORITY', 'CATALOGUE_GUARD');
+      const semantic = validateProjectionTransition(
+        authoritative,
+        semanticRecord,
+        basis.reference,
+        new Map(Object.entries(projection.value.states)),
+        graph,
+        roots,
+        Object.values(projection.value.states)[0]?.runPhase ?? 'Received',
+        current.fence.generation,
+        undefined,
+        undefined,
+      );
+      return semantic.ok ? ok(authoritative) : semantic;
     },
     confirm(value) {
       const confirmation = fields(value, ['record']);
@@ -995,7 +1101,11 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
       )
         return fail('FC-EVIDENCE', 'WITNESSED_RECORD_MISMATCH');
       const nextRecords = [...sourceRecords, durable];
-      const verified = projectLifecycle({ basisRecord: raw.basisRecord, records: nextRecords });
+      const verified = projectLifecycle({
+        basisRecord: raw.basisRecord,
+        records: nextRecords,
+        intakeWitness: raw.intakeWitness,
+      });
       return verified.ok && verified.value.position === candidate.position - 1
         ? ok(candidate)
         : fail('FC-EVIDENCE', 'WITNESSED_RECORD_NOT_ADOPTABLE');

@@ -10,6 +10,30 @@ const oracle = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/
 const run = 'run-000000000001-aaaaaaaaaaaaaaaa';
 const basisDigest = 'a'.repeat(64);
 const generation = `${run}/gen/1|controller`;
+const intake = Object.freeze({
+  schema: 'jig.intake-ack.v1',
+  terminalAck: 'accepted',
+  run,
+  compositionDigest: 'b'.repeat(64),
+  acknowledgementDigest: 'c'.repeat(64),
+  position: 0,
+  witnessedHeadDigest: 'd'.repeat(64),
+});
+const intakeWitness = Object.freeze({
+  readback: () => ({
+    ok: true,
+    value: {
+      result: {
+        kind: 'acknowledged',
+        position: intake.position,
+        compositionDigest: intake.compositionDigest,
+        acknowledgementDigest: intake.acknowledgementDigest,
+        run,
+      },
+      witnessedHeadDigest: intake.witnessedHeadDigest,
+    },
+  }),
+});
 const subject = (key) => Object.freeze({ run, story: `${run}/story/${key}`, basis: basisDigest });
 const state = (key, storyState = 'Pending', runPhase = 'Active', fenceGeneration = generation) =>
   Object.freeze({
@@ -20,7 +44,7 @@ const state = (key, storyState = 'Pending', runPhase = 'Active', fenceGeneration
     catalogVersion: 'jig.authority-kernel.v1',
   });
 
-const basisInput = (stories) => ({ run, basis: basisDigest, generation, stories });
+const basisInput = (stories) => ({ run, basis: basisDigest, generation, intake, stories });
 const basisRecord = (basis) => {
   const prepared = runtime.createLedgerRecord({
     run,
@@ -51,6 +75,7 @@ const controllerFor = (basis, records = [], readbackRecord = undefined) =>
   kernel.createLifecycleController({
     basisRecord: basisRecord(basis),
     records,
+    intakeWitness,
     ledger: { readback: () => ({ ok: true, value: { kind: 'committed', record: readbackRecord } }) },
   });
 
@@ -66,6 +91,7 @@ const binding = (key, ordinal, fenceGeneration = generation) => ({
 test('lifecycle oracle is versioned and retains the exact governed surface', () => {
   assert.deepEqual(oracle.schemas, [
     kernel.RUN_BASIS_SCHEMA,
+    kernel.INTAKE_ACK_SCHEMA,
     kernel.LIFECYCLE_TRANSITION_SCHEMA,
     kernel.GENERATION_CLAIM_SCHEMA,
     kernel.RESUME_INTEGRITY_SCHEMA,
@@ -76,21 +102,30 @@ test('lifecycle oracle is versioned and retains the exact governed surface', () 
 });
 
 test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependency', () => {
-  const basis = kernel.createRunBasis(
+  const forgedLandedBasis = kernel.createRunBasis(
     basisInput([
       { story: subject('landed').story, dependencies: [], initial: state('landed', 'Landed') },
       { story: subject('pending').story, dependencies: [subject('landed').story], initial: state('pending') },
     ]),
   );
+  assert.equal(forgedLandedBasis.ok, false);
+
+  const basis = kernel.createRunBasis(
+    basisInput([
+      { story: subject('landed').story, dependencies: [], initial: state('landed') },
+      { story: subject('pending').story, dependencies: [subject('landed').story], initial: state('pending') },
+    ]),
+  );
   assert.equal(basis.ok, true);
   const witnessed = basisRecord(basis.value);
-  const projection = kernel.projectLifecycle({ basisRecord: witnessed, records: [] });
+  const projection = kernel.projectLifecycle({ basisRecord: witnessed, records: [], intakeWitness });
   assert.equal(projection.ok, true);
-  assert.deepEqual(projection.value.releasedStories, [subject('landed').story]);
+  assert.deepEqual(projection.value.releasedStories, []);
 
   const controller = kernel.createLifecycleController({
     basisRecord: witnessed,
     records: [],
+    intakeWitness,
     ledger: { readback: () => ({ ok: false, error: { kind: 'absent' } }) },
   });
   const proposed = controller.value.propose({
@@ -105,11 +140,7 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     bindings: binding('pending', 2),
     decision: { kind: 'none' },
   });
-  assert.equal(proposed.ok, true);
-  const record = transitionRecord(proposed.value, witnessed.contentDigest);
-  const adopted = kernel.projectLifecycle({ basisRecord: witnessed, records: [record] });
-  assert.equal(adopted.ok, true);
-  assert.equal(adopted.value.states[subject('pending').story].storyState, 'Eligible');
+  assert.equal(proposed.ok, false);
 
   const unlandedBasis = kernel.createRunBasis(
     basisInput([
@@ -122,6 +153,7 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
   const unlandedController = kernel.createLifecycleController({
     basisRecord: unlandedWitness,
     records: [],
+    intakeWitness,
     ledger: { readback: () => ({ ok: false }) },
   });
   const forgedEligibility = unlandedController.value.propose({
@@ -136,9 +168,7 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     bindings: binding('dependent', 2),
     decision: { kind: 'none' },
   });
-  assert.equal(forgedEligibility.ok, true);
-  const forgedRecord = transitionRecord(forgedEligibility.value, unlandedWitness.contentDigest);
-  assert.equal(kernel.projectLifecycle({ basisRecord: unlandedWitness, records: [forgedRecord] }).ok, false);
+  assert.equal(forgedEligibility.ok, false);
 });
 
 test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves Story state', () => {
@@ -166,7 +196,11 @@ test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves St
   });
   assert.equal(suspend.ok, true);
   const suspendRecord = transitionRecord(suspend.value, witnessed.contentDigest);
-  const suspendedProjection = kernel.projectLifecycle({ basisRecord: witnessed, records: [suspendRecord] });
+  const suspendedProjection = kernel.projectLifecycle({
+    basisRecord: witnessed,
+    records: [suspendRecord],
+    intakeWitness,
+  });
   assert.equal(suspendedProjection.ok, true);
   assert.equal(suspendedProjection.value.states[subject('one').story].runPhase, 'Suspended');
   assert.equal(suspendedProjection.value.states[subject('two').story].storyState, 'Pending');
@@ -187,7 +221,11 @@ test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves St
   });
   assert.equal(stop.ok, true);
   const stopRecord = transitionRecord(stop.value, suspendRecord.contentDigest);
-  const stoppedProjection = kernel.projectLifecycle({ basisRecord: witnessed, records: [suspendRecord, stopRecord] });
+  const stoppedProjection = kernel.projectLifecycle({
+    basisRecord: witnessed,
+    records: [suspendRecord, stopRecord],
+    intakeWitness,
+  });
   assert.equal(stoppedProjection.ok, true);
   assert.deepEqual(
     Object.values(stoppedProjection.value.states).map((value) => [value.storyState, value.runPhase]),
@@ -211,11 +249,13 @@ test('CF-BLOCKERS: transition-local dependency and root claims cannot author Not
   const forged = {
     basisRecord: witnessed,
     records: [],
+    intakeWitness,
   };
   assert.equal(kernel.projectLifecycle(forged).ok, true);
   const controller = kernel.createLifecycleController({
     basisRecord: witnessed,
     records: [],
+    intakeWitness,
     ledger: { readback: () => ({ ok: false }) },
   });
   assert.equal(controller.ok, true);
@@ -231,7 +271,49 @@ test('CF-BLOCKERS: transition-local dependency and root claims cannot author Not
     bindings: binding('b', 2),
     decision: { kind: 'none' },
   });
-  assert.equal(attempt.ok, true);
-  const record = transitionRecord(attempt.value, witnessed.contentDigest);
-  assert.deepEqual(kernel.projectLifecycle({ basisRecord: witnessed, records: [record] }).ok, false);
+  assert.equal(attempt.ok, false);
+});
+
+test('CF-RESTART: a pending generation claim fences every non-integrity record', () => {
+  const basis = kernel.createRunBasis(
+    basisInput([{ story: subject('only').story, dependencies: [], initial: state('only') }]),
+  );
+  assert.equal(basis.ok, true);
+  const witnessed = basisRecord(basis.value);
+  const newerGeneration = `${run}/gen/2|controller`;
+  const claimPrepared = runtime.createLedgerRecord({
+    run,
+    generation: newerGeneration,
+    transaction: `${run}/txn/2/${newerGeneration}|${basisDigest}`,
+    position: 1,
+    previousDigest: witnessed.contentDigest,
+    content: {
+      schema: kernel.GENERATION_CLAIM_SCHEMA,
+      run,
+      basis: basisDigest,
+      generation: newerGeneration,
+      token: 'e'.repeat(64),
+    },
+  });
+  assert.equal(claimPrepared.ok, true);
+  const claim = Object.freeze({ ...claimPrepared.value, event: `${run}/event/2` });
+  const unrelatedPrepared = runtime.createLedgerRecord({
+    run,
+    generation: newerGeneration,
+    transaction: `${run}/txn/3/${newerGeneration}|${basisDigest}`,
+    position: 2,
+    previousDigest: claim.contentDigest,
+    content: { schema: 'jig.unrelated.v1', value: 'not-integrity' },
+  });
+  assert.equal(unrelatedPrepared.ok, true);
+  const unrelated = Object.freeze({ ...unrelatedPrepared.value, event: `${run}/event/3` });
+  const result = kernel.projectLifecycle({
+    basisRecord: witnessed,
+    records: [claim, unrelated],
+    intakeWitness,
+  });
+  assert.deepEqual(result, {
+    ok: false,
+    error: { failure: 'FC-FENCE', code: 'RC_RESUME_INTEGRITY_REQUIRED' },
+  });
 });
