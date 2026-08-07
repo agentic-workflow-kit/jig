@@ -1,0 +1,97 @@
+[
+  {
+    "id": "p01",
+    "query": "Spawn a Codex chat for every eligible story and keep going after each merge.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p02",
+    "query": "Autonomously deliver the next eight stories with one reviewer per chat.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p03",
+    "query": "Run dependency-aware implementation waves and merge each story PR.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p04",
+    "query": "Finish this phase through an integration branch using separate story chats.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p05",
+    "query": "For each ready ticket, open a background Codex task, review it independently, and continue.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p06",
+    "query": "Keep advancing the tracker DAG for five merged stories.",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "p07",
+    "query": "Use Luna implementers and Terra reviewers for every ready story.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "p08",
+    "query": "Create one thread per eligible task and run each PR lifecycle through cleanup.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "p09",
+    "query": "Deliver all independent ready stories, then recompute what unlocks.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "p10",
+    "query": "Coordinate one phase PR from individually reviewed story worktrees.",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "n01",
+    "query": "Implement GF-031 in this chat and stop before committing.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  { "id": "n02", "query": "Review this one pull request for bugs.", "should_trigger": false, "split": "train" },
+  {
+    "id": "n03",
+    "query": "Tell me which stories are eligible, but do not change anything.",
+    "should_trigger": false,
+    "split": "train"
+  },
+  { "id": "n04", "query": "Create a worktree for my current branch.", "should_trigger": false, "split": "train" },
+  { "id": "n05", "query": "Watch this PR until CI completes.", "should_trigger": false, "split": "train" },
+  {
+    "id": "n06",
+    "query": "Write a delivery plan for the next release; do not execute it.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "n07",
+    "query": "Spawn one researcher to inspect the architecture docs.",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  { "id": "n08", "query": "Merge and clean PR 42.", "should_trigger": false, "split": "validation" },
+  { "id": "n09", "query": "Create a reusable skill for code review.", "should_trigger": false, "split": "validation" },
+  {
+    "id": "n10",
+    "query": "Fix the failing unit test in the current checkout.",
+    "should_trigger": false,
+    "split": "validation"
+  }
+]
