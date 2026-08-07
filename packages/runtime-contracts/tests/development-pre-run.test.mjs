@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const runtime = await import('../dist/index.js');
@@ -89,20 +92,35 @@ const manifestBytes = (changes) => {
   return framed.value;
 };
 
+const roots = [];
+const authorityWithRepository = () => {
+  const root = mkdtempSync(join(tmpdir(), 'jig-gf023-'));
+  roots.push(root);
+  const repository = runtime.createLocalPreRunApprovalRepository(root);
+  return { repository, authority: runtime.createDevelopmentApprovalAuthority({ repository }) };
+};
+test.after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 function approvedFixture() {
-  const authority = runtime.createDevelopmentApprovalAuthority();
+  const { authority, repository } = authorityWithRepository();
   const profile = runtime.createDevelopmentPreRun({
     ledger: runtime.createScriptedLedger(),
     approvalVerifier: authority.verifier,
   });
   const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
-  const proposalApproval = authority.consumer.approveProposal({ preview: preview.value });
-  const manifestApproval = authority.consumer.approveProviderManifest({ preview: preview.value });
+  const proposalApproval = authority.consumer.approveProposal({ principal: 'principal/arye', preview: preview.value });
+  const manifestApproval = authority.consumer.approveProviderManifest({
+    principal: 'principal/arye',
+    preview: preview.value,
+  });
   assert.equal(proposalApproval.ok, true);
   assert.equal(manifestApproval.ok, true);
   return {
     authority,
+    repository,
     profile,
     preview: preview.value,
     proposalApproval: proposalApproval.value,
@@ -111,7 +129,7 @@ function approvedFixture() {
 }
 
 test('development profile preview recomposes the envelope and carries no provider or dispatch authority', () => {
-  const authority = runtime.createDevelopmentApprovalAuthority();
+  const { authority } = authorityWithRepository();
   const profile = runtime.createDevelopmentPreRun({
     ledger: runtime.createScriptedLedger(),
     approvalVerifier: authority.verifier,
@@ -133,7 +151,7 @@ test('development profile preview recomposes the envelope and carries no provide
 });
 
 test('provider manifest digest is derived from canonical bytes and authority-free posture', () => {
-  const authority = runtime.createDevelopmentApprovalAuthority();
+  const { authority } = authorityWithRepository();
   const profile = runtime.createDevelopmentPreRun({
     ledger: runtime.createScriptedLedger(),
     approvalVerifier: authority.verifier,
@@ -185,11 +203,28 @@ test('proposal and provider-manifest approvals are distinct, exact, immutable ow
   assert.equal(proposalApproval.kind, 'proposal-approved');
   assert.equal(manifestApproval.kind, 'provider-manifest-approved');
   assert.notEqual(proposalApproval.approvalDigest, manifestApproval.approvalDigest);
-  assert.deepEqual(authority.consumer.approveProposal({ preview }), {
+  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/other', preview }), {
+    ok: false,
+    error: { family: 'FC-AUTHORITY', code: 'EXACT_ARYE_PREVIEW_REQUIRED' },
+  });
+  const approvedEnvelope = runtime.composeApprovedDevelopmentEnvelope({
+    preview,
+    proposalApproval,
+    manifestApproval,
+  });
+  assert.equal(approvedEnvelope.ok, true);
+  assert.deepEqual(approvedEnvelope.value.proposalApproval, proposalApproval);
+  assert.deepEqual(approvedEnvelope.value.manifestApproval, manifestApproval);
+  assert.notEqual(approvedEnvelope.value.compositionDigest, preview.compositionDigest);
+  assert.equal(Object.isFrozen(approvedEnvelope.value), true);
+  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/arye', preview }), {
     ok: true,
     value: proposalApproval,
   });
-  assert.equal(authority.consumer.approveProposal({ preview: { ...preview } }).ok, false);
+  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/arye', preview: { ...preview } }), {
+    ok: true,
+    value: proposalApproval,
+  });
   assert.equal('approveProposal' in profile, false);
   assert.equal('approveProviderManifest' in profile, false);
 });
@@ -206,7 +241,7 @@ test('accepted development intake is witnessed, idempotent, and is the only path
   assert.equal(first.value.kind, 'acknowledged');
   assert.match(first.value.run, /^run-[0-9]{12}-[0-9a-f]{16}$/u);
   assert.deepEqual(profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted' }), first);
-  const readback = profile.readback(preview.compositionDigest);
+  const readback = profile.readback(first.value.compositionDigest);
   assert.equal(readback.ok, true);
   assert.deepEqual(readback.value.result, first.value);
   assert.match(readback.value.witnessedHeadDigest, /^[0-9a-f]{64}$/u);
@@ -224,7 +259,7 @@ test('rejected development intake is witnessed and can never derive a Run', () =
   assert.equal(rejected.value.kind, 'rejected');
   assert.equal(rejected.value.reason, 'envelope-rejected');
   assert.equal('run' in rejected.value, false);
-  const readback = profile.readback(preview.compositionDigest);
+  const readback = profile.readback(rejected.value.compositionDigest);
   assert.equal(readback.ok, true);
   assert.deepEqual(readback.value.result, rejected.value);
 });
@@ -242,7 +277,7 @@ test('development intake rejects approval substitution, copied carriers, and cha
   );
   assert.equal(
     profile.submit({
-      preview: { ...preview },
+      preview: { ...preview, proposalDigest: digest('z') },
       proposalApproval,
       manifestApproval,
       terminalAck: 'accepted',
@@ -255,8 +290,14 @@ test('development intake rejects approval substitution, copied carriers, and cha
   });
   const secondPreview = secondProfile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(secondPreview.ok, true);
-  const secondProposalApproval = authority.consumer.approveProposal({ preview: secondPreview.value });
-  const secondManifestApproval = authority.consumer.approveProviderManifest({ preview: secondPreview.value });
+  const secondProposalApproval = authority.consumer.approveProposal({
+    principal: 'principal/arye',
+    preview: secondPreview.value,
+  });
+  const secondManifestApproval = authority.consumer.approveProviderManifest({
+    principal: 'principal/arye',
+    preview: secondPreview.value,
+  });
   assert.equal(secondProposalApproval.ok, true);
   assert.equal(secondManifestApproval.ok, true);
   assert.equal(
@@ -266,8 +307,8 @@ test('development intake rejects approval substitution, copied carriers, and cha
       manifestApproval: secondManifestApproval.value,
       terminalAck: 'accepted',
     }).ok,
-    false,
-    'one owner verifier cannot be reused to authorize a second profile',
+    true,
+    'the same immutable repository can be reopened by another operator instance',
   );
   for (const forbidden of [
     'approveProposal',
@@ -304,7 +345,7 @@ test('development intake classifies malformed disposition and successor cuts as 
 });
 
 test('an unusable profile construction does not consume the owner verifier', () => {
-  const authority = runtime.createDevelopmentApprovalAuthority();
+  const { authority } = authorityWithRepository();
   const unusable = runtime.createDevelopmentPreRun({ ledger: {}, approvalVerifier: authority.verifier });
   assert.deepEqual(unusable.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() }), {
     ok: false,
@@ -317,8 +358,11 @@ test('an unusable profile construction does not consume the owner verifier', () 
   });
   const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
-  const proposalApproval = authority.consumer.approveProposal({ preview: preview.value });
-  const manifestApproval = authority.consumer.approveProviderManifest({ preview: preview.value });
+  const proposalApproval = authority.consumer.approveProposal({ principal: 'principal/arye', preview: preview.value });
+  const manifestApproval = authority.consumer.approveProviderManifest({
+    principal: 'principal/arye',
+    preview: preview.value,
+  });
   assert.equal(proposalApproval.ok, true);
   assert.equal(manifestApproval.ok, true);
   assert.equal(

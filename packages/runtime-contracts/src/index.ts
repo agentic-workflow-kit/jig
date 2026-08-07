@@ -6,6 +6,7 @@ import {
   FRAME_VERSION,
 } from '@agentic-workflow-kit/jig-codec';
 
+export * from './approval-repository.js';
 export * from './development-pre-run.js';
 export * from './envelope.js';
 export * from './ledger.js';
