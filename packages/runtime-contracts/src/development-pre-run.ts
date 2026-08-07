@@ -36,6 +36,7 @@ export type DevelopmentPreview = Readonly<{
   proposalDigest: string;
   manifestId: string;
   manifestDigest: string;
+  providerManifestBytes: readonly number[];
   scope: Scope;
   scopeDigest: string;
   compositionDigest: string;
@@ -51,12 +52,17 @@ export type DevelopmentApprovedEnvelope = Readonly<{
   proposalDigest: string;
   manifestId: string;
   manifestDigest: string;
+  providerManifestBytes: readonly number[];
   scope: Scope;
   scopeDigest: string;
   compositionDigest: string;
   proposal: EnvelopeProposal;
   proposalApproval: DevelopmentApproval;
   manifestApproval: DevelopmentApproval;
+}>;
+declare const developmentAryePrincipalBrand: unique symbol;
+export type DevelopmentAryePrincipal = Readonly<{
+  readonly [developmentAryePrincipalBrand]: 'principal/arye';
 }>;
 declare const developmentApprovalVerifierBrand: unique symbol;
 export type DevelopmentApprovalVerifier = Readonly<{
@@ -119,6 +125,43 @@ function sameCanonical(left: unknown, right: unknown): boolean {
   );
 }
 
+function manifestFrame(value: unknown): Uint8Array | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Array.prototype
+    )
+      return undefined;
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+    const length = lengthDescriptor?.value;
+    if (!lengthDescriptor || !Number.isSafeInteger(length) || length < 1 || length > 65_536) return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (
+      keys.length !== length + 1 ||
+      keys.some((key) => key !== 'length' && (typeof key !== 'string' || !/^\d+$/u.test(key)))
+    )
+      return undefined;
+    const bytes = new Uint8Array(length);
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (
+        !descriptor?.enumerable ||
+        !('value' in descriptor) ||
+        !Number.isInteger(descriptor.value) ||
+        descriptor.value < 0 ||
+        descriptor.value > 255
+      )
+        return undefined;
+      bytes[index] = descriptor.value;
+    }
+    return bytes;
+  } catch {
+    return undefined;
+  }
+}
+
 function validPreview(input: unknown): DevelopmentPreview | undefined {
   const data = fields(input, [
     'compositionDigest',
@@ -128,6 +171,7 @@ function validPreview(input: unknown): DevelopmentPreview | undefined {
     'posture',
     'proposal',
     'proposalDigest',
+    'providerManifestBytes',
     'providerEnabled',
     'recovery',
     'scope',
@@ -135,6 +179,8 @@ function validPreview(input: unknown): DevelopmentPreview | undefined {
     'version',
   ]);
   const proposal = data && validateEnvelopeProposal(data.proposal);
+  const providerManifestBytes = data && manifestFrame(data.providerManifestBytes);
+  const providerManifest = providerManifestBytes && manifest(providerManifestBytes);
   const previewScope = data && fields(data.scope, ['phase', 'purpose']);
   const scopeDigest = previewScope && staged('DEVELOPMENT-PROVIDER-SCOPE', previewScope as CanonicalJson);
   if (
@@ -150,9 +196,12 @@ function validPreview(input: unknown): DevelopmentPreview | undefined {
     data.dispatchEnabled !== false ||
     typeof data.proposalDigest !== 'string' ||
     data.proposalDigest !== proposal.value.proposalDigest ||
+    !providerManifest ||
     typeof data.manifestDigest !== 'string' ||
     !/^[0-9a-f]{64}$/u.test(data.manifestDigest) ||
     data.manifestId !== `provider/development/authority/${data.manifestDigest}` ||
+    providerManifest.manifestDigest !== data.manifestDigest ||
+    providerManifest.manifestId !== data.manifestId ||
     data.scopeDigest !== scopeDigest
   )
     return undefined;
@@ -181,6 +230,7 @@ function validPreview(input: unknown): DevelopmentPreview | undefined {
     proposalDigest,
     manifestId,
     manifestDigest,
+    providerManifestBytes: freeze(Array.from(providerManifestBytes)),
     scope: previewScopeValue,
     scopeDigest,
     compositionDigest,
@@ -230,6 +280,7 @@ function approvedEnvelope(
         proposalDigest: preview.proposalDigest,
         manifestId: preview.manifestId,
         manifestDigest: preview.manifestDigest,
+        providerManifestBytes: preview.providerManifestBytes,
         scope: preview.scope,
         scopeDigest: preview.scopeDigest,
         compositionDigest,
@@ -314,16 +365,17 @@ const approvalVerifiers = new WeakMap<object, ApprovalBinding>();
 
 export function createDevelopmentApprovalAuthority(input: unknown): Readonly<{
   consumer: DevelopmentApprovalConsumer;
+  principal: DevelopmentAryePrincipal;
   verifier: DevelopmentApprovalVerifier;
 }> {
   const config = fields(input, ['repository']);
   const repository = config?.repository;
   const boundRepository = isPreRunApprovalRepository(repository) ? repository : undefined;
+  const principal = freeze({}) as DevelopmentAryePrincipal;
 
   const approve = (input: unknown, kind: DevelopmentApproval['kind']): Result<DevelopmentApproval> => {
     const data = fields(input, ['principal', 'preview']);
-    if (!boundRepository || data?.principal !== 'principal/arye')
-      return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
+    if (!boundRepository || data?.principal !== principal) return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
     const preview = validPreview(data.preview);
     if (!preview) return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
     const created = createPreRunApproval({
@@ -343,6 +395,7 @@ export function createDevelopmentApprovalAuthority(input: unknown): Readonly<{
       approveProposal: (input: unknown) => approve(input, 'proposal-approved'),
       approveProviderManifest: (input: unknown) => approve(input, 'provider-manifest-approved'),
     }),
+    principal,
     verifier,
   });
 }
@@ -389,6 +442,7 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
         proposalDigest: proposal.value.proposalDigest,
         manifestId: providerManifest.manifestId,
         manifestDigest: providerManifest.manifestDigest,
+        providerManifestBytes: freeze(Array.from(data.providerManifestBytes as Uint8Array)),
         scope: providerManifest.scope,
         scopeDigest,
         compositionDigest,

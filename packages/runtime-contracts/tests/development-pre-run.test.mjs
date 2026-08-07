@@ -122,9 +122,12 @@ function approvedFixture() {
   });
   const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
-  const proposalApproval = authority.consumer.approveProposal({ principal: 'principal/arye', preview: preview.value });
+  const proposalApproval = authority.consumer.approveProposal({
+    principal: authority.principal,
+    preview: preview.value,
+  });
   const manifestApproval = authority.consumer.approveProviderManifest({
-    principal: 'principal/arye',
+    principal: authority.principal,
     preview: preview.value,
   });
   assert.equal(proposalApproval.ok, true);
@@ -214,7 +217,7 @@ test('proposal and provider-manifest approvals are distinct, exact, immutable ow
   assert.equal(proposalApproval.kind, 'proposal-approved');
   assert.equal(manifestApproval.kind, 'provider-manifest-approved');
   assert.notEqual(proposalApproval.approvalDigest, manifestApproval.approvalDigest);
-  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/other', preview }), {
+  assert.deepEqual(authority.consumer.approveProposal({ principal: {}, preview }), {
     ok: false,
     error: { family: 'FC-AUTHORITY', code: 'EXACT_ARYE_PREVIEW_REQUIRED' },
   });
@@ -228,11 +231,11 @@ test('proposal and provider-manifest approvals are distinct, exact, immutable ow
   assert.deepEqual(approvedEnvelope.value.manifestApproval, manifestApproval);
   assert.notEqual(approvedEnvelope.value.compositionDigest, preview.compositionDigest);
   assert.equal(Object.isFrozen(approvedEnvelope.value), true);
-  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/arye', preview }), {
+  assert.deepEqual(authority.consumer.approveProposal({ principal: authority.principal, preview }), {
     ok: true,
     value: proposalApproval,
   });
-  assert.deepEqual(authority.consumer.approveProposal({ principal: 'principal/arye', preview: { ...preview } }), {
+  assert.deepEqual(authority.consumer.approveProposal({ principal: authority.principal, preview: { ...preview } }), {
     ok: true,
     value: proposalApproval,
   });
@@ -287,6 +290,18 @@ test('development intake rejects approval substitution, copied carriers, and cha
     false,
   );
   assert.equal(
+    authority.consumer.approveProviderManifest({
+      principal: authority.principal,
+      preview: {
+        ...preview,
+        manifestDigest: digest('b'),
+        manifestId: `provider/development/authority/${digest('b')}`,
+      },
+    }).ok,
+    false,
+    'a copied preview cannot self-authorize an unvalidated manifest digest',
+  );
+  assert.equal(
     profile.submit({
       preview: { ...preview, proposalDigest: digest('z') },
       proposalApproval,
@@ -302,11 +317,11 @@ test('development intake rejects approval substitution, copied carriers, and cha
   const secondPreview = secondProfile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(secondPreview.ok, true);
   const secondProposalApproval = authority.consumer.approveProposal({
-    principal: 'principal/arye',
+    principal: authority.principal,
     preview: secondPreview.value,
   });
   const secondManifestApproval = authority.consumer.approveProviderManifest({
-    principal: 'principal/arye',
+    principal: authority.principal,
     preview: secondPreview.value,
   });
   assert.equal(secondProposalApproval.ok, true);
@@ -369,9 +384,12 @@ test('an unusable profile construction does not consume the owner verifier', () 
   });
   const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
   assert.equal(preview.ok, true);
-  const proposalApproval = authority.consumer.approveProposal({ principal: 'principal/arye', preview: preview.value });
+  const proposalApproval = authority.consumer.approveProposal({
+    principal: authority.principal,
+    preview: preview.value,
+  });
   const manifestApproval = authority.consumer.approveProviderManifest({
-    principal: 'principal/arye',
+    principal: authority.principal,
     preview: preview.value,
   });
   assert.equal(proposalApproval.ok, true);
