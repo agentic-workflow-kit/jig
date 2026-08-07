@@ -21,6 +21,7 @@ import {
 export const LIFECYCLE_CONTROLLER = 'RT-CONTROLLER';
 export const RUN_BASIS_SCHEMA = 'jig.run-basis.v1';
 export const INTAKE_ACK_SCHEMA = 'jig.intake-ack.v1';
+export const ENVELOPE_ENTRY_SCHEMA = 'jig.envelope-entry.v1';
 export const LIFECYCLE_TRANSITION_SCHEMA = 'jig.lifecycle-transition.v1';
 export const GENERATION_CLAIM_SCHEMA = 'jig.generation-claim.v1';
 export const RESUME_INTEGRITY_SCHEMA = 'jig.resume-integrity.v1';
@@ -45,10 +46,21 @@ export type IntakeAdmission = Readonly<{
   position: number;
   witnessedHeadDigest: string;
 }>;
+export type RunEntry = Readonly<{
+  schema: typeof ENVELOPE_ENTRY_SCHEMA;
+  run: string;
+  basis: string;
+  event: string;
+  position: 1;
+  type: 'EV-ENVELOPE-SUBMITTED';
+  edge: 'preflighting-active';
+}>;
+export type StoryOrder = Readonly<{ priority: number; ordinal: number; story: string }>;
 export type StoryBasisFact = Readonly<{
   story: string;
   dependencies: readonly string[];
   initial: AuthorityState;
+  order: StoryOrder;
 }>;
 export type RunBasis = Readonly<{
   schema: typeof RUN_BASIS_SCHEMA;
@@ -57,6 +69,7 @@ export type RunBasis = Readonly<{
   basis: string;
   generation: string;
   intake: IntakeAdmission;
+  entry: RunEntry;
   stories: readonly StoryBasisFact[];
   basisDigest: string;
 }>;
@@ -213,16 +226,31 @@ function sameRoot(left: DirectBlockerRoot, right: DirectBlockerRoot | undefined)
   return !!right && left.story === right.story && left.outcome === right.outcome && left.event === right.event;
 }
 
-function canonicalRoots(value: readonly DirectBlockerRoot[]): readonly DirectBlockerRoot[] {
+function compareStoryOrder(left: StoryOrder, right: StoryOrder): number {
+  for (const [a, b] of [
+    [left.priority, right.priority],
+    [left.ordinal, right.ordinal],
+    [left.story, right.story],
+  ] as const) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+  return 0;
+}
+
+function canonicalRoots(
+  value: readonly DirectBlockerRoot[],
+  orders: ReadonlyMap<string, StoryOrder>,
+): readonly DirectBlockerRoot[] {
   const unique = new Map<string, DirectBlockerRoot>();
   for (const root of value) unique.set(`${root.story}\u0000${root.outcome}\u0000${root.event}`, root);
   return Object.freeze(
-    [...unique.values()].sort((left, right) =>
-      compare(
-        `${left.story}\u0000${left.outcome}\u0000${left.event}`,
-        `${right.story}\u0000${right.outcome}\u0000${right.event}`,
-      ),
-    ),
+    [...unique.values()].sort((left, right) => {
+      const leftOrder = orders.get(left.story);
+      const rightOrder = orders.get(right.story);
+      if (!leftOrder || !rightOrder) return 0;
+      return compareStoryOrder(leftOrder, rightOrder);
+    }),
   );
 }
 
@@ -245,10 +273,8 @@ function parseRoots(value: unknown, run: string): readonly DirectBlockerRoot[] |
       return undefined;
     parsed.push(Object.freeze({ story: root.story, outcome: root.outcome, event: root.event }));
   }
-  const canonical = canonicalRoots(parsed);
-  return canonical.length === parsed.length && canonical.every((root, index) => sameRoot(root, parsed[index]))
-    ? Object.freeze(parsed)
-    : undefined;
+  const keys = new Set(parsed.map((root) => `${root.story}\u0000${root.outcome}\u0000${root.event}`));
+  return keys.size === parsed.length ? Object.freeze(parsed) : undefined;
 }
 
 function parseDecision(value: unknown, story: string): OwnerDecision | undefined {
@@ -280,6 +306,34 @@ function validateIntake(value: unknown): IntakeAdmission | undefined {
     digest(raw.witnessedHeadDigest) &&
     parseIdentity('ID-RUN', raw.run).ok
     ? freeze(raw as IntakeAdmission)
+    : undefined;
+}
+
+function validateEntry(value: unknown): RunEntry | undefined {
+  const raw = fields(value, ['schema', 'run', 'basis', 'event', 'position', 'type', 'edge']);
+  return raw &&
+    raw.schema === ENVELOPE_ENTRY_SCHEMA &&
+    typeof raw.run === 'string' &&
+    digest(raw.basis) &&
+    typeof raw.event === 'string' &&
+    raw.position === 1 &&
+    raw.type === 'EV-ENVELOPE-SUBMITTED' &&
+    raw.edge === 'preflighting-active' &&
+    parseIdentity('ID-RUN', raw.run).ok &&
+    parseIdentity('ID-EVENT', raw.event).ok &&
+    raw.event === `${raw.run}/event/1`
+    ? freeze(raw as RunEntry)
+    : undefined;
+}
+
+function validateStoryOrder(value: unknown, story: string): StoryOrder | undefined {
+  const raw = fields(value, ['priority', 'ordinal', 'story']);
+  return raw &&
+    typeof raw.priority === 'number' &&
+    Number.isSafeInteger(raw.priority) &&
+    position(raw.ordinal) &&
+    raw.story === story
+    ? freeze(raw as StoryOrder)
     : undefined;
 }
 
@@ -357,8 +411,19 @@ function basisDigest(value: Omit<RunBasis, 'basisDigest'>): string | undefined {
 }
 
 function validateBasis(value: unknown): RunBasis | undefined {
-  const raw = fields(value, ['schema', 'controller', 'run', 'basis', 'generation', 'intake', 'stories', 'basisDigest']);
+  const raw = fields(value, [
+    'schema',
+    'controller',
+    'run',
+    'basis',
+    'generation',
+    'intake',
+    'entry',
+    'stories',
+    'basisDigest',
+  ]);
   const intake = raw && validateIntake(raw.intake);
+  const entry = raw && validateEntry(raw.entry);
   const storyValues = raw && array(raw.stories);
   if (
     !raw ||
@@ -369,6 +434,9 @@ function validateBasis(value: unknown): RunBasis | undefined {
     typeof raw.generation !== 'string' ||
     !intake ||
     intake.run !== raw.run ||
+    !entry ||
+    entry.run !== raw.run ||
+    entry.basis !== raw.basis ||
     !digest(raw.basisDigest) ||
     !storyValues ||
     !parseIdentity('ID-RUN', raw.run).ok ||
@@ -378,14 +446,16 @@ function validateBasis(value: unknown): RunBasis | undefined {
     return undefined;
   const stories: StoryBasisFact[] = [];
   for (const entry of storyValues) {
-    const item = fields(entry, ['story', 'dependencies', 'initial']);
+    const item = fields(entry, ['story', 'dependencies', 'initial', 'order']);
     const deps = item && array(item.dependencies);
     const initial = item && validateAuthorityState(item.initial);
+    const order = item && validateStoryOrder(item.order, typeof item.story === 'string' ? item.story : '');
     if (
       !item ||
       typeof item.story !== 'string' ||
       !deps ||
       !initial?.ok ||
+      !order ||
       item.story !== initial.value.subject.story ||
       !parseIdentity('ID-STORY', item.story).ok ||
       !item.story.startsWith(`${raw.run}/story/`) ||
@@ -394,6 +464,7 @@ function validateBasis(value: unknown): RunBasis | undefined {
       initial.value.fence.basis !== raw.basis ||
       initial.value.fence.generation !== raw.generation ||
       initial.value.catalogVersion !== AUTHORITY_KERNEL_VERSION ||
+      initial.value.runPhase !== 'Preflighting' ||
       initial.value.storyState !== 'Pending'
     )
       return undefined;
@@ -411,7 +482,9 @@ function validateBasis(value: unknown): RunBasis | undefined {
     const sortedDeps = [...new Set(normalizedDeps)].sort(compare);
     if (sortedDeps.length !== normalizedDeps.length || sortedDeps.some((dep, index) => dep !== normalizedDeps[index]))
       return undefined;
-    stories.push(freeze({ story: item.story, dependencies: Object.freeze(normalizedDeps), initial: initial.value }));
+    stories.push(
+      freeze({ story: item.story, dependencies: Object.freeze(normalizedDeps), initial: initial.value, order }),
+    );
   }
   const storyIds = new Set(stories.map((story) => story.story));
   if (
@@ -440,6 +513,7 @@ function validateBasis(value: unknown): RunBasis | undefined {
     basis: raw.basis,
     generation: raw.generation,
     intake,
+    entry,
     stories: Object.freeze(stories),
   } as const;
   return basisDigest(candidate) === raw.basisDigest
@@ -448,11 +522,19 @@ function validateBasis(value: unknown): RunBasis | undefined {
 }
 
 export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
-  const raw = fields(value, ['run', 'basis', 'generation', 'intake', 'stories']);
+  const raw = fields(value, ['run', 'basis', 'generation', 'intake', 'entry', 'stories']);
   if (!raw) return fail('FC-INPUT', 'RUN_BASIS_SHAPE');
   const stories = array(raw.stories);
   const intake = validateIntake(raw.intake);
-  if (!stories || !intake || typeof raw.run !== 'string' || !digest(raw.basis) || typeof raw.generation !== 'string')
+  const entry = validateEntry(raw.entry);
+  if (
+    !stories ||
+    !intake ||
+    !entry ||
+    typeof raw.run !== 'string' ||
+    !digest(raw.basis) ||
+    typeof raw.generation !== 'string'
+  )
     return fail('FC-INPUT', 'RUN_BASIS_VALUE');
   const candidate = {
     schema: RUN_BASIS_SCHEMA,
@@ -461,6 +543,7 @@ export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
     basis: raw.basis,
     generation: raw.generation,
     intake,
+    entry,
     stories,
   } as const;
   const parsed = validateBasis({
@@ -691,6 +774,7 @@ function expectedRoots(
 ): readonly DirectBlockerRoot[] {
   return canonicalRoots(
     (graph.get(story)?.dependencies ?? []).flatMap((dependency) => rootsByStory.get(dependency) ?? []),
+    new Map([...graph.values()].map((fact) => [fact.story, fact.order])),
   );
 }
 
@@ -881,6 +965,15 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
       } else {
         const lifecycle = parseTransition(ledger.content);
         if (!lifecycle) return fail('FC-INPUT', 'INVALID_LIFECYCLE_RECORD');
+        if (
+          ledger.position === 1 &&
+          (lifecycle.event.id !== `${basis.run}/event/2` ||
+            lifecycle.event.type !== basis.entry.type ||
+            lifecycle.event.edge !== basis.entry.edge ||
+            lifecycle.previous.runPhase !== 'Preflighting' ||
+            lifecycle.next.runPhase !== 'Active')
+        )
+          return fail('FC-SUBJECT', 'RUN_ENTRY_REQUIRED');
         const valid = validateProjectionTransition(
           lifecycle,
           ledger,
@@ -928,7 +1021,10 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
       headDigest: previousDigest,
       basis: reference,
       states: Object.freeze(Object.fromEntries([...states.entries()].sort(([left], [right]) => compare(left, right)))),
-      directRoots: canonicalRoots([...rootsByStory.values()].flat()),
+      directRoots: canonicalRoots(
+        [...rootsByStory.values()].flat(),
+        new Map(basis.stories.map((story) => [story.story, story.order])),
+      ),
       releasedStories: Object.freeze(
         [...states.values()]
           .filter((state) => state.storyState === 'Landed')
@@ -985,6 +1081,14 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
       if (!event.ok || !bindings) return fail('FC-INPUT', 'CONTROLLER_PROPOSAL_VALUE');
       const current = projection.value.states[event.value.subject.story];
       if (!current) return fail('FC-SUBJECT', 'UNKNOWN_STORY');
+      if (
+        projection.value.position === 0 &&
+        (event.value.id !== `${basis.carrier.run}/event/2` ||
+          event.value.type !== basis.carrier.entry.type ||
+          event.value.edge !== basis.carrier.entry.edge ||
+          current.runPhase !== 'Preflighting')
+      )
+        return fail('FC-SUBJECT', 'RUN_ENTRY_REQUIRED');
       const resume =
         current.runPhase === 'Suspended' &&
         event.value.type === 'EV-RUN-RESUME-DECISION' &&

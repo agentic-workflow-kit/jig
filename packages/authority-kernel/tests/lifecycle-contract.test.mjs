@@ -35,7 +35,7 @@ const intakeWitness = Object.freeze({
   }),
 });
 const subject = (key) => Object.freeze({ run, story: `${run}/story/${key}`, basis: basisDigest });
-const state = (key, storyState = 'Pending', runPhase = 'Active', fenceGeneration = generation) =>
+const state = (key, storyState = 'Pending', runPhase = 'Preflighting', fenceGeneration = generation) =>
   Object.freeze({
     storyState,
     runPhase,
@@ -44,7 +44,25 @@ const state = (key, storyState = 'Pending', runPhase = 'Active', fenceGeneration
     catalogVersion: 'jig.authority-kernel.v1',
   });
 
-const basisInput = (stories) => ({ run, basis: basisDigest, generation, intake, stories });
+const basisInput = (stories) => ({
+  run,
+  basis: basisDigest,
+  generation,
+  intake,
+  entry: {
+    schema: 'jig.envelope-entry.v1',
+    run,
+    basis: basisDigest,
+    event: `${run}/event/1`,
+    position: 1,
+    type: 'EV-ENVELOPE-SUBMITTED',
+    edge: 'preflighting-active',
+  },
+  stories: stories.map((story, index) => ({
+    ...story,
+    order: story.order ?? { priority: index + 1, ordinal: index + 1, story: story.story },
+  })),
+});
 const basisRecord = (basis) => {
   const prepared = runtime.createLedgerRecord({
     run,
@@ -79,6 +97,25 @@ const controllerFor = (basis, records = [], readbackRecord = undefined) =>
     ledger: { readback: () => ({ ok: true, value: { kind: 'committed', record: readbackRecord } }) },
   });
 
+const entryRecord = (basis, witnessed, key) => {
+  const controller = controllerFor(basis);
+  assert.equal(controller.ok, true);
+  const proposed = controller.value.propose({
+    event: {
+      type: 'EV-ENVELOPE-SUBMITTED',
+      edge: 'preflighting-active',
+      id: `${run}/event/2`,
+      subject: subject(key),
+      fence: { generation, basis: basisDigest },
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+    bindings: binding(key, 2),
+    decision: { kind: 'none' },
+  });
+  assert.equal(proposed.ok, true);
+  return transitionRecord(proposed.value, witnessed.contentDigest);
+};
+
 const binding = (key, ordinal, fenceGeneration = generation) => ({
   transaction: `${run}/txn/${ordinal}/${fenceGeneration}|${basisDigest}`,
   event: `${run}/event/${ordinal}`,
@@ -92,6 +129,7 @@ test('lifecycle oracle is versioned and retains the exact governed surface', () 
   assert.deepEqual(oracle.schemas, [
     kernel.RUN_BASIS_SCHEMA,
     kernel.INTAKE_ACK_SCHEMA,
+    kernel.ENVELOPE_ENTRY_SCHEMA,
     kernel.LIFECYCLE_TRANSITION_SCHEMA,
     kernel.GENERATION_CLAIM_SCHEMA,
     kernel.RESUME_INTEGRITY_SCHEMA,
@@ -99,6 +137,47 @@ test('lifecycle oracle is versioned and retains the exact governed surface', () 
   ]);
   assert.equal(oracle.storyStates, kernel.STORY_STATES.length);
   assert.equal(oracle.runPhases, kernel.RUN_PHASES.length);
+});
+
+test('CF-RUN-BASIS: genesis is Preflighting and C-ORDER facts are immutable', () => {
+  const mixed = kernel.createRunBasis(
+    basisInput([
+      { story: subject('first').story, dependencies: [], initial: state('first') },
+      { story: subject('second').story, dependencies: [], initial: state('second', 'Pending', 'Active') },
+    ]),
+  );
+  assert.equal(mixed.ok, false);
+  const stopped = kernel.createRunBasis(
+    basisInput([
+      { story: subject('stopped').story, dependencies: [], initial: state('stopped', 'Pending', 'Stopped') },
+    ]),
+  );
+  assert.equal(stopped.ok, false);
+
+  const ordered = kernel.createRunBasis(
+    basisInput([
+      {
+        story: subject('lexically-later').story,
+        dependencies: [],
+        initial: state('lexically-later'),
+        order: { priority: 2, ordinal: 1, story: subject('lexically-later').story },
+      },
+      {
+        story: subject('lexically-first').story,
+        dependencies: [],
+        initial: state('lexically-first'),
+        order: { priority: 1, ordinal: 2, story: subject('lexically-first').story },
+      },
+    ]),
+  );
+  assert.equal(ordered.ok, true);
+  assert.deepEqual(
+    ordered.value.stories.map((story) => [story.story, story.order.priority, story.order.ordinal]),
+    [
+      [subject('lexically-later').story, 2, 1],
+      [subject('lexically-first').story, 1, 2],
+    ],
+  );
 });
 
 test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependency', () => {
@@ -118,13 +197,14 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
   );
   assert.equal(basis.ok, true);
   const witnessed = basisRecord(basis.value);
-  const projection = kernel.projectLifecycle({ basisRecord: witnessed, records: [], intakeWitness });
+  const entry = entryRecord(basis.value, witnessed, 'landed');
+  const projection = kernel.projectLifecycle({ basisRecord: witnessed, records: [entry], intakeWitness });
   assert.equal(projection.ok, true);
   assert.deepEqual(projection.value.releasedStories, []);
 
   const controller = kernel.createLifecycleController({
     basisRecord: witnessed,
-    records: [],
+    records: [entry],
     intakeWitness,
     ledger: { readback: () => ({ ok: false, error: { kind: 'absent' } }) },
   });
@@ -132,12 +212,12 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     event: {
       type: 'EV-WAKE-DEPENDENCY',
       edge: 'pending-eligible',
-      id: `${run}/event/2`,
+      id: `${run}/event/3`,
       subject: subject('pending'),
       fence: { generation, basis: basisDigest },
       catalogVersion: 'jig.authority-kernel.v1',
     },
-    bindings: binding('pending', 2),
+    bindings: binding('pending', 3),
     decision: { kind: 'none' },
   });
   assert.equal(proposed.ok, false);
@@ -150,9 +230,10 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
   );
   assert.equal(unlandedBasis.ok, true);
   const unlandedWitness = basisRecord(unlandedBasis.value);
+  const unlandedEntry = entryRecord(unlandedBasis.value, unlandedWitness, 'accepted');
   const unlandedController = kernel.createLifecycleController({
     basisRecord: unlandedWitness,
-    records: [],
+    records: [unlandedEntry],
     intakeWitness,
     ledger: { readback: () => ({ ok: false }) },
   });
@@ -160,12 +241,12 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     event: {
       type: 'EV-WAKE-DEPENDENCY',
       edge: 'pending-eligible',
-      id: `${run}/event/2`,
+      id: `${run}/event/3`,
       subject: subject('dependent'),
       fence: { generation, basis: basisDigest },
       catalogVersion: 'jig.authority-kernel.v1',
     },
-    bindings: binding('dependent', 2),
+    bindings: binding('dependent', 3),
     decision: { kind: 'none' },
   });
   assert.equal(forgedEligibility.ok, false);
@@ -180,37 +261,13 @@ test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves St
   );
   assert.equal(basis.ok, true);
   const witnessed = basisRecord(basis.value);
-  const firstController = controllerFor(basis.value);
+  const entry = entryRecord(basis.value, witnessed, 'one');
+  const firstController = controllerFor(basis.value, [entry]);
   assert.equal(firstController.ok, true);
   const suspend = firstController.value.propose({
     event: {
       type: 'EV-RUN-SUSPEND-DECISION',
       edge: 'active-suspended',
-      id: `${run}/event/2`,
-      subject: subject('one'),
-      fence: { generation, basis: basisDigest },
-      catalogVersion: 'jig.authority-kernel.v1',
-    },
-    bindings: binding('one', 2),
-    decision: { kind: 'none' },
-  });
-  assert.equal(suspend.ok, true);
-  const suspendRecord = transitionRecord(suspend.value, witnessed.contentDigest);
-  const suspendedProjection = kernel.projectLifecycle({
-    basisRecord: witnessed,
-    records: [suspendRecord],
-    intakeWitness,
-  });
-  assert.equal(suspendedProjection.ok, true);
-  assert.equal(suspendedProjection.value.states[subject('one').story].runPhase, 'Suspended');
-  assert.equal(suspendedProjection.value.states[subject('two').story].storyState, 'Pending');
-
-  const secondController = controllerFor(basis.value, [suspendRecord]);
-  assert.equal(secondController.ok, true);
-  const stop = secondController.value.propose({
-    event: {
-      type: 'EV-RUN-TERMINAL-STOP-DECISION',
-      edge: 'suspended-stopped',
       id: `${run}/event/3`,
       subject: subject('one'),
       fence: { generation, basis: basisDigest },
@@ -219,11 +276,36 @@ test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves St
     bindings: binding('one', 3),
     decision: { kind: 'none' },
   });
+  assert.equal(suspend.ok, true);
+  const suspendRecord = transitionRecord(suspend.value, entry.contentDigest);
+  const suspendedProjection = kernel.projectLifecycle({
+    basisRecord: witnessed,
+    records: [entry, suspendRecord],
+    intakeWitness,
+  });
+  assert.equal(suspendedProjection.ok, true);
+  assert.equal(suspendedProjection.value.states[subject('one').story].runPhase, 'Suspended');
+  assert.equal(suspendedProjection.value.states[subject('two').story].storyState, 'Pending');
+
+  const secondController = controllerFor(basis.value, [entry, suspendRecord]);
+  assert.equal(secondController.ok, true);
+  const stop = secondController.value.propose({
+    event: {
+      type: 'EV-RUN-TERMINAL-STOP-DECISION',
+      edge: 'suspended-stopped',
+      id: `${run}/event/4`,
+      subject: subject('one'),
+      fence: { generation, basis: basisDigest },
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+    bindings: binding('one', 4),
+    decision: { kind: 'none' },
+  });
   assert.equal(stop.ok, true);
   const stopRecord = transitionRecord(stop.value, suspendRecord.contentDigest);
   const stoppedProjection = kernel.projectLifecycle({
     basisRecord: witnessed,
-    records: [suspendRecord, stopRecord],
+    records: [entry, suspendRecord, stopRecord],
     intakeWitness,
   });
   assert.equal(stoppedProjection.ok, true);
@@ -246,6 +328,7 @@ test('CF-BLOCKERS: transition-local dependency and root claims cannot author Not
   );
   assert.equal(basis.ok, true);
   const witnessed = basisRecord(basis.value);
+  const entry = entryRecord(basis.value, witnessed, 'a');
   const forged = {
     basisRecord: witnessed,
     records: [],
@@ -254,7 +337,7 @@ test('CF-BLOCKERS: transition-local dependency and root claims cannot author Not
   assert.equal(kernel.projectLifecycle(forged).ok, true);
   const controller = kernel.createLifecycleController({
     basisRecord: witnessed,
-    records: [],
+    records: [entry],
     intakeWitness,
     ledger: { readback: () => ({ ok: false }) },
   });
@@ -263,12 +346,12 @@ test('CF-BLOCKERS: transition-local dependency and root claims cannot author Not
     event: {
       type: 'EV-WAKE-DEPENDENCY',
       edge: 'pending-not-run',
-      id: `${run}/event/2`,
+      id: `${run}/event/3`,
       subject: subject('b'),
       fence: { generation, basis: basisDigest },
       catalogVersion: 'jig.authority-kernel.v1',
     },
-    bindings: binding('b', 2),
+    bindings: binding('b', 3),
     decision: { kind: 'none' },
   });
   assert.equal(attempt.ok, false);
@@ -280,13 +363,14 @@ test('CF-RESTART: a pending generation claim fences every non-integrity record',
   );
   assert.equal(basis.ok, true);
   const witnessed = basisRecord(basis.value);
+  const entry = entryRecord(basis.value, witnessed, 'only');
   const newerGeneration = `${run}/gen/2|controller`;
   const claimPrepared = runtime.createLedgerRecord({
     run,
     generation: newerGeneration,
-    transaction: `${run}/txn/2/${newerGeneration}|${basisDigest}`,
-    position: 1,
-    previousDigest: witnessed.contentDigest,
+    transaction: `${run}/txn/3/${newerGeneration}|${basisDigest}`,
+    position: 2,
+    previousDigest: entry.contentDigest,
     content: {
       schema: kernel.GENERATION_CLAIM_SCHEMA,
       run,
@@ -296,20 +380,20 @@ test('CF-RESTART: a pending generation claim fences every non-integrity record',
     },
   });
   assert.equal(claimPrepared.ok, true);
-  const claim = Object.freeze({ ...claimPrepared.value, event: `${run}/event/2` });
+  const claim = Object.freeze({ ...claimPrepared.value, event: `${run}/event/3` });
   const unrelatedPrepared = runtime.createLedgerRecord({
     run,
     generation: newerGeneration,
-    transaction: `${run}/txn/3/${newerGeneration}|${basisDigest}`,
-    position: 2,
+    transaction: `${run}/txn/4/${newerGeneration}|${basisDigest}`,
+    position: 3,
     previousDigest: claim.contentDigest,
     content: { schema: 'jig.unrelated.v1', value: 'not-integrity' },
   });
   assert.equal(unrelatedPrepared.ok, true);
-  const unrelated = Object.freeze({ ...unrelatedPrepared.value, event: `${run}/event/3` });
+  const unrelated = Object.freeze({ ...unrelatedPrepared.value, event: `${run}/event/4` });
   const result = kernel.projectLifecycle({
     basisRecord: witnessed,
-    records: [claim, unrelated],
+    records: [entry, claim, unrelated],
     intakeWitness,
   });
   assert.deepEqual(result, {
