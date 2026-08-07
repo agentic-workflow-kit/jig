@@ -61,12 +61,63 @@ test('GF-021: composition preserves floors, pins defaults, one track, and is rep
   assert.equal(first.ok, true);
   assert.deepEqual(replay, first);
   assert.equal(first.value.track, 'track/default');
-  assert.equal(first.value.policy.review, 3);
+  assert.equal(first.value.policy.selections.review, 3);
   assert.equal(first.value.bounds['BND-REWORK'].value, 2);
   assert.equal(first.value.bounds['BND-WAIT-DECISION'].value, 72 * 60 * 60);
   assert.equal(Object.isFrozen(first.value), true);
   assert.equal(Object.isFrozen(first.value.policy), true);
   assert.match(first.value.proposalDigest, /^[0-9a-f]{64}$/);
+});
+
+test('GF-021: one frozen carrier retains every canonical proposal byte and verifies its digest binding', () => {
+  const result = runtime.composeEnvelope(input());
+  assert.equal(result.ok, true);
+  assert.deepEqual(Object.keys(result.value).sort(), [
+    'artifacts',
+    'bounds',
+    'digests',
+    'guidance',
+    'normalizedPlan',
+    'plan',
+    'policy',
+    'profile',
+    'proposalDigest',
+    'ruleSurface',
+    'setup',
+    'track',
+    'version',
+  ]);
+  assert.equal(result.value.plan.stories[0].acceptanceCriteria[0], 'accept');
+  assert.equal(result.value.profile.promptStrategy.digest, 'a'.repeat(64));
+  assert.equal(result.value.setup.recipeDigest, 'c'.repeat(64));
+  assert.equal(result.value.ruleSurface.entries[0].rule, 'review');
+  assert.equal(result.value.guidance.rationale, 'why');
+  assert.equal(result.value.policy.catalogue.floors.review, 2);
+  assert.equal(Object.isFrozen(result.value.plan), true);
+  assert.equal(Object.isFrozen(result.value.profile), true);
+  assert.equal(Object.isFrozen(result.value.artifacts), true);
+  assert.equal(Object.isFrozen(result.value.setup), true);
+  assert.equal(runtime.validateEnvelopeProposal(result.value).ok, true);
+});
+
+test('GF-021: caller substitution and parallel same-digest carriers fail closed', () => {
+  const result = runtime.composeEnvelope(input());
+  assert.equal(result.ok, true);
+  const equivalent = structuredClone(result.value);
+  assert.equal(runtime.validateEnvelopeProposal(equivalent).ok, true);
+
+  const substituted = structuredClone(result.value);
+  substituted.profile.model = 'model/substituted';
+  assert.equal(runtime.validateEnvelopeProposal(substituted).ok, false);
+
+  const parallel = structuredClone(result.value);
+  parallel.guidance.rationale = 'parallel bytes with the original digest';
+  parallel.proposalDigest = result.value.proposalDigest;
+  assert.equal(runtime.validateEnvelopeProposal(parallel).ok, false);
+
+  const extra = structuredClone(result.value);
+  extra.parallelCarrier = structuredClone(result.value);
+  assert.equal(runtime.validateEnvelopeProposal(extra).ok, false);
 });
 
 test('GF-021: rejects unknown policy selections, unsafe reserve, cross-track input, and range edge violations', () => {
