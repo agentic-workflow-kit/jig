@@ -353,15 +353,23 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     return fail('CONFIGURATION_INCOMPATIBLE');
   const normalizedPlan = {
     capacities: Object.fromEntries(
-      Object.entries(approvedPlan.value.policy.capacities).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+      Object.entries(approvedPlan.value.policy.capacities).map(([wire, amount]) => [
+        normalizeResource(wire) ?? wire,
+        amount,
+      ]),
     ),
     reserves: Object.fromEntries(
-      Object.entries(approvedPlan.value.policy.reserves).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+      Object.entries(approvedPlan.value.policy.reserves).map(([wire, amount]) => [
+        normalizeResource(wire) ?? wire,
+        amount,
+      ]),
     ),
     demands: Object.fromEntries(
       approvedPlan.value.stories.map((story) => [
         story.key,
-        Object.fromEntries(Object.entries(story.demand).map(([wire, amount]) => [normalizeResource(wire)!, amount])),
+        Object.fromEntries(
+          Object.entries(story.demand).map(([wire, amount]) => [normalizeResource(wire) ?? wire, amount]),
+        ),
       ]),
     ),
   };
@@ -521,7 +529,8 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     const memoKey = `${key}\u0000${resource}`;
     const known = memo.get(memoKey);
     if (known !== undefined) return known;
-    const story = byStoryKey.get(key)!;
+    const story = byStoryKey.get(key);
+    if (!story) return 0;
     const demand =
       ((normalizedPlan.demands[story.key] as Record<string, number>)[resource] ?? 0) +
       Math.max(0, ...story.dependsOn.map((dependency) => demandAt(dependency, resource, memo)));
@@ -568,10 +577,7 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     setup,
     ruleSurface: rules,
   });
-  if (
-    !digest(proposalDigest) ||
-    PROPOSAL_DIGEST_KEYS.some((key) => !digest(componentDigests[key]))
-  )
+  if (!digest(proposalDigest) || PROPOSAL_DIGEST_KEYS.some((key) => !digest(componentDigests[key])))
     return fail('DIGEST_FAILURE');
   return ok(
     freeze({
