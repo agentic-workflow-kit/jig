@@ -877,3 +877,5 @@ export function replayAuthority(initialState: unknown, steps: unknown): KernelRe
     return failure('FC-INPUT', 'replay input');
   }
 }
+
+export * from './lifecycle.js';

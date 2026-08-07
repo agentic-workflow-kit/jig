@@ -1,0 +1,14 @@
+{
+  "schemas": [
+    "jig.run-basis.v1",
+    "jig.lifecycle-transition.v1",
+    "jig.generation-claim.v1",
+    "jig.resume-integrity.v1",
+    "jig.ledger.v1"
+  ],
+  "storyStates": 17,
+  "runPhases": 10,
+  "outcomes": ["Landed", "Blocked", "Rejected", "NotRun"],
+  "runOverlays": ["Parked", "Suspended", "Interrupted / Recovering", "Settling", "Stopped"],
+  "cfSuites": ["CF-BLOCKERS", "CF-RELEASE", "CF-CONTAINMENT", "CF-RUN-CONTROL"]
+}
