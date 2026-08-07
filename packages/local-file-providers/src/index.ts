@@ -21,6 +21,7 @@ import {
 } from '@agentic-workflow-kit/jig-runtime-contracts';
 
 export * from './local-file-artifact.js';
+export { createLocalPreRunApprovalRepository, PRE_RUN_APPROVAL_ROOT } from './pre-run-approval-repository.js';
 
 export const STRUCTURED_FILE_SOURCE_IDENTITY = 'source/structured-json-file-source';
 export const STRUCTURED_FILE_SOURCE_PATH = '<JIG_DATA_HOME>/work-sources/work-plan.json';

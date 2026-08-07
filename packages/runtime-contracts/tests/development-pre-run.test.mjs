@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import test from 'node:test';
 
 const runtime = await import('../dist/index.js');
@@ -92,16 +89,30 @@ const manifestBytes = (changes) => {
   return framed.value;
 };
 
-const roots = [];
 const authorityWithRepository = () => {
-  const root = mkdtempSync(join(tmpdir(), 'jig-gf023-'));
-  roots.push(root);
-  const repository = runtime.createLocalPreRunApprovalRepository(root);
+  const records = new Map();
+  const repository = Object.freeze({
+    createIfAbsent(input) {
+      const validated = runtime.validatePreRunApproval(input);
+      if (!validated.ok) return validated;
+      const existing = records.get(validated.value.key);
+      if (!existing) {
+        records.set(validated.value.key, structuredClone(validated.value));
+        return { ok: true, value: validated.value };
+      }
+      return JSON.stringify(existing) === JSON.stringify(validated.value)
+        ? { ok: true, value: existing }
+        : { ok: false, error: { family: 'FC-TRUST', code: 'APPROVAL_CONFLICTING_REPLAY' } };
+    },
+    read(key) {
+      if (typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key))
+        return { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_APPROVAL_RECORD' } };
+      const value = records.get(key);
+      return value ? { ok: true, value } : { ok: false, error: { family: 'FC-TRUST', code: 'APPROVAL_ABSENT' } };
+    },
+  });
   return { repository, authority: runtime.createDevelopmentApprovalAuthority({ repository }) };
 };
-test.after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
-});
 
 function approvedFixture() {
   const { authority, repository } = authorityWithRepository();

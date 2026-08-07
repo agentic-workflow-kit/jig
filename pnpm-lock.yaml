@@ -70,6 +70,9 @@ importers:
 
   packages/local-file-providers:
     dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
       '@agentic-workflow-kit/jig-runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
