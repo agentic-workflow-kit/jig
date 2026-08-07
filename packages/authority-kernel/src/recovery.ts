@@ -5,8 +5,8 @@ import {
   OPERATION_STATE_VERSION,
   type OperationProjection,
   type OperationRecordCarrier,
-  type TransitionOperationIntent,
   restoreOperationRecords,
+  type TransitionOperationIntent,
   validateTransitionOperation,
 } from './operation.js';
 
@@ -344,7 +344,7 @@ function recordedOperationIntent(value: unknown): TransitionOperationIntent | un
     'predecessor',
     'bounds',
   ]);
-  if (!raw || raw.kind !== 'intent' || raw.version !== OPERATION_STATE_VERSION) return undefined;
+  if (raw?.kind !== 'intent' || raw.version !== OPERATION_STATE_VERSION) return undefined;
   const parsed = validateTransitionOperation({
     type: raw.type,
     transaction: raw.transaction,
