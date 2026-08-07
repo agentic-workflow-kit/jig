@@ -15,7 +15,70 @@ const priorGeneration = fixture.priorGeneration;
 const generation = fixture.generation;
 const basis = fixture.recoveryToken;
 const subject = Object.freeze({ run, story: `${run}/story/story-1`, basis });
-const priorFence = Object.freeze({ generation: priorGeneration, basis });
+const priorFence = Object.freeze({
+  generation: priorGeneration,
+  basis,
+  candidateContentDigest: digest('6'),
+  targetBasisDigest: digest('7'),
+});
+const operationEffect = (type) =>
+  [
+    'OPC-SESSION-COLLECT',
+    'OPC-WS-OBSERVE',
+    'OPC-VERIFY-EXECUTE',
+    'OPC-REV-STATUS',
+    'OPC-REV-RETIRE-STATUS',
+    'OPC-DEL-STATUS',
+    'OPC-DEL-OBSERVE',
+    'OPC-ART-GET',
+  ].includes(type)
+    ? 'observation'
+    : 'effectful';
+const operationBindings = (
+  position,
+  type = 'OPC-SESSION-OPEN',
+  recordGeneration = priorGeneration,
+  operationFence = priorFence,
+) => {
+  const transaction = `${run}/txn/${position + 1}/${recordGeneration}|${basis}`;
+  const event = `${run}/event/${position + 1}`;
+  const operationId = `${transaction}/op/1`;
+  const route = operation.operationCapabilityRoute(type);
+  const unsignedCapability = {
+    kind: route.kind,
+    port: route.port,
+    operationClass: type,
+    subject: subject.story,
+    fence: operationFence,
+    resourceScope: 'workspace/story-1',
+    manifest: `provider/${digest('3')}/authority/${digest('4')}`,
+  };
+  const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(capabilityDigest.ok, true);
+  return {
+    transaction,
+    event,
+    operation: operationId,
+    subject,
+    fence: operationFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+    payloadBasisDigest: digest('2'),
+    capability: { ...unsignedCapability, digest: capabilityDigest.value },
+    authority: type.startsWith('OPC-DEL-')
+      ? {
+          authority: `target/repository-main/auth/1`,
+          registry: `registry/${digest('5')}`,
+          basis: operationFence.targetBasisDigest,
+        }
+      : null,
+    role: type.startsWith('OPC-DEL-') ? 'finalizer' : 'worker',
+    lifecycle: 'Preparing',
+    effect: operationEffect(type),
+    purpose: 'semantic',
+    predecessor: null,
+    bounds: { waitMs: 900000, retryLimit: 3, recoveryLimit: 3 },
+  };
+};
 const initialState = Object.freeze({
   storyState: 'Pending',
   runPhase: 'Received',
@@ -25,7 +88,6 @@ const initialState = Object.freeze({
 });
 
 function transition(position, schema = 'jig.transition.v1') {
-  const transaction = `${run}/txn/${position + 1}/${priorGeneration}|${basis}`;
   const event = {
     type: 'EV-WAKE-DEPENDENCY',
     edge: 'pending-eligible',
@@ -37,20 +99,17 @@ function transition(position, schema = 'jig.transition.v1') {
   return {
     schema,
     event,
-    bindings: {
-      transaction,
-      event: event.id,
-      operation: `${transaction}/op/1`,
-      subject,
-      fence: priorFence,
-      catalogVersion: 'jig.authority-kernel.v1',
-    },
+    bindings: operationBindings(position),
   };
 }
 
 function factTransition(position, type, edge, recordGeneration = priorGeneration) {
-  const transaction = `${run}/txn/${position + 1}/${recordGeneration}|${basis}`;
-  const fence = { generation: recordGeneration, basis };
+  const fence = {
+    generation: recordGeneration,
+    basis,
+    candidateContentDigest: priorFence.candidateContentDigest,
+    targetBasisDigest: priorFence.targetBasisDigest,
+  };
   const event = {
     type,
     edge,
@@ -63,12 +122,7 @@ function factTransition(position, type, edge, recordGeneration = priorGeneration
     schema: 'jig.transition.v1',
     event,
     bindings: {
-      transaction,
-      event: event.id,
-      operation: `${transaction}/op/1`,
-      subject,
-      fence,
-      catalogVersion: 'jig.authority-kernel.v1',
+      ...operationBindings(position, 'OPC-SESSION-OPEN', recordGeneration, fence),
     },
   };
 }
@@ -486,18 +540,9 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     catalogVersion: 'jig.authority-kernel.v1',
   });
   const bindings = Object.freeze({
-    transaction,
-    event: event.id,
-    operation: `${transaction}/op/1`,
-    subject,
-    fence: priorFence,
-    catalogVersion: 'jig.authority-kernel.v1',
+    ...operationBindings(0, 'OPC-WS-PROVISION', priorGeneration, priorFence),
   });
-  const operationFence = Object.freeze({
-    ...priorFence,
-    candidateContentDigest: digest('6'),
-    targetBasisDigest: digest('7'),
-  });
+  const operationFence = priorFence;
   const unsignedCapability = {
     kind: 'CB-WORKSPACE',
     port: 'PORT-WORKSPACE',
@@ -521,7 +566,7 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     fence: operationFence,
     capability: { ...unsignedCapability, digest: capabilityDigest.value },
     authority: null,
-    role: 'controller',
+    role: 'worker',
     lifecycle: 'Preparing',
     effect: 'effectful',
     purpose: 'semantic',
@@ -544,7 +589,7 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     fence: operationFence,
     capability: { ...unsignedCapability, digest: capabilityDigest.value },
     authority: null,
-    role: 'controller',
+    role: 'worker',
     lifecycle: 'Preparing',
     startedAt: 1000,
     deadline: 901000,

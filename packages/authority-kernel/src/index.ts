@@ -1,7 +1,44 @@
 import { parseIdentity } from '@agentic-workflow-kit/jig-codec';
-import { OPERATION_TYPES, type OperationType } from './operation.js';
+import {
+  OPERATION_TYPES,
+  type OperationAuthority,
+  type OperationBounds,
+  type OperationCapability,
+  type OperationFence,
+  type OperationPurpose,
+  type OperationType,
+  type TransitionOperationIntent,
+  validateTransitionOperation,
+} from './operation.js';
 
-export * from './operation.js';
+export type {
+  OperationAuthority,
+  OperationBounds,
+  OperationCapability,
+  OperationCapabilityKind,
+  OperationCapabilityPort,
+  OperationCommitProof,
+  OperationFailure,
+  OperationFailureFamily,
+  OperationFence,
+  OperationJournalEntry,
+  OperationJournalSnapshot,
+  OperationProofVerifier,
+  OperationRecordCarrier,
+  OperationResult,
+  OperationSubject,
+  OperationType,
+  TransitionOperationIntent,
+} from './operation.js';
+export {
+  deriveOperationCapabilityDigest,
+  OPERATION_RECORD_SCHEMA,
+  OPERATION_STATE_VERSION,
+  OPERATION_TYPES,
+  operationCapabilityRoute,
+  operationEffect,
+  validateTransitionOperation,
+} from './operation.js';
 
 export const AUTHORITY_KERNEL_VERSION = 'jig.authority-kernel.v1';
 export const STORY_STATES = Object.freeze([
@@ -92,7 +129,7 @@ export type KernelFailure = Readonly<{ failure: FailureClass; code: string }>;
 export type KernelResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: KernelFailure }>;
 
 export type SubjectBinding = Readonly<{ run: string; story: string; basis: string }>;
-export type FenceBinding = Readonly<{ generation: string; basis: string }>;
+export type FenceBinding = OperationFence;
 export type AuthorityState = Readonly<{
   storyState: StoryState;
   runPhase: RunPhase;
@@ -115,8 +152,20 @@ export type AuthorityBindings = Readonly<{
   subject: SubjectBinding;
   fence: FenceBinding;
   catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
+  payloadBasisDigest: string;
+  capability: OperationCapability;
+  authority: OperationAuthority | null;
+  role: string;
+  lifecycle: string;
+  effect: 'effectful' | 'observation';
+  purpose: OperationPurpose;
+  predecessor: string | null;
+  bounds: OperationBounds;
 }>;
-export type OperationIntent = Readonly<{ type: OperationType } & AuthorityBindings>;
+export type OperationIntent = TransitionOperationIntent &
+  Readonly<{
+    catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
+  }>;
 export type LegalEdge = Readonly<{
   id: string;
   from: StoryState;
@@ -227,17 +276,29 @@ function subjectSnapshot(value: unknown): SubjectBinding | undefined {
   return freeze({ run, story, basis });
 }
 function fenceSnapshot(value: unknown): FenceBinding | undefined {
-  const fence = ownValues(value, ['generation', 'basis']);
+  const fence = ownValues(value, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']);
   if (fence === undefined) return undefined;
-  const { generation, basis } = fence;
-  if (typeof generation !== 'string' || !digest(basis) || !parseIdentity('ID-GEN', generation).ok) return undefined;
-  return freeze({ generation, basis });
+  const { generation, basis, candidateContentDigest, targetBasisDigest } = fence;
+  if (
+    typeof generation !== 'string' ||
+    !digest(basis) ||
+    !digest(candidateContentDigest) ||
+    !digest(targetBasisDigest) ||
+    !parseIdentity('ID-GEN', generation).ok
+  )
+    return undefined;
+  return freeze({ generation, basis, candidateContentDigest, targetBasisDigest });
 }
 function sameBinding(left: SubjectBinding | FenceBinding, right: SubjectBinding | FenceBinding): boolean {
   if ('run' in left && 'run' in right)
     return left.run === right.run && left.story === right.story && left.basis === right.basis;
   if ('generation' in left && 'generation' in right)
-    return left.generation === right.generation && left.basis === right.basis;
+    return (
+      left.generation === right.generation &&
+      left.basis === right.basis &&
+      left.candidateContentDigest === right.candidateContentDigest &&
+      left.targetBasisDigest === right.targetBasisDigest
+    );
   return false;
 }
 function sameLedgerPosition(transaction: string, event: string): boolean {
@@ -245,18 +306,101 @@ function sameLedgerPosition(transaction: string, event: string): boolean {
   const eventPosition = /\/event\/([0-9]+)$/.exec(event)?.[1];
   return transactionPosition !== undefined && transactionPosition === eventPosition;
 }
+function sameOperationAuthority(left: OperationAuthority | null, right: OperationAuthority | null): boolean {
+  return (
+    (left === null && right === null) ||
+    (left !== null &&
+      right !== null &&
+      left.authority === right.authority &&
+      left.registry === right.registry &&
+      left.basis === right.basis)
+  );
+}
+function sameOperationCapability(left: OperationCapability, right: OperationCapability): boolean {
+  return (
+    left.kind === right.kind &&
+    left.port === right.port &&
+    left.operationClass === right.operationClass &&
+    left.subject === right.subject &&
+    sameBinding(left.fence, right.fence) &&
+    left.resourceScope === right.resourceScope &&
+    left.manifest === right.manifest &&
+    left.digest === right.digest
+  );
+}
+function sameOperationBounds(left: OperationBounds, right: OperationBounds): boolean {
+  return (
+    left.waitMs === right.waitMs && left.retryLimit === right.retryLimit && left.recoveryLimit === right.recoveryLimit
+  );
+}
+function sameOperationBinding(left: OperationIntent, right: OperationIntent): boolean {
+  return (
+    left.type === right.type &&
+    left.transaction === right.transaction &&
+    left.event === right.event &&
+    left.operation === right.operation &&
+    sameBinding(left.subject, right.subject) &&
+    sameBinding(left.fence, right.fence) &&
+    left.catalogVersion === right.catalogVersion &&
+    left.payloadBasisDigest === right.payloadBasisDigest &&
+    sameOperationCapability(left.capability, right.capability) &&
+    sameOperationAuthority(left.authority, right.authority) &&
+    left.role === right.role &&
+    left.lifecycle === right.lifecycle &&
+    left.effect === right.effect &&
+    left.purpose === right.purpose &&
+    left.predecessor === right.predecessor &&
+    sameOperationBounds(left.bounds, right.bounds)
+  );
+}
 function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
-  const bindings = ownValues(value, ['transaction', 'event', 'operation', 'subject', 'fence', 'catalogVersion']);
+  const bindings = ownValues(value, [
+    'transaction',
+    'event',
+    'operation',
+    'subject',
+    'fence',
+    'catalogVersion',
+    'payloadBasisDigest',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'effect',
+    'purpose',
+    'predecessor',
+    'bounds',
+  ]);
   if (bindings === undefined) return undefined;
-  const { transaction, event, operation, catalogVersion } = bindings;
+  const {
+    transaction,
+    event,
+    operation,
+    catalogVersion,
+    payloadBasisDigest,
+    role,
+    lifecycle,
+    effect,
+    purpose,
+    predecessor,
+  } = bindings;
   const subject = subjectSnapshot(bindings.subject);
   const fence = fenceSnapshot(bindings.fence);
   if (
     typeof transaction !== 'string' ||
     typeof event !== 'string' ||
     typeof operation !== 'string' ||
+    !digest(payloadBasisDigest) ||
+    typeof role !== 'string' ||
+    typeof lifecycle !== 'string' ||
+    (effect !== 'effectful' && effect !== 'observation') ||
+    (purpose !== 'semantic' && purpose !== 'replacement' && purpose !== 'reconciliation') ||
+    !(predecessor === null || typeof predecessor === 'string') ||
     subject === undefined ||
     fence === undefined ||
+    bindings.capability === undefined ||
+    bindings.authority === undefined ||
+    bindings.bounds === undefined ||
     !version(catalogVersion) ||
     !parseIdentity('ID-TXN', transaction).ok ||
     !parseIdentity('ID-EVENT', event).ok ||
@@ -270,7 +414,28 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
     !sameLedgerPosition(transaction, event)
   )
     return undefined;
-  return freeze({ transaction, event, operation, subject, fence, catalogVersion });
+  const validated = OPERATION_TYPES.map((type) =>
+    validateTransitionOperation({
+      type,
+      transaction,
+      event,
+      operation,
+      subject,
+      payloadBasisDigest,
+      fence,
+      capability: bindings.capability,
+      authority: bindings.authority,
+      role,
+      lifecycle,
+      effect,
+      purpose,
+      predecessor,
+      bounds: bindings.bounds,
+    }),
+  ).find((candidate) => candidate.ok);
+  if (validated === undefined || !validated.ok) return undefined;
+  const { type: _operationType, ...normalized } = validated.value;
+  return freeze({ ...normalized, catalogVersion });
 }
 
 const edge = (
@@ -471,19 +636,39 @@ export function validateOperation(value: unknown): KernelResult<OperationIntent>
     'subject',
     'fence',
     'catalogVersion',
+    'payloadBasisDigest',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'effect',
+    'purpose',
+    'predecessor',
+    'bounds',
   ]);
-  if (operation === undefined) return failure('FC-INPUT', 'SCH-OPERATION shape');
-  const type = operation.type;
-  const bindings = bindingsSnapshot({
+  if (operation === undefined || !version(operation.catalogVersion)) return failure('FC-INPUT', 'SCH-OPERATION shape');
+  const validated = validateTransitionOperation({
+    type: operation.type,
     transaction: operation.transaction,
     event: operation.event,
     operation: operation.operation,
     subject: operation.subject,
+    payloadBasisDigest: operation.payloadBasisDigest,
     fence: operation.fence,
-    catalogVersion: operation.catalogVersion,
+    capability: operation.capability,
+    authority: operation.authority,
+    role: operation.role,
+    lifecycle: operation.lifecycle,
+    effect: operation.effect,
+    purpose: operation.purpose,
+    predecessor: operation.predecessor,
+    bounds: operation.bounds,
   });
-  if (!is(OPERATION_TYPES, type) || bindings === undefined) return failure('FC-INPUT', 'SCH-OPERATION value');
-  return { ok: true, value: freeze({ type, ...bindings }) };
+  if (!validated.ok) return failure('FC-INPUT', validated.error.code);
+  return {
+    ok: true,
+    value: freeze({ ...validated.value, catalogVersion: operation.catalogVersion }),
+  };
 }
 export function validateAuthorityState(value: unknown): KernelResult<AuthorityState> {
   const state = ownValues(value, ['storyState', 'runPhase', 'subject', 'fence', 'catalogVersion']);
@@ -570,13 +755,16 @@ export function validateTransition(value: unknown): KernelResult<ProposedTransit
   }
   if (
     operationIntents.length !== (expectedOperation === undefined ? 0 : 1) ||
-    (expectedOperation !== undefined &&
-      (operationIntents[0]?.type !== expectedOperation ||
-        operationIntents[0]?.transaction !== bindings.transaction ||
-        operationIntents[0]?.event !== bindings.event ||
-        operationIntents[0]?.operation !== bindings.operation ||
-        !sameBinding(operationIntents[0]?.subject ?? bindings.subject, bindings.subject) ||
-        !sameBinding(operationIntents[0]?.fence ?? bindings.fence, bindings.fence)))
+    (expectedOperation !== undefined && (bindings.purpose !== 'semantic' || bindings.predecessor !== null))
+  )
+    return failure('FC-AUTHORITY', 'SCH-OPERATION purpose');
+  if (
+    expectedOperation !== undefined &&
+    (operationIntents[0] === undefined ||
+      !sameOperationBinding(operationIntents[0], {
+        type: expectedOperation,
+        ...bindings,
+      }))
   )
     return failure('FC-INPUT', 'SCH-OPERATION intent');
   return {
