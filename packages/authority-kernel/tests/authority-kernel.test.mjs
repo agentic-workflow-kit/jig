@@ -391,7 +391,11 @@ test('authority kernel rejects descriptor-valid ordinary-read traps at every aut
     [
       'validateOperation fence',
       () =>
-        kernel.validateOperation({ type: 'OPC-SESSION-OPEN', ...bindings, fence: getThrows({ ...operationFence }, 'fence') }),
+        kernel.validateOperation({
+          type: 'OPC-SESSION-OPEN',
+          ...bindings,
+          fence: getThrows({ ...operationFence }, 'fence'),
+        }),
     ],
     ['validateAuthorityState outer', () => kernel.validateAuthorityState(getThrows({ ...state }, 'state'))],
     [

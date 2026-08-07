@@ -152,21 +152,20 @@ type AuthorityBindingCore = Readonly<{
   subject: SubjectBinding;
   catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
 }>;
-type OperationAuthorityBindings = AuthorityBindingCore & Readonly<{
-  fence: OperationFence;
-  payloadBasisDigest: string;
-  capability: OperationCapability;
-  authority: OperationAuthority | null;
-  role: string;
-  lifecycle: string;
-  effect: 'effectful' | 'observation';
-  purpose: OperationPurpose;
-  predecessor: string | null;
-  bounds: OperationBounds;
-}>;
-export type AuthorityBindings =
-  | (AuthorityBindingCore & Readonly<{ fence: FenceBinding }>)
-  | OperationAuthorityBindings;
+type OperationAuthorityBindings = AuthorityBindingCore &
+  Readonly<{
+    fence: OperationFence;
+    payloadBasisDigest: string;
+    capability: OperationCapability;
+    authority: OperationAuthority | null;
+    role: string;
+    lifecycle: string;
+    effect: 'effectful' | 'observation';
+    purpose: OperationPurpose;
+    predecessor: string | null;
+    bounds: OperationBounds;
+  }>;
+export type AuthorityBindings = (AuthorityBindingCore & Readonly<{ fence: FenceBinding }>) | OperationAuthorityBindings;
 export type OperationIntent = TransitionOperationIntent &
   Readonly<{
     catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
@@ -284,8 +283,7 @@ function fenceSnapshot(value: unknown): FenceBinding | undefined {
   const fence = ownValues(value, ['generation', 'basis']);
   if (fence === undefined) return undefined;
   const { generation, basis } = fence;
-  if (typeof generation !== 'string' || !digest(basis) || !parseIdentity('ID-GEN', generation).ok)
-    return undefined;
+  if (typeof generation !== 'string' || !digest(basis) || !parseIdentity('ID-GEN', generation).ok) return undefined;
   return freeze({ generation, basis });
 }
 function sameBinding(
@@ -363,7 +361,7 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
   const common = (
     raw: Record<string, unknown>,
     fence: FenceBinding | OperationFence,
-  ): AuthorityBindingCore & { subject: SubjectBinding; fence: FenceBinding | OperationFence } | undefined => {
+  ): (AuthorityBindingCore & { subject: SubjectBinding; fence: FenceBinding | OperationFence }) | undefined => {
     try {
       const subject = subjectSnapshot(raw.subject);
       const { transaction, event, operation, catalogVersion } = raw;
@@ -412,18 +410,7 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
     'bounds',
   ]);
   if (bindings === undefined) return undefined;
-  const {
-    transaction,
-    event,
-    operation,
-    catalogVersion,
-    payloadBasisDigest,
-    role,
-    lifecycle,
-    effect,
-    purpose,
-    predecessor,
-  } = bindings;
+  const { transaction, event, operation, payloadBasisDigest, role, lifecycle, effect, purpose, predecessor } = bindings;
   const fence = bindings.fence as OperationFence;
   const normalizedCore = common(bindings, fence);
   if (
