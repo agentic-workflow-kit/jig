@@ -8,9 +8,11 @@ import {
   validatePreRunApproval,
 } from './approval-repository.js';
 import { composeEnvelope, type EnvelopeProposal, validateEnvelopeProposal } from './envelope.js';
+import { commitScriptedIntake } from './intake-commit.js';
 import {
   type IntakeReadback,
   type IntakeResult,
+  type IntakeSuccessorCut,
   isScriptedLedger,
   type LedgerFailure,
   type LedgerResult,
@@ -112,6 +114,46 @@ function fields(value: unknown, names: readonly string[]): Record<string, unknow
 function staged(domain: string, value: CanonicalJson): string | undefined {
   const result = stageDigest({ domain, excludePaths: [], value });
   return result.ok ? result.value.digest : undefined;
+}
+
+function exactBytes(value: readonly number[]): string {
+  return value.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizeSuccessorCut(value: unknown): IntakeSuccessorCut | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== 3 || keys.some((key) => typeof key !== 'string')) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const predecessorRun = descriptors.predecessorRun;
+    const cutPosition = descriptors.position;
+    const cutDigest = descriptors.digest;
+    if (
+      !predecessorRun?.enumerable ||
+      !('value' in predecessorRun) ||
+      !cutPosition?.enumerable ||
+      !('value' in cutPosition) ||
+      !cutDigest?.enumerable ||
+      !('value' in cutDigest) ||
+      typeof predecessorRun.value !== 'string' ||
+      !/^run-[0-9]{12}-[0-9a-f]{16}$/u.test(predecessorRun.value) ||
+      !Number.isSafeInteger(cutPosition.value) ||
+      cutPosition.value < 0 ||
+      typeof cutDigest.value !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(cutDigest.value)
+    )
+      return undefined;
+    return freeze({ predecessorRun: predecessorRun.value, position: cutPosition.value, digest: cutDigest.value });
+  } catch {
+    return undefined;
+  }
 }
 
 function sameCanonical(left: unknown, right: unknown): boolean {
@@ -457,11 +499,12 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       const withCut = fields(input, ['manifestApproval', 'preview', 'proposalApproval', 'successorCut', 'terminalAck']);
       const data = accepted ?? withCut;
       if (!data) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
+      const suppliedSuccessorCut = data.successorCut;
+      const successorCut = normalizeSuccessorCut(suppliedSuccessorCut);
       if (
         (data.terminalAck !== 'accepted' && data.terminalAck !== 'rejected') ||
-        (data.terminalAck === 'rejected' && data.successorCut !== undefined) ||
-        (data.successorCut !== undefined &&
-          (typeof data.successorCut !== 'string' || data.successorCut.length === 0 || data.successorCut.length > 512))
+        (data.terminalAck === 'rejected' && suppliedSuccessorCut !== undefined) ||
+        (suppliedSuccessorCut !== undefined && successorCut === undefined)
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
       if (!approvalBinding) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
@@ -488,19 +531,59 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       const approved = approvedResult.value;
       if (preview.proposalDigest !== approved.proposalDigest || preview.manifestDigest !== approved.manifestDigest)
         return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
-      const acknowledgementDigest = staged('DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT', {
+      const cutClaimContent = successorCut
+        ? {
+            schema: 'jig.intake-cut-claim.v1',
+            key: successorCut,
+            acknowledgementKey: approved.compositionDigest,
+          }
+        : undefined;
+      const cutClaimDigest = cutClaimContent && staged('DEVELOPMENT-INTAKE-CUT-CLAIM', cutClaimContent);
+      const acknowledgementContent = {
+        schema: 'jig.intake-ack.v1',
         compositionDigest: approved.compositionDigest,
-        proposalApprovalDigest: approved.proposalApproval.approvalDigest,
-        manifestApprovalDigest: approved.manifestApproval.approvalDigest,
+        envelope: {
+          version: approved.version,
+          posture: approved.posture,
+          recovery: approved.recovery,
+          providerEnabled: approved.providerEnabled,
+          dispatchEnabled: approved.dispatchEnabled,
+          proposalDigest: approved.proposalDigest,
+          manifestId: approved.manifestId,
+          manifestDigest: approved.manifestDigest,
+          providerManifestBytesHex: exactBytes(approved.providerManifestBytes),
+          scope: approved.scope,
+          scopeDigest: approved.scopeDigest,
+          compositionDigest: approved.compositionDigest,
+          proposal: approved.proposal,
+        },
+        proposalApproval: approved.proposalApproval,
+        manifestApproval: approved.manifestApproval,
         terminalAck: data.terminalAck as 'accepted' | 'rejected',
-        successorCut: (data.successorCut as string | undefined) ?? null,
-      });
-      if (!acknowledgementDigest) return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT');
-      return ledger.intake({
+        cutClaim: cutClaimContent ? { key: successorCut, contentDigest: cutClaimDigest as string } : null,
+      };
+      const acknowledgementCanonical = acknowledgementContent as unknown as CanonicalJson;
+      const acknowledgementDigest = staged('DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT', acknowledgementCanonical);
+      const acknowledgementFrame = encodeFrame(acknowledgementCanonical);
+      const cutClaimFrame = cutClaimContent && encodeFrame(cutClaimContent as CanonicalJson);
+      if (
+        !acknowledgementDigest ||
+        !acknowledgementFrame.ok ||
+        (cutClaimContent && (!cutClaimDigest || !cutClaimFrame?.ok))
+      ) {
+        return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT');
+      }
+      return commitScriptedIntake(ledger, {
         compositionDigest: approved.compositionDigest,
         acknowledgementDigest,
         terminalAck: data.terminalAck as 'accepted' | 'rejected',
-        ...(data.successorCut ? { successorCut: data.successorCut as string } : {}),
+        acknowledgementBytes: freeze(Array.from(acknowledgementFrame.value)),
+        ...(successorCut
+          ? {
+              successorCut,
+              cutClaimBytes: freeze(Array.from((cutClaimFrame as { ok: true; value: Uint8Array }).value)),
+            }
+          : {}),
       });
     },
     readback(compositionDigest) {

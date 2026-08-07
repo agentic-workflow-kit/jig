@@ -368,6 +368,36 @@ test('development intake classifies malformed disposition and successor cuts as 
     }),
     { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
   );
+  const hostileCut = new Proxy(
+    { predecessorRun: 'run-000000000001-aaaaaaaaaaaaaaaa', position: 4, digest: digest('a') },
+    {
+      get() {
+        throw new Error('cut getter invoked');
+      },
+      ownKeys() {
+        throw new Error('cut keys invoked');
+      },
+    },
+  );
+  assert.doesNotThrow(() =>
+    profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted', successorCut: hostileCut }),
+  );
+  assert.equal(
+    profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted', successorCut: hostileCut })
+      .ok,
+    false,
+  );
+  const getterCut = {};
+  Object.defineProperties(getterCut, {
+    predecessorRun: { enumerable: true, get: () => 'run-000000000001-aaaaaaaaaaaaaaaa' },
+    position: { enumerable: true, get: () => 4 },
+    digest: { enumerable: true, get: () => digest('a') },
+  });
+  assert.equal(
+    profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted', successorCut: getterCut })
+      .ok,
+    false,
+  );
 });
 
 test('an unusable profile construction does not consume the owner verifier', () => {
