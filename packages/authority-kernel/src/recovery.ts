@@ -1,5 +1,11 @@
 import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { type AuthorityState, type ProposedTransition, reduceAuthority, validateAuthorityState } from './index.js';
+import {
+  type AuthorityState,
+  type OperationIntent,
+  type ProposedTransition,
+  reduceAuthority,
+  validateAuthorityState,
+} from './index.js';
 import {
   OPERATION_RECORD_SCHEMA,
   type OperationProjection,
@@ -340,6 +346,59 @@ function carrierFromLedger(value: LedgerRecord):
   return embedded ? freeze({ carrier: embedded, intentTransition: true }) : undefined;
 }
 
+function recordField(value: unknown, key: string): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+}
+
+function sameRecordedOperationIntent(decision: OperationIntent, value: Record<string, CanonicalJson>): boolean {
+  const subject = recordField(value, 'subject');
+  const fence = recordField(value, 'fence');
+  const capability = recordField(value, 'capability');
+  const capabilityFence = recordField(capability, 'fence');
+  const authority = recordField(value, 'authority');
+  const bounds = recordField(value, 'bounds');
+  return (
+    recordField(value, 'operation') === decision.operation &&
+    recordField(value, 'transaction') === decision.transaction &&
+    recordField(value, 'event') === decision.event &&
+    recordField(value, 'type') === decision.type &&
+    recordField(value, 'payloadBasisDigest') === decision.payloadBasisDigest &&
+    recordField(subject, 'run') === decision.subject.run &&
+    recordField(subject, 'story') === decision.subject.story &&
+    recordField(subject, 'basis') === decision.subject.basis &&
+    recordField(fence, 'generation') === decision.fence.generation &&
+    recordField(fence, 'basis') === decision.fence.basis &&
+    recordField(fence, 'candidateContentDigest') === decision.fence.candidateContentDigest &&
+    recordField(fence, 'targetBasisDigest') === decision.fence.targetBasisDigest &&
+    recordField(capability, 'kind') === decision.capability.kind &&
+    recordField(capability, 'port') === decision.capability.port &&
+    recordField(capability, 'operationClass') === decision.capability.operationClass &&
+    recordField(capability, 'subject') === decision.capability.subject &&
+    recordField(capabilityFence, 'generation') === decision.capability.fence.generation &&
+    recordField(capabilityFence, 'basis') === decision.capability.fence.basis &&
+    recordField(capabilityFence, 'candidateContentDigest') === decision.capability.fence.candidateContentDigest &&
+    recordField(capabilityFence, 'targetBasisDigest') === decision.capability.fence.targetBasisDigest &&
+    recordField(capability, 'resourceScope') === decision.capability.resourceScope &&
+    recordField(capability, 'manifest') === decision.capability.manifest &&
+    recordField(capability, 'digest') === decision.capability.digest &&
+    ((decision.authority === null && authority === null) ||
+      (decision.authority !== null &&
+        recordField(authority, 'authority') === decision.authority.authority &&
+        recordField(authority, 'registry') === decision.authority.registry &&
+        recordField(authority, 'basis') === decision.authority.basis)) &&
+    recordField(value, 'role') === decision.role &&
+    recordField(value, 'lifecycle') === decision.lifecycle &&
+    recordField(value, 'effect') === decision.effect &&
+    recordField(value, 'purpose') === decision.purpose &&
+    recordField(value, 'predecessor') === decision.predecessor &&
+    recordField(bounds, 'waitMs') === decision.bounds.waitMs &&
+    recordField(bounds, 'retryLimit') === decision.bounds.retryLimit &&
+    recordField(bounds, 'recoveryLimit') === decision.bounds.recoveryLimit
+  );
+}
+
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((entry, index) => entry === right[index]);
 }
@@ -600,20 +659,8 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
       const operationId = Object.getOwnPropertyDescriptor(recordValue, 'operation')?.value;
       if (typeof operationId !== 'string') return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
       const intent = recordValue as Record<string, CanonicalJson>;
-      const intentSubject = intent.subject as Record<string, CanonicalJson> | undefined;
-      const intentFence = intent.fence as Record<string, CanonicalJson> | undefined;
       const decisionOperation = authorizedOperations.find((operation) => operation.operation === operationId);
-      if (
-        !decisionOperation ||
-        decisionOperation.type !== intent.type ||
-        decisionOperation.transaction !== intent.transaction ||
-        decisionOperation.event !== intent.event ||
-        decisionOperation.subject.run !== intentSubject?.run ||
-        decisionOperation.subject.story !== intentSubject?.story ||
-        decisionOperation.subject.basis !== intentSubject?.basis ||
-        decisionOperation.fence.generation !== intentFence?.generation ||
-        decisionOperation.fence.basis !== intentFence?.basis
-      )
+      if (!decisionOperation || !sameRecordedOperationIntent(decisionOperation, intent))
         return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
       journalIntentIds.push(operationId);
     }
