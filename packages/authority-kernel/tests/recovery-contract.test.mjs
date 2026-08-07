@@ -644,4 +644,105 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     }),
     { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_TRANSITION' } },
   );
+
+  const hostileRecovery = (mutate) => {
+    const hostileLedger = runtime.createScriptedLedger();
+    const hostileIntent = mutate(structuredClone(intentRecord));
+    const hostileCarrier = operation.deriveOperationRecordCarrier(hostileIntent);
+    assert.equal(hostileCarrier.ok, true);
+    const hostileFirst = append(hostileLedger, 0, digest('0'), priorGeneration, {
+      schema: 'jig.transition.v1',
+      event,
+      bindings,
+      operation: hostileCarrier.value,
+    });
+    const hostileClaim = append(hostileLedger, 1, hostileFirst.contentDigest, generation, {
+      recovery: 'generation-claim',
+      token: basis,
+    });
+    const hostileLater = append(
+      hostileLedger,
+      2,
+      hostileClaim.contentDigest,
+      generation,
+      factTransition(2, 'EV-WORKSPACE-FACT', 'preparing-workspace-fact', generation),
+    );
+    return recovery.recoverFencedRun({
+      ...recoveryInput,
+      ledger: hostileLedger,
+      records: [hostileFirst, hostileClaim, hostileLater],
+      claim: hostileClaim,
+      head: { position: hostileLater.position, digest: hostileLater.contentDigest },
+    });
+  };
+
+  assert.deepEqual(
+    hostileRecovery((value) => {
+      delete value.payloadBasisDigest;
+      return value;
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_INTENT_NOT_AUTHORIZED' } },
+  );
+  for (const [label, mutate] of [
+    ['payload basis', (value) => ({ ...value, payloadBasisDigest: digest('8') })],
+    ['role', (value) => ({ ...value, role: 'attacker' })],
+    ['lifecycle', (value) => ({ ...value, lifecycle: 'Reviewing' })],
+    ['bounds', (value) => ({ ...value, bounds: { waitMs: 900000, retryLimit: 2, recoveryLimit: 2 } })],
+  ]) {
+    assert.deepEqual(
+      hostileRecovery(mutate),
+      { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_INTENT_NOT_AUTHORIZED' } },
+      label,
+    );
+  }
+  assert.deepEqual(
+    hostileRecovery((value) => {
+      const fence = { ...value.fence, candidateContentDigest: digest('8') };
+      const unsignedCapability = { ...value.capability, fence };
+      delete unsignedCapability.digest;
+      const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+      assert.equal(capabilityDigest.ok, true);
+      return { ...value, fence, capability: { ...unsignedCapability, digest: capabilityDigest.value } };
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_INTENT_NOT_AUTHORIZED' } },
+  );
+  assert.deepEqual(
+    hostileRecovery((value) => {
+      const unsignedCapability = { ...value.capability, resourceScope: 'workspace/other' };
+      delete unsignedCapability.digest;
+      const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+      assert.equal(capabilityDigest.ok, true);
+      return { ...value, capability: { ...unsignedCapability, digest: capabilityDigest.value } };
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'OPERATION_INTENT_NOT_AUTHORIZED' } },
+  );
+
+  const legacyLedger = runtime.createScriptedLedger();
+  const legacyFirst = append(legacyLedger, 0, digest('0'), priorGeneration, {
+    schema: 'jig.transition.v0',
+    event,
+    bindings,
+    operation: intentCarrier.value,
+  });
+  const legacyClaim = append(legacyLedger, 1, legacyFirst.contentDigest, generation, {
+    recovery: 'generation-claim',
+    token: basis,
+  });
+  const legacyLater = append(
+    legacyLedger,
+    2,
+    legacyClaim.contentDigest,
+    generation,
+    factTransition(2, 'EV-WORKSPACE-FACT', 'preparing-workspace-fact', generation),
+  );
+  assert.deepEqual(
+    recovery.recoverFencedRun({
+      ...recoveryInput,
+      ledger: legacyLedger,
+      records: [legacyFirst, legacyClaim, legacyLater],
+      claim: legacyClaim,
+      head: { position: legacyLater.position, digest: legacyLater.contentDigest },
+    }),
+    { ok: false, error: { family: 'FC-INPUT', code: 'OPERATION_LEGACY_UPCAST_INVALID' } },
+  );
 });

@@ -2,9 +2,12 @@ import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@ag
 import { type AuthorityState, type ProposedTransition, reduceAuthority, validateAuthorityState } from './index.js';
 import {
   OPERATION_RECORD_SCHEMA,
+  OPERATION_STATE_VERSION,
   type OperationProjection,
   type OperationRecordCarrier,
+  type TransitionOperationIntent,
   restoreOperationRecords,
+  validateTransitionOperation,
 } from './operation.js';
 
 const LEDGER_VERSION = 'jig.ledger.v1';
@@ -321,6 +324,56 @@ function operationCarrier(value: unknown): OperationRecordCarrier | undefined {
   });
 }
 
+function recordedOperationIntent(value: unknown): TransitionOperationIntent | undefined {
+  const raw = own(value, [
+    'kind',
+    'version',
+    'operation',
+    'transaction',
+    'event',
+    'type',
+    'subject',
+    'payloadBasisDigest',
+    'fence',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'effect',
+    'purpose',
+    'predecessor',
+    'bounds',
+  ]);
+  if (!raw || raw.kind !== 'intent' || raw.version !== OPERATION_STATE_VERSION) return undefined;
+  const parsed = validateTransitionOperation({
+    type: raw.type,
+    transaction: raw.transaction,
+    event: raw.event,
+    operation: raw.operation,
+    subject: raw.subject,
+    payloadBasisDigest: raw.payloadBasisDigest,
+    fence: raw.fence,
+    capability: raw.capability,
+    authority: raw.authority,
+    role: raw.role,
+    lifecycle: raw.lifecycle,
+    effect: raw.effect,
+    purpose: raw.purpose,
+    predecessor: raw.predecessor,
+    bounds: raw.bounds,
+  });
+  return parsed.ok ? parsed.value : undefined;
+}
+
+function sameOperationIntent(left: TransitionOperationIntent, right: TransitionOperationIntent): boolean {
+  const actual = encodeFrame(left as unknown as CanonicalJson);
+  const { catalogVersion: _catalogVersion, ...expectedIntent } = right as typeof right & {
+    catalogVersion?: string;
+  };
+  const expected = encodeFrame(expectedIntent as unknown as CanonicalJson);
+  return actual.ok && expected.ok && sameBytes(actual.value, expected.value);
+}
+
 function carrierFromLedger(value: LedgerRecord):
   | Readonly<{
       carrier: OperationRecordCarrier;
@@ -385,6 +438,9 @@ function replayProjection(
       });
       continue;
     }
+    const transitionContent = ownOptional(entry.content, ['schema', 'event', 'bindings'], ['operation']);
+    if (transitionContent?.schema === 'jig.transition.v0' && transitionContent.operation !== undefined)
+      return failure('FC-INPUT', 'OPERATION_LEGACY_UPCAST_INVALID');
     if (operationCarrier(entry.content) !== undefined) continue;
     const step = replayStep(entry);
     if (!step) return failure('FC-INPUT', 'UNKNOWN_TRANSITION_SCHEMA');
@@ -599,21 +655,9 @@ export function recoverFencedRun(input: unknown): RecoveryResult<
     if (recordKind === 'intent') {
       const operationId = Object.getOwnPropertyDescriptor(recordValue, 'operation')?.value;
       if (typeof operationId !== 'string') return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
-      const intent = recordValue as Record<string, CanonicalJson>;
-      const intentSubject = intent.subject as Record<string, CanonicalJson> | undefined;
-      const intentFence = intent.fence as Record<string, CanonicalJson> | undefined;
       const decisionOperation = authorizedOperations.find((operation) => operation.operation === operationId);
-      if (
-        !decisionOperation ||
-        decisionOperation.type !== intent.type ||
-        decisionOperation.transaction !== intent.transaction ||
-        decisionOperation.event !== intent.event ||
-        decisionOperation.subject.run !== intentSubject?.run ||
-        decisionOperation.subject.story !== intentSubject?.story ||
-        decisionOperation.subject.basis !== intentSubject?.basis ||
-        decisionOperation.fence.generation !== intentFence?.generation ||
-        decisionOperation.fence.basis !== intentFence?.basis
-      )
+      const recordedIntent = recordedOperationIntent(recordValue);
+      if (!decisionOperation || !recordedIntent || !sameOperationIntent(recordedIntent, decisionOperation))
         return failure('FC-TRUST', 'OPERATION_INTENT_NOT_AUTHORIZED');
       journalIntentIds.push(operationId);
     }
