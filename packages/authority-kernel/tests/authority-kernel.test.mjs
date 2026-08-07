@@ -24,6 +24,10 @@ const subject = Object.freeze({ run, story: ids.story, basis: digest });
 const fence = Object.freeze({
   generation: ids.generation,
   basis: digest,
+});
+const operationFence = Object.freeze({
+  generation: ids.generation,
+  basis: digest,
   candidateContentDigest,
   targetBasisDigest,
 });
@@ -64,7 +68,7 @@ const operationBindings = (type = 'OPC-SESSION-OPEN', ordinal = 1) => {
     port: route.port,
     operationClass: type,
     subject: ids.story,
-    fence,
+    fence: operationFence,
     resourceScope: 'repository/main',
     manifest,
   };
@@ -75,7 +79,7 @@ const operationBindings = (type = 'OPC-SESSION-OPEN', ordinal = 1) => {
     event: eventId,
     operation: `${transaction}/op/1`,
     subject,
-    fence,
+    fence: operationFence,
     catalogVersion: 'jig.authority-kernel.v1',
     payloadBasisDigest,
     capability: Object.freeze({ ...unsignedCapability, digest: capabilityDigest.value }),
@@ -259,9 +263,10 @@ test('GF-005 authorized operation intents are complete and reject omission or ca
 test('authority kernel rejects bindings whose transaction was proposed by a stale generation', () => {
   const staleGeneration = `${run}/gen/2|replacement`;
   const staleFence = { ...fence, generation: staleGeneration };
+  const staleOperationFence = { ...operationFence, generation: staleGeneration };
   const staleState = { ...state, fence: staleFence };
   const staleEvent = { ...event, fence: staleFence };
-  const staleBindings = { ...bindings, fence: staleFence };
+  const staleBindings = { ...bindings, fence: staleOperationFence };
   const result = kernel.reduceAuthority(staleState, staleEvent, staleBindings);
   assert.equal(result.ok, false);
   assert.equal(result.error.failure, 'FC-INPUT');
@@ -270,6 +275,10 @@ test('authority kernel rejects bindings whose transaction was proposed by a stal
 test('authority kernel fixed-field bindings accept semantically identical insertion-order variants', () => {
   const reorderedSubject = { basis: digest, story: ids.story, run };
   const reorderedFence = {
+    basis: digest,
+    generation: ids.generation,
+  };
+  const reorderedOperationFence = {
     targetBasisDigest,
     candidateContentDigest,
     basis: digest,
@@ -278,7 +287,7 @@ test('authority kernel fixed-field bindings accept semantically identical insert
   const reorderedEvent = { ...event, subject: reorderedSubject, fence: reorderedFence };
   const reorderedCapability = {
     ...bindings.capability,
-    fence: reorderedFence,
+    fence: reorderedOperationFence,
     subject: ids.story,
   };
   delete reorderedCapability.digest;
@@ -287,7 +296,7 @@ test('authority kernel fixed-field bindings accept semantically identical insert
   const reorderedBindings = {
     ...bindings,
     operation: ids.operation,
-    fence: reorderedFence,
+    fence: reorderedOperationFence,
     event: ids.event,
     catalogVersion: 'jig.authority-kernel.v1',
     subject: reorderedSubject,
@@ -382,7 +391,7 @@ test('authority kernel rejects descriptor-valid ordinary-read traps at every aut
     [
       'validateOperation fence',
       () =>
-        kernel.validateOperation({ type: 'OPC-SESSION-OPEN', ...bindings, fence: getThrows({ ...fence }, 'fence') }),
+        kernel.validateOperation({ type: 'OPC-SESSION-OPEN', ...bindings, fence: getThrows({ ...operationFence }, 'fence') }),
     ],
     ['validateAuthorityState outer', () => kernel.validateAuthorityState(getThrows({ ...state }, 'state'))],
     [

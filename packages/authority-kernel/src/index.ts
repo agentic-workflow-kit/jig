@@ -129,7 +129,7 @@ export type KernelFailure = Readonly<{ failure: FailureClass; code: string }>;
 export type KernelResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: KernelFailure }>;
 
 export type SubjectBinding = Readonly<{ run: string; story: string; basis: string }>;
-export type FenceBinding = OperationFence;
+export type FenceBinding = Readonly<{ generation: string; basis: string }>;
 export type AuthorityState = Readonly<{
   storyState: StoryState;
   runPhase: RunPhase;
@@ -145,13 +145,15 @@ export type AuthorityEvent = Readonly<{
   fence: FenceBinding;
   catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
 }>;
-export type AuthorityBindings = Readonly<{
+type AuthorityBindingCore = Readonly<{
   transaction: string;
   event: string;
   operation: string;
   subject: SubjectBinding;
-  fence: FenceBinding;
   catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
+}>;
+type OperationAuthorityBindings = AuthorityBindingCore & Readonly<{
+  fence: OperationFence;
   payloadBasisDigest: string;
   capability: OperationCapability;
   authority: OperationAuthority | null;
@@ -162,6 +164,9 @@ export type AuthorityBindings = Readonly<{
   predecessor: string | null;
   bounds: OperationBounds;
 }>;
+export type AuthorityBindings =
+  | (AuthorityBindingCore & Readonly<{ fence: FenceBinding }>)
+  | OperationAuthorityBindings;
 export type OperationIntent = TransitionOperationIntent &
   Readonly<{
     catalogVersion: typeof AUTHORITY_KERNEL_VERSION;
@@ -276,30 +281,30 @@ function subjectSnapshot(value: unknown): SubjectBinding | undefined {
   return freeze({ run, story, basis });
 }
 function fenceSnapshot(value: unknown): FenceBinding | undefined {
-  const fence = ownValues(value, ['generation', 'basis', 'candidateContentDigest', 'targetBasisDigest']);
+  const fence = ownValues(value, ['generation', 'basis']);
   if (fence === undefined) return undefined;
-  const { generation, basis, candidateContentDigest, targetBasisDigest } = fence;
-  if (
-    typeof generation !== 'string' ||
-    !digest(basis) ||
-    !digest(candidateContentDigest) ||
-    !digest(targetBasisDigest) ||
-    !parseIdentity('ID-GEN', generation).ok
-  )
+  const { generation, basis } = fence;
+  if (typeof generation !== 'string' || !digest(basis) || !parseIdentity('ID-GEN', generation).ok)
     return undefined;
-  return freeze({ generation, basis, candidateContentDigest, targetBasisDigest });
+  return freeze({ generation, basis });
 }
-function sameBinding(left: SubjectBinding | FenceBinding, right: SubjectBinding | FenceBinding): boolean {
+function sameBinding(
+  left: SubjectBinding | FenceBinding | OperationFence,
+  right: SubjectBinding | FenceBinding | OperationFence,
+): boolean {
   if ('run' in left && 'run' in right)
     return left.run === right.run && left.story === right.story && left.basis === right.basis;
   if ('generation' in left && 'generation' in right)
-    return (
-      left.generation === right.generation &&
-      left.basis === right.basis &&
-      left.candidateContentDigest === right.candidateContentDigest &&
-      left.targetBasisDigest === right.targetBasisDigest
-    );
+    return left.generation === right.generation && left.basis === right.basis;
   return false;
+}
+function sameOperationFence(left: OperationFence, right: OperationFence): boolean {
+  return (
+    left.generation === right.generation &&
+    left.basis === right.basis &&
+    left.candidateContentDigest === right.candidateContentDigest &&
+    left.targetBasisDigest === right.targetBasisDigest
+  );
 }
 function sameLedgerPosition(transaction: string, event: string): boolean {
   const transactionPosition = /\/txn\/([0-9]+)\//.exec(transaction)?.[1];
@@ -322,7 +327,7 @@ function sameOperationCapability(left: OperationCapability, right: OperationCapa
     left.port === right.port &&
     left.operationClass === right.operationClass &&
     left.subject === right.subject &&
-    sameBinding(left.fence, right.fence) &&
+    sameOperationFence(left.fence, right.fence) &&
     left.resourceScope === right.resourceScope &&
     left.manifest === right.manifest &&
     left.digest === right.digest
@@ -340,7 +345,7 @@ function sameOperationBinding(left: OperationIntent, right: OperationIntent): bo
     left.event === right.event &&
     left.operation === right.operation &&
     sameBinding(left.subject, right.subject) &&
-    sameBinding(left.fence, right.fence) &&
+    sameOperationFence(left.fence, right.fence) &&
     left.catalogVersion === right.catalogVersion &&
     left.payloadBasisDigest === right.payloadBasisDigest &&
     sameOperationCapability(left.capability, right.capability) &&
@@ -354,6 +359,41 @@ function sameOperationBinding(left: OperationIntent, right: OperationIntent): bo
   );
 }
 function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
+  const basic = ownValues(value, ['transaction', 'event', 'operation', 'subject', 'fence', 'catalogVersion']);
+  const common = (
+    raw: Record<string, unknown>,
+    fence: FenceBinding | OperationFence,
+  ): AuthorityBindingCore & { subject: SubjectBinding; fence: FenceBinding | OperationFence } | undefined => {
+    try {
+      const subject = subjectSnapshot(raw.subject);
+      const { transaction, event, operation, catalogVersion } = raw;
+      if (
+        typeof transaction !== 'string' ||
+        typeof event !== 'string' ||
+        typeof operation !== 'string' ||
+        subject === undefined ||
+        !version(catalogVersion) ||
+        !parseIdentity('ID-TXN', transaction).ok ||
+        !parseIdentity('ID-EVENT', event).ok ||
+        !parseIdentity('ID-OP', operation).ok ||
+        !transaction.startsWith(`${subject.run}/txn/`) ||
+        !event.startsWith(`${subject.run}/event/`) ||
+        !operation.startsWith(`${transaction}/op/`) ||
+        !fence.generation.startsWith(`${subject.run}/gen/`) ||
+        !transaction.includes(`/${fence.generation}|`) ||
+        subject.basis !== fence.basis ||
+        !sameLedgerPosition(transaction, event)
+      )
+        return undefined;
+      return { transaction, event, operation, subject, fence, catalogVersion };
+    } catch {
+      return undefined;
+    }
+  };
+  if (basic !== undefined) {
+    const fence = fenceSnapshot(basic.fence);
+    return fence === undefined ? undefined : freeze(common(basic, fence) as AuthorityBindings);
+  }
   const bindings = ownValues(value, [
     'transaction',
     'event',
@@ -384,34 +424,19 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
     purpose,
     predecessor,
   } = bindings;
-  const subject = subjectSnapshot(bindings.subject);
-  const fence = fenceSnapshot(bindings.fence);
+  const fence = bindings.fence as OperationFence;
+  const normalizedCore = common(bindings, fence);
   if (
-    typeof transaction !== 'string' ||
-    typeof event !== 'string' ||
-    typeof operation !== 'string' ||
     !digest(payloadBasisDigest) ||
     typeof role !== 'string' ||
     typeof lifecycle !== 'string' ||
     (effect !== 'effectful' && effect !== 'observation') ||
     (purpose !== 'semantic' && purpose !== 'replacement' && purpose !== 'reconciliation') ||
     !(predecessor === null || typeof predecessor === 'string') ||
-    subject === undefined ||
-    fence === undefined ||
     bindings.capability === undefined ||
     bindings.authority === undefined ||
     bindings.bounds === undefined ||
-    !version(catalogVersion) ||
-    !parseIdentity('ID-TXN', transaction).ok ||
-    !parseIdentity('ID-EVENT', event).ok ||
-    !parseIdentity('ID-OP', operation).ok ||
-    !transaction.startsWith(`${subject.run}/txn/`) ||
-    !event.startsWith(`${subject.run}/event/`) ||
-    !operation.startsWith(`${transaction}/op/`) ||
-    !fence.generation.startsWith(`${subject.run}/gen/`) ||
-    !transaction.includes(`/${fence.generation}|`) ||
-    subject.basis !== fence.basis ||
-    !sameLedgerPosition(transaction, event)
+    normalizedCore === undefined
   )
     return undefined;
   const validated = OPERATION_TYPES.map((type) =>
@@ -420,7 +445,7 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
       transaction,
       event,
       operation,
-      subject,
+      subject: normalizedCore.subject,
       payloadBasisDigest,
       fence,
       capability: bindings.capability,
@@ -435,7 +460,10 @@ function bindingsSnapshot(value: unknown): AuthorityBindings | undefined {
   ).find((candidate) => candidate.ok);
   if (validated === undefined || !validated.ok) return undefined;
   const { type: _operationType, ...normalized } = validated.value;
-  return freeze({ ...normalized, catalogVersion });
+  return freeze({ ...normalized, catalogVersion: normalizedCore.catalogVersion });
+}
+function isOperationBindings(value: AuthorityBindings): value is OperationAuthorityBindings {
+  return 'payloadBasisDigest' in value;
 }
 
 const edge = (
@@ -755,12 +783,14 @@ export function validateTransition(value: unknown): KernelResult<ProposedTransit
   }
   if (
     operationIntents.length !== (expectedOperation === undefined ? 0 : 1) ||
-    (expectedOperation !== undefined && (bindings.purpose !== 'semantic' || bindings.predecessor !== null))
+    (expectedOperation !== undefined &&
+      (!isOperationBindings(bindings) || bindings.purpose !== 'semantic' || bindings.predecessor !== null))
   )
     return failure('FC-AUTHORITY', 'SCH-OPERATION purpose');
   if (
     expectedOperation !== undefined &&
-    (operationIntents[0] === undefined ||
+    (!isOperationBindings(bindings) ||
+      operationIntents[0] === undefined ||
       !sameOperationBinding(operationIntents[0], {
         type: expectedOperation,
         ...bindings,
