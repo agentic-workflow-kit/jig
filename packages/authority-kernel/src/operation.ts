@@ -49,33 +49,64 @@ export type OperationFailureFamily =
 export type OperationFailure = Readonly<{ family: OperationFailureFamily; code: string }>;
 export type OperationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: OperationFailure }>;
 
-type Subject = Readonly<{ run: string; story: string; basis: string }>;
-type Fence = Readonly<{
+export type OperationSubject = Readonly<{ run: string; story: string; basis: string }>;
+export type OperationFence = Readonly<{
   generation: string;
   basis: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
 }>;
-type Authority = Readonly<{ authority: string; registry: string; basis: string }>;
-type CapabilityKind =
+export type OperationAuthority = Readonly<{ authority: string; registry: string; basis: string }>;
+export type OperationCapabilityKind =
   | 'CB-SESSION'
   | 'CB-WORKSPACE'
   | 'CB-VERIFY'
   | 'CB-REVIEW-PUBLICATION'
   | 'CB-DELIVERY'
   | 'CB-STORE';
-type CapabilityPort = 'PORT-SESSION' | 'PORT-WORKSPACE' | 'PORT-VERIFY' | 'PORT-DELIVERY' | 'PORT-ARTIFACT';
-type Capability = Readonly<{
-  kind: CapabilityKind;
-  port: CapabilityPort;
+export type OperationCapabilityPort =
+  | 'PORT-SESSION'
+  | 'PORT-WORKSPACE'
+  | 'PORT-VERIFY'
+  | 'PORT-DELIVERY'
+  | 'PORT-ARTIFACT';
+export type OperationCapability = Readonly<{
+  kind: OperationCapabilityKind;
+  port: OperationCapabilityPort;
   operationClass: OperationType;
-  subject: string;
-  fence: Fence;
+  subject: OperationSubject['story'];
+  fence: OperationFence;
   resourceScope: string;
   manifest: string;
   digest: string;
 }>;
-type Bounds = Readonly<{ waitMs: number; retryLimit: number; recoveryLimit: number }>;
+export type OperationBounds = Readonly<{ waitMs: number; retryLimit: number; recoveryLimit: number }>;
+export type OperationPurpose = 'semantic' | 'replacement' | 'reconciliation';
+export type TransitionOperationIntent = Readonly<{
+  type: OperationType;
+  transaction: string;
+  event: string;
+  operation: string;
+  subject: OperationSubject;
+  payloadBasisDigest: string;
+  fence: OperationFence;
+  capability: OperationCapability;
+  authority: OperationAuthority | null;
+  role: string;
+  lifecycle: string;
+  effect: OperationEffect;
+  purpose: OperationPurpose;
+  predecessor: string | null;
+  bounds: OperationBounds;
+}>;
+
+type Subject = OperationSubject;
+type Fence = OperationFence;
+type Authority = OperationAuthority;
+type CapabilityKind = OperationCapabilityKind;
+type CapabilityPort = OperationCapabilityPort;
+type Capability = OperationCapability;
+type Bounds = OperationBounds;
 export type OperationCommitProof = Readonly<{
   kind: 'committed-witnessed';
   position: number;
@@ -99,7 +130,7 @@ type IntentRecord = Readonly<{
   role: string;
   lifecycle: string;
   effect: OperationEffect;
-  purpose: 'semantic' | 'replacement' | 'reconciliation';
+  purpose: OperationPurpose;
   predecessor: string | null;
   bounds: Bounds;
   proof: OperationCommitProof;
@@ -317,7 +348,9 @@ const boundedText = (value: unknown, maximum = 512): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= maximum && value.normalize('NFC') === value;
 const operationType = (value: unknown): value is OperationType =>
   typeof value === 'string' && OPERATION_TYPES.includes(value as OperationType);
-const effectFor = (type: OperationType): OperationEffect => (OBSERVATIONS.has(type) ? 'observation' : 'effectful');
+export const operationEffect = (type: OperationType): OperationEffect =>
+  OBSERVATIONS.has(type) ? 'observation' : 'effectful';
+const effectFor = operationEffect;
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -342,6 +375,15 @@ function fields(value: unknown, names: readonly string[]): Record<string, unknow
       !Object.values(descriptors).every((descriptor) => 'value' in descriptor)
     )
       return undefined;
+    for (const name of names) {
+      const descriptor = descriptors[name];
+      if (
+        descriptor === undefined ||
+        !('value' in descriptor) ||
+        !Object.is(Reflect.get(value, name), (descriptor as PropertyDescriptor & { value: unknown }).value)
+      )
+        return undefined;
+    }
     return Object.freeze(
       Object.fromEntries(
         names.map((name) => [name, (descriptors[name] as PropertyDescriptor & { value: unknown }).value]),
@@ -372,6 +414,11 @@ function array(value: unknown): readonly unknown[] | undefined {
 
 function sameSubject(left: Subject, right: Subject): boolean {
   return left.run === right.run && left.story === right.story && left.basis === right.basis;
+}
+function sameLedgerPosition(transaction: string, event: string): boolean {
+  const transactionPosition = /\/txn\/([0-9]+)\//u.exec(transaction)?.[1];
+  const eventPosition = /\/event\/([0-9]+)$/u.exec(event)?.[1];
+  return transactionPosition !== undefined && transactionPosition === eventPosition;
 }
 function sameFence(left: Fence, right: Fence): boolean {
   return (
@@ -452,7 +499,9 @@ function authorityValue(value: unknown, basis: string): Authority | null | undef
   return deepFreeze({ authority: raw.authority, registry: raw.registry, basis });
 }
 
-function expectedRoute(type: OperationType): Readonly<{ kind: CapabilityKind; port: CapabilityPort }> {
+export function operationCapabilityRoute(
+  type: OperationType,
+): Readonly<{ kind: OperationCapabilityKind; port: OperationCapabilityPort }> {
   if (type.startsWith('OPC-SESSION-')) return { kind: 'CB-SESSION', port: 'PORT-SESSION' };
   if (type.startsWith('OPC-WS-')) return { kind: 'CB-WORKSPACE', port: 'PORT-WORKSPACE' };
   if (type === 'OPC-VERIFY-EXECUTE') return { kind: 'CB-VERIFY', port: 'PORT-VERIFY' };
@@ -460,6 +509,7 @@ function expectedRoute(type: OperationType): Readonly<{ kind: CapabilityKind; po
   if (type.startsWith('OPC-DEL-')) return { kind: 'CB-DELIVERY', port: 'PORT-DELIVERY' };
   return { kind: 'CB-STORE', port: 'PORT-ARTIFACT' };
 }
+const expectedRoute = operationCapabilityRoute;
 
 function capabilityValue(value: unknown, type: OperationType, subject: Subject, fence: Fence): Capability | undefined {
   const raw = fields(value, [
@@ -551,6 +601,82 @@ export function deriveOperationCapabilityDigest(value: unknown): OperationResult
     } as CanonicalJson,
   });
   return staged.ok ? ok(staged.value.digest) : fail('FC-INPUT', 'INVALID_CAPABILITY');
+}
+
+export function validateTransitionOperation(value: unknown): OperationResult<TransitionOperationIntent> {
+  const raw = fields(value, [
+    'type',
+    'transaction',
+    'event',
+    'operation',
+    'subject',
+    'payloadBasisDigest',
+    'fence',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'effect',
+    'purpose',
+    'predecessor',
+    'bounds',
+  ]);
+  if (!raw || !operationType(raw.type)) return fail('FC-INPUT', 'INVALID_TRANSITION_OPERATION');
+  const subject = subjectValue(raw.subject);
+  const fence = subject ? fenceValue(raw.fence, subject.run) : undefined;
+  const capability = subject && fence ? capabilityValue(raw.capability, raw.type, subject, fence) : undefined;
+  const authority = fence ? authorityValue(raw.authority, fence.targetBasisDigest) : undefined;
+  const bounds = boundsValue(raw.bounds);
+  if (
+    !subject ||
+    !fence ||
+    !capability ||
+    authority === undefined ||
+    !bounds ||
+    typeof raw.transaction !== 'string' ||
+    typeof raw.event !== 'string' ||
+    typeof raw.operation !== 'string' ||
+    !parseIdentity('ID-TXN', raw.transaction).ok ||
+    !parseIdentity('ID-EVENT', raw.event).ok ||
+    !parseIdentity('ID-OP', raw.operation).ok ||
+    !raw.transaction.startsWith(`${subject.run}/txn/`) ||
+    !raw.event.startsWith(`${subject.run}/event/`) ||
+    !raw.operation.startsWith(`${raw.transaction}/op/`) ||
+    !sameLedgerPosition(raw.transaction, raw.event) ||
+    !digest(raw.payloadBasisDigest) ||
+    !boundedText(raw.role) ||
+    !boundedText(raw.lifecycle) ||
+    raw.effect !== effectFor(raw.type) ||
+    (raw.purpose !== 'semantic' && raw.purpose !== 'replacement' && raw.purpose !== 'reconciliation') ||
+    (raw.predecessor !== null &&
+      (typeof raw.predecessor !== 'string' ||
+        !parseIdentity('ID-OP', raw.predecessor).ok ||
+        raw.predecessor === raw.operation)) ||
+    (raw.purpose === 'semantic' && raw.predecessor !== null) ||
+    (raw.purpose !== 'semantic' && raw.predecessor === null) ||
+    subject.basis !== fence.basis ||
+    (capability.kind === 'CB-DELIVERY') !== (authority !== null)
+  )
+    return fail('FC-SUBJECT', 'INVALID_TRANSITION_OPERATION_BINDING');
+  return ok(
+    deepFreeze({
+      type: raw.type,
+      transaction: raw.transaction,
+      event: raw.event,
+      operation: raw.operation,
+      subject,
+      payloadBasisDigest: raw.payloadBasisDigest,
+      fence,
+      capability,
+      authority,
+      role: raw.role,
+      lifecycle: raw.lifecycle,
+      effect: raw.effect as OperationEffect,
+      purpose: raw.purpose as OperationPurpose,
+      predecessor: raw.predecessor as string | null,
+      bounds,
+    }),
+  );
 }
 
 function boundsValue(value: unknown): Bounds | undefined {

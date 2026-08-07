@@ -485,14 +485,7 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     fence: priorFence,
     catalogVersion: 'jig.authority-kernel.v1',
   });
-  const bindings = Object.freeze({
-    transaction,
-    event: event.id,
-    operation: `${transaction}/op/1`,
-    subject,
-    fence: priorFence,
-    catalogVersion: 'jig.authority-kernel.v1',
-  });
+  const operationId = `${transaction}/op/1`;
   const operationFence = Object.freeze({
     ...priorFence,
     candidateContentDigest: digest('6'),
@@ -512,7 +505,7 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
   const intentRecord = {
     kind: 'intent',
     version: operation.OPERATION_STATE_VERSION,
-    operation: bindings.operation,
+    operation: operationId,
     transaction,
     event: event.id,
     type: 'OPC-WS-PROVISION',
@@ -528,6 +521,23 @@ test('GF-015 recovery derives pending effects only from an exact journal bound t
     predecessor: null,
     bounds: { waitMs: 900000, retryLimit: 3, recoveryLimit: 3 },
   };
+  const bindings = Object.freeze({
+    transaction,
+    event: event.id,
+    operation: operationId,
+    subject: intentRecord.subject,
+    fence: intentRecord.fence,
+    catalogVersion: 'jig.authority-kernel.v1',
+    payloadBasisDigest: intentRecord.payloadBasisDigest,
+    capability: intentRecord.capability,
+    authority: intentRecord.authority,
+    role: intentRecord.role,
+    lifecycle: intentRecord.lifecycle,
+    effect: intentRecord.effect,
+    purpose: intentRecord.purpose,
+    predecessor: intentRecord.predecessor,
+    bounds: intentRecord.bounds,
+  });
   const intentCarrier = operation.deriveOperationRecordCarrier(intentRecord);
   assert.equal(intentCarrier.ok, true);
   const first = append(ledger, 0, digest('0'), priorGeneration, {
