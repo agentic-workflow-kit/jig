@@ -302,6 +302,29 @@ export function validateEnvelopeProposal(input: unknown): EnvelopeResult<Envelop
     PROPOSAL_DIGEST_KEYS.some((key) => expectedDigests[key] !== digests[key])
   )
     return fail('ENVELOPE_DIGEST_MISMATCH');
+  const carrierPolicy = object(root.policy);
+  const carrierBounds = object(root.bounds);
+  if (!carrierPolicy || !carrierBounds) return fail('INVALID_ENVELOPE_CARRIER');
+  const requestedBounds = Object.fromEntries(
+    Object.entries(carrierBounds).map(([key, value]) => [key, object(value)?.value ?? null]),
+  );
+  const recomposed = composeEnvelope({
+    plan: root.plan,
+    policy: {
+      track: root.track,
+      selections: carrierPolicy.selections,
+      bounds: requestedBounds,
+      capacities: carrierPolicy.capacities,
+      reserves: carrierPolicy.reserves,
+    },
+    profile: root.profile,
+    artifacts: root.artifacts,
+    setup: root.setup,
+    ruleSurface: root.ruleSurface,
+    guidance: root.guidance,
+  });
+  if (!recomposed.ok || recomposed.value.proposalDigest !== root.proposalDigest)
+    return fail('INVALID_ENVELOPE_CARRIER');
   return ok(freeze(root as unknown as EnvelopeProposal));
 }
 

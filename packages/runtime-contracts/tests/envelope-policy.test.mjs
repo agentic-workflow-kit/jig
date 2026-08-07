@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const runtime = await import('../dist/index.js');
+const codec = await import('@agentic-workflow-kit/jig-codec');
 
 const policy = {
   track: 'track/default',
@@ -118,6 +119,66 @@ test('GF-021: caller substitution and parallel same-digest carriers fail closed'
   const extra = structuredClone(result.value);
   extra.parallelCarrier = structuredClone(result.value);
   assert.equal(runtime.validateEnvelopeProposal(extra).ok, false);
+});
+
+test('GF-021: forged self-consistent carriers fail semantic transfer validation', () => {
+  const result = runtime.composeEnvelope(input());
+  assert.equal(result.ok, true);
+
+  const digest = (domain, value) => codec.stageDigest({ domain, value, excludePaths: [] }).value.digest;
+  const rebind = (carrier) => {
+    carrier.digests.plan = digest('EP-PLAN', carrier.plan);
+    carrier.digests.policy = digest('EP-POLICY', carrier.policy);
+    carrier.digests.profile = digest('EP-PROFILE', carrier.profile);
+    carrier.digests.artifacts = digest('EP-ARTIFACTS', carrier.artifacts);
+    carrier.digests.setup = digest('EP-SETUP', carrier.setup);
+    carrier.digests.ranges = digest('EP-RANGES', carrier.bounds);
+    carrier.digests.candidate = digest('EP-CANDIDATE', carrier.plan);
+    carrier.digests.suite = digest('EP-RULE-SURFACE', carrier.ruleSurface);
+    carrier.digests.probe = digest('EP-PROBE', {
+      capacities: carrier.policy.capacities,
+      reserves: carrier.policy.reserves,
+    });
+    carrier.proposalDigest = digest('EP-PROPOSAL', {
+      version: carrier.version,
+      track: carrier.track,
+      policy: carrier.policy,
+      bounds: carrier.bounds,
+      plan: carrier.plan,
+      normalizedPlan: carrier.normalizedPlan,
+      profile: carrier.profile,
+      artifacts: carrier.artifacts,
+      setup: carrier.setup,
+      ruleSurface: carrier.ruleSurface,
+      guidance: carrier.guidance,
+    });
+    return carrier;
+  };
+
+  for (const mutate of [
+    (carrier) => {
+      carrier.plan.track = 'track/other';
+    },
+    (carrier) => {
+      carrier.bounds['BND-REWORK'].value = 6;
+    },
+    (carrier) => {
+      carrier.policy.selections.review = 1;
+    },
+    (carrier) => {
+      carrier.profile.promptDigest = 'b'.repeat(64);
+    },
+    (carrier) => {
+      carrier.artifacts[0].track = 'track/other';
+    },
+  ]) {
+    const forged = structuredClone(result.value);
+    mutate(forged);
+    const rebound = rebind(forged);
+    const validation = runtime.validateEnvelopeProposal(rebound);
+    assert.equal(validation.ok, false);
+    assert.equal(validation.error.family, 'FC-INPUT');
+  }
 });
 
 test('GF-021: rejects unknown policy selections, unsafe reserve, cross-track input, and range edge violations', () => {
