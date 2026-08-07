@@ -77,7 +77,9 @@ Stop the affected lane and report exact evidence when:
   cannot be reconciled;
 - a reviewer or implementer crosses its authority boundary;
 - the requested count conflicts with a required phase boundary and the user did not prioritize one;
-- no eligible story remains.
+- no eligible, active, or recoverable story remains. If a wave has consumed the eligible set but
+  its implementer/reviewer or PR-lifecycle threads are still active, keep monitoring them; their
+  terminal results may release the next wave.
 
 Do not invent a dependency, story ID, approval, provider reachability, reviewer verdict, or merge.
 Do not silently widen the story count to finish a phase.
