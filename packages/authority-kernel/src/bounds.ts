@@ -326,14 +326,23 @@ export type BoundFailureFamily = 'FC-INPUT' | 'FC-FENCE' | 'FC-SUBJECT' | 'FC-BO
 export type BoundFailure = Readonly<{ family: BoundFailureFamily; code: string }>;
 export type BoundResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: BoundFailure }>;
 
-type BoundFactKind = 'start' | 'source' | 'wake' | 'progress' | 'heartbeat' | 'consume' | 'complete' | 'exhausted';
+type BoundFactKind =
+  | 'start'
+  | 'profile'
+  | 'source'
+  | 'wake'
+  | 'progress'
+  | 'heartbeat'
+  | 'consume'
+  | 'complete'
+  | 'exhausted';
 export type BoundLedgerFact = Readonly<{
   schema: typeof BOUNDS_VERSION;
   kind: BoundFactKind;
   position: number;
   previousDigest: string;
   contentDigest: string;
-  event: WakeSelector | QualifyingFactKind | 'EV-LIVENESS-OBSERVED' | 'EV-BOUND-EXHAUSTED' | null;
+  event: WakeSelector | QualifyingFactKind | 'SCH-WORK-PROFILE' | 'EV-LIVENESS-OBSERVED' | 'EV-BOUND-EXHAUSTED' | null;
   surface: WaitSurface;
   generation: string;
   factDigest: string;
@@ -342,6 +351,7 @@ export type BoundLedgerFact = Readonly<{
   wake: DurableWake | null;
   observation: LivenessObservation | null;
   source: QualifyingFact | null;
+  profile: FrozenWorkProfile | null;
 }>;
 export type BoundJournalSnapshot = Readonly<{
   schema: typeof BOUNDS_VERSION;
@@ -361,7 +371,24 @@ export type QualifyingFact = Readonly<{
   position: number;
   surface: 'qualifying-progress-idle';
   clockDigest: string;
+  profileDigest: string | null;
+  checkpointId: string | null;
   contentDigest: string;
+  committed: true;
+}>;
+export type QualifyingCheckpoint = Readonly<{
+  checkpointId: string;
+  factKind: QualifyingFactKind;
+}>;
+export type QualifyingCheckpointRef = Readonly<
+  QualifyingCheckpoint & {
+    profileDigest: string;
+  }
+>;
+export type FrozenWorkProfile = Readonly<{
+  schema: typeof BOUNDS_VERSION;
+  profileDigest: string;
+  checkpoints: readonly QualifyingCheckpoint[];
   committed: true;
 }>;
 export type HumanInputOverdueBasis = Readonly<{
@@ -524,6 +551,10 @@ export function qualifyingFactDigest(value: Omit<QualifyingFact, 'contentDigest'
   const result = canonicalDigest('QUALIFYING-FACT', { ...value, contentDigest: '' }, 'contentDigest');
   return result.ok ? result.value : '';
 }
+export function workProfileDigest(value: Omit<FrozenWorkProfile, 'profileDigest'>): string {
+  const result = canonicalDigest('WORK-PROFILE', { ...value, profileDigest: '' }, 'profileDigest');
+  return result.ok ? result.value : '';
+}
 
 function validSubject(value: unknown): value is BoundSubject {
   return (
@@ -548,7 +579,9 @@ function validQualifyingFact(value: unknown): value is QualifyingFact {
       'event',
       'factDigest',
       'generation',
+      'checkpointId',
       'position',
+      'profileDigest',
       'schema',
       'surface',
       'clockDigest',
@@ -566,9 +599,37 @@ function validQualifyingFact(value: unknown): value is QualifyingFact {
     nonNegative(value.position) &&
     value.surface === 'qualifying-progress-idle' &&
     digest(value.clockDigest) &&
+    (value.profileDigest === null
+      ? value.checkpointId === null
+      : digest(value.profileDigest) && typeof value.checkpointId === 'string' && value.checkpointId.length > 0) &&
     digest(value.contentDigest) &&
     qualifyingFactDigest(value as Omit<QualifyingFact, 'contentDigest'>) === value.contentDigest
   );
+}
+
+function validWorkProfile(value: unknown): value is FrozenWorkProfile {
+  if (
+    !plain(value) ||
+    !exact(value, ['checkpoints', 'committed', 'profileDigest', 'schema']) ||
+    value.schema !== BOUNDS_VERSION ||
+    value.committed !== true ||
+    !digest(value.profileDigest) ||
+    !Array.isArray(value.checkpoints) ||
+    value.checkpoints.some(
+      (checkpoint) =>
+        !plain(checkpoint) ||
+        !exact(checkpoint, ['checkpointId', 'factKind']) ||
+        typeof checkpoint.checkpointId !== 'string' ||
+        checkpoint.checkpointId.length === 0 ||
+        !(['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION'] as const).includes(
+          checkpoint.factKind as QualifyingFactKind,
+        ),
+    ) ||
+    new Set(value.checkpoints.map((checkpoint) => (checkpoint as { checkpointId: string }).checkpointId)).size !==
+      value.checkpoints.length
+  )
+    return false;
+  return workProfileDigest(value as Omit<FrozenWorkProfile, 'profileDigest'>) === value.profileDigest;
 }
 
 function validClock(value: unknown): value is WitnessedClock {
@@ -874,6 +935,7 @@ function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdue
       'observation',
       'position',
       'previousDigest',
+      'profile',
       'record',
       'schema',
       'source',
@@ -901,6 +963,7 @@ function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdue
     exhaustionFact.wake === null &&
     exhaustionFact.observation === null &&
     exhaustionFact.source === null &&
+    exhaustionFact.profile === null &&
     validClock(exhaustionFact.clock) &&
     exhaustionFact.clock.generation === exhaustionFact.generation &&
     exhaustionFact.clock.at === record.exhaustion?.at &&
@@ -939,6 +1002,7 @@ function makeFact(
   wake: DurableWake | null,
   observation: LivenessObservation | null = null,
   source: QualifyingFact | null = null,
+  profile: FrozenWorkProfile | null = null,
 ): BoundResult<BoundLedgerFact> {
   const content: Omit<BoundLedgerFact, 'contentDigest'> = {
     schema: BOUNDS_VERSION,
@@ -954,6 +1018,7 @@ function makeFact(
     wake,
     observation,
     source,
+    profile,
   };
   const computed = canonicalDigest('BOUND-FACT', { ...content, contentDigest: '' }, 'contentDigest');
   if (!computed.ok) return computed;
@@ -989,11 +1054,25 @@ export type BoundJournal = Readonly<{
     }>,
   ): BoundResult<DurableWake>;
   commitQualifyingFact(
-    input: Omit<QualifyingFact, 'contentDigest' | 'position' | 'surface' | 'clockDigest'> & {
+    input: Omit<
+      QualifyingFact,
+      'contentDigest' | 'position' | 'surface' | 'clockDigest' | 'profileDigest' | 'checkpointId'
+    > & {
       position: number;
       clock: WitnessedClock;
+      checkpoint: QualifyingCheckpointRef | null;
     },
   ): BoundResult<QualifyingFact>;
+  commitWorkProfile(
+    input: Readonly<{
+      subject: BoundSubject;
+      generation: string;
+      position: number;
+      clock: WitnessedClock;
+      factDigest: string;
+      profile: FrozenWorkProfile;
+    }>,
+  ): BoundResult<FrozenWorkProfile>;
   humanInputOverdueBasis(
     input: Readonly<{
       surface: 'owner-provider-answer' | 'live-open-obligation';
@@ -1158,6 +1237,39 @@ export function createBoundJournal(): BoundJournal {
       append(next.value);
       return ok(wake);
     },
+    commitWorkProfile(input) {
+      if (
+        !validSubject(input.subject) ||
+        !validWorkProfile(input.profile) ||
+        !validClock(input.clock) ||
+        !fixedFactDigest(input.factDigest) ||
+        !nonNegative(input.position) ||
+        input.position !== facts.length ||
+        input.clock.generation !== input.generation
+      )
+        return fail('FC-INPUT', 'MALFORMED_WORK_PROFILE');
+      const record = currentRecord('qualifying-progress-idle', input.generation, input.subject);
+      if (!record.ok) return record;
+      if (record.value.status !== 'active') return fail('FC-BOUND', 'BOUND_ALREADY_TERMINAL');
+      if (input.clock.at >= record.value.deadlineAt) return fail('FC-LIVENESS', 'BOUND_DEADLINE_MISSED');
+      if (seen(input.factDigest)) return fail('FC-TRUST', 'DUPLICATE_FACT_DIGEST');
+      const next = makeFact(
+        'profile',
+        record.value,
+        input.factDigest,
+        'SCH-WORK-PROFILE',
+        facts.length,
+        facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
+        null,
+        null,
+        null,
+        input.profile,
+      );
+      if (!next.ok) return next;
+      append(next.value);
+      return ok(input.profile);
+    },
     commitQualifyingFact(input) {
       if (
         !validSubject(input.subject) ||
@@ -1180,6 +1292,34 @@ export function createBoundJournal(): BoundJournal {
       if (record.value.status !== 'active') return fail('FC-BOUND', 'BOUND_ALREADY_TERMINAL');
       if (input.clock.at >= record.value.deadlineAt) return fail('FC-LIVENESS', 'BOUND_DEADLINE_MISSED');
       if (seen(input.factDigest)) return fail('FC-TRUST', 'DUPLICATE_FACT_DIGEST');
+      if (
+        input.checkpoint !== null &&
+        (!plain(input.checkpoint) ||
+          !exact(input.checkpoint, ['checkpointId', 'factKind', 'profileDigest']) ||
+          typeof input.checkpoint.checkpointId !== 'string' ||
+          input.checkpoint.checkpointId.length === 0 ||
+          !digest(input.checkpoint.profileDigest) ||
+          !(['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION'] as const).includes(
+            input.checkpoint.factKind,
+          ))
+      )
+        return fail('FC-INPUT', 'MALFORMED_QUALIFYING_CHECKPOINT');
+      const profileFact =
+        input.checkpoint === null
+          ? undefined
+          : [...facts]
+              .reverse()
+              .find(
+                (fact) =>
+                  fact.kind === 'profile' &&
+                  fact.profile?.profileDigest === input.checkpoint?.profileDigest &&
+                  fact.profile?.checkpoints.some(
+                    (checkpoint) =>
+                      checkpoint.checkpointId === input.checkpoint?.checkpointId &&
+                      checkpoint.factKind === input.checkpoint?.factKind,
+                  ),
+              );
+      if (input.checkpoint !== null && !profileFact) return fail('FC-TRUST', 'QUALIFYING_CHECKPOINT_NOT_DECLARED');
       const body: Omit<QualifyingFact, 'contentDigest'> = {
         schema: BOUNDS_VERSION,
         event: input.event,
@@ -1189,6 +1329,8 @@ export function createBoundJournal(): BoundJournal {
         position: input.position,
         surface: 'qualifying-progress-idle',
         clockDigest: input.clock.digest,
+        profileDigest: input.checkpoint?.profileDigest ?? null,
+        checkpointId: input.checkpoint?.checkpointId ?? null,
         committed: true,
       };
       const committed = frozen({ ...body, contentDigest: qualifyingFactDigest(body) });
@@ -1355,6 +1497,16 @@ export function createBoundJournal(): BoundJournal {
           source.surface !== basis.surface ||
           source.generation !== basis.generation ||
           source.clock.digest !== basis.clockDigest ||
+          (basis.profileDigest !== null &&
+            !facts.some(
+              (fact) =>
+                fact.kind === 'profile' &&
+                fact.position < source.position &&
+                fact.profile?.profileDigest === basis.profileDigest &&
+                fact.profile.checkpoints.some(
+                  (checkpoint) => checkpoint.checkpointId === basis.checkpointId && checkpoint.factKind === basis.event,
+                ),
+            )) ||
           !equalSubject(source.record.subject, observation.subject))
       )
         return fail('FC-TRUST', 'QUALIFYING_SOURCE_NOT_COMMITTED');
@@ -1580,6 +1732,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
         'schema',
         'observation',
         'source',
+        'profile',
         'surface',
         'wake',
       ])
@@ -1593,7 +1746,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
     if (fact.surface !== fact.record.surface || fact.generation !== fact.record.generation)
       return fail('FC-TRUST', 'BOUND_REPLAY_RECORD_BINDING_INVALID');
     if (
-      !['start', 'source', 'wake', 'progress', 'heartbeat', 'consume', 'complete', 'exhausted'].includes(
+      !['start', 'profile', 'source', 'wake', 'progress', 'heartbeat', 'consume', 'complete', 'exhausted'].includes(
         fact.kind as string,
       )
     )
@@ -1644,6 +1797,10 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
           typedFact.source.clockDigest !== typedFact.clock.digest ||
           typedFact.source.surface !== typedFact.surface ||
           !equalSubject(typedFact.source.subject, typedFact.record.subject))) ||
+      (typedFact.kind === 'profile' &&
+        (typedFact.event !== 'SCH-WORK-PROFILE' ||
+          !validWorkProfile(typedFact.profile) ||
+          typedFact.source !== null)) ||
       (typedFact.kind === 'exhausted' && typedFact.event !== 'EV-BOUND-EXHAUSTED') ||
       ((typedFact.kind === 'start' || typedFact.kind === 'consume' || typedFact.kind === 'complete') &&
         typedFact.event !== null)
@@ -1666,16 +1823,32 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
       return fail('FC-TRUST', 'BOUND_REPLAY_SOURCE_INVALID');
     if (typedFact.kind !== 'source' && typedFact.source !== null)
       return fail('FC-TRUST', 'BOUND_REPLAY_SOURCE_INVALID');
+    if (typedFact.kind === 'profile' && typedFact.profile === null)
+      return fail('FC-TRUST', 'BOUND_REPLAY_PROFILE_INVALID');
+    if (typedFact.kind !== 'profile' && typedFact.profile !== null)
+      return fail('FC-TRUST', 'BOUND_REPLAY_PROFILE_INVALID');
+    const replayBasis = typedFact.kind === 'progress' ? typedFact.observation?.basis : null;
     if (
       typedFact.kind === 'progress' &&
-      (!typedFact.observation?.basis ||
-        typedFact.observation.basis.position >= typedFact.position ||
-        ordered[typedFact.observation.basis.position]?.kind !== 'source' ||
-        ordered[typedFact.observation.basis.position]?.source !== typedFact.observation.basis ||
-        ordered[typedFact.observation.basis.position]?.factDigest !== typedFact.observation.basis.factDigest ||
-        ordered[typedFact.observation.basis.position]?.event !== typedFact.observation.basis.event ||
-        ordered[typedFact.observation.basis.position]?.clock.digest !== typedFact.observation.basis.clockDigest ||
-        !equalSubject(ordered[typedFact.observation.basis.position]?.record.subject, typedFact.observation.subject))
+      (!replayBasis ||
+        replayBasis.position >= typedFact.position ||
+        ordered[replayBasis.position]?.kind !== 'source' ||
+        ordered[replayBasis.position]?.source !== replayBasis ||
+        ordered[replayBasis.position]?.factDigest !== replayBasis.factDigest ||
+        ordered[replayBasis.position]?.event !== replayBasis.event ||
+        ordered[replayBasis.position]?.clock.digest !== replayBasis.clockDigest ||
+        (replayBasis.profileDigest !== null &&
+          !ordered.some(
+            (fact) =>
+              fact.kind === 'profile' &&
+              fact.position < replayBasis.position &&
+              fact.profile?.profileDigest === replayBasis.profileDigest &&
+              fact.profile?.checkpoints.some(
+                (checkpoint: QualifyingCheckpoint) =>
+                  checkpoint.checkpointId === replayBasis.checkpointId && checkpoint.factKind === replayBasis.event,
+              ),
+          )) ||
+        !equalSubject(ordered[replayBasis.position]?.record.subject, replayBasis.subject))
     )
       return fail('FC-TRUST', 'BOUND_REPLAY_SOURCE_INVALID');
     const priorRecord = priorRecords.get(boundInstanceKey(typedFact.surface, typedFact.record.subject));

@@ -27,6 +27,7 @@ const livenessObservation = (
   factDigest,
   factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE',
   sourceAt = at,
+  checkpoint = null,
 ) => {
   const basis =
     kind === 'progress'
@@ -38,6 +39,7 @@ const livenessObservation = (
           factDigest: hd(1000 + journal.snapshot().facts.length),
           position: journal.snapshot().facts.length,
           clock: clock(sourceAt),
+          checkpoint,
           committed: true,
         })
       : { ok: true, value: null };
@@ -508,6 +510,68 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     factDigest: hd(1000),
   });
   assert.equal(forgedReplacement.error.code, 'SILENCE_REPLACEMENT_GUARD_FAILED');
+});
+
+test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies progress', () => {
+  const journal = bounds.createBoundJournal();
+  assert.equal(start(journal, 'qualifying-progress-idle').ok, true);
+  const profileBody = {
+    schema: bounds.BOUNDS_VERSION,
+    checkpoints: [{ checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' }],
+    committed: true,
+  };
+  const profile = {
+    ...profileBody,
+    profileDigest: bounds.workProfileDigest(profileBody),
+  };
+  assert.equal(
+    journal.commitWorkProfile({
+      subject,
+      generation,
+      position: journal.snapshot().facts.length,
+      clock: clock(1, '2'),
+      factDigest: d('2'),
+      profile,
+    }).ok,
+    true,
+  );
+  const checkpoint = livenessObservation(
+    journal,
+    'qualifying-progress-idle',
+    10,
+    'progress',
+    d('3'),
+    'EV-CHECK-OBSERVATION',
+    10,
+    { profileDigest: profile.profileDigest, checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' },
+  );
+  assert.equal(
+    journal.observe({
+      surface: 'qualifying-progress-idle',
+      generation,
+      subject,
+      observation: checkpoint,
+      clock: clock(10, '3'),
+    }).ok,
+    true,
+  );
+  assert.equal(bounds.replayBoundFacts(journal.snapshot()).ok, true);
+  const undeclared = journal.commitQualifyingFact({
+    schema: bounds.BOUNDS_VERSION,
+    event: 'EV-CHECK-OBSERVATION',
+    subject,
+    generation,
+    factDigest: d('4'),
+    position: journal.snapshot().facts.length,
+    clock: clock(11, '4'),
+    checkpoint: {
+      profileDigest: profile.profileDigest,
+      checkpointId: 'missing',
+      factKind: 'EV-CHECK-OBSERVATION',
+    },
+    committed: true,
+  });
+  assert.equal(undeclared.error.code, 'QUALIFYING_CHECKPOINT_NOT_DECLARED');
 });
 
 test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only causes a reread', () => {
