@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, platform, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
+import { parseIdentity } from '@agentic-workflow-kit/jig-codec';
 import type {
   WorkspaceBinding,
   WorkspaceCommitProof,
@@ -149,10 +150,13 @@ const fail = (family: FailureFamily, code: string): Result<never> =>
   Object.freeze({ ok: false, error: Object.freeze({ family, code }) });
 const DIGEST = /^[0-9a-f]{64}$/u;
 const GIT_OBJECT = /^[0-9a-f]{40}$/u;
-const ID = /^[a-z][a-z0-9-]*(?:\/[a-zA-Z0-9._|:-]+)+$/u;
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const SECRET_VALUE = /(?:secret|token|password|credential|authorization|api[._ -]?key)\s*[=:]/iu;
 const RECORDED_EVIDENCE = new WeakSet<object>();
+
+function identity(kind: string, value: unknown): value is string {
+  return typeof value === 'string' && parseIdentity(kind, value).ok;
+}
 
 function sha256(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex');
@@ -298,7 +302,7 @@ function validBinding(binding: unknown): binding is WorkspaceBinding {
   return Boolean(
     raw &&
       subject &&
-      ID.test(String(raw.operation)) &&
+      identity('ID-OP', raw.operation) &&
       ['OPC-WS-PROVISION', 'OPC-WS-SETUP', 'OPC-WS-OBSERVE', 'OPC-WS-PRESERVE', 'OPC-WS-RETIRE'].includes(
         String(raw.operationType),
       ) &&
@@ -308,18 +312,21 @@ function validBinding(binding: unknown): binding is WorkspaceBinding {
       DIGEST.test(String(raw.recipeDigest)) &&
       DIGEST.test(String(raw.inputFingerprintDigest)) &&
       safeText(raw.host) &&
-      ID.test(String(raw.manifest)) &&
-      safeText(subject.run) &&
-      safeText(subject.story) &&
+      identity('ID-MANIFEST', raw.manifest) &&
+      identity('ID-RUN', subject.run) &&
+      identity('ID-STORY', subject.story) &&
       DIGEST.test(String(subject.basis)) &&
       subject.basis === raw.basis &&
       String(subject.story).startsWith(`${subject.run}/story/`) &&
       String(raw.operation).startsWith(`${subject.run}/txn/`) &&
-      String(raw.manifest) === LOCAL_GIT_WORKTREE_MANIFEST_ID,
+      String(raw.manifest) === LOCAL_GIT_WORKTREE_MANIFEST_ID &&
+      !SECRET.test(String(raw.repository)) &&
+      !SECRET.test(String(raw.path)) &&
+      !SECRET.test(String(raw.host)),
   );
 }
 
-function validProof(proof: unknown, operation: string): proof is WorkspaceCommitProof {
+function validProof(proof: unknown, operation: string, run?: string): proof is WorkspaceCommitProof {
   const raw = exactObject(proof, [
     'kind',
     'position',
@@ -334,13 +341,31 @@ function validProof(proof: unknown, operation: string): proof is WorkspaceCommit
       raw.kind === 'committed-witnessed' &&
       Number.isSafeInteger(raw.position) &&
       Number(raw.position) >= 0 &&
-      safeText(raw.event) &&
-      safeText(raw.transaction) &&
+      identity('ID-EVENT', raw.event) &&
+      identity('ID-TXN', raw.transaction) &&
+      identity('ID-OP', operation) &&
       raw.operation === operation &&
       raw.recordDigest === raw.witnessDigest &&
       DIGEST.test(String(raw.recordDigest)) &&
       String(operation).startsWith(`${raw.transaction}/op/`) &&
-      String(raw.transaction).includes('/gen/'),
+      String(raw.transaction).includes('/gen/') &&
+      (run === undefined ||
+        (() => {
+          const prefix = `${run}/txn/`;
+          if (!String(raw.transaction).startsWith(prefix)) return false;
+          const ordinalStart = prefix.length;
+          const ordinalEnd = String(raw.transaction).indexOf('/', ordinalStart);
+          const ordinalText = String(raw.transaction).slice(ordinalStart, ordinalEnd);
+          const ordinal = Number(ordinalText);
+          return (
+            ordinalEnd > ordinalStart &&
+            /^\d+$/u.test(ordinalText) &&
+            Number.isSafeInteger(ordinal) &&
+            Number(raw.position) === ordinal - 1 &&
+            raw.event === `${run}/event/${ordinal}` &&
+            raw.transaction === String(operation).slice(0, String(operation).lastIndexOf('/op/'))
+          );
+        })()),
   );
 }
 
@@ -364,7 +389,7 @@ function validIntent(intent: unknown): intent is WorkspaceOperationIntent {
       validBinding(raw.binding) &&
       raw.operationType === raw.binding.operationType &&
       raw.effect === (raw.operationType === 'OPC-WS-OBSERVE' ? 'observation' : 'effectful') &&
-      validProof(raw.proof, String(raw.operation)),
+      validProof(raw.proof, String(raw.operation), (raw.binding as WorkspaceBinding).subject.run),
   );
 }
 
@@ -408,12 +433,63 @@ function proofFor(binding: WorkspaceBinding): WorkspaceCommitProof {
   });
 }
 
+function isFreshSetupReceipt(
+  receipt: unknown,
+  binding: WorkspaceBinding,
+  environment: LocalGitWorktreeEnvironment,
+): boolean {
+  const raw = exactObject(receipt, [
+    'version',
+    'operation',
+    'binding',
+    'hostFingerprint',
+    'workspaceFingerprint',
+    'recipeDigest',
+    'inputFingerprintDigest',
+    'freshnessFingerprint',
+    'effectDigest',
+    'completed',
+    'proof',
+  ]);
+  if (
+    !raw ||
+    binding.operationType !== 'OPC-WS-SETUP' ||
+    raw.version !== 'jig.workspace-contract.v1' ||
+    raw.operation !== binding.operation ||
+    raw.completed !== true ||
+    !validBinding(raw.binding) ||
+    bindingDigest(raw.binding) !== bindingDigest(binding) ||
+    raw.recipeDigest !== binding.recipeDigest ||
+    raw.inputFingerprintDigest !== binding.inputFingerprintDigest ||
+    !validProof(raw.proof, binding.operation, binding.subject.run)
+  )
+    return false;
+  const target = scopedPath(environment.resourceRoot, binding.path);
+  if (!target.ok) return false;
+  const head = repoHead(target.value);
+  const cleanliness = cleanState(target.value);
+  const basis = repoBasis(binding.repository);
+  if (!head.ok || !cleanliness.ok || !basis.ok || basis.value !== binding.basis || cleanliness.value !== 'clean')
+    return false;
+  const host = digest('WORKSPACE-HOST', { host: binding.host, manifest: binding.manifest, environment });
+  return (
+    raw.hostFingerprint === host &&
+    raw.workspaceFingerprint === workspaceFingerprint(binding, head.value) &&
+    raw.freshnessFingerprint ===
+      digest('WORKSPACE-SETUP-FRESHNESS', {
+        recipeDigest: binding.recipeDigest,
+        inputFingerprintDigest: binding.inputFingerprintDigest,
+        host,
+      }) &&
+    raw.effectDigest === digest('WORKSPACE-SETUP-EFFECT', { binding, head: head.value })
+  );
+}
+
 function createMechanism(environment: LocalGitWorktreeEnvironment): LocalGitWorktreeProvider {
   const invocations: Array<Readonly<{ operation: string; operationType: WorkspaceOperationType; result: string }>> = [];
   const dispatched = new Map<string, WorkspaceBinding>();
   const outcomes = new Map<string, LocalGitWorktreeOutcome>();
   const preserved = new Set<string>();
-  const setupReceipts = new Map<string, WorkspaceSetupReceipt>();
 
   const dispatch = (
     input: Readonly<{ intent: WorkspaceOperationIntent; fault?: LocalGitWorktreeFault }>,
@@ -488,12 +564,9 @@ function createMechanism(environment: LocalGitWorktreeEnvironment): LocalGitWork
     if (!validIntent(input?.intent) || input.intent.operationType !== 'OPC-WS-SETUP')
       return fail('FC-SUBJECT', 'SETUP_OPERATION_REQUIRED');
     const receipt = input.receipt;
-    const expected = setupReceipts.get(bindingDigest(input.intent.binding));
-    if (receipt && expected && canonical(receipt) === canonical(expected))
+    if (receipt && isFreshSetupReceipt(receipt, input.intent.binding, environment))
       return ok(Object.freeze({ status: 'no-op' as const }));
     const result = dispatch({ intent: input.intent, fault: input.fault });
-    if (result.ok && result.value.setupReceipt)
-      setupReceipts.set(bindingDigest(input.intent.binding), result.value.setupReceipt);
     return result;
   };
 
@@ -952,17 +1025,23 @@ export function runLocalGitWorktreeQualificationProbe(
     if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
     return admission;
   }
-  const run = 'run/gf039-probe';
+  const run = 'run-000000000001-0123456789abcdef';
   const story = `${run}/story/gf039`;
+  const generation = `${run}/gen/1|controller-token-1|${'a'.repeat(64)}`;
   const host = `host/local-git-worktree/${environmentDigest(environment.value)}`;
   const basis = digest('WORKSPACE-BASIS', { repository: source, head: setup.value.head });
   const provider = createMechanism(environment.value);
   const bindings = (ordinal: number, type: WorkspaceOperationType, path = target) =>
-    fixtureBinding(run, story, `${run}/txn/${ordinal}/${run}/gen/1/op/${ordinal}`, type, source, path, basis, host);
+    fixtureBinding(run, story, `${run}/txn/${ordinal}/${generation}/op/${ordinal}`, type, source, path, basis, host);
   const provision = provider.dispatch({ intent: fixtureIntent(bindings(1, 'OPC-WS-PROVISION')) });
   const setupIntent = fixtureIntent(bindings(2, 'OPC-WS-SETUP'));
   const setupResult = provider.setup({ intent: setupIntent, receipt: null });
   const setupReceipt = setupResult.ok && 'setupReceipt' in setupResult.value ? setupResult.value.setupReceipt : null;
+  const replacementProvider = createMechanism(environment.value);
+  const replacementSetup =
+    setupReceipt && setupResult.ok
+      ? replacementProvider.setup({ intent: setupIntent, receipt: setupReceipt })
+      : fail('FC-MECHANISM', 'SETUP_REPLACEMENT_PROBE_FAILED');
   const setupNoOp =
     setupResult.ok && setupReceipt
       ? provider.setup({ intent: setupIntent, receipt: setupReceipt })
@@ -994,6 +1073,9 @@ export function runLocalGitWorktreeQualificationProbe(
     ),
     freshness: Boolean(setupReceipt),
     idempotentSetup: Boolean(setupNoOp.ok && 'status' in setupNoOp.value && setupNoOp.value.status === 'no-op'),
+    setupReplacementNoOp: Boolean(
+      replacementSetup.ok && 'status' in replacementSetup.value && replacementSetup.value.status === 'no-op',
+    ),
     idempotentProvision: !duplicate.ok && duplicate.error.code === 'DUPLICATE_WORKSPACE_OPERATION',
     lostResponseReconciles: Boolean(lostLookup.ok && lostLookup.value.outcome === 'confirmed-effect'),
     crashRecovery: Boolean(crashLookup.ok && crashLookup.value.outcome === 'confirmed-absence'),
