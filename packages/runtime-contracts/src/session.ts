@@ -91,6 +91,8 @@ export type SessionFact = Readonly<{
   request: string | null;
   observedAt: number | null;
   attestationDigest: string | null;
+  reason: string | null;
+  successorRequest: string | null;
 }>;
 
 export type SessionFault = Readonly<{
@@ -128,6 +130,7 @@ export type SessionRecord = Readonly<{
   assigned: boolean;
   collected: boolean;
   pendingRequest: string | null;
+  successorRequest: string | null;
   liveness: SessionLiveness;
   lastHeartbeatAt: number;
   lastQualifyingProgress: number;
@@ -676,6 +679,8 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     predecessor: string | null,
     observedAt: number | null = null,
     attestationDigest: string | null = null,
+    reason: string | null = null,
+    successorRequest: string | null = null,
   ): SessionRecord => {
     const fact = deepFreeze({
       event: eventId(record.binding.run, nextEventOrdinal++),
@@ -690,6 +695,8 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
       request,
       observedAt,
       attestationDigest,
+      reason,
+      successorRequest,
     });
     return cloneRecord({ ...record, facts: [...record.facts, fact] });
   };
@@ -783,6 +790,7 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
       assigned: false,
       collected: false,
       pendingRequest: null,
+      successorRequest: null,
       liveness: 'thinking',
       lastHeartbeatAt: 0,
       lastQualifyingProgress: 0,
@@ -977,14 +985,19 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     if (!record || !sameBinding(record.binding, binding.value)) return fail('FC-FENCE', 'CANCEL_BINDING_MISMATCH');
     if (record.state !== 'terminal' || record.terminalCause !== 'lost-attested' || !record.pendingRequest)
       return fail('FC-FENCE', 'CANCEL_REISSUE_REQUIRES_LOST_REQUEST');
+    const successorRequest = `${record.binding.run}/park/${nextEventOrdinal}`;
     return ok(
       save(
         appendFact(
-          { ...record, terminalCause: 'cancelled', pendingRequest: null },
+          { ...record, terminalCause: 'cancelled', pendingRequest: null, successorRequest },
           'cancel-and-reissue',
           null,
           record.pendingRequest,
           record.binding.session,
+          null,
+          null,
+          'context-not-restorable',
+          successorRequest,
         ),
       ),
     );
@@ -1170,6 +1183,7 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
       'assigned',
       'collected',
       'pendingRequest',
+      'successorRequest',
       'liveness',
       'lastHeartbeatAt',
       'lastQualifyingProgress',
@@ -1200,6 +1214,8 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
       typeof record.collected !== 'boolean' ||
       (record.pendingRequest !== null &&
         (typeof record.pendingRequest !== 'string' || !parseIdentity('ID-PARK', record.pendingRequest).ok)) ||
+      (record.successorRequest !== null &&
+        (typeof record.successorRequest !== 'string' || !parseIdentity('ID-PARK', record.successorRequest).ok)) ||
       (record.liveness !== 'thinking' &&
         record.liveness !== 'stuck' &&
         record.liveness !== 'dead' &&
@@ -1221,6 +1237,7 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
     let assigned = false;
     let collected = false;
     let pendingRequest: string | null = null;
+    let successorRequest: string | null = null;
     let terminalCause: SessionTerminalCause | null = null;
     let opened = false;
     let lastFactOrdinal = 0;
@@ -1238,6 +1255,8 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
         'request',
         'observedAt',
         'attestationDigest',
+        'reason',
+        'successorRequest',
       ]);
       const event = typeof fact?.event === 'string' ? fact.event : '';
       const match = new RegExp(`^${binding.value.run}/event/([1-9][0-9]*)$`, 'u').exec(event);
@@ -1272,7 +1291,10 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
           (typeof fact.predecessor !== 'string' || !parseIdentity('ID-SESSION', fact.predecessor).ok)) ||
         (fact.request !== null && (typeof fact.request !== 'string' || !parseIdentity('ID-PARK', fact.request).ok)) ||
         (fact.observedAt !== null && !validTime(fact.observedAt)) ||
-        (fact.attestationDigest !== null && !validDigest(fact.attestationDigest))
+        (fact.attestationDigest !== null && !validDigest(fact.attestationDigest)) ||
+        (fact.reason !== null && typeof fact.reason !== 'string') ||
+        (fact.successorRequest !== null &&
+          (typeof fact.successorRequest !== 'string' || !parseIdentity('ID-PARK', fact.successorRequest).ok))
       )
         return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
       eventIds.add(event);
@@ -1338,10 +1360,13 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
             terminalCause !== 'lost-attested' ||
             fact.operation !== null ||
             !fact.request ||
-            pendingRequest !== fact.request
+            pendingRequest !== fact.request ||
+            fact.reason !== 'context-not-restorable' ||
+            !fact.successorRequest
           )
             return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
           pendingRequest = null;
+          successorRequest = fact.successorRequest;
           terminalCause = 'cancelled';
           break;
         case 'close':
@@ -1355,7 +1380,12 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
     if (!opened && (record.state !== 'open' || record.facts.length !== 0 || record.faults.length === 0))
       return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
     if (opened && phase !== record.state) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
-    if (record.assigned !== assigned || record.collected !== collected || record.pendingRequest !== pendingRequest)
+    if (
+      record.assigned !== assigned ||
+      record.collected !== collected ||
+      record.pendingRequest !== pendingRequest ||
+      record.successorRequest !== successorRequest
+    )
       return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
     if (record.state === 'terminal' && record.terminalCause !== terminalCause)
       return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');

@@ -318,7 +318,12 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
   assert.equal(cancelled.ok, true, JSON.stringify(cancelled));
   assert.equal(cancelled.value.terminalCause, 'cancelled');
   assert.equal(cancelled.value.pendingRequest, null);
+  assert.match(cancelled.value.successorRequest, new RegExp(`^${run}/park/[0-9]+$`));
   assert.equal(cancelled.value.facts.at(-1)?.kind, 'cancel-and-reissue');
+  assert.equal(cancelled.value.facts.at(-1)?.request, `${run}/park/3`);
+  assert.equal(cancelled.value.facts.at(-1)?.reason, 'context-not-restorable');
+  assert.equal(cancelled.value.facts.at(-1)?.successorRequest, cancelled.value.successorRequest);
+  assert.equal(runtime.restoreScriptedSessionController(cancelController.snapshot()).ok, true);
 });
 
 test('silence records SCH-LIVENESS and fences dispatch until attested loss; hostile identity cannot cross bindings', () => {
