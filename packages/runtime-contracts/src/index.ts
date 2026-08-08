@@ -12,6 +12,7 @@ export * from './envelope.js';
 export * from './ledger.js';
 export * from './provider.js';
 export * from './source.js';
+export * from './workspace.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare const TextDecoder: {
