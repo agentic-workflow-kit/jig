@@ -201,6 +201,17 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
     attestation: lossAttestation(binding, 2000),
   });
   assert.equal(lost.ok, true, JSON.stringify(lost));
+  const forgedLossSnapshot = {
+    ...controller.snapshot(),
+    sessions: controller.snapshot().sessions.map((record) => ({
+      ...record,
+      facts: record.facts.map((fact) => (fact.kind === 'loss' ? { ...fact, attestationDigest: digest('9') } : fact)),
+    })),
+  };
+  assert.deepEqual(runtime.restoreScriptedSessionController(forgedLossSnapshot).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_SESSION_SNAPSHOT',
+  });
   assert.equal(lost.value.terminalCause, 'lost-attested');
   const replacement = makeBinding({ sessionOrdinal: 2 });
   const replacementResult = controller.replace({
@@ -263,8 +274,11 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
     }).ok,
     true,
   );
-  assert.equal(pendingController.bind({ session: pendingReplacement.session, binding: pendingReplacement }).ok, true);
-  assign(pendingController, pendingReplacement);
+  const pendingRestored = runtime.restoreScriptedSessionController(pendingController.snapshot());
+  assert.equal(pendingRestored.ok, true, JSON.stringify(pendingRestored));
+  const reboundController = pendingRestored.value;
+  assert.equal(reboundController.bind({ session: pendingReplacement.session, binding: pendingReplacement }).ok, true);
+  assign(reboundController, pendingReplacement);
   const response = makeBinding({
     sessionOrdinal: 2,
     response: {
@@ -277,9 +291,34 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
     },
   });
   assert.equal(
-    pendingController.respond({ operation: operation(), binding: response, requestDigest: digest('8') }).ok,
+    reboundController.respond({ operation: operation(), binding: response, requestDigest: digest('8') }).ok,
     true,
   );
+
+  const cancelController = runtime.createScriptedSessionController({
+    nativeDecision: 'human-needed',
+    humanRequest: `${run}/park/3`,
+  });
+  const cancelBinding = openAndBind(cancelController);
+  assign(cancelController, cancelBinding);
+  assert.equal(
+    cancelController.collect({ operation: operation(), binding: cancelBinding, requestDigest: digest('e') }).ok,
+    true,
+  );
+  assert.equal(
+    cancelController.attestLoss({
+      session: cancelBinding.session,
+      binding: cancelBinding,
+      observedAt: 2000,
+      attestation: lossAttestation(cancelBinding, 2000),
+    }).ok,
+    true,
+  );
+  const cancelled = cancelController.cancelAndReissue({ session: cancelBinding.session, binding: cancelBinding });
+  assert.equal(cancelled.ok, true, JSON.stringify(cancelled));
+  assert.equal(cancelled.value.terminalCause, 'cancelled');
+  assert.equal(cancelled.value.pendingRequest, null);
+  assert.equal(cancelled.value.facts.at(-1)?.kind, 'cancel-and-reissue');
 });
 
 test('silence records SCH-LIVENESS and fences dispatch until attested loss; hostile identity cannot cross bindings', () => {

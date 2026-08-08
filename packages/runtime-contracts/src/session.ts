@@ -74,6 +74,7 @@ export type SessionFactKind =
   | 'human-needed'
   | 'response'
   | 'loss'
+  | 'cancel-and-reissue'
   | 'close'
   | 'heartbeat';
 
@@ -88,6 +89,8 @@ export type SessionFact = Readonly<{
   bindingDigest: string;
   predecessor: string | null;
   request: string | null;
+  observedAt: number | null;
+  attestationDigest: string | null;
 }>;
 
 export type SessionFault = Readonly<{
@@ -209,6 +212,7 @@ export type SessionController = Readonly<{
   attestLoss(
     input: Readonly<{ session: string; binding: unknown; observedAt: number; attestation: unknown }>,
   ): SessionResult<SessionRecord>;
+  cancelAndReissue(input: Readonly<{ session: string; binding: unknown }>): SessionResult<SessionRecord>;
   replace(
     input: Readonly<{ operation: string; predecessor: string; binding: unknown; requestDigest: string }>,
   ): SessionResult<SessionRecord>;
@@ -670,6 +674,8 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     operation: string | null,
     request: string | null,
     predecessor: string | null,
+    observedAt: number | null = null,
+    attestationDigest: string | null = null,
   ): SessionRecord => {
     const fact = deepFreeze({
       event: eventId(record.binding.run, nextEventOrdinal++),
@@ -682,6 +688,8 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
       bindingDigest: record.binding.digest,
       predecessor,
       request,
+      observedAt,
+      attestationDigest,
     });
     return cloneRecord({ ...record, facts: [...record.facts, fact] });
   };
@@ -955,6 +963,28 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
           null,
           record.pendingRequest,
           null,
+          input.observedAt,
+          attestation.value.digest,
+        ),
+      ),
+    );
+  };
+
+  const cancelAndReissue = (input: Readonly<{ session: string; binding: unknown }>): SessionResult<SessionRecord> => {
+    const binding = validateBinding(input.binding);
+    if (!binding.ok) return binding;
+    const record = sessions.get(input.session);
+    if (!record || !sameBinding(record.binding, binding.value)) return fail('FC-FENCE', 'CANCEL_BINDING_MISMATCH');
+    if (record.state !== 'terminal' || record.terminalCause !== 'lost-attested' || !record.pendingRequest)
+      return fail('FC-FENCE', 'CANCEL_REISSUE_REQUIRES_LOST_REQUEST');
+    return ok(
+      save(
+        appendFact(
+          { ...record, terminalCause: 'cancelled', pendingRequest: null },
+          'cancel-and-reissue',
+          null,
+          record.pendingRequest,
+          record.binding.session,
         ),
       ),
     );
@@ -1090,6 +1120,7 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     close,
     reconnect,
     attestLoss,
+    cancelAndReissue,
     replace,
     observeLiveness,
     classifySilence,
@@ -1205,6 +1236,8 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
         'bindingDigest',
         'predecessor',
         'request',
+        'observedAt',
+        'attestationDigest',
       ]);
       const event = typeof fact?.event === 'string' ? fact.event : '';
       const match = new RegExp(`^${binding.value.run}/event/([1-9][0-9]*)$`, 'u').exec(event);
@@ -1227,6 +1260,7 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
           'human-needed',
           'response',
           'loss',
+          'cancel-and-reissue',
           'close',
         ].includes(fact.kind as string) ||
         (fact.operation !== null && !validOperation(fact.operation)) ||
@@ -1236,7 +1270,9 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
         fact.bindingDigest !== binding.value.digest ||
         (fact.predecessor !== null &&
           (typeof fact.predecessor !== 'string' || !parseIdentity('ID-SESSION', fact.predecessor).ok)) ||
-        (fact.request !== null && (typeof fact.request !== 'string' || !parseIdentity('ID-PARK', fact.request).ok))
+        (fact.request !== null && (typeof fact.request !== 'string' || !parseIdentity('ID-PARK', fact.request).ok)) ||
+        (fact.observedAt !== null && !validTime(fact.observedAt)) ||
+        (fact.attestationDigest !== null && !validDigest(fact.attestationDigest))
       )
         return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
       eventIds.add(event);
@@ -1256,6 +1292,7 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
           break;
         case 'replacement':
           if (!opened || phase !== 'open' || !fact.predecessor) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          pendingRequest = fact.request;
           break;
         case 'assignment-acknowledged':
           if (!opened || phase !== 'bound' || fact.operation === null)
@@ -1282,9 +1319,30 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
           if (phase !== 'active' || fact.operation !== null) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
           break;
         case 'loss':
-          if (phase !== 'active' || fact.operation !== null) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          if (
+            phase !== 'active' ||
+            fact.operation !== null ||
+            typeof fact.observedAt !== 'number' ||
+            !validTime(fact.observedAt) ||
+            typeof fact.attestationDigest !== 'string' ||
+            !validDigest(fact.attestationDigest) ||
+            lossAttestation(binding.value, fact.observedAt).digest !== fact.attestationDigest
+          )
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
           phase = 'terminal';
           terminalCause = 'lost-attested';
+          break;
+        case 'cancel-and-reissue':
+          if (
+            phase !== 'terminal' ||
+            terminalCause !== 'lost-attested' ||
+            fact.operation !== null ||
+            !fact.request ||
+            pendingRequest !== fact.request
+          )
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          pendingRequest = null;
+          terminalCause = 'cancelled';
           break;
         case 'close':
           if (phase !== 'active' || !collected || pendingRequest !== null || fact.operation === null)
