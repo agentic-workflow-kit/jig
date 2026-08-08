@@ -138,7 +138,20 @@ export type SessionSnapshot = Readonly<{
   schema: typeof SESSION_SNAPSHOT_SCHEMA;
   nextSessionOrdinal: number;
   nextEventOrdinal: number;
+  usedOperations: readonly string[];
   sessions: readonly SessionRecord[];
+}>;
+
+export type SessionLossAttestation = Readonly<{
+  mechanism: typeof SESSION_MECHANISM;
+  bindingDigest: string;
+  session: string;
+  principal: string;
+  assignmentOrdinal: number;
+  manifest: string;
+  posture: string;
+  observedAt: number;
+  digest: string;
 }>;
 
 type SessionOperation = Readonly<{
@@ -193,7 +206,9 @@ export type SessionController = Readonly<{
   ): SessionResult<SessionRecord>;
   close(input: Readonly<{ operation: string; binding: unknown; requestDigest: string }>): SessionResult<SessionRecord>;
   reconnect(input: Readonly<{ session: string; binding: unknown; observedAt: number }>): SessionResult<SessionRecord>;
-  attestLoss(input: Readonly<{ session: string; binding: unknown; observedAt: number }>): SessionResult<SessionRecord>;
+  attestLoss(
+    input: Readonly<{ session: string; binding: unknown; observedAt: number; attestation: unknown }>,
+  ): SessionResult<SessionRecord>;
   replace(
     input: Readonly<{ operation: string; predecessor: string; binding: unknown; requestDigest: string }>,
   ): SessionResult<SessionRecord>;
@@ -540,6 +555,69 @@ function validateAttestation(value: unknown, operation: SessionOperation): Sessi
   return expected.digest === raw.digest ? ok(expected) : fail('FC-MECHANISM', 'INVALID_SESSION_ATTESTATION');
 }
 
+function lossAttestation(binding: SessionBinding, observedAt: number): SessionLossAttestation {
+  const staged = stageDigest({
+    domain: 'SESSION-LOSS-ATTESTATION',
+    excludePaths: ['digest'],
+    value: {
+      mechanism: SESSION_MECHANISM,
+      bindingDigest: binding.digest,
+      session: binding.session,
+      principal: binding.principal,
+      assignmentOrdinal: binding.assignmentOrdinal,
+      manifest: binding.manifest,
+      posture: binding.posture,
+      observedAt,
+      digest: '',
+    },
+  });
+  if (!staged.ok) throw new Error('loss attestation digest unavailable');
+  return deepFreeze({
+    mechanism: SESSION_MECHANISM,
+    bindingDigest: binding.digest,
+    session: binding.session,
+    principal: binding.principal,
+    assignmentOrdinal: binding.assignmentOrdinal,
+    manifest: binding.manifest,
+    posture: binding.posture,
+    observedAt,
+    digest: staged.value.digest,
+  });
+}
+
+function validateLossAttestation(
+  value: unknown,
+  binding: SessionBinding,
+  observedAt: number,
+): SessionResult<SessionLossAttestation> {
+  const raw = ownFields(value, [
+    'mechanism',
+    'bindingDigest',
+    'session',
+    'principal',
+    'assignmentOrdinal',
+    'manifest',
+    'posture',
+    'observedAt',
+    'digest',
+  ]);
+  if (
+    !raw ||
+    raw.mechanism !== SESSION_MECHANISM ||
+    raw.bindingDigest !== binding.digest ||
+    raw.session !== binding.session ||
+    raw.principal !== binding.principal ||
+    raw.assignmentOrdinal !== binding.assignmentOrdinal ||
+    raw.manifest !== binding.manifest ||
+    raw.posture !== binding.posture ||
+    raw.observedAt !== observedAt ||
+    !validDigest(raw.digest)
+  )
+    return fail('FC-MECHANISM', 'INVALID_LOSS_ATTESTATION');
+  const expected = lossAttestation(binding, observedAt);
+  return expected.digest === raw.digest ? ok(expected) : fail('FC-MECHANISM', 'INVALID_LOSS_ATTESTATION');
+}
+
 function createFixture(scenario: ScriptedScenario = {}) {
   const nativeDecision = scenario.nativeDecision ?? 'allowed';
   const request = scenario.humanRequest ?? `${'run-000000000001-0123456789abcdef'}/park/1`;
@@ -581,7 +659,10 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
   const usedOperations = new Set<string>();
   let nextSessionOrdinal = snapshot?.nextSessionOrdinal ?? 1;
   let nextEventOrdinal = snapshot?.nextEventOrdinal ?? 1;
-  if (snapshot) for (const record of snapshot.sessions) sessions.set(record.binding.session, cloneRecord(record));
+  if (snapshot) {
+    for (const operation of snapshot.usedOperations) usedOperations.add(operation);
+    for (const record of snapshot.sessions) sessions.set(record.binding.session, cloneRecord(record));
+  }
 
   const appendFact = (
     record: SessionRecord,
@@ -857,13 +938,15 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
   };
 
   const attestLoss = (
-    input: Readonly<{ session: string; binding: unknown; observedAt: number }>,
+    input: Readonly<{ session: string; binding: unknown; observedAt: number; attestation: unknown }>,
   ): SessionResult<SessionRecord> => {
     const binding = validateBinding(input.binding);
     if (!binding.ok) return binding;
     const record = sessions.get(input.session);
     if (!record || !sameBinding(record.binding, binding.value)) return fail('FC-FENCE', 'LOSS_BINDING_MISMATCH');
     if (record.state !== 'active' || !validTime(input.observedAt)) return fail('FC-ORDERING', 'LOSS_REQUIRES_ACTIVE');
+    const attestation = validateLossAttestation(input.attestation, binding.value, input.observedAt);
+    if (!attestation.ok) return attestation;
     return ok(
       save(
         appendFact(
@@ -904,7 +987,7 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     if (!opened.ok) return opened;
     save(
       appendFact(
-        { ...opened.value, predecessor: previous.binding.session },
+        { ...opened.value, predecessor: previous.binding.session, pendingRequest: previous.pendingRequest },
         'replacement',
         input.operation,
         previous.pendingRequest,
@@ -994,6 +1077,7 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
       schema: SESSION_SNAPSHOT_SCHEMA,
       nextSessionOrdinal,
       nextEventOrdinal,
+      usedOperations: [...usedOperations].sort(),
       sessions: [...sessions.values()],
     });
 
@@ -1017,16 +1101,34 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
 }
 
 function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
-  const raw = ownFields(value, ['schema', 'nextSessionOrdinal', 'nextEventOrdinal', 'sessions']);
+  const raw = ownFields(value, ['schema', 'nextSessionOrdinal', 'nextEventOrdinal', 'usedOperations', 'sessions']);
   if (
     !raw ||
     raw.schema !== SESSION_SNAPSHOT_SCHEMA ||
     !Number.isSafeInteger(raw.nextSessionOrdinal) ||
+    (raw.nextSessionOrdinal as number) < 1 ||
     !Number.isSafeInteger(raw.nextEventOrdinal) ||
+    (raw.nextEventOrdinal as number) < 1 ||
+    !Array.isArray(raw.usedOperations) ||
+    !raw.usedOperations.every((operation) => validOperation(operation)) ||
+    new Set(raw.usedOperations as string[]).size !== raw.usedOperations.length ||
     !Array.isArray(raw.sessions)
   )
     return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+  const usedOperations = raw.usedOperations as string[];
   const sessions: SessionRecord[] = [];
+  const sessionIds = new Set<string>();
+  const eventIds = new Set<string>();
+  const eventOrdinals = new Set<number>();
+  const maxSessionOrdinal = Math.max(
+    0,
+    ...raw.sessions.map((candidate) => {
+      const record = ownFields(candidate, ['binding']);
+      const binding = record ? ownFields(record.binding, ['sessionOrdinal']) : undefined;
+      return typeof binding?.sessionOrdinal === 'number' ? binding.sessionOrdinal : 0;
+    }),
+  );
+  if ((raw.nextSessionOrdinal as number) <= maxSessionOrdinal) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
   for (const candidate of raw.sessions) {
     const record = ownFields(candidate, [
       'binding',
@@ -1053,17 +1155,254 @@ function validateSnapshot(value: unknown): SessionResult<SessionSnapshot> {
         record.state !== 'bound' &&
         record.state !== 'active' &&
         record.state !== 'terminal') ||
+      (record.terminalCause !== null &&
+        record.terminalCause !== 'replaced' &&
+        record.terminalCause !== 'cancelled' &&
+        record.terminalCause !== 'lost-attested' &&
+        record.terminalCause !== 'completed-close') ||
+      (record.state === 'terminal' ? record.terminalCause === null : record.terminalCause !== null) ||
+      (record.predecessor !== null &&
+        (typeof record.predecessor !== 'string' || !parseIdentity('ID-SESSION', record.predecessor).ok)) ||
+      (record.successor !== null &&
+        (typeof record.successor !== 'string' || !parseIdentity('ID-SESSION', record.successor).ok)) ||
+      typeof record.assigned !== 'boolean' ||
+      typeof record.collected !== 'boolean' ||
+      (record.pendingRequest !== null &&
+        (typeof record.pendingRequest !== 'string' || !parseIdentity('ID-PARK', record.pendingRequest).ok)) ||
+      (record.liveness !== 'thinking' &&
+        record.liveness !== 'stuck' &&
+        record.liveness !== 'dead' &&
+        record.liveness !== 'human input overdue') ||
+      !validTime(record.lastHeartbeatAt) ||
+      !validTime(record.lastQualifyingProgress) ||
       !Array.isArray(record.facts) ||
       !Array.isArray(record.faults) ||
       !Array.isArray(record.livenessFacts) ||
-      !Array.isArray(record.uncertainOperations)
+      !Array.isArray(record.uncertainOperations) ||
+      !record.uncertainOperations.every((operation) => validOperation(operation)) ||
+      new Set(record.uncertainOperations as string[]).size !== record.uncertainOperations.length ||
+      sessionIds.has(binding.value.session)
     )
       return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    sessionIds.add(binding.value.session);
+
+    let phase: SessionLifecycleState = 'open';
+    let assigned = false;
+    let collected = false;
+    let pendingRequest: string | null = null;
+    let terminalCause: SessionTerminalCause | null = null;
+    let opened = false;
+    let lastFactOrdinal = 0;
+    for (const candidateFact of record.facts) {
+      const fact = ownFields(candidateFact, [
+        'event',
+        'type',
+        'kind',
+        'operation',
+        'session',
+        'principal',
+        'assignmentOrdinal',
+        'bindingDigest',
+        'predecessor',
+        'request',
+      ]);
+      const event = typeof fact?.event === 'string' ? fact.event : '';
+      const match = new RegExp(`^${binding.value.run}/event/([1-9][0-9]*)$`, 'u').exec(event);
+      const ordinal = match ? Number(match[1]) : 0;
+      if (
+        !fact ||
+        !match ||
+        !Number.isSafeInteger(ordinal) ||
+        ordinal <= lastFactOrdinal ||
+        eventIds.has(event) ||
+        eventOrdinals.has(ordinal) ||
+        fact.type !== 'EV-SESSION-FACT' ||
+        ![
+          'open',
+          'bind',
+          'assignment-acknowledged',
+          'reconnect',
+          'replacement',
+          'collect',
+          'human-needed',
+          'response',
+          'loss',
+          'close',
+        ].includes(fact.kind as string) ||
+        (fact.operation !== null && !validOperation(fact.operation)) ||
+        fact.session !== binding.value.session ||
+        fact.principal !== binding.value.principal ||
+        fact.assignmentOrdinal !== binding.value.assignmentOrdinal ||
+        fact.bindingDigest !== binding.value.digest ||
+        (fact.predecessor !== null &&
+          (typeof fact.predecessor !== 'string' || !parseIdentity('ID-SESSION', fact.predecessor).ok)) ||
+        (fact.request !== null && (typeof fact.request !== 'string' || !parseIdentity('ID-PARK', fact.request).ok))
+      )
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+      eventIds.add(event);
+      eventOrdinals.add(ordinal);
+      lastFactOrdinal = ordinal;
+      if (fact.operation !== null && !usedOperations.includes(fact.operation))
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+      switch (fact.kind) {
+        case 'open':
+          if (opened || phase !== 'open' || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          opened = true;
+          break;
+        case 'bind':
+          if (!opened || phase !== 'open') return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          phase = 'bound';
+          break;
+        case 'replacement':
+          if (!opened || phase !== 'open' || !fact.predecessor) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          break;
+        case 'assignment-acknowledged':
+          if (!opened || phase !== 'bound' || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          phase = 'active';
+          assigned = true;
+          break;
+        case 'collect':
+          if (phase !== 'active' || pendingRequest !== null || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          collected = true;
+          break;
+        case 'human-needed':
+          if (phase !== 'active' || pendingRequest !== null || !fact.request || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          pendingRequest = fact.request;
+          break;
+        case 'response':
+          if (phase !== 'active' || pendingRequest !== fact.request || !fact.request || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          pendingRequest = null;
+          break;
+        case 'reconnect':
+          if (phase !== 'active' || fact.operation !== null) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          break;
+        case 'loss':
+          if (phase !== 'active' || fact.operation !== null) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          phase = 'terminal';
+          terminalCause = 'lost-attested';
+          break;
+        case 'close':
+          if (phase !== 'active' || !collected || pendingRequest !== null || fact.operation === null)
+            return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+          phase = 'terminal';
+          terminalCause = 'completed-close';
+          break;
+      }
+    }
+    if (!opened && (record.state !== 'open' || record.facts.length !== 0 || record.faults.length === 0))
+      return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    if (opened && phase !== record.state) return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    if (record.assigned !== assigned || record.collected !== collected || record.pendingRequest !== pendingRequest)
+      return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    if (record.state === 'terminal' && record.terminalCause !== terminalCause)
+      return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+
+    for (const candidateFault of record.faults) {
+      const fault = ownFields(candidateFault, [
+        'event',
+        'type',
+        'family',
+        'code',
+        'operation',
+        'session',
+        'principal',
+        'assignmentOrdinal',
+        'bindingDigest',
+      ]);
+      const event = typeof fault?.event === 'string' ? fault.event : '';
+      const match = new RegExp(`^${binding.value.run}/event/([1-9][0-9]*)$`, 'u').exec(event);
+      const ordinal = match ? Number(match[1]) : 0;
+      if (
+        !fault ||
+        !match ||
+        !Number.isSafeInteger(ordinal) ||
+        eventIds.has(event) ||
+        eventOrdinals.has(ordinal) ||
+        fault.type !== 'EV-SESSION-FAULT' ||
+        typeof fault.family !== 'string' ||
+        typeof fault.code !== 'string' ||
+        (fault.operation !== null && !validOperation(fault.operation)) ||
+        fault.session !== binding.value.session ||
+        fault.principal !== binding.value.principal ||
+        fault.assignmentOrdinal !== binding.value.assignmentOrdinal ||
+        fault.bindingDigest !== binding.value.digest
+      )
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+      if (fault.operation !== null && !usedOperations.includes(fault.operation))
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+      eventIds.add(event);
+      eventOrdinals.add(ordinal);
+    }
+    for (const candidateLiveness of record.livenessFacts) {
+      const liveness = ownFields(candidateLiveness, [
+        'event',
+        'type',
+        'session',
+        'principal',
+        'assignmentOrdinal',
+        'observedAt',
+        'lastQualifyingProgress',
+        'silenceMs',
+        'classification',
+        'bound',
+        'bindingDigest',
+      ]);
+      const event = typeof liveness?.event === 'string' ? liveness.event : '';
+      const match = new RegExp(`^${binding.value.run}/event/([1-9][0-9]*)$`, 'u').exec(event);
+      const ordinal = match ? Number(match[1]) : 0;
+      if (
+        !liveness ||
+        !match ||
+        !Number.isSafeInteger(ordinal) ||
+        eventIds.has(event) ||
+        eventOrdinals.has(ordinal) ||
+        liveness.type !== 'SCH-LIVENESS' ||
+        liveness.session !== binding.value.session ||
+        liveness.principal !== binding.value.principal ||
+        liveness.assignmentOrdinal !== binding.value.assignmentOrdinal ||
+        !validTime(liveness.observedAt) ||
+        !validTime(liveness.lastQualifyingProgress) ||
+        typeof liveness.silenceMs !== 'number' ||
+        !Number.isSafeInteger(liveness.silenceMs) ||
+        liveness.silenceMs < 0 ||
+        !['thinking', 'stuck', 'dead', 'human input overdue'].includes(liveness.classification as string) ||
+        liveness.bound !== SESSION_SILENCE.token ||
+        liveness.bindingDigest !== binding.value.digest
+      )
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+      eventIds.add(event);
+      eventOrdinals.add(ordinal);
+    }
     sessions.push(deepFreeze({ ...record, binding: binding.value }) as SessionRecord);
   }
   const nextSessionOrdinal = raw.nextSessionOrdinal as number;
   const nextEventOrdinal = raw.nextEventOrdinal as number;
-  return ok({ schema: SESSION_SNAPSHOT_SCHEMA, nextSessionOrdinal, nextEventOrdinal, sessions });
+  if ([...eventOrdinals].some((ordinal) => ordinal >= nextEventOrdinal))
+    return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+  const bySession = new Map(sessions.map((record) => [record.binding.session, record]));
+  for (const record of sessions) {
+    if (record.predecessor) {
+      const predecessor = bySession.get(record.predecessor);
+      if (
+        !predecessor ||
+        predecessor.successor !== record.binding.session ||
+        record.state === 'terminal' ||
+        !record.facts.some((fact) => fact.kind === 'replacement' && fact.predecessor === record.predecessor)
+      )
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    }
+    if (record.successor) {
+      const successor = bySession.get(record.successor);
+      if (!successor || successor.predecessor !== record.binding.session)
+        return fail('FC-TRUST', 'INVALID_SESSION_SNAPSHOT');
+    }
+  }
+  return ok({ schema: SESSION_SNAPSHOT_SCHEMA, nextSessionOrdinal, nextEventOrdinal, usedOperations, sessions });
 }
 
 export function createScriptedSessionController(scenario?: ScriptedScenario): SessionController {
@@ -1077,6 +1416,14 @@ export function restoreScriptedSessionController(
   const checked = validateSnapshot(snapshot);
   if (!checked.ok) return checked;
   return ok(createController(createFixture(scenario), checked.value));
+}
+
+export function scriptedSessionLossAttestation(input: unknown): SessionResult<SessionLossAttestation> {
+  const raw = ownFields(input, ['binding', 'observedAt']);
+  if (!raw || !validTime(raw.observedAt)) return fail('FC-INPUT', 'INVALID_LOSS_ATTESTATION_INPUT');
+  const binding = validateBinding(raw.binding);
+  if (!binding.ok) return binding;
+  return ok(lossAttestation(binding.value, raw.observedAt));
 }
 
 export function scriptedSessionManifest(): string {

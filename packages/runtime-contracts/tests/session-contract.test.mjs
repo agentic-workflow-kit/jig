@@ -63,6 +63,12 @@ const assign = (controller, binding) => {
   return result.value;
 };
 
+const lossAttestation = (binding, observedAt) => {
+  const result = runtime.scriptedSessionLossAttestation({ binding, observedAt });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  return result.value;
+};
+
 test('GF-034 exports the closed session contract and development fixture remains unreachable', () => {
   assert.deepEqual(runtime.SESSION_OPERATION_TYPES, [
     'OPC-SESSION-OPEN',
@@ -188,7 +194,12 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
   const reconnect = controller.reconnect({ session: binding.session, binding, observedAt: 1000 });
   assert.equal(reconnect.ok, true, JSON.stringify(reconnect));
   assert.equal(reconnect.value.binding.session, binding.session);
-  const lost = controller.attestLoss({ session: binding.session, binding, observedAt: 2000 });
+  const lost = controller.attestLoss({
+    session: binding.session,
+    binding,
+    observedAt: 2000,
+    attestation: lossAttestation(binding, 2000),
+  });
   assert.equal(lost.ok, true, JSON.stringify(lost));
   assert.equal(lost.value.terminalCause, 'lost-attested');
   const replacement = makeBinding({ sessionOrdinal: 2 });
@@ -222,6 +233,53 @@ test('reconnect retains logical ID-SESSION; only attested loss permits same-prin
     family: 'FC-FENCE',
     code: 'SESSION_TERMINAL',
   });
+
+  const pendingController = runtime.createScriptedSessionController({
+    nativeDecision: 'human-needed',
+    humanRequest: `${run}/park/2`,
+  });
+  const pendingBinding = openAndBind(pendingController);
+  assign(pendingController, pendingBinding);
+  const pending = pendingController.collect({
+    operation: operation(),
+    binding: pendingBinding,
+    requestDigest: digest('e'),
+  });
+  assert.equal(pending.ok, true, JSON.stringify(pending));
+  const pendingLoss = pendingController.attestLoss({
+    session: pendingBinding.session,
+    binding: pendingBinding,
+    observedAt: 2000,
+    attestation: lossAttestation(pendingBinding, 2000),
+  });
+  assert.equal(pendingLoss.ok, true, JSON.stringify(pendingLoss));
+  const pendingReplacement = makeBinding({ sessionOrdinal: 2 });
+  assert.equal(
+    pendingController.replace({
+      operation: operation(),
+      predecessor: pendingBinding.session,
+      binding: pendingReplacement,
+      requestDigest: digest('9'),
+    }).ok,
+    true,
+  );
+  assert.equal(pendingController.bind({ session: pendingReplacement.session, binding: pendingReplacement }).ok, true);
+  assign(pendingController, pendingReplacement);
+  const response = makeBinding({
+    sessionOrdinal: 2,
+    response: {
+      request: `${run}/park/2`,
+      originatingPrincipal: principal,
+      originatingSession: pendingBinding.session,
+      assignmentOrdinal: 1,
+      answerDigest: digest('8'),
+      lineage: pendingBinding.session,
+    },
+  });
+  assert.equal(
+    pendingController.respond({ operation: operation(), binding: response, requestDigest: digest('8') }).ok,
+    true,
+  );
 });
 
 test('silence records SCH-LIVENESS and fences dispatch until attested loss; hostile identity cannot cross bindings', () => {
@@ -265,6 +323,64 @@ test('lost response and crash are preserved by stable Operation identity; close 
   assert.deepEqual(restored.value.collect({ operation: collectOperation, binding, requestDigest: digest('e') }).error, {
     family: 'FC-EFFECT',
     code: 'UNCERTAIN_OPERATION_PARKED',
+  });
+
+  const successful = runtime.createScriptedSessionController();
+  const successfulBinding = openAndBind(successful);
+  assign(successful, successfulBinding);
+  const successfulOperation = operation();
+  assert.equal(
+    successful.collect({ operation: successfulOperation, binding: successfulBinding, requestDigest: digest('e') }).ok,
+    true,
+  );
+  const successfulRestore = runtime.restoreScriptedSessionController(successful.snapshot());
+  assert.equal(successfulRestore.ok, true, JSON.stringify(successfulRestore));
+  assert.deepEqual(
+    successfulRestore.value.collect({
+      operation: successfulOperation,
+      binding: successfulBinding,
+      requestDigest: digest('e'),
+    }).error,
+    { family: 'FC-EFFECT', code: 'OPERATION_ALREADY_USED' },
+  );
+});
+
+test('loss requires fixture mechanism evidence and recovery rejects impossible lifecycle snapshots', () => {
+  const controller = runtime.createScriptedSessionController();
+  const binding = openAndBind(controller);
+  assign(controller, binding);
+  const forged = lossAttestation(binding, 2000);
+  assert.deepEqual(
+    controller.attestLoss({
+      session: binding.session,
+      binding,
+      observedAt: 2000,
+      attestation: { ...forged, digest: digest('9') },
+    }).error,
+    { family: 'FC-MECHANISM', code: 'INVALID_LOSS_ATTESTATION' },
+  );
+  const lost = controller.attestLoss({
+    session: binding.session,
+    binding,
+    observedAt: 2000,
+    attestation: forged,
+  });
+  assert.equal(lost.ok, true, JSON.stringify(lost));
+
+  const active = runtime.createScriptedSessionController();
+  const activeBinding = openAndBind(active);
+  assign(active, activeBinding);
+  const snapshot = active.snapshot();
+  const impossible = {
+    ...snapshot,
+    sessions: snapshot.sessions.map((record) => ({
+      ...record,
+      facts: record.facts.filter((fact) => fact.kind !== 'assignment-acknowledged'),
+    })),
+  };
+  assert.deepEqual(runtime.restoreScriptedSessionController(impossible).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_SESSION_SNAPSHOT',
   });
 });
 
