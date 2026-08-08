@@ -2112,6 +2112,20 @@ export function classifyLiveness(
     )
   )
     return fail('FC-TRUST', 'LIVENESS_OBSERVATION_NOT_COMMITTED');
+  if (input.humanInputOverdue !== undefined) {
+    const basis = input.humanInputOverdue;
+    const basisSnapshot = basis.snapshot;
+    const basisHead = replayed.value.facts[basisSnapshot.position];
+    const classifiedExhaustion = replayed.value.facts[basis.exhaustionFact.position];
+    if (
+      basisSnapshot.position > replayed.value.position ||
+      basisSnapshot.digest !== basisHead?.contentDigest ||
+      classifiedExhaustion?.contentDigest !== basis.exhaustionFact.contentDigest ||
+      classifiedExhaustion.factDigest !== basis.exhaustionFact.factDigest ||
+      basisSnapshot.facts.some((fact, position) => replayed.value.facts[position]?.contentDigest !== fact.contentDigest)
+    )
+      return fail('FC-TRUST', 'HUMAN_INPUT_BASIS_CHAIN_MISMATCH');
+  }
   const committedObservations = replayed.value.facts
     .filter(
       (fact) =>

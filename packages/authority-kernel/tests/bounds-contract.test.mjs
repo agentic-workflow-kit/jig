@@ -538,6 +538,29 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     humanInputOverdue: overdueBasis.value,
   });
   assert.equal(overdue.value.classification, 'human-input-overdue');
+  const divergentJournal = bounds.createBoundJournal();
+  const divergentIdle = start(divergentJournal, 'qualifying-progress-idle').value;
+  const divergentSilence = start(divergentJournal, 'session-silence', 0, 'd').value;
+  assert.equal(start(divergentJournal, 'capacity-admission', 0, 'c').ok, true);
+  const divergentOwner = start(divergentJournal, 'owner-provider-answer', 0, 'f').value;
+  const divergentExhaustion = divergentJournal.evaluate({
+    surface: 'owner-provider-answer',
+    generation,
+    subject,
+    clock: clock(divergentOwner.deadlineAt, '1'),
+  });
+  assert.equal(divergentExhaustion.value.status, 'exhausted');
+  const divergentOverdue = bounds.classifyLiveness({
+    subject,
+    generation,
+    at: owner.deadlineAt,
+    snapshot: divergentJournal.snapshot(),
+    idle: divergentIdle,
+    silence: divergentSilence,
+    observations: [],
+    humanInputOverdue: overdueBasis.value,
+  });
+  assert.equal(divergentOverdue.error.code, 'HUMAN_INPUT_BASIS_CHAIN_MISMATCH');
   const forgedOverdue = bounds.classifyLiveness({
     subject,
     generation,
