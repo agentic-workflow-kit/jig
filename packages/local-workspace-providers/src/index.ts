@@ -743,12 +743,35 @@ function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission
       'predecessor',
       'retryLimit',
     ]);
+  const basis =
+    raw &&
+    exactObject(raw.basis, [
+      'capability',
+      'environment',
+      'manifestDigest',
+      'manifestId',
+      'policyMinimum',
+      'providerBuild',
+      'providerIdentity',
+      'scope',
+    ]);
+  const basisScope = basis && exactObject(basis.scope, ['phase', 'purpose', 'story']);
   if (
     raw?.kind !== 'gf022-provider-admission' ||
     raw.story !== 'GF-022' ||
     raw.principal !== 'principal/arye' ||
     raw.manifestId !== LOCAL_GIT_WORKTREE_MANIFEST_ID ||
     raw.manifestDigest !== LOCAL_GIT_WORKTREE_MANIFEST_DIGEST ||
+    basis?.providerIdentity !== LOCAL_GIT_WORKTREE_PROVIDER ||
+    basis?.providerBuild !== LOCAL_GIT_WORKTREE_BUILD_DIGEST ||
+    basis?.environment !== 'local-posix-git/v1' ||
+    basis?.capability !== 'PORT-WORKSPACE/local-git-worktree' ||
+    basis?.policyMinimum !== 'policy/local-posix-git-worktree/v1' ||
+    basis?.manifestId !== LOCAL_GIT_WORKTREE_MANIFEST_ID ||
+    basis?.manifestDigest !== LOCAL_GIT_WORKTREE_MANIFEST_DIGEST ||
+    basisScope?.phase !== 3 ||
+    basisScope?.purpose !== 'qualified-local-git-worktree' ||
+    basisScope?.story !== 'GF-039' ||
     !DIGEST.test(String(raw.proofDigest)) ||
     raw.proofDigest !== proof?.digest ||
     !isScriptedLedger(raw.ledger) ||

@@ -24,7 +24,7 @@ const candidate = {
 };
 
 const localManifest = JSON.parse(new TextDecoder().decode(provider.LOCAL_GIT_WORKTREE_MANIFEST));
-const admission = (providerBuild = 'build/local-git-worktree-qualification') => {
+const admission = ({ startObservedAt = 1000, proofObservedAt = 1100, observedAt = 1200 } = {}) => {
   const ledger = runtime.createScriptedLedger();
   const approval = {
     principal: 'principal/arye',
@@ -34,7 +34,7 @@ const admission = (providerBuild = 'build/local-git-worktree-qualification') => 
   };
   const basis = {
     providerIdentity: localManifest.providerIdentity,
-    providerBuild,
+    providerBuild: provider.LOCAL_GIT_WORKTREE_BUILD_DIGEST,
     environment: localManifest.runtimeAuthority.environment,
     capability: 'PORT-WORKSPACE/local-git-worktree',
     policyMinimum: 'policy/local-posix-git-worktree/v1',
@@ -51,7 +51,7 @@ const admission = (providerBuild = 'build/local-git-worktree-qualification') => 
     basis,
     ordinal: 1,
     deadline: 2_000,
-    observedAt: 1_000,
+    observedAt: startObservedAt,
     retryLimit: 2,
     predecessor: null,
   });
@@ -60,7 +60,7 @@ const admission = (providerBuild = 'build/local-git-worktree-qualification') => 
     basis,
     ordinal: 1,
     deadline: 2_000,
-    observedAt: 1_100,
+    observedAt: proofObservedAt,
     retryLimit: 2,
     predecessor: start.value.digest,
     outcome: 'positive',
@@ -77,7 +77,7 @@ const admission = (providerBuild = 'build/local-git-worktree-qualification') => 
     approval,
     basis,
     proof: proof.value,
-    observedAt: 1_200,
+    observedAt,
     maxAgeMs: 86_400_000,
   };
 };
@@ -141,7 +141,7 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
   );
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
-      admission: admission('build/local-git-worktree-qualification-replay'),
+      admission: admission({ startObservedAt: 1001, proofObservedAt: 1101, observedAt: 1201 }),
       evidence: probe.value.evidence,
       environment,
     }),
