@@ -19,23 +19,24 @@ const clock = (at, _character = 'b', clockGeneration = generation) => {
   };
   return { ...body, digest: bounds.witnessedClockDigest(body) };
 };
-const livenessObservation = (
-  at,
-  kind,
-  factDigest,
-  factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE',
-) => ({
-  schema: bounds.BOUNDS_VERSION,
-  event: 'EV-LIVENESS-OBSERVED',
-  subject,
-  generation,
-  at,
-  source: 'mechanism',
-  durable: true,
-  kind,
-  factKind,
-  factDigest,
-});
+const livenessObservation = (at, kind, factDigest, factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE') => {
+  const body = {
+    schema: bounds.BOUNDS_VERSION,
+    event: 'EV-LIVENESS-OBSERVED',
+    subject,
+    generation,
+    at,
+    source: 'mechanism',
+    durable: true,
+    committed: true,
+    observer: 'CP-MEDIATOR',
+    position: at,
+    kind,
+    factKind,
+    factDigest,
+  };
+  return { ...body, commitDigest: bounds.livenessObservationDigest(body) };
+};
 const policy = () => bounds.defaultBoundPolicy();
 const start = (journal, surface, at = 0, character = '0') =>
   journal.start({
@@ -143,6 +144,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
     });
   assert.equal(startFor(operationOne, '1').ok, true);
   assert.equal(startFor(operationTwo, '2').ok, true);
+  assert.equal(startFor(operationOne, '1').ok, true);
   const first = journal.consume({
     surface: 'operation-source-retry',
     generation,
@@ -161,6 +163,17 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
   });
   assert.equal(first.value.consumed, 1);
   assert.equal(second.value.consumed, 1);
+  const crossKind = journal.wake({
+    surface: 'operation-source-retry',
+    generation,
+    subject: operationOne,
+    at: 0,
+    clock: clock(0, '3'),
+    conditionDigest: d('5'),
+    selector: 'EV-WAKE-TIMER',
+    factDigest: d('3'),
+  });
+  assert.equal(crossKind.error.code, 'DUPLICATE_FACT_DIGEST');
   assert.equal(journal.snapshot().facts.filter((fact) => fact.kind === 'start').length, 2);
 });
 
@@ -405,6 +418,7 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
       generation,
       subject,
       at: index,
+      clock: clock(index, (index + 1).toString(16)),
       conditionDigest: d((index + 1).toString(16)),
       selector,
       factDigest: d((index + 10).toString(16)),
@@ -420,6 +434,7 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
     generation,
     subject,
     at: 2,
+    clock: clock(2, '3'),
     conditionDigest: d('3'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('c'),
@@ -436,6 +451,7 @@ test('CF-BOUNDS: missed durable deadline chooses the fixed surface disposition; 
     generation,
     subject,
     at: 1,
+    clock: clock(1, 'd'),
     conditionDigest: d('d'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('d'),
@@ -509,6 +525,7 @@ test('CF-BOUNDS: replay reconstructs the same bound epoch and disposition under 
       generation,
       subject,
       at: 1,
+      clock: clock(1, 'd'),
       conditionDigest: d('d'),
       selector: 'EV-WAKE-SETTLEMENT',
       factDigest: d('d'),
