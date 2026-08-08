@@ -455,6 +455,35 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     observations: [],
   });
   assert.equal(dead.value.classification, 'dead');
+  const terminationJournal = bounds.createBoundJournal();
+  const terminationIdle = start(terminationJournal, 'qualifying-progress-idle').value;
+  const terminationSilence = start(terminationJournal, 'session-silence', 0, 'd').value;
+  const terminationObservation = livenessObservation(
+    terminationJournal,
+    'session-silence',
+    10,
+    'terminated',
+    d('e'),
+    'termination',
+  );
+  const terminationFact = terminationJournal.observe({
+    surface: 'session-silence',
+    generation,
+    subject,
+    observation: terminationObservation,
+    clock: clock(10, 'e'),
+  });
+  assert.equal(terminationFact.ok, true);
+  const terminated = bounds.classifyLiveness({
+    subject,
+    generation,
+    at: 10,
+    snapshot: terminationJournal.snapshot(),
+    idle: terminationIdle,
+    silence: terminationSilence,
+    observations: [terminationObservation],
+  });
+  assert.equal(terminated.value.classification, 'dead');
   const owner = start(journal, 'owner-provider-answer', 0, 'f').value;
   const exhaustedOwner = journal.evaluate({
     surface: 'owner-provider-answer',

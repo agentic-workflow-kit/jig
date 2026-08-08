@@ -333,6 +333,7 @@ type BoundFactKind =
   | 'wake'
   | 'progress'
   | 'heartbeat'
+  | 'termination'
   | 'consume'
   | 'complete'
   | 'exhausted';
@@ -1523,7 +1524,7 @@ export function createBoundJournal(): BoundJournal {
             : 'none';
       if (prior) {
         if (
-          prior.kind === expectedKind &&
+          prior.kind === observation.kind &&
           prior.record.surface === input.surface &&
           equalClock(prior.clock, input.clock) &&
           equalSubject(prior.record.subject, input.subject)
@@ -1537,7 +1538,24 @@ export function createBoundJournal(): BoundJournal {
       )
         return fail('FC-TRUST', 'LIVENESS_COMMIT_HEAD_MISMATCH');
       if (record.value.status !== 'active') return fail('FC-BOUND', 'BOUND_ALREADY_TERMINAL');
-      if (expectedKind !== observation.kind) return fail('FC-LIVENESS', 'RESET_NOT_CATALOGUED');
+      if (observation.kind !== 'terminated' && expectedKind !== observation.kind)
+        return fail('FC-LIVENESS', 'RESET_NOT_CATALOGUED');
+      if (observation.kind === 'terminated') {
+        const next = makeFact(
+          'termination',
+          record.value,
+          observation.factDigest,
+          'EV-LIVENESS-OBSERVED',
+          facts.length,
+          facts.at(-1)?.contentDigest ?? GENESIS,
+          input.clock,
+          null,
+          observation,
+        );
+        if (!next.ok) return next;
+        append(next.value);
+        return ok(record.value);
+      }
       if (record.value.unit === 'seconds' && observation.at >= record.value.deadlineAt)
         return fail('FC-LIVENESS', 'BOUND_DEADLINE_MISSED');
       const nextRecord = frozen({
@@ -1750,9 +1768,18 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
     if (fact.surface !== fact.record.surface || fact.generation !== fact.record.generation)
       return fail('FC-TRUST', 'BOUND_REPLAY_RECORD_BINDING_INVALID');
     if (
-      !['start', 'profile', 'source', 'wake', 'progress', 'heartbeat', 'consume', 'complete', 'exhausted'].includes(
-        fact.kind as string,
-      )
+      ![
+        'start',
+        'profile',
+        'source',
+        'wake',
+        'progress',
+        'heartbeat',
+        'termination',
+        'consume',
+        'complete',
+        'exhausted',
+      ].includes(fact.kind as string)
     )
       return fail('FC-TRUST', 'BOUND_REPLAY_CHAIN_INVALID');
     const typedFact = fact as BoundLedgerFact;
@@ -1789,7 +1816,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
           typedFact.wake.timerOnly !== (typedFact.event === 'EV-WAKE-TIMER'))) ||
       (typedFact.kind !== 'wake' && typedFact.wake !== null) ||
       (typedFact.kind === 'wake' && typedFact.event === null) ||
-      ((typedFact.kind === 'progress' || typedFact.kind === 'heartbeat') &&
+      ((typedFact.kind === 'progress' || typedFact.kind === 'heartbeat' || typedFact.kind === 'termination') &&
         typedFact.event !== 'EV-LIVENESS-OBSERVED') ||
       (typedFact.kind === 'source' &&
         (typedFact.event === null ||
@@ -1811,7 +1838,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
     )
       return fail('FC-TRUST', 'BOUND_REPLAY_EVENT_INVALID');
     if (
-      (typedFact.kind === 'progress' || typedFact.kind === 'heartbeat') &&
+      (typedFact.kind === 'progress' || typedFact.kind === 'heartbeat' || typedFact.kind === 'termination') &&
       (!validLivenessObservation(typedFact.observation) ||
         typedFact.observation.factDigest !== typedFact.factDigest ||
         typedFact.observation.position !== typedFact.position ||
@@ -1821,7 +1848,12 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
         !equalSubject(typedFact.observation.subject, typedFact.record.subject))
     )
       return fail('FC-TRUST', 'BOUND_REPLAY_LIVENESS_INVALID');
-    if (typedFact.kind !== 'progress' && typedFact.kind !== 'heartbeat' && typedFact.observation !== null)
+    if (
+      typedFact.kind !== 'progress' &&
+      typedFact.kind !== 'heartbeat' &&
+      typedFact.kind !== 'termination' &&
+      typedFact.observation !== null
+    )
       return fail('FC-TRUST', 'BOUND_REPLAY_LIVENESS_INVALID');
     if (typedFact.kind === 'source' && typedFact.source === null)
       return fail('FC-TRUST', 'BOUND_REPLAY_SOURCE_INVALID');
@@ -2064,7 +2096,7 @@ export function classifyLiveness(
       (observation) =>
         !replayed.value.facts.some(
           (fact) =>
-            (fact.kind === 'progress' || fact.kind === 'heartbeat') &&
+            (fact.kind === 'progress' || fact.kind === 'heartbeat' || fact.kind === 'termination') &&
             fact.observation !== null &&
             fact.observation.commitDigest === observation.commitDigest &&
             fact.observation.factDigest === observation.factDigest &&
