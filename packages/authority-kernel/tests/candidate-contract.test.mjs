@@ -14,8 +14,12 @@ const session = `${story}/session/implementer/1`;
 const tx = (n) => `${run}/txn/${n}/${generation}|${basis}`;
 const op = (n, ordinal = 1) => `${tx(n)}/op/${ordinal}`;
 const proof = (position, n, record = d('p')) => ({
-  kind: 'committed-witnessed', position, event: `${run}/event/${position + 1}`,
-  transaction: tx(n), recordDigest: record, witnessDigest: record,
+  kind: 'committed-witnessed',
+  position,
+  event: `${run}/event/${position + 1}`,
+  transaction: tx(n),
+  recordDigest: record,
+  witnessDigest: record,
 });
 const paths = [
   { path: 'packages/a.ts', contentDigest: d('b') },
@@ -27,13 +31,34 @@ const graph = [
 ];
 
 const makeObservation = (overrides = {}) => ({
-  schema: kernel.CANDIDATE_EVENT_SCHEMA, event: 'EV-SESSION-RESULT', source: 'session-result', run, story,
-  role: 'implementer', session, principal, sessionOrdinal: 1, assignmentOrdinal: 1,
-  operation: op(1), operationType: 'OPC-SESSION-COLLECT', producerKey: d('d'), runBasisDigest: basis,
-  targetBasisDigest: d('e'), changedPaths: paths, treeDigest: d('f'), workspaceCommit: null,
-  commitMessage: 'candidate implementation', evidenceManifestDigest: d('g'), workspaceFingerprint: d('h'),
-  workspaceFactDigest: d('i'), posture: 'default', generation, authorizingTransition: tx(1),
-  commitProof: proof(0, 1), committed: true, ...overrides,
+  schema: kernel.CANDIDATE_EVENT_SCHEMA,
+  event: 'EV-SESSION-RESULT',
+  source: 'session-result',
+  run,
+  story,
+  role: 'implementer',
+  session,
+  principal,
+  sessionOrdinal: 1,
+  assignmentOrdinal: 1,
+  operation: op(1),
+  operationType: 'OPC-SESSION-COLLECT',
+  producerKey: d('d'),
+  runBasisDigest: basis,
+  targetBasisDigest: d('e'),
+  changedPaths: paths,
+  treeDigest: d('f'),
+  workspaceCommit: null,
+  commitMessage: 'candidate implementation',
+  evidenceManifestDigest: d('g'),
+  workspaceFingerprint: d('h'),
+  workspaceFactDigest: d('i'),
+  posture: 'default',
+  generation,
+  authorizingTransition: tx(1),
+  commitProof: proof(0, 1),
+  committed: true,
+  ...overrides,
 });
 
 const makeController = (options = {}) => {
@@ -53,8 +78,18 @@ const createCandidate = (state, overrides = {}) => {
 };
 
 const makeBound = (consumed = 0, status = 'active') => ({
-  schema: 'jig.rework-bound.v1', bound: 'BND-REWORK', surface: 'review-rework', run, story,
-  generation, policyDigest: d('j'), limit: 2, consumed, status, factDigest: d('k'), committed: true,
+  schema: 'jig.rework-bound.v1',
+  bound: 'BND-REWORK',
+  surface: 'review-rework',
+  run,
+  story,
+  generation,
+  policyDigest: d('j'),
+  limit: 2,
+  consumed,
+  status,
+  factDigest: d('k'),
+  committed: true,
 });
 
 const makeRework = (candidate, overrides = {}) => {
@@ -63,27 +98,75 @@ const makeRework = (candidate, overrides = {}) => {
   const reservationKey = kernel.deriveReworkReservationKey({ story, reworkOrdinal, transition: authorizingTransition });
   const failedBasisDigest = d('l');
   const assignmentBasisDigest = kernel.deriveReworkAssignmentBasisDigest({
-    story, role: 'implementer', reworkOrdinal, priorCandidate: candidate.id, failedBasisDigest,
-    generation, posture: 'default', transition: authorizingTransition,
+    story,
+    role: 'implementer',
+    reworkOrdinal,
+    priorCandidate: candidate.id,
+    failedBasisDigest,
+    generation,
+    posture: 'default',
+    transition: authorizingTransition,
   });
   return {
-    controller: kernel.CANDIDATE_CONTROLLER, story, role: 'implementer', priorCandidate: candidate.id,
-    failedBasisDigest, generation, posture: 'default', authorizingTransition, bound: makeBound(),
+    controller: kernel.CANDIDATE_CONTROLLER,
+    story,
+    role: 'implementer',
+    priorCandidate: candidate.id,
+    failedBasisDigest,
+    generation,
+    posture: 'default',
+    authorizingTransition,
+    bound: makeBound(),
     reservation: {
-      schema: kernel.RESERVATION_SCHEMA, scheduler: kernel.SCHEDULER_VERSION, variant: 'reserve', run, story,
-      resource: 'RC-IMPL-TURN', amount: 1, generation, authorizingTransition, reservationKey, policyDigest: d('m'),
-      position: 1, previousDigest: d('n'), contentDigest: d('o'), commitProof: proof(1, 2, d('o')), committed: true,
+      schema: kernel.RESERVATION_SCHEMA,
+      scheduler: kernel.SCHEDULER_VERSION,
+      variant: 'reserve',
+      run,
+      story,
+      resource: 'RC-IMPL-TURN',
+      amount: 1,
+      generation,
+      authorizingTransition,
+      reservationKey,
+      policyDigest: d('m'),
+      position: 1,
+      previousDigest: d('n'),
+      contentDigest: d('o'),
+      commitProof: proof(1, 2, d('o')),
+      committed: true,
     },
     priorFence: {
-      schema: 'jig.assignment-fence.v1', run, story, role: 'implementer', session: candidate.session,
-      assignmentOrdinal: candidate.assignmentOrdinal, generation, status: 'fenced', fenceDigest: d('q'), reason: 'rework',
-      authorizingTransition, commitProof: proof(1, 2, d('q')), committed: true,
+      schema: 'jig.assignment-fence.v1',
+      run,
+      story,
+      role: 'implementer',
+      session: candidate.session,
+      assignmentOrdinal: candidate.assignmentOrdinal,
+      generation,
+      status: 'fenced',
+      fenceDigest: d('q'),
+      reason: 'rework',
+      authorizingTransition,
+      commitProof: proof(1, 2, d('q')),
+      committed: true,
     },
     freshSession: {
-      schema: 'jig.fresh-session-fact.v1', run, story, role: 'implementer',
-      session: `${story}/session/implementer/2`, sessionOrdinal: 2, assignmentOrdinal: 2, principal,
-      assignmentBasisDigest, generation, posture: 'default', state: 'active', predecessor: candidate.session,
-      authorizingTransition, commitProof: proof(1, 2, d('r')), committed: true,
+      schema: 'jig.fresh-session-fact.v1',
+      run,
+      story,
+      role: 'implementer',
+      session: `${story}/session/implementer/2`,
+      sessionOrdinal: 2,
+      assignmentOrdinal: 2,
+      principal,
+      assignmentBasisDigest,
+      generation,
+      posture: 'default',
+      state: 'active',
+      predecessor: candidate.session,
+      authorizingTransition,
+      commitProof: proof(1, 2, d('r')),
+      committed: true,
     },
     ...overrides,
   };
@@ -110,20 +193,41 @@ test('CF-BINDING: exact content/tree/basis/evidence/workspace/session/posture/ge
 
 test('controller-only minting, stale basis, hostile input, and duplicate creation keys fail closed', () => {
   const state = makeController();
-  assert.deepEqual(state.controller.createCandidate({ controller: 'P-IMPLEMENTER', observation: makeObservation() }).error, {
-    family: 'FC-AUTHORITY', code: 'CANDIDATE_CONTROLLER_REQUIRED',
-  });
+  assert.deepEqual(
+    state.controller.createCandidate({ controller: 'P-IMPLEMENTER', observation: makeObservation() }).error,
+    {
+      family: 'FC-AUTHORITY',
+      code: 'CANDIDATE_CONTROLLER_REQUIRED',
+    },
+  );
   const candidate = createCandidate(state);
-  const replay = state.controller.createCandidate({ controller: kernel.CANDIDATE_CONTROLLER, observation: makeObservation() });
+  const replay = state.controller.createCandidate({
+    controller: kernel.CANDIDATE_CONTROLLER,
+    observation: makeObservation(),
+  });
   assert.equal(replay.ok, true);
   assert.equal(replay.value.id, candidate.id);
   assert.equal(state.controller.candidates().length, 1);
-  assert.deepEqual(state.controller.createCandidate({ controller: kernel.CANDIDATE_CONTROLLER, observation: makeObservation({ runBasisDigest: d('z') }) }).error, {
-    family: 'FC-FENCE', code: 'STALE_CANDIDATE_BASIS',
-  });
-  assert.deepEqual(state.controller.createCandidate({ controller: kernel.CANDIDATE_CONTROLLER, observation: makeObservation({ commitMessage: 'password=not-allowed' }) }).error, {
-    family: 'FC-INPUT', code: 'INVALID_CANDIDATE_OBSERVATION',
-  });
+  assert.deepEqual(
+    state.controller.createCandidate({
+      controller: kernel.CANDIDATE_CONTROLLER,
+      observation: makeObservation({ runBasisDigest: d('z') }),
+    }).error,
+    {
+      family: 'FC-FENCE',
+      code: 'STALE_CANDIDATE_BASIS',
+    },
+  );
+  assert.deepEqual(
+    state.controller.createCandidate({
+      controller: kernel.CANDIDATE_CONTROLLER,
+      observation: makeObservation({ commitMessage: 'password=not-allowed' }),
+    }).error,
+    {
+      family: 'FC-INPUT',
+      code: 'INVALID_CANDIDATE_OBSERVATION',
+    },
+  );
 });
 
 test('CF-RUN-CONTROL: rework commits one ordinal with capacity, prior fence, and fresh logical session', () => {
@@ -145,10 +249,16 @@ test('CF-RUN-CONTROL: rework commits one ordinal with capacity, prior fence, and
 test('reconnect is not rework: active/stale prior assignments, capacity waits, and same-session reuse fail closed', () => {
   const state = makeController();
   const candidate = createCandidate(state);
-  const active = makeRework(candidate, { priorFence: { ...makeRework(candidate).priorFence, status: 'terminal', session: `${story}/session/implementer/9` } });
-  assert.deepEqual(state.controller.admitRework(active).error, { family: 'FC-FENCE', code: 'PRIOR_ASSIGNMENT_MISMATCH' });
+  const active = makeRework(candidate, {
+    priorFence: { ...makeRework(candidate).priorFence, status: 'terminal', session: `${story}/session/implementer/9` },
+  });
+  assert.deepEqual(state.controller.admitRework(active).error, {
+    family: 'FC-FENCE',
+    code: 'PRIOR_ASSIGNMENT_MISMATCH',
+  });
   assert.deepEqual(state.controller.admitRework(makeRework(candidate, { reservation: null })).error, {
-    family: 'FC-CAPACITY', code: 'REWORK_CAPACITY_RESERVATION_REQUIRED',
+    family: 'FC-CAPACITY',
+    code: 'REWORK_CAPACITY_RESERVATION_REQUIRED',
   });
   const same = makeRework(candidate);
   same.freshSession = { ...same.freshSession, session: candidate.session, sessionOrdinal: 1 };
@@ -159,7 +269,8 @@ test('BND-REWORK exhaustion blocks the story, derives dependent NotRun, and pres
   const state = makeController();
   const candidate = createCandidate(state);
   assert.deepEqual(state.controller.admitRework(makeRework(candidate, { bound: makeBound(2, 'exhausted') })).error, {
-    family: 'FC-BOUND', code: 'REWORK_EXHAUSTED',
+    family: 'FC-BOUND',
+    code: 'REWORK_EXHAUSTED',
   });
   assert.equal(state.controller.candidate(candidate.id).ok, true);
   assert.equal(state.controller.stories().find((entry) => entry.story === story)?.state, 'Blocked');
@@ -170,7 +281,10 @@ test('crash/replay recovery is conservative: witnessed ACK loss resolves once, u
   const witnessed = makeController({ ledgerOptions: { fault: 'after-witness' } });
   assert.equal(createCandidate(witnessed).id, witnessed.controller.candidates()[0].id);
   const flushed = makeController({ ledgerOptions: { fault: 'after-flush' } });
-  const uncertain = flushed.controller.createCandidate({ controller: kernel.CANDIDATE_CONTROLLER, observation: makeObservation() });
+  const uncertain = flushed.controller.createCandidate({
+    controller: kernel.CANDIDATE_CONTROLLER,
+    observation: makeObservation(),
+  });
   assert.deepEqual(uncertain.error, { family: 'FC-TRUST', code: 'WITNESS_MISMATCH' });
   assert.equal(flushed.controller.candidates().length, 0);
 
@@ -189,7 +303,10 @@ test('workspace refresh uses the same immutable carrier without acceptance or la
   const result = state.controller.createCandidate({
     controller: kernel.CANDIDATE_CONTROLLER,
     observation: makeObservation({
-      event: 'EV-WORKSPACE-FACT', source: 'workspace-refresh', operation: op(1, 2), operationType: 'OPC-WS-OBSERVE',
+      event: 'EV-WORKSPACE-FACT',
+      source: 'workspace-refresh',
+      operation: op(1, 2),
+      operationType: 'OPC-WS-OBSERVE',
     }),
   });
   assert.equal(result.ok, true, JSON.stringify(result));

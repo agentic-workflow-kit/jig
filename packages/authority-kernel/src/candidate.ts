@@ -21,9 +21,7 @@ export type CandidateFailureFamily =
   | 'FC-AUTHORITY'
   | 'FC-TRUST';
 export type CandidateFailure = Readonly<{ family: CandidateFailureFamily; code: string }>;
-export type CandidateResult<T> =
-  | Readonly<{ ok: true; value: T }>
-  | Readonly<{ ok: false; error: CandidateFailure }>;
+export type CandidateResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: CandidateFailure }>;
 
 export type ChangedPath = Readonly<{ path: string; contentDigest: string }>;
 export type DeliveryMetadata = Readonly<{
@@ -228,7 +226,9 @@ export type CandidateLedgerSnapshot = Readonly<{
 
 export type CandidateLedger = Readonly<{
   snapshot(): CandidateResult<CandidateLedgerSnapshot>;
-  append(input: Readonly<{ expectedPosition: number; expectedDigest: string; record: LedgerRecord }>): CandidateResult<LedgerRecord>;
+  append(
+    input: Readonly<{ expectedPosition: number; expectedDigest: string; record: LedgerRecord }>,
+  ): CandidateResult<LedgerRecord>;
   readCandidate(input: Readonly<{ candidateCreationKey: string }>): CandidateResult<CandidateRecord | null>;
   readRework(input: Readonly<{ story: string; reworkOrdinal: number }>): CandidateResult<ReworkRecord | null>;
 }>;
@@ -265,7 +265,12 @@ function deepFreeze<T>(value: T): T {
 
 function ownFields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
   try {
-    if (value === null || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype)
+    if (
+      value === null ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
       return undefined;
     const descriptors = Object.getOwnPropertyDescriptors(value);
     if (Object.keys(descriptors).sort().join(',') !== [...names].sort().join(',')) return undefined;
@@ -302,7 +307,13 @@ function digest(value: unknown): value is string {
 }
 
 function text(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && value.length <= 2048 && value.normalize('NFC') === value && !SECRET.test(value);
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 2048 &&
+    value.normalize('NFC') === value &&
+    !SECRET.test(value)
+  );
 }
 
 function keyText(value: unknown): value is string {
@@ -337,7 +348,9 @@ function validIdentity(kind: Parameters<typeof parseIdentity>[0], value: unknown
 }
 
 function validPath(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && value.length <= 1024 && PATH.test(value) && !SECRET.test(value);
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= 1024 && PATH.test(value) && !SECRET.test(value)
+  );
 }
 
 function parsePaths(value: unknown): readonly ChangedPath[] | undefined {
@@ -350,7 +363,9 @@ function parsePaths(value: unknown): readonly ChangedPath[] | undefined {
     paths.push({ path: fields.path, contentDigest: fields.contentDigest } as ChangedPath);
   }
   const sorted = [...paths].sort((left, right) => left.path.localeCompare(right.path));
-  return sorted.length === paths.length && sorted.every((entry, index) => exactEqual(entry, paths[index])) && new Set(paths.map((entry) => entry.path)).size === paths.length
+  return sorted.length === paths.length &&
+    sorted.every((entry, index) => exactEqual(entry, paths[index])) &&
+    new Set(paths.map((entry) => entry.path)).size === paths.length
     ? Object.freeze(paths)
     : undefined;
 }
@@ -358,8 +373,7 @@ function parsePaths(value: unknown): readonly ChangedPath[] | undefined {
 function parseProof(value: unknown, run: string, operation: string, transition: string): CommitProof | undefined {
   const raw = ownFields(value, ['kind', 'position', 'event', 'transaction', 'recordDigest', 'witnessDigest']);
   if (
-    !raw ||
-    raw.kind !== 'committed-witnessed' ||
+    raw?.kind !== 'committed-witnessed' ||
     !position(raw.position) ||
     !validIdentity('ID-EVENT', raw.event) ||
     !validIdentity('ID-TXN', raw.transaction) ||
@@ -373,12 +387,9 @@ function parseProof(value: unknown, run: string, operation: string, transition: 
   return raw as unknown as CommitProof;
 }
 
-function digestWithout(domain: string, value: Record<string, unknown>, field: string): string | undefined {
-  const copy = { ...value, [field]: '' };
-  return hash(domain, copy);
-}
-
-function candidateContentDigest(input: Readonly<Pick<CandidateObservation, 'targetBasisDigest' | 'changedPaths' | 'treeDigest' | 'workspaceCommit'>>): string | undefined {
+function candidateContentDigest(
+  input: Readonly<Pick<CandidateObservation, 'targetBasisDigest' | 'changedPaths' | 'treeDigest' | 'workspaceCommit'>>,
+): string | undefined {
   return hash('CANDIDATE-CONTENT', {
     targetBasisDigest: input.targetBasisDigest,
     changedPaths: input.changedPaths,
@@ -391,51 +402,105 @@ function deliveryMetadataDigest(input: DeliveryMetadata): string | undefined {
   return hash('CANDIDATE-DELIVERY-METADATA', input);
 }
 
-function creationKey(input: Readonly<{ source: CandidateSource; story: string; session: string; producerKey: string; candidateContentDigest: string }>): string | undefined {
+function creationKey(
+  input: Readonly<{
+    source: CandidateSource;
+    story: string;
+    session: string;
+    producerKey: string;
+    candidateContentDigest: string;
+  }>,
+): string | undefined {
   return hash('CANDIDATE-CREATION-KEY', input);
 }
 
 function parseObservation(value: unknown): CandidateResult<CandidateObservation> {
   const raw = ownFields(value, [
-    'schema', 'event', 'source', 'run', 'story', 'role', 'session', 'principal', 'sessionOrdinal', 'assignmentOrdinal',
-    'operation', 'operationType', 'producerKey', 'runBasisDigest', 'targetBasisDigest', 'changedPaths', 'treeDigest',
-    'workspaceCommit', 'commitMessage', 'evidenceManifestDigest', 'workspaceFingerprint', 'workspaceFactDigest', 'posture',
-    'generation', 'authorizingTransition', 'commitProof', 'committed',
+    'schema',
+    'event',
+    'source',
+    'run',
+    'story',
+    'role',
+    'session',
+    'principal',
+    'sessionOrdinal',
+    'assignmentOrdinal',
+    'operation',
+    'operationType',
+    'producerKey',
+    'runBasisDigest',
+    'targetBasisDigest',
+    'changedPaths',
+    'treeDigest',
+    'workspaceCommit',
+    'commitMessage',
+    'evidenceManifestDigest',
+    'workspaceFingerprint',
+    'workspaceFactDigest',
+    'posture',
+    'generation',
+    'authorizingTransition',
+    'commitProof',
+    'committed',
   ]);
   const paths = raw && parsePaths(raw.changedPaths);
-  const proof = raw && raw.run && raw.operation && raw.authorizingTransition
-    ? parseProof(raw.commitProof, raw.run as string, raw.operation as string, raw.authorizingTransition as string)
-    : undefined;
+  const proof =
+    raw?.run && raw.operation && raw.authorizingTransition
+      ? parseProof(raw.commitProof, raw.run as string, raw.operation as string, raw.authorizingTransition as string)
+      : undefined;
   if (
     !raw ||
     raw.schema !== CANDIDATE_EVENT_SCHEMA ||
     !CANDIDATE_SOURCES.includes(raw.source as CandidateSource) ||
     (raw.source === 'session-result' && raw.event !== 'EV-SESSION-RESULT') ||
     (raw.source === 'workspace-refresh' && raw.event !== 'EV-WORKSPACE-FACT') ||
-    typeof raw.run !== 'string' || !validIdentity('ID-RUN', raw.run) ||
-    typeof raw.story !== 'string' || !validIdentity('ID-STORY', raw.story) || !raw.story.startsWith(`${raw.run}/story/`) ||
+    typeof raw.run !== 'string' ||
+    !validIdentity('ID-RUN', raw.run) ||
+    typeof raw.story !== 'string' ||
+    !validIdentity('ID-STORY', raw.story) ||
+    !raw.story.startsWith(`${raw.run}/story/`) ||
     !REWORK_ROLES.includes(raw.role as ReworkRole) ||
-    typeof raw.session !== 'string' || !validIdentity('ID-SESSION', raw.session) || !raw.session.startsWith(`${raw.story}/session/${raw.role}/`) ||
-    typeof raw.principal !== 'string' || !validIdentity('ID-PRINCIPAL', raw.principal) ||
-    !ordinal(raw.sessionOrdinal) || !ordinal(raw.assignmentOrdinal) ||
+    typeof raw.session !== 'string' ||
+    !validIdentity('ID-SESSION', raw.session) ||
+    !raw.session.startsWith(`${raw.story}/session/${raw.role}/`) ||
+    typeof raw.principal !== 'string' ||
+    !validIdentity('ID-PRINCIPAL', raw.principal) ||
+    !ordinal(raw.sessionOrdinal) ||
+    !ordinal(raw.assignmentOrdinal) ||
     !validIdentity('ID-OP', raw.operation) ||
     (raw.source === 'session-result' && raw.operationType !== 'OPC-SESSION-COLLECT') ||
     (raw.source === 'workspace-refresh' && raw.operationType !== 'OPC-WS-OBSERVE') ||
-    !digest(raw.producerKey) || !digest(raw.runBasisDigest) || !digest(raw.targetBasisDigest) || !paths ||
-    !digest(raw.treeDigest) || (raw.workspaceCommit !== null && !COMMIT.test(String(raw.workspaceCommit))) ||
-    (raw.commitMessage !== null && !text(raw.commitMessage)) || !digest(raw.evidenceManifestDigest) ||
-    !digest(raw.workspaceFingerprint) || !digest(raw.workspaceFactDigest) || !keyText(raw.posture) ||
-    typeof raw.generation !== 'string' || !validIdentity('ID-GEN', raw.generation) ||
-    typeof raw.authorizingTransition !== 'string' || !validIdentity('ID-TXN', raw.authorizingTransition) ||
-    !proof || raw.committed !== true || proof.transaction !== raw.authorizingTransition ||
+    !digest(raw.producerKey) ||
+    !digest(raw.runBasisDigest) ||
+    !digest(raw.targetBasisDigest) ||
+    !paths ||
+    !digest(raw.treeDigest) ||
+    (raw.workspaceCommit !== null && !COMMIT.test(String(raw.workspaceCommit))) ||
+    (raw.commitMessage !== null && !text(raw.commitMessage)) ||
+    !digest(raw.evidenceManifestDigest) ||
+    !digest(raw.workspaceFingerprint) ||
+    !digest(raw.workspaceFactDigest) ||
+    !keyText(raw.posture) ||
+    typeof raw.generation !== 'string' ||
+    !validIdentity('ID-GEN', raw.generation) ||
+    typeof raw.authorizingTransition !== 'string' ||
+    !validIdentity('ID-TXN', raw.authorizingTransition) ||
+    !proof ||
+    raw.committed !== true ||
+    proof.transaction !== raw.authorizingTransition ||
     raw.sessionOrdinal !== Number(raw.session.slice(raw.session.lastIndexOf('/') + 1)) ||
-    raw.assignmentOrdinal < 1 || raw.session.startsWith(`${raw.story}/session/${raw.role}/0`)
+    raw.assignmentOrdinal < 1 ||
+    raw.session.startsWith(`${raw.story}/session/${raw.role}/0`)
   )
     return fail('FC-INPUT', 'INVALID_CANDIDATE_OBSERVATION');
   return ok(raw as unknown as CandidateObservation);
 }
 
-function candidatePayloadFromObservation(observation: CandidateObservation, candidateOrdinal: number): CandidatePayload | undefined {
+function candidatePayloadFromObservation(
+  observation: CandidateObservation,
+  candidateOrdinal: number,
+): CandidatePayload | undefined {
   const contentDigest = candidateContentDigest(observation);
   const deliveryMetadata: DeliveryMetadata = {
     changedPaths: observation.changedPaths,
@@ -492,36 +557,91 @@ function reworkRecordDigest(assignment: Omit<ReworkAssignment, 'commitProof'>): 
 
 function validateCandidatePayload(value: unknown): CandidateResult<CandidatePayload> {
   const raw = ownFields(value, [
-    'schema', 'id', 'run', 'story', 'role', 'session', 'principal', 'assignmentOrdinal', 'source', 'sourceEventKey',
-    'candidateCreationKey', 'runBasisDigest', 'targetBasisDigest', 'changedPaths', 'treeDigest', 'workspaceCommit',
-    'deliveryMetadata', 'deliveryMetadataDigest', 'evidenceManifestDigest', 'workspaceFingerprint', 'workspaceFactDigest',
-    'candidateContentDigest', 'posture', 'generation', 'authorizingTransition',
+    'schema',
+    'id',
+    'run',
+    'story',
+    'role',
+    'session',
+    'principal',
+    'assignmentOrdinal',
+    'source',
+    'sourceEventKey',
+    'candidateCreationKey',
+    'runBasisDigest',
+    'targetBasisDigest',
+    'changedPaths',
+    'treeDigest',
+    'workspaceCommit',
+    'deliveryMetadata',
+    'deliveryMetadataDigest',
+    'evidenceManifestDigest',
+    'workspaceFingerprint',
+    'workspaceFactDigest',
+    'candidateContentDigest',
+    'posture',
+    'generation',
+    'authorizingTransition',
   ]);
   const paths = raw && parsePaths(raw.changedPaths);
-  const metadata = raw && ownFields(raw.deliveryMetadata, ['changedPaths', 'commitMessage', 'workspaceCommit', 'session']);
+  const metadata =
+    raw && ownFields(raw.deliveryMetadata, ['changedPaths', 'commitMessage', 'workspaceCommit', 'session']);
   const metadataPaths = metadata && parsePaths(metadata.changedPaths);
-  const expectedMetadata = metadata && metadataPaths ? deliveryMetadataDigest({
-    changedPaths: metadataPaths,
-    commitMessage: metadata.commitMessage as string | null,
-    workspaceCommit: metadata.workspaceCommit as string | null,
-    session: metadata.session as string,
-  }) : undefined;
+  const expectedMetadata =
+    metadata && metadataPaths
+      ? deliveryMetadataDigest({
+          changedPaths: metadataPaths,
+          commitMessage: metadata.commitMessage as string | null,
+          workspaceCommit: metadata.workspaceCommit as string | null,
+          session: metadata.session as string,
+        })
+      : undefined;
   if (
-    !raw || raw.schema !== CANDIDATE_SCHEMA || typeof raw.id !== 'string' || !validIdentity('ID-CAND', raw.id) ||
-    typeof raw.run !== 'string' || !validIdentity('ID-RUN', raw.run) || typeof raw.story !== 'string' ||
-    !validIdentity('ID-STORY', raw.story) || raw.story !== raw.id.slice(0, raw.id.indexOf('/cand/')) ||
-    !raw.story.startsWith(`${raw.run}/story/`) || !REWORK_ROLES.includes(raw.role as ReworkRole) ||
-    typeof raw.session !== 'string' || !validIdentity('ID-SESSION', raw.session) || !raw.session.startsWith(`${raw.story}/session/${raw.role}/`) ||
-    typeof raw.principal !== 'string' || !validIdentity('ID-PRINCIPAL', raw.principal) || !ordinal(raw.assignmentOrdinal) ||
-    !CANDIDATE_SOURCES.includes(raw.source as CandidateSource) || !digest(raw.sourceEventKey) || !digest(raw.candidateCreationKey) ||
-    !digest(raw.runBasisDigest) || !digest(raw.targetBasisDigest) || !paths || !digest(raw.treeDigest) ||
-    (raw.workspaceCommit !== null && !COMMIT.test(String(raw.workspaceCommit))) || !metadata || !metadataPaths ||
-    (metadata.commitMessage !== null && !text(metadata.commitMessage)) || (metadata.workspaceCommit !== null && !COMMIT.test(String(metadata.workspaceCommit))) ||
-    typeof metadata.session !== 'string' || metadata.session !== raw.session || !exactEqual(metadataPaths, paths) ||
-    metadata.workspaceCommit !== raw.workspaceCommit || !expectedMetadata || raw.deliveryMetadataDigest !== expectedMetadata ||
-    !digest(raw.deliveryMetadataDigest) || !digest(raw.evidenceManifestDigest) || !digest(raw.workspaceFingerprint) || !digest(raw.workspaceFactDigest) ||
-    !digest(raw.candidateContentDigest) || !keyText(raw.posture) || typeof raw.generation !== 'string' || !validIdentity('ID-GEN', raw.generation) ||
-    typeof raw.authorizingTransition !== 'string' || !validIdentity('ID-TXN', raw.authorizingTransition)
+    !raw ||
+    raw.schema !== CANDIDATE_SCHEMA ||
+    typeof raw.id !== 'string' ||
+    !validIdentity('ID-CAND', raw.id) ||
+    typeof raw.run !== 'string' ||
+    !validIdentity('ID-RUN', raw.run) ||
+    typeof raw.story !== 'string' ||
+    !validIdentity('ID-STORY', raw.story) ||
+    raw.story !== raw.id.slice(0, raw.id.indexOf('/cand/')) ||
+    !raw.story.startsWith(`${raw.run}/story/`) ||
+    !REWORK_ROLES.includes(raw.role as ReworkRole) ||
+    typeof raw.session !== 'string' ||
+    !validIdentity('ID-SESSION', raw.session) ||
+    !raw.session.startsWith(`${raw.story}/session/${raw.role}/`) ||
+    typeof raw.principal !== 'string' ||
+    !validIdentity('ID-PRINCIPAL', raw.principal) ||
+    !ordinal(raw.assignmentOrdinal) ||
+    !CANDIDATE_SOURCES.includes(raw.source as CandidateSource) ||
+    !digest(raw.sourceEventKey) ||
+    !digest(raw.candidateCreationKey) ||
+    !digest(raw.runBasisDigest) ||
+    !digest(raw.targetBasisDigest) ||
+    !paths ||
+    !digest(raw.treeDigest) ||
+    (raw.workspaceCommit !== null && !COMMIT.test(String(raw.workspaceCommit))) ||
+    !metadata ||
+    !metadataPaths ||
+    (metadata.commitMessage !== null && !text(metadata.commitMessage)) ||
+    (metadata.workspaceCommit !== null && !COMMIT.test(String(metadata.workspaceCommit))) ||
+    typeof metadata.session !== 'string' ||
+    metadata.session !== raw.session ||
+    !exactEqual(metadataPaths, paths) ||
+    metadata.workspaceCommit !== raw.workspaceCommit ||
+    !expectedMetadata ||
+    raw.deliveryMetadataDigest !== expectedMetadata ||
+    !digest(raw.deliveryMetadataDigest) ||
+    !digest(raw.evidenceManifestDigest) ||
+    !digest(raw.workspaceFingerprint) ||
+    !digest(raw.workspaceFactDigest) ||
+    !digest(raw.candidateContentDigest) ||
+    !keyText(raw.posture) ||
+    typeof raw.generation !== 'string' ||
+    !validIdentity('ID-GEN', raw.generation) ||
+    typeof raw.authorizingTransition !== 'string' ||
+    !validIdentity('ID-TXN', raw.authorizingTransition)
   )
     return fail('FC-INPUT', 'INVALID_CANDIDATE_PAYLOAD');
   const expectedContent = candidateContentDigest({
@@ -533,7 +653,8 @@ function validateCandidatePayload(value: unknown): CandidateResult<CandidatePayl
   if (expectedContent !== raw.candidateContentDigest) return fail('FC-FENCE', 'CANDIDATE_CONTENT_MISMATCH');
   const ordinalMatch = /\/cand\/([1-9][0-9]*)\|/u.exec(raw.id);
   if (!ordinalMatch || !Number.isSafeInteger(Number(ordinalMatch[1]))) return fail('FC-INPUT', 'INVALID_CANDIDATE_ID');
-  if (raw.id !== `${raw.story}/cand/${ordinalMatch[1]}|${raw.candidateContentDigest}`) return fail('FC-FENCE', 'CANDIDATE_ID_CONTENT_MISMATCH');
+  if (raw.id !== `${raw.story}/cand/${ordinalMatch[1]}|${raw.candidateContentDigest}`)
+    return fail('FC-FENCE', 'CANDIDATE_ID_CONTENT_MISMATCH');
   const expectedCreationKey = creationKey({
     source: raw.source as CandidateSource,
     story: raw.story as string,
@@ -541,7 +662,8 @@ function validateCandidatePayload(value: unknown): CandidateResult<CandidatePayl
     producerKey: raw.sourceEventKey as string,
     candidateContentDigest: raw.candidateContentDigest as string,
   });
-  if (!expectedCreationKey || expectedCreationKey !== raw.candidateCreationKey) return fail('FC-FENCE', 'CANDIDATE_CREATION_KEY_MISMATCH');
+  if (!expectedCreationKey || expectedCreationKey !== raw.candidateCreationKey)
+    return fail('FC-FENCE', 'CANDIDATE_CREATION_KEY_MISMATCH');
   return ok(raw as unknown as CandidatePayload);
 }
 
@@ -564,57 +686,183 @@ function validateProofCandidate(record: CandidateRecord, run: string): Candidate
   return ok({ ...payload.value, commitProof: proof });
 }
 
-function validReservation(value: unknown, run: string, story: string, generation: string, transition: string, reservationKey: string): value is CapacityReservationFact {
+function validReservation(
+  value: unknown,
+  run: string,
+  story: string,
+  generation: string,
+  transition: string,
+  reservationKey: string,
+): value is CapacityReservationFact {
   const raw = ownFields(value, [
-    'schema', 'scheduler', 'variant', 'run', 'story', 'resource', 'amount', 'generation', 'authorizingTransition',
-    'reservationKey', 'policyDigest', 'position', 'previousDigest', 'contentDigest', 'commitProof', 'committed',
+    'schema',
+    'scheduler',
+    'variant',
+    'run',
+    'story',
+    'resource',
+    'amount',
+    'generation',
+    'authorizingTransition',
+    'reservationKey',
+    'policyDigest',
+    'position',
+    'previousDigest',
+    'contentDigest',
+    'commitProof',
+    'committed',
   ]);
   const proof = raw && parseProof(raw.commitProof, run, `${transition}/op/1`, transition);
-  return !!raw && raw.schema === 'jig.capacity-reservation.v1' && raw.scheduler === 'jig.scheduler.v1' && raw.variant === 'reserve' &&
-    raw.run === run && raw.story === story && raw.resource === 'RC-IMPL-TURN' && raw.amount === 1 && raw.generation === generation &&
-    raw.authorizingTransition === transition && raw.reservationKey === reservationKey && digest(raw.policyDigest) && position(raw.position) &&
-    digest(raw.previousDigest) && digest(raw.contentDigest) && !!proof && proof.recordDigest === raw.contentDigest && raw.committed === true;
+  return (
+    !!raw &&
+    raw.schema === 'jig.capacity-reservation.v1' &&
+    raw.scheduler === 'jig.scheduler.v1' &&
+    raw.variant === 'reserve' &&
+    raw.run === run &&
+    raw.story === story &&
+    raw.resource === 'RC-IMPL-TURN' &&
+    raw.amount === 1 &&
+    raw.generation === generation &&
+    raw.authorizingTransition === transition &&
+    raw.reservationKey === reservationKey &&
+    digest(raw.policyDigest) &&
+    position(raw.position) &&
+    digest(raw.previousDigest) &&
+    digest(raw.contentDigest) &&
+    !!proof &&
+    proof.recordDigest === raw.contentDigest &&
+    raw.committed === true
+  );
 }
 
 function validBound(value: unknown, run: string, story: string, generation: string): value is ReworkBoundFact {
-  const raw = ownFields(value, ['schema', 'bound', 'surface', 'run', 'story', 'generation', 'policyDigest', 'limit', 'consumed', 'status', 'factDigest', 'committed']);
-  return !!raw && raw.schema === 'jig.rework-bound.v1' && raw.bound === 'BND-REWORK' && raw.surface === 'review-rework' &&
-    raw.run === run && raw.story === story && raw.generation === generation && digest(raw.policyDigest) &&
-    typeof raw.limit === 'number' && Number.isSafeInteger(raw.limit) && raw.limit >= 1 && raw.limit <= 5 &&
-    typeof raw.consumed === 'number' && Number.isSafeInteger(raw.consumed) && raw.consumed >= 0 && raw.consumed <= raw.limit &&
-    (raw.status === 'active' || raw.status === 'exhausted') && digest(raw.factDigest) && raw.committed === true;
+  const raw = ownFields(value, [
+    'schema',
+    'bound',
+    'surface',
+    'run',
+    'story',
+    'generation',
+    'policyDigest',
+    'limit',
+    'consumed',
+    'status',
+    'factDigest',
+    'committed',
+  ]);
+  return (
+    !!raw &&
+    raw.schema === 'jig.rework-bound.v1' &&
+    raw.bound === 'BND-REWORK' &&
+    raw.surface === 'review-rework' &&
+    raw.run === run &&
+    raw.story === story &&
+    raw.generation === generation &&
+    digest(raw.policyDigest) &&
+    typeof raw.limit === 'number' &&
+    Number.isSafeInteger(raw.limit) &&
+    raw.limit >= 1 &&
+    raw.limit <= 5 &&
+    typeof raw.consumed === 'number' &&
+    Number.isSafeInteger(raw.consumed) &&
+    raw.consumed >= 0 &&
+    raw.consumed <= raw.limit &&
+    (raw.status === 'active' || raw.status === 'exhausted') &&
+    digest(raw.factDigest) &&
+    raw.committed === true
+  );
 }
 
 function validPrior(value: unknown, run: string, story: string, transition: string): value is PriorAssignmentFact {
-  const raw = ownFields(value, ['schema', 'run', 'story', 'role', 'session', 'assignmentOrdinal', 'generation', 'status', 'fenceDigest', 'reason', 'authorizingTransition', 'commitProof', 'committed']);
+  const raw = ownFields(value, [
+    'schema',
+    'run',
+    'story',
+    'role',
+    'session',
+    'assignmentOrdinal',
+    'generation',
+    'status',
+    'fenceDigest',
+    'reason',
+    'authorizingTransition',
+    'commitProof',
+    'committed',
+  ]);
   const proof = raw && parseProof(raw.commitProof, run, `${transition}/op/1`, transition);
-  return !!raw && raw.schema === 'jig.assignment-fence.v1' && raw.run === run && raw.story === story && REWORK_ROLES.includes(raw.role as ReworkRole) &&
-    typeof raw.session === 'string' && validIdentity('ID-SESSION', raw.session) && ordinal(raw.assignmentOrdinal) && typeof raw.generation === 'string' &&
-    validIdentity('ID-GEN', raw.generation) && (raw.status === 'terminal' || raw.status === 'reconciled' || raw.status === 'fenced') &&
-    digest(raw.fenceDigest) && (raw.reason === 'rework' || raw.reason === 'recovery') && raw.authorizingTransition === transition && !!proof && proof.recordDigest === raw.fenceDigest && raw.committed === true;
+  return (
+    !!raw &&
+    raw.schema === 'jig.assignment-fence.v1' &&
+    raw.run === run &&
+    raw.story === story &&
+    REWORK_ROLES.includes(raw.role as ReworkRole) &&
+    typeof raw.session === 'string' &&
+    validIdentity('ID-SESSION', raw.session) &&
+    ordinal(raw.assignmentOrdinal) &&
+    typeof raw.generation === 'string' &&
+    validIdentity('ID-GEN', raw.generation) &&
+    (raw.status === 'terminal' || raw.status === 'reconciled' || raw.status === 'fenced') &&
+    digest(raw.fenceDigest) &&
+    (raw.reason === 'rework' || raw.reason === 'recovery') &&
+    raw.authorizingTransition === transition &&
+    !!proof &&
+    proof.recordDigest === raw.fenceDigest &&
+    raw.committed === true
+  );
 }
 
-function validFreshSession(value: unknown, run: string, story: string, role: ReworkRole, assignmentOrdinal: number, sessionOrdinal: number, principal: string, basis: string, generation: string, posture: string, transition: string, predecessor: string): value is FreshSessionFact {
-  const raw = ownFields(value, ['schema', 'run', 'story', 'role', 'session', 'sessionOrdinal', 'assignmentOrdinal', 'principal', 'assignmentBasisDigest', 'generation', 'posture', 'state', 'predecessor', 'authorizingTransition', 'commitProof', 'committed']);
+function validFreshSession(
+  value: unknown,
+  run: string,
+  story: string,
+  role: ReworkRole,
+  assignmentOrdinal: number,
+  sessionOrdinal: number,
+  principal: string,
+  basis: string,
+  generation: string,
+  posture: string,
+  transition: string,
+  predecessor: string,
+): value is FreshSessionFact {
+  const raw = ownFields(value, [
+    'schema',
+    'run',
+    'story',
+    'role',
+    'session',
+    'sessionOrdinal',
+    'assignmentOrdinal',
+    'principal',
+    'assignmentBasisDigest',
+    'generation',
+    'posture',
+    'state',
+    'predecessor',
+    'authorizingTransition',
+    'commitProof',
+    'committed',
+  ]);
   const proof = raw && parseProof(raw.commitProof, run, `${transition}/op/1`, transition);
-  return !!raw && raw.schema === 'jig.fresh-session-fact.v1' && raw.run === run && raw.story === story && raw.role === role &&
-    raw.session === `${story}/session/${role}/${sessionOrdinal}` && raw.sessionOrdinal === sessionOrdinal && raw.assignmentOrdinal === assignmentOrdinal &&
-    raw.principal === principal && raw.assignmentBasisDigest === basis && raw.generation === generation && raw.posture === posture &&
-    (raw.state === 'open' || raw.state === 'bound' || raw.state === 'active') && raw.predecessor === predecessor && raw.authorizingTransition === transition && !!proof && raw.committed === true;
-}
-
-function parseCandidateRecord(value: unknown): CandidateRecord | undefined {
-  const raw = ownFields(value, ['kind', 'position', 'previousDigest', 'candidate', 'contentDigest']);
-  return raw?.kind === 'candidate' && position(raw.position) && digest(raw.previousDigest) && digest(raw.contentDigest) && validateCandidatePayload(raw.candidate).ok
-    ? raw as unknown as CandidateRecord
-    : undefined;
-}
-
-function parseReworkRecord(value: unknown): ReworkRecord | undefined {
-  const raw = ownFields(value, ['kind', 'position', 'previousDigest', 'assignment', 'contentDigest']);
-  return raw?.kind === 'rework' && position(raw.position) && digest(raw.previousDigest) && digest(raw.contentDigest)
-    ? raw as unknown as ReworkRecord
-    : undefined;
+  return (
+    !!raw &&
+    raw.schema === 'jig.fresh-session-fact.v1' &&
+    raw.run === run &&
+    raw.story === story &&
+    raw.role === role &&
+    raw.session === `${story}/session/${role}/${sessionOrdinal}` &&
+    raw.sessionOrdinal === sessionOrdinal &&
+    raw.assignmentOrdinal === assignmentOrdinal &&
+    raw.principal === principal &&
+    raw.assignmentBasisDigest === basis &&
+    raw.generation === generation &&
+    raw.posture === posture &&
+    (raw.state === 'open' || raw.state === 'bound' || raw.state === 'active') &&
+    raw.predecessor === predecessor &&
+    raw.authorizingTransition === transition &&
+    !!proof &&
+    raw.committed === true
+  );
 }
 
 function createLedger(options: Readonly<{ fault?: 'after-witness' | 'after-flush' }> = {}): CandidateLedger {
@@ -623,27 +871,59 @@ function createLedger(options: Readonly<{ fault?: 'after-witness' | 'after-flush
   const trusted = (): CandidateResult<void> => {
     const positionValue = records.length - 1;
     const digestValue = records.at(-1)?.contentDigest ?? GENESIS;
-    return witness.position === positionValue && witness.digest === digestValue ? ok(undefined) : fail('FC-TRUST', 'WITNESS_MISMATCH');
+    return witness.position === positionValue && witness.digest === digestValue
+      ? ok(undefined)
+      : fail('FC-TRUST', 'WITNESS_MISMATCH');
   };
   return {
     snapshot() {
       const trust = trusted();
-      return trust.ok ? ok({ schema: CANDIDATE_CONTRACT_VERSION, position: witness.position, digest: witness.digest, records: [...records] }) : trust;
+      return trust.ok
+        ? ok({
+            schema: CANDIDATE_CONTRACT_VERSION,
+            position: witness.position,
+            digest: witness.digest,
+            records: [...records],
+          })
+        : trust;
     },
     append(input) {
       const trust = trusted();
       if (!trust.ok) return trust;
       const currentPosition = records.length - 1;
       const currentDigest = records.at(-1)?.contentDigest ?? GENESIS;
-      if (input.expectedPosition !== currentPosition || input.expectedDigest !== currentDigest) return fail('FC-FENCE', 'EXPECTED_CANDIDATE_HEAD_MISMATCH');
-      const record = input.record.kind === 'candidate'
-        ? { ...input.record, position: currentPosition + 1, previousDigest: currentDigest, contentDigest: candidateRecordDigest(input.record.candidate) ?? '' }
-        : { ...input.record, position: currentPosition + 1, previousDigest: currentDigest, contentDigest: reworkRecordDigest(input.record.assignment) ?? '' };
+      if (input.expectedPosition !== currentPosition || input.expectedDigest !== currentDigest)
+        return fail('FC-FENCE', 'EXPECTED_CANDIDATE_HEAD_MISMATCH');
+      const record =
+        input.record.kind === 'candidate'
+          ? {
+              ...input.record,
+              position: currentPosition + 1,
+              previousDigest: currentDigest,
+              contentDigest: candidateRecordDigest(input.record.candidate) ?? '',
+            }
+          : {
+              ...input.record,
+              position: currentPosition + 1,
+              previousDigest: currentDigest,
+              contentDigest: reworkRecordDigest(input.record.assignment) ?? '',
+            };
       if (!record.contentDigest) return fail('FC-INPUT', 'CANDIDATE_RECORD_DIGEST');
-      const existing = record.kind === 'candidate'
-        ? records.find((entry): entry is CandidateRecord => entry.kind === 'candidate' && entry.candidate.candidateCreationKey === record.candidate.candidateCreationKey)
-        : records.find((entry): entry is ReworkRecord => entry.kind === 'rework' && entry.assignment.story === record.assignment.story && entry.assignment.reworkOrdinal === record.assignment.reworkOrdinal);
-      if (existing) return exactEqual(existing, record) ? ok(existing) : fail('FC-TRUST', 'DUPLICATE_KEY_DIFFERENT_BYTES');
+      const existing =
+        record.kind === 'candidate'
+          ? records.find(
+              (entry): entry is CandidateRecord =>
+                entry.kind === 'candidate' &&
+                entry.candidate.candidateCreationKey === record.candidate.candidateCreationKey,
+            )
+          : records.find(
+              (entry): entry is ReworkRecord =>
+                entry.kind === 'rework' &&
+                entry.assignment.story === record.assignment.story &&
+                entry.assignment.reworkOrdinal === record.assignment.reworkOrdinal,
+            );
+      if (existing)
+        return exactEqual(existing, record) ? ok(existing) : fail('FC-TRUST', 'DUPLICATE_KEY_DIFFERENT_BYTES');
       records.push(record as LedgerRecord);
       if (options.fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
       witness = { position: record.position, digest: record.contentDigest };
@@ -653,34 +933,52 @@ function createLedger(options: Readonly<{ fault?: 'after-witness' | 'after-flush
     readCandidate(input) {
       const trust = trusted();
       if (!trust.ok) return trust;
-      return ok(records.find((entry): entry is CandidateRecord => entry.kind === 'candidate' && entry.candidate.candidateCreationKey === input.candidateCreationKey) ?? null);
+      return ok(
+        records.find(
+          (entry): entry is CandidateRecord =>
+            entry.kind === 'candidate' && entry.candidate.candidateCreationKey === input.candidateCreationKey,
+        ) ?? null,
+      );
     },
     readRework(input) {
       const trust = trusted();
       if (!trust.ok) return trust;
-      return ok(records.find((entry): entry is ReworkRecord => entry.kind === 'rework' && entry.assignment.story === input.story && entry.assignment.reworkOrdinal === input.reworkOrdinal) ?? null);
+      return ok(
+        records.find(
+          (entry): entry is ReworkRecord =>
+            entry.kind === 'rework' &&
+            entry.assignment.story === input.story &&
+            entry.assignment.reworkOrdinal === input.reworkOrdinal,
+        ) ?? null,
+      );
     },
   };
 }
 
-export function createScriptedCandidateLedger(options: Readonly<{ fault?: 'after-witness' | 'after-flush' }> = {}): CandidateLedger {
+export function createScriptedCandidateLedger(
+  options: Readonly<{ fault?: 'after-witness' | 'after-flush' }> = {},
+): CandidateLedger {
   return createLedger(options);
 }
 
-export function deriveReworkReservationKey(input: Readonly<{ story: string; reworkOrdinal: number; transition: string }>): string {
+export function deriveReworkReservationKey(
+  input: Readonly<{ story: string; reworkOrdinal: number; transition: string }>,
+): string {
   return hash('REWORK-RESERVATION-KEY', input) ?? '';
 }
 
-export function deriveReworkAssignmentBasisDigest(input: Readonly<{
-  story: string;
-  role: ReworkRole;
-  reworkOrdinal: number;
-  priorCandidate: string;
-  failedBasisDigest: string;
-  generation: string;
-  posture: string;
-  transition: string;
-}>): string {
+export function deriveReworkAssignmentBasisDigest(
+  input: Readonly<{
+    story: string;
+    role: ReworkRole;
+    reworkOrdinal: number;
+    priorCandidate: string;
+    failedBasisDigest: string;
+    generation: string;
+    posture: string;
+    transition: string;
+  }>,
+): string {
   return hash('REWORK-ASSIGNMENT-BASIS', input) ?? '';
 }
 
@@ -691,11 +989,30 @@ function validateStoryGraph(value: unknown, run: string): readonly StoryProjecti
   for (const entry of entries) {
     const raw = ownFields(entry, ['story', 'state', 'dependencies', 'directBlocker', 'blocker']);
     const dependencies = raw && array(raw.dependencies);
-    if (!raw || typeof raw.story !== 'string' || !validIdentity('ID-STORY', raw.story) || !raw.story.startsWith(`${run}/story/`) ||
-        !dependencies || !dependencies.every((dependency) => typeof dependency === 'string' && validIdentity('ID-STORY', dependency) && dependency.startsWith(`${run}/story/`)) ||
-        !['Implementing', 'Reviewing', 'Reworking', 'Blocked', 'NotRun'].includes(raw.state as string) || typeof raw.directBlocker !== 'boolean' ||
-        (raw.blocker !== null && typeof raw.blocker !== 'string')) return undefined;
-    stories.push({ story: raw.story, state: raw.state as StoryDisposition, dependencies: dependencies as readonly string[], directBlocker: raw.directBlocker, blocker: raw.blocker as string | null });
+    if (
+      !raw ||
+      typeof raw.story !== 'string' ||
+      !validIdentity('ID-STORY', raw.story) ||
+      !raw.story.startsWith(`${run}/story/`) ||
+      !dependencies ||
+      !dependencies.every(
+        (dependency) =>
+          typeof dependency === 'string' &&
+          validIdentity('ID-STORY', dependency) &&
+          dependency.startsWith(`${run}/story/`),
+      ) ||
+      !['Implementing', 'Reviewing', 'Reworking', 'Blocked', 'NotRun'].includes(raw.state as string) ||
+      typeof raw.directBlocker !== 'boolean' ||
+      (raw.blocker !== null && typeof raw.blocker !== 'string')
+    )
+      return undefined;
+    stories.push({
+      story: raw.story,
+      state: raw.state as StoryDisposition,
+      dependencies: dependencies as readonly string[],
+      directBlocker: raw.directBlocker,
+      blocker: raw.blocker as string | null,
+    });
   }
   return Object.freeze(stories);
 }
@@ -707,24 +1024,62 @@ function candidateFromRecord(record: CandidateRecord, run: string): CandidateRes
 
 function assignmentFromRecord(record: ReworkRecord, run: string): CandidateResult<ReworkAssignment> {
   const raw = ownFields(record.assignment, [
-    'schema', 'run', 'story', 'role', 'reworkOrdinal', 'assignmentOrdinal', 'session', 'sessionOrdinal', 'principal',
-    'priorCandidate', 'priorSession', 'assignmentBasisDigest', 'failedBasisDigest', 'reservationKey', 'reservationDigest',
-    'boundDigest', 'priorFenceDigest', 'generation', 'posture', 'authorizingTransition',
+    'schema',
+    'run',
+    'story',
+    'role',
+    'reworkOrdinal',
+    'assignmentOrdinal',
+    'session',
+    'sessionOrdinal',
+    'principal',
+    'priorCandidate',
+    'priorSession',
+    'assignmentBasisDigest',
+    'failedBasisDigest',
+    'reservationKey',
+    'reservationDigest',
+    'boundDigest',
+    'priorFenceDigest',
+    'generation',
+    'posture',
+    'authorizingTransition',
   ]);
-  if (!raw || raw.schema !== REWORK_ASSIGNMENT_SCHEMA || raw.run !== run || !validIdentity('ID-RUN', raw.run) ||
-      typeof raw.story !== 'string' || !validIdentity('ID-STORY', raw.story) || !raw.story.startsWith(`${run}/story/`) ||
-      raw.role !== 'implementer' || !ordinal(raw.reworkOrdinal) || !ordinal(raw.assignmentOrdinal) ||
-      typeof raw.session !== 'string' || !validIdentity('ID-SESSION', raw.session) ||
-      raw.session !== `${raw.story}/session/${raw.role}/${raw.assignmentOrdinal}` || raw.sessionOrdinal !== raw.assignmentOrdinal ||
-      typeof raw.principal !== 'string' || !validIdentity('ID-PRINCIPAL', raw.principal) ||
-      typeof raw.priorCandidate !== 'string' || !validIdentity('ID-CAND', raw.priorCandidate) ||
-      typeof raw.priorSession !== 'string' || !validIdentity('ID-SESSION', raw.priorSession) ||
-      !digest(raw.assignmentBasisDigest) || !digest(raw.failedBasisDigest) || !digest(raw.reservationKey) ||
-      !digest(raw.reservationDigest) || !digest(raw.boundDigest) || !digest(raw.priorFenceDigest) ||
-      typeof raw.generation !== 'string' || !validIdentity('ID-GEN', raw.generation) || !keyText(raw.posture) ||
-      typeof raw.authorizingTransition !== 'string' || !validIdentity('ID-TXN', raw.authorizingTransition) ||
-      !reworkRecordDigest(raw as unknown as Omit<ReworkAssignment, 'commitProof'>) ||
-      reworkRecordDigest(raw as unknown as Omit<ReworkAssignment, 'commitProof'>) !== record.contentDigest)
+  if (
+    !raw ||
+    raw.schema !== REWORK_ASSIGNMENT_SCHEMA ||
+    raw.run !== run ||
+    !validIdentity('ID-RUN', raw.run) ||
+    typeof raw.story !== 'string' ||
+    !validIdentity('ID-STORY', raw.story) ||
+    !raw.story.startsWith(`${run}/story/`) ||
+    raw.role !== 'implementer' ||
+    !ordinal(raw.reworkOrdinal) ||
+    !ordinal(raw.assignmentOrdinal) ||
+    typeof raw.session !== 'string' ||
+    !validIdentity('ID-SESSION', raw.session) ||
+    raw.session !== `${raw.story}/session/${raw.role}/${raw.assignmentOrdinal}` ||
+    raw.sessionOrdinal !== raw.assignmentOrdinal ||
+    typeof raw.principal !== 'string' ||
+    !validIdentity('ID-PRINCIPAL', raw.principal) ||
+    typeof raw.priorCandidate !== 'string' ||
+    !validIdentity('ID-CAND', raw.priorCandidate) ||
+    typeof raw.priorSession !== 'string' ||
+    !validIdentity('ID-SESSION', raw.priorSession) ||
+    !digest(raw.assignmentBasisDigest) ||
+    !digest(raw.failedBasisDigest) ||
+    !digest(raw.reservationKey) ||
+    !digest(raw.reservationDigest) ||
+    !digest(raw.boundDigest) ||
+    !digest(raw.priorFenceDigest) ||
+    typeof raw.generation !== 'string' ||
+    !validIdentity('ID-GEN', raw.generation) ||
+    !keyText(raw.posture) ||
+    typeof raw.authorizingTransition !== 'string' ||
+    !validIdentity('ID-TXN', raw.authorizingTransition) ||
+    !reworkRecordDigest(raw as unknown as Omit<ReworkAssignment, 'commitProof'>) ||
+    reworkRecordDigest(raw as unknown as Omit<ReworkAssignment, 'commitProof'>) !== record.contentDigest
+  )
     return fail('FC-TRUST', 'INVALID_REWORK_RECORD');
   const proof: CommitProof = {
     kind: 'committed-witnessed',
@@ -737,14 +1092,27 @@ function assignmentFromRecord(record: ReworkRecord, run: string): CandidateResul
   return ok({ ...record.assignment, commitProof: proof });
 }
 
-function validateLedgerSnapshot(snapshot: CandidateLedgerSnapshot, run: string): CandidateResult<CandidateLedgerSnapshot> {
-  if (snapshot.schema !== CANDIDATE_CONTRACT_VERSION || snapshot.position !== snapshot.records.length - 1 ||
-      snapshot.digest !== (snapshot.records.at(-1)?.contentDigest ?? GENESIS)) return fail('FC-TRUST', 'INVALID_CANDIDATE_HEAD');
+function validateLedgerSnapshot(
+  snapshot: CandidateLedgerSnapshot,
+  run: string,
+): CandidateResult<CandidateLedgerSnapshot> {
+  if (
+    snapshot.schema !== CANDIDATE_CONTRACT_VERSION ||
+    snapshot.position !== snapshot.records.length - 1 ||
+    snapshot.digest !== (snapshot.records.at(-1)?.contentDigest ?? GENESIS)
+  )
+    return fail('FC-TRUST', 'INVALID_CANDIDATE_HEAD');
   let previousDigest = GENESIS;
   for (const [index, record] of snapshot.records.entries()) {
-    if (record.position !== index || record.previousDigest !== previousDigest || !position(record.position) || !digest(record.contentDigest))
+    if (
+      record.position !== index ||
+      record.previousDigest !== previousDigest ||
+      !position(record.position) ||
+      !digest(record.contentDigest)
+    )
       return fail('FC-TRUST', 'INVALID_CANDIDATE_CHAIN');
-    const validated = record.kind === 'candidate' ? candidateFromRecord(record, run) : assignmentFromRecord(record, run);
+    const validated =
+      record.kind === 'candidate' ? candidateFromRecord(record, run) : assignmentFromRecord(record, run);
     if (!validated.ok) return validated;
     previousDigest = record.contentDigest;
   }
@@ -756,8 +1124,16 @@ function parseOrdinal(id: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-export function createCandidateController(input: Readonly<{ run: string; basisDigest: string; generation: string; graph: unknown; ledger?: CandidateLedger }>): CandidateResult<CandidateController> {
-  if (!validIdentity('ID-RUN', input.run) || !digest(input.basisDigest) || !validIdentity('ID-GEN', input.generation) || !input.generation.startsWith(`${input.run}/gen/`)) return fail('FC-INPUT', 'INVALID_RUN_BASIS');
+export function createCandidateController(
+  input: Readonly<{ run: string; basisDigest: string; generation: string; graph: unknown; ledger?: CandidateLedger }>,
+): CandidateResult<CandidateController> {
+  if (
+    !validIdentity('ID-RUN', input.run) ||
+    !digest(input.basisDigest) ||
+    !validIdentity('ID-GEN', input.generation) ||
+    !input.generation.startsWith(`${input.run}/gen/`)
+  )
+    return fail('FC-INPUT', 'INVALID_RUN_BASIS');
   const graph = validateStoryGraph(input.graph, input.run);
   if (!graph) return fail('FC-INPUT', 'INVALID_STORY_GRAPH');
   const ledger = input.ledger ?? createLedger();
@@ -793,9 +1169,11 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
     const observation = parseObservation(raw.observation);
     if (!observation.ok) return observation;
     if (observation.value.run !== input.run) return fail('FC-SUBJECT', 'CANDIDATE_RUN_MISMATCH');
-    if (observation.value.runBasisDigest !== input.basisDigest || observation.value.generation !== input.generation) return fail('FC-FENCE', 'STALE_CANDIDATE_BASIS');
+    if (observation.value.runBasisDigest !== input.basisDigest || observation.value.generation !== input.generation)
+      return fail('FC-FENCE', 'STALE_CANDIDATE_BASIS');
     const story = storyMap.get(observation.value.story);
-    if (!story || (story.state !== 'Implementing' && story.state !== 'Reviewing' && story.state !== 'Reworking')) return fail('FC-AUTHORITY', 'CANDIDATE_STATE_NOT_CREATABLE');
+    if (!story || (story.state !== 'Implementing' && story.state !== 'Reviewing' && story.state !== 'Reworking'))
+      return fail('FC-AUTHORITY', 'CANDIDATE_STATE_NOT_CREATABLE');
     const contentDigest = candidateContentDigest(observation.value);
     const candidateCreationKey = contentDigest
       ? creationKey({
@@ -811,18 +1189,28 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
     if (!existing.ok) return existing;
     if (existing.value) {
       const existingOrdinal = parseOrdinal(existing.value.candidate.id);
-      const replayPayload = existingOrdinal ? candidatePayloadFromObservation(observation.value, existingOrdinal) : undefined;
-      if (!replayPayload || !exactEqual(existing.value.candidate, replayPayload)) return fail('FC-TRUST', 'DUPLICATE_KEY_DIFFERENT_BYTES');
+      const replayPayload = existingOrdinal
+        ? candidatePayloadFromObservation(observation.value, existingOrdinal)
+        : undefined;
+      if (!replayPayload || !exactEqual(existing.value.candidate, replayPayload))
+        return fail('FC-TRUST', 'DUPLICATE_KEY_DIFFERENT_BYTES');
       const replay = candidateFromRecord(existing.value, input.run);
       if (!replay.ok) return replay;
       return replay;
     }
-    const ordinalValue = candidates.filter((candidate) => candidate.story === observation.value.story).reduce((max, candidate) => Math.max(max, parseOrdinal(candidate.id) ?? 0), 0) + 1;
+    const ordinalValue =
+      candidates
+        .filter((candidate) => candidate.story === observation.value.story)
+        .reduce((max, candidate) => Math.max(max, parseOrdinal(candidate.id) ?? 0), 0) + 1;
     const payload = candidatePayloadFromObservation(observation.value, ordinalValue);
     if (!payload) return fail('FC-INPUT', 'CANDIDATE_DIGEST_UNAVAILABLE');
     const current = head();
     if (!current.ok) return current;
-    const appended = ledger.append({ expectedPosition: current.value.position, expectedDigest: current.value.digest, record: { kind: 'candidate', position: 0, previousDigest: GENESIS, candidate: payload, contentDigest: '' } });
+    const appended = ledger.append({
+      expectedPosition: current.value.position,
+      expectedDigest: current.value.digest,
+      record: { kind: 'candidate', position: 0, previousDigest: GENESIS, candidate: payload, contentDigest: '' },
+    });
     let record: CandidateRecord | null = appended.ok && appended.value.kind === 'candidate' ? appended.value : null;
     if (!record && !appended.ok && appended.error.code === 'ACK_LOST') {
       const readback = ledger.readCandidate({ candidateCreationKey: payload.candidateCreationKey });
@@ -840,35 +1228,114 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
   };
   const admitRework = (rawInput: unknown, recovery: boolean): CandidateResult<ReworkAssignment> => {
     const raw = ownFields(rawInput, [
-      'controller', 'story', 'role', 'priorCandidate', 'failedBasisDigest', 'generation', 'posture', 'authorizingTransition',
-      'bound', 'reservation', 'priorFence', 'freshSession',
+      'controller',
+      'story',
+      'role',
+      'priorCandidate',
+      'failedBasisDigest',
+      'generation',
+      'posture',
+      'authorizingTransition',
+      'bound',
+      'reservation',
+      'priorFence',
+      'freshSession',
     ]);
     if (!raw || raw.controller !== CANDIDATE_CONTROLLER) return fail('FC-AUTHORITY', 'REWORK_CONTROLLER_REQUIRED');
-    if (typeof raw.story !== 'string' || !validIdentity('ID-STORY', raw.story) || !raw.story.startsWith(`${input.run}/story/`) || raw.role !== 'implementer') return fail('FC-SUBJECT', 'INVALID_REWORK_SUBJECT');
+    if (
+      typeof raw.story !== 'string' ||
+      !validIdentity('ID-STORY', raw.story) ||
+      !raw.story.startsWith(`${input.run}/story/`) ||
+      raw.role !== 'implementer'
+    )
+      return fail('FC-SUBJECT', 'INVALID_REWORK_SUBJECT');
     const story = storyMap.get(raw.story);
-    const priorCandidate = typeof raw.priorCandidate === 'string' ? candidates.find((candidate) => candidate.id === raw.priorCandidate) : undefined;
-    if (!story || !priorCandidate || priorCandidate.story !== raw.story || (story.state !== 'Reviewing' && story.state !== 'Reworking')) return fail('FC-SUBJECT', 'PRIOR_CANDIDATE_REQUIRED');
-    if (!digest(raw.failedBasisDigest) || typeof raw.generation !== 'string' || !validIdentity('ID-GEN', raw.generation) || !keyText(raw.posture) || typeof raw.authorizingTransition !== 'string' || !validIdentity('ID-TXN', raw.authorizingTransition)) return fail('FC-INPUT', 'INVALID_REWORK_BASIS');
+    const priorCandidate =
+      typeof raw.priorCandidate === 'string'
+        ? candidates.find((candidate) => candidate.id === raw.priorCandidate)
+        : undefined;
+    if (
+      !story ||
+      !priorCandidate ||
+      priorCandidate.story !== raw.story ||
+      (story.state !== 'Reviewing' && story.state !== 'Reworking')
+    )
+      return fail('FC-SUBJECT', 'PRIOR_CANDIDATE_REQUIRED');
+    if (
+      !digest(raw.failedBasisDigest) ||
+      typeof raw.generation !== 'string' ||
+      !validIdentity('ID-GEN', raw.generation) ||
+      !keyText(raw.posture) ||
+      typeof raw.authorizingTransition !== 'string' ||
+      !validIdentity('ID-TXN', raw.authorizingTransition)
+    )
+      return fail('FC-INPUT', 'INVALID_REWORK_BASIS');
     if (!validBound(raw.bound, input.run, raw.story, raw.generation)) return fail('FC-BOUND', 'INVALID_REWORK_BOUND');
     const bound = raw.bound as ReworkBoundFact;
     if (bound.status === 'exhausted' || bound.consumed >= bound.limit) {
       storyMap.set(raw.story, { ...story, state: 'Blocked', blocker: 'BND-REWORK' });
-      for (const [id, candidateStory] of storyMap) if (candidateStory.dependencies.includes(raw.story) && candidateStory.state === 'Reviewing') storyMap.set(id, { ...candidateStory, state: 'NotRun', blocker: raw.story });
+      for (const [id, candidateStory] of storyMap)
+        if (candidateStory.dependencies.includes(raw.story) && candidateStory.state === 'Reviewing')
+          storyMap.set(id, { ...candidateStory, state: 'NotRun', blocker: raw.story });
       return fail('FC-BOUND', 'REWORK_EXHAUSTED');
     }
     const reworkOrdinal = bound.consumed + 1;
     const assignmentOrdinal = reworkOrdinal + 1;
     const priorFence = raw.priorFence;
-    if (!validPrior(priorFence, input.run, raw.story, raw.authorizingTransition)) return fail('FC-FENCE', 'PRIOR_ASSIGNMENT_FENCE_REQUIRED');
-    if (priorFence.session !== priorCandidate.session || priorFence.generation !== priorCandidate.generation) return fail('FC-FENCE', 'PRIOR_ASSIGNMENT_MISMATCH');
-    const reservationKey = hash('REWORK-RESERVATION-KEY', { story: raw.story, reworkOrdinal, transition: raw.authorizingTransition });
-    const assignmentBasisDigest = deriveReworkAssignmentBasisDigest({ story: raw.story, role: raw.role, reworkOrdinal, priorCandidate: priorCandidate.id, failedBasisDigest: raw.failedBasisDigest as string, generation: raw.generation as string, posture: raw.posture as string, transition: raw.authorizingTransition as string });
-    if (!reservationKey || !assignmentBasisDigest || !validReservation(raw.reservation, input.run, raw.story, raw.generation, raw.authorizingTransition, reservationKey)) return fail('FC-CAPACITY', 'REWORK_CAPACITY_RESERVATION_REQUIRED');
+    if (!validPrior(priorFence, input.run, raw.story, raw.authorizingTransition))
+      return fail('FC-FENCE', 'PRIOR_ASSIGNMENT_FENCE_REQUIRED');
+    if (priorFence.session !== priorCandidate.session || priorFence.generation !== priorCandidate.generation)
+      return fail('FC-FENCE', 'PRIOR_ASSIGNMENT_MISMATCH');
+    const reservationKey = hash('REWORK-RESERVATION-KEY', {
+      story: raw.story,
+      reworkOrdinal,
+      transition: raw.authorizingTransition,
+    });
+    const assignmentBasisDigest = deriveReworkAssignmentBasisDigest({
+      story: raw.story,
+      role: raw.role,
+      reworkOrdinal,
+      priorCandidate: priorCandidate.id,
+      failedBasisDigest: raw.failedBasisDigest as string,
+      generation: raw.generation as string,
+      posture: raw.posture as string,
+      transition: raw.authorizingTransition as string,
+    });
+    if (
+      !reservationKey ||
+      !assignmentBasisDigest ||
+      !validReservation(
+        raw.reservation,
+        input.run,
+        raw.story,
+        raw.generation,
+        raw.authorizingTransition,
+        reservationKey,
+      )
+    )
+      return fail('FC-CAPACITY', 'REWORK_CAPACITY_RESERVATION_REQUIRED');
     const reservation = raw.reservation as CapacityReservationFact;
     const session = `${raw.story}/session/${raw.role}/${assignmentOrdinal}`;
     const fresh = raw.freshSession;
-    if (!validFreshSession(fresh, input.run, raw.story, raw.role, assignmentOrdinal, assignmentOrdinal, reservation.story === raw.story ? priorCandidate.principal : '', assignmentBasisDigest, raw.generation, raw.posture, raw.authorizingTransition, priorCandidate.session)) return fail('FC-FENCE', 'FRESH_SESSION_REQUIRED');
-    if (fresh.session === priorCandidate.session || fresh.sessionOrdinal <= priorCandidate.assignmentOrdinal) return fail('FC-FENCE', 'FRESH_SESSION_REQUIRED');
+    if (
+      !validFreshSession(
+        fresh,
+        input.run,
+        raw.story,
+        raw.role,
+        assignmentOrdinal,
+        assignmentOrdinal,
+        reservation.story === raw.story ? priorCandidate.principal : '',
+        assignmentBasisDigest,
+        raw.generation,
+        raw.posture,
+        raw.authorizingTransition,
+        priorCandidate.session,
+      )
+    )
+      return fail('FC-FENCE', 'FRESH_SESSION_REQUIRED');
+    if (fresh.session === priorCandidate.session || fresh.sessionOrdinal <= priorCandidate.assignmentOrdinal)
+      return fail('FC-FENCE', 'FRESH_SESSION_REQUIRED');
     const assignment: Omit<ReworkAssignment, 'commitProof'> = {
       schema: REWORK_ASSIGNMENT_SCHEMA,
       run: input.run,
@@ -894,7 +1361,8 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
     const existing = ledger.readRework({ story: raw.story, reworkOrdinal });
     if (!existing.ok) return existing;
     if (existing.value) {
-      if (!exactEqual(existing.value.assignment, assignment)) return fail('FC-TRUST', 'DUPLICATE_REWORK_DIFFERENT_BYTES');
+      if (!exactEqual(existing.value.assignment, assignment))
+        return fail('FC-TRUST', 'DUPLICATE_REWORK_DIFFERENT_BYTES');
       const replay = assignmentFromRecord(existing.value, input.run);
       if (!replay.ok) return replay;
       return replay;
@@ -903,7 +1371,11 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
     if (recovery) return fail('FC-TRUST', 'REWORK_RECOVERY_RECORD_MISSING');
     const current = head();
     if (!current.ok) return current;
-    const appended = ledger.append({ expectedPosition: current.value.position, expectedDigest: current.value.digest, record: { kind: 'rework', position: 0, previousDigest: GENESIS, assignment, contentDigest: '' } });
+    const appended = ledger.append({
+      expectedPosition: current.value.position,
+      expectedDigest: current.value.digest,
+      record: { kind: 'rework', position: 0, previousDigest: GENESIS, assignment, contentDigest: '' },
+    });
     let record: ReworkRecord | null = appended.ok && appended.value.kind === 'rework' ? appended.value : null;
     if (!record && !appended.ok && appended.error.code === 'ACK_LOST') {
       const readback = ledger.readRework({ story: raw.story, reworkOrdinal });
@@ -930,7 +1402,10 @@ export function createCandidateController(input: Readonly<{ run: string; basisDi
     },
     assignments: () => Object.freeze([...assignments]),
     candidates: () => Object.freeze([...candidates]),
-    stories: () => Object.freeze([...storyMap.values()].map((story) => ({ ...story, dependencies: Object.freeze([...story.dependencies]) }))),
+    stories: () =>
+      Object.freeze(
+        [...storyMap.values()].map((story) => ({ ...story, dependencies: Object.freeze([...story.dependencies]) })),
+      ),
     snapshot: () => {
       const snapshot = ledger.snapshot();
       return snapshot.ok ? validateLedgerSnapshot(snapshot.value, input.run) : snapshot;
