@@ -84,6 +84,22 @@ importers:
         specifier: 'catalog:'
         version: 5.8.2
 
+  packages/local-workspace-providers:
+    dependencies:
+      '@agentic-workflow-kit/jig-codec':
+        specifier: workspace:*
+        version: link:../codec
+      '@agentic-workflow-kit/jig-runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.5.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.2
+
   packages/runtime-contracts:
     dependencies:
       '@agentic-workflow-kit/jig-codec':

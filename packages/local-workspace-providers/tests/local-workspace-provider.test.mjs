@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+const provider = await import('../dist/index.js');
+const digest = (character) => character.repeat(64);
+const gitObject = (character) => character.repeat(40);
+const candidate = { candidateCommit: gitObject('c'), candidateTree: gitObject('d') };
+
+const admission = () => ({
+  kind: 'gf022-provider-admission',
+  story: 'GF-022',
+  principal: 'principal/arye',
+  manifestId: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
+  manifestDigest: provider.LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
+  proofDigest: digest('a'),
+});
+
+test('GF-039 real local qualification uses only disposable Git-worktree roots and records the complete gate tuple', () => {
+  const result = provider.runLocalGitWorktreeQualificationProbe({ ...candidate });
+  assert.equal(result.ok, true);
+  assert.deepEqual(Object.values(result.value.observations).every(Boolean), true);
+  assert.deepEqual(result.value.removedResources, [result.value.resourceRoot]);
+  assert.equal(
+    JSON.stringify(result.value.evidence).match(
+      /(?:secret|token|password|credential|authorization|api[._ -]?key)\s*[=:]/i,
+    ),
+    null,
+  );
+  assert.equal(result.value.evidence.kind, 'CF-GATE-PROVIDER');
+  assert.equal(result.value.evidence.provider, provider.LOCAL_GIT_WORKTREE_PROVIDER);
+  assert.equal(result.value.evidence.manifestId, provider.LOCAL_GIT_WORKTREE_MANIFEST_ID);
+  assert.equal(result.value.evidence.providerBuildDigest, provider.LOCAL_GIT_WORKTREE_BUILD_DIGEST);
+  assert.equal(result.value.evidence.requestDigest.length, 64);
+  assert.equal(result.value.evidence.resultDigest.length, 64);
+  assert.equal(result.value.evidence.operationDigest.length, 64);
+  assert.deepEqual(result.value.evidence.runner.runtime, 'node-esm');
+});
+
+test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, or exact environment', () => {
+  const probe = provider.runLocalGitWorktreeQualificationProbe({ ...candidate, retainRoot: true });
+  assert.equal(probe.ok, true);
+  const environment = probe.value.evidence.environment;
+  assert.deepEqual(provider.createQualifiedLocalGitWorktreeProvider({ evidence: probe.value.evidence, environment }), {
+    ok: false,
+    error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' },
+  });
+  assert.deepEqual(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      evidence: { ...probe.value.evidence, providerBuildDigest: digest('b') },
+      environment,
+    }).ok,
+    false,
+  );
+  assert.deepEqual(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      evidence: probe.value.evidence,
+      environment: { ...environment, os: 'win32' },
+    }).ok,
+    false,
+  );
+  assert.deepEqual(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      evidence: probe.value.evidence,
+      environment,
+    }).ok,
+    true,
+  );
+  assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
+    ok: true,
+    value: { removed: probe.value.resourceRoot },
+  });
+});
+
+test('GF-039 evidence recorder and cleanup reject forged or unsafe resources', () => {
+  assert.deepEqual(provider.recordLocalGitWorktreeGateEvidence(undefined), {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'EVIDENCE_REQUIRED' },
+  });
+  assert.equal(provider.cleanupLocalGitWorktreeProbe('/').ok, false);
+  assert.equal(provider.cleanupLocalGitWorktreeProbe('/Users').ok, false);
+});
+
+test('GF-039 public surface exposes one local Git provider and no generic or alternate provider mode', () => {
+  for (const forbidden of [
+    'createRemoteProvider',
+    'createWindowsProvider',
+    'createFallbackProvider',
+    'runShell',
+    'registerProvider',
+  ])
+    assert.equal(forbidden in provider, false, forbidden);
+  const manifest = new TextDecoder().decode(provider.LOCAL_GIT_WORKTREE_MANIFEST);
+  assert.equal(manifest.includes('"vcs":"git"'), true);
+  assert.equal(manifest.includes('"shell":false'), true);
+  assert.equal(manifest.includes('networkAuthority'), true);
+  assert.equal(manifest.includes('credentialAuthority'), true);
+  assert.equal(manifest.includes('win32'), false);
+  assert.equal(manifest.includes('ssh'), false);
+});
