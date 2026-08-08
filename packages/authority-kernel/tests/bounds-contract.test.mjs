@@ -509,7 +509,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     snapshot: terminationJournal.snapshot(),
     idle: terminationIdle,
     silence: terminationSilence,
-    observations: [terminationObservation],
+    observations: [],
   });
   assert.equal(terminated.value.classification, 'dead');
   const owner = start(journal, 'owner-provider-answer', 0, 'f').value;

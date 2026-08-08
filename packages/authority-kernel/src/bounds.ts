@@ -2112,6 +2112,15 @@ export function classifyLiveness(
     )
   )
     return fail('FC-TRUST', 'LIVENESS_OBSERVATION_NOT_COMMITTED');
+  const committedObservations = replayed.value.facts
+    .filter(
+      (fact) =>
+        (fact.kind === 'progress' || fact.kind === 'heartbeat' || fact.kind === 'termination') &&
+        fact.observation !== null &&
+        equalSubject(fact.observation.subject, input.subject) &&
+        fact.observation.generation === input.generation,
+    )
+    .map((fact) => fact.observation as LivenessObservation);
   const base = {
     schema: BOUNDS_VERSION as typeof BOUNDS_VERSION,
     subject: input.subject,
@@ -2127,8 +2136,10 @@ export function classifyLiveness(
         reason: 'durable human wait is overdue',
       }),
     );
-  const latest = [...input.observations].sort((left, right) => left.at - right.at).at(-1);
-  if (latest?.kind === 'terminated' || input.silence.status === 'exhausted')
+  if (
+    committedObservations.some((observation) => observation.kind === 'terminated') ||
+    input.silence.status === 'exhausted'
+  )
     return ok(
       frozen({
         ...base,
