@@ -351,12 +351,7 @@ export type BoundJournalSnapshot = Readonly<{
 }>;
 
 export type LivenessKind = 'thinking' | 'stuck' | 'dead' | 'human-input-overdue';
-export type QualifyingFactKind =
-  | 'SCH-CANDIDATE'
-  | 'EV-WORKSPACE-FACT'
-  | 'EV-ARTIFACT-FACT'
-  | 'EV-CHECK-OBSERVATION'
-  | 'SCH-WORK-PROFILE';
+export type QualifyingFactKind = 'SCH-CANDIDATE' | 'EV-WORKSPACE-FACT' | 'EV-ARTIFACT-FACT' | 'EV-CHECK-OBSERVATION';
 export type QualifyingFact = Readonly<{
   schema: typeof BOUNDS_VERSION;
   event: QualifyingFactKind;
@@ -374,6 +369,7 @@ export type HumanInputOverdueBasis = Readonly<{
   at: number;
   factDigest: string;
   exhaustionFact: BoundLedgerFact;
+  snapshot: BoundJournalSnapshot;
 }>;
 export type LivenessObservation = Readonly<{
   schema: typeof BOUNDS_VERSION;
@@ -441,7 +437,6 @@ export type SilenceReplacementGuard = Readonly<{
 
 const GENESIS = '0'.repeat(64);
 const HEX = /^[0-9a-f]{64}$/u;
-const humanInputOverdueWitnesses = new WeakSet<object>();
 const fail = <T = never>(family: BoundFailureFamily, code: string): BoundResult<T> => ({
   ok: false,
   error: Object.freeze({ family, code }),
@@ -561,9 +556,9 @@ function validQualifyingFact(value: unknown): value is QualifyingFact {
     ]) &&
     value.schema === BOUNDS_VERSION &&
     value.committed === true &&
-    (
-      ['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION', 'SCH-WORK-PROFILE'] as const
-    ).includes(value.event as QualifyingFactKind) &&
+    (['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION'] as const).includes(
+      value.event as QualifyingFactKind,
+    ) &&
     validSubject(value.subject) &&
     typeof value.generation === 'string' &&
     value.generation.length > 0 &&
@@ -661,7 +656,6 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
       value.factKind === 'EV-WORKSPACE-FACT' ||
       value.factKind === 'EV-ARTIFACT-FACT' ||
       value.factKind === 'EV-CHECK-OBSERVATION' ||
-      value.factKind === 'SCH-WORK-PROFILE' ||
       value.factKind === 'heartbeat' ||
       value.factKind === 'termination') &&
     validSubject(value.subject) &&
@@ -867,7 +861,7 @@ function validRecord(value: unknown): value is BoundRecord {
 function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdueBasis {
   if (
     !plain(value) ||
-    !exact(value, ['at', 'exhaustionFact', 'factDigest', 'record']) ||
+    !exact(value, ['at', 'exhaustionFact', 'factDigest', 'record', 'snapshot']) ||
     !validRecord(value.record) ||
     !plain(value.exhaustionFact) ||
     !exact(value.exhaustionFact, [
@@ -890,7 +884,9 @@ function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdue
     return false;
   const record = value.record;
   const exhaustionFact = value.exhaustionFact as BoundLedgerFact;
+  const snapshot = value.snapshot as BoundJournalSnapshot;
   const recomputed = canonicalDigest('BOUND-FACT', { ...exhaustionFact, contentDigest: '' }, 'contentDigest');
+  const replayed = replayBoundFacts(snapshot);
   return (
     nonNegative(value.at) &&
     digest(value.factDigest) &&
@@ -913,6 +909,9 @@ function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdue
     digest(exhaustionFact.contentDigest) &&
     recomputed.ok &&
     recomputed.value === exhaustionFact.contentDigest &&
+    replayed.ok &&
+    exhaustionFact.position <= snapshot.position &&
+    replayed.value.facts[exhaustionFact.position]?.contentDigest === exhaustionFact.contentDigest &&
     (record.surface === 'owner-provider-answer' || record.surface === 'live-open-obligation') &&
     record.bound === 'BND-WAIT-DECISION' &&
     record.disposition === 'escalate' &&
@@ -1166,15 +1165,9 @@ export function createBoundJournal(): BoundJournal {
         input.generation.length === 0 ||
         !plain(input) ||
         input.committed !== true ||
-        !(
-          [
-            'SCH-CANDIDATE',
-            'EV-WORKSPACE-FACT',
-            'EV-ARTIFACT-FACT',
-            'EV-CHECK-OBSERVATION',
-            'SCH-WORK-PROFILE',
-          ] as const
-        ).includes(input.event as QualifyingFactKind) ||
+        !(['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION'] as const).includes(
+          input.event as QualifyingFactKind,
+        ) ||
         !digest(input.factDigest) ||
         !nonNegative(input.position) ||
         !validClock(input.clock) ||
@@ -1244,9 +1237,9 @@ export function createBoundJournal(): BoundJournal {
         at: input.at,
         factDigest: exhaustionFact.factDigest,
         exhaustionFact,
+        snapshot: journal.snapshot(),
       });
       if (!validHumanInputOverdueBasis(basis)) return fail('FC-TRUST', 'MALFORMED_HUMAN_INPUT_OVERDUE');
-      humanInputOverdueWitnesses.add(basis);
       return ok(basis);
     },
     witnessLiveness(input) {
@@ -1282,7 +1275,6 @@ export function createBoundJournal(): BoundJournal {
             'EV-WORKSPACE-FACT',
             'EV-ARTIFACT-FACT',
             'EV-CHECK-OBSERVATION',
-            'SCH-WORK-PROFILE',
             'heartbeat',
             'termination',
           ] as const
@@ -1729,7 +1721,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
       )
         return fail('FC-TRUST', 'BOUND_REPLAY_RESET_MUTATION');
       if (
-        (typedFact.kind === 'consume' || typedFact.kind === 'exhausted') &&
+        (typedFact.kind === 'consume' || (typedFact.kind === 'exhausted' && typedFact.record.unit === 'count')) &&
         typedFact.record.consumed !== priorRecord.consumed + 1
       )
         return fail('FC-TRUST', 'BOUND_REPLAY_CONSUMPTION_INVALID');
@@ -1849,7 +1841,6 @@ export function classifyLiveness(
     input.silence.generation !== input.generation ||
     (input.humanInputOverdue !== undefined &&
       (!validHumanInputOverdueBasis(input.humanInputOverdue) ||
-        !humanInputOverdueWitnesses.has(input.humanInputOverdue) ||
         !equalSubject(input.humanInputOverdue.record.subject, input.subject) ||
         input.humanInputOverdue.record.generation !== input.generation)) ||
     input.observations.some(
