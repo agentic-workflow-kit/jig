@@ -19,6 +19,23 @@ const clock = (at, _character = 'b', clockGeneration = generation) => {
   };
   return { ...body, digest: bounds.witnessedClockDigest(body) };
 };
+const livenessObservation = (
+  at,
+  kind,
+  factDigest,
+  factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE',
+) => ({
+  schema: bounds.BOUNDS_VERSION,
+  event: 'EV-LIVENESS-OBSERVED',
+  subject,
+  generation,
+  at,
+  source: 'mechanism',
+  durable: true,
+  kind,
+  factKind,
+  factDigest,
+});
 const policy = () => bounds.defaultBoundPolicy();
 const start = (journal, surface, at = 0, character = '0') =>
   journal.start({
@@ -110,6 +127,43 @@ test('CF-BOUNDS: all sixteen surfaces have one fixed bound, owner, reset rule, a
   assert.equal(records.find((record) => record.surface === 'retirement-settlement').disposition, 'residual-obligation');
 });
 
+test('CF-BOUNDS: operation-scoped retry instances retain independent fences and consumption', () => {
+  const journal = bounds.createBoundJournal();
+  const operationOne = { ...subject, operation: `${run}/txn/1/op/1` };
+  const operationTwo = { ...subject, operation: `${run}/txn/1/op/2` };
+  const startFor = (operationSubject, factCharacter) =>
+    journal.start({
+      surface: 'operation-source-retry',
+      subject: operationSubject,
+      generation,
+      policy: policy(),
+      startedAt: 0,
+      clock: clock(0, factCharacter),
+      factDigest: d(factCharacter),
+    });
+  assert.equal(startFor(operationOne, '1').ok, true);
+  assert.equal(startFor(operationTwo, '2').ok, true);
+  const first = journal.consume({
+    surface: 'operation-source-retry',
+    generation,
+    subject: operationOne,
+    at: 0,
+    clock: clock(0, '3'),
+    factDigest: d('3'),
+  });
+  const second = journal.consume({
+    surface: 'operation-source-retry',
+    generation,
+    subject: operationTwo,
+    at: 0,
+    clock: clock(0, '4'),
+    factDigest: d('4'),
+  });
+  assert.equal(first.value.consumed, 1);
+  assert.equal(second.value.consumed, 1);
+  assert.equal(journal.snapshot().facts.filter((fact) => fact.kind === 'start').length, 2);
+});
+
 test('CF-BOUNDS: every finite surface reaches its catalogued deadline or consumption exhaustion', () => {
   for (const [index, surface] of bounds.WAIT_SURFACES.entries()) {
     const journal = bounds.createBoundJournal();
@@ -199,10 +253,8 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    at: 100,
+    observation: livenessObservation(100, 'progress', d('d')),
     clock: clock(100, 'd'),
-    kind: 'progress',
-    factDigest: d('d'),
   });
   assert.equal(progress.ok, true);
   assert.equal(progress.value.startAt, 0);
@@ -212,10 +264,8 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    at: progress.value.deadlineAt,
+    observation: livenessObservation(progress.value.deadlineAt, 'progress', d('e')),
     clock: clock(progress.value.deadlineAt, 'e'),
-    kind: 'progress',
-    factDigest: d('e'),
   });
   assert.equal(late.error.code, 'BOUND_DEADLINE_MISSED');
 
@@ -225,10 +275,8 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'session-silence',
     generation,
     subject,
-    at: 10,
+    observation: livenessObservation(10, 'heartbeat', d('d')),
     clock: clock(10, 'd'),
-    kind: 'heartbeat',
-    factDigest: d('d'),
   });
   assert.equal(heartbeat.ok, true);
   assert.equal(heartbeat.value.resetCount, 1);
@@ -236,10 +284,8 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'session-silence',
     generation,
     subject,
-    at: 20,
+    observation: livenessObservation(20, 'progress', d('e')),
     clock: clock(20, 'e'),
-    kind: 'progress',
-    factDigest: d('e'),
   });
   assert.equal(wrongReset.error.code, 'RESET_NOT_CATALOGUED');
 
@@ -249,12 +295,18 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'capacity-admission',
     generation,
     subject,
-    at: 1,
+    observation: livenessObservation(1, 'progress', d('d')),
     clock: clock(1, 'd'),
-    kind: 'progress',
-    factDigest: d('d'),
   });
   assert.equal(forbiddenReset.error.code, 'RESET_NOT_CATALOGUED');
+  const providerObservation = journal.observe({
+    surface: 'qualifying-progress-idle',
+    generation,
+    subject,
+    observation: { ...livenessObservation(1, 'progress', d('e')), source: 'provider' },
+    clock: clock(1, 'e'),
+  });
+  assert.equal(providerObservation.error.code, 'MALFORMED_BOUND_OBSERVATION');
 });
 
 test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and human-input-overdue deterministically', () => {
@@ -407,12 +459,12 @@ test('CF-BOUNDS: missed durable deadline chooses the fixed surface disposition; 
   assert.equal(deadline.value.exhaustion.failure, 'FC-BOUND');
 });
 
-test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bound park and never creates a semantic retry', () => {
+test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bound escalation and never creates a semantic retry', () => {
   const journal = bounds.createBoundJournal();
   const initial = start(journal, 'effect-reconciliation');
   assert.equal(initial.ok, true);
   assert.equal(initial.value.bound, 'BND-RECOVERY');
-  assert.equal(initial.value.disposition, 'park');
+  assert.equal(initial.value.disposition, 'escalate');
   assert.equal(
     journal.consume({
       surface: 'effect-reconciliation',
@@ -444,7 +496,7 @@ test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bo
     factDigest: hd(903),
   });
   assert.equal(result.value.status, 'exhausted');
-  assert.equal(result.value.exhaustion.disposition, 'park');
+  assert.equal(result.value.exhaustion.disposition, 'escalate');
   assert.equal(journal.snapshot().facts.filter((fact) => fact.event === 'EV-BOUND-EXHAUSTED').length, 1);
 });
 

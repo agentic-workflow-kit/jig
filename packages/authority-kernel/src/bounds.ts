@@ -109,7 +109,7 @@ export const BOUND_DEFINITIONS: Readonly<Record<BoundClass, BoundDefinition>> = 
     exhaustion: 'park',
   }),
   'BND-SILENCE': Object.freeze({ default: 5 * 60, lower: 10, upper: 30 * 60, unit: 'seconds', exhaustion: 'park' }),
-  'BND-RECOVERY': Object.freeze({ default: 3, lower: 1, upper: 5, unit: 'count', exhaustion: 'park' }),
+  'BND-RECOVERY': Object.freeze({ default: 3, lower: 1, upper: 5, unit: 'count', exhaustion: 'escalate' }),
   'BND-RETIRE': Object.freeze({ default: 3, lower: 1, upper: 5, unit: 'count', exhaustion: 'residual-obligation' }),
 });
 
@@ -260,7 +260,7 @@ export type BoundPolicy = Readonly<{
   digest: string;
 }>;
 
-export type BoundSubject = Readonly<{ run: string; story: string; basis: string }>;
+export type BoundSubject = Readonly<{ run: string; story: string; basis: string; operation?: string }>;
 export type WitnessedClock = Readonly<{
   schema: typeof CLOCK_FACT_VERSION;
   kind: 'witnessed';
@@ -336,6 +336,7 @@ export type BoundLedgerFact = Readonly<{
   surface: WaitSurface;
   generation: string;
   factDigest: string;
+  clock: WitnessedClock | null;
   record: BoundRecord;
   wake: DurableWake | null;
 }>;
@@ -419,7 +420,12 @@ const frozen = <T>(value: T): T => {
   return value;
 };
 const equalSubject = (left: BoundSubject, right: BoundSubject): boolean =>
-  left.run === right.run && left.story === right.story && left.basis === right.basis;
+  left.run === right.run &&
+  left.story === right.story &&
+  left.basis === right.basis &&
+  left.operation === right.operation;
+const boundInstanceKey = (surfaceId: WaitSurface, subject: BoundSubject): string =>
+  `${surfaceId}|${subject.run}|${subject.story}|${subject.basis}|${subject.operation ?? ''}`;
 const equalRecord = (left: BoundRecord, right: BoundRecord): boolean =>
   left.schema === right.schema &&
   left.surface === right.surface &&
@@ -457,12 +463,13 @@ function canonicalDigest(domain: string, value: unknown, excludedPath = 'digest'
 function validSubject(value: unknown): value is BoundSubject {
   return (
     plain(value) &&
-    exact(value, ['basis', 'run', 'story']) &&
+    (exact(value, ['basis', 'run', 'story']) || exact(value, ['basis', 'operation', 'run', 'story'])) &&
     typeof value.run === 'string' &&
     value.run.length > 0 &&
     typeof value.story === 'string' &&
     value.story.length > 0 &&
-    digest(value.basis)
+    digest(value.basis) &&
+    (value.operation === undefined || (typeof value.operation === 'string' && value.operation.length > 0))
   );
 }
 
@@ -477,6 +484,40 @@ function validClock(value: unknown): value is WitnessedClock {
     nonNegative(value.at) &&
     digest(value.digest) &&
     witnessedClockDigest(value as Omit<WitnessedClock, 'digest'>) === value.digest
+  );
+}
+
+function validLivenessObservation(value: unknown): value is LivenessObservation {
+  return (
+    plain(value) &&
+    exact(value, [
+      'at',
+      'durable',
+      'event',
+      'factDigest',
+      'factKind',
+      'generation',
+      'kind',
+      'schema',
+      'source',
+      'subject',
+    ]) &&
+    value.schema === BOUNDS_VERSION &&
+    value.event === 'EV-LIVENESS-OBSERVED' &&
+    value.source === 'mechanism' &&
+    value.durable === true &&
+    (value.kind === 'progress' || value.kind === 'heartbeat' || value.kind === 'terminated') &&
+    (value.factKind === 'SCH-CANDIDATE' ||
+      value.factKind === 'EV-WORKSPACE-FACT' ||
+      value.factKind === 'EV-ARTIFACT-FACT' ||
+      value.factKind === 'EV-CHECK-OBSERVATION' ||
+      value.factKind === 'SCH-WORK-PROFILE' ||
+      value.factKind === 'heartbeat' ||
+      value.factKind === 'termination') &&
+    validSubject(value.subject) &&
+    typeof value.generation === 'string' &&
+    nonNegative(value.at) &&
+    digest(value.factDigest)
   );
 }
 
@@ -685,6 +726,7 @@ function makeFact(
   event: BoundLedgerFact['event'],
   position: number,
   previousDigest: string,
+  clock: WitnessedClock | null,
   wake: DurableWake | null,
 ): BoundResult<BoundLedgerFact> {
   const content: Omit<BoundLedgerFact, 'contentDigest'> = {
@@ -696,6 +738,7 @@ function makeFact(
     surface: record.surface,
     generation: record.generation,
     factDigest,
+    clock,
     record,
     wake,
   };
@@ -736,10 +779,8 @@ export type BoundJournal = Readonly<{
       surface: WaitSurface;
       generation: string;
       subject: BoundSubject;
-      at: number;
+      observation: LivenessObservation;
       clock: WitnessedClock;
-      kind: 'progress' | 'heartbeat';
-      factDigest: string;
     }>,
   ): BoundResult<BoundRecord>;
   consume(
@@ -770,10 +811,10 @@ export type BoundJournal = Readonly<{
 
 export function createBoundJournal(): BoundJournal {
   let facts: BoundLedgerFact[] = [];
-  const current = new Map<WaitSurface, BoundRecord>();
+  const current = new Map<string, BoundRecord>();
   const append = (fact: BoundLedgerFact): void => {
     facts = [...facts, fact];
-    current.set(fact.surface, fact.record);
+    current.set(boundInstanceKey(fact.surface, fact.record.subject), fact.record);
   };
   const seen = (factDigest: string): BoundLedgerFact | undefined =>
     facts.find((fact) => fact.factDigest === factDigest);
@@ -782,7 +823,7 @@ export function createBoundJournal(): BoundJournal {
     generation: string,
     subject: BoundSubject,
   ): BoundResult<BoundRecord> => {
-    const record = current.get(surfaceId);
+    const record = current.get(boundInstanceKey(surfaceId, subject));
     if (!record) return fail('FC-INPUT', 'BOUND_NOT_STARTED');
     const fence = validateFence(record, generation, subject);
     return fence.ok ? ok(record) : fence;
@@ -798,7 +839,7 @@ export function createBoundJournal(): BoundJournal {
         return fail('FC-INPUT', 'MALFORMED_BOUND_START');
       const policy = validateBoundPolicy(input.policy);
       if (!policy.ok) return policy;
-      if (current.has(input.surface)) return fail('FC-BOUND', 'DUPLICATE_BOUND_START');
+      if (current.has(boundInstanceKey(input.surface, input.subject))) return fail('FC-BOUND', 'DUPLICATE_BOUND_START');
       const record = startRecord({ ...input, policy: policy.value });
       if (!record.ok) return record;
       const next = makeFact(
@@ -808,6 +849,7 @@ export function createBoundJournal(): BoundJournal {
         null,
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
         null,
       );
       if (!next.ok) return next;
@@ -845,6 +887,7 @@ export function createBoundJournal(): BoundJournal {
         input.selector,
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        null,
         wake,
       );
       if (!next.ok) return next;
@@ -852,11 +895,24 @@ export function createBoundJournal(): BoundJournal {
       return ok(wake);
     },
     observe(input) {
-      if (!fixedFactDigest(input.factDigest) || !validClock(input.clock))
+      if (
+        !surface(input.surface) ||
+        !validSubject(input.subject) ||
+        !validLivenessObservation(input.observation) ||
+        !validClock(input.clock)
+      )
         return fail('FC-INPUT', 'MALFORMED_BOUND_OBSERVATION');
+      const observation = input.observation;
+      if (
+        !equalSubject(observation.subject, input.subject) ||
+        observation.generation !== input.generation ||
+        input.clock.generation !== input.generation ||
+        input.clock.at !== observation.at
+      )
+        return fail('FC-FENCE', 'STALE_OR_AMBIGUOUS_LIVENESS');
       const record = currentRecord(input.surface, input.generation, input.subject);
       if (!record.ok) return record;
-      const prior = seen(input.factDigest);
+      const prior = seen(observation.factDigest);
       if (prior) return ok(prior.record);
       if (record.value.status !== 'active') return fail('FC-BOUND', 'BOUND_ALREADY_TERMINAL');
       const expectedKind =
@@ -865,24 +921,23 @@ export function createBoundJournal(): BoundJournal {
           : record.value.resetRule === 'heartbeat'
             ? 'heartbeat'
             : 'none';
-      if (expectedKind !== input.kind) return fail('FC-LIVENESS', 'RESET_NOT_CATALOGUED');
-      if (input.clock.generation !== record.value.generation || input.clock.at !== input.at)
-        return fail('FC-FENCE', 'STALE_OR_AMBIGUOUS_CLOCK');
-      if (record.value.unit === 'seconds' && input.at >= record.value.deadlineAt)
+      if (expectedKind !== observation.kind) return fail('FC-LIVENESS', 'RESET_NOT_CATALOGUED');
+      if (record.value.unit === 'seconds' && observation.at >= record.value.deadlineAt)
         return fail('FC-LIVENESS', 'BOUND_DEADLINE_MISSED');
       const nextRecord = frozen({
         ...record.value,
-        deadlineAt: input.at + record.value.windowMs,
+        deadlineAt: observation.at + record.value.windowMs,
         resetCount: record.value.resetCount + 1,
-        lastFactDigest: input.factDigest,
+        lastFactDigest: observation.factDigest,
       } as BoundRecord);
       const next = makeFact(
-        input.kind,
+        observation.kind,
         nextRecord,
-        input.factDigest,
+        observation.factDigest,
         'EV-LIVENESS-OBSERVED',
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
         null,
       );
       if (!next.ok) return next;
@@ -925,6 +980,7 @@ export function createBoundJournal(): BoundJournal {
         exhausted ? 'EV-BOUND-EXHAUSTED' : null,
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
         null,
       );
       if (!next.ok) return next;
@@ -953,6 +1009,7 @@ export function createBoundJournal(): BoundJournal {
         null,
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
         null,
       );
       if (!next.ok) return next;
@@ -988,6 +1045,7 @@ export function createBoundJournal(): BoundJournal {
         'EV-BOUND-EXHAUSTED',
         facts.length,
         facts.at(-1)?.contentDigest ?? GENESIS,
+        input.clock,
         null,
       );
       if (!next.ok) return next;
@@ -1024,12 +1082,13 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
   );
   let previous = GENESIS;
   const seenFactDigests = new Set<string>();
-  const priorRecords = new Map<WaitSurface, BoundRecord>();
+  const priorRecords = new Map<string, BoundRecord>();
   for (let index = 0; index < ordered.length; index += 1) {
     const fact = ordered[index];
     if (
       !plain(fact) ||
       !exact(fact, [
+        'clock',
         'contentDigest',
         'event',
         'factDigest',
@@ -1049,9 +1108,22 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
     if (!digest(fact.contentDigest) || !digest(fact.factDigest) || !surface(fact.surface))
       return fail('FC-TRUST', 'BOUND_REPLAY_CHAIN_INVALID');
     if (!validRecord(fact.record)) return fail('FC-TRUST', 'BOUND_REPLAY_RECORD_INVALID');
+    if (fact.surface !== fact.record.surface || fact.generation !== fact.record.generation)
+      return fail('FC-TRUST', 'BOUND_REPLAY_RECORD_BINDING_INVALID');
     if (!['start', 'wake', 'progress', 'heartbeat', 'consume', 'complete', 'exhausted'].includes(fact.kind as string))
       return fail('FC-TRUST', 'BOUND_REPLAY_CHAIN_INVALID');
     const typedFact = fact as BoundLedgerFact;
+    if (typedFact.kind === 'wake') {
+      if (typedFact.clock !== null) return fail('FC-TRUST', 'BOUND_REPLAY_CLOCK_INVALID');
+    } else if (
+      !validClock(typedFact.clock) ||
+      typedFact.clock.generation !== typedFact.generation ||
+      typedFact.clock.generation !== typedFact.record.generation
+    ) {
+      return fail('FC-TRUST', 'BOUND_REPLAY_CLOCK_INVALID');
+    }
+    if (typedFact.kind === 'start' && typedFact.clock?.at !== typedFact.record.startAt)
+      return fail('FC-TRUST', 'BOUND_REPLAY_START_CLOCK_INVALID');
     if (
       (typedFact.kind === 'wake' &&
         (typedFact.event === null ||
@@ -1074,7 +1146,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
         typedFact.event !== null)
     )
       return fail('FC-TRUST', 'BOUND_REPLAY_EVENT_INVALID');
-    const priorRecord = priorRecords.get(typedFact.surface);
+    const priorRecord = priorRecords.get(boundInstanceKey(typedFact.surface, typedFact.record.subject));
     if (!priorRecord) {
       if (typedFact.kind !== 'start') return fail('FC-TRUST', 'BOUND_REPLAY_START_MISSING');
     } else {
@@ -1103,6 +1175,13 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
         typedFact.record.resetCount !== priorRecord.resetCount + 1
       )
         return fail('FC-TRUST', 'BOUND_REPLAY_RESET_INVALID');
+      if (
+        (typedFact.kind === 'progress' || typedFact.kind === 'heartbeat') &&
+        (typedFact.clock === null ||
+          typedFact.clock.at >= priorRecord.deadlineAt ||
+          typedFact.record.deadlineAt !== typedFact.clock.at + typedFact.record.windowMs)
+      )
+        return fail('FC-TRUST', 'BOUND_REPLAY_RESET_CLOCK_INVALID');
       if (
         typedFact.kind !== 'progress' &&
         typedFact.kind !== 'heartbeat' &&
@@ -1144,7 +1223,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
     const recomputed = canonicalDigest('BOUND-FACT', { ...typedFact, contentDigest: '' }, 'contentDigest');
     if (!recomputed.ok || recomputed.value !== typedFact.contentDigest)
       return fail('FC-TRUST', 'BOUND_REPLAY_DIGEST_INVALID');
-    priorRecords.set(typedFact.surface, typedFact.record);
+    priorRecords.set(boundInstanceKey(typedFact.surface, typedFact.record.subject), typedFact.record);
     previous = typedFact.contentDigest;
   }
   if (
@@ -1230,16 +1309,9 @@ export function classifyLiveness(
     input.silence.generation !== input.generation ||
     input.observations.some(
       (observation) =>
-        !plain(observation) ||
-        observation.schema !== BOUNDS_VERSION ||
-        observation.event !== 'EV-LIVENESS-OBSERVED' ||
-        observation.source !== 'mechanism' ||
-        observation.durable !== true ||
-        !validSubject(observation.subject) ||
+        !validLivenessObservation(observation) ||
         !equalSubject(observation.subject, input.subject) ||
-        observation.generation !== input.generation ||
-        !nonNegative(observation.at) ||
-        !digest(observation.factDigest),
+        observation.generation !== input.generation,
     )
   )
     return fail('FC-INPUT', 'MALFORMED_LIVENESS_OBSERVATION');
