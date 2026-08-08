@@ -10,6 +10,7 @@ import type {
   WorkspaceOperationType,
   WorkspaceSetupReceipt,
 } from '@agentic-workflow-kit/jig-runtime-contracts';
+import { createProviderAdmissionFixture, isScriptedLedger } from '@agentic-workflow-kit/jig-runtime-contracts';
 
 export const LOCAL_GIT_WORKTREE_PROVIDER = 'local-git-worktree-provider/v1';
 export const LOCAL_GIT_WORKTREE_SUITE_VERSION = 'gf039.cf-mech-workspace.v1';
@@ -17,6 +18,13 @@ export const LOCAL_GIT_WORKTREE_PROBE_VERSION = 'gf039.local-git-worktree-probe.
 export const LOCAL_GIT_WORKTREE_POSTURE = 'local-posix-git-worktree-no-network-no-credentials/v1';
 export const LOCAL_GIT_WORKTREE_SCOPE = 'resource/local-mktemp-root/v1';
 export const LOCAL_GIT_WORKTREE_MAX_PROOF_AGE_MS = 86_400_000;
+
+const GF022_APPROVED_MANIFEST_DIGEST = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
+const GF022_APPROVED_PROVIDER_DIGEST = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
+const GF022_APPROVED_MANIFEST_ID = `provider/${GF022_APPROVED_PROVIDER_DIGEST}/authority/${GF022_APPROVED_MANIFEST_DIGEST}`;
+const GF022_APPROVED_MANIFEST = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
+);
 
 const MANIFEST_TEXT =
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n';
@@ -89,6 +97,9 @@ export type LocalGitWorktreeProbeEvidence = Readonly<{
   candidateCommit: string;
   candidateTree: string;
   fixtureDigest: string;
+  admissionProofDigest: string;
+  admissionObservedAt: number;
+  admissionAgeMs: number;
   requestDigest: string;
   resultDigest: string;
   operationDigest: string;
@@ -542,8 +553,7 @@ function performEffect(
   } else if (!existsSync(target) || realpathSync(target) !== target) return fail('FC-MECHANISM', 'WORKSPACE_ABSENT');
   if (binding.operationType === 'OPC-WS-RETIRE') {
     if (!preserved.has(resourceBindingDigest(binding))) return fail('FC-AUTHORITY', 'PRESERVATION_REQUIRED');
-    const removed = git(repository, ['worktree', 'remove', '--force', target]);
-    return removed.ok ? fail('FC-EFFECT', 'RETIRE_COMPLETED') : removed;
+    return fail('FC-AUTHORITY', 'REAL_RETIRE_DISABLED');
   }
   const head = repoHead(target);
   const cleanliness = cleanState(target);
@@ -600,6 +610,14 @@ function bindingProof(binding: WorkspaceBinding): WorkspaceCommitProof {
   return proofFor(binding);
 }
 
+function currentCandidateIdentity(): Result<Readonly<{ commit: string; tree: string }>> {
+  const commit = git('.', ['rev-parse', '--verify', 'HEAD']);
+  const tree = git('.', ['rev-parse', '--verify', 'HEAD^{tree}']);
+  if (!commit.ok || !tree.ok || !GIT_OBJECT.test(commit.value) || !GIT_OBJECT.test(tree.value))
+    return fail('FC-TRUST', 'CANDIDATE_IDENTITY_UNAVAILABLE');
+  return ok(Object.freeze({ commit: commit.value, tree: tree.value }));
+}
+
 function validateEnvironment(environment: unknown): Result<LocalGitWorktreeEnvironment> {
   const raw = exactObject(environment, ['os', 'gitVersion', 'resourceRoot', 'posture', 'scope']);
   if (
@@ -627,16 +645,78 @@ function validateEnvironment(environment: unknown): Result<LocalGitWorktreeEnvir
 }
 
 function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission> {
-  const raw = exactObject(admission, ['kind', 'story', 'principal', 'manifestId', 'manifestDigest', 'proofDigest']);
+  const raw = exactObject(admission, [
+    'kind',
+    'story',
+    'principal',
+    'manifestId',
+    'manifestDigest',
+    'proofDigest',
+    'ledger',
+    'approval',
+    'basis',
+    'proof',
+    'observedAt',
+    'maxAgeMs',
+  ]);
+  const proof =
+    raw &&
+    exactObject(raw.proof, [
+      'basisDigest',
+      'deadline',
+      'digest',
+      'key',
+      'kind',
+      'observedAt',
+      'ordinal',
+      'outcome',
+      'predecessor',
+      'retryLimit',
+    ]);
   if (
     raw?.kind !== 'gf022-provider-admission' ||
     raw.story !== 'GF-022' ||
     raw.principal !== 'principal/arye' ||
     raw.manifestId !== LOCAL_GIT_WORKTREE_MANIFEST_ID ||
     raw.manifestDigest !== LOCAL_GIT_WORKTREE_MANIFEST_DIGEST ||
-    !DIGEST.test(String(raw.proofDigest))
+    !DIGEST.test(String(raw.proofDigest)) ||
+    raw.proofDigest !== proof?.digest ||
+    !isScriptedLedger(raw.ledger) ||
+    !Number.isSafeInteger(raw.observedAt) ||
+    !Number.isSafeInteger(raw.maxAgeMs) ||
+    raw.maxAgeMs !== LOCAL_GIT_WORKTREE_MAX_PROOF_AGE_MS ||
+    !Number.isSafeInteger(proof?.observedAt) ||
+    Number(raw.observedAt) < Number(proof?.observedAt) ||
+    Number(raw.observedAt) - Number(proof?.observedAt) > raw.maxAgeMs
   )
     return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
+  try {
+    const fixture = createProviderAdmissionFixture({
+      manifestBytes: GF022_APPROVED_MANIFEST,
+      approval: raw.approval,
+      ledger: raw.ledger,
+    });
+    const approved = fixture.approve(raw.approval);
+    const admitted = fixture.admit({
+      basis: raw.basis,
+      proof: raw.proof,
+      observedAt: raw.observedAt,
+      maxAgeMs: raw.maxAgeMs,
+    });
+    const approval = approved.ok ? exactObject(approved.value, ['kind', 'manifestId']) : undefined;
+    const result = admitted.ok ? exactObject(admitted.value, ['kind', 'manifestId', 'providerEnabled']) : undefined;
+    if (
+      approval?.kind !== 'approved' ||
+      approval?.manifestId !== GF022_APPROVED_MANIFEST_ID ||
+      !result ||
+      result.kind !== 'eligible' ||
+      result.manifestId !== GF022_APPROVED_MANIFEST_ID ||
+      result.providerEnabled !== false
+    )
+      return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
+  } catch {
+    return fail('FC-TRUST', 'GF022_ADMISSION_UNAVAILABLE');
+  }
   return ok(
     Object.freeze({
       kind: 'gf022-provider-admission',
@@ -668,6 +748,9 @@ function validateEvidence(
     'candidateCommit',
     'candidateTree',
     'fixtureDigest',
+    'admissionProofDigest',
+    'admissionObservedAt',
+    'admissionAgeMs',
     'requestDigest',
     'resultDigest',
     'operationDigest',
@@ -677,6 +760,7 @@ function validateEvidence(
     'recorder',
   ]);
   const runner = raw && exactObject(raw.runner, ['runtime', 'os', 'gitVersion']);
+  const candidate = currentCandidateIdentity();
   if (
     raw?.kind !== 'CF-GATE-PROVIDER' ||
     raw.status !== 'passed' ||
@@ -688,9 +772,17 @@ function validateEvidence(
     raw.manifestDigest !== LOCAL_GIT_WORKTREE_MANIFEST_DIGEST ||
     raw.environmentDigest !== environmentDigest(environment) ||
     raw.resourceDigest !== digest('WORKSPACE-RESOURCE', environment.resourceRoot) ||
+    !candidate.ok ||
+    raw.candidateCommit !== candidate.value.commit ||
+    raw.candidateTree !== candidate.value.tree ||
     !GIT_OBJECT.test(String(raw.candidateCommit)) ||
     !GIT_OBJECT.test(String(raw.candidateTree)) ||
     !DIGEST.test(String(raw.fixtureDigest)) ||
+    !DIGEST.test(String(raw.admissionProofDigest)) ||
+    !Number.isSafeInteger(raw.admissionObservedAt) ||
+    !Number.isSafeInteger(raw.admissionAgeMs) ||
+    (raw.admissionAgeMs as number) < 0 ||
+    (raw.admissionAgeMs as number) > LOCAL_GIT_WORKTREE_MAX_PROOF_AGE_MS ||
     !DIGEST.test(String(raw.requestDigest)) ||
     !DIGEST.test(String(raw.resultDigest)) ||
     !DIGEST.test(String(raw.operationDigest)) ||
@@ -838,7 +930,7 @@ export function cleanupLocalGitWorktreeProbe(resourceRoot: string): Result<Reado
 }
 
 export function runLocalGitWorktreeQualificationProbe(
-  input: Readonly<{ candidateCommit: string; candidateTree: string; retainRoot?: boolean }>,
+  input: Readonly<{ candidateCommit: string; candidateTree: string; admission: unknown; retainRoot?: boolean }>,
 ): Result<LocalGitWorktreeProbeResult> {
   if (!GIT_OBJECT.test(input?.candidateCommit) || !GIT_OBJECT.test(input?.candidateTree))
     return fail('FC-INPUT', 'CANDIDATE_DIGEST_REQUIRED');
@@ -854,6 +946,11 @@ export function runLocalGitWorktreeQualificationProbe(
   if (!environment.ok) {
     if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
     return environment;
+  }
+  const admission = validateAdmission(input?.admission);
+  if (!admission.ok) {
+    if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
+    return admission;
   }
   const run = 'run/gf039-probe';
   const story = `${run}/story/gf039`;
@@ -907,6 +1004,10 @@ export function runLocalGitWorktreeQualificationProbe(
         lookup.value.outcome === 'confirmed-absence' &&
         existsSync(join(target, 'README.md')),
     ),
+    retireDisabledPreservesWorkspace: (() => {
+      const retire = provider.dispatch({ intent: fixtureIntent(bindings(8, 'OPC-WS-RETIRE')) });
+      return !retire.ok && retire.error.code === 'REAL_RETIRE_DISABLED' && existsSync(join(target, 'README.md'));
+    })(),
     noSecrets: !SECRET_VALUE.test(MANIFEST_TEXT),
     gateDeniedWithoutAdmission: !createQualifiedLocalGitWorktreeProvider({
       admission: undefined,
@@ -944,6 +1045,11 @@ export function runLocalGitWorktreeQualificationProbe(
     candidateCommit: input.candidateCommit,
     candidateTree: input.candidateTree,
     fixtureDigest: digest('WORKSPACE-FIXTURE', { source, target, basis }),
+    admissionProofDigest: admission.value.proofDigest,
+    admissionObservedAt: Number((input.admission as Record<string, unknown>).observedAt),
+    admissionAgeMs:
+      Number((input.admission as Record<string, unknown>).observedAt) -
+      Number(((input.admission as Record<string, unknown>).proof as Record<string, unknown>).observedAt),
     requestDigest,
     resultDigest,
     operationDigest,

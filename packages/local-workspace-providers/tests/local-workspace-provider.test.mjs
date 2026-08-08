@@ -1,22 +1,77 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
+const runtime = await import('../../runtime-contracts/dist/index.js');
 const digest = (character) => character.repeat(64);
-const gitObject = (character) => character.repeat(40);
-const candidate = { candidateCommit: gitObject('c'), candidateTree: gitObject('d') };
+const candidate = {
+  candidateCommit: execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' }).trim(),
+  candidateTree: execFileSync('git', ['rev-parse', '--verify', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
+};
 
-const admission = () => ({
-  kind: 'gf022-provider-admission',
-  story: 'GF-022',
-  principal: 'principal/arye',
-  manifestId: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
-  manifestDigest: provider.LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
-  proofDigest: digest('a'),
-});
+const gf022ManifestBytes = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
+);
+const gf022ManifestDigest = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
+const gf022ProviderDigest = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
+const gf022ManifestId = `provider/${gf022ProviderDigest}/authority/${gf022ManifestDigest}`;
+const admission = () => {
+  const ledger = runtime.createScriptedLedger();
+  const approval = {
+    principal: 'principal/arye',
+    manifestId: gf022ManifestId,
+    manifestDigest: gf022ManifestDigest,
+    scope: { phase: 2, purpose: 'semantic-admission-fixture', story: 'GF-022' },
+  };
+  const basis = {
+    providerIdentity: 'scripted-capability-proof-fixture/v1',
+    providerBuild: 'build/gf022-fixture',
+    environment: 'environment/gf022-fixture',
+    capability: 'capability/proof-only',
+    policyMinimum: 'policy/gf022-fixture',
+    manifestId: gf022ManifestId,
+    manifestDigest: gf022ManifestDigest,
+    scope: approval.scope,
+  };
+  const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: gf022ManifestBytes, approval, ledger });
+  const start = fixture.start({
+    basis,
+    ordinal: 1,
+    deadline: 2_000,
+    observedAt: 1_000,
+    retryLimit: 2,
+    predecessor: null,
+  });
+  assert.equal(start.ok, true);
+  const proof = fixture.result({
+    basis,
+    ordinal: 1,
+    deadline: 2_000,
+    observedAt: 1_100,
+    retryLimit: 2,
+    predecessor: start.value.digest,
+    outcome: 'positive',
+  });
+  assert.equal(proof.ok, true);
+  return {
+    kind: 'gf022-provider-admission',
+    story: 'GF-022',
+    principal: 'principal/arye',
+    manifestId: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
+    manifestDigest: provider.LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
+    proofDigest: proof.value.digest,
+    ledger,
+    approval,
+    basis,
+    proof: proof.value,
+    observedAt: 1_200,
+    maxAgeMs: 86_400_000,
+  };
+};
 
 test('GF-039 real local qualification uses only disposable Git-worktree roots and records the complete gate tuple', () => {
-  const result = provider.runLocalGitWorktreeQualificationProbe({ ...candidate });
+  const result = provider.runLocalGitWorktreeQualificationProbe({ ...candidate, admission: admission() });
   assert.equal(result.ok, true);
   assert.deepEqual(Object.values(result.value.observations).every(Boolean), true);
   assert.deepEqual(result.value.removedResources, [result.value.resourceRoot]);
@@ -37,7 +92,11 @@ test('GF-039 real local qualification uses only disposable Git-worktree roots an
 });
 
 test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, or exact environment', () => {
-  const probe = provider.runLocalGitWorktreeQualificationProbe({ ...candidate, retainRoot: true });
+  const probe = provider.runLocalGitWorktreeQualificationProbe({
+    ...candidate,
+    admission: admission(),
+    retainRoot: true,
+  });
   assert.equal(probe.ok, true);
   const environment = probe.value.evidence.environment;
   assert.deepEqual(provider.createQualifiedLocalGitWorktreeProvider({ evidence: probe.value.evidence, environment }), {
