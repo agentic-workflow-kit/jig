@@ -19,23 +19,26 @@ const clock = (at, _character = 'b', clockGeneration = generation) => {
   };
   return { ...body, digest: bounds.witnessedClockDigest(body) };
 };
-const livenessObservation = (at, kind, factDigest, factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE') => {
-  const body = {
-    schema: bounds.BOUNDS_VERSION,
-    event: 'EV-LIVENESS-OBSERVED',
+const livenessObservation = (
+  journal,
+  surface,
+  at,
+  kind,
+  factDigest,
+  factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE',
+) => {
+  const result = journal.witnessLiveness({
+    surface,
     subject,
     generation,
     at,
-    source: 'mechanism',
-    durable: true,
-    committed: true,
-    observer: 'CP-MEDIATOR',
-    position: at,
     kind,
     factKind,
     factDigest,
-  };
-  return { ...body, commitDigest: bounds.livenessObservationDigest(body) };
+    clock: clock(at),
+  });
+  assert.equal(result.ok, true);
+  return result.value;
 };
 const policy = () => bounds.defaultBoundPolicy();
 const start = (journal, surface, at = 0, character = '0') =>
@@ -145,6 +148,16 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
   assert.equal(startFor(operationOne, '1').ok, true);
   assert.equal(startFor(operationTwo, '2').ok, true);
   assert.equal(startFor(operationOne, '1').ok, true);
+  const staleDuplicate = journal.start({
+    surface: 'operation-source-retry',
+    subject: operationOne,
+    generation: `${run}/gen/2|controller`,
+    policy: policy(),
+    startedAt: 0,
+    clock: clock(0, '1', `${run}/gen/2|controller`),
+    factDigest: d('1'),
+  });
+  assert.equal(staleDuplicate.error.code, 'DUPLICATE_FACT_DIGEST');
   const first = journal.consume({
     surface: 'operation-source-retry',
     generation,
@@ -262,22 +275,39 @@ test('CF-CONTAINMENT: count exhaustion is durable, fixed, and idempotent; stale 
 test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts and late facts cannot reset a missed deadline', () => {
   const journal = bounds.createBoundJournal();
   assert.equal(start(journal, 'qualifying-progress-idle').ok, true);
+  const committed = livenessObservation(journal, 'qualifying-progress-idle', 100, 'progress', d('d'));
+  const forged = { ...committed };
+  const uncommitted = journal.observe({
+    surface: 'qualifying-progress-idle',
+    generation,
+    subject,
+    observation: forged,
+    clock: clock(100, 'd'),
+  });
+  assert.equal(uncommitted.error.code, 'UNCOMMITTED_LIVENESS');
   const progress = journal.observe({
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    observation: livenessObservation(100, 'progress', d('d')),
+    observation: committed,
     clock: clock(100, 'd'),
   });
   assert.equal(progress.ok, true);
   assert.equal(progress.value.startAt, 0);
   assert.equal(progress.value.resetCount, 1);
   assert.equal(progress.value.deadlineAt, 100 + 30 * 60 * 1000);
+  assert.equal(bounds.replayBoundFacts(journal.snapshot()).ok, true);
   const late = journal.observe({
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    observation: livenessObservation(progress.value.deadlineAt, 'progress', d('e')),
+    observation: livenessObservation(
+      journal,
+      'qualifying-progress-idle',
+      progress.value.deadlineAt,
+      'progress',
+      d('e'),
+    ),
     clock: clock(progress.value.deadlineAt, 'e'),
   });
   assert.equal(late.error.code, 'BOUND_DEADLINE_MISSED');
@@ -288,7 +318,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'session-silence',
     generation,
     subject,
-    observation: livenessObservation(10, 'heartbeat', d('d')),
+    observation: livenessObservation(silent, 'session-silence', 10, 'heartbeat', d('d')),
     clock: clock(10, 'd'),
   });
   assert.equal(heartbeat.ok, true);
@@ -297,7 +327,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'session-silence',
     generation,
     subject,
-    observation: livenessObservation(20, 'progress', d('e')),
+    observation: livenessObservation(silent, 'session-silence', 20, 'progress', d('e')),
     clock: clock(20, 'e'),
   });
   assert.equal(wrongReset.error.code, 'RESET_NOT_CATALOGUED');
@@ -308,7 +338,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'capacity-admission',
     generation,
     subject,
-    observation: livenessObservation(1, 'progress', d('d')),
+    observation: livenessObservation(capacity, 'capacity-admission', 1, 'progress', d('d')),
     clock: clock(1, 'd'),
   });
   assert.equal(forbiddenReset.error.code, 'RESET_NOT_CATALOGUED');
@@ -316,7 +346,10 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    observation: { ...livenessObservation(1, 'progress', d('e')), source: 'provider' },
+    observation: {
+      ...livenessObservation(journal, 'qualifying-progress-idle', 1, 'progress', d('e')),
+      source: 'provider',
+    },
     clock: clock(1, 'e'),
   });
   assert.equal(providerObservation.error.code, 'MALFORMED_BOUND_OBSERVATION');
@@ -410,22 +443,32 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
 
 test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only causes a reread', () => {
   assert.equal(bounds.WAKE_SELECTORS.length, 6);
+  assert.equal(new Set(bounds.WAKE_SELECTORS).size, 6);
   const journal = bounds.createBoundJournal();
   assert.equal(start(journal, 'target-stability').ok, true);
-  for (const [index, selector] of bounds.WAKE_SELECTORS.entries()) {
-    const result = journal.wake({
-      surface: 'target-stability',
-      generation,
-      subject,
-      at: index,
-      clock: clock(index, (index + 1).toString(16)),
-      conditionDigest: d((index + 1).toString(16)),
-      selector,
-      factDigest: d((index + 10).toString(16)),
-    });
-    assert.equal(result.ok, true, selector);
-    assert.equal(result.value.timerOnly, selector === 'EV-WAKE-TIMER');
-  }
+  const timerWake = journal.wake({
+    surface: 'target-stability',
+    generation,
+    subject,
+    at: 0,
+    clock: clock(0, '1'),
+    conditionDigest: d('1'),
+    selector: 'EV-WAKE-TIMER',
+    factDigest: d('a'),
+  });
+  assert.equal(timerWake.ok, true);
+  assert.equal(timerWake.value.timerOnly, true);
+  const unrelatedWake = journal.wake({
+    surface: 'target-stability',
+    generation,
+    subject,
+    at: 1,
+    clock: clock(1, '2'),
+    conditionDigest: d('2'),
+    selector: 'EV-WAKE-DEPENDENCY',
+    factDigest: d('b'),
+  });
+  assert.equal(unrelatedWake.error.code, 'WAKE_SELECTOR_MISMATCH');
   const unchanged = journal.snapshot().facts.find((fact) => fact.event === 'EV-WAKE-TIMER').record;
   assert.equal(unchanged.status, 'active');
   const before = journal.snapshot().facts.length;
@@ -433,11 +476,11 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
     surface: 'target-stability',
     generation,
     subject,
-    at: 2,
-    clock: clock(2, '3'),
-    conditionDigest: d('3'),
+    at: 0,
+    clock: clock(0, '1'),
+    conditionDigest: d('1'),
     selector: 'EV-WAKE-TIMER',
-    factDigest: d('c'),
+    factDigest: d('a'),
   });
   assert.equal(duplicate.ok, true);
   assert.equal(journal.snapshot().facts.length, before);
