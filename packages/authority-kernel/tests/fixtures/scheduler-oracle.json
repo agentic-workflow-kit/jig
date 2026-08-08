@@ -1,0 +1,22 @@
+{
+  "version": "jig.scheduler.v1",
+  "controller": "RT-CONTROLLER",
+  "resources": [
+    "RC-ISOLATION",
+    "RC-SESSION",
+    "RC-IMPL-TURN",
+    "RC-REVIEW-TURN",
+    "RC-VERIFY",
+    "RC-DELIVERY",
+    "RC-FINALIZER"
+  ],
+  "comparator": ["priority", "ordinal", "story"],
+  "wait": {
+    "class": "BND-WAIT-CAPACITY",
+    "defaultSeconds": 86400,
+    "lowerSeconds": 3600,
+    "upperSeconds": 2592000,
+    "exhaustion": "FC-CAPACITY"
+  },
+  "proof": ["CF-CAPACITY", "CF-ORDER"]
+}
