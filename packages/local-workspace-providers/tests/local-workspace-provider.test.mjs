@@ -24,7 +24,7 @@ const candidate = {
 };
 
 const localManifest = JSON.parse(new TextDecoder().decode(provider.LOCAL_GIT_WORKTREE_MANIFEST));
-const admission = () => {
+const admission = (providerBuild = 'build/local-git-worktree-qualification') => {
   const ledger = runtime.createScriptedLedger();
   const approval = {
     principal: 'principal/arye',
@@ -34,7 +34,7 @@ const admission = () => {
   };
   const basis = {
     providerIdentity: localManifest.providerIdentity,
-    providerBuild: 'build/local-git-worktree-qualification',
+    providerBuild,
     environment: localManifest.runtimeAuthority.environment,
     capability: 'PORT-WORKSPACE/local-git-worktree',
     policyMinimum: 'policy/local-posix-git-worktree/v1',
@@ -138,6 +138,17 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
       environment,
     }).ok,
     true,
+  );
+  assert.deepEqual(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission('build/local-git-worktree-qualification-replay'),
+      evidence: probe.value.evidence,
+      environment,
+    }),
+    {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'QUALIFICATION_ADMISSION_MISMATCH' },
+    },
   );
   assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
     ok: true,

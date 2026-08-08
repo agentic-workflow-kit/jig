@@ -58,6 +58,8 @@ export type LocalGitWorktreeAdmission = Readonly<{
   manifestId: typeof LOCAL_GIT_WORKTREE_MANIFEST_ID;
   manifestDigest: typeof LOCAL_GIT_WORKTREE_MANIFEST_DIGEST;
   proofDigest: string;
+  observedAt: number;
+  ageMs: number;
 }>;
 
 export type LocalGitWorktreeAttestation = Readonly<{
@@ -793,6 +795,8 @@ function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission
       manifestId: LOCAL_GIT_WORKTREE_MANIFEST_ID,
       manifestDigest: LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
       proofDigest: String(raw.proofDigest),
+      observedAt: Number(raw.observedAt),
+      ageMs: Number(raw.observedAt) - Number((raw.proof as Record<string, unknown>).observedAt),
     }),
   );
 }
@@ -899,6 +903,12 @@ export function createQualifiedLocalGitWorktreeProvider(
   if (!admission.ok) return admission;
   const evidence = validateEvidence(input?.evidence, environment.value);
   if (!evidence.ok) return evidence;
+  if (
+    evidence.value.admissionProofDigest !== admission.value.proofDigest ||
+    evidence.value.admissionObservedAt !== admission.value.observedAt ||
+    evidence.value.admissionAgeMs !== admission.value.ageMs
+  )
+    return fail('FC-AUTHORITY', 'QUALIFICATION_ADMISSION_MISMATCH');
   if (typeof input?.evidence !== 'object' || input.evidence === null || !RECORDED_EVIDENCE.has(input.evidence))
     return fail('FC-AUTHORITY', 'UNRECORDED_QUALIFICATION_EVIDENCE');
   return ok(createMechanism(environment.value));
