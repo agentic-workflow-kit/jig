@@ -21,6 +21,7 @@ import {
 export const LIFECYCLE_CONTROLLER = 'RT-CONTROLLER';
 export const RUN_BASIS_SCHEMA = 'jig.run-basis.v1';
 export const INTAKE_ACK_SCHEMA = 'jig.intake-ack.v1';
+export const RUN_GENESIS_SCHEMA = 'jig.run-genesis.v1';
 export const LIFECYCLE_TRANSITION_SCHEMA = 'jig.lifecycle-transition.v1';
 export const GENERATION_CLAIM_SCHEMA = 'jig.generation-claim.v1';
 export const RESUME_INTEGRITY_SCHEMA = 'jig.resume-integrity.v1';
@@ -83,6 +84,12 @@ export type LifecycleTransition = Readonly<{
   directRoots: readonly DirectBlockerRoot[];
   decision: OwnerDecision;
   transitionDigest: string;
+}>;
+export type RunGenesis = Readonly<{
+  schema: typeof RUN_GENESIS_SCHEMA;
+  controller: typeof LIFECYCLE_CONTROLLER;
+  basis: RunBasis;
+  transition: LifecycleTransition;
 }>;
 export type LifecycleProjection = Readonly<{
   /** Enclosing ledger position, with the witnessed Run-basis record at position zero. */
@@ -336,6 +343,10 @@ function transitionDigest(value: Omit<LifecycleTransition, 'transitionDigest'>):
   return hash('LIFECYCLE-TRANSITION', value);
 }
 
+function basisReference(basis: RunBasis): RunBasisReference {
+  return freeze({ run: basis.run, basis: basis.basis, position: 0, contentDigest: basis.basisDigest });
+}
+
 function ledgerRecord(value: unknown, expectedRun?: string): LedgerRecord | undefined {
   const raw = fields(value, [
     'version',
@@ -544,9 +555,12 @@ function witnessedBasis(
   value: unknown,
   intakeWitness: unknown,
   ledgerWitness: unknown,
-): LifecycleResult<Readonly<{ carrier: RunBasis; reference: RunBasisReference; record: LedgerRecord }>> {
+): LifecycleResult<
+  Readonly<{ carrier: RunBasis; reference: RunBasisReference; record: LedgerRecord; genesis: RunGenesis }>
+> {
   const record = ledgerRecord(value);
-  const carrier = record && validateBasis(record.content);
+  const genesis = record && parseGenesis(record.content);
+  const carrier = genesis?.basis;
   if (!record) return fail('FC-TRUST', 'RUN_BASIS_NOT_WITNESSED');
   const durable = witnessedLedgerRecord(ledgerWitness, record);
   if (!durable.ok) return fail(durable.error.failure, durable.error.code);
@@ -570,6 +584,9 @@ function witnessedBasis(
     witnessed && fields(witnessed.result, ['kind', 'position', 'compositionDigest', 'acknowledgementDigest', 'run']);
   if (
     !carrier ||
+    !genesis ||
+    record.event !== genesis.transition.event.id ||
+    record.transaction !== genesis.transition.bindings.transaction ||
     record.position !== 0 ||
     record.previousDigest !== GENESIS_DIGEST ||
     record.run !== carrier.run ||
@@ -587,7 +604,8 @@ function witnessedBasis(
   return ok({
     carrier,
     record,
-    reference: freeze({ run: carrier.run, basis: carrier.basis, position: 0, contentDigest: record.contentDigest }),
+    reference: basisReference(carrier),
+    genesis,
   });
 }
 
@@ -707,9 +725,103 @@ function parseTransition(value: unknown): LifecycleTransition | undefined {
     : undefined;
 }
 
+function parseGenesis(value: unknown): RunGenesis | undefined {
+  const raw = fields(value, ['schema', 'controller', 'basis', 'transition']);
+  const basis = raw && validateBasis(raw.basis);
+  const transition = raw && parseTransition(raw.transition);
+  const first = basis?.stories.slice().sort((left, right) => compareStoryOrder(left.order, right.order))[0];
+  if (
+    !raw ||
+    raw.schema !== RUN_GENESIS_SCHEMA ||
+    raw.controller !== LIFECYCLE_CONTROLLER ||
+    !basis ||
+    !transition ||
+    !first ||
+    !sameBasis(transition.basis, basisReference(basis)) ||
+    transition.previousPosition !== 0 ||
+    transition.position !== 1 ||
+    transition.event.id !== `${basis.run}/event/1` ||
+    transition.event.type !== 'EV-ENVELOPE-SUBMITTED' ||
+    transition.event.edge !== 'preflighting-active' ||
+    transition.event.subject.story !== first.story ||
+    transition.previous.storyState !== 'Pending' ||
+    transition.previous.runPhase !== 'Preflighting' ||
+    transition.next.storyState !== 'Pending' ||
+    transition.next.runPhase !== 'Active' ||
+    transition.bindings.transaction !== `${basis.run}/txn/1/${basis.generation}|${basis.basis}` ||
+    transition.bindings.event !== transition.event.id ||
+    transition.bindings.fence.generation !== basis.generation ||
+    transition.bindings.fence.basis !== basis.basis ||
+    transition.directRoots.length !== 0 ||
+    transition.operations.length !== 0 ||
+    transition.decision.kind !== 'none'
+  )
+    return undefined;
+  const initial = basis.stories.find((story) => story.story === first.story)?.initial;
+  return initial && sameState(transition.previous, initial)
+    ? freeze({ schema: raw.schema, controller: raw.controller, basis, transition })
+    : undefined;
+}
+
+function genesisTransition(basis: RunBasis): LifecycleResult<LifecycleTransition> {
+  const first = basis.stories.slice().sort((left, right) => compareStoryOrder(left.order, right.order))[0];
+  if (!first) return fail('FC-INPUT', 'RUN_GENESIS_STORY_REQUIRED');
+  const event = {
+    type: 'EV-ENVELOPE-SUBMITTED',
+    edge: 'preflighting-active',
+    id: `${basis.run}/event/1`,
+    subject: first.initial.subject,
+    fence: { generation: basis.generation, basis: basis.basis },
+    catalogVersion: AUTHORITY_KERNEL_VERSION,
+  } as const;
+  const bindings = {
+    transaction: `${basis.run}/txn/1/${basis.generation}|${basis.basis}`,
+    event: event.id,
+    operation: `${basis.run}/txn/1/${basis.generation}|${basis.basis}/op/1`,
+    subject: first.initial.subject,
+    fence: { generation: basis.generation, basis: basis.basis },
+    catalogVersion: AUTHORITY_KERNEL_VERSION,
+  } as const;
+  const reduced = reduceAuthority(first.initial, event, bindings);
+  if (!reduced.ok) return fail('FC-AUTHORITY', 'RUN_GENESIS_CATALOGUE_GUARD');
+  const candidate = {
+    schema: LIFECYCLE_TRANSITION_SCHEMA,
+    controller: LIFECYCLE_CONTROLLER,
+    basis: basisReference(basis),
+    previousPosition: 0,
+    position: 1,
+    previous: first.initial,
+    next: reduced.value.next,
+    event,
+    bindings: reduced.value.bindings,
+    operations: reduced.value.operations,
+    directRoots: Object.freeze([]),
+    decision: { kind: 'none' },
+  } as const;
+  const transitionDigestValue = transitionDigest(candidate);
+  return transitionDigestValue
+    ? ok({ ...candidate, transitionDigest: transitionDigestValue })
+    : fail('FC-INPUT', 'RUN_GENESIS_DIGEST');
+}
+
+function validateGenesis(value: unknown): LifecycleResult<RunGenesis> {
+  const parsed = parseGenesis(value);
+  return parsed ? ok(parsed) : fail('FC-INPUT', 'INVALID_RUN_GENESIS');
+}
+
 export function validateLifecycleTransition(value: unknown): LifecycleResult<LifecycleTransition> {
   const parsed = parseTransition(value);
   return parsed ? ok(parsed) : fail('FC-INPUT', 'INVALID_LIFECYCLE_RECORD');
+}
+
+export function createRunGenesis(value: unknown): LifecycleResult<RunGenesis> {
+  const raw = fields(value, ['basis']);
+  const basis = raw && validateBasis(raw.basis);
+  if (!basis) return fail('FC-INPUT', 'RUN_GENESIS_BASIS');
+  const transition = genesisTransition(basis);
+  if (!transition.ok) return transition;
+  const genesis = { schema: RUN_GENESIS_SCHEMA, controller: LIFECYCLE_CONTROLLER, basis, transition: transition.value };
+  return validateGenesis(genesis);
 }
 
 function generationOrdinal(value: string): number | undefined {
@@ -923,6 +1035,30 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
     let currentGeneration = basis.generation;
     let claim: LedgerRecord | undefined;
     let integrity: LedgerRecord | undefined;
+    const genesisValid = validateProjectionTransition(
+      basisResult.value.genesis.transition,
+      basisResult.value.record,
+      reference,
+      states,
+      graph,
+      rootsByStory,
+      currentPhase,
+      currentGeneration,
+      undefined,
+      undefined,
+    );
+    if (!genesisValid.ok) return genesisValid;
+    const genesis = basisResult.value.genesis.transition;
+    if (genesis.next.runPhase !== genesis.previous.runPhase) {
+      if (genesis.next.storyState !== genesis.previous.storyState)
+        return fail('FC-SUBJECT', 'RUN_OVERLAY_MUTATED_STORY');
+      for (const [story, state] of states)
+        states.set(story, freeze({ ...state, runPhase: genesis.next.runPhase, fence: genesis.next.fence }));
+      currentPhase = genesis.next.runPhase;
+      currentGeneration = genesis.next.fence.generation;
+    } else states.set(genesis.next.subject.story, genesis.next);
+    accepted.push(genesis);
+    operations.push(...genesis.operations);
     for (const rawRecord of records) {
       const ledger = ledgerRecord(rawRecord, basis.run);
       if (!ledger || ledger.position !== expectedPosition || ledger.previousDigest !== previousDigest)
@@ -951,14 +1087,6 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
       } else {
         const lifecycle = parseTransition(ledger.content);
         if (!lifecycle) return fail('FC-INPUT', 'INVALID_LIFECYCLE_RECORD');
-        if (
-          ledger.position === 1 &&
-          (lifecycle.event.id !== `${basis.run}/event/2` ||
-            lifecycle.event.type !== 'EV-ENVELOPE-SUBMITTED' ||
-            lifecycle.previous.runPhase !== 'Preflighting' ||
-            lifecycle.next.runPhase !== 'Active')
-        )
-          return fail('FC-SUBJECT', 'RUN_ENTRY_REQUIRED');
         const valid = validateProjectionTransition(
           lifecycle,
           ledger,
@@ -1067,14 +1195,6 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
       if (!event.ok || !bindings) return fail('FC-INPUT', 'CONTROLLER_PROPOSAL_VALUE');
       const current = projection.value.states[event.value.subject.story];
       if (!current) return fail('FC-SUBJECT', 'UNKNOWN_STORY');
-      if (
-        projection.value.position === 0 &&
-        (event.value.id !== `${basis.carrier.run}/event/2` ||
-          event.value.type !== 'EV-ENVELOPE-SUBMITTED' ||
-          event.value.edge !== 'preflighting-active' ||
-          current.runPhase !== 'Preflighting')
-      )
-        return fail('FC-SUBJECT', 'RUN_ENTRY_REQUIRED');
       const resume =
         current.runPhase === 'Suspended' &&
         event.value.type === 'EV-RUN-RESUME-DECISION' &&
