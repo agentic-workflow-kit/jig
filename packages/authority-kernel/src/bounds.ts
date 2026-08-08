@@ -2003,6 +2003,7 @@ export function classifyLiveness(
     subject: BoundSubject;
     generation: string;
     at: number;
+    snapshot: BoundJournalSnapshot;
     idle: BoundRecord;
     silence: BoundRecord;
     observations: readonly LivenessObservation[];
@@ -2012,12 +2013,15 @@ export function classifyLiveness(
   if (
     !validSubject(input.subject) ||
     !nonNegative(input.at) ||
+    !plain(input.snapshot) ||
     !validRecord(input.idle) ||
     !validRecord(input.silence) ||
     input.idle.surface !== 'qualifying-progress-idle' ||
     input.silence.surface !== 'session-silence' ||
     input.idle.generation !== input.generation ||
     input.silence.generation !== input.generation ||
+    !equalSubject(input.idle.subject, input.subject) ||
+    !equalSubject(input.silence.subject, input.subject) ||
     (input.humanInputOverdue !== undefined &&
       (!validHumanInputOverdueBasis(input.humanInputOverdue) ||
         !equalSubject(input.humanInputOverdue.record.subject, input.subject) ||
@@ -2030,6 +2034,46 @@ export function classifyLiveness(
     )
   )
     return fail('FC-INPUT', 'MALFORMED_LIVENESS_OBSERVATION');
+  const replayed = replayBoundFacts(input.snapshot);
+  if (!replayed.ok) return replayed;
+  const idleFact = [...replayed.value.facts]
+    .reverse()
+    .find(
+      (fact) =>
+        fact.surface === 'qualifying-progress-idle' &&
+        fact.generation === input.generation &&
+        equalSubject(fact.record.subject, input.subject),
+    );
+  const silenceFact = [...replayed.value.facts]
+    .reverse()
+    .find(
+      (fact) =>
+        fact.surface === 'session-silence' &&
+        fact.generation === input.generation &&
+        equalSubject(fact.record.subject, input.subject),
+    );
+  if (
+    !idleFact ||
+    !silenceFact ||
+    !equalRecord(idleFact.record, input.idle) ||
+    !equalRecord(silenceFact.record, input.silence)
+  )
+    return fail('FC-TRUST', 'LIVENESS_RECORD_NOT_COMMITTED');
+  if (
+    input.observations.some(
+      (observation) =>
+        !replayed.value.facts.some(
+          (fact) =>
+            (fact.kind === 'progress' || fact.kind === 'heartbeat') &&
+            fact.observation !== null &&
+            fact.observation.commitDigest === observation.commitDigest &&
+            fact.observation.factDigest === observation.factDigest &&
+            equalSubject(fact.observation.subject, observation.subject) &&
+            fact.observation.generation === observation.generation,
+        ),
+    )
+  )
+    return fail('FC-TRUST', 'LIVENESS_OBSERVATION_NOT_COMMITTED');
   const base = {
     schema: BOUNDS_VERSION as typeof BOUNDS_VERSION,
     subject: input.subject,

@@ -405,31 +405,53 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
   const journal = bounds.createBoundJournal();
   const idle = start(journal, 'qualifying-progress-idle').value;
   const silence = start(journal, 'session-silence', 0, 'd').value;
-  const thinking = bounds.classifyLiveness({ subject, generation, at: 1, idle, silence, observations: [] });
+  const thinking = bounds.classifyLiveness({
+    subject,
+    generation,
+    at: 1,
+    snapshot: journal.snapshot(),
+    idle,
+    silence,
+    observations: [],
+  });
   assert.equal(thinking.value.classification, 'thinking');
+  const stuckJournal = bounds.createBoundJournal();
+  const stuckIdleInitial = start(stuckJournal, 'qualifying-progress-idle').value;
+  const stuckSilence = start(stuckJournal, 'session-silence', stuckIdleInitial.deadlineAt - 1000, 'd').value;
+  const exhaustedIdle = stuckJournal.evaluate({
+    surface: 'qualifying-progress-idle',
+    generation,
+    subject,
+    clock: clock(stuckIdleInitial.deadlineAt, 'e'),
+  });
+  assert.equal(exhaustedIdle.value.status, 'exhausted');
   const stuck = bounds.classifyLiveness({
     subject,
     generation,
-    at: idle.deadlineAt,
-    idle: {
-      ...idle,
-      status: 'exhausted',
-      exhaustion: { failure: 'FC-LIVENESS', disposition: 'park', at: idle.deadlineAt, reason: 'idle deadline' },
-    },
-    silence: { ...silence, deadlineAt: idle.deadlineAt + 1 },
+    at: stuckIdleInitial.deadlineAt,
+    snapshot: stuckJournal.snapshot(),
+    idle: exhaustedIdle.value,
+    silence: stuckSilence,
     observations: [],
   });
   assert.equal(stuck.value.classification, 'stuck');
+  const deadJournal = bounds.createBoundJournal();
+  const deadIdle = start(deadJournal, 'qualifying-progress-idle').value;
+  const deadSilence = start(deadJournal, 'session-silence', 0, 'd').value;
+  const exhaustedSilence = deadJournal.evaluate({
+    surface: 'session-silence',
+    generation,
+    subject,
+    clock: clock(deadSilence.deadlineAt, 'e'),
+  });
+  assert.equal(exhaustedSilence.value.status, 'exhausted');
   const dead = bounds.classifyLiveness({
     subject,
     generation,
-    at: silence.deadlineAt,
-    idle,
-    silence: {
-      ...silence,
-      status: 'exhausted',
-      exhaustion: { failure: 'FC-LIVENESS', disposition: 'park', at: silence.deadlineAt, reason: 'silence deadline' },
-    },
+    at: deadSilence.deadlineAt,
+    snapshot: deadJournal.snapshot(),
+    idle: deadIdle,
+    silence: exhaustedSilence.value,
     observations: [],
   });
   assert.equal(dead.value.classification, 'dead');
@@ -452,6 +474,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     subject,
     generation,
     at: owner.deadlineAt,
+    snapshot: journal.snapshot(),
     idle,
     silence,
     observations: [],
@@ -462,6 +485,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     subject,
     generation,
     at: 1,
+    snapshot: journal.snapshot(),
     idle,
     silence,
     observations: [],
@@ -472,6 +496,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     subject,
     generation,
     at: 1,
+    snapshot: journal.snapshot(),
     idle,
     silence,
     observations: [
