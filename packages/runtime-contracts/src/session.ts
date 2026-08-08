@@ -1,4 +1,4 @@
-import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 export const SESSION_CONTRACT_VERSION = 'jig.session-contract.v1';
 export const SESSION_BINDING_SCHEMA = 'jig.cb-session.v1';
@@ -285,7 +285,7 @@ function bindingDigest(value: Omit<SessionBinding, 'digest'>): string | undefine
   const staged = stageDigest({
     domain: 'SESSION-BINDING',
     excludePaths: [],
-    value: value as unknown as import('@agentic-workflow-kit/jig-codec').CanonicalJson,
+    value: value as unknown as CanonicalJson,
   });
   return staged.ok ? staged.value.digest : undefined;
 }
