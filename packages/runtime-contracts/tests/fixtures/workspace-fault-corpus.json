@@ -1,0 +1,10 @@
+{
+  "faults": ["lost-response", "uncertain", "duplicate", "crash"],
+  "containment": {
+    "lost-response": "reconcile-or-preserve",
+    "uncertain": "reconcile-or-preserve",
+    "duplicate": "reject",
+    "crash": "reconcile-or-preserve"
+  },
+  "retire": "preservation-before-retire-and-no-real-effect"
+}
