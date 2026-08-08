@@ -30,6 +30,12 @@ const livenessObservation = (
   const result = journal.witnessLiveness({
     surface,
     subject,
+    session: subject.story,
+    principal: 'principal/bounds',
+    assignmentOrdinal: 0,
+    lastQualifyingProgress: at,
+    silenceMs: 0,
+    approvalWaiting: false,
     generation,
     at,
     kind,

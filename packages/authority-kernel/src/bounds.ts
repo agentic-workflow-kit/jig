@@ -354,6 +354,10 @@ export type LivenessObservation = Readonly<{
   schema: typeof BOUNDS_VERSION;
   event: 'EV-LIVENESS-OBSERVED';
   subject: BoundSubject;
+  session: string;
+  principal: string;
+  operation: string | null;
+  assignmentOrdinal: number;
   generation: string;
   at: number;
   clockDigest: string;
@@ -361,8 +365,14 @@ export type LivenessObservation = Readonly<{
   durable: true;
   committed: true;
   observer: 'CP-MEDIATOR';
+  observerId: string;
   position: number;
   previousDigest: string;
+  lastQualifyingProgress: number;
+  silenceMs: number;
+  approvalWaiting: boolean;
+  bound: BoundClass;
+  classificationBasis: 'qualifying-progress' | 'heartbeat' | 'termination' | 'approval-wait';
   kind: 'heartbeat' | 'progress' | 'terminated';
   factKind:
     | 'SCH-CANDIDATE'
@@ -378,6 +388,12 @@ export type LivenessObservation = Readonly<{
 export type LivenessObservationInput = Readonly<{
   surface: WaitSurface;
   subject: BoundSubject;
+  session: string;
+  principal: string;
+  assignmentOrdinal: number;
+  lastQualifyingProgress: number;
+  silenceMs: number;
+  approvalWaiting: boolean;
   generation: string;
   at: number;
   kind: LivenessObservation['kind'];
@@ -501,6 +517,8 @@ function validSubject(value: unknown): value is BoundSubject {
     (value.operation === undefined || (typeof value.operation === 'string' && value.operation.length > 0))
   );
 }
+const subjectOperation = (value: unknown): string | null =>
+  plain(value) && typeof value.operation === 'string' ? value.operation : null;
 
 function validClock(value: unknown): value is WitnessedClock {
   return (
@@ -521,6 +539,9 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
     plain(value) &&
     exact(value, [
       'at',
+      'approvalWaiting',
+      'assignmentOrdinal',
+      'bound',
       'commitDigest',
       'clockDigest',
       'committed',
@@ -530,12 +551,19 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
       'factKind',
       'generation',
       'kind',
+      'lastQualifyingProgress',
       'observer',
+      'observerId',
+      'operation',
       'position',
+      'principal',
       'previousDigest',
       'schema',
+      'session',
+      'silenceMs',
       'source',
       'subject',
+      'classificationBasis',
     ]) &&
     value.schema === BOUNDS_VERSION &&
     value.event === 'EV-LIVENESS-OBSERVED' &&
@@ -543,8 +571,31 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
     value.durable === true &&
     value.committed === true &&
     value.observer === 'CP-MEDIATOR' &&
+    typeof value.observerId === 'string' &&
+    value.observerId === `CP-MEDIATOR/${value.session}` &&
+    typeof value.session === 'string' &&
+    value.session.length > 0 &&
+    typeof value.principal === 'string' &&
+    value.principal.length > 0 &&
+    (value.operation === null || (typeof value.operation === 'string' && value.operation.length > 0)) &&
+    value.operation === subjectOperation(value.subject) &&
+    nonNegative(value.assignmentOrdinal) &&
     nonNegative(value.position) &&
     digest(value.previousDigest) &&
+    nonNegative(value.lastQualifyingProgress) &&
+    nonNegative(value.at) &&
+    value.lastQualifyingProgress <= value.at &&
+    nonNegative(value.silenceMs) &&
+    typeof value.approvalWaiting === 'boolean' &&
+    BOUND_CLASSES.includes(value.bound as BoundClass) &&
+    value.classificationBasis ===
+      (value.approvalWaiting
+        ? 'approval-wait'
+        : value.kind === 'progress'
+          ? 'qualifying-progress'
+          : value.kind === 'heartbeat'
+            ? 'heartbeat'
+            : 'termination') &&
     (value.kind === 'progress' || value.kind === 'heartbeat' || value.kind === 'terminated') &&
     (value.factKind === 'SCH-CANDIDATE' ||
       value.factKind === 'EV-WORKSPACE-FACT' ||
@@ -555,7 +606,6 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
       value.factKind === 'termination') &&
     validSubject(value.subject) &&
     typeof value.generation === 'string' &&
-    nonNegative(value.at) &&
     digest(value.factDigest) &&
     digest(value.clockDigest) &&
     digest(value.commitDigest) &&
@@ -978,6 +1028,15 @@ export function createBoundJournal(): BoundJournal {
       if (
         !surface(input.surface) ||
         !validSubject(input.subject) ||
+        typeof input.session !== 'string' ||
+        input.session.length === 0 ||
+        typeof input.principal !== 'string' ||
+        input.principal.length === 0 ||
+        !nonNegative(input.assignmentOrdinal) ||
+        !nonNegative(input.lastQualifyingProgress) ||
+        input.lastQualifyingProgress > input.at ||
+        !nonNegative(input.silenceMs) ||
+        typeof input.approvalWaiting !== 'boolean' ||
         typeof input.generation !== 'string' ||
         !nonNegative(input.at) ||
         !validClock(input.clock) ||
@@ -1004,6 +1063,10 @@ export function createBoundJournal(): BoundJournal {
         schema: BOUNDS_VERSION,
         event: 'EV-LIVENESS-OBSERVED' as const,
         subject: input.subject,
+        session: input.session,
+        principal: input.principal,
+        operation: input.subject.operation ?? null,
+        assignmentOrdinal: input.assignmentOrdinal,
         generation: input.generation,
         at: input.at,
         clockDigest: input.clock.digest,
@@ -1011,8 +1074,20 @@ export function createBoundJournal(): BoundJournal {
         durable: true as const,
         committed: true as const,
         observer: 'CP-MEDIATOR' as const,
+        observerId: `CP-MEDIATOR/${input.session}`,
         position: facts.length,
         previousDigest: facts.at(-1)?.contentDigest ?? GENESIS,
+        lastQualifyingProgress: input.lastQualifyingProgress,
+        silenceMs: input.silenceMs,
+        approvalWaiting: input.approvalWaiting,
+        bound: record.value.bound,
+        classificationBasis: input.approvalWaiting
+          ? 'approval-wait'
+          : input.kind === 'progress'
+            ? 'qualifying-progress'
+            : input.kind === 'heartbeat'
+              ? 'heartbeat'
+              : 'termination',
         kind: input.kind,
         factKind: input.factKind,
         factDigest: input.factDigest,
@@ -1040,6 +1115,7 @@ export function createBoundJournal(): BoundJournal {
         return fail('FC-FENCE', 'STALE_OR_AMBIGUOUS_LIVENESS');
       const record = currentRecord(input.surface, input.generation, input.subject);
       if (!record.ok) return record;
+      if (!livenessWitnesses.has(observation)) return fail('FC-TRUST', 'UNCOMMITTED_LIVENESS');
       const prior = seen(observation.factDigest);
       const expectedKind =
         record.value.resetRule === 'qualifying-progress'
@@ -1057,7 +1133,6 @@ export function createBoundJournal(): BoundJournal {
           return ok(prior.record);
         return fail('FC-TRUST', 'DUPLICATE_FACT_DIGEST');
       }
-      if (!livenessWitnesses.has(observation)) return fail('FC-TRUST', 'UNCOMMITTED_LIVENESS');
       if (
         observation.position !== facts.length ||
         observation.previousDigest !== (facts.at(-1)?.contentDigest ?? GENESIS)
