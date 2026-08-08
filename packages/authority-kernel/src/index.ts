@@ -41,6 +41,7 @@ export {
   validateTransitionOperation,
 } from './operation.js';
 export * from './scheduler.js';
+export * from './candidate.js';
 
 export const AUTHORITY_KERNEL_VERSION = 'jig.authority-kernel.v1';
 export const STORY_STATES = Object.freeze([
