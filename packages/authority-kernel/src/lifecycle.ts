@@ -21,7 +21,6 @@ import {
 export const LIFECYCLE_CONTROLLER = 'RT-CONTROLLER';
 export const RUN_BASIS_SCHEMA = 'jig.run-basis.v1';
 export const INTAKE_ACK_SCHEMA = 'jig.intake-ack.v1';
-export const ENVELOPE_ENTRY_SCHEMA = 'jig.envelope-entry.v1';
 export const LIFECYCLE_TRANSITION_SCHEMA = 'jig.lifecycle-transition.v1';
 export const GENERATION_CLAIM_SCHEMA = 'jig.generation-claim.v1';
 export const RESUME_INTEGRITY_SCHEMA = 'jig.resume-integrity.v1';
@@ -46,15 +45,6 @@ export type IntakeAdmission = Readonly<{
   position: number;
   witnessedHeadDigest: string;
 }>;
-export type RunEntry = Readonly<{
-  schema: typeof ENVELOPE_ENTRY_SCHEMA;
-  run: string;
-  basis: string;
-  event: string;
-  position: 1;
-  type: 'EV-ENVELOPE-SUBMITTED';
-  edge: 'preflighting-active';
-}>;
 export type StoryOrder = Readonly<{ priority: number; ordinal: number; story: string }>;
 export type StoryBasisFact = Readonly<{
   story: string;
@@ -69,7 +59,6 @@ export type RunBasis = Readonly<{
   basis: string;
   generation: string;
   intake: IntakeAdmission;
-  entry: RunEntry;
   stories: readonly StoryBasisFact[];
   basisDigest: string;
 }>;
@@ -309,23 +298,6 @@ function validateIntake(value: unknown): IntakeAdmission | undefined {
     : undefined;
 }
 
-function validateEntry(value: unknown): RunEntry | undefined {
-  const raw = fields(value, ['schema', 'run', 'basis', 'event', 'position', 'type', 'edge']);
-  return raw &&
-    raw.schema === ENVELOPE_ENTRY_SCHEMA &&
-    typeof raw.run === 'string' &&
-    digest(raw.basis) &&
-    typeof raw.event === 'string' &&
-    raw.position === 1 &&
-    raw.type === 'EV-ENVELOPE-SUBMITTED' &&
-    raw.edge === 'preflighting-active' &&
-    parseIdentity('ID-RUN', raw.run).ok &&
-    parseIdentity('ID-EVENT', raw.event).ok &&
-    raw.event === `${raw.run}/event/1`
-    ? freeze(raw as RunEntry)
-    : undefined;
-}
-
 function validateStoryOrder(value: unknown, story: string): StoryOrder | undefined {
   const raw = fields(value, ['priority', 'ordinal', 'story']);
   return raw &&
@@ -406,24 +378,46 @@ function ledgerRecord(value: unknown, expectedRun?: string): LedgerRecord | unde
   return checked.ok ? freeze(raw as LedgerRecord) : undefined;
 }
 
+function witnessedLedgerRecord(witness: unknown, expected: LedgerRecord): LifecycleResult<void> {
+  let readback: unknown;
+  try {
+    if (typeof witness !== 'object' || witness === null || typeof (witness as WitnessLedger).readback !== 'function')
+      return fail('FC-TRUST', 'RUN_LEDGER_WITNESS_REQUIRED');
+    readback = (witness as WitnessLedger).readback({
+      binding: { kind: 'run', run: expected.run, generation: expected.generation },
+      position: expected.position,
+      transaction: expected.transaction,
+      contentDigest: expected.contentDigest,
+    });
+  } catch {
+    return fail('FC-TRUST', 'RUN_LEDGER_WITNESS_FAILED');
+  }
+  const outer = fields(readback, ['ok', 'value']);
+  const inner = outer?.ok === true ? fields(outer.value, ['kind', 'record']) : undefined;
+  const actual = inner?.kind === 'committed' ? ledgerRecord(inner.record, expected.run) : undefined;
+  if (
+    !actual ||
+    actual.version !== expected.version ||
+    actual.run !== expected.run ||
+    actual.generation !== expected.generation ||
+    actual.transaction !== expected.transaction ||
+    actual.event !== expected.event ||
+    actual.position !== expected.position ||
+    actual.previousDigest !== expected.previousDigest ||
+    actual.contentDigest !== expected.contentDigest ||
+    hash('LIFECYCLE-LEDGER-CONTENT', actual.content) !== hash('LIFECYCLE-LEDGER-CONTENT', expected.content)
+  )
+    return fail('FC-TRUST', 'RUN_LEDGER_WITNESS_MISMATCH');
+  return ok(undefined);
+}
+
 function basisDigest(value: Omit<RunBasis, 'basisDigest'>): string | undefined {
   return hash('RUN-BASIS', value);
 }
 
 function validateBasis(value: unknown): RunBasis | undefined {
-  const raw = fields(value, [
-    'schema',
-    'controller',
-    'run',
-    'basis',
-    'generation',
-    'intake',
-    'entry',
-    'stories',
-    'basisDigest',
-  ]);
+  const raw = fields(value, ['schema', 'controller', 'run', 'basis', 'generation', 'intake', 'stories', 'basisDigest']);
   const intake = raw && validateIntake(raw.intake);
-  const entry = raw && validateEntry(raw.entry);
   const storyValues = raw && array(raw.stories);
   if (
     !raw ||
@@ -434,9 +428,6 @@ function validateBasis(value: unknown): RunBasis | undefined {
     typeof raw.generation !== 'string' ||
     !intake ||
     intake.run !== raw.run ||
-    !entry ||
-    entry.run !== raw.run ||
-    entry.basis !== raw.basis ||
     !digest(raw.basisDigest) ||
     !storyValues ||
     !parseIdentity('ID-RUN', raw.run).ok ||
@@ -513,7 +504,6 @@ function validateBasis(value: unknown): RunBasis | undefined {
     basis: raw.basis,
     generation: raw.generation,
     intake,
-    entry,
     stories: Object.freeze(stories),
   } as const;
   return basisDigest(candidate) === raw.basisDigest
@@ -522,19 +512,11 @@ function validateBasis(value: unknown): RunBasis | undefined {
 }
 
 export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
-  const raw = fields(value, ['run', 'basis', 'generation', 'intake', 'entry', 'stories']);
+  const raw = fields(value, ['run', 'basis', 'generation', 'intake', 'stories']);
   if (!raw) return fail('FC-INPUT', 'RUN_BASIS_SHAPE');
   const stories = array(raw.stories);
   const intake = validateIntake(raw.intake);
-  const entry = validateEntry(raw.entry);
-  if (
-    !stories ||
-    !intake ||
-    !entry ||
-    typeof raw.run !== 'string' ||
-    !digest(raw.basis) ||
-    typeof raw.generation !== 'string'
-  )
+  if (!stories || !intake || typeof raw.run !== 'string' || !digest(raw.basis) || typeof raw.generation !== 'string')
     return fail('FC-INPUT', 'RUN_BASIS_VALUE');
   const candidate = {
     schema: RUN_BASIS_SCHEMA,
@@ -543,7 +525,6 @@ export function createRunBasis(value: unknown): LifecycleResult<RunBasis> {
     basis: raw.basis,
     generation: raw.generation,
     intake,
-    entry,
     stories,
   } as const;
   const parsed = validateBasis({
@@ -562,9 +543,13 @@ export function validateRunBasis(value: unknown): LifecycleResult<RunBasis> {
 function witnessedBasis(
   value: unknown,
   intakeWitness: unknown,
+  ledgerWitness: unknown,
 ): LifecycleResult<Readonly<{ carrier: RunBasis; reference: RunBasisReference; record: LedgerRecord }>> {
   const record = ledgerRecord(value);
   const carrier = record && validateBasis(record.content);
+  if (!record) return fail('FC-TRUST', 'RUN_BASIS_NOT_WITNESSED');
+  const durable = witnessedLedgerRecord(ledgerWitness, record);
+  if (!durable.ok) return fail(durable.error.failure, durable.error.code);
   let intakeReadback: unknown;
   try {
     if (
@@ -584,7 +569,6 @@ function witnessedBasis(
   const result =
     witnessed && fields(witnessed.result, ['kind', 'position', 'compositionDigest', 'acknowledgementDigest', 'run']);
   if (
-    !record ||
     !carrier ||
     record.position !== 0 ||
     record.previousDigest !== GENESIS_DIGEST ||
@@ -922,9 +906,9 @@ function validateProjectionTransition(
 
 export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProjection> {
   try {
-    const raw = fields(input, ['basisRecord', 'records', 'intakeWitness']);
+    const raw = fields(input, ['basisRecord', 'records', 'intakeWitness', 'ledger']);
     const records = raw && array(raw.records);
-    const basisResult = raw && witnessedBasis(raw.basisRecord, raw.intakeWitness);
+    const basisResult = raw && witnessedBasis(raw.basisRecord, raw.intakeWitness, raw.ledger);
     if (!raw || !records || !basisResult?.ok) return fail('FC-INPUT', 'LIFECYCLE_PROJECTION_SHAPE');
     const basis = basisResult.value.carrier;
     const reference = basisResult.value.reference;
@@ -943,6 +927,8 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
       const ledger = ledgerRecord(rawRecord, basis.run);
       if (!ledger || ledger.position !== expectedPosition || ledger.previousDigest !== previousDigest)
         return fail('FC-TRUST', 'UNVERIFIED_ORDERED_LEDGER_PREFIX');
+      const durable = witnessedLedgerRecord(raw.ledger, ledger);
+      if (!durable.ok) return fail(durable.error.failure, durable.error.code);
       if (generationClaim(ledger, basis.run, basis.basis)) {
         if (claim || integrity) return fail('FC-FENCE', 'DUPLICATE_GENERATION_CLAIM');
         const oldOrdinal = generationOrdinal(currentGeneration);
@@ -968,8 +954,7 @@ export function projectLifecycle(input: unknown): LifecycleResult<LifecycleProje
         if (
           ledger.position === 1 &&
           (lifecycle.event.id !== `${basis.run}/event/2` ||
-            lifecycle.event.type !== basis.entry.type ||
-            lifecycle.event.edge !== basis.entry.edge ||
+            lifecycle.event.type !== 'EV-ENVELOPE-SUBMITTED' ||
             lifecycle.previous.runPhase !== 'Preflighting' ||
             lifecycle.next.runPhase !== 'Active')
         )
@@ -1066,9 +1051,10 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
     basisRecord: raw.basisRecord,
     records: raw.records,
     intakeWitness: raw.intakeWitness,
+    ledger: raw.ledger,
   });
   if (!projection.ok) return projection;
-  const basisResult = witnessedBasis(raw.basisRecord, raw.intakeWitness);
+  const basisResult = witnessedBasis(raw.basisRecord, raw.intakeWitness, raw.ledger);
   const sourceRecords = array(raw.records);
   if (!basisResult?.ok || !sourceRecords) return fail('FC-TRUST', 'CONTROLLER_PREFIX_UNVERIFIED');
   const basis = basisResult.value;
@@ -1084,8 +1070,8 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
       if (
         projection.value.position === 0 &&
         (event.value.id !== `${basis.carrier.run}/event/2` ||
-          event.value.type !== basis.carrier.entry.type ||
-          event.value.edge !== basis.carrier.entry.edge ||
+          event.value.type !== 'EV-ENVELOPE-SUBMITTED' ||
+          event.value.edge !== 'preflighting-active' ||
           current.runPhase !== 'Preflighting')
       )
         return fail('FC-SUBJECT', 'RUN_ENTRY_REQUIRED');
@@ -1209,6 +1195,7 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
         basisRecord: raw.basisRecord,
         records: nextRecords,
         intakeWitness: raw.intakeWitness,
+        ledger: raw.ledger,
       });
       return verified.ok && verified.value.position === candidate.position - 1
         ? ok(candidate)

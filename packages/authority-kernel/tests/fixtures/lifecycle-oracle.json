@@ -2,7 +2,6 @@
   "schemas": [
     "jig.run-basis.v1",
     "jig.intake-ack.v1",
-    "jig.envelope-entry.v1",
     "jig.lifecycle-transition.v1",
     "jig.generation-claim.v1",
     "jig.resume-integrity.v1",
