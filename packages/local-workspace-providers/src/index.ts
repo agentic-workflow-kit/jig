@@ -20,13 +20,6 @@ export const LOCAL_GIT_WORKTREE_POSTURE = 'local-posix-git-worktree-no-network-n
 export const LOCAL_GIT_WORKTREE_SCOPE = 'resource/local-mktemp-root/v1';
 export const LOCAL_GIT_WORKTREE_MAX_PROOF_AGE_MS = 86_400_000;
 
-const GF022_APPROVED_MANIFEST_DIGEST = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
-const GF022_APPROVED_PROVIDER_DIGEST = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
-const GF022_APPROVED_MANIFEST_ID = `provider/${GF022_APPROVED_PROVIDER_DIGEST}/authority/${GF022_APPROVED_MANIFEST_DIGEST}`;
-const GF022_APPROVED_MANIFEST = new TextEncoder().encode(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
-);
-
 const MANIFEST_TEXT =
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n';
 
@@ -765,7 +758,7 @@ function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission
     return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
   try {
     const fixture = createProviderAdmissionFixture({
-      manifestBytes: GF022_APPROVED_MANIFEST,
+      manifestBytes: LOCAL_GIT_WORKTREE_MANIFEST,
       approval: raw.approval,
       ledger: raw.ledger,
     });
@@ -780,10 +773,10 @@ function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission
     const result = admitted.ok ? exactObject(admitted.value, ['kind', 'manifestId', 'providerEnabled']) : undefined;
     if (
       approval?.kind !== 'approved' ||
-      approval?.manifestId !== GF022_APPROVED_MANIFEST_ID ||
+      approval?.manifestId !== LOCAL_GIT_WORKTREE_MANIFEST_ID ||
       !result ||
       result.kind !== 'eligible' ||
-      result.manifestId !== GF022_APPROVED_MANIFEST_ID ||
+      result.manifestId !== LOCAL_GIT_WORKTREE_MANIFEST_ID ||
       result.providerEnabled !== false
     )
       return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');

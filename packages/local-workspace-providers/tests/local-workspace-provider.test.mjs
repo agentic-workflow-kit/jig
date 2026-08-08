@@ -10,31 +10,30 @@ const candidate = {
   candidateTree: execFileSync('git', ['rev-parse', '--verify', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
 };
 
-const gf022ManifestBytes = new TextEncoder().encode(
-  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
-);
-const gf022ManifestDigest = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
-const gf022ProviderDigest = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
-const gf022ManifestId = `provider/${gf022ProviderDigest}/authority/${gf022ManifestDigest}`;
+const localManifest = JSON.parse(new TextDecoder().decode(provider.LOCAL_GIT_WORKTREE_MANIFEST));
 const admission = () => {
   const ledger = runtime.createScriptedLedger();
   const approval = {
     principal: 'principal/arye',
-    manifestId: gf022ManifestId,
-    manifestDigest: gf022ManifestDigest,
-    scope: { phase: 2, purpose: 'semantic-admission-fixture', story: 'GF-022' },
+    manifestId: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
+    manifestDigest: provider.LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
+    scope: localManifest.scope,
   };
   const basis = {
-    providerIdentity: 'scripted-capability-proof-fixture/v1',
-    providerBuild: 'build/gf022-fixture',
-    environment: 'environment/gf022-fixture',
-    capability: 'capability/proof-only',
-    policyMinimum: 'policy/gf022-fixture',
-    manifestId: gf022ManifestId,
-    manifestDigest: gf022ManifestDigest,
+    providerIdentity: localManifest.providerIdentity,
+    providerBuild: 'build/local-git-worktree-qualification',
+    environment: localManifest.runtimeAuthority.environment,
+    capability: 'PORT-WORKSPACE/local-git-worktree',
+    policyMinimum: 'policy/local-posix-git-worktree/v1',
+    manifestId: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
+    manifestDigest: provider.LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
     scope: approval.scope,
   };
-  const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: gf022ManifestBytes, approval, ledger });
+  const fixture = runtime.createProviderAdmissionFixture({
+    manifestBytes: provider.LOCAL_GIT_WORKTREE_MANIFEST,
+    approval,
+    ledger,
+  });
   const start = fixture.start({
     basis,
     ordinal: 1,
