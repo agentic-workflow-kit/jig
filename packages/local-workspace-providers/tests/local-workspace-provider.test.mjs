@@ -242,7 +242,12 @@ test('GF-039 fresh setup receipts cannot read an external repository outside the
       operation,
       binding,
       hostFingerprint,
-      workspaceFingerprint: digest('WORKSPACE-PATH', { repository: externalRoot, path: target, basis, head: targetHead }),
+      workspaceFingerprint: digest('WORKSPACE-PATH', {
+        repository: externalRoot,
+        path: target,
+        basis,
+        head: targetHead,
+      }),
       recipeDigest: binding.recipeDigest,
       inputFingerprintDigest: binding.inputFingerprintDigest,
       freshnessFingerprint: digest('WORKSPACE-SETUP-FRESHNESS', {

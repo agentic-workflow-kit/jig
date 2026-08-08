@@ -460,12 +460,7 @@ function isFreshSetupReceipt(
   const target = scopedPath(environment.resourceRoot, binding.path);
   if (!target.ok) return false;
   const repository = scopedPath(environment.resourceRoot, binding.repository);
-  if (
-    !repository.ok ||
-    repository.value === target.value ||
-    !existsSync(join(repository.value, '.git'))
-  )
-    return false;
+  if (!repository.ok || repository.value === target.value || !existsSync(join(repository.value, '.git'))) return false;
   const head = repoHead(target.value);
   const cleanliness = cleanState(target.value);
   const basis = repoBasis(repository.value);
