@@ -1,4 +1,4 @@
-import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 export const WORKSPACE_CONTRACT_VERSION = 'jig.workspace-contract.v1';
 export const WORKSPACE_PORT = 'PORT-WORKSPACE';
@@ -21,12 +21,16 @@ export type WorkspaceFailureFamily =
   | 'FC-FENCE'
   | 'FC-AUTHORITY'
   | 'FC-MECHANISM'
-  | 'FC-EFFECT';
+  | 'FC-EFFECT'
+  | 'FC-TRUST';
 export type WorkspaceFailure = Readonly<{ family: WorkspaceFailureFamily; code: string }>;
 export type WorkspaceResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: WorkspaceFailure }>;
 
 export type WorkspaceCommitProof = Readonly<{
   kind: 'committed-witnessed';
+  position: number;
+  event: string;
+  transaction: string;
   operation: string;
   recordDigest: string;
   witnessDigest: string;
@@ -152,7 +156,6 @@ export type WorkspaceController = Readonly<{
     input: Readonly<{
       operation: string;
       binding: WorkspaceBinding;
-      outcome: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
     }>,
   ): WorkspaceResult<
     Readonly<{ operation: string; outcome: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate' }>
@@ -202,6 +205,8 @@ const safeText = (value: unknown): value is string =>
   value.normalize('NFC') === value &&
   !SECRET.test(value);
 const safeDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST.test(value);
+const identity = (kind: string, value: unknown): value is string =>
+  typeof value === 'string' && parseIdentity(kind, value).ok;
 
 const digest = (domain: string, value: unknown): string | undefined => {
   try {
@@ -245,7 +250,7 @@ const parseBinding = (value: unknown): WorkspaceBinding | undefined => {
   if (
     !raw ||
     !subject ||
-    !safeText(raw.operation) ||
+    !identity('ID-OP', raw.operation) ||
     !WORKSPACE_OPERATION_TYPES.includes(raw.operationType as WorkspaceOperationType) ||
     !safeText(raw.repository) ||
     !safeText(raw.path) ||
@@ -253,7 +258,9 @@ const parseBinding = (value: unknown): WorkspaceBinding | undefined => {
     !safeDigest(raw.recipeDigest) ||
     !safeDigest(raw.inputFingerprintDigest) ||
     !safeText(raw.host) ||
-    !safeText(raw.manifest) ||
+    !identity('ID-MANIFEST', raw.manifest) ||
+    !identity('ID-RUN', subject.run) ||
+    !identity('ID-STORY', subject.story) ||
     subject.basis !== raw.basis ||
     SECRET.test(raw.repository) ||
     SECRET.test(raw.path) ||
@@ -276,16 +283,34 @@ const parseBinding = (value: unknown): WorkspaceBinding | undefined => {
 };
 
 const parseProof = (value: unknown, operation: string): WorkspaceCommitProof | undefined => {
-  const raw = exactFields(value, ['kind', 'operation', 'recordDigest', 'witnessDigest']);
+  const raw = exactFields(value, [
+    'kind',
+    'position',
+    'event',
+    'transaction',
+    'operation',
+    'recordDigest',
+    'witnessDigest',
+  ]);
   if (
     raw?.kind !== 'committed-witnessed' ||
+    typeof raw.position !== 'number' ||
+    !Number.isSafeInteger(raw.position) ||
+    raw.position < 0 ||
+    !identity('ID-EVENT', raw.event) ||
+    !identity('ID-TXN', raw.transaction) ||
+    !identity('ID-OP', operation) ||
     raw.operation !== operation ||
     !safeDigest(raw.recordDigest) ||
-    raw.recordDigest !== raw.witnessDigest
+    raw.recordDigest !== raw.witnessDigest ||
+    !operation.startsWith(`${raw.transaction}/op/`)
   )
     return undefined;
   return Object.freeze({
     kind: 'committed-witnessed',
+    position: raw.position as number,
+    event: raw.event,
+    transaction: raw.transaction,
     operation,
     recordDigest: raw.recordDigest,
     witnessDigest: raw.witnessDigest,
@@ -312,7 +337,7 @@ const parseReceipt = (value: unknown): WorkspaceSetupReceipt | undefined => {
     !raw ||
     raw.version !== WORKSPACE_CONTRACT_VERSION ||
     !binding ||
-    !safeText(raw.operation) ||
+    !identity('ID-OP', raw.operation) ||
     binding.operation !== raw.operation ||
     !safeDigest(raw.hostFingerprint) ||
     !safeDigest(raw.workspaceFingerprint) ||
@@ -430,9 +455,20 @@ const validateAttestation = (
     return fail('FC-MECHANISM', 'INVALID_WORKSPACE_ATTESTATION');
   if (
     normalizedReceipt &&
-    (!same(normalizedReceipt.binding, intent.binding) || normalizedReceipt.operation !== intent.operation)
+    (!same(normalizedReceipt.binding, intent.binding) ||
+      normalizedReceipt.operation !== intent.operation ||
+      normalizedReceipt.recipeDigest !== intent.binding.recipeDigest ||
+      normalizedReceipt.inputFingerprintDigest !== intent.binding.inputFingerprintDigest ||
+      normalizedReceipt.hostFingerprint !== raw.hostFingerprint ||
+      normalizedReceipt.workspaceFingerprint !== raw.workspaceFingerprint ||
+      normalizedReceipt.freshnessFingerprint !== freshnessFingerprint(intent.binding, raw.hostFingerprint) ||
+      normalizedReceipt.effectDigest !==
+        digest('WORKSPACE-SETUP-EFFECT', { binding: intent.binding, contentDigest: raw.contentDigest }) ||
+      !same(normalizedReceipt.proof, proof))
   )
     return fail('FC-FENCE', 'SETUP_RECEIPT_BINDING_MISMATCH');
+  if ((intent.operationType === 'OPC-WS-PRESERVE') !== raw.preserved)
+    return fail('FC-FENCE', 'PRESERVATION_FACT_OPERATION_MISMATCH');
   return ok(
     Object.freeze({
       version: WORKSPACE_CONTRACT_VERSION,
@@ -485,6 +521,7 @@ export function createScriptedWorkspaceFixture(): ScriptedWorkspaceFixture {
   const dispatched = new Set<string>();
   const uncertain = new Set<string>();
   const operationBindings = new Map<string, WorkspaceBinding>();
+  const operationOutcomes = new Map<string, 'confirmed-effect' | 'confirmed-absence' | 'indeterminate'>();
 
   const dispatch = (input: unknown): WorkspaceResult<WorkspaceAttestation> => {
     const raw =
@@ -521,11 +558,13 @@ export function createScriptedWorkspaceFixture(): ScriptedWorkspaceFixture {
     if (fault === 'lost-response' || fault === 'uncertain') {
       uncertain.add(binding.operation);
       operationBindings.set(binding.operation, binding);
+      operationOutcomes.set(binding.operation, 'indeterminate');
       return fail('FC-EFFECT', 'UNCERTAIN_WORKSPACE_EFFECT');
     }
     if (fault === 'crash') {
       uncertain.add(binding.operation);
       operationBindings.set(binding.operation, binding);
+      operationOutcomes.set(binding.operation, 'confirmed-absence');
       return fail('FC-MECHANISM', 'WORKSPACE_PROCESS_CRASHED');
     }
     if (binding.operationType === 'OPC-WS-RETIRE') return fail('FC-AUTHORITY', 'REAL_RETIRE_DISABLED');
@@ -590,24 +629,21 @@ export function createScriptedWorkspaceFixture(): ScriptedWorkspaceFixture {
       observationDigest: string;
     }>
   > => {
-    const raw = exactFields(input, ['operation', 'binding', 'outcome', 'observationDigest']);
+    const raw = exactFields(input, ['operation', 'binding']);
     const binding = raw && parseBinding(raw.binding);
-    if (
-      !raw ||
-      !safeText(raw.operation) ||
-      !binding ||
-      binding.operation !== raw.operation ||
-      !['confirmed-effect', 'confirmed-absence', 'indeterminate'].includes(raw.outcome as string) ||
-      !safeDigest(raw.observationDigest)
-    )
+    if (!raw || !identity('ID-OP', raw.operation) || !binding || binding.operation !== raw.operation)
       return fail('FC-INPUT', 'INVALID_WORKSPACE_LOOKUP');
     if (!uncertain.has(raw.operation)) return fail('FC-EFFECT', 'LOOKUP_REQUIRES_UNCERTAINTY');
     if (!same(binding, operationBindings.get(raw.operation))) return fail('FC-FENCE', 'LOOKUP_BINDING_MISMATCH');
+    const outcome = operationOutcomes.get(raw.operation);
+    const observationDigest =
+      outcome && digest('WORKSPACE-LOOKUP-OBSERVATION', { operation: raw.operation, binding, outcome });
+    if (!outcome || !observationDigest) return fail('FC-TRUST', 'LOOKUP_OBSERVATION_UNAVAILABLE');
     return ok(
       Object.freeze({
         operation: raw.operation,
-        outcome: raw.outcome as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate',
-        observationDigest: raw.observationDigest,
+        outcome,
+        observationDigest,
       }),
     );
   };
@@ -668,6 +704,9 @@ export function createWorkspaceController(
       binding,
       proof: Object.freeze({
         kind: 'committed-witnessed',
+        position: 0,
+        event: `${binding.subject.run}/event/1`,
+        transaction: binding.operation.slice(0, binding.operation.lastIndexOf('/op/')),
         operation: binding.operation,
         recordDigest: intentDigest,
         witnessDigest: intentDigest,
@@ -750,7 +789,6 @@ export function createWorkspaceController(
     value: Readonly<{
       operation: string;
       binding: WorkspaceBinding;
-      outcome: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
     }>,
   ): WorkspaceResult<
     Readonly<{ operation: string; outcome: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate' }>
@@ -762,8 +800,6 @@ export function createWorkspaceController(
     const observation = fixture.lookup({
       operation: value.operation,
       binding: bindingResult.value,
-      outcome: value.outcome,
-      observationDigest: digest('WORKSPACE-LOOKUP', value),
     });
     if (!observation.ok) return observation;
     uncertain.delete(value.operation);

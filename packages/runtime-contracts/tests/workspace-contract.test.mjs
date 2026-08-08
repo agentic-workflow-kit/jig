@@ -12,9 +12,16 @@ const faultCorpus = JSON.parse(
 );
 
 const digest = (character) => character.repeat(64);
+const operationOrdinals = new Map();
+const operationId = (label) => {
+  if (label.startsWith('run-')) return label;
+  const ordinal = operationOrdinals.get(label) ?? operationOrdinals.size + 1;
+  operationOrdinals.set(label, ordinal);
+  return `${oracle.run}/txn/${ordinal}/${oracle.run}/gen/2|controller-token-1|${digest('a')}/op/${ordinal}`;
+};
 const binding = (operation, operationType, overrides = {}) =>
   Object.freeze({
-    operation,
+    operation: operationId(operation),
     operationType,
     subject: Object.freeze({ run: oracle.run, story: oracle.story, basis: oracle.basis }),
     repository: 'repository/scripted',
@@ -73,16 +80,10 @@ test('workspace contract: exact five-operation route is witnessed before scripte
     state.fixture.invocations().map((entry) => entry.operationType),
     ['OPC-WS-PROVISION', 'OPC-WS-SETUP', 'OPC-WS-OBSERVE', 'OPC-WS-PRESERVE'],
   );
-  assert.deepEqual(events, [
-    'intent:op-provision',
-    'dispatch:op-provision',
-    'intent:op-setup',
-    'dispatch:op-setup',
-    'intent:op-observe',
-    'dispatch:op-observe',
-    'intent:op-preserve',
-    'dispatch:op-preserve',
-  ]);
+  assert.deepEqual(
+    events.map((event) => event.split(':', 1)[0]),
+    ['intent', 'dispatch', 'intent', 'dispatch', 'intent', 'dispatch', 'intent', 'dispatch'],
+  );
   assert.equal(
     state.controller.facts().every((fact) => fact.proof.kind === 'committed-witnessed'),
     true,
@@ -147,11 +148,17 @@ test('workspace contract: exact fresh setup receipt is a no-op and stale receipt
   assert.equal(first.transition.intents().length, 1);
 
   const staleBinding = binding('op-setup-stale', 'OPC-WS-SETUP');
+  const staleTransaction = staleBinding.operation.slice(0, staleBinding.operation.lastIndexOf('/op/'));
   const staleReceipt = Object.freeze({
     ...receipt,
     operation: staleBinding.operation,
     binding: staleBinding,
-    proof: Object.freeze({ ...receipt.proof, operation: staleBinding.operation }),
+    proof: Object.freeze({
+      ...receipt.proof,
+      event: `${oracle.run}/event/1`,
+      transaction: staleTransaction,
+      operation: staleBinding.operation,
+    }),
     freshnessFingerprint: digest('e'),
   });
   const stale = first.controller.setup({ binding: staleBinding, receipt: staleReceipt });
@@ -207,20 +214,15 @@ test('workspace contract: lost, uncertain, duplicate, and crash effects reconcil
     assert.equal(state.controller.facts().length, 0, fault);
     assert.deepEqual(
       state.controller.reconcile({
-        operation,
+        operation: candidate.operation,
         binding: { ...candidate, path: '/workspace/other' },
-        outcome: 'indeterminate',
       }),
       {
         ok: false,
         error: { family: 'FC-FENCE', code: 'LOOKUP_BINDING_MISMATCH' },
       },
     );
-    const reconciled = state.controller.reconcile({
-      operation,
-      binding: candidate,
-      outcome: fault === 'crash' ? 'confirmed-absence' : 'indeterminate',
-    });
+    const reconciled = state.controller.reconcile({ operation: candidate.operation, binding: candidate });
     assert.equal(reconciled.ok, true, fault);
   }
 });
@@ -270,14 +272,58 @@ test('workspace contract: hostile adapter output and duplicate dispatch cannot w
   const result = state.controller.observe({ binding: binding('op-hostile-output', 'OPC-WS-OBSERVE') });
   assert.deepEqual(result, { ok: false, error: { family: 'FC-MECHANISM', code: 'INVALID_WORKSPACE_ATTESTATION' } });
   assert.equal(state.controller.facts().length, 0);
+
+  const forgedPreservationBase = workspace.createScriptedWorkspaceFixture();
+  const forgedPreservationFixture = Object.freeze({
+    ...forgedPreservationBase,
+    dispatch: (input) => {
+      const dispatched = forgedPreservationBase.dispatch(input);
+      return dispatched.ok ? { ok: true, value: Object.freeze({ ...dispatched.value, preserved: true }) } : dispatched;
+    },
+  });
+  const forgedPreservationState = controller(forgedPreservationFixture);
+  assert.deepEqual(
+    forgedPreservationState.controller.observe({ binding: binding('op-forged-preserve', 'OPC-WS-OBSERVE') }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'PRESERVATION_FACT_OPERATION_MISMATCH' } },
+  );
+  assert.deepEqual(
+    forgedPreservationState.controller.retire({ binding: binding('op-forged-retire', 'OPC-WS-RETIRE') }),
+    { ok: false, error: { family: 'FC-AUTHORITY', code: 'PRESERVATION_REQUIRED' } },
+  );
+
+  const hostileReceiptBase = workspace.createScriptedWorkspaceFixture();
+  const hostileReceiptFixture = Object.freeze({
+    ...hostileReceiptBase,
+    dispatch: (input) => {
+      const dispatched = hostileReceiptBase.dispatch(input);
+      if (!dispatched.ok || dispatched.value.setupReceipt === null) return dispatched;
+      return {
+        ok: true,
+        value: Object.freeze({
+          ...dispatched.value,
+          setupReceipt: Object.freeze({ ...dispatched.value.setupReceipt, recipeDigest: digest('f') }),
+        }),
+      };
+    },
+  });
+  const hostileReceiptState = controller(hostileReceiptFixture);
+  assert.deepEqual(
+    hostileReceiptState.controller.setup({ binding: binding('op-hostile-receipt', 'OPC-WS-SETUP'), receipt: null }),
+    { ok: false, error: { family: 'FC-FENCE', code: 'SETUP_RECEIPT_BINDING_MISMATCH' } },
+  );
+
   const direct = workspace.createScriptedWorkspaceFixture();
+  const directBinding = binding('op-direct', 'OPC-WS-OBSERVE');
+  const directTransaction = directBinding.operation.slice(0, directBinding.operation.lastIndexOf('/op/'));
   const proof = {
     kind: 'committed-witnessed',
-    operation: 'op-direct',
+    position: 0,
+    event: `${oracle.run}/event/1`,
+    transaction: directTransaction,
+    operation: directBinding.operation,
     recordDigest: digest('f'),
     witnessDigest: digest('f'),
   };
-  const directBinding = binding('op-direct', 'OPC-WS-OBSERVE');
   const request = {
     operation: directBinding.operation,
     operationType: directBinding.operationType,
