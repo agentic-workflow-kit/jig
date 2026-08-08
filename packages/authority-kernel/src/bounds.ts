@@ -1312,6 +1312,8 @@ export function createBoundJournal(): BoundJournal {
               .find(
                 (fact) =>
                   fact.kind === 'profile' &&
+                  fact.generation === input.generation &&
+                  equalSubject(fact.record.subject, input.subject) &&
                   fact.profile?.profileDigest === input.checkpoint?.profileDigest &&
                   fact.profile?.checkpoints.some(
                     (checkpoint) =>
@@ -1502,6 +1504,8 @@ export function createBoundJournal(): BoundJournal {
               (fact) =>
                 fact.kind === 'profile' &&
                 fact.position < source.position &&
+                fact.generation === basis.generation &&
+                equalSubject(fact.record.subject, basis.subject) &&
                 fact.profile?.profileDigest === basis.profileDigest &&
                 fact.profile.checkpoints.some(
                   (checkpoint) => checkpoint.checkpointId === basis.checkpointId && checkpoint.factKind === basis.event,
@@ -1842,6 +1846,8 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
             (fact) =>
               fact.kind === 'profile' &&
               fact.position < replayBasis.position &&
+              fact.generation === replayBasis.generation &&
+              equalSubject(fact.record.subject, replayBasis.subject) &&
               fact.profile?.profileDigest === replayBasis.profileDigest &&
               fact.profile?.checkpoints.some(
                 (checkpoint: QualifyingCheckpoint) =>

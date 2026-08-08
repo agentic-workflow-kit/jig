@@ -572,6 +572,59 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
     committed: true,
   });
   assert.equal(undeclared.error.code, 'QUALIFYING_CHECKPOINT_NOT_DECLARED');
+
+  const otherSubject = { ...subject, basis: d('b') };
+  assert.equal(
+    journal.start({
+      surface: 'qualifying-progress-idle',
+      subject: otherSubject,
+      generation,
+      policy: policy(),
+      startedAt: 0,
+      clock: clock(0, '5'),
+      factDigest: d('5'),
+    }).ok,
+    true,
+  );
+  const crossSubject = journal.commitQualifyingFact({
+    schema: bounds.BOUNDS_VERSION,
+    event: 'EV-CHECK-OBSERVATION',
+    subject: otherSubject,
+    generation,
+    factDigest: d('6'),
+    position: journal.snapshot().facts.length,
+    clock: clock(11, '6'),
+    checkpoint: { profileDigest: profile.profileDigest, checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' },
+    committed: true,
+  });
+  assert.equal(crossSubject.error.code, 'QUALIFYING_CHECKPOINT_NOT_DECLARED');
+
+  const otherGeneration = `${run}/gen/2|controller`;
+  const otherGenerationSubject = { ...subject, basis: d('c') };
+  assert.equal(
+    journal.start({
+      surface: 'qualifying-progress-idle',
+      subject: otherGenerationSubject,
+      generation: otherGeneration,
+      policy: policy(),
+      startedAt: 0,
+      clock: clock(0, '7', otherGeneration),
+      factDigest: d('7'),
+    }).ok,
+    true,
+  );
+  const crossGeneration = journal.commitQualifyingFact({
+    schema: bounds.BOUNDS_VERSION,
+    event: 'EV-CHECK-OBSERVATION',
+    subject: otherGenerationSubject,
+    generation: otherGeneration,
+    factDigest: d('8'),
+    position: journal.snapshot().facts.length,
+    clock: clock(11, '8', otherGeneration),
+    checkpoint: { profileDigest: profile.profileDigest, checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' },
+    committed: true,
+  });
+  assert.equal(crossGeneration.error.code, 'QUALIFYING_CHECKPOINT_NOT_DECLARED');
 });
 
 test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only causes a reread', () => {
