@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('../../runtime-contracts/dist/index.js');
-const digest = (character) => character.repeat(64);
+const repeatDigest = (character) => character.repeat(64);
+const canonical = (value) => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  return `{${Object.entries(value)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+    .join(',')}}`;
+};
+const digest = (domain, value) => createHash('sha256').update(canonical({ domain, value })).digest('hex');
 const candidate = {
   candidateCommit: execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' }).trim(),
   candidateTree: execFileSync('git', ['rev-parse', '--verify', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
@@ -105,7 +118,7 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission(),
-      evidence: { ...probe.value.evidence, providerBuildDigest: digest('b') },
+      evidence: { ...probe.value.evidence, providerBuildDigest: repeatDigest('b') },
       environment,
     }).ok,
     false,
@@ -157,4 +170,112 @@ test('GF-039 public surface exposes one local Git provider and no generic or alt
   assert.equal(manifest.includes('credentialAuthority'), true);
   assert.equal(manifest.includes('win32'), false);
   assert.equal(manifest.includes('ssh'), false);
+});
+
+test('GF-039 fresh setup receipts cannot read an external repository outside the disposable root', () => {
+  const probe = provider.runLocalGitWorktreeQualificationProbe({
+    ...candidate,
+    admission: admission(),
+    retainRoot: true,
+  });
+  assert.equal(probe.ok, true);
+  const environment = probe.value.evidence.environment;
+  const qualified = provider.createQualifiedLocalGitWorktreeProvider({
+    admission: admission(),
+    evidence: probe.value.evidence,
+    environment,
+  });
+  assert.equal(qualified.ok, true);
+  const externalRoot = realpathSync(mkdtempSync(join(tmpdir(), 'jig-gf039-external-')));
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: externalRoot });
+    execFileSync('git', ['config', 'user.name', 'Jig Qualification Fixture'], { cwd: externalRoot });
+    execFileSync('git', ['config', 'user.email', 'fixture@invalid'], { cwd: externalRoot });
+    writeFileSync(join(externalRoot, 'README.md'), 'external disposable repository\n');
+    execFileSync('git', ['add', 'README.md'], { cwd: externalRoot });
+    execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: externalRoot });
+
+    const root = probe.value.resourceRoot;
+    const target = join(root, 'target');
+    const run = 'run-000000000001-0123456789abcdef';
+    const story = `${run}/story/gf039`;
+    const generation = `${run}/gen/1|controller-token-1|${'a'.repeat(64)}`;
+    const operation = `${run}/txn/9/${generation}/op/9`;
+    const operationType = 'OPC-WS-SETUP';
+    const externalHead = execFileSync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: externalRoot,
+      encoding: 'utf8',
+    }).trim();
+    const basis = digest('WORKSPACE-BASIS', { repository: externalRoot, head: externalHead });
+    const binding = {
+      operation,
+      operationType,
+      subject: { run, story, basis },
+      repository: externalRoot,
+      path: target,
+      basis,
+      recipeDigest: digest('WORKSPACE-RECIPE', { operationType }),
+      inputFingerprintDigest: digest('WORKSPACE-INPUT', { operationType }),
+      host: `host/local-git-worktree/${probe.value.evidence.environmentDigest}`,
+      manifest: provider.LOCAL_GIT_WORKTREE_MANIFEST_ID,
+    };
+    const proof = {
+      kind: 'committed-witnessed',
+      position: 8,
+      event: `${run}/event/9`,
+      transaction: `${run}/txn/9/${generation}`,
+      operation,
+      recordDigest: digest('WORKSPACE-INTENT', binding),
+      witnessDigest: digest('WORKSPACE-INTENT', binding),
+    };
+    const hostFingerprint = digest('WORKSPACE-HOST', {
+      host: binding.host,
+      manifest: binding.manifest,
+      environment,
+    });
+    const targetHead = execFileSync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: target,
+      encoding: 'utf8',
+    }).trim();
+    const receipt = {
+      version: 'jig.workspace-contract.v1',
+      operation,
+      binding,
+      hostFingerprint,
+      workspaceFingerprint: digest('WORKSPACE-PATH', { repository: externalRoot, path: target, basis, head: targetHead }),
+      recipeDigest: binding.recipeDigest,
+      inputFingerprintDigest: binding.inputFingerprintDigest,
+      freshnessFingerprint: digest('WORKSPACE-SETUP-FRESHNESS', {
+        recipeDigest: binding.recipeDigest,
+        inputFingerprintDigest: binding.inputFingerprintDigest,
+        host: hostFingerprint,
+      }),
+      effectDigest: digest('WORKSPACE-SETUP-EFFECT', { binding, head: targetHead }),
+      completed: true,
+      proof,
+    };
+    const intent = {
+      version: 'jig.workspace-contract.v1',
+      operation,
+      operationType,
+      effect: 'effectful',
+      port: 'PORT-WORKSPACE',
+      capability: 'CB-WORKSPACE',
+      binding,
+      proof,
+    };
+    assert.deepEqual(qualified.value.setup({ intent, receipt }), {
+      ok: false,
+      error: { family: 'FC-SUBJECT', code: 'REPOSITORY_OR_PATH_INVALID' },
+    });
+  } finally {
+    assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(externalRoot), {
+      ok: true,
+      value: { removed: externalRoot },
+    });
+    assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
+      ok: true,
+      value: { removed: probe.value.resourceRoot },
+    });
+  }
 });
