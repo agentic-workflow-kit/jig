@@ -19,6 +19,11 @@ const operationId = (label) => {
   operationOrdinals.set(label, ordinal);
   return `${oracle.run}/txn/${ordinal}/${oracle.run}/gen/2|controller-token-1|${digest('a')}/op/${ordinal}`;
 };
+const proofCoordinates = (operation) => {
+  const transaction = operation.slice(0, operation.lastIndexOf('/op/'));
+  const ordinal = Number(transaction.split('/txn/')[1].split('/')[0]);
+  return { position: ordinal - 1, event: `${oracle.run}/event/${ordinal}`, transaction };
+};
 const binding = (operation, operationType, overrides = {}) =>
   Object.freeze({
     operation: operationId(operation),
@@ -134,6 +139,35 @@ test('workspace contract: returned cross-repository/path/basis/recipe/host/manif
       error: { family: 'FC-SUBJECT', code: 'OPERATION_BINDING_MISMATCH' },
     },
   );
+  const foreignRun = 'run-000000000002-fedcba9876543210';
+  const crossRunBinding = binding('op-cross-run', 'OPC-WS-OBSERVE', {
+    operation: `${foreignRun}/txn/1/${foreignRun}/gen/2|controller-token-1|${digest('a')}/op/1`,
+    subject: { run: foreignRun, story: oracle.story, basis: oracle.basis },
+  });
+  assert.equal(state.controller.observe({ binding: crossRunBinding }).ok, false);
+  const proofTransition = workspace.createWorkspaceTransitionRecorder();
+  const validBinding = binding('op-cross-run-proof', 'OPC-WS-OBSERVE');
+  assert.equal(
+    proofTransition.recordIntent({
+      version: workspace.WORKSPACE_CONTRACT_VERSION,
+      operation: validBinding.operation,
+      operationType: validBinding.operationType,
+      effect: 'observation',
+      port: workspace.WORKSPACE_PORT,
+      capability: workspace.WORKSPACE_CAPABILITY,
+      binding: validBinding,
+      proof: {
+        kind: 'committed-witnessed',
+        position: 0,
+        event: `${foreignRun}/event/1`,
+        transaction: validBinding.operation.slice(0, validBinding.operation.lastIndexOf('/op/')),
+        operation: validBinding.operation,
+        recordDigest: digest('b'),
+        witnessDigest: digest('b'),
+      },
+    }).ok,
+    false,
+  );
 });
 
 test('workspace contract: exact fresh setup receipt is a no-op and stale receipt authorizes once under frozen inputs', () => {
@@ -148,15 +182,16 @@ test('workspace contract: exact fresh setup receipt is a no-op and stale receipt
   assert.equal(first.transition.intents().length, 1);
 
   const staleBinding = binding('op-setup-stale', 'OPC-WS-SETUP');
-  const staleTransaction = staleBinding.operation.slice(0, staleBinding.operation.lastIndexOf('/op/'));
+  const staleCoordinates = proofCoordinates(staleBinding.operation);
   const staleReceipt = Object.freeze({
     ...receipt,
     operation: staleBinding.operation,
     binding: staleBinding,
     proof: Object.freeze({
       ...receipt.proof,
-      event: `${oracle.run}/event/1`,
-      transaction: staleTransaction,
+      position: staleCoordinates.position,
+      event: staleCoordinates.event,
+      transaction: staleCoordinates.transaction,
       operation: staleBinding.operation,
     }),
     freshnessFingerprint: digest('e'),
@@ -174,6 +209,24 @@ test('workspace contract: exact fresh setup receipt is a no-op and stale receipt
   });
   assert.equal(wrong.ok, false);
   assert.equal(wrong.error.family, 'FC-FENCE');
+
+  const fabricatedBinding = binding('op-setup-fabricated', 'OPC-WS-SETUP');
+  const fabricatedCoordinates = proofCoordinates(fabricatedBinding.operation);
+  const fabricatedReceipt = Object.freeze({
+    ...receipt,
+    operation: fabricatedBinding.operation,
+    binding: fabricatedBinding,
+    proof: Object.freeze({
+      ...receipt.proof,
+      position: fabricatedCoordinates.position,
+      event: fabricatedCoordinates.event,
+      transaction: fabricatedCoordinates.transaction,
+      operation: fabricatedBinding.operation,
+    }),
+  });
+  const fabricated = first.controller.setup({ binding: fabricatedBinding, receipt: fabricatedReceipt });
+  assert.equal(fabricated.ok, true);
+  assert.equal(fabricated.value.kind, 'setup-fact');
 });
 
 test('workspace contract: dirty and ambiguous observations fail closed without writing facts', () => {
@@ -314,12 +367,12 @@ test('workspace contract: hostile adapter output and duplicate dispatch cannot w
 
   const direct = workspace.createScriptedWorkspaceFixture();
   const directBinding = binding('op-direct', 'OPC-WS-OBSERVE');
-  const directTransaction = directBinding.operation.slice(0, directBinding.operation.lastIndexOf('/op/'));
+  const directCoordinates = proofCoordinates(directBinding.operation);
   const proof = {
     kind: 'committed-witnessed',
-    position: 0,
-    event: `${oracle.run}/event/1`,
-    transaction: directTransaction,
+    position: directCoordinates.position,
+    event: directCoordinates.event,
+    transaction: directCoordinates.transaction,
     operation: directBinding.operation,
     recordDigest: digest('f'),
     witnessDigest: digest('f'),

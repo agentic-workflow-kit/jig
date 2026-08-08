@@ -223,6 +223,19 @@ const same = (left: unknown, right: unknown): boolean => {
   return leftDigest !== undefined && leftDigest === rightDigest;
 };
 
+const proofCoordinates = (
+  operation: string,
+  run: string,
+): Readonly<{ position: number; event: string; transaction: string }> | undefined => {
+  const transaction = operation.slice(0, operation.lastIndexOf('/op/'));
+  const prefix = `${run}/txn/`;
+  if (!transaction.startsWith(prefix)) return undefined;
+  const ordinalText = transaction.slice(prefix.length, transaction.indexOf('/', prefix.length));
+  const ordinal = Number(ordinalText);
+  if (!/^\d+$/u.test(ordinalText) || !Number.isSafeInteger(ordinal) || ordinal < 1) return undefined;
+  return Object.freeze({ position: ordinal - 1, event: `${run}/event/${ordinal}`, transaction });
+};
+
 const operationEffect = (operation: WorkspaceOperationType): WorkspaceOperationEffect =>
   operation === 'OPC-WS-OBSERVE' ? 'observation' : 'effectful';
 
@@ -261,6 +274,8 @@ const parseBinding = (value: unknown): WorkspaceBinding | undefined => {
     !identity('ID-MANIFEST', raw.manifest) ||
     !identity('ID-RUN', subject.run) ||
     !identity('ID-STORY', subject.story) ||
+    !subject.story.startsWith(`${subject.run}/story/`) ||
+    !raw.operation.startsWith(`${subject.run}/txn/`) ||
     subject.basis !== raw.basis ||
     SECRET.test(raw.repository) ||
     SECRET.test(raw.path) ||
@@ -282,7 +297,7 @@ const parseBinding = (value: unknown): WorkspaceBinding | undefined => {
   });
 };
 
-const parseProof = (value: unknown, operation: string): WorkspaceCommitProof | undefined => {
+const parseProof = (value: unknown, operation: string, run?: string): WorkspaceCommitProof | undefined => {
   const raw = exactFields(value, [
     'kind',
     'position',
@@ -292,6 +307,7 @@ const parseProof = (value: unknown, operation: string): WorkspaceCommitProof | u
     'recordDigest',
     'witnessDigest',
   ]);
+  const coordinates = run === undefined ? undefined : proofCoordinates(operation, run);
   if (
     raw?.kind !== 'committed-witnessed' ||
     typeof raw.position !== 'number' ||
@@ -303,7 +319,12 @@ const parseProof = (value: unknown, operation: string): WorkspaceCommitProof | u
     raw.operation !== operation ||
     !safeDigest(raw.recordDigest) ||
     raw.recordDigest !== raw.witnessDigest ||
-    !operation.startsWith(`${raw.transaction}/op/`)
+    !operation.startsWith(`${raw.transaction}/op/`) ||
+    (run !== undefined &&
+      (!coordinates ||
+        raw.position !== coordinates.position ||
+        raw.event !== coordinates.event ||
+        raw.transaction !== coordinates.transaction))
   )
     return undefined;
   return Object.freeze({
@@ -332,7 +353,7 @@ const parseReceipt = (value: unknown): WorkspaceSetupReceipt | undefined => {
     'proof',
   ]);
   const binding = raw && parseBinding(raw.binding);
-  const proof = raw && binding && parseProof(raw.proof, raw.operation as string);
+  const proof = raw && binding && parseProof(raw.proof, raw.operation as string, binding.subject.run);
   if (
     !raw ||
     raw.version !== WORKSPACE_CONTRACT_VERSION ||
@@ -429,7 +450,7 @@ const validateAttestation = (
   ]);
   if (!raw) return fail('FC-MECHANISM', 'INVALID_WORKSPACE_ATTESTATION');
   const binding = parseBinding(raw.binding);
-  const proof = parseProof(raw.proof, intent.operation);
+  const proof = parseProof(raw.proof, intent.operation, intent.binding.subject.run);
   const receipt = raw.setupReceipt === null ? null : parseReceipt(raw.setupReceipt);
   if (raw.setupReceipt === undefined || (raw.setupReceipt !== null && receipt === undefined))
     return fail('FC-MECHANISM', 'INVALID_WORKSPACE_ATTESTATION');
@@ -511,7 +532,7 @@ const validateIntent = (value: WorkspaceOperationIntent): WorkspaceResult<Worksp
     value.effect !== operationEffect(binding.value.operationType)
   )
     return fail('FC-AUTHORITY', 'INVALID_WORKSPACE_INTENT');
-  const proof = parseProof(value.proof, value.operation);
+  const proof = binding.ok ? parseProof(value.proof, value.operation, binding.value.subject.run) : undefined;
   if (!proof) return fail('FC-AUTHORITY', 'UNWITNESSED_WORKSPACE_INTENT');
   return ok(Object.freeze({ ...value, binding: binding.value, proof }));
 };
@@ -528,7 +549,7 @@ export function createScriptedWorkspaceFixture(): ScriptedWorkspaceFixture {
       exactFields(input, ['operation', 'operationType', 'binding', 'proof', 'fault']) ??
       exactFields(input, ['operation', 'operationType', 'binding', 'proof']);
     const binding = raw && parseBinding(raw.binding);
-    const proof = raw && binding && parseProof(raw.proof, raw.operation as string);
+    const proof = raw && binding && parseProof(raw.proof, raw.operation as string, binding.subject.run);
     if (
       !raw ||
       !binding ||
@@ -694,6 +715,8 @@ export function createWorkspaceController(
     const binding = bindingResult.value;
     const intentDigest = digest('WORKSPACE-INTENT', { binding, operation: binding.operation });
     if (!intentDigest) return fail('FC-INPUT', 'WORKSPACE_INTENT_DIGEST_FAILED');
+    const coordinates = proofCoordinates(binding.operation, binding.subject.run);
+    if (!coordinates) return fail('FC-AUTHORITY', 'WORKSPACE_PROOF_COORDINATES_INVALID');
     const intent: WorkspaceOperationIntent = Object.freeze({
       version: WORKSPACE_CONTRACT_VERSION,
       operation: binding.operation,
@@ -704,9 +727,9 @@ export function createWorkspaceController(
       binding,
       proof: Object.freeze({
         kind: 'committed-witnessed',
-        position: 0,
-        event: `${binding.subject.run}/event/1`,
-        transaction: binding.operation.slice(0, binding.operation.lastIndexOf('/op/')),
+        position: coordinates.position,
+        event: coordinates.event,
+        transaction: coordinates.transaction,
         operation: binding.operation,
         recordDigest: intentDigest,
         witnessDigest: intentDigest,
@@ -753,14 +776,24 @@ export function createWorkspaceController(
     const expectedHostFingerprint = digest('WORKSPACE-HOST', { host: binding.host, manifest: binding.manifest });
     const expectedFreshness = expectedHostFingerprint && freshnessFingerprint(binding, expectedHostFingerprint);
     if (!expectedHostFingerprint || !expectedFreshness) return fail('FC-INPUT', 'SETUP_FRESHNESS_INPUT_INVALID');
+    const storedSetupFact =
+      receipt &&
+      facts.find(
+        (fact) =>
+          fact.kind === 'setup-fact' &&
+          fact.operation === binding.operation &&
+          same(fact.binding, binding) &&
+          fact.setupReceipt !== null &&
+          same(fact.setupReceipt, receipt),
+      );
     if (
       receipt &&
-      same(receipt.binding, binding) &&
       receipt.recipeDigest === binding.recipeDigest &&
       receipt.inputFingerprintDigest === binding.inputFingerprintDigest &&
       receipt.hostFingerprint === expectedHostFingerprint &&
       receipt.freshnessFingerprint === expectedFreshness &&
-      receipt.completed
+      receipt.completed &&
+      storedSetupFact
     )
       return ok(Object.freeze({ status: 'no-op' as const }));
     const key = `${binding.operation}\0${bindingKey(binding)}\0${binding.recipeDigest}\0${binding.inputFingerprintDigest}`;
