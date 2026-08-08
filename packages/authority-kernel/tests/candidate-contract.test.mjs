@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const kernel = await import('../dist/index.js');
+const runtime = await import('../../runtime-contracts/dist/index.js');
 
 const d = (c) => c.charCodeAt(0).toString(16).padStart(2, '0').repeat(32);
 const run = 'run-000000000035-0123456789abcdef';
@@ -31,6 +32,31 @@ const graph = [
   { story: dependent, state: 'Reviewing', dependencies: [story], directBlocker: false, blocker: null },
   { story: transitiveDependent, state: 'Implementing', dependencies: [dependent], directBlocker: false, blocker: null },
 ];
+
+const ledgerBinding = { kind: 'run', run, generation };
+const transitionContent = (observation, eventId) => {
+  const subject = { run, story: observation.story, basis: observation.runBasisDigest };
+  const fence = { generation: observation.generation, basis: observation.runBasisDigest };
+  return {
+    schema: 'jig.transition.v1',
+    event: {
+      type: observation.event,
+      edge: 'candidate-source',
+      id: eventId,
+      subject,
+      fence,
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+    bindings: {
+      transaction: observation.authorizingTransition,
+      event: eventId,
+      operation: observation.operation,
+      subject,
+      fence,
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+  };
+};
 
 const makeObservation = (overrides = {}) => ({
   schema: kernel.CANDIDATE_EVENT_SCHEMA,
@@ -63,26 +89,73 @@ const makeObservation = (overrides = {}) => ({
   ...overrides,
 });
 
+const appendWitnessedSource = (witnessedLedger, observation) => {
+  const head = witnessedLedger.snapshot(ledgerBinding);
+  assert.equal(head.ok, true, JSON.stringify(head));
+  const position = head.value.position + 1;
+  const event = `${run}/event/${position + 1}`;
+  const proposal = runtime.createLedgerRecord({
+    run,
+    generation,
+    transaction: observation.authorizingTransition,
+    position,
+    previousDigest: head.value.digest,
+    content: transitionContent(observation, event),
+  });
+  assert.equal(proposal.ok, true, JSON.stringify(proposal));
+  const appended = witnessedLedger.append({
+    binding: ledgerBinding,
+    expectedPosition: head.value.position,
+    record: proposal.value,
+  });
+  assert.equal(appended.ok, true, JSON.stringify(appended));
+  return { ...observation, commitProof: proof(position, position + 1, appended.value.contentDigest) };
+};
+
 const makeController = (options = {}) => {
   const ledger = options.ledger ?? kernel.createScriptedCandidateLedger(options.ledgerOptions);
+  const witnessedLedger = options.witnessedLedger ?? runtime.createScriptedLedger();
+  const sources = [];
   const selectedGraph =
     options.graph ??
     graph.map((entry) =>
       entry.story === story && options.storyState ? { ...entry, state: options.storyState } : entry,
     );
+  if (!options.witnessedLedger) {
+    const initialObservation =
+      options.storyState === 'Refreshing'
+        ? makeObservation({ event: 'EV-WORKSPACE-FACT', source: 'workspace-refresh', operationType: 'OPC-WS-OBSERVE' })
+        : makeObservation();
+    sources.push(appendWitnessedSource(witnessedLedger, initialObservation));
+  }
   const created = kernel.createCandidateController({
     run,
     basisDigest: basis,
     generation,
     graph: selectedGraph,
     ledger,
+    witnessedLedger,
   });
   assert.equal(created.ok, true, JSON.stringify(created));
-  return { controller: created.value, ledger };
+  return { controller: created.value, ledger, witnessedLedger, sources };
 };
 
-const createCandidate = (state, overrides = {}) => {
-  const result = state.controller.createCandidate(makeObservation(overrides));
+const sourceKey = (observation) =>
+  [
+    observation.event,
+    observation.source,
+    observation.story,
+    observation.session,
+    observation.operation,
+    observation.producerKey,
+  ].join('|');
+
+const createCandidate = (state, overrides = {}, options = {}) => {
+  const observation = makeObservation(overrides);
+  const prior = state.sources.find((entry) => sourceKey(entry) === sourceKey(observation));
+  const witnessed = options.uncommitted || prior || appendWitnessedSource(state.witnessedLedger, observation);
+  if (!prior && !options.uncommitted) state.sources.push(witnessed);
+  const result = state.controller.createCandidate(witnessed);
   assert.equal(result.ok, true, JSON.stringify(result));
   return result.value;
 };
@@ -208,6 +281,81 @@ test('CF-BINDING: exact content/tree/basis/evidence/workspace/session/posture/ge
   assert.equal(state.controller.candidates().length, 1);
 });
 
+test('authoritative source event and Transition witness bind the Candidate admission', () => {
+  const state = makeController();
+  const candidate = createCandidate(state);
+  const sourceProof = candidate.sourceEvent.commitProof;
+  const readback = state.witnessedLedger.readback({
+    binding: ledgerBinding,
+    position: sourceProof.position,
+    transaction: sourceProof.transaction,
+    contentDigest: sourceProof.recordDigest,
+  });
+  assert.equal(readback.ok, true, JSON.stringify(readback));
+  assert.equal(readback.value.kind, 'committed');
+  assert.equal(readback.value.record.event, sourceProof.event);
+  assert.equal(readback.value.record.transaction, sourceProof.transaction);
+  assert.equal(readback.value.record.content.event.type, 'EV-SESSION-RESULT');
+  assert.equal(readback.value.record.content.bindings.operation, candidate.sourceEvent.operation);
+  assert.equal('sourceFact' in state.ledger.snapshot().value.records[0], false);
+});
+
+test('candidate admission rejects uncommitted, foreign-ledger, position, transition, and atomic source mismatches', () => {
+  const uncommitted = makeController();
+  assert.deepEqual(uncommitted.controller.createCandidate(makeObservation()).error, {
+    family: 'FC-TRUST',
+    code: 'SOURCE_EVENT_NOT_WITNESSED',
+  });
+
+  const foreignLedger = runtime.createScriptedLedger();
+  const foreignSource = appendWitnessedSource(foreignLedger, makeObservation({ story: dependent }));
+  const foreignSubject = makeController();
+  assert.deepEqual(
+    foreignSubject.controller.createCandidate(makeObservation({ commitProof: foreignSource.commitProof })).error,
+    { family: 'FC-TRUST', code: 'SOURCE_EVENT_NOT_WITNESSED' },
+  );
+
+  const wrongPosition = makeController();
+  assert.deepEqual(
+    wrongPosition.controller.createCandidate(
+      makeObservation({
+        operation: op(2),
+        authorizingTransition: tx(2),
+        commitProof: proof(1, 2),
+      }),
+    ).error,
+    { family: 'FC-TRUST', code: 'SOURCE_EVENT_NOT_WITNESSED' },
+  );
+
+  const wrongTransition = makeController();
+  const committedProof = wrongTransition.sources[0].commitProof;
+  assert.deepEqual(
+    wrongTransition.controller.createCandidate(
+      makeObservation({
+        operation: op(2),
+        authorizingTransition: tx(2),
+        commitProof: { ...committedProof, transaction: tx(2) },
+      }),
+    ).error,
+    { family: 'FC-TRUST', code: 'SOURCE_EVENT_NOT_WITNESSED' },
+  );
+
+  const mismatchLedger = runtime.createScriptedLedger();
+  const mismatchSource = appendWitnessedSource(mismatchLedger, makeObservation());
+  const mismatch = makeController({ storyState: 'Refreshing', witnessedLedger: mismatchLedger });
+  assert.deepEqual(
+    mismatch.controller.createCandidate(
+      makeObservation({
+        event: 'EV-WORKSPACE-FACT',
+        source: 'workspace-refresh',
+        operationType: 'OPC-WS-OBSERVE',
+        commitProof: mismatchSource.commitProof,
+      }),
+    ).error,
+    { family: 'FC-TRUST', code: 'SOURCE_EVENT_ATOMIC_BINDING_MISMATCH' },
+  );
+});
+
 test('controller-only minting, stale basis, hostile input, and duplicate creation keys fail closed', () => {
   const state = makeController();
   assert.deepEqual(state.controller.createCandidate({ controller: 'P-IMPLEMENTER', ...makeObservation() }).error, {
@@ -215,7 +363,7 @@ test('controller-only minting, stale basis, hostile input, and duplicate creatio
     code: 'INVALID_CANDIDATE_OBSERVATION',
   });
   const candidate = createCandidate(state);
-  const replay = state.controller.createCandidate(makeObservation());
+  const replay = state.controller.createCandidate(state.sources[0]);
   assert.equal(replay.ok, true);
   assert.equal(replay.value.id, candidate.id);
   assert.equal(state.controller.candidates().length, 1);
@@ -287,9 +435,9 @@ test('replacement lineage keeps session ordinals independent and recovers the ne
     session: `${story}/session/implementer/3`,
     sessionOrdinal: 3,
     assignmentOrdinal: 2,
-    operation: op(3),
-    authorizingTransition: tx(3),
-    commitProof: proof(2, 3),
+    operation: op(2),
+    authorizingTransition: tx(2),
+    commitProof: proof(1, 2),
     producerKey: d('t'),
     targetBasisDigest: d('r'),
     treeDigest: d('s'),
@@ -304,7 +452,11 @@ test('replacement lineage keeps session ordinals independent and recovers the ne
   assert.equal(assignment.ok, true, JSON.stringify(assignment));
   assert.equal(assignment.value.session, `${story}/session/implementer/4`);
 
-  const recovered = makeController({ ledger: replacementState.ledger, storyState: 'Reworking' });
+  const recovered = makeController({
+    ledger: replacementState.ledger,
+    witnessedLedger: replacementState.witnessedLedger,
+    storyState: 'Reworking',
+  });
   const replay = recovered.controller.recoverRework(next);
   assert.equal(replay.ok, true, JSON.stringify(replay));
   assert.equal(replay.value.sessionOrdinal, 4);
@@ -346,9 +498,7 @@ test('crash/replay recovery is conservative: witnessed ACK loss resolves once, u
   const witnessed = makeController({ ledgerOptions: { fault: 'after-witness' } });
   assert.equal(createCandidate(witnessed).id, witnessed.controller.candidates()[0].id);
   const flushed = makeController({ ledgerOptions: { fault: 'after-flush' } });
-  const uncertain = flushed.controller.createCandidate({
-    ...makeObservation(),
-  });
+  const uncertain = flushed.controller.createCandidate(flushed.sources[0]);
   assert.deepEqual(uncertain.error, { family: 'FC-TRUST', code: 'WITNESS_MISMATCH' });
   assert.equal(flushed.controller.candidates().length, 0);
 
@@ -366,8 +516,8 @@ test('recovery rejects a synthetic source proof even when the candidate append c
   const state = makeController();
   createCandidate(state);
   const snapshot = structuredClone(state.ledger.snapshot().value);
-  snapshot.records[0].sourceFact.commitProof.recordDigest = d('z');
-  snapshot.records[0].sourceFact.commitProof.witnessDigest = d('z');
+  snapshot.records[0].candidate.sourceEvent.commitProof.recordDigest = d('z');
+  snapshot.records[0].candidate.sourceEvent.commitProof.witnessDigest = d('z');
   const tamperedLedger = {
     snapshot: () => ({ ok: true, value: snapshot }),
     append: () => ({ ok: false, error: { family: 'FC-TRUST', code: 'UNEXPECTED_APPEND' } }),
@@ -380,20 +530,19 @@ test('recovery rejects a synthetic source proof even when the candidate append c
     generation,
     graph,
     ledger: tamperedLedger,
+    witnessedLedger: state.witnessedLedger,
   });
-  assert.deepEqual(recovered.error, { family: 'FC-TRUST', code: 'INVALID_CANDIDATE_RECORD' });
+  assert.deepEqual(recovered.error, { family: 'FC-TRUST', code: 'SOURCE_EVENT_NOT_WITNESSED' });
 });
 
 test('workspace refresh uses the same immutable carrier without acceptance or landing authority', () => {
   const state = makeController({ storyState: 'Refreshing' });
-  const result = state.controller.createCandidate(
-    makeObservation({
-      event: 'EV-WORKSPACE-FACT',
-      source: 'workspace-refresh',
-      operation: op(1, 2),
-      operationType: 'OPC-WS-OBSERVE',
-    }),
-  );
-  assert.equal(result.ok, true, JSON.stringify(result));
-  assert.equal(result.value.source, 'workspace-refresh');
+  const result = createCandidate(state, {
+    event: 'EV-WORKSPACE-FACT',
+    source: 'workspace-refresh',
+    operation: op(2, 2),
+    authorizingTransition: tx(2),
+    operationType: 'OPC-WS-OBSERVE',
+  });
+  assert.equal(result.source, 'workspace-refresh');
 });

@@ -1,4 +1,4 @@
-import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { type CanonicalJson, encodeFrame, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 /** Private GF-035 candidate/rework semantics. No provider or delivery effect is exposed here. */
 export const CANDIDATE_CONTRACT_VERSION = 'jig.candidate-contract.v1';
@@ -37,6 +37,17 @@ export type CommitProof = Readonly<{
   transaction: string;
   recordDigest: string;
   witnessDigest: string;
+}>;
+
+export type CandidateWitnessedLedger = Readonly<{
+  readback(
+    input: Readonly<{
+      binding: Readonly<{ kind: 'run'; run: string; generation: string }>;
+      position: number;
+      transaction: string;
+      contentDigest: string;
+    }>,
+  ): unknown;
 }>;
 
 export type CandidateSourceBinding = Readonly<{
@@ -215,7 +226,6 @@ type CandidateRecord = Readonly<{
   kind: 'candidate';
   position: number;
   previousDigest: string;
-  sourceFact: CandidateObservation;
   candidate: CandidatePayload;
   contentDigest: string;
 }>;
@@ -589,8 +599,8 @@ function candidatePayloadFromObservation(
   };
 }
 
-function candidateRecordDigest(candidate: CandidatePayload, sourceFact: CandidateObservation): string | undefined {
-  return hash('CANDIDATE-RECORD', { kind: 'candidate', sourceFact, candidate });
+function candidateRecordDigest(candidate: CandidatePayload): string | undefined {
+  return hash('CANDIDATE-RECORD', { kind: 'candidate', candidate });
 }
 
 function reworkRecordDigest(assignment: Omit<ReworkAssignment, 'commitProof'>): string | undefined {
@@ -731,17 +741,146 @@ function validateCandidatePayload(value: unknown): CandidateResult<CandidatePayl
   return ok(raw as unknown as CandidatePayload);
 }
 
-function validateProofCandidate(record: CandidateRecord, run: string): CandidateResult<Candidate> {
+function observedCandidateSource(payload: CandidatePayload): CandidateObservation {
+  return {
+    schema: CANDIDATE_EVENT_SCHEMA,
+    event: payload.sourceEvent.event,
+    source: payload.source,
+    run: payload.run,
+    story: payload.story,
+    role: payload.role,
+    session: payload.session,
+    principal: payload.principal,
+    sessionOrdinal: payload.sessionOrdinal,
+    assignmentOrdinal: payload.assignmentOrdinal,
+    operation: payload.sourceEvent.operation,
+    operationType: payload.source === 'session-result' ? 'OPC-SESSION-COLLECT' : 'OPC-WS-OBSERVE',
+    producerKey: payload.sourceEventKey,
+    runBasisDigest: payload.runBasisDigest,
+    targetBasisDigest: payload.targetBasisDigest,
+    changedPaths: payload.changedPaths,
+    treeDigest: payload.treeDigest,
+    workspaceCommit: payload.workspaceCommit,
+    commitMessage: payload.deliveryMetadata.commitMessage,
+    evidenceManifestDigest: payload.evidenceManifestDigest,
+    workspaceFingerprint: payload.workspaceFingerprint,
+    workspaceFactDigest: payload.workspaceFactDigest,
+    posture: payload.posture,
+    generation: payload.generation,
+    authorizingTransition: payload.authorizingTransition,
+    commitProof: payload.sourceEvent.commitProof,
+    committed: true,
+  };
+}
+
+function validateWitnessedSource(
+  observation: CandidateObservation,
+  witnessedLedger: CandidateWitnessedLedger,
+): CandidateResult<void> {
+  let response: unknown;
+  try {
+    response = witnessedLedger.readback({
+      binding: { kind: 'run', run: observation.run, generation: observation.generation },
+      position: observation.commitProof.position,
+      transaction: observation.commitProof.transaction,
+      contentDigest: observation.commitProof.recordDigest,
+    });
+  } catch {
+    return fail('FC-TRUST', 'SOURCE_EVENT_READBACK_FAILED');
+  }
+  const result = ownFields(response, ['ok', 'value']);
+  if (result?.ok !== true) return fail('FC-TRUST', 'SOURCE_EVENT_NOT_WITNESSED');
+  const readback = ownFields(result.value, ['kind', 'record']);
+  if (readback?.kind !== 'committed') return fail('FC-TRUST', 'SOURCE_EVENT_NOT_WITNESSED');
+  const record = ownFields(readback.record, [
+    'version',
+    'run',
+    'generation',
+    'transaction',
+    'event',
+    'position',
+    'previousDigest',
+    'content',
+    'contentDigest',
+  ]);
+  const content = record && ownFields(record.content, ['schema', 'event', 'bindings']);
+  const event = content && ownFields(content.event, ['type', 'edge', 'id', 'subject', 'fence', 'catalogVersion']);
+  const bindings =
+    content && ownFields(content.bindings, ['transaction', 'event', 'operation', 'subject', 'fence', 'catalogVersion']);
+  const subject = event && ownFields(event.subject, ['run', 'story', 'basis']);
+  const fence = event && ownFields(event.fence, ['generation', 'basis']);
+  const bindingSubject = bindings && ownFields(bindings.subject, ['run', 'story', 'basis']);
+  const bindingFence = bindings && ownFields(bindings.fence, ['generation', 'basis']);
+  const recordDigest =
+    record &&
+    stageDigest({
+      domain: 'LEDGER-RECORD',
+      excludePaths: ['contentDigest', 'event'],
+      value: record as unknown as CanonicalJson,
+    });
+  if (
+    record?.version !== 'jig.ledger.v1' ||
+    typeof record.run !== 'string' ||
+    typeof record.generation !== 'string' ||
+    typeof record.transaction !== 'string' ||
+    typeof record.event !== 'string' ||
+    !position(record.position) ||
+    !digest(record.previousDigest) ||
+    !digest(record.contentDigest) ||
+    !validIdentity('ID-RUN', record.run) ||
+    !validIdentity('ID-GEN', record.generation) ||
+    !validIdentity('ID-TXN', record.transaction) ||
+    !validIdentity('ID-EVENT', record.event) ||
+    !record.generation.startsWith(`${record.run}/gen/`) ||
+    !record.transaction.startsWith(`${record.run}/txn/${record.position + 1}/${record.generation}|`) ||
+    record.event !== `${record.run}/event/${record.position + 1}` ||
+    !encodeFrame(record.content as CanonicalJson).ok ||
+    recordDigest?.ok !== true ||
+    recordDigest.value.digest !== record.contentDigest ||
+    !content ||
+    content.schema !== 'jig.transition.v1' ||
+    !event ||
+    !bindings ||
+    !subject ||
+    !fence ||
+    !bindingSubject ||
+    !bindingFence ||
+    record.run !== observation.run ||
+    record.generation !== observation.generation ||
+    record.transaction !== observation.authorizingTransition ||
+    record.event !== observation.commitProof.event ||
+    record.position !== observation.commitProof.position ||
+    record.contentDigest !== observation.commitProof.recordDigest ||
+    event.type !== observation.event ||
+    event.id !== observation.commitProof.event ||
+    subject.run !== observation.run ||
+    subject.story !== observation.story ||
+    subject.basis !== observation.runBasisDigest ||
+    fence.generation !== observation.generation ||
+    fence.basis !== observation.runBasisDigest ||
+    bindings.transaction !== observation.authorizingTransition ||
+    bindings.event !== observation.commitProof.event ||
+    bindings.operation !== observation.operation ||
+    bindingSubject.run !== observation.run ||
+    bindingSubject.story !== observation.story ||
+    bindingSubject.basis !== observation.runBasisDigest ||
+    bindingFence.generation !== observation.generation ||
+    bindingFence.basis !== observation.runBasisDigest
+  )
+    return fail('FC-TRUST', 'SOURCE_EVENT_ATOMIC_BINDING_MISMATCH');
+  return ok(undefined);
+}
+
+function validateProofCandidate(
+  record: CandidateRecord,
+  run: string,
+  witnessedLedger: CandidateWitnessedLedger,
+): CandidateResult<Candidate> {
   const payload = validateCandidatePayload(record.candidate);
   if (!payload.ok) return payload;
-  const sourceFact = parseObservation(record.sourceFact);
-  const candidateOrdinal = parseOrdinal(payload.value.id);
-  const expectedPayload = candidateOrdinal
-    ? candidatePayloadFromObservation(sourceFact.ok ? sourceFact.value : record.sourceFact, candidateOrdinal)
-    : undefined;
-  if (!sourceFact.ok || !expectedPayload || !exactEqual(expectedPayload, payload.value))
-    return fail('FC-TRUST', 'INVALID_CANDIDATE_SOURCE');
-  const contentDigest = candidateRecordDigest(payload.value, sourceFact.value);
+  const source = validateWitnessedSource(observedCandidateSource(payload.value), witnessedLedger);
+  if (!source.ok) return source;
+  const contentDigest = candidateRecordDigest(payload.value);
   if (!contentDigest || contentDigest !== record.contentDigest || record.position < 0 || payload.value.run !== run)
     return fail('FC-TRUST', 'INVALID_CANDIDATE_RECORD');
   const transaction = payload.value.authorizingTransition;
@@ -971,7 +1110,7 @@ function createLedger(options: Readonly<{ fault?: 'after-witness' | 'after-flush
               ...input.record,
               position: currentPosition + 1,
               previousDigest: currentDigest,
-              contentDigest: candidateRecordDigest(input.record.candidate, input.record.sourceFact) ?? '',
+              contentDigest: candidateRecordDigest(input.record.candidate) ?? '',
             }
           : {
               ...input.record,
@@ -1088,8 +1227,12 @@ function validateStoryGraph(value: unknown, run: string): readonly StoryProjecti
   return Object.freeze(stories);
 }
 
-function candidateFromRecord(record: CandidateRecord, run: string): CandidateResult<Candidate> {
-  const payload = validateProofCandidate(record, run);
+function candidateFromRecord(
+  record: CandidateRecord,
+  run: string,
+  witnessedLedger: CandidateWitnessedLedger,
+): CandidateResult<Candidate> {
+  const payload = validateProofCandidate(record, run, witnessedLedger);
   return payload;
 }
 
@@ -1166,6 +1309,7 @@ function assignmentFromRecord(record: ReworkRecord, run: string): CandidateResul
 function validateLedgerSnapshot(
   snapshot: CandidateLedgerSnapshot,
   run: string,
+  witnessedLedger: CandidateWitnessedLedger,
 ): CandidateResult<CandidateLedgerSnapshot> {
   if (
     snapshot.schema !== CANDIDATE_CONTRACT_VERSION ||
@@ -1183,7 +1327,9 @@ function validateLedgerSnapshot(
     )
       return fail('FC-TRUST', 'INVALID_CANDIDATE_CHAIN');
     const validated =
-      record.kind === 'candidate' ? candidateFromRecord(record, run) : assignmentFromRecord(record, run);
+      record.kind === 'candidate'
+        ? candidateFromRecord(record, run, witnessedLedger)
+        : assignmentFromRecord(record, run);
     if (!validated.ok) return validated;
     previousDigest = record.contentDigest;
   }
@@ -1196,7 +1342,14 @@ function parseOrdinal(id: string): number | undefined {
 }
 
 export function createCandidateController(
-  input: Readonly<{ run: string; basisDigest: string; generation: string; graph: unknown; ledger?: CandidateLedger }>,
+  input: Readonly<{
+    run: string;
+    basisDigest: string;
+    generation: string;
+    graph: unknown;
+    ledger?: CandidateLedger;
+    witnessedLedger: CandidateWitnessedLedger;
+  }>,
 ): CandidateResult<CandidateController> {
   if (
     !validIdentity('ID-RUN', input.run) ||
@@ -1205,6 +1358,12 @@ export function createCandidateController(
     !input.generation.startsWith(`${input.run}/gen/`)
   )
     return fail('FC-INPUT', 'INVALID_RUN_BASIS');
+  if (
+    typeof input.witnessedLedger !== 'object' ||
+    input.witnessedLedger === null ||
+    typeof input.witnessedLedger.readback !== 'function'
+  )
+    return fail('FC-AUTHORITY', 'AUTHORITATIVE_LEDGER_REQUIRED');
   const graph = validateStoryGraph(input.graph, input.run);
   if (!graph) return fail('FC-INPUT', 'INVALID_STORY_GRAPH');
   const ledger = input.ledger ?? createLedger();
@@ -1213,13 +1372,13 @@ export function createCandidateController(
   const rebuild = (): CandidateResult<void> => {
     const snapshot = ledger.snapshot();
     if (!snapshot.ok) return snapshot;
-    const validatedSnapshot = validateLedgerSnapshot(snapshot.value, input.run);
+    const validatedSnapshot = validateLedgerSnapshot(snapshot.value, input.run, input.witnessedLedger);
     if (!validatedSnapshot.ok) return validatedSnapshot;
     candidates.length = 0;
     assignments.length = 0;
     for (const record of validatedSnapshot.value.records) {
       if (record.kind === 'candidate') {
-        const candidate = candidateFromRecord(record, input.run);
+        const candidate = candidateFromRecord(record, input.run, input.witnessedLedger);
         if (!candidate.ok) return candidate;
         candidates.push(candidate.value);
       } else {
@@ -1273,11 +1432,13 @@ export function createCandidateController(
         : undefined;
       if (!replayPayload || !exactEqual(existing.value.candidate, replayPayload))
         return fail('FC-TRUST', 'DUPLICATE_KEY_DIFFERENT_BYTES');
-      const replay = candidateFromRecord(existing.value, input.run);
+      const replay = candidateFromRecord(existing.value, input.run, input.witnessedLedger);
       if (!replay.ok) return replay;
       return replay;
     }
     if (story.state !== expectedState) return fail('FC-AUTHORITY', 'CANDIDATE_STATE_NOT_CREATABLE');
+    const witnessed = validateWitnessedSource(observation.value, input.witnessedLedger);
+    if (!witnessed.ok) return witnessed;
     const ordinalValue =
       candidates
         .filter((candidate) => candidate.story === observation.value.story)
@@ -1293,7 +1454,6 @@ export function createCandidateController(
         kind: 'candidate',
         position: 0,
         previousDigest: GENESIS,
-        sourceFact: observation.value,
         candidate: payload,
         contentDigest: '',
       },
@@ -1307,7 +1467,7 @@ export function createCandidateController(
     if (!record) return appended.ok ? fail('FC-TRUST', 'CANDIDATE_RECORD_MISSING') : appended;
     if (record.position !== current.value.position + 1 || record.previousDigest !== current.value.digest)
       return fail('FC-TRUST', 'CANDIDATE_CHAIN_MISMATCH');
-    const candidate = candidateFromRecord(record, input.run);
+    const candidate = candidateFromRecord(record, input.run, input.witnessedLedger);
     if (!candidate.ok) return candidate;
     candidates.push(candidate.value);
     storyMap.set(observation.value.story, { ...story, state: 'Reviewing' });
@@ -1510,7 +1670,7 @@ export function createCandidateController(
       ),
     snapshot: () => {
       const snapshot = ledger.snapshot();
-      return snapshot.ok ? validateLedgerSnapshot(snapshot.value, input.run) : snapshot;
+      return snapshot.ok ? validateLedgerSnapshot(snapshot.value, input.run, input.witnessedLedger) : snapshot;
     },
   });
 }
