@@ -21,6 +21,14 @@ const policyBase = {
   waitRangeVersion: scheduler.WAIT_CAPACITY_RANGE_VERSION,
 };
 const policy = () => ({ ...policyBase, digest: scheduler.capacityPolicyDigest(policyBase) });
+const finalizerFacts = (key) => ({
+  registry: `registry/${basis}`,
+  target: 'target/finalizer-target',
+  candidate: `${run}/story/${key}/cand/1|${basis}`,
+  candidateContentDigest: basis,
+  eligibilityBasis: basis,
+  generation,
+});
 const story = (key, changes = {}) => ({
   run,
   story: `${run}/story/${key}`,
@@ -31,6 +39,7 @@ const story = (key, changes = {}) => ({
   order: { priority: 1, ordinal: 1, story: `${run}/story/${key}` },
   demand: demand(),
   finalizerCandidate: false,
+  finalizer: null,
   ...changes,
 });
 const reserveIntent = (key, resource, ordinal = 1, amount = 1) => ({
@@ -139,6 +148,30 @@ test('CF-CAPACITY: all classes are counted, reserve minimum is non-waivable, and
   assert.equal(scheduler.validateCapacityPolicy(finalizerReserve).ok, false);
 });
 
+test('CF-CAPACITY: a multi-class admission is committed as one fenced durable reservation set', () => {
+  const ledger = scheduler.createScriptedReservationLedger();
+  const first = reserveIntent('multi-one', 'RC-SESSION');
+  const second = reserveIntent('multi-one', 'RC-IMPL-TURN', 1);
+  const head = ledger.snapshot().value;
+  const result = scheduler.reserveCapacitySet(ledger, {
+    controller: scheduler.CONTROLLER_ROLE,
+    expectedPosition: head.position,
+    expectedDigest: head.digest,
+    policy: policy(),
+    registryWaiter: null,
+    reservations: [first, second],
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.value.map((record) => record.position),
+    [0, 1],
+  );
+  assert.deepEqual(
+    ledger.snapshot().value.records.map((record) => record.resource),
+    ['RC-SESSION', 'RC-IMPL-TURN'],
+  );
+});
+
 test('BND-WAIT-CAPACITY preserves continuous starvation and attributes exhaustion', () => {
   const constrained = story('waiting', { demand: demand({ 'RC-SESSION': 1 }) });
   const ledger = scheduler.createScriptedReservationLedger();
@@ -178,22 +211,40 @@ test('finalizer queue is deterministic, single-holder, and never preempts the ho
   const alpha = story('alpha', {
     state: 'Accepted',
     finalizerCandidate: true,
+    finalizer: finalizerFacts('alpha'),
     order: { priority: 2, ordinal: 2, story: `${run}/story/alpha` },
   });
   const beta = story('beta', {
     state: 'Accepted',
     finalizerCandidate: true,
+    finalizer: finalizerFacts('beta'),
     order: { priority: 1, ordinal: 1, story: `${run}/story/beta` },
   });
   let result = scheduler.selectSchedule(scheduleInput([alpha, beta]));
   assert.equal(result.ok, true);
   assert.equal(result.value.finalizerWaiter, beta.story);
   assert.deepEqual(
+    result.value.registryWaiters.map((entry) => entry.waiter.story),
+    [beta.story, alpha.story],
+  );
+  assert.equal(result.value.registryWaiters[0].registry, `registry/${basis}`);
+  assert.equal(result.value.registryWaiters[0].waiter.candidate, finalizerFacts('beta').candidate);
+  assert.deepEqual(
     result.value.finalizerQueue.map((wait) => wait.story),
     [alpha.story],
   );
   const ledger = scheduler.createScriptedReservationLedger();
-  const held = scheduler.reserveCapacity(ledger, reserveRequest(reserveIntent('beta', 'RC-FINALIZER', 1), ledger));
+  const initialSchedule = scheduler.selectSchedule(scheduleInput([alpha, beta]));
+  assert.equal(initialSchedule.ok, true);
+  const finalizerReservation = reserveIntent('beta', 'RC-FINALIZER', 1);
+  assert.equal(
+    scheduler.reserveCapacity(ledger, reserveRequest(finalizerReservation, ledger)).error.code,
+    'FINALIZER_WAITER_REQUIRED',
+  );
+  const held = scheduler.reserveFinalizerCapacity(ledger, {
+    ...reserveRequest(finalizerReservation, ledger),
+    registryWaiter: initialSchedule.value.registryWaiters[0],
+  });
   assert.equal(held.ok, true);
   const reservations = ledger.snapshot().value.records;
   result = scheduler.selectSchedule(scheduleInput([alpha, beta], reservations));
@@ -260,6 +311,8 @@ test('fenced durable reserve/release is concurrent-safe and only release append 
     }).error.code,
     'STALE_RESERVATION',
   );
+  const reacquired = scheduler.reserveCapacity(ledger, reserveRequest(first, ledger));
+  assert.equal(reacquired.ok, true);
 });
 
 test('crash/readback stays durable and does not silently retry an uncertain append', () => {

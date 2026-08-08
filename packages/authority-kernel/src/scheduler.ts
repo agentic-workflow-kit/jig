@@ -2,6 +2,7 @@ import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflo
 
 export const SCHEDULER_VERSION = 'jig.scheduler.v1';
 export const RESERVATION_SCHEMA = 'jig.capacity-reservation.v1';
+export const REGISTRY_VERSION = 'jig.registry.v1';
 export const CONTROLLER_ROLE = 'RT-CONTROLLER';
 export const CAPACITY_RANGE_VERSION = 'jig.capacity-ranges.v1';
 export const WAIT_CAPACITY_RANGE_VERSION = 'jig.envelope-bounds.v1';
@@ -35,7 +36,13 @@ export const BND_WAIT_CAPACITY = Object.freeze({
   unit: 'seconds',
 });
 
-export type SchedulerFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-CAPACITY' | 'FC-TRUST';
+export type SchedulerFailureFamily =
+  | 'FC-INPUT'
+  | 'FC-SUBJECT'
+  | 'FC-FENCE'
+  | 'FC-CAPACITY'
+  | 'FC-TRUST'
+  | 'FC-AUTHORITY';
 export type SchedulerFailure = Readonly<{ family: SchedulerFailureFamily; code: string }>;
 export type SchedulerResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: SchedulerFailure }>;
 export type Comparator = Readonly<{ priority: number; ordinal: number; story: string }>;
@@ -88,6 +95,15 @@ export type SchedulerStory = Readonly<{
   order: Comparator;
   demand: Demand;
   finalizerCandidate: boolean;
+  finalizer: FinalizerFacts | null;
+}>;
+export type FinalizerFacts = Readonly<{
+  registry: string;
+  target: string;
+  candidate: string;
+  candidateContentDigest: string;
+  eligibilityBasis: string;
+  generation: string;
 }>;
 export type DurableReservation = Readonly<{
   schema: typeof RESERVATION_SCHEMA;
@@ -137,7 +153,26 @@ export type Schedule = Readonly<{
   waits: readonly CapacityWait[];
   finalizerWaiter: string | null;
   finalizerQueue: readonly CapacityWait[];
+  registryWaiters: readonly RegistryWaiterFact[];
   used: Readonly<Record<ResourceClass, number>>;
+}>;
+export type RegistryWaiterFact = Readonly<{
+  schema: typeof SCHEDULER_VERSION;
+  registryVersion: typeof REGISTRY_VERSION;
+  kind: 'registry-waiter';
+  variant: 'waiter';
+  registry: string;
+  target: string;
+  waiter: Readonly<{
+    run: string;
+    story: string;
+    generation: string;
+    candidate: string;
+    candidateContentDigest: string;
+    eligibilityBasis: string;
+    comparator: Comparator;
+    waitedAt: number;
+  }>;
 }>;
 
 type RawRecord = Readonly<{
@@ -167,6 +202,13 @@ export type ReservationLedger = Readonly<{
       record: Omit<RawRecord, 'position' | 'previousDigest' | 'contentDigest'>;
     }>,
   ): SchedulerResult<DurableReservation>;
+  appendBatch(
+    input: Readonly<{
+      expectedPosition: number;
+      expectedDigest: string;
+      records: readonly Omit<RawRecord, 'position' | 'previousDigest' | 'contentDigest'>[];
+    }>,
+  ): SchedulerResult<readonly DurableReservation[]>;
   readback(
     input: Readonly<{ position: number; contentDigest: string }>,
   ): SchedulerResult<
@@ -335,6 +377,7 @@ function validStory(value: unknown): value is SchedulerStory {
       'dependencies',
       'demand',
       'directBlocker',
+      'finalizer',
       'finalizerCandidate',
       'order',
       'run',
@@ -357,9 +400,26 @@ function validStory(value: unknown): value is SchedulerStory {
     value.dependencies.some((dependency) => typeof dependency !== 'string' || !parseIdentity('ID-STORY', dependency).ok)
   )
     return false;
+  const finalizer = value.finalizer;
+  const validFinalizer =
+    plain(finalizer) &&
+    exact(finalizer, ['candidate', 'candidateContentDigest', 'eligibilityBasis', 'generation', 'registry', 'target']) &&
+    typeof finalizer.registry === 'string' &&
+    parseIdentity('ID-REGISTRY', finalizer.registry).ok &&
+    typeof finalizer.target === 'string' &&
+    parseIdentity('ID-TARGET', finalizer.target).ok &&
+    typeof finalizer.candidate === 'string' &&
+    parseIdentity('ID-CAND', finalizer.candidate).ok &&
+    finalizer.candidate.startsWith(`${value.story}/cand/`) &&
+    digest(finalizer.candidateContentDigest) &&
+    digest(finalizer.eligibilityBasis) &&
+    typeof finalizer.generation === 'string' &&
+    parseIdentity('ID-GEN', finalizer.generation).ok &&
+    finalizer.generation.startsWith(`${value.run}/gen/`);
   return (
     typeof value.directBlocker === 'boolean' &&
     typeof value.finalizerCandidate === 'boolean' &&
+    ((value.finalizerCandidate && validFinalizer) || (!value.finalizerCandidate && finalizer === null)) &&
     validComparator(value.order, value.story) &&
     validDemand(value.demand)
   );
@@ -516,6 +576,28 @@ function waitFor(
   });
 }
 
+function registryWaiter(story: SchedulerStory, wait: CapacityWait): RegistryWaiterFact {
+  const finalizer = story.finalizer as FinalizerFacts;
+  return freeze({
+    schema: SCHEDULER_VERSION,
+    registryVersion: REGISTRY_VERSION,
+    kind: 'registry-waiter',
+    variant: 'waiter',
+    registry: finalizer.registry,
+    target: finalizer.target,
+    waiter: freeze({
+      run: story.run,
+      story: story.story,
+      generation: finalizer.generation,
+      candidate: finalizer.candidate,
+      candidateContentDigest: finalizer.candidateContentDigest,
+      eligibilityBasis: finalizer.eligibilityBasis,
+      comparator: story.order,
+      waitedAt: wait.startedAt,
+    }),
+  });
+}
+
 function admittedState(story: SchedulerStory, states: ReadonlyMap<string, SchedulerStory>): boolean {
   return story.dependencies.every((dependency) => states.get(dependency)?.state === 'Landed');
 }
@@ -606,9 +688,14 @@ export function selectSchedule(input: unknown): SchedulerResult<Schedule> {
     .sort((left, right) => compareOrder(left.order, right.order));
   const heldFinalizer = active.value.find((record) => record.resource === 'RC-FINALIZER');
   const finalizerQueue: CapacityWait[] = [];
+  const registryWaiters: RegistryWaiterFact[] = [];
   let finalizerWaiter: string | null = null;
   if (!heldFinalizer) finalizerWaiter = finalizerCandidates[0]?.story ?? null;
   const queued = heldFinalizer ? finalizerCandidates : finalizerCandidates.slice(finalizerWaiter ? 1 : 0);
+  for (const story of finalizerCandidates) {
+    const wait = waitFor(story, 'RC-FINALIZER', input.now, policy.value, waits, 'finalizer-queue');
+    registryWaiters.push(registryWaiter(story, wait));
+  }
   for (const story of queued) {
     const wait = waitFor(story, 'RC-FINALIZER', input.now, policy.value, waits, 'finalizer-queue');
     finalizerQueue.push(wait);
@@ -622,6 +709,7 @@ export function selectSchedule(input: unknown): SchedulerResult<Schedule> {
       waits: Object.freeze(capacityWaits),
       finalizerWaiter,
       finalizerQueue: Object.freeze(finalizerQueue),
+      registryWaiters: Object.freeze(registryWaiters),
       used: Object.freeze({ ...used }),
     }),
   );
@@ -792,65 +880,187 @@ function validReservationRecord(value: unknown): value is DurableReservation {
   );
 }
 
+function validRegistryWaiterFact(value: unknown, reservation: ReservationIntent): value is RegistryWaiterFact {
+  if (
+    !plain(value) ||
+    !exact(value, ['kind', 'registry', 'registryVersion', 'schema', 'target', 'variant', 'waiter']) ||
+    value.schema !== SCHEDULER_VERSION ||
+    value.registryVersion !== REGISTRY_VERSION ||
+    value.kind !== 'registry-waiter' ||
+    value.variant !== 'waiter' ||
+    !plain(value.waiter) ||
+    !exact(value.waiter, [
+      'candidate',
+      'candidateContentDigest',
+      'comparator',
+      'eligibilityBasis',
+      'generation',
+      'run',
+      'story',
+      'waitedAt',
+    ])
+  )
+    return false;
+  const waiter = value.waiter as Record<string, unknown>;
+  return (
+    typeof value.registry === 'string' &&
+    parseIdentity('ID-REGISTRY', value.registry).ok &&
+    typeof value.target === 'string' &&
+    parseIdentity('ID-TARGET', value.target).ok &&
+    typeof waiter.run === 'string' &&
+    typeof waiter.story === 'string' &&
+    typeof waiter.generation === 'string' &&
+    typeof waiter.candidate === 'string' &&
+    waiter.run === reservation.run &&
+    waiter.story === reservation.story &&
+    waiter.generation === reservation.generation &&
+    digest(waiter.candidateContentDigest) &&
+    digest(waiter.eligibilityBasis) &&
+    validComparator(waiter.comparator, waiter.story) &&
+    compareOrder(waiter.comparator, reservation.comparator) === 0 &&
+    parseIdentity('ID-CAND', waiter.candidate).ok &&
+    waiter.candidate.startsWith(`${waiter.story}/cand/`) &&
+    nonNegative(waiter.waitedAt)
+  );
+}
+
 function requestFields(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
   return plain(value) && exact(value, keys) ? value : undefined;
 }
 
-export function reserveCapacity(ledger: ReservationLedger, input: unknown): SchedulerResult<DurableReservation> {
-  const raw = requestFields(input, ['controller', 'expectedDigest', 'expectedPosition', 'policy', 'reservation']);
-  const reservation = raw?.reservation;
+export function reserveCapacitySet(
+  ledger: ReservationLedger,
+  input: unknown,
+): SchedulerResult<readonly DurableReservation[]> {
+  const raw = requestFields(input, [
+    'controller',
+    'expectedDigest',
+    'expectedPosition',
+    'policy',
+    'registryWaiter',
+    'reservations',
+  ]);
+  const reservations = raw?.reservations;
   if (
     !raw ||
     raw.controller !== CONTROLLER_ROLE ||
     !integer(raw.expectedPosition) ||
     raw.expectedPosition < -1 ||
     !digest(raw.expectedDigest) ||
-    !validReservationIntent(reservation)
+    !Array.isArray(reservations) ||
+    reservations.length === 0 ||
+    reservations.some((reservation) => !validReservationIntent(reservation))
   )
-    return fail('FC-INPUT', 'INVALID_RESERVE_REQUEST');
+    return fail('FC-INPUT', 'INVALID_RESERVE_SET_REQUEST');
+  const parsedReservations = reservations as readonly ReservationIntent[];
   const policy = validateCapacityPolicy(raw.policy);
-  if (!policy.ok || reservation.policyDigest !== policy.value.digest)
+  if (!policy.ok || parsedReservations.some((reservation) => reservation.policyDigest !== policy.value.digest))
     return fail('FC-INPUT', 'RESERVATION_POLICY_MISMATCH');
+  const first = parsedReservations[0] as ReservationIntent;
+  const resourceKeys = new Set<ResourceClass>();
+  for (const reservation of parsedReservations) {
+    if (
+      reservation.run !== first.run ||
+      reservation.story !== first.story ||
+      reservation.generation !== first.generation ||
+      reservation.authorizingTransition !== first.authorizingTransition ||
+      compareOrder(reservation.comparator, first.comparator) !== 0 ||
+      resourceKeys.has(reservation.resource)
+    )
+      return fail('FC-CAPACITY', 'DUPLICATE_RESERVATION');
+    resourceKeys.add(reservation.resource);
+  }
+  if (first.resource === 'RC-FINALIZER' && !validRegistryWaiterFact(raw.registryWaiter, first))
+    return fail('FC-AUTHORITY', 'FINALIZER_WAITER_REQUIRED');
+  if (first.resource !== 'RC-FINALIZER' && raw.registryWaiter !== null)
+    return fail('FC-INPUT', 'UNEXPECTED_FINALIZER_WAITER');
   const current = ledger.snapshot();
   if (!current.ok) return current;
   if (current.value.position !== raw.expectedPosition || current.value.digest !== raw.expectedDigest)
     return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
-  if (current.value.records.some((record) => record.run !== reservation.run))
+  if (current.value.records.some((record) => record.run !== first.run))
     return fail('FC-SUBJECT', 'CROSS_RUN_RESERVATION');
-  if (current.value.records.length > 0 && current.value.records.at(-1)?.generation !== reservation.generation)
+  if (current.value.records.length > 0 && current.value.records.at(-1)?.generation !== first.generation)
     return fail('FC-FENCE', 'STALE_GENERATION');
+  const active = activeReservations(current.value.records);
+  if (!active.ok) return active;
   if (
-    current.value.records.some(
-      (record) =>
-        record.variant === 'reserve' &&
-        record.run === reservation.run &&
-        record.story === reservation.story &&
-        record.resource === reservation.resource,
+    parsedReservations.some((reservation) =>
+      active.value.some(
+        (record) =>
+          record.run === reservation.run &&
+          record.story === reservation.story &&
+          record.resource === reservation.resource,
+      ),
     )
   )
     return fail('FC-CAPACITY', 'DUPLICATE_RESERVATION');
-  const active = activeReservations(current.value.records);
-  if (!active.ok) return active;
   const used = usedBy(active.value);
-  const blocked = feasible(
-    policy.value,
-    used,
-    Object.freeze({
-      ...Object.fromEntries(
-        RESOURCE_CLASSES.map((resource) => [resource, resource === reservation.resource ? reservation.amount : 0]),
-      ),
-    } as Demand),
-  );
+  const requested = Object.fromEntries(RESOURCE_CLASSES.map((resource) => [resource, 0])) as Record<
+    ResourceClass,
+    number
+  >;
+  for (const reservation of parsedReservations) requested[reservation.resource] += reservation.amount;
+  const blocked = feasible(policy.value, used, requested);
   if (blocked) return fail('FC-CAPACITY', 'CAPACITY_EXCEEDED');
-  const appended = ledger.append({
+  const appended = ledger.appendBatch({
     expectedPosition: raw.expectedPosition,
     expectedDigest: raw.expectedDigest,
-    record: reservation,
+    records: parsedReservations,
   });
   if (appended.ok) return appended;
   return appended.error.family === 'FC-TRUST' && appended.error.code === 'ACK_LOST'
     ? fail('FC-TRUST', 'ACK_LOST_READBACK_REQUIRED')
     : appended;
+}
+
+type ReservationIntent = Omit<RawRecord, 'position' | 'previousDigest' | 'contentDigest'>;
+
+export function reserveCapacity(ledger: ReservationLedger, input: unknown): SchedulerResult<DurableReservation> {
+  const raw = requestFields(input, ['controller', 'expectedDigest', 'expectedPosition', 'policy', 'reservation']);
+  if (
+    !raw ||
+    raw.controller !== CONTROLLER_ROLE ||
+    !integer(raw.expectedPosition) ||
+    raw.expectedPosition < -1 ||
+    !digest(raw.expectedDigest) ||
+    !validReservationIntent(raw.reservation)
+  )
+    return fail('FC-INPUT', 'INVALID_RESERVE_REQUEST');
+  const result = reserveCapacitySet(ledger, {
+    controller: raw.controller,
+    expectedDigest: raw.expectedDigest,
+    expectedPosition: raw.expectedPosition,
+    policy: raw.policy,
+    registryWaiter: null,
+    reservations: [raw.reservation],
+  });
+  return result.ok ? ok(result.value[0]) : result;
+}
+
+export function reserveFinalizerCapacity(
+  ledger: ReservationLedger,
+  input: unknown,
+): SchedulerResult<DurableReservation> {
+  const raw = requestFields(input, [
+    'controller',
+    'expectedDigest',
+    'expectedPosition',
+    'policy',
+    'registryWaiter',
+    'reservation',
+  ]);
+  if (!raw || !validReservationIntent(raw.reservation) || raw.reservation.resource !== 'RC-FINALIZER')
+    return fail('FC-INPUT', 'INVALID_FINALIZER_RESERVE_REQUEST');
+  const result = reserveCapacitySet(ledger, {
+    controller: raw.controller,
+    expectedDigest: raw.expectedDigest,
+    expectedPosition: raw.expectedPosition,
+    policy: raw.policy,
+    registryWaiter: raw.registryWaiter,
+    reservations: [raw.reservation],
+  });
+  return result.ok ? ok(result.value[0]) : result;
 }
 
 export function releaseCapacity(ledger: ReservationLedger, input: unknown): SchedulerResult<DurableReservation> {
@@ -924,28 +1134,46 @@ export function createScriptedReservationLedger(
         : trust;
     },
     append(input) {
+      const appended = this.appendBatch({
+        expectedPosition: input.expectedPosition,
+        expectedDigest: input.expectedDigest,
+        records: [input.record],
+      });
+      return appended.ok ? ok(appended.value[0]) : appended;
+    },
+    appendBatch(input) {
       const current = records.at(-1);
       const position = current?.position ?? -1;
       const digestValue = current?.contentDigest ?? GENESIS;
       if (input.expectedPosition !== position || input.expectedDigest !== digestValue)
         return fail('FC-FENCE', 'EXPECTED_HEAD_MISMATCH');
-      const content = reservationContent(input.record);
-      const contentDigest = canonicalDigest(
-        'CAPACITY-RESERVATION',
-        Object.assign({}, content as Record<string, CanonicalJson>, { contentDigest: '' }),
-      );
-      if (!contentDigest) return fail('FC-INPUT', 'RESERVATION_DIGEST');
-      const created = freeze({
-        ...(input.record as object),
-        position: position + 1,
-        previousDigest: digestValue,
-        contentDigest,
-      } as DurableReservation);
-      records.push(created);
+      const created: DurableReservation[] = [];
+      let nextPosition = position;
+      let nextDigest = digestValue;
+      for (const record of input.records) {
+        const content = reservationContent(record);
+        const contentDigest = canonicalDigest(
+          'CAPACITY-RESERVATION',
+          Object.assign({}, content as Record<string, CanonicalJson>, { contentDigest: '' }),
+        );
+        if (!contentDigest) return fail('FC-INPUT', 'RESERVATION_DIGEST');
+        const next = freeze({
+          ...(record as object),
+          position: nextPosition + 1,
+          previousDigest: nextDigest,
+          contentDigest,
+        } as DurableReservation);
+        created.push(next);
+        nextPosition = next.position;
+        nextDigest = next.contentDigest;
+      }
+      records.push(...created);
       if (options.fault === 'after-flush') return fail('FC-TRUST', 'ACK_LOST');
-      witness = { position: created.position, digest: created.contentDigest };
+      const latest = created.at(-1);
+      if (!latest) return fail('FC-INPUT', 'EMPTY_RESERVATION_SET');
+      witness = { position: latest.position, digest: latest.contentDigest };
       if (options.fault === 'after-witness') return fail('FC-TRUST', 'ACK_LOST');
-      return ok(created);
+      return ok(Object.freeze(created));
     },
     readback(input) {
       const trust = trusted();
