@@ -11,6 +11,7 @@ import {
   validateTransitionOperation,
 } from './operation.js';
 
+export * from './bounds.js';
 export type {
   OperationAuthority,
   OperationBounds,
