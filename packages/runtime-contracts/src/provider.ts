@@ -36,6 +36,14 @@ type Attempt = Readonly<{
   outcome?: 'positive' | 'negative' | 'timeout' | 'exhausted';
 }>;
 type Approval = Readonly<{ principal: string; manifestId: string; manifestDigest: string; scope: Scope }>;
+type CapabilityProofCatalogueEntry = Readonly<{
+  manifestBytes: Uint8Array;
+  providerDigest: string;
+  manifestDigest: string;
+  providerIdentity: string;
+  principal: string;
+  scope: Scope;
+}>;
 type Fixture = Readonly<{
   approve(input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>>;
   start(input: unknown): ProviderAdmissionResult<Attempt>;
@@ -49,10 +57,32 @@ type Fixture = Readonly<{
 
 const APPROVED_MANIFEST_DIGEST = '53568c156d6ee898dc1ba32897d22f8abf47afa4bad86d35ffc6bcd7ce9067df';
 const APPROVED_PROVIDER_DIGEST = 'c18ba0c266f04abcf220a39edd23c54599894dbf36d8d024db4b93aacb70308b';
-const APPROVED_SCOPE = Object.freeze({ phase: 2, purpose: 'semantic-admission-fixture', story: 'GF-022' });
 const APPROVED_MANIFEST_BYTES = new TextEncoder().encode(
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":[],"networkAuthority":[],"providerIdentity":"scripted-capability-proof-fixture/v1","runtimeAuthority":{"kind":"in-process-pure-fixture"},"scope":{"phase":2,"purpose":"semantic-admission-fixture","story":"GF-022"},"subprocessAuthority":[]}\n',
 );
+const LOCAL_GIT_WORKTREE_MANIFEST_DIGEST = '8def77b5bbcbd257d1aedf7b279a839dc0ab88550675f1c71a3b64567226a5e6';
+const LOCAL_GIT_WORKTREE_PROVIDER_DIGEST = 'baa6e132e39a58e4617adfe1088830df9cd8bd8df7e08abe36f37cfe57908409';
+const LOCAL_GIT_WORKTREE_MANIFEST_BYTES = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n',
+);
+const CAPABILITY_PROOF_CATALOGUE: readonly CapabilityProofCatalogueEntry[] = Object.freeze([
+  Object.freeze({
+    manifestBytes: APPROVED_MANIFEST_BYTES,
+    providerDigest: APPROVED_PROVIDER_DIGEST,
+    manifestDigest: APPROVED_MANIFEST_DIGEST,
+    providerIdentity: 'scripted-capability-proof-fixture/v1',
+    principal: 'principal/arye',
+    scope: Object.freeze({ phase: 2, purpose: 'semantic-admission-fixture', story: 'GF-022' }),
+  }),
+  Object.freeze({
+    manifestBytes: LOCAL_GIT_WORKTREE_MANIFEST_BYTES,
+    providerDigest: LOCAL_GIT_WORKTREE_PROVIDER_DIGEST,
+    manifestDigest: LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
+    providerIdentity: 'local-git-worktree-provider/v1',
+    principal: 'principal/arye',
+    scope: Object.freeze({ phase: 3, purpose: 'qualified-local-git-worktree', story: 'GF-039' }),
+  }),
+]);
 /** Private immutable catalogue; callers can select no entry and cannot register one. */
 const STRUCTURED_FILE_CATALOGUE = Object.freeze({
   manifestBytes: new TextEncoder().encode(
@@ -121,12 +151,12 @@ const safeText = (value: unknown): value is string =>
 const safeDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST.test(value);
 const safeTime = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-const scope = (value: unknown): Scope | undefined => {
+const scope = (value: unknown, entry: CapabilityProofCatalogueEntry): Scope | undefined => {
   const data = fields(value, ['phase', 'purpose', 'story']);
   return data &&
-    data.phase === APPROVED_SCOPE.phase &&
-    data.purpose === APPROVED_SCOPE.purpose &&
-    data.story === APPROVED_SCOPE.story
+    data.phase === entry.scope.phase &&
+    data.purpose === entry.scope.purpose &&
+    data.story === entry.scope.story
     ? freeze({ phase: data.phase, purpose: data.purpose, story: data.story })
     : undefined;
 };
@@ -140,12 +170,12 @@ const same = (left: unknown, right: unknown): boolean => {
     leftFrame.value.every((byte, index) => byte === rightFrame.value[index])
   );
 };
-const exactBytes = (value: unknown): boolean => {
+const exactBytes = (value: unknown, entry: CapabilityProofCatalogueEntry): boolean => {
   try {
     return (
       value instanceof Uint8Array &&
-      value.byteLength === APPROVED_MANIFEST_BYTES.byteLength &&
-      APPROVED_MANIFEST_BYTES.every((byte, index) => value[index] === byte)
+      value.byteLength === entry.manifestBytes.byteLength &&
+      entry.manifestBytes.every((byte, index) => value[index] === byte)
     );
   } catch {
     return false;
@@ -162,14 +192,21 @@ const exactCatalogueBytes = (value: unknown): boolean => {
     return false;
   }
 };
-const manifestId = (): string | undefined => {
+const catalogueEntry = (value: unknown): CapabilityProofCatalogueEntry | undefined => {
+  try {
+    return CAPABILITY_PROOF_CATALOGUE.find((entry) => exactBytes(value, entry));
+  } catch {
+    return undefined;
+  }
+};
+const manifestId = (entry: CapabilityProofCatalogueEntry): string | undefined => {
   const formatted = formatIdentity('ID-MANIFEST', {
-    providerDigest: APPROVED_PROVIDER_DIGEST,
-    authorityDigest: APPROVED_MANIFEST_DIGEST,
+    providerDigest: entry.providerDigest,
+    authorityDigest: entry.manifestDigest,
   });
   return formatted.ok ? formatted.value.value : undefined;
 };
-const basis = (value: unknown): Basis | undefined => {
+const basis = (value: unknown, entry: CapabilityProofCatalogueEntry): Basis | undefined => {
   const data = fields(value, [
     'capability',
     'environment',
@@ -180,18 +217,18 @@ const basis = (value: unknown): Basis | undefined => {
     'providerIdentity',
     'scope',
   ]);
-  const exactManifestId = manifestId();
+  const exactManifestId = manifestId(entry);
   if (
     !data ||
     !exactManifestId ||
     data.manifestId !== exactManifestId ||
-    data.manifestDigest !== APPROVED_MANIFEST_DIGEST ||
-    data.providerIdentity !== 'scripted-capability-proof-fixture/v1' ||
+    data.manifestDigest !== entry.manifestDigest ||
+    data.providerIdentity !== entry.providerIdentity ||
     !safeText(data.providerBuild) ||
     !safeText(data.environment) ||
     !safeText(data.capability) ||
     !safeText(data.policyMinimum) ||
-    !scope(data.scope)
+    !scope(data.scope, entry)
   )
     return undefined;
   return freeze({
@@ -202,14 +239,15 @@ const basis = (value: unknown): Basis | undefined => {
     policyMinimum: data.policyMinimum,
     manifestId: data.manifestId,
     manifestDigest: data.manifestDigest,
-    scope: scope(data.scope) as Scope,
+    scope: scope(data.scope, entry) as Scope,
   });
 };
 
 export function createProviderAdmissionFixture(input: unknown): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
-  const configured = config && ledger && exactBytes(config.manifestBytes) ? approval(config.approval) : undefined;
+  const entry = config && ledger ? catalogueEntry(config.manifestBytes) : undefined;
+  const configured = entry ? approval(config?.approval, entry) : undefined;
   const approvalBinding = configured;
   const readAttempt = (basisDigest: string, ordinal: number, variant: Attempt['kind']): Attempt | undefined => {
     try {
@@ -252,7 +290,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     }
   };
   const approve = (input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>> =>
-    approval(input) && approvalBinding && same(approval(input), approvalBinding)
+    entry && approval(input, entry) && approvalBinding && same(approval(input, entry), approvalBinding)
       ? ok({ kind: 'approved', manifestId: approvalBinding.manifestId })
       : fail('FC-AUTHORITY', 'EXACT_MANIFEST_APPROVAL_REQUIRED');
   const write = (input: unknown, kind: Attempt['kind']): ProviderAdmissionResult<Attempt> => {
@@ -262,7 +300,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         ? ['basis', 'deadline', 'observedAt', 'ordinal', 'predecessor', 'retryLimit']
         : ['basis', 'deadline', 'observedAt', 'ordinal', 'outcome', 'predecessor', 'retryLimit'];
     const data = fields(input, names);
-    const bound = data && basis(data.basis);
+    const bound = data && entry && basis(data.basis, entry);
     if (
       !data ||
       !bound ||
@@ -351,7 +389,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     result: (input) => write(input, 'result'),
     admit(input) {
       const data = fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
-      const bound = data && basis(data.basis);
+      const bound = data && entry && basis(data.basis, entry);
       const proofData =
         data &&
         fields(data.proof, [
@@ -392,7 +430,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     },
     readback(input) {
       const data = fields(input, ['basis', 'ordinal', 'variant']);
-      const bound = data && basis(data.basis);
+      const bound = data && entry && basis(data.basis, entry);
       if (
         !data ||
         !bound ||
@@ -409,23 +447,23 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
   });
 }
 
-function approval(value: unknown): Approval | undefined {
+function approval(value: unknown, entry: CapabilityProofCatalogueEntry): Approval | undefined {
   const data = fields(value, ['manifestDigest', 'manifestId', 'principal', 'scope']);
-  const exactManifestId = manifestId();
+  const exactManifestId = manifestId(entry);
   if (
     !data ||
     !exactManifestId ||
-    data.principal !== 'principal/arye' ||
+    data.principal !== entry.principal ||
     data.manifestId !== exactManifestId ||
-    data.manifestDigest !== APPROVED_MANIFEST_DIGEST ||
-    !scope(data.scope)
+    data.manifestDigest !== entry.manifestDigest ||
+    !scope(data.scope, entry)
   )
     return undefined;
   return freeze({
     principal: data.principal,
     manifestId: data.manifestId,
     manifestDigest: data.manifestDigest,
-    scope: scope(data.scope) as Scope,
+    scope: scope(data.scope, entry) as Scope,
   });
 }
 

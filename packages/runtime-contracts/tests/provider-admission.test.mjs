@@ -32,6 +32,43 @@ const start = Object.freeze({
 });
 const configured = (ledger = runtime.createScriptedLedger()) => ({ manifestBytes: approvedBytes, approval, ledger });
 
+const localGitWorktreeManifestBytes = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n',
+);
+const localGitWorktreeManifestDigest = '8def77b5bbcbd257d1aedf7b279a839dc0ab88550675f1c71a3b64567226a5e6';
+const localGitWorktreeProviderDigest = 'baa6e132e39a58e4617adfe1088830df9cd8bd8df7e08abe36f37cfe57908409';
+const localGitWorktreeManifestId = `provider/${localGitWorktreeProviderDigest}/authority/${localGitWorktreeManifestDigest}`;
+const localGitWorktreeManifest = JSON.parse(new TextDecoder().decode(localGitWorktreeManifestBytes));
+const localGitWorktreeBasis = Object.freeze({
+  providerIdentity: localGitWorktreeManifest.providerIdentity,
+  providerBuild: 'build/local-git-worktree-qualification',
+  environment: localGitWorktreeManifest.runtimeAuthority.environment,
+  capability: 'PORT-WORKSPACE/local-git-worktree',
+  policyMinimum: 'policy/local-posix-git-worktree/v1',
+  manifestId: localGitWorktreeManifestId,
+  manifestDigest: localGitWorktreeManifestDigest,
+  scope: localGitWorktreeManifest.scope,
+});
+const localGitWorktreeApproval = Object.freeze({
+  principal: 'principal/arye',
+  manifestId: localGitWorktreeManifestId,
+  manifestDigest: localGitWorktreeManifestDigest,
+  scope: localGitWorktreeManifest.scope,
+});
+const localGitWorktreeStart = Object.freeze({
+  basis: localGitWorktreeBasis,
+  ordinal: 1,
+  deadline: 2_000,
+  observedAt: 1_000,
+  retryLimit: 2,
+  predecessor: null,
+});
+const localGitWorktreeConfigured = (ledger = runtime.createScriptedLedger()) => ({
+  manifestBytes: localGitWorktreeManifestBytes,
+  approval: localGitWorktreeApproval,
+  ledger,
+});
+
 test('provider admission: exact Arye manifest approval and positive exact-subject proof are necessary but never configure a provider', () => {
   assert.equal(typeof runtime.createProviderAdmissionFixture, 'function');
   assert.equal(manifestBytes.byteLength, 418);
@@ -295,4 +332,107 @@ test('provider admission: durable lineage preserves retry bound, time order, ter
       outcome,
     );
   }
+});
+
+test('GF-039 admission: exact owner-approved local Git-worktree manifest uses the protected proof protocol only', () => {
+  assert.equal(
+    createHash('sha256').update(localGitWorktreeManifestBytes).digest('hex'),
+    localGitWorktreeManifestDigest,
+  );
+  const fixture = runtime.createProviderAdmissionFixture(localGitWorktreeConfigured());
+  assert.deepEqual(fixture.approve(localGitWorktreeApproval), {
+    ok: true,
+    value: { kind: 'approved', manifestId: localGitWorktreeManifestId },
+  });
+  const started = fixture.start(localGitWorktreeStart);
+  assert.equal(started.ok, true);
+  const completed = fixture.result({
+    ...localGitWorktreeStart,
+    predecessor: started.value.digest,
+    outcome: 'positive',
+    observedAt: 1_100,
+  });
+  assert.equal(completed.ok, true);
+  assert.deepEqual(
+    fixture.admit({
+      basis: localGitWorktreeBasis,
+      proof: completed.value,
+      observedAt: 1_200,
+      maxAgeMs: 86_400_000,
+    }),
+    {
+      ok: true,
+      value: { kind: 'eligible', manifestId: localGitWorktreeManifestId, providerEnabled: false },
+    },
+  );
+  assert.deepEqual(fixture.reachability(), {
+    ok: true,
+    value: { kind: 'unavailable', providerEnabled: false },
+  });
+  assert.deepEqual(fixture.readback({ basis: localGitWorktreeBasis, ordinal: 1, variant: 'result' }), completed);
+});
+
+test('GF-039 admission: manifest bytes, digest, scope, principal, cross-manifest and arbitrary registration mismatches fail closed', () => {
+  const alteredBytes = new Uint8Array(localGitWorktreeManifestBytes);
+  alteredBytes[alteredBytes.length - 2] ^= 1;
+  assert.equal(
+    runtime
+      .createProviderAdmissionFixture({
+        manifestBytes: alteredBytes,
+        approval: localGitWorktreeApproval,
+        ledger: runtime.createScriptedLedger(),
+      })
+      .approve(localGitWorktreeApproval).ok,
+    false,
+  );
+  assert.equal(
+    runtime
+      .createProviderAdmissionFixture({
+        manifestBytes: localGitWorktreeManifestBytes,
+        approval: { ...localGitWorktreeApproval, manifestDigest: '0'.repeat(64) },
+        ledger: runtime.createScriptedLedger(),
+      })
+      .approve(localGitWorktreeApproval).ok,
+    false,
+  );
+  assert.equal(
+    runtime
+      .createProviderAdmissionFixture({
+        manifestBytes: localGitWorktreeManifestBytes,
+        approval: { ...localGitWorktreeApproval, principal: 'principal/other' },
+        ledger: runtime.createScriptedLedger(),
+      })
+      .approve(localGitWorktreeApproval).ok,
+    false,
+  );
+  const fixture = runtime.createProviderAdmissionFixture(localGitWorktreeConfigured());
+  assert.equal(
+    fixture.start({
+      ...localGitWorktreeStart,
+      basis: { ...localGitWorktreeBasis, scope: { ...localGitWorktreeBasis.scope, phase: 2 } },
+    }).ok,
+    false,
+  );
+  assert.equal(
+    fixture.start({
+      ...localGitWorktreeStart,
+      basis: { ...localGitWorktreeBasis, manifestDigest: manifestDigest, manifestId },
+    }).ok,
+    false,
+  );
+  assert.equal(
+    fixture.start({
+      ...localGitWorktreeStart,
+      basis: { ...localGitWorktreeBasis, providerIdentity: manifest.providerIdentity },
+    }).ok,
+    false,
+  );
+  assert.equal(fixture.start(localGitWorktreeStart).ok, true);
+  const arbitrary = runtime.createProviderAdmissionFixture({
+    manifestBytes: new TextEncoder().encode('{"providerIdentity":"arbitrary"}\n'),
+    approval: localGitWorktreeApproval,
+    ledger: runtime.createScriptedLedger(),
+  });
+  assert.equal(arbitrary.approve(localGitWorktreeApproval).ok, false);
+  assert.equal(arbitrary.start(localGitWorktreeStart).ok, false);
 });
