@@ -880,47 +880,121 @@ function validReservationRecord(value: unknown): value is DurableReservation {
   );
 }
 
-function validRegistryWaiterFact(value: unknown, reservation: ReservationIntent): value is RegistryWaiterFact {
+function validRegistryWaiterFact(value: unknown, reservation: ReservationIntent): boolean {
   if (
     !plain(value) ||
-    !exact(value, ['kind', 'registry', 'registryVersion', 'schema', 'target', 'variant', 'waiter']) ||
-    value.schema !== SCHEDULER_VERSION ||
-    value.registryVersion !== REGISTRY_VERSION ||
-    value.kind !== 'registry-waiter' ||
-    value.variant !== 'waiter' ||
-    !plain(value.waiter) ||
-    !exact(value.waiter, [
-      'candidate',
-      'candidateContentDigest',
-      'comparator',
-      'eligibilityBasis',
-      'generation',
-      'run',
-      'story',
-      'waitedAt',
-    ])
+    !exact(value, ['records', 'witness']) ||
+    !Array.isArray(value.records) ||
+    value.records.length === 0 ||
+    !plain(value.witness) ||
+    !exact(value.witness, ['digest', 'position', 'registry', 'target'])
   )
     return false;
-  const waiter = value.waiter as Record<string, unknown>;
+  const entries = (value.records as readonly unknown[]).map((record) => {
+    if (
+      !plain(record) ||
+      !exact(record, [
+        'content',
+        'contentDigest',
+        'expectedHeadDigest',
+        'expectedHeadPosition',
+        'handle',
+        'position',
+        'predecessorDigest',
+        'previousDigest',
+        'registry',
+        'target',
+        'variant',
+        'version',
+      ]) ||
+      record.version !== REGISTRY_VERSION ||
+      record.variant !== 'waiter' ||
+      typeof record.registry !== 'string' ||
+      !parseIdentity('ID-REGISTRY', record.registry).ok ||
+      typeof record.target !== 'string' ||
+      !parseIdentity('ID-TARGET', record.target).ok ||
+      !nonNegative(record.position) ||
+      record.expectedHeadPosition !== record.position - 1 ||
+      !digest(record.expectedHeadDigest) ||
+      !digest(record.previousDigest) ||
+      !digest(record.predecessorDigest) ||
+      record.expectedHeadDigest !== record.previousDigest ||
+      record.predecessorDigest !== record.previousDigest ||
+      !digest(record.contentDigest) ||
+      !plain(record.handle) ||
+      !exact(record.handle, ['contentDigest', 'position', 'registry']) ||
+      record.handle.contentDigest !== record.contentDigest ||
+      record.handle.position !== record.position ||
+      record.handle.registry !== record.registry ||
+      !plain(record.content) ||
+      !exact(record.content, ['waiter']) ||
+      !plain(record.content.waiter)
+    )
+      return undefined;
+    const waiter = record.content.waiter;
+    if (
+      !exact(waiter, [
+        'candidate',
+        'candidateContentDigest',
+        'comparator',
+        'eligibilityBasis',
+        'generation',
+        'run',
+        'story',
+        'waitedAt',
+      ]) ||
+      typeof waiter.run !== 'string' ||
+      typeof waiter.story !== 'string' ||
+      typeof waiter.generation !== 'string' ||
+      typeof waiter.candidate !== 'string' ||
+      !digest(waiter.candidateContentDigest) ||
+      !digest(waiter.eligibilityBasis) ||
+      !validComparator(waiter.comparator, waiter.story) ||
+      !nonNegative(waiter.waitedAt) ||
+      !parseIdentity('ID-RUN', waiter.run).ok ||
+      !parseIdentity('ID-STORY', waiter.story).ok ||
+      !parseIdentity('ID-GEN', waiter.generation).ok ||
+      !parseIdentity('ID-CAND', waiter.candidate).ok ||
+      !waiter.story.startsWith(`${waiter.run}/story/`) ||
+      !waiter.generation.startsWith(`${waiter.run}/gen/`) ||
+      !waiter.candidate.startsWith(`${waiter.story}/cand/`)
+    )
+      return undefined;
+    const expectedDigest = canonicalDigest(
+      'REGISTRY-RECORD',
+      Object.assign({}, record as Record<string, CanonicalJson>, {
+        authority: null,
+        contentDigest: '',
+        handle: null,
+        waiter: null,
+      }),
+      ['contentDigest', 'handle'],
+    );
+    return expectedDigest === record.contentDigest ? { record, waiter } : undefined;
+  });
+  if (entries.some((entry) => !entry)) return false;
+  const validEntries = entries as Array<{ record: Record<string, unknown>; waiter: Record<string, unknown> }>;
+  const head = validEntries.at(-1) as { record: Record<string, unknown>; waiter: Record<string, unknown> };
+  const witness = value.witness as Record<string, unknown>;
+  if (
+    witness.registry !== head.record.registry ||
+    witness.target !== head.record.target ||
+    witness.position !== head.record.position ||
+    witness.digest !== head.record.contentDigest
+  )
+    return false;
+  const selected = validEntries.find(
+    (entry) => entry.waiter.run === reservation.run && entry.waiter.story === reservation.story,
+  );
+  const least = [...validEntries].sort((left, right) =>
+    compareOrder(left.waiter.comparator as Comparator, right.waiter.comparator as Comparator),
+  )[0];
   return (
-    typeof value.registry === 'string' &&
-    parseIdentity('ID-REGISTRY', value.registry).ok &&
-    typeof value.target === 'string' &&
-    parseIdentity('ID-TARGET', value.target).ok &&
-    typeof waiter.run === 'string' &&
-    typeof waiter.story === 'string' &&
-    typeof waiter.generation === 'string' &&
-    typeof waiter.candidate === 'string' &&
-    waiter.run === reservation.run &&
-    waiter.story === reservation.story &&
-    waiter.generation === reservation.generation &&
-    digest(waiter.candidateContentDigest) &&
-    digest(waiter.eligibilityBasis) &&
-    validComparator(waiter.comparator, waiter.story) &&
-    compareOrder(waiter.comparator, reservation.comparator) === 0 &&
-    parseIdentity('ID-CAND', waiter.candidate).ok &&
-    waiter.candidate.startsWith(`${waiter.story}/cand/`) &&
-    nonNegative(waiter.waitedAt)
+    selected !== undefined &&
+    least !== undefined &&
+    selected.record.contentDigest === least.record.contentDigest &&
+    compareOrder(selected.waiter.comparator as Comparator, reservation.comparator) === 0 &&
+    selected.waiter.generation === reservation.generation
   );
 }
 
@@ -970,9 +1044,12 @@ export function reserveCapacitySet(
       return fail('FC-CAPACITY', 'DUPLICATE_RESERVATION');
     resourceKeys.add(reservation.resource);
   }
-  if (first.resource === 'RC-FINALIZER' && !validRegistryWaiterFact(raw.registryWaiter, first))
+  if (
+    parsedReservations.some((reservation) => reservation.resource === 'RC-FINALIZER') &&
+    !validRegistryWaiterFact(raw.registryWaiter, first)
+  )
     return fail('FC-AUTHORITY', 'FINALIZER_WAITER_REQUIRED');
-  if (first.resource !== 'RC-FINALIZER' && raw.registryWaiter !== null)
+  if (!parsedReservations.some((reservation) => reservation.resource === 'RC-FINALIZER') && raw.registryWaiter !== null)
     return fail('FC-INPUT', 'UNEXPECTED_FINALIZER_WAITER');
   const current = ledger.snapshot();
   if (!current.ok) return current;

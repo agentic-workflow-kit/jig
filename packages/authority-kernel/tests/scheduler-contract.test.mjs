@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const scheduler = await import('../dist/index.js');
+const codec = await import('@agentic-workflow-kit/jig-codec');
 const oracle = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/scheduler-oracle.json'), 'utf8'));
 
 const run = 'run-000000000031-aaaaaaaaaaaaaaaa';
@@ -29,6 +30,54 @@ const finalizerFacts = (key) => ({
   eligibilityBasis: basis,
   generation,
 });
+const registryObservation = (proposals) => {
+  let previousDigest = '0'.repeat(64);
+  const records = proposals.map((proposal, position) => {
+    const content = { waiter: proposal.waiter };
+    const staged = codec.stageDigest({
+      domain: 'REGISTRY-RECORD',
+      excludePaths: ['contentDigest', 'handle'],
+      value: {
+        version: scheduler.REGISTRY_VERSION,
+        registry: proposal.registry,
+        target: proposal.target,
+        expectedHeadPosition: position - 1,
+        expectedHeadDigest: previousDigest,
+        position,
+        previousDigest,
+        predecessorDigest: previousDigest,
+        variant: 'waiter',
+        authority: null,
+        waiter: null,
+        content,
+        contentDigest: '',
+        handle: null,
+      },
+    });
+    assert.equal(staged.ok, true);
+    const record = {
+      version: scheduler.REGISTRY_VERSION,
+      registry: proposal.registry,
+      target: proposal.target,
+      expectedHeadPosition: position - 1,
+      expectedHeadDigest: previousDigest,
+      position,
+      previousDigest,
+      predecessorDigest: previousDigest,
+      contentDigest: staged.value.digest,
+      variant: 'waiter',
+      handle: { registry: proposal.registry, position, contentDigest: staged.value.digest },
+      content,
+    };
+    previousDigest = staged.value.digest;
+    return record;
+  });
+  const head = records.at(-1);
+  return {
+    records,
+    witness: { registry: head.registry, target: head.target, position: head.position, digest: head.contentDigest },
+  };
+};
 const story = (key, changes = {}) => ({
   run,
   story: `${run}/story/${key}`,
@@ -152,7 +201,19 @@ test('CF-CAPACITY: a multi-class admission is committed as one fenced durable re
   const ledger = scheduler.createScriptedReservationLedger();
   const first = reserveIntent('multi-one', 'RC-SESSION');
   const second = reserveIntent('multi-one', 'RC-IMPL-TURN', 1);
+  const finalizer = reserveIntent('multi-one', 'RC-FINALIZER');
   const head = ledger.snapshot().value;
+  assert.equal(
+    scheduler.reserveCapacitySet(ledger, {
+      controller: scheduler.CONTROLLER_ROLE,
+      expectedPosition: head.position,
+      expectedDigest: head.digest,
+      policy: policy(),
+      registryWaiter: null,
+      reservations: [first, finalizer],
+    }).error.code,
+    'FINALIZER_WAITER_REQUIRED',
+  );
   const result = scheduler.reserveCapacitySet(ledger, {
     controller: scheduler.CONTROLLER_ROLE,
     expectedPosition: head.position,
@@ -243,7 +304,7 @@ test('finalizer queue is deterministic, single-holder, and never preempts the ho
   );
   const held = scheduler.reserveFinalizerCapacity(ledger, {
     ...reserveRequest(finalizerReservation, ledger),
-    registryWaiter: initialSchedule.value.registryWaiters[0],
+    registryWaiter: registryObservation(initialSchedule.value.registryWaiters),
   });
   assert.equal(held.ok, true);
   const reservations = ledger.snapshot().value.records;
