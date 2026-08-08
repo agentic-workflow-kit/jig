@@ -1426,6 +1426,12 @@ export function createBoundJournal(): BoundJournal {
         ).includes(input.factKind)
       )
         return fail('FC-INPUT', 'MALFORMED_BOUND_OBSERVATION');
+      if (
+        (input.kind === 'heartbeat' || input.kind === 'terminated') &&
+        (input.surface !== 'session-silence' ||
+          input.factKind !== (input.kind === 'heartbeat' ? 'heartbeat' : 'termination'))
+      )
+        return fail('FC-LIVENESS', 'SILENCE_OBSERVATION_SURFACE_REQUIRED');
       const record = currentRecord(input.surface, input.generation, input.subject);
       if (!record.ok) return record;
       const body: Omit<LivenessObservation, 'commitDigest'> = {
@@ -2122,7 +2128,7 @@ export function classifyLiveness(
       }),
     );
   const latest = [...input.observations].sort((left, right) => left.at - right.at).at(-1);
-  if (latest?.kind === 'terminated' || input.silence.status === 'exhausted' || input.at >= input.silence.deadlineAt)
+  if (latest?.kind === 'terminated' || input.silence.status === 'exhausted')
     return ok(
       frozen({
         ...base,
@@ -2131,7 +2137,7 @@ export function classifyLiveness(
         reason: 'termination or witnessed silence deadline',
       }),
     );
-  if (input.idle.status === 'exhausted' || input.at >= input.idle.deadlineAt)
+  if (input.idle.status === 'exhausted')
     return ok(
       frozen({
         ...base,

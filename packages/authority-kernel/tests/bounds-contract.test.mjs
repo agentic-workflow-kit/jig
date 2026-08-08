@@ -415,6 +415,34 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     observations: [],
   });
   assert.equal(thinking.value.classification, 'thinking');
+  const rawDeadline = bounds.classifyLiveness({
+    subject,
+    generation,
+    at: idle.deadlineAt,
+    snapshot: journal.snapshot(),
+    idle,
+    silence,
+    observations: [],
+  });
+  assert.equal(rawDeadline.value.classification, 'thinking');
+  const misplacedHeartbeat = journal.witnessLiveness({
+    surface: 'capacity-admission',
+    subject,
+    session: subject.story,
+    principal: 'principal/bounds',
+    assignmentOrdinal: 0,
+    lastQualifyingProgress: 1,
+    silenceMs: 0,
+    approvalWaiting: false,
+    basis: null,
+    generation,
+    at: 1,
+    kind: 'heartbeat',
+    factKind: 'heartbeat',
+    factDigest: d('a'),
+    clock: clock(1, 'a'),
+  });
+  assert.equal(misplacedHeartbeat.error.code, 'SILENCE_OBSERVATION_SURFACE_REQUIRED');
   const stuckJournal = bounds.createBoundJournal();
   const stuckIdleInitial = start(stuckJournal, 'qualifying-progress-idle').value;
   const stuckSilence = start(stuckJournal, 'session-silence', stuckIdleInitial.deadlineAt - 1000, 'd').value;
