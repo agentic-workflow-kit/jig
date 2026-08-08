@@ -350,6 +350,27 @@ export type BoundJournalSnapshot = Readonly<{
 }>;
 
 export type LivenessKind = 'thinking' | 'stuck' | 'dead' | 'human-input-overdue';
+export type QualifyingFactKind =
+  | 'SCH-CANDIDATE'
+  | 'EV-WORKSPACE-FACT'
+  | 'EV-ARTIFACT-FACT'
+  | 'EV-CHECK-OBSERVATION'
+  | 'SCH-WORK-PROFILE';
+export type QualifyingFact = Readonly<{
+  schema: typeof BOUNDS_VERSION;
+  event: QualifyingFactKind;
+  subject: BoundSubject;
+  generation: string;
+  factDigest: string;
+  position: number;
+  contentDigest: string;
+  committed: true;
+}>;
+export type HumanInputOverdueBasis = Readonly<{
+  record: BoundRecord;
+  at: number;
+  factDigest: string;
+}>;
 export type LivenessObservation = Readonly<{
   schema: typeof BOUNDS_VERSION;
   event: 'EV-LIVENESS-OBSERVED';
@@ -374,15 +395,9 @@ export type LivenessObservation = Readonly<{
   bound: BoundClass;
   classificationBasis: 'qualifying-progress' | 'heartbeat' | 'termination' | 'approval-wait';
   kind: 'heartbeat' | 'progress' | 'terminated';
-  factKind:
-    | 'SCH-CANDIDATE'
-    | 'EV-WORKSPACE-FACT'
-    | 'EV-ARTIFACT-FACT'
-    | 'EV-CHECK-OBSERVATION'
-    | 'SCH-WORK-PROFILE'
-    | 'heartbeat'
-    | 'termination';
+  factKind: QualifyingFactKind | 'heartbeat' | 'termination';
   factDigest: string;
+  basis: QualifyingFact | null;
   commitDigest: string;
 }>;
 export type LivenessObservationInput = Readonly<{
@@ -394,6 +409,7 @@ export type LivenessObservationInput = Readonly<{
   lastQualifyingProgress: number;
   silenceMs: number;
   approvalWaiting: boolean;
+  basis: QualifyingFact | null;
   generation: string;
   at: number;
   kind: LivenessObservation['kind'];
@@ -504,6 +520,10 @@ export function livenessObservationDigest(value: Omit<LivenessObservation, 'comm
   const result = canonicalDigest('SCH-LIVENESS', { ...value, commitDigest: '' }, 'commitDigest');
   return result.ok ? result.value : '';
 }
+export function qualifyingFactDigest(value: Omit<QualifyingFact, 'contentDigest'>): string {
+  const result = canonicalDigest('QUALIFYING-FACT', { ...value, contentDigest: '' }, 'contentDigest');
+  return result.ok ? result.value : '';
+}
 
 function validSubject(value: unknown): value is BoundSubject {
   return (
@@ -519,6 +539,33 @@ function validSubject(value: unknown): value is BoundSubject {
 }
 const subjectOperation = (value: unknown): string | null =>
   plain(value) && typeof value.operation === 'string' ? value.operation : null;
+function validQualifyingFact(value: unknown): value is QualifyingFact {
+  return (
+    plain(value) &&
+    exact(value, [
+      'committed',
+      'contentDigest',
+      'event',
+      'factDigest',
+      'generation',
+      'position',
+      'schema',
+      'subject',
+    ]) &&
+    value.schema === BOUNDS_VERSION &&
+    value.committed === true &&
+    (
+      ['SCH-CANDIDATE', 'EV-WORKSPACE-FACT', 'EV-ARTIFACT-FACT', 'EV-CHECK-OBSERVATION', 'SCH-WORK-PROFILE'] as const
+    ).includes(value.event as QualifyingFactKind) &&
+    validSubject(value.subject) &&
+    typeof value.generation === 'string' &&
+    value.generation.length > 0 &&
+    digest(value.factDigest) &&
+    nonNegative(value.position) &&
+    digest(value.contentDigest) &&
+    qualifyingFactDigest(value as Omit<QualifyingFact, 'contentDigest'>) === value.contentDigest
+  );
+}
 
 function validClock(value: unknown): value is WitnessedClock {
   return (
@@ -542,6 +589,7 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
       'approvalWaiting',
       'assignmentOrdinal',
       'bound',
+      'basis',
       'commitDigest',
       'clockDigest',
       'committed',
@@ -596,6 +644,9 @@ function validLivenessObservation(value: unknown): value is LivenessObservation 
           : value.kind === 'heartbeat'
             ? 'heartbeat'
             : 'termination') &&
+    ((value.kind === 'progress' && validQualifyingFact(value.basis)) ||
+      (value.kind !== 'progress' && value.basis === null)) &&
+    (value.kind !== 'progress' || (value.basis as QualifyingFact).event === value.factKind) &&
     (value.kind === 'progress' || value.kind === 'heartbeat' || value.kind === 'terminated') &&
     (value.factKind === 'SCH-CANDIDATE' ||
       value.factKind === 'EV-WORKSPACE-FACT' ||
@@ -804,6 +855,22 @@ function validRecord(value: unknown): value is BoundRecord {
       (record.exhaustion.disposition === record.disposition && record.exhaustion.at >= record.startAt))
   );
 }
+function validHumanInputOverdueBasis(value: unknown): value is HumanInputOverdueBasis {
+  if (!plain(value) || !exact(value, ['at', 'factDigest', 'record']) || !validRecord(value.record)) return false;
+  const record = value.record;
+  return (
+    nonNegative(value.at) &&
+    digest(value.factDigest) &&
+    value.factDigest === record.lastFactDigest &&
+    (record.surface === 'owner-provider-answer' || record.surface === 'live-open-obligation') &&
+    record.bound === 'BND-WAIT-DECISION' &&
+    record.disposition === 'escalate' &&
+    record.status === 'exhausted' &&
+    record.exhaustion !== null &&
+    record.exhaustion.at >= record.deadlineAt &&
+    value.at >= record.deadlineAt
+  );
+}
 
 function validateFence(record: BoundRecord, generation: string, subject: BoundSubject): BoundResult<void> {
   if (record.generation !== generation) return fail('FC-FENCE', 'STALE_BOUND_GENERATION');
@@ -869,6 +936,7 @@ export type BoundJournal = Readonly<{
       factDigest: string;
     }>,
   ): BoundResult<DurableWake>;
+  commitQualifyingFact(input: Omit<QualifyingFact, 'contentDigest'>): BoundResult<QualifyingFact>;
   witnessLiveness(input: LivenessObservationInput): BoundResult<LivenessObservation>;
   observe(
     input: Readonly<{
@@ -908,6 +976,7 @@ export type BoundJournal = Readonly<{
 export function createBoundJournal(): BoundJournal {
   let facts: BoundLedgerFact[] = [];
   const livenessWitnesses = new WeakSet<object>();
+  const qualifyingFacts = new WeakSet<object>();
   const current = new Map<string, BoundRecord>();
   const append = (fact: BoundLedgerFact): void => {
     facts = [...facts, fact];
@@ -1024,6 +1093,32 @@ export function createBoundJournal(): BoundJournal {
       append(next.value);
       return ok(wake);
     },
+    commitQualifyingFact(input) {
+      if (
+        !validSubject(input.subject) ||
+        typeof input.generation !== 'string' ||
+        input.generation.length === 0 ||
+        !plain(input) ||
+        input.committed !== true ||
+        !(
+          [
+            'SCH-CANDIDATE',
+            'EV-WORKSPACE-FACT',
+            'EV-ARTIFACT-FACT',
+            'EV-CHECK-OBSERVATION',
+            'SCH-WORK-PROFILE',
+          ] as const
+        ).includes(input.event as QualifyingFactKind) ||
+        !digest(input.factDigest) ||
+        !nonNegative(input.position)
+      )
+        return fail('FC-INPUT', 'MALFORMED_QUALIFYING_FACT');
+      const body: Omit<QualifyingFact, 'contentDigest'> = input;
+      const committed = frozen({ ...body, contentDigest: qualifyingFactDigest(body) });
+      if (!validQualifyingFact(committed)) return fail('FC-TRUST', 'QUALIFYING_FACT_DIGEST_INVALID');
+      qualifyingFacts.add(committed);
+      return ok(committed);
+    },
     witnessLiveness(input) {
       if (
         !surface(input.surface) ||
@@ -1043,6 +1138,14 @@ export function createBoundJournal(): BoundJournal {
         input.clock.generation !== input.generation ||
         input.clock.at !== input.at ||
         !digest(input.factDigest) ||
+        (input.kind === 'progress'
+          ? !validQualifyingFact(input.basis) ||
+            !qualifyingFacts.has(input.basis) ||
+            !equalSubject(input.basis.subject, input.subject) ||
+            input.basis.generation !== input.generation ||
+            input.basis.factDigest !== input.factDigest ||
+            input.basis.event !== input.factKind
+          : input.basis !== null) ||
         !(['heartbeat', 'progress', 'terminated'] as const).includes(input.kind) ||
         !(
           [
@@ -1091,6 +1194,7 @@ export function createBoundJournal(): BoundJournal {
         kind: input.kind,
         factKind: input.factKind,
         factDigest: input.factDigest,
+        basis: input.basis,
       };
       const observation = frozen({ ...body, commitDigest: livenessObservationDigest(body) });
       livenessWitnesses.add(observation);
@@ -1554,7 +1658,7 @@ export function classifyLiveness(
     idle: BoundRecord;
     silence: BoundRecord;
     observations: readonly LivenessObservation[];
-    humanInputOverdue?: boolean;
+    humanInputOverdue?: HumanInputOverdueBasis;
   }>,
 ): BoundResult<LivenessClassification> {
   if (
@@ -1566,6 +1670,10 @@ export function classifyLiveness(
     input.silence.surface !== 'session-silence' ||
     input.idle.generation !== input.generation ||
     input.silence.generation !== input.generation ||
+    (input.humanInputOverdue !== undefined &&
+      (!validHumanInputOverdueBasis(input.humanInputOverdue) ||
+        !equalSubject(input.humanInputOverdue.record.subject, input.subject) ||
+        input.humanInputOverdue.record.generation !== input.generation)) ||
     input.observations.some(
       (observation) =>
         !validLivenessObservation(observation) ||
@@ -1580,7 +1688,7 @@ export function classifyLiveness(
     generation: input.generation,
     at: input.at,
   };
-  if (input.humanInputOverdue === true)
+  if (input.humanInputOverdue !== undefined)
     return ok(
       frozen({
         ...base,

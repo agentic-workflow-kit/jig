@@ -27,6 +27,19 @@ const livenessObservation = (
   factDigest,
   factKind = kind === 'heartbeat' ? 'heartbeat' : 'SCH-CANDIDATE',
 ) => {
+  const basis =
+    kind === 'progress'
+      ? journal.commitQualifyingFact({
+          schema: bounds.BOUNDS_VERSION,
+          event: factKind,
+          subject,
+          generation,
+          factDigest,
+          position: 0,
+          committed: true,
+        })
+      : { ok: true, value: null };
+  assert.equal(basis.ok, true);
   const result = journal.witnessLiveness({
     surface,
     subject,
@@ -36,6 +49,7 @@ const livenessObservation = (
     lastQualifyingProgress: at,
     silenceMs: 0,
     approvalWaiting: false,
+    basis: basis.value,
     generation,
     at,
     kind,
@@ -291,6 +305,24 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     clock: clock(100, 'd'),
   });
   assert.equal(uncommitted.error.code, 'UNCOMMITTED_LIVENESS');
+  const mismatchedSource = journal.witnessLiveness({
+    surface: 'qualifying-progress-idle',
+    subject,
+    session: subject.story,
+    principal: 'principal/bounds',
+    assignmentOrdinal: 0,
+    lastQualifyingProgress: 101,
+    silenceMs: 0,
+    approvalWaiting: false,
+    basis: null,
+    generation,
+    at: 101,
+    kind: 'progress',
+    factKind: 'termination',
+    factDigest: d('e'),
+    clock: clock(101, 'e'),
+  });
+  assert.equal(mismatchedSource.error.code, 'MALFORMED_BOUND_OBSERVATION');
   const progress = journal.observe({
     surface: 'qualifying-progress-idle',
     generation,
@@ -393,7 +425,29 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     observations: [],
   });
   assert.equal(dead.value.classification, 'dead');
+  const owner = start(journal, 'owner-provider-answer', 0, 'f').value;
+  const overdueRecord = {
+    ...owner,
+    status: 'exhausted',
+    lastFactDigest: d('f'),
+    exhaustion: {
+      failure: 'FC-BOUND',
+      disposition: 'escalate',
+      at: owner.deadlineAt,
+      reason: 'decision deadline',
+    },
+  };
   const overdue = bounds.classifyLiveness({
+    subject,
+    generation,
+    at: owner.deadlineAt,
+    idle,
+    silence,
+    observations: [],
+    humanInputOverdue: { record: overdueRecord, at: owner.deadlineAt, factDigest: d('f') },
+  });
+  assert.equal(overdue.value.classification, 'human-input-overdue');
+  const forgedOverdue = bounds.classifyLiveness({
     subject,
     generation,
     at: 1,
@@ -402,7 +456,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     observations: [],
     humanInputOverdue: true,
   });
-  assert.equal(overdue.value.classification, 'human-input-overdue');
+  assert.equal(forgedOverdue.error.code, 'MALFORMED_LIVENESS_OBSERVATION');
   const selfReport = bounds.classifyLiveness({
     subject,
     generation,
