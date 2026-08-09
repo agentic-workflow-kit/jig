@@ -148,6 +148,7 @@ type AdmittedEvidence = Readonly<{ kind: 'admitted'; manifest: EvidenceManifest 
 type PendingEvidence = Readonly<{ kind: 'pending'; key: string; basis: ManifestBasis }>;
 type EvidenceOutcome = PreparedEvidence | QuarantinedEvidence | RejectedEvidence;
 type ReconciledEvidence = AdmittedEvidence | PendingEvidence | QuarantinedEvidence | RejectedEvidence;
+const scriptedEvidenceFixtures = new WeakSet<object>();
 
 type ArtifactReadPort = Readonly<{
   acknowledge(fact: unknown): ArtifactResult<void>;
@@ -1360,7 +1361,9 @@ function createRuntime(configuration?: Configuration): Readonly<{
       });
     },
   });
-  return freeze({ fixture, state });
+  const runtime = freeze({ fixture, state });
+  scriptedEvidenceFixtures.add(fixture);
+  return runtime;
 }
 
 export type ScriptedEvidenceFixture = Readonly<{
@@ -1369,6 +1372,14 @@ export type ScriptedEvidenceFixture = Readonly<{
   reconcile(key: unknown): EvidenceResult<ReconciledEvidence>;
   snapshot(): Readonly<unknown>;
 }>;
+
+export function isScriptedEvidenceFixture(value: unknown): value is ScriptedEvidenceFixture {
+  try {
+    return typeof value === 'object' && value !== null && scriptedEvidenceFixtures.has(value);
+  } catch {
+    return false;
+  }
+}
 
 export function createScriptedEvidenceFixture(config: unknown): ScriptedEvidenceFixture {
   return createRuntime(parseConfiguration(config)).fixture;

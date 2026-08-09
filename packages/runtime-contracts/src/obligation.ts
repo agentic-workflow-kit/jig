@@ -1,4 +1,12 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { isScriptedEvidenceFixture, type ScriptedEvidenceFixture } from './evidence.js';
+import {
+  createLedgerRecord,
+  isScriptedLedger,
+  type LedgerRecord,
+  type RunStoreBinding,
+  type ScriptedLedger,
+} from './ledger.js';
 
 /** Private GF-038 semantics. No provider, notice, settlement, cleanup, or dispatch authority exists here. */
 export const OBLIGATION_CONTRACT_VERSION = 'jig.obligation-contract.v1';
@@ -7,6 +15,7 @@ export const OBLIGATION_CRITERIA_SCHEMA = 'jig.obligation-criteria.v1';
 export const OBLIGATION_EVIDENCE_SCHEMA = 'jig.obligation-evidence.v1';
 export const OBLIGATION_GRANT_SCHEMA = 'jig.obligation-grant.v1';
 export const OBLIGATION_INTENT_SCHEMA = 'jig.obligation-resolution-intent.v1';
+export const OBLIGATION_FACT_SCHEMA = 'jig.obligation-fact.v1';
 export const OBLIGATION_CONTROLLER = 'RT-CONTROLLER';
 export const OBLIGATION_PORT = 'PORT-DECIDE';
 export const OBLIGATION_BOUND = Object.freeze({
@@ -44,8 +53,11 @@ export type ObligationCriteria = Readonly<{
 
 export type ObligationEvidence = Readonly<{
   schema: typeof OBLIGATION_EVIDENCE_SCHEMA;
+  key: string;
   subject: string;
-  digest: string;
+  claim: string;
+  manifestDigest: string;
+  artifactDigest: string;
   trustRoot: string;
   referenceDigest: string;
 }>;
@@ -141,6 +153,8 @@ export type ObligationFact = Readonly<{
 export type ObligationSnapshot = Readonly<{
   schema: typeof OBLIGATION_CONTRACT_VERSION;
   nextEventOrdinal: number;
+  ledgerBinding: RunStoreBinding | null;
+  ledgerHead: Readonly<{ position: number; digest: string }> | null;
   obligations: readonly ResidualObligation[];
   grants: readonly ObligationGrant[];
   intents: readonly ObligationResolutionIntent[];
@@ -178,6 +192,13 @@ type HydratedState = Readonly<{
   intents: readonly ObligationResolutionIntent[];
   facts: readonly ObligationFact[];
   nextEventOrdinal: number;
+  ledgerBinding: RunStoreBinding;
+  ledgerHead: Readonly<{ position: number; digest: string }>;
+}>;
+
+export type ObligationRuntimeDependencies = Readonly<{
+  ledger: ScriptedLedger;
+  evidence: ScriptedEvidenceFixture;
 }>;
 
 const OWNER = 'principal/arye' as const;
@@ -282,10 +303,6 @@ function eventOrdinal(value: string): number | undefined {
   return Number.isSafeInteger(ordinal) ? ordinal : undefined;
 }
 
-function eventId(run: string, ordinal: number): string {
-  return `${run}/event/${ordinal}`;
-}
-
 function authenticated(principal: string, proof: unknown): boolean {
   return identity('ID-PRINCIPAL', principal) && PRINCIPAL_PROOFS[principal as keyof typeof PRINCIPAL_PROOFS] === proof;
 }
@@ -294,12 +311,19 @@ function criteriaDigestFor(subject: string, claim: string): string | undefined {
   return derivedDigest('OBLIGATION-CRITERIA', { schema: OBLIGATION_CRITERIA_SCHEMA, subject, claim });
 }
 
-function evidenceDigestFor(subject: string, evidence: string, trustRoot: string): string | undefined {
+function evidenceDigestFor(
+  input: Readonly<{
+    key: string;
+    subject: string;
+    claim: string;
+    manifestDigest: string;
+    artifactDigest: string;
+    trustRoot: string;
+  }>,
+): string | undefined {
   return derivedDigest('OBLIGATION-EVIDENCE', {
     schema: OBLIGATION_EVIDENCE_SCHEMA,
-    subject,
-    evidence,
-    trustRoot,
+    ...input,
   });
 }
 
@@ -336,26 +360,74 @@ function parseCriteria(value: unknown): ObligationResult<ObligationCriteria> {
     : fail('FC-TRUST', 'CRITERIA_DIGEST_UNAVAILABLE');
 }
 
-function parseEvidence(value: unknown): ObligationResult<ObligationEvidence> {
-  const raw = fields(value, ['subject', 'digest', 'trustRoot', 'referenceDigest']);
+function parseEvidence(value: unknown, authority: ScriptedEvidenceFixture): ObligationResult<ObligationEvidence> {
+  const raw = fields(value, ['key']);
+  if (!raw || !digest(raw.key)) return fail('FC-INPUT', 'INVALID_EVIDENCE_REFERENCE');
+  const reconciled = authority.reconcile(raw.key);
+  if (!reconciled.ok)
+    return fail(reconciled.error.family === 'FC-EVIDENCE' ? 'FC-EVIDENCE' : 'FC-TRUST', reconciled.error.code);
+  const admitted = fields(reconciled.value, ['kind', 'manifest']);
+  const manifest =
+    admitted &&
+    fields(admitted.manifest, [
+      'configurationDigest',
+      'schemaVersion',
+      'policy',
+      'subjectKind',
+      'subjectIdentity',
+      'subject',
+      'claim',
+      'producer',
+      'providerManifest',
+      'contentType',
+      'contentClass',
+      'completeness',
+      'originalDigest',
+      'artifactDigest',
+      'originalSize',
+      'retainedSize',
+      'loss',
+      'redaction',
+      'retention',
+      'manifestDigest',
+      'disposition',
+      'artifactFact',
+      'adoptionTransition',
+    ]);
+  const artifactFact =
+    manifest && fields(manifest.artifactFact, ['operation', 'mode', 'position', 'headDigest', 'binding']);
   if (
-    !raw ||
-    !identity('ID-EVSUBJ', raw.subject) ||
-    !digest(raw.digest) ||
-    !digest(raw.trustRoot) ||
-    !digest(raw.referenceDigest)
+    admitted?.kind !== 'admitted' ||
+    !manifest ||
+    !identity('ID-EVSUBJ', manifest.subject) ||
+    !text(manifest.claim) ||
+    !digest(manifest.manifestDigest) ||
+    !digest(manifest.artifactDigest) ||
+    !artifactFact ||
+    !digest(artifactFact.headDigest) ||
+    manifest.disposition !== 'admitted'
   )
-    return fail('FC-INPUT', 'INVALID_EVIDENCE_REFERENCE');
-  const referenceDigest = evidenceDigestFor(raw.subject as string, raw.digest as string, raw.trustRoot as string);
-  return referenceDigest && referenceDigest === raw.referenceDigest
+    return fail('FC-EVIDENCE', 'EVIDENCE_NOT_ADMITTED');
+  const referenceDigest = evidenceDigestFor({
+    key: raw.key as string,
+    subject: manifest.subject as string,
+    claim: manifest.claim as string,
+    manifestDigest: manifest.manifestDigest as string,
+    artifactDigest: manifest.artifactDigest as string,
+    trustRoot: artifactFact.headDigest as string,
+  });
+  return referenceDigest
     ? ok({
         schema: OBLIGATION_EVIDENCE_SCHEMA,
-        subject: raw.subject as string,
-        digest: raw.digest as string,
-        trustRoot: raw.trustRoot as string,
-        referenceDigest: raw.referenceDigest as string,
+        key: raw.key as string,
+        subject: manifest.subject as string,
+        claim: manifest.claim as string,
+        manifestDigest: manifest.manifestDigest as string,
+        artifactDigest: manifest.artifactDigest as string,
+        trustRoot: artifactFact.headDigest as string,
+        referenceDigest,
       })
-    : fail('FC-TRUST', 'EVIDENCE_DIGEST_MISMATCH');
+    : fail('FC-TRUST', 'EVIDENCE_DIGEST_UNAVAILABLE');
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
@@ -426,12 +498,31 @@ function validGrant(value: unknown): value is ObligationGrant {
 }
 
 function validEvidence(value: unknown): value is ObligationEvidence {
-  const raw = fields(value, ['schema', 'subject', 'digest', 'trustRoot', 'referenceDigest']);
+  const raw = fields(value, [
+    'schema',
+    'key',
+    'subject',
+    'claim',
+    'manifestDigest',
+    'artifactDigest',
+    'trustRoot',
+    'referenceDigest',
+  ]);
   if (!raw || raw.schema !== OBLIGATION_EVIDENCE_SCHEMA) return false;
-  const expected = evidenceDigestFor(raw.subject as string, raw.digest as string, raw.trustRoot as string);
+  const expected = evidenceDigestFor({
+    key: raw.key as string,
+    subject: raw.subject as string,
+    claim: raw.claim as string,
+    manifestDigest: raw.manifestDigest as string,
+    artifactDigest: raw.artifactDigest as string,
+    trustRoot: raw.trustRoot as string,
+  });
   return (
+    digest(raw.key) &&
     identity('ID-EVSUBJ', raw.subject) &&
-    digest(raw.digest) &&
+    text(raw.claim) &&
+    digest(raw.manifestDigest) &&
+    digest(raw.artifactDigest) &&
     digest(raw.trustRoot) &&
     digest(raw.referenceDigest) &&
     expected === raw.referenceDigest
@@ -636,7 +727,18 @@ function validIntent(value: unknown): value is ObligationResolutionIntent {
 }
 
 function validateHydratedState(value: unknown): ObligationResult<HydratedState> {
-  const raw = fields(value, ['schema', 'nextEventOrdinal', 'obligations', 'grants', 'intents', 'facts']);
+  const raw = fields(value, [
+    'schema',
+    'nextEventOrdinal',
+    'ledgerBinding',
+    'ledgerHead',
+    'obligations',
+    'grants',
+    'intents',
+    'facts',
+  ]);
+  const ledgerBinding = raw && fields(raw.ledgerBinding, ['kind', 'run', 'generation']);
+  const ledgerHead = raw && fields(raw.ledgerHead, ['position', 'digest']);
   const obligations = raw && plainArray(raw.obligations);
   const grants = raw && plainArray(raw.grants);
   const intents = raw && plainArray(raw.intents);
@@ -646,6 +748,15 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     raw.schema !== OBLIGATION_CONTRACT_VERSION ||
     !integer(raw.nextEventOrdinal) ||
     raw.nextEventOrdinal < 1 ||
+    !ledgerBinding ||
+    ledgerBinding.kind !== 'run' ||
+    !identity('ID-RUN', ledgerBinding.run) ||
+    !identity('ID-GEN', ledgerBinding.generation) ||
+    !(ledgerBinding.generation as string).startsWith(`${ledgerBinding.run}/gen/`) ||
+    !ledgerHead ||
+    !Number.isSafeInteger(ledgerHead.position) ||
+    (ledgerHead.position as number) < -1 ||
+    !digest(ledgerHead.digest) ||
     !obligations ||
     !grants ||
     !intents ||
@@ -678,10 +789,14 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
       obligation.generation !== fact.generation
     )
       return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
+    if (fact.generation !== ledgerBinding.generation || !fact.event.startsWith(`${ledgerBinding.run}/event/`))
+      return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
     highestEvent = Math.max(highestEvent, ordinal);
     if (fact.grant !== null && !grantMap.has(fact.grant)) return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   }
   for (const obligation of obligations) {
+    if (obligation.run !== ledgerBinding.run || obligation.generation !== ledgerBinding.generation)
+      return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
     const related = facts.filter((fact) => fact.obligation === obligation.id);
     const opening = related.filter((fact) => fact.type === 'SCH-OBLIGATION');
     const exhausted = related.filter((fact) => fact.type === 'EV-BOUND-EXHAUSTED');
@@ -749,6 +864,8 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     intents: intents as ObligationResolutionIntent[],
     facts: facts as ObligationFact[],
     nextEventOrdinal: raw.nextEventOrdinal as number,
+    ledgerBinding: ledgerBinding as RunStoreBinding,
+    ledgerHead: ledgerHead as Readonly<{ position: number; digest: string }>,
   });
 }
 
@@ -757,9 +874,16 @@ export function obligationCriteriaDigest(input: Readonly<{ subject: string; clai
 }
 
 export function obligationEvidenceDigest(
-  input: Readonly<{ subject: string; digest: string; trustRoot: string }>,
+  input: Readonly<{
+    key: string;
+    subject: string;
+    claim: string;
+    manifestDigest: string;
+    artifactDigest: string;
+    trustRoot: string;
+  }>,
 ): string | undefined {
-  return evidenceDigestFor(input.subject, input.digest, input.trustRoot);
+  return evidenceDigestFor(input);
 }
 
 export function obligationBoundDigest(
@@ -769,8 +893,11 @@ export function obligationBoundDigest(
 }
 
 export function createScriptedObligationController(
-  options?: Readonly<{ hydrate?: HydratedState }>,
+  options?: Readonly<{ hydrate?: HydratedState; dependencies?: ObligationRuntimeDependencies }>,
 ): ObligationController {
+  const ledger = options?.dependencies?.ledger;
+  const evidenceAuthority = options?.dependencies?.evidence;
+  const dependenciesValid = isScriptedLedger(ledger) && isScriptedEvidenceFixture(evidenceAuthority);
   let nextEventOrdinal = options?.hydrate?.nextEventOrdinal ?? 1;
   let obligations = new Map<string, ResidualObligation>(
     (options?.hydrate?.obligations ?? []).map((item) => [item.id, item]),
@@ -780,15 +907,66 @@ export function createScriptedObligationController(
     (options?.hydrate?.intents ?? []).map((item) => [item.key, item]),
   );
   let facts = [...(options?.hydrate?.facts ?? [])];
+  let activeBinding: RunStoreBinding | null = options?.hydrate?.ledgerBinding ?? null;
+  let ledgerHead: Readonly<{ position: number; digest: string }> | null = options?.hydrate?.ledgerHead ?? null;
 
-  const appendFact = (fact: Omit<ObligationFact, 'event'>): ObligationFact => {
-    const complete = deepFreeze({
-      ...fact,
-      event: eventId(fact.obligation.split('/obligation/')[0] as string, nextEventOrdinal),
-    }) as ObligationFact;
-    nextEventOrdinal += 1;
+  const appendDurable = (
+    content: Record<string, unknown>,
+    binding: RunStoreBinding,
+  ): ObligationResult<
+    Readonly<{ event: string; content: Record<string, unknown>; position: number; digest: string }>
+  > => {
+    if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+    const head = ledger.snapshot(binding);
+    if (!head.ok) return fail(head.error.family, head.error.code);
+    const position = head.value.position + 1;
+    const transaction = `${binding.run}/txn/${position + 1}/${binding.generation}|${'0'.repeat(64)}`;
+    const prepared = createLedgerRecord({
+      run: binding.run,
+      generation: binding.generation,
+      transaction,
+      position,
+      previousDigest: head.value.digest,
+      content: content as never,
+    });
+    if (!prepared.ok) return fail(prepared.error.family, prepared.error.code);
+    const appended = ledger.append({ binding, expectedPosition: head.value.position, record: prepared.value });
+    let record: LedgerRecord;
+    if (appended.ok) {
+      record = appended.value;
+    } else {
+      if (appended.error.code !== 'ACK_LOST') return fail(appended.error.family, appended.error.code);
+      const readback = ledger.readback({ binding, position, transaction, contentDigest: prepared.value.contentDigest });
+      if (!readback.ok) return fail(readback.error.family, readback.error.code);
+      if (readback.value.kind !== 'committed') return fail('FC-TRUST', 'OBLIGATION_APPEND_UNCERTAIN');
+      record = readback.value.record;
+    }
+    activeBinding = binding;
+    ledgerHead = Object.freeze({ position: record.position, digest: record.contentDigest });
+    nextEventOrdinal = Math.max(nextEventOrdinal, record.position + 2);
+    return ok({ event: record.event, content, position: record.position, digest: record.contentDigest });
+  };
+
+  const appendFact = (fact: Omit<ObligationFact, 'event'>): ObligationResult<ObligationFact> => {
+    const binding = activeBinding ?? {
+      kind: 'run' as const,
+      run: fact.obligation.split('/obligation/')[0] as string,
+      generation: fact.generation,
+    };
+    if (activeBinding && (activeBinding.run !== binding.run || activeBinding.generation !== binding.generation))
+      return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISMATCH');
+    const persisted = appendDurable({ schema: OBLIGATION_FACT_SCHEMA, ...fact }, binding);
+    if (!persisted.ok) return persisted;
+    const complete = deepFreeze({ ...fact, event: persisted.value.event }) as ObligationFact;
     facts = [...facts, complete];
-    return complete;
+    return ok(complete);
+  };
+
+  const appendIntent = (intent: ObligationResolutionIntent): ObligationResult<void> => {
+    const binding = activeBinding;
+    if (!binding) return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISSING');
+    const persisted = appendDurable({ ...intent }, binding);
+    return persisted.ok ? ok(undefined) : persisted;
   };
 
   const get = (id: unknown): ObligationResult<ResidualObligation> => {
@@ -813,7 +991,8 @@ export function createScriptedObligationController(
       'deadline',
       'policyDigest',
     ]);
-    const parsedEvidence = raw && parseEvidence(raw.preservationEvidence);
+    const parsedEvidence =
+      raw && evidenceAuthority ? parseEvidence(raw.preservationEvidence, evidenceAuthority) : undefined;
     const parsedCriteria = raw && parseCriteria(raw.criteria);
     if (
       !raw ||
@@ -830,6 +1009,8 @@ export function createScriptedObligationController(
       !text(raw.reason) ||
       !parsedEvidence?.ok ||
       !parsedCriteria?.ok ||
+      parsedEvidence.value.subject !== parsedCriteria.value.subject ||
+      parsedEvidence.value.claim !== parsedCriteria.value.claim ||
       raw.accountableOwner !== OWNER ||
       !integer(raw.startedAt) ||
       !integer(raw.deadline) ||
@@ -858,10 +1039,10 @@ export function createScriptedObligationController(
       deadline: raw.deadline as number,
     });
     if (!boundDigest) return fail('FC-TRUST', 'BOUND_DIGEST_UNAVAILABLE');
-    const candidate = deepFreeze({
+    const candidate = {
       schema: OBLIGATION_SCHEMA,
       id,
-      event: eventId(raw.run as string, nextEventOrdinal),
+      event: '',
       type: 'SCH-OBLIGATION' as const,
       controller: OBLIGATION_CONTROLLER,
       port: OBLIGATION_PORT,
@@ -892,15 +1073,14 @@ export function createScriptedObligationController(
       resolutionGrant: null,
       resolutionCriteriaDigest: null,
       resolutionEvidence: null,
-    }) as ResidualObligation;
+    } as ResidualObligation;
     const prior = obligations.get(id);
     if (prior) {
       const { event: _priorEvent, ...priorBasis } = prior;
       const { event: _candidateEvent, ...candidateBasis } = candidate;
       return sameJson(priorBasis, candidateBasis) ? ok(prior) : fail('FC-SUBJECT', 'OBLIGATION_ID_REUSE_MISMATCH');
     }
-    obligations = new Map(obligations).set(id, candidate);
-    appendFact({
+    const persisted = appendFact({
       type: 'SCH-OBLIGATION',
       obligation: id,
       status: 'open',
@@ -911,7 +1091,10 @@ export function createScriptedObligationController(
       boundDigest: candidate.boundDigest,
       observedAt: candidate.startedAt,
     });
-    return ok(candidate);
+    if (!persisted.ok) return persisted;
+    const committed = deepFreeze({ ...candidate, event: persisted.value.event }) as ResidualObligation;
+    obligations = new Map(obligations).set(id, committed);
+    return ok(committed);
   };
 
   const issueGrant = (input: unknown): ObligationResult<ObligationGrant> => {
@@ -959,10 +1142,10 @@ export function createScriptedObligationController(
       expiresAt: raw.expiresAt,
     });
     if (!grantDigest) return fail('FC-TRUST', 'GRANT_DIGEST_UNAVAILABLE');
-    const candidate = deepFreeze({
+    const candidate = {
       schema: OBLIGATION_GRANT_SCHEMA,
       id,
-      event: eventId(current.run, nextEventOrdinal),
+      event: '',
       type: 'EV-DELEGATION-GRANT' as const,
       obligation: current.id,
       grantor: OWNER,
@@ -975,11 +1158,10 @@ export function createScriptedObligationController(
       status: 'active' as const,
       statusEvent: null,
       grantDigest,
-    }) as ObligationGrant;
+    } as ObligationGrant;
     const prior = grants.get(id);
     if (prior) return sameJson(prior, candidate) ? ok(prior) : fail('FC-SUBJECT', 'GRANT_ID_REUSE_MISMATCH');
-    grants = new Map(grants).set(id, candidate);
-    appendFact({
+    const persisted = appendFact({
       type: 'EV-DELEGATION-GRANT',
       obligation: current.id,
       status: current.status,
@@ -990,7 +1172,10 @@ export function createScriptedObligationController(
       boundDigest: current.boundDigest,
       observedAt: candidate.issuedAt,
     });
-    return ok(candidate);
+    if (!persisted.ok) return persisted;
+    const committed = deepFreeze({ ...candidate, event: persisted.value.event }) as ObligationGrant;
+    grants = new Map(grants).set(id, committed);
+    return ok(committed);
   };
 
   const revokeGrant = (input: unknown): ObligationResult<ObligationGrant> => {
@@ -1001,12 +1186,9 @@ export function createScriptedObligationController(
     const grant = grants.get(raw.grant as string);
     if (!grant) return fail('FC-SUBJECT', 'GRANT_NOT_FOUND');
     if (grant.status !== 'active') return ok(grant);
-    const event = eventId(grant.obligation.split('/obligation/')[0] as string, nextEventOrdinal);
-    const updated = deepFreeze({ ...grant, status: 'revoked' as const, statusEvent: event });
-    grants = new Map(grants).set(grant.id, updated);
     const current = obligations.get(grant.obligation);
-    if (current)
-      appendFact({
+    if (current) {
+      const persisted = appendFact({
         type: 'EV-DELEGATION-REVOKED',
         obligation: current.id,
         status: current.status,
@@ -1017,7 +1199,12 @@ export function createScriptedObligationController(
         boundDigest: current.boundDigest,
         observedAt: raw.observedAt as number,
       });
-    return ok(updated);
+      if (!persisted.ok) return persisted;
+      const updated = deepFreeze({ ...grant, status: 'revoked' as const, statusEvent: persisted.value.event });
+      grants = new Map(grants).set(grant.id, updated);
+      return ok(updated);
+    }
+    return fail('FC-SUBJECT', 'OBLIGATION_NOT_FOUND');
   };
 
   const acceptHandoff = (input: unknown): ObligationResult<ResidualObligation> => {
@@ -1054,17 +1241,15 @@ export function createScriptedObligationController(
         : fail('FC-FENCE', 'OBLIGATION_ALREADY_HANDOFF');
     }
     if (current.criteria.digest !== raw.criteriaDigest) return fail('FC-SUBJECT', 'CRITERIA_MISMATCH');
-    const event = eventId(current.run, nextEventOrdinal);
-    const updated = deepFreeze({
+    const updated = {
       ...current,
       status: 'accepted-handoff' as const,
-      handoffEvent: event,
+      handoffEvent: '',
       handoffResponder: OWNER,
       handoffCriteriaDigest: raw.criteriaDigest as string,
       handoffReason: raw.reason as string,
-    });
-    obligations = new Map(obligations).set(current.id, updated);
-    appendFact({
+    } as ResidualObligation;
+    const persisted = appendFact({
       type: 'EV-OWNER-DECISION',
       obligation: current.id,
       status: updated.status,
@@ -1075,7 +1260,10 @@ export function createScriptedObligationController(
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
-    return ok(updated);
+    if (!persisted.ok) return persisted;
+    const committed = deepFreeze({ ...updated, handoffEvent: persisted.value.event });
+    obligations = new Map(obligations).set(current.id, committed);
+    return ok(committed);
   };
 
   const resolve = (input: unknown): ObligationResult<ResidualObligation> => {
@@ -1089,7 +1277,7 @@ export function createScriptedObligationController(
       'evidence',
       'observedAt',
     ]);
-    const parsedEvidence = raw && parseEvidence(raw.evidence);
+    const parsedEvidence = raw && evidenceAuthority ? parseEvidence(raw.evidence, evidenceAuthority) : undefined;
     if (!raw) return fail('FC-INPUT', 'INVALID_RESOLUTION_INPUT');
     if (!parsedEvidence?.ok) return parsedEvidence ?? fail('FC-INPUT', 'INVALID_RESOLUTION_INPUT');
     if (
@@ -1103,31 +1291,6 @@ export function createScriptedObligationController(
       return fail('FC-INPUT', 'INVALID_RESOLUTION_INPUT');
     const current = obligations.get(raw.obligation as string);
     if (!current) return fail('FC-SUBJECT', 'OBLIGATION_NOT_FOUND');
-    const intentKey = derivedDigest('OBLIGATION-RESOLUTION-INTENT', {
-      obligation: current.id,
-      responder: raw.responder,
-      grant: raw.grant,
-      generation: raw.generation,
-      criteriaDigest: raw.criteriaDigest,
-      evidence: parsedEvidence.value,
-    });
-    if (!intentKey) return fail('FC-TRUST', 'RESOLUTION_INTENT_DIGEST_UNAVAILABLE');
-    const existingIntent = intents.get(intentKey);
-    if (!existingIntent) {
-      const intent = deepFreeze({
-        schema: OBLIGATION_INTENT_SCHEMA,
-        key: intentKey,
-        type: 'EV-OBLIGATION-RESOLVED' as const,
-        obligation: current.id,
-        generation: raw.generation as string,
-        responder: raw.responder as string,
-        grant: raw.grant as string | null,
-        criteriaDigest: raw.criteriaDigest as string,
-        evidence: parsedEvidence.value,
-        status: 'recorded' as const,
-      }) as ObligationResolutionIntent;
-      intents = new Map(intents).set(intentKey, intent);
-    }
     if (current.status === 'resolved') {
       return current.resolutionCriteriaDigest === raw.criteriaDigest &&
         current.resolutionGrant === raw.grant &&
@@ -1137,6 +1300,11 @@ export function createScriptedObligationController(
     }
     if (current.generation !== raw.generation) return fail('FC-FENCE', 'STALE_OBLIGATION_GENERATION');
     if (current.criteria.digest !== raw.criteriaDigest) return fail('FC-SUBJECT', 'CRITERIA_MISMATCH');
+    if (
+      parsedEvidence.value.subject !== current.criteria.subject ||
+      parsedEvidence.value.claim !== current.criteria.claim
+    )
+      return fail('FC-EVIDENCE', 'EVIDENCE_CRITERIA_MISMATCH');
     if (raw.responder === OWNER) {
       if (raw.grant !== null) return fail('FC-AUTHORITY', 'OWNER_GRANT_MISMATCH');
       if (!authenticated(OWNER, raw.responderProof)) return fail('FC-AUTHORITY', 'RESPONDER_NOT_AUTHENTICATED');
@@ -1154,21 +1322,44 @@ export function createScriptedObligationController(
       if (!authenticated(raw.responder as string, raw.responderProof))
         return fail('FC-AUTHORITY', 'RESPONDER_NOT_AUTHENTICATED');
     }
-    const event = eventId(current.run, nextEventOrdinal);
-    const updated = deepFreeze({
+    const intentKey = derivedDigest('OBLIGATION-RESOLUTION-INTENT', {
+      obligation: current.id,
+      responder: raw.responder,
+      grant: raw.grant,
+      generation: raw.generation,
+      criteriaDigest: raw.criteriaDigest,
+      evidence: parsedEvidence.value,
+    });
+    if (!intentKey) return fail('FC-TRUST', 'RESOLUTION_INTENT_DIGEST_UNAVAILABLE');
+    const existingIntent = intents.get(intentKey);
+    let recordedIntent = existingIntent;
+    if (!recordedIntent) {
+      recordedIntent = deepFreeze({
+        schema: OBLIGATION_INTENT_SCHEMA,
+        key: intentKey,
+        type: 'EV-OBLIGATION-RESOLVED' as const,
+        obligation: current.id,
+        generation: raw.generation as string,
+        responder: raw.responder as string,
+        grant: raw.grant as string | null,
+        criteriaDigest: raw.criteriaDigest as string,
+        evidence: parsedEvidence.value,
+        status: 'recorded' as const,
+      }) as ObligationResolutionIntent;
+      const persistedIntent = appendIntent(recordedIntent);
+      if (!persistedIntent.ok) return persistedIntent;
+      intents = new Map(intents).set(intentKey, recordedIntent);
+    }
+    const updated = {
       ...current,
       status: 'resolved' as const,
-      resolutionEvent: event,
+      resolutionEvent: '',
       resolutionResponder: raw.responder as string,
       resolutionGrant: raw.grant as string | null,
       resolutionCriteriaDigest: raw.criteriaDigest as string,
       resolutionEvidence: parsedEvidence.value,
-    });
-    const recordedIntent = intents.get(intentKey);
-    if (!recordedIntent) return fail('FC-TRUST', 'RESOLUTION_INTENT_UNAVAILABLE');
-    obligations = new Map(obligations).set(current.id, updated);
-    intents = new Map(intents).set(intentKey, deepFreeze({ ...recordedIntent, status: 'confirmed' as const }));
-    appendFact({
+    } as ResidualObligation;
+    const persisted = appendFact({
       type: 'EV-OBLIGATION-RESOLVED',
       obligation: current.id,
       status: updated.status,
@@ -1179,7 +1370,11 @@ export function createScriptedObligationController(
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
-    return ok(updated);
+    if (!persisted.ok) return persisted;
+    const committed = deepFreeze({ ...updated, resolutionEvent: persisted.value.event });
+    obligations = new Map(obligations).set(current.id, committed);
+    intents = new Map(intents).set(intentKey, deepFreeze({ ...recordedIntent, status: 'confirmed' as const }));
+    return ok(committed);
   };
 
   const expire = (input: unknown): ObligationResult<ResidualObligation> => {
@@ -1190,15 +1385,13 @@ export function createScriptedObligationController(
     if (!current) return fail('FC-SUBJECT', 'OBLIGATION_NOT_FOUND');
     if (current.status !== 'open' || current.exhaustionCount > 0) return ok(current);
     if ((raw.observedAt as number) < current.deadline) return fail('FC-BOUND', 'WAIT_NOT_EXHAUSTED');
-    const event = eventId(current.run, nextEventOrdinal);
-    const updated = deepFreeze({
+    const updated = {
       ...current,
       exhaustionCount: 1,
-      lastExhaustionEvent: event,
+      lastExhaustionEvent: '',
       lastExhaustedAt: raw.observedAt as number,
-    });
-    obligations = new Map(obligations).set(current.id, updated);
-    appendFact({
+    } as ResidualObligation;
+    const persisted = appendFact({
       type: 'EV-BOUND-EXHAUSTED',
       obligation: current.id,
       status: updated.status,
@@ -1209,7 +1402,10 @@ export function createScriptedObligationController(
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
-    return ok(updated);
+    if (!persisted.ok) return persisted;
+    const committed = deepFreeze({ ...updated, lastExhaustionEvent: persisted.value.event });
+    obligations = new Map(obligations).set(current.id, committed);
+    return ok(committed);
   };
 
   const wakeSettlement = (input: unknown): ObligationResult<ObligationFact> => {
@@ -1236,13 +1432,15 @@ export function createScriptedObligationController(
       boundDigest: current.boundDigest,
       observedAt: raw.observedAt as number,
     });
-    return ok(fact);
+    return fact;
   };
 
   const snapshot = (): ObligationSnapshot =>
     deepFreeze({
       schema: OBLIGATION_CONTRACT_VERSION,
       nextEventOrdinal,
+      ledgerBinding: activeBinding,
+      ledgerHead,
       obligations: [...obligations.values()],
       grants: [...grants.values()],
       intents: [...intents.values()],
@@ -1274,8 +1472,91 @@ export function createScriptedObligationController(
   });
 }
 
-export function restoreScriptedObligationController(value: unknown): ObligationResult<ObligationController> {
+export function restoreScriptedObligationController(
+  value: unknown,
+  dependencies?: ObligationRuntimeDependencies,
+): ObligationResult<ObligationController> {
   const validated = validateHydratedState(value);
   if (!validated.ok) return validated;
-  return ok(createScriptedObligationController({ hydrate: validated.value }));
+  if (!dependencies || !isScriptedLedger(dependencies.ledger) || !isScriptedEvidenceFixture(dependencies.evidence))
+    return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+  const head = dependencies.ledger.verifySnapshot(validated.value.ledgerBinding, validated.value.ledgerHead);
+  if (!head.ok || !head.value) return fail('FC-TRUST', 'OBLIGATION_LEDGER_SNAPSHOT_MISMATCH');
+  const records = dependencies.ledger.records(validated.value.ledgerBinding);
+  if (!records.ok) return fail(records.error.family, records.error.code);
+  const expectedFacts = new Map(validated.value.facts.map((fact) => [fact.event, fact]));
+  const expectedIntents = new Map(validated.value.intents.map((intent) => [intent.key, intent]));
+  const matchedFacts = new Set<string>();
+  const matchedIntents = new Set<string>();
+  for (const record of records.value) {
+    const content = fields(record.content, [
+      'schema',
+      'type',
+      'obligation',
+      'status',
+      'generation',
+      'criteriaDigest',
+      'evidenceDigest',
+      'grant',
+      'boundDigest',
+      'observedAt',
+    ]);
+    if (content?.schema === OBLIGATION_FACT_SCHEMA) {
+      const fact = expectedFacts.get(record.event);
+      if (
+        !fact ||
+        !sameJson(
+          {
+            schema: content.schema,
+            event: record.event,
+            type: content.type,
+            obligation: content.obligation,
+            status: content.status,
+            generation: content.generation,
+            criteriaDigest: content.criteriaDigest,
+            evidenceDigest: content.evidenceDigest,
+            grant: content.grant,
+            boundDigest: content.boundDigest,
+            observedAt: content.observedAt,
+          },
+          {
+            schema: OBLIGATION_FACT_SCHEMA,
+            event: fact.event,
+            type: fact.type,
+            obligation: fact.obligation,
+            status: fact.status,
+            generation: fact.generation,
+            criteriaDigest: fact.criteriaDigest,
+            evidenceDigest: fact.evidenceDigest,
+            grant: fact.grant,
+            boundDigest: fact.boundDigest,
+            observedAt: fact.observedAt,
+          },
+        )
+      )
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      matchedFacts.add(record.event);
+      continue;
+    }
+    const intent = fields(record.content, [
+      'schema',
+      'key',
+      'type',
+      'obligation',
+      'generation',
+      'responder',
+      'grant',
+      'criteriaDigest',
+      'evidence',
+      'status',
+    ]);
+    if (intent?.schema === OBLIGATION_INTENT_SCHEMA) {
+      const expected = expectedIntents.get(intent.key as string);
+      if (!expected || !sameJson(intent, expected)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      matchedIntents.add(intent.key as string);
+    }
+  }
+  if (matchedFacts.size !== expectedFacts.size || matchedIntents.size !== expectedIntents.size)
+    return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+  return ok(createScriptedObligationController({ hydrate: validated.value, dependencies }));
 }

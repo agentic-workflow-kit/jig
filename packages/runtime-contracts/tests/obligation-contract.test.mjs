@@ -1,34 +1,131 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
 const obligation = await import('../dist/obligation.js');
+const artifact = await import('../dist/artifact.js');
+const evidenceRuntime = await import('../dist/evidence.js');
+const ledgerRuntime = await import('../dist/ledger.js');
 const oracle = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/obligation-contract-oracle.json'), 'utf8'),
 );
 
 const digest = (character) => (({ p: 'd', t: 'e', w: 'f', x: '0', z: '1' })[character] ?? character).repeat(64);
+const hash = (value) => createHash('sha256').update(value).digest('hex');
+const evidenceOracle = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, './fixtures/evidence-contract-oracle.json'), 'utf8'),
+);
 const run = 'run-000000000038-0123456789abcdef';
 const generation = `${run}/gen/1|controller`;
 const origin = `${run}/event/1`;
 const resource = 'resource/protected-retirement';
-const evidenceSubject = `evidence://${run}/story/retiring/claim/preservation`;
-const evidence = (character = 'b') => ({
-  subject: evidenceSubject,
-  digest: digest(character),
-  trustRoot: digest('t'),
-  referenceDigest: obligation.obligationEvidenceDigest({
+const evidenceSubject = evidenceOracle.evidenceSubject;
+const criteriaClaim = evidenceOracle.claim;
+const evidenceConfig = (() => {
+  const scanBasis = { version: evidenceOracle.scanPolicyVersion, detectors: evidenceOracle.scanDetectors };
+  const secretScan = { ...scanBasis, digest: hash(JSON.stringify(scanBasis)) };
+  const policyBasis = {
+    kind: evidenceOracle.criticalEvidenceKind,
+    version: evidenceOracle.criticalPolicyVersion,
+    scanPolicyVersion: secretScan.version,
+    scanPolicyDigest: secretScan.digest,
+    maxBytes: evidenceOracle.defaultMaxBytes,
+    oversizeBehavior: 'reject',
+    completenessCritical: true,
+    contentType: 'text/plain',
+    redactionStatus: 'source-redacted',
+    retention: evidenceOracle.retention,
+  };
+  const policy = { ...policyBasis, digest: hash(JSON.stringify(policyBasis)) };
+  return {
+    subjects: [{ kind: evidenceOracle.subjectKind, identity: evidenceOracle.subjectIdentity, claims: [criteriaClaim] }],
+    principals: [{ principal: evidenceOracle.principal, sessions: [evidenceOracle.session] }],
+    secretScan,
+    evidenceKinds: [policy],
+  };
+})();
+const artifactProof = (prepared, fact) => {
+  const request = prepared.artifactRequest;
+  const registration = JSON.stringify({
+    resourceScope: request.resourceScope,
+    subject: request.subject,
+    digest: request.digest,
+    fence: request.fence,
+    holder: request.holder,
+    putOperation: request.operation,
+    pins: request.pins,
+  });
+  const pin = request.pins.temporary;
+  const transition = `transition/evidence/${prepared.key}/temporary`;
+  const canonical = JSON.stringify({
+    transition,
+    registration,
+    role: 'temporary',
+    holder: pin.holder,
+    tuple: pin.tuple,
+    subject: request.subject,
+    fence: request.fence,
+    fact,
+  });
+  return {
+    transition,
+    registration,
+    role: 'temporary',
+    holder: pin.holder,
+    tuple: pin.tuple,
+    subject: request.subject,
+    fence: request.fence,
+    fact,
+    digest: hash(canonical),
+  };
+};
+const admittedEvidence = (() => {
+  const authority = evidenceRuntime.createScriptedEvidenceFixture(evidenceConfig);
+  const artifacts = artifact.createScriptedArtifactFixture();
+  const prepared = authority.prepare({
+    schemaVersion: evidenceOracle.evidenceSchemaVersion,
+    evidenceKind: evidenceOracle.criticalEvidenceKind,
+    policy: { version: evidenceOracle.criticalPolicyVersion, digest: evidenceConfig.evidenceKinds[0].digest },
     subject: evidenceSubject,
-    digest: digest(character),
-    trustRoot: digest('t'),
-  }),
-});
+    producer: { kind: 'principal', principal: evidenceOracle.principal, session: evidenceOracle.session },
+    providerManifest: null,
+    contentDigest: evidenceOracle.digest,
+    bytes: new TextEncoder().encode(evidenceOracle.bytes),
+    artifact: {
+      resourceScope: evidenceOracle.resourceScope,
+      operation: evidenceOracle.operation,
+      fence: evidenceOracle.fence,
+      temporaryTuple: evidenceOracle.temporaryTuple,
+    },
+  });
+  assert.equal(prepared.ok, true, JSON.stringify(prepared));
+  const fact = artifacts.store.putDisposable(prepared.value.artifactRequest);
+  assert.equal(fact.ok, true, JSON.stringify(fact));
+  assert.equal(artifacts.witness.advance(fact.value).ok, true);
+  const proof = artifactProof(prepared.value, fact.value);
+  const { bytes: _bytes, ...putBasis } = prepared.value.artifactRequest;
+  assert.equal(
+    artifacts.store.adopt({
+      ...putBasis,
+      putOperation: prepared.value.artifactRequest.operation,
+      fact: fact.value,
+      proof,
+    }).ok,
+    true,
+  );
+  const admitted = authority.admit({ key: prepared.value.key, fact: fact.value, proof }, artifacts.store);
+  assert.equal(admitted.ok, true, JSON.stringify(admitted));
+  return { authority, key: prepared.value.key, manifest: admitted.value.manifest };
+})();
+const evidence = () => ({ key: admittedEvidence.key });
 const criteria = (overrides = {}) => ({
-  subject: `evidence://${run}/story/retiring/claim/retirement-complete`,
-  claim: 'resource-retirement-complete',
+  subject: evidenceSubject,
+  claim: criteriaClaim,
   ...overrides,
 });
+const dependencies = () => ({ ledger: ledgerRuntime.createScriptedLedger(), evidence: admittedEvidence.authority });
 const openInput = (overrides = {}) => ({
   obligationOrdinal: 1,
   run,
@@ -53,6 +150,8 @@ test('GF038 oracle retains the private bounded contract and excluded capabilitie
   assert.equal(oracle.schema, obligation.OBLIGATION_SCHEMA);
   assert.equal(oracle.criteriaSchema, obligation.OBLIGATION_CRITERIA_SCHEMA);
   assert.equal(oracle.evidenceSchema, obligation.OBLIGATION_EVIDENCE_SCHEMA);
+  assert.equal(oracle.factSchema, obligation.OBLIGATION_FACT_SCHEMA);
+  assert.equal(oracle.ledgerVersion, 'jig.ledger.v1');
   assert.equal(oracle.bound, obligation.OBLIGATION_BOUND.name);
   assert.deepEqual(oracle.statuses, ['open', 'accepted-handoff', 'resolved']);
   assert.deepEqual(oracle.duties, [...obligation.AUTOMATIC_DUTIES]);
@@ -65,7 +164,7 @@ test('GF038 oracle retains the private bounded contract and excluded capabilitie
 });
 
 test('GF038-MC-01: opening mints one immutable obligation with exact bindings', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true, JSON.stringify(opened));
   assert.equal(opened.value.id, `${run}/obligation/1`);
@@ -86,7 +185,7 @@ test('GF038-MC-01: opening mints one immutable obligation with exact bindings', 
 });
 
 test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is idempotent', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   const handoff = controller.acceptHandoff({
@@ -167,7 +266,7 @@ test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is id
 });
 
 test('GF038-MC-03: handoff is owner-only and exact-subject/fence bound', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   const handoff = (overrides = {}) =>
@@ -203,7 +302,7 @@ test('GF038-MC-03: handoff is owner-only and exact-subject/fence bound', () => {
 });
 
 test('GF038-MC-04: delegated resolution requires a current exact grant and trusted criteria evidence', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   const grant = controller.issueGrant({
@@ -228,14 +327,14 @@ test('GF038-MC-04: delegated resolution requires a current exact grant and trust
   };
   assert.equal(controller.resolve(resolution).value.status, 'resolved');
 
-  const wrongGrantController = obligation.createScriptedObligationController();
+  const wrongGrantController = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const wrongOpened = wrongGrantController.open(openInput());
   assert.equal(wrongOpened.ok, true);
   assert.deepEqual(wrongGrantController.resolve({ ...resolution, grant: `${run}/grant/2` }).error, {
     family: 'FC-FENCE',
     code: 'CURRENT_GRANT_REQUIRED',
   });
-  const criteriaController = obligation.createScriptedObligationController();
+  const criteriaController = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const criteriaOpened = criteriaController.open(openInput());
   assert.equal(criteriaOpened.ok, true);
   assert.deepEqual(
@@ -249,6 +348,11 @@ test('GF038-MC-04: delegated resolution requires a current exact grant and trust
     }).error,
     { family: 'FC-SUBJECT', code: 'CRITERIA_MISMATCH' },
   );
+  assert.deepEqual(criteriaController.intents(), []);
+  assert.deepEqual(
+    criteriaController.facts().filter((fact) => fact.type === 'EV-OBLIGATION-RESOLVED'),
+    [],
+  );
   assert.deepEqual(
     criteriaController.resolve({
       ...resolution,
@@ -256,15 +360,15 @@ test('GF038-MC-04: delegated resolution requires a current exact grant and trust
       grant: null,
       responder: 'principal/arye',
       responderProof: ownerProof,
-      evidence: { ...evidence('c'), trustRoot: digest('x') },
+      evidence: { subject: evidenceSubject, digest: digest('c'), trustRoot: digest('x'), referenceDigest: digest('z') },
       criteriaDigest: criteriaOpened.value.criteria.digest,
     }).error,
-    { family: 'FC-TRUST', code: 'EVIDENCE_DIGEST_MISMATCH' },
+    { family: 'FC-INPUT', code: 'INVALID_EVIDENCE_REFERENCE' },
   );
 });
 
 test('GF038-MC-05: first timeout re-escalates once without changing identity, owner, or deadline', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   assert.deepEqual(controller.expire({ obligation: opened.value.id, observedAt: opened.value.deadline - 1 }).error, {
@@ -288,7 +392,7 @@ test('GF038-MC-05: first timeout re-escalates once without changing identity, ow
 });
 
 test('GF038-MC-06/08: settlement wake is observation-only and no prohibited capability exists', () => {
-  const controller = obligation.createScriptedObligationController();
+  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   const before = controller.get(opened.value.id).value;
@@ -308,11 +412,12 @@ test('GF038-MC-06/08: settlement wake is observation-only and no prohibited capa
 });
 
 test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or corrupted snapshots', () => {
-  const controller = obligation.createScriptedObligationController();
+  const runtimeDependencies = dependencies();
+  const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   assert.equal(controller.expire({ obligation: opened.value.id, observedAt: opened.value.deadline }).ok, true);
-  const restored = obligation.restoreScriptedObligationController(controller.snapshot());
+  const restored = obligation.restoreScriptedObligationController(controller.snapshot(), runtimeDependencies);
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.get(opened.value.id), controller.get(opened.value.id));
   assert.deepEqual(restored.value.facts(), controller.facts());
@@ -323,9 +428,17 @@ test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or
 
   const forged = structuredClone(controller.snapshot());
   forged.obligations[0].deadline += 1;
-  assert.deepEqual(obligation.restoreScriptedObligationController(forged).error, {
+  assert.deepEqual(obligation.restoreScriptedObligationController(forged, runtimeDependencies).error, {
     family: 'FC-TRUST',
     code: 'INVALID_OBLIGATION_SNAPSHOT',
+  });
+  assert.equal(
+    runtimeDependencies.ledger.injectFault(controller.snapshot().ledgerBinding, 'witness-contradiction').ok,
+    true,
+  );
+  assert.deepEqual(obligation.restoreScriptedObligationController(controller.snapshot(), runtimeDependencies).error, {
+    family: 'FC-TRUST',
+    code: 'WITNESS_NOT_CURRENT',
   });
   assert.deepEqual(controller.open({ ...openInput(), resource: 'api-token=super-secret' }).error, {
     family: 'FC-TRUST',
