@@ -202,6 +202,65 @@ test('rejects the qualification friend package deep import outside exact conform
   assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
 });
 
+test('permits provider admission qualification only from the local integration test', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'tests', 'local-command-provider.test.mjs'),
+      "import '../../conformance/dist/provider-admission-qualification.js';\n",
+    ),
+  );
+  assert.deepEqual(errors, []);
+});
+
+test('rejects provider admission qualification deep imports from runtime, provider source, and siblings', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "import '../../conformance/dist/provider-admission-qualification.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'src', 'index.ts'),
+      "import '../../conformance/dist/provider-admission-qualification.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "import '../../conformance/dist/provider-admission-qualification.js';\n",
+    );
+  });
+  assert.equal(
+    errors.filter((error) => error.includes('imports restricted provider admission qualification')).length,
+    3,
+  );
+});
+
+test('rejects provider admission qualification package deep imports', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "import '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted provider admission qualification')));
+});
+
+test('rejects alternate relative, dynamic, and re-export spellings of provider admission qualification', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "export { qualifyLocalCommandAdmission } from '../../../packages/conformance/dist/provider-admission-qualification.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "const target = '../../conformance/dist/provider-admission-qualification.js'; export const load = () => import(target);\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'conformance', 'tests', 'conformance.test.mjs'),
+      "export * from '@agentic-workflow-kit/jig-conformance/dist/provider-admission-qualification.js';\n",
+    );
+  });
+  assert.equal(errors.filter((error) => error.includes('restricted provider admission qualification')).length, 3);
+});
+
 test('rejects the protected runtime transition from providers, root, and siblings', () => {
   const errors = withPackages((root) => {
     writeFileSync(
