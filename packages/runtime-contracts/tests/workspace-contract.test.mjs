@@ -320,6 +320,12 @@ test('workspace contract: lost, uncertain, duplicate, and crash effects reconcil
     );
     const reconciled = state.controller.reconcile({ operation: candidate.operation, binding: candidate });
     assert.equal(reconciled.ok, true, fault);
+    assert.equal(reconciled.value.outcome, fault === 'crash' ? 'confirmed-absence' : 'indeterminate', fault);
+    if (fault !== 'crash') {
+      const replayed = state.controller.reconcile({ operation: candidate.operation, binding: candidate });
+      assert.equal(replayed.ok, true, fault);
+      assert.equal(replayed.value.outcome, 'indeterminate', fault);
+    }
   }
 });
 
@@ -431,4 +437,25 @@ test('workspace contract: hostile adapter output and duplicate dispatch cannot w
     ok: false,
     error: { family: 'FC-EFFECT', code: 'DUPLICATE_WORKSPACE_OPERATION' },
   });
+});
+
+test('workspace setup attestation requires a setup receipt exactly at the setup boundary', () => {
+  const base = workspace.createScriptedWorkspaceFixture();
+  const fixture = Object.freeze({
+    ...base,
+    dispatch: (input) => {
+      const result = base.dispatch(input);
+      return input.operationType === 'OPC-WS-SETUP' && result.ok
+        ? { ok: true, value: Object.freeze({ ...result.value, setupReceipt: null }) }
+        : result;
+    },
+  });
+  const state = controller(fixture);
+  assert.deepEqual(
+    state.controller.setup({ binding: binding('op-missing-setup-receipt', 'OPC-WS-SETUP'), receipt: null }),
+    {
+      ok: false,
+      error: { family: 'FC-FENCE', code: 'SETUP_RECEIPT_BINDING_MISMATCH' },
+    },
+  );
 });

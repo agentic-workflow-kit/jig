@@ -1256,6 +1256,29 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
           authoritative.basis.run,
         );
       if (!semanticRecord) return fail('FC-AUTHORITY', 'CATALOGUE_GUARD');
+      const sourceLedgerRecords = sourceRecords
+        .map((record) => ledgerRecord(record, basis.carrier.run))
+        .filter((record): record is LedgerRecord => record !== undefined);
+      const claim = resume
+        ? [...sourceLedgerRecords]
+            .reverse()
+            .find((record) => generationClaim(record, basis.carrier.run, basis.reference.basis))
+        : undefined;
+      const integrity =
+        resume && claim
+          ? [...sourceLedgerRecords]
+              .reverse()
+              .find((record) =>
+                resumeIntegrity(
+                  record,
+                  basis.carrier.run,
+                  basis.reference.basis,
+                  current.fence.generation,
+                  reduced.value.bindings.fence.generation,
+                  { position: claim.position, digest: claim.contentDigest },
+                ),
+              )
+          : undefined;
       const semantic = validateProjectionTransition(
         authoritative,
         semanticRecord,
@@ -1265,8 +1288,8 @@ export function createLifecycleController(input: unknown): LifecycleResult<Lifec
         roots,
         Object.values(projection.value.states)[0]?.runPhase ?? 'Received',
         current.fence.generation,
-        undefined,
-        undefined,
+        claim,
+        integrity,
       );
       return semantic.ok ? ok(authoritative) : semantic;
     },

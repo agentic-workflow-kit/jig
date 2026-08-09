@@ -439,7 +439,6 @@ export function createScriptedDoorbellController(
   options?: Readonly<{
     internalProviderDecisions?: readonly ('allowed' | 'rejected' | 'human-needed')[];
     principalProofs?: readonly Readonly<{ principal: string; proofDigest: string }>[];
-    snapshot?: DoorbellSnapshot;
   }>,
 ): DoorbellController {
   let nextEventOrdinal = 1;
@@ -989,6 +988,7 @@ export function createScriptedDoorbellController(
       !text(raw.reason) ||
       !integer(raw.observedAt) ||
       !integer(raw.successorParkOrdinal) ||
+      raw.successorParkOrdinal < 1 ||
       !successorBinding ||
       !digest(raw.successorProof) ||
       !authenticated(successorBinding.principal, raw.successorProof)
@@ -1024,6 +1024,7 @@ export function createScriptedDoorbellController(
       deadline: request.deadline,
     });
     if (!successorDigest) return fail('FC-TRUST', 'REQUEST_DIGEST_UNAVAILABLE');
+    if (requests.has(successorId)) return fail('FC-SUBJECT', 'REQUEST_ID_REUSE_MISMATCH');
     const cancelled = deepFreeze({
       ...currentRequest,
       status: 'cancelled' as const,
@@ -1094,11 +1095,6 @@ export function createScriptedDoorbellController(
     snapshot,
     fixtureEvidence,
   });
-  if (options?.snapshot) {
-    const restored = restoreScriptedDoorbellController(options.snapshot);
-    if (!restored.ok) return controller;
-    return restored.value;
-  }
   return controller;
 }
 

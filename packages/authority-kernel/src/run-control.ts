@@ -131,6 +131,7 @@ export type RunControlSnapshot = Readonly<{
 
 export type RunControlCommit = Readonly<{
   requestKey: string;
+  requestDigest: string;
   event: RunControlEvent;
   position: number;
   transaction: string;
@@ -140,7 +141,13 @@ export type RunControlCommit = Readonly<{
 
 export type RunControlLedger = Readonly<{
   append(
-    input: Readonly<{ requestKey: string; expectedPosition: number; transaction: string; content: CanonicalJson }>,
+    input: Readonly<{
+      requestKey: string;
+      requestDigest?: string;
+      expectedPosition: number;
+      transaction: string;
+      content: CanonicalJson;
+    }>,
   ): RunControlResult<RunControlCommit>;
   readback(input: Readonly<{ requestKey: string }>): RunControlResult<RunControlCommit | null>;
   records(): readonly RunControlCommit[];
@@ -272,7 +279,9 @@ function generationNumber(value: string): number | undefined {
 }
 function sorted<T extends { ordinal: number; id: string }>(entries: readonly T[]): readonly T[] {
   return Object.freeze(
-    [...entries].sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id)),
+    [...entries].sort(
+      (left, right) => left.ordinal - right.ordinal || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+    ),
   );
 }
 function parseWitness(value: unknown): WitnessedAppendBasis | undefined {
@@ -303,7 +312,15 @@ function witnessedRecord(
     if (!Array.isArray(records)) return undefined;
     const record = records[value.position];
     if (!record) return undefined;
-    const fields = ownFields(record, ['requestKey', 'event', 'position', 'transaction', 'contentDigest', 'content']);
+    const fields = ownFields(record, [
+      'requestKey',
+      'requestDigest',
+      'event',
+      'position',
+      'transaction',
+      'contentDigest',
+      'content',
+    ]);
     const content =
       fields &&
       ownFields(fields.content, [
@@ -321,6 +338,8 @@ function witnessedRecord(
       fields &&
       content &&
       fields.position === value.position &&
+      digest(fields.requestDigest) &&
+      fields.requestDigest === hash('RUN-CONTROL-REQUEST', content.payload) &&
       fields.transaction === value.transaction &&
       fields.contentDigest === value.recordDigest &&
       value.recordDigest === value.witnessDigest &&
@@ -509,9 +528,13 @@ export function createSettlementDuties(
       nextIntent: { kind, duty: id, basisDigest, authorizationBasis },
     });
   };
-  for (const item of [...stories].sort((left, right) => left.story.localeCompare(right.story)))
+  for (const item of [...stories].sort((left, right) =>
+    left.story < right.story ? -1 : left.story > right.story ? 1 : 0,
+  ))
     add('preserve-story', item.story, item.story);
-  for (const fence of [...fences].sort((left, right) => left.operation.localeCompare(right.operation))) {
+  for (const fence of [...fences].sort((left, right) =>
+    left.operation < right.operation ? -1 : left.operation > right.operation ? 1 : 0,
+  )) {
     add('reconcile-operation', fence.story, fence.operation);
     add('close-finalization', fence.story, fence.operation);
   }
@@ -632,6 +655,7 @@ function parseControllerInput(value: unknown): RunControlResult<ControllerInput>
 function appendCommit(
   ledger: RunControlLedger,
   requestKey: string,
+  requestDigest: string,
   expectedPosition: number,
   transaction: string,
   content: CanonicalJson,
@@ -639,7 +663,7 @@ function appendCommit(
   try {
     const existing = ledger.readback({ requestKey });
     if (existing.ok && existing.value !== null) return ok(existing.value);
-    const appended = ledger.append({ requestKey, expectedPosition, transaction, content });
+    const appended = ledger.append({ requestKey, requestDigest, expectedPosition, transaction, content });
     if (appended.ok) return appended;
     const recovered = ledger.readback({ requestKey });
     return recovered.ok && recovered.value !== null ? ok(recovered.value) : fail('FC-TRUST', 'ATOMIC_APPEND_UNCERTAIN');
@@ -691,6 +715,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       !records.every((record) => {
         const fields = ownFields(record, [
           'requestKey',
+          'requestDigest',
           'event',
           'position',
           'transaction',
@@ -714,6 +739,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           fields &&
           content &&
           text(fields.requestKey) &&
+          digest(fields.requestDigest) &&
           RUN_CONTROL_EVENTS.includes(fields.event as RunControlEvent) &&
           position(fields.position) &&
           identity('ID-TXN', fields.transaction) &&
@@ -724,6 +750,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           content.event === fields.event &&
           content.position === fields.position &&
           content.transaction === fields.transaction &&
+          fields.requestDigest === hash('RUN-CONTROL-REQUEST', content.payload) &&
           hash('RUN-CONTROL-EVENT', fields.content) === fields.contentDigest
         );
       })
@@ -734,15 +761,20 @@ export function createRunControlController(value: unknown): RunControlResult<Run
     return fail('FC-TRUST', 'INVALID_LEDGER_RECORDS');
   }
   const events: RunControlCommit[] = [...initialRecords];
-  const requestDigests = new Map<string, string>();
+  const requestDigests = new Map(initialRecords.map((record) => [record.requestKey, record.requestDigest]));
   const syncLedger = (): RunControlResult<void> => {
     try {
       const records = input.ledger.records();
       if (!Array.isArray(records) || records.length < events.length) return fail('FC-TRUST', 'LEDGER_HEAD_UNAVAILABLE');
       for (let index = 0; index < events.length; index += 1)
-        if (records[index]?.contentDigest !== events[index]?.contentDigest)
+        if (
+          records[index]?.contentDigest !== events[index]?.contentDigest ||
+          records[index]?.requestDigest !== events[index]?.requestDigest
+        )
           return fail('FC-TRUST', 'LEDGER_PREFIX_MISMATCH');
-      events.push(...records.slice(events.length));
+      const appended = records.slice(events.length);
+      events.push(...appended);
+      for (const record of appended) requestDigests.set(record.requestKey, record.requestDigest);
       return ok(undefined);
     } catch {
       return fail('FC-TRUST', 'LEDGER_HEAD_UNAVAILABLE');
@@ -791,11 +823,12 @@ export function createRunControlController(value: unknown): RunControlResult<Run
     const transaction = `${input.run}/txn/${positionValue + 1}/${after.generation}|${input.basisDigest}`;
     const content = eventContent(requestKey, event, positionValue, transaction, before, after, payload);
     if (!content) return fail('FC-INPUT', 'EVENT_DIGEST');
-    const appended = appendCommit(input.ledger, requestKey, positionValue, transaction, content);
+    const appended = appendCommit(input.ledger, requestKey, requestDigest, positionValue, transaction, content);
     if (!appended.ok) return appended;
     if (
       appended.value.contentDigest !== (hash('RUN-CONTROL-EVENT', content) as string) ||
-      appended.value.transaction !== transaction
+      appended.value.transaction !== transaction ||
+      appended.value.requestDigest !== requestDigest
     )
       return fail('FC-TRUST', 'APPEND_CONTENT_MISMATCH');
     requestDigests.set(requestKey, requestDigest);
@@ -1245,6 +1278,7 @@ export function createScriptedRunControlLedger(
     fault?: 'none' | 'lost-response' | 'unwitnessed';
     seed?: readonly Readonly<{
       requestKey: string;
+      requestDigest?: string;
       event: RunControlEvent;
       transaction: string;
       payload: CanonicalJson;
@@ -1266,10 +1300,12 @@ export function createScriptedRunControlLedger(
       payload: seed.payload,
     });
     const contentDigest = hash('RUN-CONTROL-EVENT', content);
-    if (!contentDigest) continue;
+    const requestDigest = seed.requestDigest ?? hash('RUN-CONTROL-REQUEST', seed.payload);
+    if (!contentDigest || !requestDigest) continue;
     records.push(
       deepFreeze({
         requestKey: seed.requestKey,
+        requestDigest,
         event: seed.event,
         position: records.length,
         transaction: seed.transaction,
@@ -1301,9 +1337,11 @@ export function createScriptedRunControlLedger(
       )
         return fail('FC-INPUT', 'LEDGER_EVENT_SHAPE');
       const contentDigest = hash('RUN-CONTROL-EVENT', input.content);
-      if (!contentDigest) return fail('FC-INPUT', 'LEDGER_CONTENT_DIGEST');
+      const requestDigest = input.requestDigest ?? hash('RUN-CONTROL-REQUEST', event.payload);
+      if (!contentDigest || !requestDigest) return fail('FC-INPUT', 'LEDGER_CONTENT_DIGEST');
       const record = deepFreeze({
         requestKey: input.requestKey,
+        requestDigest,
         event: event.event as RunControlEvent,
         position: records.length,
         transaction: input.transaction,

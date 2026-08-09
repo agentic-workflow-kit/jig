@@ -349,6 +349,79 @@ test('CF-CONTAINMENT / CF-RUN-CONTROL: Stopped is a Run overlay and preserves St
   assert.equal(Object.hasOwn(secondController.value, 'dispatch'), false);
 });
 
+test('resume proposals resolve the witnessed generation claim and integrity records', () => {
+  const basis = kernel.createRunBasis(
+    basisInput([{ story: subject('one').story, dependencies: [], initial: state('one') }]),
+  );
+  assert.equal(basis.ok, true);
+  const witnessed = basisRecord(basis.value);
+  const first = controllerFor(basis.value);
+  const suspended = first.value.propose({
+    event: {
+      type: 'EV-RUN-SUSPEND-DECISION',
+      edge: 'active-suspended',
+      id: `${run}/event/2`,
+      subject: subject('one'),
+      fence: { generation, basis: basisDigest },
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+    bindings: binding('one', 2),
+    decision: { kind: 'none' },
+  });
+  assert.equal(suspended.ok, true, JSON.stringify(suspended));
+  const suspendRecord = transitionRecord(suspended.value, witnessed.contentDigest);
+  const nextGeneration = `${run}/gen/2|controller`;
+  const claimPrepared = runtime.createLedgerRecord({
+    run,
+    generation: nextGeneration,
+    transaction: `${run}/txn/3/${nextGeneration}|${basisDigest}`,
+    position: 2,
+    previousDigest: suspendRecord.contentDigest,
+    content: {
+      schema: kernel.GENERATION_CLAIM_SCHEMA,
+      run,
+      basis: basisDigest,
+      generation: nextGeneration,
+      token: 'e'.repeat(64),
+    },
+  });
+  assert.equal(claimPrepared.ok, true);
+  const claim = Object.freeze({ ...claimPrepared.value, event: `${run}/event/3` });
+  const integrityPrepared = runtime.createLedgerRecord({
+    run,
+    generation: nextGeneration,
+    transaction: `${run}/txn/4/${nextGeneration}|${basisDigest}`,
+    position: 3,
+    previousDigest: claim.contentDigest,
+    content: {
+      schema: kernel.RESUME_INTEGRITY_SCHEMA,
+      run,
+      basis: basisDigest,
+      oldGeneration: generation,
+      newGeneration: nextGeneration,
+      head: { position: claim.position, digest: claim.contentDigest },
+    },
+  });
+  assert.equal(integrityPrepared.ok, true);
+  const integrity = Object.freeze({ ...integrityPrepared.value, event: `${run}/event/4` });
+  const controller = controllerFor(basis.value, [suspendRecord, claim, integrity]);
+  assert.equal(controller.ok, true, JSON.stringify(controller));
+  const resumed = controller.value.propose({
+    event: {
+      type: 'EV-RUN-RESUME-DECISION',
+      edge: 'suspended-active',
+      id: `${run}/event/5`,
+      subject: subject('one'),
+      fence: { generation: nextGeneration, basis: basisDigest },
+      catalogVersion: 'jig.authority-kernel.v1',
+    },
+    bindings: binding('one', 5, nextGeneration),
+    decision: { kind: 'none' },
+  });
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(resumed.value.next.runPhase, 'Active');
+});
+
 test('CF-BLOCKERS: transition-local dependency and root claims cannot author NotRun', () => {
   const basis = kernel.createRunBasis(
     basisInput([

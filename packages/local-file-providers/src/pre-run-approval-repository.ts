@@ -1,4 +1,4 @@
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
+import { closeSync, constants, fstatSync, fsyncSync, mkdirSync, openSync, readSync, writeSync } from 'node:fs';
 import { type CanonicalJson, decodeFrame, encodeFrame } from '@agentic-workflow-kit/jig-codec';
 import {
   type ApprovalRepositoryResult,
@@ -55,19 +55,35 @@ function fileBytes(record: PreRunApproval): Uint8Array | undefined {
   return encoded.ok ? encoded.value : undefined;
 }
 
-function readStored(path: string): ApprovalRepositoryResult<PreRunApproval> {
+function readStored(path: string, expectedKey?: string): ApprovalRepositoryResult<PreRunApproval> {
   try {
-    const stats = lstatSync(path);
-    if (!stats.isFile() || stats.isSymbolicLink()) return fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
-    const bytes = readFileSync(path);
+    const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    let bytes: Uint8Array;
+    try {
+      const stats = fstatSync(fd);
+      if (!stats.isFile()) return fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
+      bytes = new Uint8Array(stats.size);
+      let offset = 0;
+      while (offset < bytes.byteLength) {
+        const count = readSync(fd, bytes, offset, bytes.byteLength - offset, offset);
+        if (count === 0) break;
+        offset += count;
+      }
+      if (offset !== bytes.byteLength) return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+    } finally {
+      closeSync(fd);
+    }
     const decoded = decodeFrame(bytes);
     if (!decoded.ok) return fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
     const validated = validatePreRunApproval(decoded.value);
-    return validated.ok ? validated : fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
+    return validated.ok && (expectedKey === undefined || validated.value.key === expectedKey)
+      ? validated
+      : fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
   } catch (error) {
-    return (error as { code?: unknown }).code === 'ENOENT'
-      ? fail('FC-TRUST', 'APPROVAL_ABSENT')
-      : fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+    const code = (error as { code?: unknown }).code;
+    if (code === 'ENOENT') return fail('FC-TRUST', 'APPROVAL_ABSENT');
+    if (code === 'ELOOP') return fail('FC-TRUST', 'APPROVAL_INTEGRITY_MISMATCH');
+    return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
   }
 }
 
@@ -90,7 +106,7 @@ export function createLocalPreRunApprovalRepository(root: string): PreRunApprova
       ]);
       const candidateKey = raw?.key;
       if (typeof candidateKey === 'string' && digest(candidateKey)) {
-        const existing = readStored(reference(candidateKey));
+        const existing = readStored(reference(candidateKey), candidateKey);
         if (existing.ok) {
           const candidateBytes = encodeFrame(input as CanonicalJson);
           return candidateBytes.ok && bytesEqual(fileBytes(existing.value) as Uint8Array, candidateBytes.value)
@@ -120,7 +136,7 @@ export function createLocalPreRunApprovalRepository(root: string): PreRunApprova
         return freeze({ ok: true, value: freeze(validated.value) });
       } catch (error) {
         if ((error as { code?: unknown }).code !== 'EEXIST') return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
-        const existing = readStored(path);
+        const existing = readStored(path, validated.value.key);
         if (!existing.ok) return existing;
         return bytesEqual(fileBytes(existing.value) as Uint8Array, bytes)
           ? existing
@@ -129,7 +145,7 @@ export function createLocalPreRunApprovalRepository(root: string): PreRunApprova
     },
     read(input) {
       if (typeof input !== 'string' || !digest(input)) return fail('FC-INPUT', 'INVALID_APPROVAL_RECORD');
-      return readStored(reference(input));
+      return readStored(reference(input), input);
     },
   };
   return freeze(repository);

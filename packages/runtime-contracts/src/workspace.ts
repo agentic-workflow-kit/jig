@@ -640,6 +640,8 @@ const validateAttestation = (
     return fail('FC-FENCE', 'SETUP_RECEIPT_BINDING_MISMATCH');
   if ((intent.operationType === 'OPC-WS-PRESERVE') !== raw.preserved)
     return fail('FC-FENCE', 'PRESERVATION_FACT_OPERATION_MISMATCH');
+  if ((intent.operationType === 'OPC-WS-SETUP') !== (normalizedReceipt !== null))
+    return fail('FC-FENCE', 'SETUP_RECEIPT_BINDING_MISMATCH');
   return ok(
     Object.freeze({
       version: WORKSPACE_CONTRACT_VERSION,
@@ -988,7 +990,7 @@ function createWorkspaceControllerInternal(
       binding: bindingResult.value,
     });
     if (!observation.ok) return observation;
-    uncertain.delete(value.operation);
+    if (observation.value.outcome !== 'indeterminate') uncertain.delete(value.operation);
     return ok(Object.freeze({ operation: value.operation, outcome: observation.value.outcome }));
   };
 

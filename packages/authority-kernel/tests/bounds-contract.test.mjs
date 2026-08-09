@@ -339,6 +339,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
   assert.equal(progress.value.resetCount, 1);
   assert.equal(progress.value.deadlineAt, 100 + 30 * 60 * 1000);
   assert.equal(bounds.replayBoundFacts(journal.snapshot()).ok, true);
+  assert.equal(bounds.replayBoundFacts(JSON.parse(JSON.stringify(journal.snapshot()))).ok, true);
   const late = journal.observe({
     surface: 'qualifying-progress-idle',
     generation,
@@ -502,6 +503,16 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     clock: clock(10, 'e'),
   });
   assert.equal(terminationFact.ok, true);
+  assert.deepEqual(
+    terminationJournal.observe({
+      surface: 'session-silence',
+      generation,
+      subject,
+      observation: terminationObservation,
+      clock: clock(10, 'e'),
+    }),
+    terminationFact,
+  );
   const terminated = bounds.classifyLiveness({
     subject,
     generation,

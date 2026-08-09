@@ -1268,13 +1268,14 @@ export function createScriptedObligationController(
   };
 
   const appendFact = (fact: Omit<ObligationFact, 'event'>): ObligationResult<ObligationFact> => {
+    const factRun = fact.obligation.split('/obligation/')[0] as string;
+    if (activeBinding && (activeBinding.run !== factRun || activeBinding.generation !== fact.generation))
+      return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISMATCH');
     const binding = activeBinding ?? {
       kind: 'run' as const,
-      run: fact.obligation.split('/obligation/')[0] as string,
+      run: factRun,
       generation: fact.generation,
     };
-    if (activeBinding && (activeBinding.run !== binding.run || activeBinding.generation !== binding.generation))
-      return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISMATCH');
     const persisted = appendDurable({ schema: OBLIGATION_FACT_SCHEMA, ...fact }, binding);
     if (!persisted.ok) return persisted;
     const complete = deepFreeze({ ...fact, event: persisted.value.event }) as ObligationFact;

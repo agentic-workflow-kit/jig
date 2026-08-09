@@ -159,6 +159,7 @@ export type ScriptedLedger = Readonly<{
       | 'lost-ack'
       | 'indeterminate-read'
       | 'intake-after-flush'
+      | 'intake-after-witness'
       | 'intake-missing-companion'
       | 'intake-mismatched-companion'
     >,

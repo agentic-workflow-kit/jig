@@ -1530,7 +1530,7 @@ export function createBoundJournal(): BoundJournal {
             : 'none';
       if (prior) {
         if (
-          prior.kind === observation.kind &&
+          prior.kind === (observation.kind === 'terminated' ? 'termination' : observation.kind) &&
           prior.record.surface === input.surface &&
           equalClock(prior.clock, input.clock) &&
           equalSubject(prior.record.subject, input.subject)
@@ -1875,7 +1875,7 @@ export function replayBoundFacts(value: unknown): BoundResult<BoundJournalSnapsh
       (!replayBasis ||
         replayBasis.position >= typedFact.position ||
         ordered[replayBasis.position]?.kind !== 'source' ||
-        ordered[replayBasis.position]?.source !== replayBasis ||
+        ordered[replayBasis.position]?.source?.contentDigest !== replayBasis.contentDigest ||
         ordered[replayBasis.position]?.factDigest !== replayBasis.factDigest ||
         ordered[replayBasis.position]?.event !== replayBasis.event ||
         ordered[replayBasis.position]?.clock.digest !== replayBasis.clockDigest ||

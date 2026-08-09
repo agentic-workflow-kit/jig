@@ -333,6 +333,11 @@ test('silence records SCH-LIVENESS and fences dispatch until attested loss; host
   const heartbeat = controller.observeLiveness({ session: binding.session, binding, observedAt: 1000 });
   assert.equal(heartbeat.ok, true, JSON.stringify(heartbeat));
   assert.equal(heartbeat.value.classification, 'thinking');
+  assert.deepEqual(controller.classifySilence({ session: binding.session, binding, observedAt: 999 }).error, {
+    family: 'FC-INPUT',
+    code: 'INVALID_SILENCE_BOUND',
+  });
+  assert.equal(runtime.restoreScriptedSessionController(controller.snapshot()).ok, true);
   const dead = controller.classifySilence({ session: binding.session, binding, observedAt: 301001 });
   assert.equal(dead.ok, true, JSON.stringify(dead));
   assert.equal(dead.value.classification, 'dead');

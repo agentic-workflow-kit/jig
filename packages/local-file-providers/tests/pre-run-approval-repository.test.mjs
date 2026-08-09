@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -81,6 +81,17 @@ test('approval records reject wrong principal, kind substitution, malformed scop
   roots.push(symlinkRoot);
   symlinkSync(join(root, `${record.key}.approval`), join(symlinkRoot, `${record.key}.approval`));
   assert.deepEqual(provider.createLocalPreRunApprovalRepository(symlinkRoot).read(record.key), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'APPROVAL_INTEGRITY_MISMATCH' },
+  });
+});
+
+test('approval reads bind the stored record key to the requested filename', () => {
+  const { root, repository, record } = fixture();
+  assert.equal(repository.createIfAbsent(record).ok, true);
+  const otherKey = 'b'.repeat(64);
+  renameSync(join(root, `${record.key}.approval`), join(root, `${otherKey}.approval`));
+  assert.deepEqual(repository.read(otherKey), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'APPROVAL_INTEGRITY_MISMATCH' },
   });

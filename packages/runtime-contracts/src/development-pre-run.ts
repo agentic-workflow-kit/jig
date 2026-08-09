@@ -427,7 +427,11 @@ export function createDevelopmentApprovalAuthority(input: unknown): Readonly<{
       scope: preview.scope,
     });
     if (!created.ok) return created;
-    return boundRepository.createIfAbsent(created.value);
+    try {
+      return boundRepository.createIfAbsent(created.value);
+    } catch {
+      return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+    }
   };
 
   const verifier = freeze({}) as DevelopmentApprovalVerifier;
@@ -513,8 +517,14 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       const manifestApproval = validatePreRunApproval(data.manifestApproval);
       if (!preview || !proposalApproval.ok || !manifestApproval.ok)
         return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
-      const storedProposal = approvalBinding.repository.read(proposalApproval.value.key);
-      const storedManifest = approvalBinding.repository.read(manifestApproval.value.key);
+      let storedProposal: ReturnType<PreRunApprovalRepository['read']>;
+      let storedManifest: ReturnType<PreRunApprovalRepository['read']>;
+      try {
+        storedProposal = approvalBinding.repository.read(proposalApproval.value.key);
+        storedManifest = approvalBinding.repository.read(manifestApproval.value.key);
+      } catch {
+        return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+      }
       if (
         !storedProposal.ok ||
         !storedManifest.ok ||

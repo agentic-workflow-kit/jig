@@ -243,6 +243,51 @@ test('proposal and provider-manifest approvals are distinct, exact, immutable ow
   assert.equal('approveProviderManifest' in profile, false);
 });
 
+test('approval repository exceptions remain inside the Result boundary', () => {
+  const throwingRepository = Object.freeze({
+    createIfAbsent() {
+      throw new Error('write failed');
+    },
+    read() {
+      throw new Error('read failed');
+    },
+  });
+  const authority = runtime.createDevelopmentApprovalAuthority({ repository: throwingRepository });
+  const profile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: authority.verifier,
+  });
+  const preview = profile.preview({ envelope: envelopeInput(), providerManifestBytes: manifestBytes() });
+  assert.equal(preview.ok, true);
+  assert.deepEqual(authority.consumer.approveProposal({ principal: authority.principal, preview: preview.value }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'APPROVAL_STORAGE_UNAVAILABLE' },
+  });
+
+  const approved = approvedFixture();
+  const readThrowingAuthority = runtime.createDevelopmentApprovalAuthority({
+    repository: Object.freeze({
+      createIfAbsent: approved.repository.createIfAbsent,
+      read() {
+        throw new Error('read failed');
+      },
+    }),
+  });
+  const readThrowingProfile = runtime.createDevelopmentPreRun({
+    ledger: runtime.createScriptedLedger(),
+    approvalVerifier: readThrowingAuthority.verifier,
+  });
+  assert.deepEqual(
+    readThrowingProfile.submit({
+      preview: approved.preview,
+      proposalApproval: approved.proposalApproval,
+      manifestApproval: approved.manifestApproval,
+      terminalAck: 'accepted',
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'APPROVAL_STORAGE_UNAVAILABLE' } },
+  );
+});
+
 test('accepted development intake is witnessed, idempotent, and is the only path that derives a Run', () => {
   const { profile, preview, proposalApproval, manifestApproval } = approvedFixture();
   const first = profile.submit({

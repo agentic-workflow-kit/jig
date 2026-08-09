@@ -762,6 +762,22 @@ test('crash/replay and idempotency remain conservative and deterministic', () =>
   assert.equal(unwitnessed.controller.snapshot().phase, 'Active');
 });
 
+test('recreated controllers restore persisted request-key idempotency before mutation', () => {
+  const { ledger, controller } = makeController();
+  const input = suspendInput('recreated-request');
+  assert.equal(controller.suspend(input).ok, true);
+  const reopened = makeController({ ledger }).controller;
+  assert.deepEqual(reopened.suspend(input), {
+    ok: true,
+    value: reopened.snapshot(),
+  });
+  assert.equal(ledger.records().length, 1);
+  assert.deepEqual(reopened.suspend({ ...input, reason: 'different' }).error, {
+    family: 'FC-FENCE',
+    code: 'IDEMPOTENCY_KEY_COLLISION',
+  });
+});
+
 test('descriptor-safe validation rejects accessors, unknown fields, and hostile external objects', () => {
   const value = { ...makeController().controller };
   void value;

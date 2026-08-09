@@ -1084,6 +1084,7 @@ function createController(fixture: ReturnType<typeof createFixture>, snapshot?: 
     if (
       record.state !== 'active' ||
       !validTime(input.observedAt) ||
+      input.observedAt < record.lastHeartbeatAt ||
       !Number.isSafeInteger(silenceMs) ||
       silenceMs < SESSION_SILENCE.minimumMs ||
       silenceMs > SESSION_SILENCE.maximumMs

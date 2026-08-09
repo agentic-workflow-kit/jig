@@ -507,6 +507,39 @@ test('cancel and reissue requires an actual replacement session', () => {
   );
 });
 
+test('cancel and reissue rejects non-positive and colliding successor ordinals before mutation', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const request = controller.escalate(requestInput());
+  const grant = controller.issueGrant(grantInput(request.value));
+  assert.equal(grant.ok, true);
+  const replacement = {
+    request: request.value.id,
+    reason: 'invalid-successor',
+    observedAt: 1100,
+    successorParkOrdinal: 0,
+    successorBinding: binding({ session: `${story}/session/replacement/2` }),
+    successorProof: digest('a'),
+  };
+  assert.deepEqual(controller.cancelAndReissue(replacement).error, {
+    family: 'FC-INPUT',
+    code: 'INVALID_REISSUE_INPUT',
+  });
+  assert.equal(controller.request(request.value.id).value.status, 'open');
+
+  const first = controller.cancelAndReissue({ ...replacement, successorParkOrdinal: 2 });
+  assert.equal(first.ok, true);
+  const collision = controller.escalate(requestInput({ parkOrdinal: 3 }));
+  assert.equal(collision.ok, true);
+  const collided = controller.cancelAndReissue({
+    ...replacement,
+    request: collision.value.id,
+    successorParkOrdinal: 2,
+    successorBinding: binding({ session: `${story}/session/replacement/3` }),
+  });
+  assert.deepEqual(collided.error, { family: 'FC-SUBJECT', code: 'REQUEST_ID_REUSE_MISMATCH' });
+  assert.equal(controller.request(`${run}/park/2`).value.predecessorRequest, request.value.id);
+});
+
 test('uncertain response is reconciled without blind resend', () => {
   const controller = runtime.createScriptedDoorbellController();
   const request = controller.escalate(requestInput());

@@ -268,6 +268,20 @@ test('GF-035 exports only candidate/rework semantics and no downstream authority
     assert.equal(forbidden in state.controller, false, forbidden);
 });
 
+test('candidate changed-path canonical order is independent of the host locale', () => {
+  const state = makeController();
+  const result = createCandidate(state, {
+    changedPaths: [
+      { path: 'packages/z.ts', contentDigest: d('c') },
+      { path: 'packages/a.ts', contentDigest: d('b') },
+    ],
+  });
+  assert.deepEqual(result.changedPaths, [
+    { path: 'packages/a.ts', contentDigest: d('b') },
+    { path: 'packages/z.ts', contentDigest: d('c') },
+  ]);
+});
+
 test('CF-BINDING: exact content/tree/basis/evidence/workspace/session/posture/generation values mint immutable ID-CAND', () => {
   const state = makeController();
   const candidate = createCandidate(state);

@@ -404,7 +404,7 @@ function parsePaths(value: unknown): readonly ChangedPath[] | undefined {
     if (!fields || !validPath(fields.path) || !digest(fields.contentDigest)) return undefined;
     paths.push({ path: fields.path, contentDigest: fields.contentDigest } as ChangedPath);
   }
-  const sorted = [...paths].sort((left, right) => left.path.localeCompare(right.path));
+  const sorted = [...paths].sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
   return sorted.length === paths.length &&
     sorted.every((entry, index) => exactEqual(entry, paths[index])) &&
     new Set(paths.map((entry) => entry.path)).size === paths.length

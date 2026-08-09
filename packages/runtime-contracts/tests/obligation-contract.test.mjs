@@ -184,6 +184,25 @@ test('GF038-MC-01: opening mints one immutable obligation with exact bindings', 
   assert.equal(controller.facts().filter((fact) => fact.type === 'SCH-OBLIGATION').length, 1);
 });
 
+test('obligation facts cannot append across a hydrated ledger binding', () => {
+  const controller = obligation.createScriptedObligationController({
+    dependencies: dependencies(),
+    hydrate: {
+      nextEventOrdinal: 1,
+      ledgerBinding: { kind: 'run', run: `${run}-foreign`, generation },
+      ledgerHead: null,
+      obligations: [],
+      grants: [],
+      intents: [],
+      facts: [],
+    },
+  });
+  assert.deepEqual(controller.open(openInput()), {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'OBLIGATION_LEDGER_BINDING_MISMATCH' },
+  });
+});
+
 test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is idempotent', () => {
   const runtimeDependencies = dependencies();
   const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
