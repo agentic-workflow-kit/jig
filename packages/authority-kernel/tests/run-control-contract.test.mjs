@@ -29,7 +29,7 @@ const proof = (position, ordinal = position + 1, generation = gen(ordinal)) => (
   witnessed: true,
 });
 
-const witness = (ledger, position = 0) => {
+const witness = (ledger, position = ledger.records().length - 1) => {
   const record = ledger.records()[position];
   assert.ok(record);
   return {
@@ -52,6 +52,29 @@ const seededLedger = ({ event: seededEvent, payload, generation = gen(1), ordina
       },
     ],
   });
+
+const appendDurable = (ledger, { requestKey, event: durableEvent, payload, generation, ordinal }) => {
+  const position = ledger.records().length;
+  const transaction = txn(ordinal, generation);
+  const result = ledger.append({
+    requestKey,
+    expectedPosition: position,
+    transaction,
+    content: {
+      schema: kernel.RUN_CONTROL_EVENT_SCHEMA,
+      controller: kernel.RUN_CONTROL_CONTROLLER,
+      requestKey,
+      event: durableEvent,
+      position,
+      transaction,
+      before: null,
+      after: null,
+      payload,
+    },
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  return result.value;
+};
 
 const duty = (ordinal, kind = 'preserve-story', key = 'one') => ({
   id: `duty-${ordinal}`,
@@ -187,6 +210,33 @@ test('MC-037-01: touched frozen rule surface invalidates authority and parks bef
     }).error,
     { family: 'FC-RULES', code: 'RULE_SURFACE_TOUCH_ORIGIN_NOT_ALLOWED' },
   );
+
+  const fresh = makeController().controller;
+  const invalidTouch = {
+    requestKey: 'touch-empty-subjects',
+    eventId: event(4),
+    observedRuleSurfaceDigest: touchedRule,
+    changedSubjects: [],
+    basisDigest: basis,
+    generation: gen(1),
+    candidateDigest: candidate,
+    reapprovalDigest: null,
+  };
+  assert.deepEqual(fresh.touchRuleSurface(invalidTouch).error, {
+    family: 'FC-RULES',
+    code: 'INVALID_RULE_SURFACE_TOUCH',
+  });
+  assert.deepEqual(
+    fresh.touchRuleSurface({
+      ...invalidTouch,
+      requestKey: 'touch-foreign-subject',
+      changedSubjects: [story('foreign')],
+    }).error,
+    {
+      family: 'FC-RULES',
+      code: 'INVALID_RULE_SURFACE_TOUCH',
+    },
+  );
 });
 
 test('MC-037-02: only exact owner/current-grant suspension is accepted and fences dispatch', () => {
@@ -237,8 +287,7 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
       status: 'passed',
     },
   });
-  const { controller: successful } = makeController({ ledger });
-  assert.equal(successful.suspend(suspendInput()).ok, true);
+  const { controller: successful } = makeController({ phase: 'Suspended', ledger });
   const resumed = successful.resume({
     ...base,
     requestKey: 'resume-2',
@@ -258,8 +307,49 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(resumed.value.generation, gen(2));
   assert.equal(resumed.value.currentGrant.generation, gen(2));
 
-  const unbound = makeController().controller;
-  assert.equal(unbound.suspend(suspendInput('resume-unbound-suspend')).ok, true);
+  const staleLedger = kernel.createScriptedRunControlLedger({
+    seed: [
+      {
+        requestKey: 'seed-stale-head',
+        event: 'EV-RUN-RESUME-DECISION',
+        transaction: txn(1, gen(2)),
+        payload: {
+          kind: 'resume-integrity',
+          run,
+          basisDigest: basis,
+          oldGeneration: gen(1),
+          newGeneration: gen(2),
+          acceptedSuccessor: false,
+          status: 'passed',
+        },
+      },
+      {
+        requestKey: 'seed-current-other',
+        event: 'EV-RUN-SUSPEND-DECISION',
+        transaction: txn(2, gen(1)),
+        payload: { kind: 'other-durable-fact', run, basisDigest: basis, generation: gen(1) },
+      },
+    ],
+  });
+  const stale = makeController({ phase: 'Suspended', ledger: staleLedger }).controller;
+  const staleResume = stale.resume({
+    ...base,
+    requestKey: 'resume-stale-head',
+    integrity: {
+      schema: 'jig.resume-integrity.v1',
+      run,
+      basisDigest: basis,
+      oldGeneration: gen(1),
+      newGeneration: gen(2),
+      head: witness(staleLedger, 0),
+      acceptedSuccessor: false,
+      status: 'passed',
+    },
+  });
+  assert.equal(staleResume.ok, true, JSON.stringify(staleResume));
+  assert.equal(staleResume.value.phase, 'Parked');
+
+  const unbound = makeController({ phase: 'Suspended' }).controller;
   const unboundResume = unbound.resume({
     ...base,
     requestKey: 'resume-unbound',
@@ -306,6 +396,21 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
     true,
   );
   assert.equal(touched.suspend(suspendInput('touch-suspend-after')).ok, true);
+  appendDurable(touchedLedger, {
+    requestKey: 'durable-unapproved-head',
+    event: 'EV-RUN-RESUME-DECISION',
+    generation: gen(2),
+    ordinal: 3,
+    payload: {
+      kind: 'resume-integrity',
+      run,
+      basisDigest: basis,
+      oldGeneration: gen(1),
+      newGeneration: gen(2),
+      acceptedSuccessor: false,
+      status: 'passed',
+    },
+  });
   const unapproved = touched.resume({
     ...base,
     requestKey: 'touch-unapproved-resume',
@@ -373,6 +478,21 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
     true,
   );
   assert.equal(approved.suspend(suspendInput('approved-suspend')).ok, true);
+  appendDurable(approvedLedger, {
+    requestKey: 'durable-approved-head',
+    event: 'EV-RUN-RESUME-DECISION',
+    generation: gen(2),
+    ordinal: 3,
+    payload: {
+      kind: 'resume-integrity',
+      run,
+      basisDigest: basis,
+      oldGeneration: gen(1),
+      newGeneration: gen(2),
+      acceptedSuccessor: false,
+      status: 'passed',
+    },
+  });
   const approvedResume = approved.resume({
     ...base,
     requestKey: 'approved-resume',
@@ -384,13 +504,13 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
       basisDigest: basis,
       oldGeneration: gen(1),
       newGeneration: gen(2),
-      head: witness(approvedLedger, 1),
+      head: witness(approvedLedger),
       acceptedSuccessor: false,
       status: 'passed',
     },
   });
   assert.equal(approvedResume.ok, true, JSON.stringify(approvedResume));
-  assert.equal(approvedResume.value.phase, 'Active');
+  assert.equal(approvedResume.value.phase, 'Active', JSON.stringify(approvedResume));
 });
 
 test('MC-037-04: terminal stop has exactly two guarded origins', () => {
@@ -404,11 +524,12 @@ test('MC-037-04: terminal stop has exactly two guarded origins', () => {
       principal,
       grant,
       resumable: false,
+      remainingResumableTransitions: 0,
       confirmation: 'no-resumable-transition',
       reason: 'owner-stop',
     },
   });
-  const { controller } = makeController({ ledger });
+  const { controller } = makeController({ phase: 'Suspended', ledger });
   const common = {
     requestKey: 'stop-1',
     eventId: event(2),
@@ -423,11 +544,6 @@ test('MC-037-04: terminal stop has exactly two guarded origins', () => {
     observation: null,
     appendBasis: witness(ledger),
   };
-  assert.deepEqual(controller.terminalStop(common).error, {
-    family: 'FC-AUTHORITY',
-    code: 'TERMINAL_STOP_ORIGIN_NOT_ALLOWED',
-  });
-  assert.equal(controller.suspend(suspendInput()).ok, true);
   assert.deepEqual(
     controller.terminalStop({ ...common, requestKey: 'stop-2', eventId: event(2), resumable: true }).error,
     {
@@ -497,6 +613,27 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
   assert.deepEqual(forgedResult.error, { family: 'FC-TRUST', code: 'TRUST_APPEND_BASIS_REQUIRED' });
   assert.equal(forged.controller.snapshot().phase, 'Interrupted / Recovering');
   assert.equal(forged.controller.events().length, 0);
+
+  const genericLedger = seededLedger({
+    event: 'EV-RECOVERY-OBSERVATION',
+    payload: { kind: 'recovery-observation', run, basisDigest: basis, generation: gen(1), reason: 'witness-loss' },
+  });
+  const generic = makeController({ phase: 'Interrupted / Recovering', ledger: genericLedger });
+  const genericResult = generic.controller.terminalStop({
+    ...input,
+    requestKey: 'trust-stop-generic',
+    appendBasis: witness(genericLedger),
+    observation: {
+      kind: 'FC-TRUST',
+      run,
+      basisDigest: basis,
+      generation: gen(1),
+      reason: 'witness-loss',
+      appendBasis: witness(genericLedger),
+    },
+  });
+  assert.deepEqual(genericResult.error, { family: 'FC-TRUST', code: 'TRUST_OBSERVATION_NOT_WITNESSED' });
+  assert.equal(generic.controller.snapshot().phase, 'Interrupted / Recovering');
 });
 
 test('MC-037-06: incomplete or foreign settlement inventory is rejected before controller creation', () => {
@@ -534,6 +671,7 @@ test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-pro
       basisDigest: basis,
       generation: gen(1),
       reason: 'witness-loss',
+      trustClass: 'FC-TRUST',
     },
   });
   const { controller } = makeController({ phase: 'Interrupted / Recovering', ledger });

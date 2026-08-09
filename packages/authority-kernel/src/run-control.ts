@@ -317,7 +317,8 @@ function witnessedRecord(
         'after',
         'payload',
       ]);
-    return fields &&
+    const valid = !!(
+      fields &&
       content &&
       fields.position === value.position &&
       fields.transaction === value.transaction &&
@@ -326,8 +327,24 @@ function witnessedRecord(
       content.position === value.position &&
       content.transaction === value.transaction &&
       hash('RUN-CONTROL-EVENT', fields.content) === value.recordDigest
-      ? (fields as unknown as RunControlCommit)
-      : undefined;
+    );
+    return valid ? (fields as unknown as RunControlCommit) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function currentWitnessedRecord(
+  ledger: RunControlLedger,
+  value: WitnessedAppendBasis,
+  run: string,
+  generation: string,
+  basisDigest: string,
+): RunControlCommit | undefined {
+  try {
+    const records = ledger.records();
+    if (!Array.isArray(records) || value.position !== records.length - 1) return undefined;
+    return witnessedRecord(ledger, value, run, generation, basisDigest);
   } catch {
     return undefined;
   }
@@ -575,6 +592,8 @@ function parseControllerInput(value: unknown): RunControlResult<ControllerInput>
   const storyValues = parsedStories as StorySnapshot[];
   const fenceValues = parsedFences as FinalizationFence[];
   const dutyValues = parsedDuties as SettlementDuty[];
+  if (fenceValues.some((fence) => !storyValues.some((story) => story.story === fence.story)))
+    return fail('FC-SUBJECT', 'FINALIZATION_FENCE_STORY_UNKNOWN');
   if (
     new Set(storyValues.map((entry) => entry.story)).size !== storyValues.length ||
     new Set(fenceValues.map((entry) => entry.operation)).size !== fenceValues.length ||
@@ -704,6 +723,19 @@ export function createRunControlController(value: unknown): RunControlResult<Run
   }
   const events: RunControlCommit[] = [...initialRecords];
   const requestDigests = new Map<string, string>();
+  const syncLedger = (): RunControlResult<void> => {
+    try {
+      const records = input.ledger.records();
+      if (!Array.isArray(records) || records.length < events.length) return fail('FC-TRUST', 'LEDGER_HEAD_UNAVAILABLE');
+      for (let index = 0; index < events.length; index += 1)
+        if (records[index]?.contentDigest !== events[index]?.contentDigest)
+          return fail('FC-TRUST', 'LEDGER_PREFIX_MISMATCH');
+      events.push(...records.slice(events.length));
+      return ok(undefined);
+    } catch {
+      return fail('FC-TRUST', 'LEDGER_HEAD_UNAVAILABLE');
+    }
+  };
 
   const snapshot = (): RunControlSnapshot =>
     deepFreeze({
@@ -734,6 +766,8 @@ export function createRunControlController(value: unknown): RunControlResult<Run
     payload: CanonicalJson,
     requestPayload: CanonicalJson = payload,
   ): RunControlResult<RunControlSnapshot> => {
+    const synchronized = syncLedger();
+    if (!synchronized.ok) return synchronized;
     if (!text(requestKey)) return fail('FC-INPUT', 'REQUEST_KEY');
     const requestDigest = hash('RUN-CONTROL-REQUEST', requestPayload);
     if (!requestDigest) return fail('FC-INPUT', 'REQUEST_DIGEST');
@@ -800,9 +834,14 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         !raw ||
         !identity('ID-EVENT', raw.eventId) ||
         !digest(raw.observedRuleSurfaceDigest) ||
+        !subjects ||
+        subjects.length === 0 ||
+        new Set(subjects).size !== subjects.length ||
         !subjects?.every(
           (entry) =>
-            typeof entry === 'string' && identity('ID-STORY', entry) && entry.startsWith(`${input.run}/story/`),
+            typeof entry === 'string' &&
+            identity('ID-STORY', entry) &&
+            input.stories.some((story) => story.story === entry),
         ) ||
         raw.basisDigest !== input.basisDigest ||
         raw.generation !== generation ||
@@ -910,6 +949,8 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         !['Active', 'Parked'].includes(String(raw.targetPhase))
       )
         return fail('FC-INPUT', 'INVALID_RESUME_DECISION');
+      const synchronized = syncLedger();
+      if (!synchronized.ok) return synchronized;
       const duplicate = replay(raw.requestKey, raw);
       if (duplicate) return duplicate;
       if (phase !== 'Suspended') return fail('FC-AUTHORITY', 'RESUME_ORIGIN_NOT_ALLOWED');
@@ -927,7 +968,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       ]);
       const head = integrity && parseWitness(integrity.head);
       const headRecord =
-        head && witnessedRecord(input.ledger, head, input.run, raw.newGeneration as string, input.basisDigest);
+        head && currentWitnessedRecord(input.ledger, head, input.run, raw.newGeneration as string, input.basisDigest);
       const headPayload =
         headRecord &&
         recordPayloadFields(headRecord, [
@@ -1063,6 +1104,8 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         !text(raw.reason)
       )
         return fail('FC-INPUT', 'INVALID_TERMINAL_STOP');
+      const synchronized = syncLedger();
+      if (!synchronized.ok) return synchronized;
       const duplicate = replay(raw.requestKey, raw);
       if (duplicate) return duplicate;
       if (settlement !== null) return fail('FC-AUTHORITY', 'SETTLEMENT_ALREADY_OPEN');
@@ -1071,7 +1114,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       if (!explicit && !recovery) return fail('FC-AUTHORITY', 'TERMINAL_STOP_ORIGIN_NOT_ALLOWED');
       const appendBasis = parseWitness(raw.appendBasis);
       const basisRecord =
-        appendBasis && witnessedRecord(input.ledger, appendBasis, input.run, generation, input.basisDigest);
+        appendBasis && currentWitnessedRecord(input.ledger, appendBasis, input.run, generation, input.basisDigest);
       if (!appendBasis || !basisRecord) {
         externalFence = Object.freeze({ kind: 'FC-TRUST', reason: 'TRUST_APPEND_BASIS_REQUIRED' });
         return fail('FC-TRUST', 'TRUST_APPEND_BASIS_REQUIRED');
@@ -1090,10 +1133,12 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           'principal',
           'grant',
           'resumable',
+          'remainingResumableTransitions',
           'confirmation',
           'reason',
         ]);
         if (
+          basisRecord.event !== 'EV-RUN-TERMINAL-STOP-DECISION' ||
           decision?.kind !== 'terminal-owner-decision' ||
           decision.run !== input.run ||
           decision.basisDigest !== input.basisDigest ||
@@ -1101,6 +1146,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           decision.principal !== raw.principal ||
           decision.grant !== raw.grant ||
           decision.resumable !== false ||
+          decision.remainingResumableTransitions !== 0 ||
           decision.confirmation !== raw.confirmation ||
           decision.reason !== raw.reason
         )
@@ -1128,12 +1174,21 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           !same(observedBasis, appendBasis)
         )
           return fail('FC-TRUST', 'TRUST_OBSERVATION_REQUIRED');
-        const observed = recordPayloadFields(basisRecord, ['kind', 'run', 'basisDigest', 'generation', 'reason']);
+        const observed = recordPayloadFields(basisRecord, [
+          'kind',
+          'run',
+          'basisDigest',
+          'generation',
+          'reason',
+          'trustClass',
+        ]);
         if (
+          basisRecord.event !== 'EV-RECOVERY-OBSERVATION' ||
           observed?.kind !== 'recovery-observation' ||
           observed.run !== input.run ||
           observed.basisDigest !== input.basisDigest ||
           observed.generation !== generation ||
+          observed.trustClass !== 'FC-TRUST' ||
           observed.reason !== observation.reason
         )
           return fail('FC-TRUST', 'TRUST_OBSERVATION_NOT_WITNESSED');
