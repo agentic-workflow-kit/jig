@@ -168,6 +168,10 @@ test('manifest and native posture are exact, local, no-shell, and no-credential'
 });
 
 test('GF-022 admission is opaque and cannot be minted by caller-shaped data', () => {
+  const publicFixture = runtime.createProviderAdmissionFixture({});
+  assert.equal(runtime.readProviderAdmissionCertificateClaims(publicFixture), undefined);
+  assert.equal(runtime.readProviderAdmissionCertificateClaims(runtime.createScriptedLedger()), undefined);
+  assert.equal(runtime.readProviderAdmissionCertificateClaims({}), undefined);
   const raw = {
     kind: 'gf022-provider-admission',
     story: 'GF-022',
