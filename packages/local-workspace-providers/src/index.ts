@@ -1,6 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, platform, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseIdentity } from '@agentic-workflow-kit/jig-codec';
@@ -118,6 +127,8 @@ export type LocalGitWorktreeProbeResult = Readonly<{
   removedResources: readonly string[];
 }>;
 
+export type LocalGitWorktreeGateReceipt = Readonly<Record<never, never>>;
+
 export type LocalGitWorktreeProvider = Readonly<{
   dispatch(
     input: Readonly<{ intent: WorkspaceOperationIntent; fault?: LocalGitWorktreeFault }>,
@@ -164,6 +175,8 @@ const PROBE_OBSERVATION_KEYS = [
   'noSecrets',
   'gateDeniedWithoutAdmission',
 ] as const;
+const GATE_RECORD_FILE = '.jig-gf039-qualification-evidence.json';
+const GATE_RECEIPTS = new WeakMap<object, LocalGitWorktreeProbeEvidence>();
 
 function identity(kind: string, value: unknown): value is string {
   return typeof value === 'string' && parseIdentity(kind, value).ok;
@@ -992,37 +1005,52 @@ export function discoverLocalGitWorktreeEnvironment(resourceRoot: string): Resul
 }
 
 export function createQualifiedLocalGitWorktreeProvider(
-  input: Readonly<{ admission: unknown; evidence: unknown; environment: unknown }>,
+  input: Readonly<{ admission: unknown; environment: unknown; receipt: unknown }>,
 ): Result<LocalGitWorktreeProvider> {
   const environment = validateEnvironment(input?.environment);
   const admission = validateAdmission(input?.admission);
   if (!environment.ok) return environment;
   if (!admission.ok) return admission;
-  const evidence = validateEvidence(input?.evidence, environment.value);
-  if (!evidence.ok) return evidence;
+  if (typeof input?.receipt !== 'object' || input.receipt === null) {
+    return fail('FC-TRUST', 'QUALIFICATION_RECEIPT_REQUIRED');
+  }
+  const evidence = GATE_RECEIPTS.get(input.receipt);
+  if (!evidence) return fail('FC-TRUST', 'UNRECORDED_QUALIFICATION_EVIDENCE');
   if (
-    evidence.value.admissionProofDigest !== admission.value.proofDigest ||
-    evidence.value.admissionObservedAt !== admission.value.observedAt ||
-    evidence.value.admissionAgeMs !== admission.value.ageMs
+    evidence.admissionProofDigest !== admission.value.proofDigest ||
+    evidence.admissionObservedAt !== admission.value.observedAt ||
+    evidence.admissionAgeMs !== admission.value.ageMs
   )
     return fail('FC-AUTHORITY', 'QUALIFICATION_ADMISSION_MISMATCH');
   return ok(createMechanism(environment.value));
 }
 
-export function recordLocalGitWorktreeGateEvidence(input: unknown): Result<LocalGitWorktreeProbeEvidence> {
-  const raw = exactObject(input, ['evidence']);
-  const evidence = raw?.evidence;
-  if (!evidence || typeof evidence !== 'object') return fail('FC-INPUT', 'EVIDENCE_REQUIRED');
-  const env = exactObject((evidence as Record<string, unknown>).environment, [
-    'os',
-    'gitVersion',
-    'resourceRoot',
-    'posture',
-    'scope',
-  ]);
-  if (!env) return fail('FC-AUTHORITY', 'EVIDENCE_ENVIRONMENT_REQUIRED');
-  const result = validateEvidence(evidence, env as unknown as LocalGitWorktreeEnvironment);
-  return result;
+export function recordLocalGitWorktreeGateEvidence(input: unknown): Result<LocalGitWorktreeGateReceipt> {
+  const raw = exactObject(input, ['resourceRoot']);
+  if (typeof raw?.resourceRoot !== 'string') return fail('FC-INPUT', 'RESOURCE_ROOT_REQUIRED');
+  const root = trustedRoot(raw.resourceRoot);
+  if (!root.ok || !disposableRoot(root.value)) return fail('FC-AUTHORITY', 'RESOURCE_SCOPE_MISMATCH');
+  try {
+    const recordPath = join(root.value, GATE_RECORD_FILE);
+    if (!existsSync(recordPath) || lstatSync(recordPath).isSymbolicLink())
+      return fail('FC-TRUST', 'QUALIFICATION_RECORD_UNAVAILABLE');
+    const evidence = JSON.parse(readFileSync(recordPath, 'utf8')) as unknown;
+    const env = exactObject((evidence as Record<string, unknown>)?.environment, [
+      'os',
+      'gitVersion',
+      'resourceRoot',
+      'posture',
+      'scope',
+    ]);
+    if (!env || env.resourceRoot !== root.value) return fail('FC-AUTHORITY', 'EVIDENCE_ENVIRONMENT_REQUIRED');
+    const result = validateEvidence(evidence, env as unknown as LocalGitWorktreeEnvironment);
+    if (!result.ok) return result;
+    const receipt = Object.freeze({});
+    GATE_RECEIPTS.set(receipt, result.value);
+    return ok(receipt);
+  } catch {
+    return fail('FC-TRUST', 'QUALIFICATION_RECORD_UNAVAILABLE');
+  }
 }
 
 function fixtureIntent(binding: WorkspaceBinding): WorkspaceOperationIntent {
@@ -1191,8 +1219,8 @@ export function runLocalGitWorktreeQualificationProbe(
     noSecrets: !SECRET_VALUE.test(MANIFEST_TEXT),
     gateDeniedWithoutAdmission: !createQualifiedLocalGitWorktreeProvider({
       admission: undefined,
-      evidence: undefined,
       environment: environment.value,
+      receipt: undefined,
     }).ok,
   });
   const passed = Object.values(observations).every(Boolean);
@@ -1240,6 +1268,14 @@ export function runLocalGitWorktreeQualificationProbe(
     recordedAt: Date.now(),
     recorder: 'recorder/jig-gf039-real-local/v1',
   });
+  if (passed) {
+    try {
+      writeFileSync(join(root, GATE_RECORD_FILE), JSON.stringify(evidence));
+    } catch {
+      if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
+      return fail('FC-TRUST', 'QUALIFICATION_RECORD_FAILED');
+    }
+  }
   const result = passed
     ? ok(
         Object.freeze({ evidence, observations, resourceRoot: root, removedResources: input.retainRoot ? [] : [root] }),

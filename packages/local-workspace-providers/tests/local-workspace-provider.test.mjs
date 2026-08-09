@@ -8,7 +8,6 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('../../runtime-contracts/dist/index.js');
-const repeatDigest = (character) => character.repeat(64);
 const canonical = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -111,57 +110,61 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
   });
   assert.equal(probe.ok, true);
   const environment = probe.value.evidence.environment;
-  assert.deepEqual(provider.createQualifiedLocalGitWorktreeProvider({ evidence: probe.value.evidence, environment }), {
+  assert.deepEqual(provider.createQualifiedLocalGitWorktreeProvider({ receipt: undefined, environment }), {
     ok: false,
     error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' },
   });
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission(),
-      evidence: { ...probe.value.evidence, providerBuildDigest: repeatDigest('b') },
       environment,
+      receipt: undefined,
     }).ok,
     false,
   );
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission(),
-      evidence: probe.value.evidence,
       environment: { ...environment, os: 'win32' },
+      receipt: undefined,
     }).ok,
     false,
-  );
-  assert.deepEqual(
-    provider.createQualifiedLocalGitWorktreeProvider({
-      admission: admission(),
-      evidence: probe.value.evidence,
-      environment,
-    }).ok,
-    true,
   );
   const persisted = structuredClone(probe.value.evidence);
-  assert.equal(provider.recordLocalGitWorktreeGateEvidence({ evidence: persisted }).ok, true);
+  const recorded = provider.recordLocalGitWorktreeGateEvidence({ resourceRoot: probe.value.resourceRoot });
+  assert.equal(recorded.ok, true);
+  const receipt = recorded.ok ? recorded.value : undefined;
+  const restarted = provider.recordLocalGitWorktreeGateEvidence({ resourceRoot: probe.value.resourceRoot });
+  assert.equal(restarted.ok, true);
   assert.equal(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission(),
-      evidence: persisted,
       environment,
+      receipt,
     }).ok,
     true,
   );
   assert.equal(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission(),
-      evidence: { ...persisted, resultDigest: repeatDigest('f') },
       environment,
+      receipt: restarted.ok ? restarted.value : undefined,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      environment,
+      receipt: persisted,
     }).ok,
     false,
   );
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission({ startObservedAt: 1001, proofObservedAt: 1101, observedAt: 1201 }),
-      evidence: probe.value.evidence,
       environment,
+      receipt,
     }),
     {
       ok: false,
@@ -177,7 +180,7 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
 test('GF-039 evidence recorder and cleanup reject forged or unsafe resources', () => {
   assert.deepEqual(provider.recordLocalGitWorktreeGateEvidence(undefined), {
     ok: false,
-    error: { family: 'FC-INPUT', code: 'EVIDENCE_REQUIRED' },
+    error: { family: 'FC-INPUT', code: 'RESOURCE_ROOT_REQUIRED' },
   });
   assert.equal(provider.cleanupLocalGitWorktreeProbe('/').ok, false);
   assert.equal(provider.cleanupLocalGitWorktreeProbe('/Users').ok, false);
@@ -209,10 +212,12 @@ test('GF-039 fresh setup receipts cannot read an external repository outside the
   });
   assert.equal(probe.ok, true);
   const environment = probe.value.evidence.environment;
+  const receiptResult = provider.recordLocalGitWorktreeGateEvidence({ resourceRoot: probe.value.resourceRoot });
+  assert.equal(receiptResult.ok, true);
   const qualified = provider.createQualifiedLocalGitWorktreeProvider({
     admission: admission(),
-    evidence: probe.value.evidence,
     environment,
+    receipt: receiptResult.ok ? receiptResult.value : undefined,
   });
   assert.equal(qualified.ok, true);
   const externalRoot = realpathSync(mkdtempSync(join(tmpdir(), 'jig-gf039-external-')));
