@@ -11,6 +11,31 @@ const targetBasisDigest = d('c');
 const manifestDigest = d('d');
 const deliveryDigest = d('f');
 const ruleSurfaceDigest = d('1');
+const manifestFor = (manifestDigest) => ({
+  configurationDigest: d('0'),
+  schemaVersion: 'evidence/v1',
+  policy: {},
+  subjectKind: 'fixture',
+  subjectIdentity: 'fixture/subject',
+  subject: 'fixture/subject',
+  claim: 'fixture claim',
+  producer: {},
+  providerManifest: null,
+  contentType: 'text/plain',
+  contentClass: 'completeness-critical',
+  completeness: 'complete',
+  originalDigest: d('2'),
+  artifactDigest: d('3'),
+  originalSize: 1,
+  retainedSize: 1,
+  loss: null,
+  redaction: { policyVersion: 'redaction/v1', status: 'none' },
+  retention: {},
+  manifestDigest,
+  disposition: 'admitted',
+  artifactFact: {},
+  adoptionTransition: 'transition/1',
+});
 const candidate = Object.freeze({
   schema: 'jig.sch-candidate.v1',
   id: `${story}/cand/1|${candidateDigest}`,
@@ -87,6 +112,7 @@ const publicationSubject = {
 const observation = runtime.createExplicitAbsenceObservation({ mode: 'no-venue', subject: publicationSubject }).value;
 const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+  manifest: manifestFor(manifestDigest),
   manifestDigest,
   candidate: candidate.id,
   candidateContentDigest: candidateDigest,
@@ -97,6 +123,7 @@ const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
 assert.equal(evidenceDigest.ok, true);
 const evidence = {
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+  manifest: manifestFor(manifestDigest),
   manifestDigest,
   candidate: candidate.id,
   candidateContentDigest: candidateDigest,
@@ -119,6 +146,7 @@ const observation2 = runtime.createExplicitAbsenceObservation({
 }).value;
 const evidence2Digest = runtime.deriveAcceptanceEvidenceDigest({
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+  manifest: manifestFor(candidate2.evidenceManifestDigest),
   manifestDigest: candidate2.evidenceManifestDigest,
   candidate: candidate2.id,
   candidateContentDigest: candidate2Digest,
@@ -128,6 +156,7 @@ const evidence2Digest = runtime.deriveAcceptanceEvidenceDigest({
 });
 const evidence2 = {
   ...evidence,
+  manifest: manifestFor(candidate2.evidenceManifestDigest),
   manifestDigest: candidate2.evidenceManifestDigest,
   candidate: candidate2.id,
   candidateContentDigest: candidate2Digest,
@@ -227,6 +256,18 @@ test('MC-040-05/08: blocking findings require explicit resolution and changes-re
   assert.equal(changed.ok, true);
   assert.equal(changed.value.projection.state, 'Reworking');
   assert.equal(controller.projection().reworkCount, 1);
+  assert.equal(
+    controller.assemble({
+      candidate,
+      requirements,
+      evidence,
+      publicationObservation: observation,
+      policy,
+      findings: [],
+      contributorPrincipals: [],
+    }).ok,
+    false,
+  );
 });
 
 test('MC-040-05/08: a fresh Candidate carries finding lineage and requires explicit resolution', () => {
@@ -320,6 +361,31 @@ test('MC-040-07/09: explicit posture, evidence, and rule invalidation fail close
   }).value;
   assert.deepEqual(controller.invalidate({ packageDigest: packageValue.digest, reason: 'rule-surface' }).ok, true);
   assert.equal(controller.projection().state, 'Reviewing');
+  assert.equal(
+    controller.rejectStory({
+      decision: {
+        event: 'EV-OWNER-DECISION',
+        story,
+        principal: 'principal/not-owner',
+        decision: 'reject-story',
+        proofDigest: d('a'),
+      },
+    }).ok,
+    false,
+  );
+  assert.equal(
+    controller.rejectStory({
+      decision: {
+        event: 'EV-OWNER-DECISION',
+        story,
+        principal: runtime.ACCEPTANCE_OWNER,
+        decision: 'reject-story',
+        proofDigest: runtime.OWNER_DECISION_PROOF_DIGEST,
+      },
+    }).ok,
+    true,
+  );
+  assert.equal(controller.projection().state, 'Rejected');
 });
 
 test('MC-040-10: append-before-transition recovery reconciles a lost acknowledgement', () => {

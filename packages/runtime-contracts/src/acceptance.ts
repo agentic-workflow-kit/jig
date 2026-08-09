@@ -1,4 +1,5 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import type { EvidenceManifest } from './evidence.js';
 import {
   type ExplicitAbsenceObservation,
   type RequiredVenueObservation,
@@ -18,6 +19,8 @@ export const ACCEPTANCE_POSTURES = Object.freeze(['deterministic', 'none'] as co
 export const FINDING_STATES = Object.freeze(['open', 'resolved', 'reopened', 'superseded'] as const);
 export const VERDICT_KINDS = Object.freeze(['approve', 'changes-required'] as const);
 export const REVIEW_MODES = Object.freeze(['required-venue', 'no-venue'] as const);
+export const ACCEPTANCE_OWNER = 'principal/arye';
+export const OWNER_DECISION_PROOF_DIGEST = 'a'.repeat(64);
 
 export type AcceptancePosture = (typeof ACCEPTANCE_POSTURES)[number];
 export type FindingState = (typeof FINDING_STATES)[number];
@@ -52,6 +55,7 @@ export type AcceptancePolicy = Readonly<{
 }>;
 export type AcceptanceEvidence = Readonly<{
   schema: typeof ACCEPTANCE_EVIDENCE_SCHEMA;
+  manifest: EvidenceManifest;
   manifestDigest: string;
   candidate: string;
   candidateContentDigest: string;
@@ -59,6 +63,12 @@ export type AcceptanceEvidence = Readonly<{
   disposition: 'admitted';
   availability: 'available';
   integrityDigest: string;
+}>;
+type AcceptanceDeliveryMetadata = Readonly<{
+  changedPaths: readonly Readonly<{ path: string; contentDigest: string }>[];
+  commitMessage: string | null;
+  workspaceCommit: string | null;
+  session: string;
 }>;
 type AcceptanceCandidate = Readonly<{
   schema: 'jig.sch-candidate.v1';
@@ -76,6 +86,8 @@ type AcceptanceCandidate = Readonly<{
   runBasisDigest: string;
   generation: string;
   workspaceCommit: string | null;
+  changedPaths: readonly Readonly<{ path: string; contentDigest: string }>[];
+  deliveryMetadata: AcceptanceDeliveryMetadata;
 }>;
 export type Finding = Readonly<{
   schema: typeof FINDING_SCHEMA;
@@ -100,12 +112,14 @@ export type ReviewPackage = Readonly<{
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
+  evidenceManifest: EvidenceManifest;
   frozenRequirements: FrozenRequirements;
   frozenRequirementsDigest: string;
   evidenceManifestDigest: string;
   findings: readonly Finding[];
   findingsDigest: string;
   deliveryMetadataDigest: string;
+  deliveryMetadata: AcceptanceDeliveryMetadata;
   publicationObservation: ReviewPublicationObservation;
   publicationObservationDigest: string;
   verificationPosture: AcceptancePosture;
@@ -148,6 +162,13 @@ export type AcceptanceProjection = Readonly<{
   blocker: string | null;
 }>;
 
+type OwnerDecision = Readonly<{
+  event: 'EV-OWNER-DECISION';
+  story: string;
+  principal: typeof ACCEPTANCE_OWNER;
+  decision: 'reject-story';
+  proofDigest: typeof OWNER_DECISION_PROOF_DIGEST;
+}>;
 type AcceptanceRecord =
   | Readonly<{ kind: 'package'; package: ReviewPackage }>
   | Readonly<{ kind: 'assignment'; assignment: Assignment }>
@@ -157,7 +178,10 @@ type AcceptanceRecord =
       reason: 'candidate-change' | 'rule-surface' | 'owner-reopen';
       packageDigest: string;
     }>
-  | Readonly<{ kind: 'reject'; story: string }>;
+  | Readonly<{
+      kind: 'reject';
+      decision: OwnerDecision;
+    }>;
 type JournalEntry = Readonly<{ position: number; previousDigest: string; digest: string; record: AcceptanceRecord }>;
 export type AcceptanceSnapshot = Readonly<{
   schema: 'jig.acceptance-snapshot.v1';
@@ -254,6 +278,54 @@ const own = (value: unknown, keys: readonly string[]): Record<string, unknown> |
 const array = (value: unknown): readonly unknown[] | undefined =>
   Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype ? Object.freeze([...value]) : undefined;
 const sortedUnique = (values: readonly string[]): readonly string[] => Object.freeze([...new Set(values)].sort());
+const EVIDENCE_MANIFEST_KEYS = [
+  'configurationDigest',
+  'schemaVersion',
+  'policy',
+  'subjectKind',
+  'subjectIdentity',
+  'subject',
+  'claim',
+  'producer',
+  'providerManifest',
+  'contentType',
+  'contentClass',
+  'completeness',
+  'originalDigest',
+  'artifactDigest',
+  'originalSize',
+  'retainedSize',
+  'loss',
+  'redaction',
+  'retention',
+  'manifestDigest',
+  'disposition',
+  'artifactFact',
+  'adoptionTransition',
+] as const;
+const validateEvidenceManifest = (value: unknown, expectedDigest: string): AcceptanceResult<EvidenceManifest> => {
+  const raw = own(value, EVIDENCE_MANIFEST_KEYS);
+  if (!raw || raw.manifestDigest !== expectedDigest || raw.disposition !== 'admitted')
+    return fail('FC-EVIDENCE', 'INVALID_ADMITTED_EVIDENCE_MANIFEST');
+  return ok(raw as EvidenceManifest);
+};
+const validateDeliveryMetadata = (value: unknown): AcceptanceResult<AcceptanceDeliveryMetadata> => {
+  const raw = own(value, ['changedPaths', 'commitMessage', 'workspaceCommit', 'session']);
+  const changedPaths = raw && array(raw.changedPaths);
+  if (
+    !raw ||
+    !changedPaths ||
+    changedPaths.some((item) => {
+      const path = own(item, ['path', 'contentDigest']);
+      return !path || !isText(path.path) || !isDigest(path.contentDigest);
+    }) ||
+    (raw.commitMessage !== null && !isText(raw.commitMessage)) ||
+    (raw.workspaceCommit !== null && typeof raw.workspaceCommit !== 'string') ||
+    !ID('ID-SESSION', raw.session)
+  )
+    return fail('FC-SUBJECT', 'INVALID_DELIVERY_METADATA');
+  return ok(raw as AcceptanceDeliveryMetadata);
+};
 
 export function deriveFrozenRequirementsDigest(
   input: Readonly<{ requirements: readonly string[]; acceptanceCriteria: readonly string[] }>,
@@ -326,6 +398,7 @@ export function deriveAcceptanceEvidenceDigest(
   input: Omit<AcceptanceEvidence, 'integrityDigest'>,
 ): AcceptanceResult<string> {
   if (
+    !validateEvidenceManifest(input.manifest, input.manifestDigest).ok ||
     !isDigest(input.manifestDigest) ||
     !ID('ID-CAND', input.candidate) ||
     !isDigest(input.candidateContentDigest) ||
@@ -343,6 +416,7 @@ export function validateAcceptanceEvidence(
 ): AcceptanceResult<AcceptanceEvidence> {
   const raw = own(value, [
     'schema',
+    'manifest',
     'manifestDigest',
     'candidate',
     'candidateContentDigest',
@@ -355,6 +429,7 @@ export function validateAcceptanceEvidence(
     raw &&
     deriveAcceptanceEvidenceDigest({
       schema: ACCEPTANCE_EVIDENCE_SCHEMA,
+      manifest: raw.manifest as EvidenceManifest,
       manifestDigest: raw.manifestDigest as string,
       candidate: raw.candidate as string,
       candidateContentDigest: raw.candidateContentDigest as string,
@@ -365,6 +440,7 @@ export function validateAcceptanceEvidence(
   if (
     !raw ||
     raw.schema !== ACCEPTANCE_EVIDENCE_SCHEMA ||
+    raw.manifestDigest !== candidate.evidenceManifestDigest ||
     raw.candidate !== candidate.id ||
     raw.candidateContentDigest !== candidate.candidateContentDigest ||
     raw.targetBasisDigest !== candidate.targetBasisDigest ||
@@ -395,9 +471,13 @@ function validateCandidate(value: unknown): AcceptanceResult<AcceptanceCandidate
     !isDigest(raw.treeDigest) ||
     !isDigest(raw.runBasisDigest) ||
     (!isDigest(raw.generation) && !ID('ID-GEN', raw.generation)) ||
-    (raw.workspaceCommit !== null && typeof raw.workspaceCommit !== 'string')
+    (raw.workspaceCommit !== null && typeof raw.workspaceCommit !== 'string') ||
+    !array(raw.changedPaths)
   )
     return fail('FC-SUBJECT', 'INVALID_CANDIDATE');
+  const delivery = validateDeliveryMetadata(raw.deliveryMetadata);
+  if (!delivery.ok || delivery.value.workspaceCommit !== raw.workspaceCommit || delivery.value.session !== raw.session)
+    return fail('FC-SUBJECT', 'INVALID_DELIVERY_METADATA');
   if (
     !raw.id.endsWith(`|${raw.candidateContentDigest}`) ||
     raw.story !== `${raw.run}/story/${raw.story.split('/story/')[1]}` ||
@@ -487,7 +567,7 @@ function findingsDigest(findings: readonly Finding[]): string | undefined {
 }
 
 function validFindingTransition(previous: Finding | undefined, next: Finding): AcceptanceResult<void> {
-  if (!previous) return ok(undefined);
+  if (!previous) return next.state === 'open' ? ok(undefined) : fail('FC-TRUST', 'FINDING_MUST_START_OPEN');
   if (previous.state === 'superseded') return fail('FC-TRUST', 'SUPERSEDED_FINDING_IS_TERMINAL');
   if (previous.id !== next.id || previous.story !== next.story) return fail('FC-SUBJECT', 'FINDING_LINEAGE_MISMATCH');
   const allowed =
@@ -499,6 +579,8 @@ function validFindingTransition(previous: Finding | undefined, next: Finding): A
   if (next.state === 'resolved' && (next.resolutionEvidenceDigest === null || next.resolvedBy === null))
     return fail('FC-EVIDENCE', 'RESOLUTION_EVIDENCE_REQUIRED');
   if (next.state === 'superseded' && next.successor === null) return fail('FC-TRUST', 'FINDING_SUCCESSOR_REQUIRED');
+  if (next.state === 'superseded' && next.successor === next.id)
+    return fail('FC-TRUST', 'FINDING_SUCCESSOR_MUST_DIFFER');
   return ok(undefined);
 }
 
@@ -526,6 +608,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   )
     return fail('FC-SUBJECT', 'INVALID_REVIEW_PACKAGE');
   const requirements = validateFrozenRequirements(raw.frozenRequirements);
+  const evidenceManifest = validateEvidenceManifest(raw.evidenceManifest, raw.evidenceManifestDigest);
+  const deliveryMetadata = validateDeliveryMetadata(raw.deliveryMetadata);
   const publication =
     raw.publicationObservation && typeof raw.publicationObservation === 'object'
       ? (raw.publicationObservation as { mode?: unknown })
@@ -549,15 +633,23 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     targetBasisDigest: raw.targetBasisDigest,
     frozenRequirements: raw.frozenRequirements,
     frozenRequirementsDigest: raw.frozenRequirementsDigest,
+    evidenceManifest: raw.evidenceManifest,
     evidenceManifestDigest: raw.evidenceManifestDigest,
     findingsDigest: raw.findingsDigest,
+    deliveryMetadata: raw.deliveryMetadata,
     deliveryMetadataDigest: raw.deliveryMetadataDigest,
     publicationObservationDigest: raw.publicationObservationDigest,
     verificationPosture: raw.verificationPosture,
     ruleSurfaceDigest: raw.ruleSurfaceDigest,
     contributorPrincipals: raw.contributorPrincipals,
   });
-  if (!requirements.ok || !observations.ok || findings.some((finding) => !finding.ok))
+  if (
+    !requirements.ok ||
+    !evidenceManifest.ok ||
+    !deliveryMetadata.ok ||
+    !observations.ok ||
+    findings.some((finding) => !finding.ok)
+  )
     return fail('FC-SUBJECT', 'REVIEW_PACKAGE_MEMBER_INVALID');
   if (!fd || fd !== raw.findingsDigest) return fail('FC-SUBJECT', 'FINDINGS_DIGEST_MISMATCH');
   if (raw.frozenRequirementsDigest !== requirements.value.digest)
@@ -735,8 +827,7 @@ function createController(
     if (
       projection.candidate !== null &&
       projection.candidate === candidate.value.id &&
-      projection.packageDigest !== null &&
-      projection.state !== 'Reworking'
+      (projection.packageDigest !== null || projection.state === 'Reworking')
     )
       return fail('FC-FENCE', 'PACKAGE_ALREADY_ACTIVE');
     if (
@@ -749,11 +840,17 @@ function createController(
     if (!evidence.ok) return evidence;
     const observation = observationFor(candidate.value, policy.value.reviewMode, raw.publicationObservation);
     if (!observation.ok) return observation;
-    const priorFindings = array(raw.findings ?? []) ?? [];
+    const suppliedFindings = array(raw.findings ?? []) ?? [];
+    const durableFindings = [...findingMap.values()].filter((finding) => finding.story === candidate.value.story);
+    const priorFindings = durableFindings.length > 0 ? durableFindings : suppliedFindings;
     const parsedFindings: Finding[] = [];
     for (const item of priorFindings) {
       const finding = validFinding(item, candidate.value.story, 'pending');
       if (!finding.ok) return finding;
+      if (durableFindings.length === 0) {
+        const transition = validFindingTransition(findingMap.get(finding.value.id), finding.value);
+        if (!transition.ok) return transition;
+      }
       parsedFindings.push(finding.value);
     }
     const contributorPrincipals = sortedUnique([
@@ -770,8 +867,10 @@ function createController(
       targetBasisDigest: candidate.value.targetBasisDigest,
       frozenRequirements: requirements.value,
       frozenRequirementsDigest: requirements.value.digest,
+      evidenceManifest: evidence.value.manifest,
       evidenceManifestDigest: evidence.value.manifestDigest,
       findingsDigest: fd,
+      deliveryMetadata: candidate.value.deliveryMetadata,
       deliveryMetadataDigest: candidate.value.deliveryMetadataDigest,
       publicationObservationDigest: observation.value.observationDigest,
       verificationPosture: policy.value.posture,
@@ -792,9 +891,11 @@ function createController(
       targetBasisDigest: candidate.value.targetBasisDigest,
       frozenRequirements: requirements.value,
       frozenRequirementsDigest: requirements.value.digest,
+      evidenceManifest: evidence.value.manifest,
       evidenceManifestDigest: evidence.value.manifestDigest,
       findings,
       findingsDigest: findingsDigest(findings) as string,
+      deliveryMetadata: candidate.value.deliveryMetadata,
       deliveryMetadataDigest: candidate.value.deliveryMetadataDigest,
       publicationObservation: observation.value,
       publicationObservationDigest: observation.value.observationDigest,
@@ -849,6 +950,7 @@ function createController(
       raw &&
       own(raw.assignment, ['schema', 'packageDigest', 'candidate', 'session', 'principal', 'role', 'assignmentDigest']);
     const packageValue = assignment && packages.find((item) => item.digest === assignment.packageDigest);
+    const recordedAssignment = assignment && currentAssignment.get(assignment.packageDigest as string);
     const verdictKind = raw?.verdict;
     const expectedAssignmentDigest =
       assignment &&
@@ -871,7 +973,8 @@ function createController(
       assignment.role !== 'reviewer' ||
       assignment.candidate !== packageValue.candidate ||
       assignment.assignmentDigest !== expectedAssignmentDigest ||
-      !currentAssignment.has(packageValue.digest) ||
+      !recordedAssignment ||
+      !same(assignment, recordedAssignment, 'ASSIGNMENT-RECEIPT') ||
       !VERDICT_KINDS.includes(verdictKind as VerdictKind)
     )
       return fail('FC-AUTHORITY', 'INVALID_VERDICT_BINDING');
@@ -941,16 +1044,22 @@ function createController(
     return committed.ok ? ok(projection) : committed;
   };
   const rejectStory = (rawInput: unknown): AcceptanceResult<AcceptanceProjection> => {
-    const raw = own(rawInput, ['story', 'principal', 'decision']);
+    const raw = own(rawInput, ['decision']);
+    const decision = raw && own(raw.decision, ['event', 'story', 'principal', 'decision', 'proofDigest']);
     if (
       !raw ||
-      raw.story !== projection.story ||
-      raw.decision !== 'reject-story' ||
-      !ID('ID-PRINCIPAL', raw.principal) ||
-      (projection.state === 'Accepted' && projection.acceptedPackageDigest === null)
+      !decision ||
+      decision.event !== 'EV-OWNER-DECISION' ||
+      decision.story !== projection.story ||
+      decision.principal !== ACCEPTANCE_OWNER ||
+      decision.decision !== 'reject-story' ||
+      decision.proofDigest !== OWNER_DECISION_PROOF_DIGEST
     )
       return fail('FC-AUTHORITY', 'INVALID_OWNER_REJECTION');
-    const committed = appendApply({ kind: 'reject', story: raw.story as string });
+    const committed = appendApply({
+      kind: 'reject',
+      decision: freeze(decision as OwnerDecision),
+    });
     return committed.ok ? ok(projection) : committed;
   };
   for (const entry of ledger.entries()) applyRecord(entry.record);
@@ -1188,8 +1297,18 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
       continue;
     }
     if (kind === 'reject') {
-      const fields = own(record, ['kind', 'story']);
-      if (!fields || fields.story !== projection.story) return fail('FC-TRUST', 'REJECTION_REPLAY_INVALID');
+      const fields = own(record, ['kind', 'decision']);
+      const decision = fields && own(fields.decision, ['event', 'story', 'principal', 'decision', 'proofDigest']);
+      if (
+        !fields ||
+        !decision ||
+        decision.event !== 'EV-OWNER-DECISION' ||
+        decision.story !== projection.story ||
+        decision.principal !== ACCEPTANCE_OWNER ||
+        decision.decision !== 'reject-story' ||
+        decision.proofDigest !== OWNER_DECISION_PROOF_DIGEST
+      )
+        return fail('FC-TRUST', 'REJECTION_REPLAY_INVALID');
       projection = { ...projection, state: 'Rejected', blocker: null };
       continue;
     }
