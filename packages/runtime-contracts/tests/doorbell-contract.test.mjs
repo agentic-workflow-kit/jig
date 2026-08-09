@@ -338,6 +338,49 @@ test('nested hostile snapshot accessors fail closed before any dereference', () 
   assert.equal(accessed, false);
 });
 
+test('hostile later status and exhaustion fact accessors fail closed without invocation', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const request = controller.escalate(requestInput());
+  const grant = controller.issueGrant(grantInput(request.value));
+  assert.equal(grant.ok, true);
+  assert.equal(
+    controller.revokeGrant({
+      grant: grant.value.id,
+      revoker: 'principal/arye',
+      revokerProof: digest('a'),
+      reason: 'hostile-fact-test',
+      observedAt: deadline,
+    }).ok,
+    true,
+  );
+  assert.equal(controller.expire({ request: request.value.id, observedAt: deadline }).ok, true);
+  const snapshot = structuredClone(controller.snapshot());
+  let statusAccessed = false;
+  let exhaustionAccessed = false;
+  const statusFact = snapshot.facts.find((fact) => fact.type === 'EV-DELEGATION-REVOKED');
+  const exhaustionFact = snapshot.facts.find((fact) => fact.type === 'EV-BOUND-EXHAUSTED');
+  Object.defineProperty(statusFact, 'grant', {
+    get() {
+      statusAccessed = true;
+      throw new Error('status getter');
+    },
+    enumerable: true,
+  });
+  Object.defineProperty(exhaustionFact, 'grant', {
+    get() {
+      exhaustionAccessed = true;
+      throw new Error('exhaustion getter');
+    },
+    enumerable: true,
+  });
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(snapshot).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_DOORBELL_SNAPSHOT',
+  });
+  assert.equal(statusAccessed, false);
+  assert.equal(exhaustionAccessed, false);
+});
+
 test('equal and backdated grant status timestamps preserve committed event order', () => {
   const equal = runtime.createScriptedDoorbellController();
   const equalRequest = equal.escalate(requestInput());

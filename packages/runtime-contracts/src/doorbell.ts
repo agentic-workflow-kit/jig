@@ -880,6 +880,7 @@ export function createScriptedDoorbellController(
       observationDigest: null,
     }) as ResponseIntent;
     responseIntents = new Map(responseIntents).set(event, intent);
+    const responseGrant = decision.grant === null ? undefined : grants.get(decision.grant);
     appendFact({
       event,
       type: intent.type,
@@ -888,11 +889,7 @@ export function createScriptedDoorbellController(
       grant: decision.grant,
       operation: intent.operation,
       binding: intent.binding,
-      grantBinding: decision.grant
-        ? grants.get(decision.grant)
-          ? grantBinding(grants.get(decision.grant)!, 'active')
-          : null
-        : null,
+      grantBinding: responseGrant ? grantBinding(responseGrant, 'active') : null,
       observedAt: null,
     });
     return ok(intent);
@@ -1228,6 +1225,19 @@ function normalizeSnapshotFact(value: unknown): DoorbellFact | undefined {
   return deepFreeze({ ...raw, binding, grantBinding: grantBindingValue }) as unknown as DoorbellFact;
 }
 
+function normalizeSnapshotArray<T>(
+  value: unknown,
+  normalize: (entry: unknown) => T | undefined,
+): readonly T[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  try {
+    const normalized = value.map(normalize);
+    return normalized.every((entry): entry is T => entry !== undefined) ? normalized : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function restoreScriptedDoorbellController(value: unknown): DoorbellResult<DoorbellController> {
   const raw = fields(value, [
     'schema',
@@ -1250,11 +1260,12 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
     !Array.isArray(raw.facts)
   )
     return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
-  const requests = raw.requests as EscalationRequest[];
-  const grants = raw.grants as DelegationGrant[];
-  const decisions = raw.decisions as DecisionRecord[];
-  const intents = raw.responseIntents as ResponseIntent[];
-  const facts = raw.facts as DoorbellFact[];
+  const requests = normalizeSnapshotArray(raw.requests, normalizeSnapshotRequest);
+  const grants = normalizeSnapshotArray(raw.grants, normalizeSnapshotGrant);
+  const decisions = normalizeSnapshotArray(raw.decisions, normalizeSnapshotDecision);
+  const intents = normalizeSnapshotArray(raw.responseIntents, normalizeSnapshotIntent);
+  const facts = normalizeSnapshotArray(raw.facts, normalizeSnapshotFact);
+  if (!requests || !grants || !decisions || !intents || !facts) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
   const requestMap = new Map<string, EscalationRequest>();
   const grantMap = new Map<string, DelegationGrant>();
   const decisionMap = new Map<string, DecisionRecord>();
@@ -1278,8 +1289,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
   };
   const eventOwnedBy = (event: unknown, run: string): boolean =>
     typeof event === 'string' && event.startsWith(`${run}/event/`);
-  for (const requestEntry of requests) {
-    const request = normalizeSnapshotRequest(requestEntry);
+  for (const request of requests) {
     const binding = request?.binding;
     if (
       !request ||
@@ -1321,8 +1331,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     requestMap.set(request.id, deepFreeze(request));
   }
-  for (const grantEntry of grants) {
-    const grant = normalizeSnapshotGrant(grantEntry);
+  for (const grant of grants) {
     const binding = grant?.binding;
     if (
       !grant ||
@@ -1370,8 +1379,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     grantMap.set(grant.id, deepFreeze(grant));
   }
-  for (const decisionEntry of decisions) {
-    const decision = normalizeSnapshotDecision(decisionEntry);
+  for (const decision of decisions) {
     const binding = decision?.binding;
     if (
       !decision ||
@@ -1403,8 +1411,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     decisionMap.set(decision.event, deepFreeze(decision));
   }
-  for (const intentEntry of intents) {
-    const intent = normalizeSnapshotIntent(intentEntry);
+  for (const intent of intents) {
     const binding = intent?.binding;
     if (
       !intent ||
@@ -1536,8 +1543,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       .at(-1);
     return statusFact ? (statusFact.type === 'EV-DELEGATION-REVOKED' ? 'revoked' : 'expired') : 'active';
   };
-  for (const factEntry of facts) {
-    const fact = normalizeSnapshotFact(factEntry);
+  for (const fact of facts) {
     const binding = fact?.binding;
     if (
       !fact ||
@@ -1734,5 +1740,14 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
     return ordinals.size === runMax && [...Array(runMax)].every((_, index) => ordinals.has(index + 1));
   });
   if (raw.nextEventOrdinal <= maxOrdinal || !contiguousPerRun) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
-  return ok(createScriptedDoorbellController({ hydrate: deepFreeze(raw as unknown as DoorbellSnapshot) } as never));
+  const canonicalSnapshot = deepFreeze({
+    schema: raw.schema,
+    nextEventOrdinal: raw.nextEventOrdinal,
+    requests: [...requests],
+    grants: [...grants],
+    decisions: [...decisions],
+    responseIntents: [...intents],
+    facts: [...facts],
+  }) as unknown as DoorbellSnapshot;
+  return ok(createScriptedDoorbellController({ hydrate: canonicalSnapshot } as never));
 }
