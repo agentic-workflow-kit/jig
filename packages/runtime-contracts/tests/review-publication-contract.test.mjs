@@ -123,6 +123,16 @@ const preservation = () => ({
   venueDigest: venueDigest(),
   evidenceDigest: digest('b'),
 });
+const createController = (fixture) =>
+  runtime.createReviewPublicationController({
+    fixture,
+    transition: runtime.createReviewPublicationTransitionRecorder({
+      verify: () => ({ ok: true, value: undefined }),
+    }),
+    preservationVerifier: {
+      verify: () => ({ ok: true, value: undefined }),
+    },
+  });
 
 test('GF-041 closes the typed D15 carrier and excludes target authority', () => {
   const valid = runtime.validateReviewPublicationBinding(binding(1, 'OPC-REV-PUBLISH'));
@@ -151,7 +161,7 @@ test('review status and comment are effectful operations on both shared seams', 
 
 test('no-venue mode records canonical explicit absence and dispatches nothing', () => {
   const fixture = runtime.createScriptedReviewPublicationFixture();
-  const controller = runtime.createReviewPublicationController({ fixture });
+  const controller = createController(fixture);
   const result = controller.publish({ mode: 'no-venue', subject });
   assert.equal(result.ok, true);
   assert.equal(result.value.mode, 'no-venue');
@@ -163,7 +173,7 @@ test('no-venue mode records canonical explicit absence and dispatches nothing', 
 });
 
 test('required venue publishes the exact candidate with four draft/non-mergeable effect operations', () => {
-  const controller = runtime.createReviewPublicationController();
+  const controller = createController();
   const result = controller.publish({
     mode: 'required-venue',
     subject,
@@ -182,7 +192,7 @@ test('required venue publishes the exact candidate with four draft/non-mergeable
 });
 
 test('mechanism absence alone permits one same-identity retry after reauthorization', () => {
-  const controller = runtime.createReviewPublicationController();
+  const controller = createController();
   const faults = [['mechanism-absence', 'none'], 'none', 'none', 'none'];
   const result = controller.publish({
     mode: 'required-venue',
@@ -192,6 +202,7 @@ test('mechanism absence alone permits one same-identity retry after reauthorizat
     faults,
   });
   assert.equal(result.ok, true);
+  assert.equal(runtime.validateReviewPublicationObservation(result.value).ok, true);
   assert.equal(controller.snapshot().reauthorizations.length, 1);
   assert.deepEqual(
     controller
@@ -203,7 +214,7 @@ test('mechanism absence alone permits one same-identity retry after reauthorizat
 });
 
 test('uncertain post-dispatch effect parks without semantic retry', () => {
-  const controller = runtime.createReviewPublicationController();
+  const controller = createController();
   const result = controller.publish({
     mode: 'required-venue',
     subject,
@@ -217,7 +228,7 @@ test('uncertain post-dispatch effect parks without semantic retry', () => {
 });
 
 test('confirmed recovery effect is adopted without a semantic dispatch retry', () => {
-  const controller = runtime.createReviewPublicationController();
+  const controller = createController();
   const result = controller.publish({
     mode: 'required-venue',
     subject,
@@ -230,18 +241,20 @@ test('confirmed recovery effect is adopted without a semantic dispatch retry', (
 });
 
 test('retirement requires preservation and never treats a no-venue branch as a venue', () => {
-  const rejected = runtime
-    .createReviewPublicationController()
-    .retire({ bindings: retireBindings(), faults: ['none', 'none', 'none', 'none'], preservation: { kind: 'wrong' } });
+  const rejected = createController().retire({
+    bindings: retireBindings(),
+    faults: ['none', 'none', 'none', 'none'],
+    preservation: { kind: 'wrong' },
+  });
   assert.deepEqual(rejected, { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_PRESERVATION_UNVERIFIED' } });
-  const controller = runtime.createReviewPublicationController();
+  const controller = createController();
   const retired = controller.retire({
     bindings: retireBindings(),
     faults: ['none', 'none', 'none', 'none'],
     preservation: preservation(),
   });
   assert.deepEqual(retired, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
-  const uncertain = runtime.createReviewPublicationController().retire({
+  const uncertain = createController().retire({
     bindings: retireBindings(),
     faults: ['lost-response', 'none', 'none', 'none'],
     preservation: preservation(),
@@ -249,5 +262,9 @@ test('retirement requires preservation and never treats a no-venue branch as a v
   assert.equal(uncertain.ok, true);
   assert.equal(uncertain.value.status, 'obligation');
   assert.equal(uncertain.value.operation, retireBindings()[0].operation);
+  assert.equal(uncertain.value.obligation, `${run}/obligation/1`);
+  assert.equal(uncertain.value.owner, 'RT-CONTROLLER');
+  assert.equal(uncertain.value.completionCriteria, 'preserve-review-venue-and-complete-retirement');
+  assert.equal(uncertain.value.evidenceDigest, preservation().evidenceDigest);
   assert.match(uncertain.value.obligationDigest, /^[0-9a-f]{64}$/u);
 });
