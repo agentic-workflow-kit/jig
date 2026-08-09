@@ -112,6 +112,7 @@ export type ReviewPackage = Readonly<{
   run: string;
   story: string;
   candidate: string;
+  candidatePrincipal: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
   evidenceManifest: EvidenceManifest;
@@ -755,6 +756,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !ID('ID-RUN', raw.run) ||
     !ID('ID-STORY', raw.story) ||
     !ID('ID-CAND', raw.candidate) ||
+    !raw.candidate.startsWith(`${raw.story}/cand/`) ||
+    !ID('ID-PRINCIPAL', raw.candidatePrincipal) ||
     !isDigest(raw.candidateContentDigest) ||
     !isDigest(raw.targetBasisDigest) ||
     !isDigest(raw.frozenRequirementsDigest) ||
@@ -792,8 +795,19 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   );
   const fd = findingsDigest(raw.findings);
   const findings = raw.findings.map((finding) => validFinding(finding, raw.story, raw.digest));
+  const manifestBound =
+    evidenceManifest.ok &&
+    deliveryMetadata.ok &&
+    evidenceManifest.value.subjectKind === 'ID-CAND' &&
+    evidenceManifest.value.subjectIdentity === raw.candidate &&
+    evidenceManifest.value.subject === `evidence://${raw.candidate}/claim/candidate-content` &&
+    evidenceManifest.value.claim === 'candidate-content' &&
+    evidenceManifest.value.artifactDigest === raw.candidateContentDigest &&
+    evidenceManifest.value.producer.session === deliveryMetadata.value.session &&
+    evidenceManifest.value.producer.principal === raw.candidatePrincipal;
   const packageDigest = digestOf('RP-PACKAGE-DIGEST', {
     candidate: raw.candidate,
+    candidatePrincipal: raw.candidatePrincipal,
     candidateContentDigest: raw.candidateContentDigest,
     targetBasisDigest: raw.targetBasisDigest,
     frozenRequirements: raw.frozenRequirements,
@@ -812,6 +826,7 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !requirements.ok ||
     !evidenceManifest.ok ||
     !deliveryMetadata.ok ||
+    !manifestBound ||
     !deliveryDigest ||
     deliveryDigest !== raw.deliveryMetadataDigest ||
     !observations.ok ||
@@ -835,6 +850,78 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   if (raw.contributorPrincipals.some((principal) => !ID('ID-PRINCIPAL', principal)))
     return fail('FC-FENCE', 'INVALID_CONTRIBUTOR_PRINCIPAL');
   return ok(raw);
+}
+
+function validateFindingPackageAdmission(
+  packageValue: ReviewPackage,
+  durableFindings: ReadonlyMap<string, Finding>,
+): AcceptanceResult<void> {
+  const prior = [...durableFindings.values()].filter((finding) => finding.story === packageValue.story);
+  const current = packageValue.findings;
+  if (current.length !== new Set(current.map((finding) => finding.id)).size)
+    return fail('FC-TRUST', 'DUPLICATE_PACKAGE_FINDING');
+  if (prior.length === 0) {
+    for (const finding of current) {
+      const transition = validFindingTransition(undefined, finding);
+      if (!transition.ok) return transition;
+    }
+    return ok(undefined);
+  }
+  if (
+    prior.length !== current.length ||
+    prior.some((finding) => !current.some((candidateFinding) => candidateFinding.id === finding.id))
+  )
+    return fail('FC-TRUST', 'PACKAGE_FINDING_LINEAGE_OMITTED');
+  for (const finding of current) {
+    const previous = durableFindings.get(finding.id);
+    if (!previous) return fail('FC-TRUST', 'PACKAGE_FINDING_LINEAGE_UNKNOWN');
+    const transition = validFindingTransition(previous, finding);
+    if (!transition.ok) return transition;
+    if (
+      finding.state !== previous.state ||
+      !same(
+        {
+          resolutionEvidenceDigest: previous.resolutionEvidenceDigest,
+          resolvedBy: previous.resolvedBy,
+          successor: previous.successor,
+        },
+        {
+          resolutionEvidenceDigest: finding.resolutionEvidenceDigest,
+          resolvedBy: finding.resolvedBy,
+          successor: finding.successor,
+        },
+        'FINDING-PACKAGE-STATE',
+      )
+    )
+      return fail('FC-TRUST', 'PACKAGE_FINDING_STATE_REWRITE');
+  }
+  return ok(undefined);
+}
+
+function admitPackage(
+  value: unknown,
+  projection: AcceptanceProjection,
+  durableFindings: ReadonlyMap<string, Finding>,
+): AcceptanceResult<ReviewPackage> {
+  const checked = validatePackage(value);
+  if (!checked.ok) return checked;
+  const packageValue = checked.value;
+  if (projection.state === 'Blocked' || projection.state === 'Rejected')
+    return fail('FC-AUTHORITY', 'TERMINAL_STORY_STATE');
+  if (projection.story !== '' && (projection.story !== packageValue.story || projection.run !== packageValue.run))
+    return fail('FC-SUBJECT', 'STORY_LINEAGE_MISMATCH');
+  if (projection.packageDigest !== null && projection.candidate === packageValue.candidate)
+    return fail('FC-FENCE', 'PACKAGE_ALREADY_ACTIVE');
+  if (
+    projection.candidate !== null &&
+    projection.packageDigest !== null &&
+    projection.candidate !== packageValue.candidate &&
+    projection.state !== 'Reworking'
+  )
+    return fail('FC-FENCE', 'FRESH_REWORK_REQUIRED');
+  const findings = validateFindingPackageAdmission(packageValue, durableFindings);
+  if (!findings.ok) return findings;
+  return ok(packageValue);
 }
 
 function journalDigest(position: number, previousDigest: string, record: AcceptanceRecord): string | undefined {
@@ -987,20 +1074,6 @@ function createController(
     const requirements = validateFrozenRequirements(raw.requirements);
     const policy = validateAcceptancePolicy(raw.policy);
     if (!candidate.ok || !requirements.ok || !policy.ok) return fail('FC-INPUT', 'PACKAGE_INPUT_REJECTED');
-    if (projection.state === 'Blocked' || projection.state === 'Rejected')
-      return fail('FC-AUTHORITY', 'TERMINAL_STORY_STATE');
-    if (
-      projection.candidate !== null &&
-      projection.candidate === candidate.value.id &&
-      (projection.packageDigest !== null || projection.state === 'Reworking')
-    )
-      return fail('FC-FENCE', 'PACKAGE_ALREADY_ACTIVE');
-    if (
-      projection.candidate !== null &&
-      projection.state !== 'Reworking' &&
-      projection.candidate !== candidate.value.id
-    )
-      return fail('FC-FENCE', 'FRESH_REWORK_REQUIRED');
     const evidence = validateAcceptanceEvidence(raw.evidence, candidate.value);
     if (!evidence.ok) return evidence;
     const observation = observationFor(candidate.value, policy.value.reviewMode, raw.publicationObservation);
@@ -1028,6 +1101,7 @@ function createController(
     const fd = findingsDigest(normalizedFindings);
     const packageDigest = digestOf('RP-PACKAGE-DIGEST', {
       candidate: candidate.value.id,
+      candidatePrincipal: candidate.value.principal,
       candidateContentDigest: candidate.value.candidateContentDigest,
       targetBasisDigest: candidate.value.targetBasisDigest,
       frozenRequirements: requirements.value,
@@ -1052,6 +1126,7 @@ function createController(
       run: candidate.value.run,
       story: candidate.value.story,
       candidate: candidate.value.id,
+      candidatePrincipal: candidate.value.principal,
       candidateContentDigest: candidate.value.candidateContentDigest,
       targetBasisDigest: candidate.value.targetBasisDigest,
       frozenRequirements: requirements.value,
@@ -1069,10 +1144,10 @@ function createController(
       contributorPrincipals,
       digest: packageDigest,
     });
-    const checked = validatePackage(packageValue);
-    if (!checked.ok) return checked;
-    const committed = appendApply({ kind: 'package', package: checked.value });
-    return committed.ok ? ok(checked.value) : committed;
+    const admitted = admitPackage(packageValue, projection, findingMap);
+    if (!admitted.ok) return admitted;
+    const committed = appendApply({ kind: 'package', package: admitted.value });
+    return committed.ok ? ok(admitted.value) : committed;
   };
   const assign = (rawInput: unknown): AcceptanceResult<Assignment> => {
     const raw = own(rawInput, ['package', 'session', 'principal']);
@@ -1157,6 +1232,8 @@ function createController(
       (finding) => finding.severity === 'blocking' && (finding.state === 'open' || finding.state === 'reopened'),
     );
     if (verdictKind === 'approve' && blocking) return fail('FC-EVIDENCE', 'UNRESOLVED_BLOCKING_FINDING');
+    if (verdictKind === 'changes-required' && !nextFindings.some((finding) => finding.severity === 'blocking'))
+      return fail('FC-RULES', 'CHANGES_REQUIRED_FINDING_REQUIRED');
     const id = `${packageValue.story}/verdict/${verdicts.length + 1}`;
     const verdictDigest = digestOf('RP-VERDICT', {
       id,
@@ -1256,21 +1333,9 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
     const kind = (record as { kind?: unknown }).kind;
     if (kind === 'package') {
       const fields = own(record, ['kind', 'package']);
-      const checked = fields && validatePackage(fields.package);
-      if (!fields || !checked?.ok) return fail('FC-TRUST', 'INVALID_PACKAGE_RECORD');
-      const packageValue = checked.value;
-      if (
-        projection.state === 'Blocked' ||
-        projection.state === 'Rejected' ||
-        (projection.candidate !== null &&
-          projection.candidate === packageValue.candidate &&
-          projection.packageDigest !== null &&
-          projection.state !== 'Reworking') ||
-        (projection.candidate !== null &&
-          projection.state !== 'Reworking' &&
-          projection.candidate !== packageValue.candidate)
-      )
-        return fail('FC-TRUST', 'PACKAGE_REPLAY_ORDER_INVALID');
+      const admitted = fields && admitPackage(fields.package, projection, findings);
+      if (!fields || !admitted?.ok) return fail('FC-TRUST', 'INVALID_PACKAGE_RECORD');
+      const packageValue = admitted.value;
       packages.set(packageValue.digest, packageValue);
       projection = {
         ...projection,
@@ -1363,6 +1428,7 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
       const blocking = nextFindings.some(
         (finding) => finding.severity === 'blocking' && (finding.state === 'open' || finding.state === 'reopened'),
       );
+      const changesRequiredHasBlocking = nextFindings.some((finding) => finding.severity === 'blocking');
       const expectedVerdictDigest =
         verdict &&
         digestOf('RP-VERDICT', {
@@ -1404,6 +1470,7 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
         !ID('ID-PRINCIPAL', verdict.principal) ||
         !VERDICT_KINDS.includes(verdict.verdict as VerdictKind) ||
         (verdict.verdict === 'approve' && blocking) ||
+        (verdict.verdict === 'changes-required' && !changesRequiredHasBlocking) ||
         fields.nextState !== expectedState ||
         verdict.verdictDigest !== expectedVerdictDigest
       )
@@ -1461,10 +1528,10 @@ export function restoreScriptedAcceptanceController(
   )
     return fail('FC-TRUST', 'INVALID_ACCEPTANCE_SNAPSHOT');
   let previous = ZERO;
-  for (const entry of raw.records) {
+  for (const [index, entry] of raw.records.entries()) {
     if (
       !entry ||
-      entry.position <= 0 ||
+      entry.position !== index + 1 ||
       entry.previousDigest !== previous ||
       !isDigest(entry.digest) ||
       journalDigest(entry.position, entry.previousDigest, entry.record) !== entry.digest

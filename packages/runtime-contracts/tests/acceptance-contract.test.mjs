@@ -13,7 +13,12 @@ const targetBasisDigest = d('c');
 const ruleSurfaceDigest = d('1');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const candidateId = `${story}/cand/1|${candidateDigest}`;
-const manifestFor = (subjectCandidate, adoptionTransition) => {
+const manifestFor = (
+  subjectCandidate,
+  contentDigest,
+  adoptionTransition,
+  producerSession = `${story}/session/implementer/1`,
+) => {
   const basis = {
     configurationDigest: d('0'),
     schemaVersion: 'jig.evidence.v1',
@@ -28,13 +33,13 @@ const manifestFor = (subjectCandidate, adoptionTransition) => {
     subjectIdentity: subjectCandidate,
     subject: `evidence://${subjectCandidate}/claim/candidate-content`,
     claim: 'candidate-content',
-    producer: { kind: 'principal', principal: 'principal/implementer', session: `${story}/session/implementer/1` },
+    producer: { kind: 'principal', principal: 'principal/implementer', session: producerSession },
     providerManifest: null,
     contentType: 'text/plain',
     contentClass: 'completeness-critical',
     completeness: 'complete',
     originalDigest: d('2'),
-    artifactDigest: d('3'),
+    artifactDigest: contentDigest,
     originalSize: 1,
     retainedSize: 1,
     loss: null,
@@ -57,7 +62,7 @@ const manifestFor = (subjectCandidate, adoptionTransition) => {
     adoptionTransition,
   };
 };
-const manifest = manifestFor(candidateId, 'transition/evidence/1');
+const manifest = manifestFor(candidateId, candidateDigest, 'transition/evidence/1');
 const manifestDigest = manifest.manifestDigest;
 const deliveryMetadata = {
   changedPaths: [],
@@ -247,7 +252,7 @@ const evidence = {
 };
 const candidate2Digest = d('e');
 const candidate2Id = `${story}/cand/2|${candidate2Digest}`;
-const manifest2 = manifestFor(candidate2Id, 'transition/evidence/2');
+const manifest2 = manifestFor(candidate2Id, candidate2Digest, 'transition/evidence/2');
 const deliveryMetadata2 = { ...deliveryMetadata, commitMessage: 'fix: acceptance' };
 const deliveryDigest2 = stageDigest({
   domain: 'CANDIDATE-DELIVERY-METADATA',
@@ -283,6 +288,101 @@ const evidence2 = {
   candidate: candidate2.id,
   candidateContentDigest: candidate2Digest,
   integrityDigest: evidence2Digest.value,
+};
+const otherRun = 'run-000000000041-0123456789abcdef';
+const otherStory = `${otherRun}/story/other`;
+const otherBasis = d('9');
+const otherCandidateDigest = d('f');
+const otherCandidateId = `${otherStory}/cand/1|${otherCandidateDigest}`;
+const otherSession = `${otherStory}/session/implementer/1`;
+const otherManifest = manifestFor(otherCandidateId, otherCandidateDigest, 'transition/evidence/other', otherSession);
+const otherDeliveryMetadata = { ...deliveryMetadata, session: otherSession };
+const otherDeliveryDigest = stageDigest({
+  domain: 'CANDIDATE-DELIVERY-METADATA',
+  excludePaths: [],
+  value: otherDeliveryMetadata,
+}).value.digest;
+const otherCandidate = Object.freeze({
+  ...candidate,
+  id: otherCandidateId,
+  run: otherRun,
+  story: otherStory,
+  session: otherSession,
+  runBasisDigest: otherBasis,
+  sourceEventKey: `${otherRun}/event/1`,
+  deliveryMetadata: otherDeliveryMetadata,
+  deliveryMetadataDigest: otherDeliveryDigest,
+  evidenceManifestDigest: otherManifest.manifestDigest,
+  candidateContentDigest: otherCandidateDigest,
+});
+const otherEvidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
+  schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+  manifest: otherManifest,
+  manifestDigest: otherManifest.manifestDigest,
+  candidate: otherCandidate.id,
+  candidateContentDigest: otherCandidate.candidateContentDigest,
+  targetBasisDigest,
+  disposition: 'admitted',
+  availability: 'available',
+});
+const otherEvidence = {
+  schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+  manifest: otherManifest,
+  manifestDigest: otherManifest.manifestDigest,
+  candidate: otherCandidate.id,
+  candidateContentDigest: otherCandidate.candidateContentDigest,
+  targetBasisDigest,
+  disposition: 'admitted',
+  availability: 'available',
+  integrityDigest: otherEvidenceDigest.value,
+};
+const otherObservation = runtime.createExplicitAbsenceObservation({
+  mode: 'no-venue',
+  subject: {
+    ...publicationSubject,
+    run: otherRun,
+    story: otherStory,
+    basis: otherBasis,
+    candidate: otherCandidate.id,
+    candidateContentDigest: otherCandidate.candidateContentDigest,
+  },
+}).value;
+const packageDigestFor = (value) =>
+  stageDigest({
+    domain: 'RP-PACKAGE-DIGEST',
+    excludePaths: [],
+    value: {
+      candidate: value.candidate,
+      candidatePrincipal: value.candidatePrincipal,
+      candidateContentDigest: value.candidateContentDigest,
+      targetBasisDigest: value.targetBasisDigest,
+      frozenRequirements: value.frozenRequirements,
+      frozenRequirementsDigest: value.frozenRequirementsDigest,
+      evidenceManifest: value.evidenceManifest,
+      evidenceManifestDigest: value.evidenceManifestDigest,
+      findingsDigest: value.findingsDigest,
+      deliveryMetadata: value.deliveryMetadata,
+      deliveryMetadataDigest: value.deliveryMetadataDigest,
+      publicationObservationDigest: value.publicationObservationDigest,
+      verificationPosture: value.verificationPosture,
+      ruleSurfaceDigest: value.ruleSurfaceDigest,
+      contributorPrincipals: value.contributorPrincipals,
+    },
+  }).value.digest;
+const redigestSnapshot = (snapshot, records, positions = records.map((_, index) => index + 1)) => {
+  let previousDigest = d('0');
+  const journal = records.map((record, index) => {
+    const position = positions[index];
+    const digest = stageDigest({
+      domain: 'ACCEPTANCE-LEDGER',
+      excludePaths: [],
+      value: { position, previousDigest, record },
+    }).value.digest;
+    const entry = { position, previousDigest, digest, record };
+    previousDigest = digest;
+    return entry;
+  });
+  return { ...snapshot, position: journal.length, headDigest: previousDigest, records: journal };
 };
 const newController = () => runtime.createScriptedAcceptanceController({ reworkLimit: 2 }).value;
 
@@ -606,4 +706,217 @@ test('scripted reviewer remains unavailable to provider configuration', () => {
     configured: false,
     status: 'scripted-only',
   });
+});
+
+test('MC-040-02/09/10: self-consistent replay rejects cross-Candidate evidence', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const forgedPackage = {
+    ...packageValue,
+    evidenceManifest: manifest2,
+    evidenceManifestDigest: manifest2.manifestDigest,
+  };
+  const redigestedPackage = { ...forgedPackage, digest: packageDigestFor(forgedPackage) };
+  const snapshot = controller.snapshot();
+  const replay = redigestSnapshot(snapshot, [{ kind: 'package', package: redigestedPackage }]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...replay,
+      projection: { ...replay.projection, packageDigest: redigestedPackage.digest },
+    }).ok,
+    false,
+  );
+});
+
+test('MC-040-05/08/10: self-consistent replay rejects same-Candidate rework and finding omission or alteration', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const assignment = controller.assign({
+    package: packageValue,
+    session: `${story}/session/replay/6`,
+    principal: 'principal/reviewer-replay',
+  }).value;
+  const finding = {
+    schema: runtime.FINDING_SCHEMA,
+    id: `${story}/finding/1`,
+    story,
+    candidate: candidate.id,
+    packageDigest: packageValue.digest,
+    severity: 'blocking',
+    requirement: 'exact approval',
+    description: 'replay blocker',
+    state: 'open',
+    originCandidate: candidate.id,
+    originPackageDigest: packageValue.digest,
+    introducedBy: { session: assignment.session, principal: assignment.principal },
+    resolutionEvidenceDigest: null,
+    resolvedBy: null,
+    successor: null,
+  };
+  assert.equal(controller.receiveVerdict({ assignment, verdict: 'changes-required', findings: [finding] }).ok, true);
+  const snapshot = controller.snapshot();
+  const duplicatePackage = redigestSnapshot(snapshot, [
+    ...snapshot.records.map((entry) => entry.record),
+    { kind: 'package', package: packageValue },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...duplicatePackage,
+      projection: { ...duplicatePackage.projection, state: 'Reviewing', blocker: null },
+    }).ok,
+    false,
+  );
+  const verdictRecord = snapshot.records.at(-1).record;
+  const verdictWithoutFinding = {
+    ...verdictRecord.verdict,
+    findings: [],
+    verdictDigest: stageDigest({
+      domain: 'RP-VERDICT',
+      excludePaths: [],
+      value: {
+        id: verdictRecord.verdict.id,
+        run: verdictRecord.verdict.run,
+        story: verdictRecord.verdict.story,
+        candidate: verdictRecord.verdict.candidate,
+        packageDigest: verdictRecord.verdict.packageDigest,
+        session: verdictRecord.verdict.session,
+        principal: verdictRecord.verdict.principal,
+        verdict: verdictRecord.verdict.verdict,
+        findings: [],
+        posture: verdictRecord.verdict.posture,
+      },
+    }).value.digest,
+  };
+  const omitted = redigestSnapshot(snapshot, [
+    ...snapshot.records.slice(0, -1).map((entry) => entry.record),
+    { kind: 'verdict', verdict: verdictWithoutFinding, nextState: 'Reworking' },
+  ]);
+  assert.equal(runtime.restoreScriptedAcceptanceController(omitted).ok, false);
+  const alteredFinding = { ...finding, severity: 'non-blocking' };
+  const verdictWithAlteredFinding = {
+    ...verdictRecord.verdict,
+    findings: [alteredFinding],
+    verdictDigest: stageDigest({
+      domain: 'RP-VERDICT',
+      excludePaths: [],
+      value: {
+        id: verdictRecord.verdict.id,
+        run: verdictRecord.verdict.run,
+        story: verdictRecord.verdict.story,
+        candidate: verdictRecord.verdict.candidate,
+        packageDigest: verdictRecord.verdict.packageDigest,
+        session: verdictRecord.verdict.session,
+        principal: verdictRecord.verdict.principal,
+        verdict: verdictRecord.verdict.verdict,
+        findings: [alteredFinding],
+        posture: verdictRecord.verdict.posture,
+      },
+    }).value.digest,
+  };
+  const altered = redigestSnapshot(snapshot, [
+    ...snapshot.records.slice(0, -1).map((entry) => entry.record),
+    { kind: 'verdict', verdict: verdictWithAlteredFinding, nextState: 'Reworking' },
+  ]);
+  assert.equal(runtime.restoreScriptedAcceptanceController(altered).ok, false);
+});
+
+test('MC-040-02/06: candidate-change invalidation cannot cross the immutable Story/run lineage', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  assert.equal(controller.invalidate({ packageDigest: packageValue.digest, reason: 'candidate-change' }).ok, true);
+  assert.equal(
+    controller.assemble({
+      candidate: otherCandidate,
+      requirements,
+      evidence: otherEvidence,
+      publicationObservation: otherObservation,
+      policy,
+      findings: [],
+      contributorPrincipals: [],
+    }).ok,
+    false,
+  );
+
+  const otherController = newController();
+  const otherPackage = otherController.assemble({
+    candidate: otherCandidate,
+    requirements,
+    evidence: otherEvidence,
+    publicationObservation: otherObservation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const snapshot = controller.snapshot();
+  const crossStory = redigestSnapshot(snapshot, [
+    ...snapshot.records.map((entry) => entry.record),
+    { kind: 'invalidate', reason: 'candidate-change', packageDigest: packageValue.digest },
+    { kind: 'package', package: otherPackage },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...crossStory,
+      projection: {
+        ...crossStory.projection,
+        run: otherRun,
+        story: otherStory,
+        candidate: otherPackage.candidate,
+        packageDigest: otherPackage.digest,
+        state: 'Reviewing',
+      },
+    }).ok,
+    false,
+  );
+});
+
+test('MC-040-10: self-consistent replay rejects skipped journal positions', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  assert.equal(
+    controller.assign({
+      package: packageValue,
+      session: `${story}/session/position/7`,
+      principal: 'principal/reviewer-position',
+    }).ok,
+    true,
+  );
+  const snapshot = controller.snapshot();
+  const skipped = redigestSnapshot(
+    snapshot,
+    snapshot.records.map((entry) => entry.record),
+    [1, 3],
+  );
+  assert.equal(runtime.restoreScriptedAcceptanceController(skipped).ok, false);
 });
