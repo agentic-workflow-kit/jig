@@ -499,7 +499,7 @@ test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or
     outcome: 'confirmed',
   });
   assert.equal(reconciled.ok, true, JSON.stringify(reconciled));
-  assert.equal(reconciled.value.status, 'recorded');
+  assert.equal(reconciled.value.status, 'confirmed');
   const resolvedAfterRecovery = recoveredUncertain.value.resolve(uncertainResolution);
   assert.equal(resolvedAfterRecovery.ok, true, JSON.stringify(resolvedAfterRecovery));
   assert.equal(resolvedAfterRecovery.value.status, 'resolved');
@@ -509,4 +509,76 @@ test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or
   );
   assert.equal(resolvedReplay.ok, true, JSON.stringify(resolvedReplay));
   assert.deepEqual(resolvedReplay.value.intents(), recoveredUncertain.value.intents());
+});
+
+test('GF038-MC-07: every resolution append stage fences uncertainty and reconciles exact absence/readback', () => {
+  const stages = [
+    { name: 'intent', index: 1 },
+    { name: 'resolution-fact', index: 2 },
+    { name: 'confirmation', index: 3 },
+  ];
+  const faults = [
+    { append: 'before-append', outcome: 'confirmed-absence' },
+    { append: 'lost-ack', outcome: 'confirmed' },
+    { append: 'lost-ack', readback: 'indeterminate-read', outcome: 'confirmed' },
+  ];
+  for (const stage of stages) {
+    for (const fault of faults) {
+      const runtimeDependencies = dependencies();
+      const ledgerFaultPlan = [{}, {}, {}, {}];
+      ledgerFaultPlan[stage.index] = { append: fault.append, ...(fault.readback ? { readback: fault.readback } : {}) };
+      const controller = obligation.createScriptedObligationController({
+        dependencies: runtimeDependencies,
+        ledgerFaultPlan,
+      });
+      const opened = controller.open(openInput({ obligationOrdinal: 10 + stage.index }));
+      assert.equal(opened.ok, true);
+      const resolution = {
+        obligation: opened.value.id,
+        responder: 'principal/arye',
+        responderProof: ownerProof,
+        grant: null,
+        generation,
+        criteriaDigest: opened.value.criteria.digest,
+        evidence: evidence('c'),
+        observedAt: 3000,
+      };
+      const attempted = controller.resolve(resolution);
+      if (fault.append === 'lost-ack' && !fault.readback) {
+        assert.equal(attempted.ok, true, `${stage.name} lost ACK should be witnessed`);
+        assert.equal(attempted.value.status, 'resolved');
+        assert.equal(controller.facts().filter((fact) => fact.type === 'EV-OBLIGATION-RESOLVED').length, 1);
+        continue;
+      }
+      assert.deepEqual(attempted.error, {
+        family: 'FC-TRUST',
+        code: 'OBLIGATION_APPEND_UNCERTAIN',
+      });
+      const uncertain = controller.snapshot();
+      const restored = obligation.restoreScriptedObligationController(uncertain, runtimeDependencies);
+      assert.equal(
+        restored.ok,
+        true,
+        `${stage.name} ${fault.append} ${fault.readback ?? ''} restore: ${JSON.stringify(restored)}`,
+      );
+      const freshOperation = restored.value.resolve({ ...resolution, observedAt: 3001 });
+      assert.deepEqual(freshOperation.error, {
+        family: 'FC-TRUST',
+        code: 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION',
+      });
+      const intentKey = restored.value.intents()[0].key;
+      const reconciled = restored.value.reconcileResolution({
+        obligation: opened.value.id,
+        intentKey,
+        outcome: fault.outcome,
+      });
+      assert.equal(reconciled.ok, true, `${stage.name} ${fault.append} reconcile: ${JSON.stringify(reconciled)}`);
+      assert.equal(reconciled.value.status, 'confirmed');
+      assert.equal(restored.value.get(opened.value.id).value.status, 'resolved');
+      assert.equal(restored.value.facts().filter((fact) => fact.type === 'EV-OBLIGATION-RESOLVED').length, 1);
+      const replay = obligation.restoreScriptedObligationController(restored.value.snapshot(), runtimeDependencies);
+      assert.equal(replay.ok, true, `${stage.name} ${fault.append} final restore: ${JSON.stringify(replay)}`);
+      assert.deepEqual(replay.value.intents(), restored.value.intents());
+    }
+  }
 });

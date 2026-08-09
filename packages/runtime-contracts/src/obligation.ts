@@ -131,7 +131,25 @@ export type ObligationResolutionIntent = Readonly<{
   grant: string | null;
   criteriaDigest: string;
   evidence: ObligationEvidence;
+  observedAt: number;
   status: 'recorded' | 'uncertain' | 'confirmed';
+  stage: ObligationResolutionStage;
+  intentStage: ObligationResolutionStageState;
+  resolutionStage: ObligationResolutionStageState | null;
+  confirmationStage: ObligationResolutionStageState | null;
+}>;
+
+export type ObligationResolutionStage = 'intent' | 'resolution-fact' | 'confirmation';
+export type ObligationResolutionStageState = Readonly<{
+  stage: ObligationResolutionStage;
+  operation: string;
+  position: number;
+  previousDigest: string;
+  transaction: string;
+  event: string;
+  contentDigest: string;
+  content: Readonly<Record<string, unknown>>;
+  status: 'witnessed' | 'uncertain';
 }>;
 
 export type ObligationFact = Readonly<{
@@ -454,6 +472,42 @@ function sameJson(left: unknown, right: unknown): boolean {
   }
 }
 
+function resolutionStageOperation(key: string, stage: ObligationResolutionStage, content: unknown): string | undefined {
+  return derivedDigest('OBLIGATION-RESOLUTION-STAGE', { key, stage, content });
+}
+
+function resolutionIntentContent(
+  intent: Readonly<{
+    schema: typeof OBLIGATION_INTENT_SCHEMA;
+    key: string;
+    type: 'EV-OBLIGATION-RESOLVED';
+    obligation: string;
+    generation: string;
+    responder: string;
+    grant: string | null;
+    criteriaDigest: string;
+    evidence: ObligationEvidence;
+    observedAt: number;
+  }>,
+  status: 'recorded' | 'confirmed',
+  stage: 'intent' | 'confirmation',
+): Readonly<Record<string, unknown>> {
+  return {
+    schema: intent.schema,
+    key: intent.key,
+    type: intent.type,
+    obligation: intent.obligation,
+    generation: intent.generation,
+    responder: intent.responder,
+    grant: intent.grant,
+    criteriaDigest: intent.criteriaDigest,
+    evidence: intent.evidence,
+    observedAt: intent.observedAt,
+    status,
+    stage,
+  };
+}
+
 function validResource(value: unknown): value is string {
   return text(value, 1024) && !SECRET.test(value);
 }
@@ -725,7 +779,12 @@ function validIntent(value: unknown): value is ObligationResolutionIntent {
     'grant',
     'criteriaDigest',
     'evidence',
+    'observedAt',
     'status',
+    'stage',
+    'intentStage',
+    'resolutionStage',
+    'confirmationStage',
   ]);
   return (
     !!raw &&
@@ -738,7 +797,77 @@ function validIntent(value: unknown): value is ObligationResolutionIntent {
     (raw.grant === null || identity('ID-GRANT', raw.grant)) &&
     digest(raw.criteriaDigest) &&
     validEvidence(raw.evidence) &&
-    ['recorded', 'uncertain', 'confirmed'].includes(raw.status as string)
+    integer(raw.observedAt) &&
+    ['recorded', 'uncertain', 'confirmed'].includes(raw.status as string) &&
+    ['intent', 'resolution-fact', 'confirmation'].includes(raw.stage as string) &&
+    validResolutionStageState(raw.intentStage, raw.key as string) &&
+    (raw.resolutionStage === null || validResolutionStageState(raw.resolutionStage, raw.key as string)) &&
+    (raw.confirmationStage === null || validResolutionStageState(raw.confirmationStage, raw.key as string))
+  );
+}
+
+function validResolutionStageState(value: unknown, key: string): value is ObligationResolutionStageState {
+  const raw = fields(value, [
+    'stage',
+    'operation',
+    'position',
+    'previousDigest',
+    'transaction',
+    'event',
+    'contentDigest',
+    'content',
+    'status',
+  ]);
+  if (
+    !raw ||
+    !['intent', 'resolution-fact', 'confirmation'].includes(raw.stage as string) ||
+    !digest(raw.operation) ||
+    !Number.isSafeInteger(raw.position) ||
+    (raw.position as number) < 0 ||
+    !digest(raw.previousDigest) ||
+    typeof raw.transaction !== 'string' ||
+    !parseIdentity('ID-TXN', raw.transaction).ok ||
+    !identity('ID-EVENT', raw.event) ||
+    !digest(raw.contentDigest) ||
+    typeof raw.content !== 'object' ||
+    raw.content === null ||
+    Array.isArray(raw.content) ||
+    Object.getPrototypeOf(raw.content) !== Object.prototype ||
+    !['witnessed', 'uncertain'].includes(raw.status as string)
+  )
+    return false;
+  const operation = derivedDigest('OBLIGATION-RESOLUTION-STAGE', {
+    key,
+    stage: raw.stage,
+    content: raw.content,
+  });
+  return operation === raw.operation;
+}
+
+function validResolutionStageBinding(
+  stage: ObligationResolutionStageState,
+  binding: RunStoreBinding,
+  key: string,
+): boolean {
+  const expectedTransaction = `${binding.run}/txn/${stage.position + 1}/${binding.generation}|${stage.operation}`;
+  if (
+    stage.transaction !== expectedTransaction ||
+    stage.event !== `${binding.run}/event/${stage.position + 1}` ||
+    stage.position < 1
+  )
+    return false;
+  const prepared = createLedgerRecord({
+    run: binding.run,
+    generation: binding.generation,
+    transaction: stage.transaction,
+    position: stage.position,
+    previousDigest: stage.previousDigest,
+    content: stage.content as never,
+  });
+  return (
+    prepared.ok &&
+    prepared.value.contentDigest === stage.contentDigest &&
+    stage.operation === resolutionStageOperation(key, stage.stage, stage.content)
   );
 }
 
@@ -818,6 +947,13 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     const exhausted = related.filter((fact) => fact.type === 'EV-BOUND-EXHAUSTED');
     const handoffs = related.filter((fact) => fact.type === 'EV-OWNER-DECISION');
     const resolutions = related.filter((fact) => fact.type === 'EV-OBLIGATION-RESOLVED');
+    const pendingResolutionFact = intents.some(
+      (intent) =>
+        intent.obligation === obligation.id &&
+        intent.resolutionStage?.status === 'witnessed' &&
+        intent.resolutionStage.event === resolutions[0]?.event &&
+        intent.confirmationStage?.status !== 'witnessed',
+    );
     if (
       opening.length !== 1 ||
       opening[0]?.status !== 'open' ||
@@ -835,7 +971,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
           handoffs[0]?.status !== 'accepted-handoff' ||
           handoffs[0]?.criteriaDigest !== obligation.criteria.digest) ||
       (obligation.resolutionEvent === null
-        ? resolutions.length !== 0
+        ? resolutions.length !== 0 && !pendingResolutionFact
         : resolutions.length !== 1 ||
           resolutions[0]?.event !== obligation.resolutionEvent ||
           resolutions[0]?.status !== 'resolved' ||
@@ -860,16 +996,55 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
   }
   for (const intent of intents) {
     const obligation = obligationMap.get(intent.obligation);
+    const expectedIntentContent = resolutionIntentContent(intent, 'recorded', 'intent');
+    const expectedConfirmationContent = resolutionIntentContent(intent, 'confirmed', 'confirmation');
+    const expectedFactContent = {
+      schema: OBLIGATION_FACT_SCHEMA,
+      type: 'EV-OBLIGATION-RESOLVED',
+      obligation: obligation?.id,
+      status: 'resolved',
+      generation: obligation?.generation,
+      criteriaDigest: obligation?.criteria.digest,
+      evidenceDigest: intent.evidence.referenceDigest,
+      grant: intent.grant,
+      boundDigest: obligation?.boundDigest,
+      observedAt: intent.observedAt,
+    };
     if (
       !obligation ||
       intent.generation !== obligation.generation ||
-      intent.criteriaDigest !== obligation.criteria.digest
+      intent.criteriaDigest !== obligation.criteria.digest ||
+      !sameJson(intent.intentStage.content, expectedIntentContent) ||
+      intent.intentStage.stage !== 'intent' ||
+      !validResolutionStageBinding(intent.intentStage, ledgerBinding as RunStoreBinding, intent.key)
     )
       return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
+    if (intent.resolutionStage) {
+      if (
+        intent.resolutionStage.stage !== 'resolution-fact' ||
+        !sameJson(intent.resolutionStage.content, expectedFactContent) ||
+        !validResolutionStageBinding(intent.resolutionStage, ledgerBinding as RunStoreBinding, intent.key) ||
+        (intent.resolutionStage.status === 'witnessed' &&
+          !facts.some((fact) => fact.event === intent.resolutionStage?.event))
+      )
+        return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
+    }
+    if (intent.confirmationStage) {
+      if (
+        intent.confirmationStage.stage !== 'confirmation' ||
+        !sameJson(intent.confirmationStage.content, expectedConfirmationContent) ||
+        !validResolutionStageBinding(intent.confirmationStage, ledgerBinding as RunStoreBinding, intent.key) ||
+        intent.confirmationStage.position <= (intent.resolutionStage?.position ?? -1)
+      )
+        return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
+    }
     if (
       intent.status === 'confirmed' &&
       (obligation.resolutionEvent === null ||
-        obligation.resolutionEvidence?.referenceDigest !== intent.evidence.referenceDigest)
+        obligation.resolutionEvidence?.referenceDigest !== intent.evidence.referenceDigest ||
+        intent.intentStage.status !== 'witnessed' ||
+        intent.resolutionStage?.status !== 'witnessed' ||
+        intent.confirmationStage?.status !== 'witnessed')
     )
       return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   }
@@ -983,6 +1158,115 @@ export function createScriptedObligationController(
     return ok({ event: record.event, content, position: record.position, digest: record.contentDigest });
   };
 
+  type StageAttempt =
+    | Readonly<{
+        ok: true;
+        value: Readonly<{
+          state: ObligationResolutionStageState;
+          record: Readonly<{ event: string; position: number; digest: string }>;
+        }>;
+      }>
+    | Readonly<{ ok: false; error: ObligationFailure; state: ObligationResolutionStageState }>;
+
+  const appendResolutionStage = (
+    intentKey: string,
+    stage: ObligationResolutionStage,
+    content: Readonly<Record<string, unknown>>,
+    binding: RunStoreBinding,
+    existing?: ObligationResolutionStageState,
+  ): StageAttempt => {
+    if (!dependenciesValid || !ledger)
+      return {
+        ok: false,
+        error: { family: 'FC-AUTHORITY', code: 'OBLIGATION_LEDGER_REQUIRED' },
+        state: existing as ObligationResolutionStageState,
+      };
+    const operation = existing?.operation ?? resolutionStageOperation(intentKey, stage, content);
+    if (!operation) throw new Error('unreachable resolution stage digest');
+    if (existing && (!sameJson(existing.content, content) || existing.stage !== stage))
+      return { ok: false, error: { family: 'FC-FENCE', code: 'RESOLUTION_STAGE_MISMATCH' }, state: existing };
+    const head = ledger.snapshot(binding);
+    if (!head.ok)
+      return {
+        ok: false,
+        error: head.error,
+        state: existing as ObligationResolutionStageState,
+      };
+    const position = existing?.position ?? head.value.position + 1;
+    const previousDigest = existing?.previousDigest ?? head.value.digest;
+    if (existing && (head.value.position !== position - 1 || head.value.digest !== previousDigest))
+      return { ok: false, error: { family: 'FC-FENCE', code: 'RESOLUTION_STAGE_HEAD_MISMATCH' }, state: existing };
+    const transaction =
+      existing?.transaction ?? `${binding.run}/txn/${position + 1}/${binding.generation}|${operation}`;
+    const prepared = createLedgerRecord({
+      run: binding.run,
+      generation: binding.generation,
+      transaction,
+      position,
+      previousDigest,
+      content: content as never,
+    });
+    if (!prepared.ok)
+      return {
+        ok: false,
+        error: prepared.error,
+        state: existing as ObligationResolutionStageState,
+      };
+    if (prepared.value.contentDigest !== (existing?.contentDigest ?? prepared.value.contentDigest))
+      return {
+        ok: false,
+        error: { family: 'FC-TRUST', code: 'RESOLUTION_STAGE_DIGEST_MISMATCH' },
+        state: existing as ObligationResolutionStageState,
+      };
+    const expectedEvent = `${binding.run}/event/${position + 1}`;
+    const baseState = deepFreeze({
+      stage,
+      operation,
+      position,
+      previousDigest,
+      transaction,
+      event: expectedEvent,
+      contentDigest: prepared.value.contentDigest,
+      content,
+      status: 'uncertain' as const,
+    });
+    const faults = ledgerFaultPlan.shift() ?? {};
+    const appended = ledger.append({ binding, expectedPosition: position - 1, record: prepared.value }, faults.append);
+    let record: LedgerRecord | undefined;
+    if (appended.ok) {
+      record = appended.value;
+    } else if (appended.error.code === 'ACK_LOST') {
+      const readback = ledger.readback(
+        { binding, position, transaction, contentDigest: prepared.value.contentDigest },
+        faults.readback,
+      );
+      if (readback.ok && readback.value.kind === 'committed') {
+        record = readback.value.record;
+      } else {
+        activeBinding = binding;
+        const observed = ledger.snapshot(binding);
+        if (observed.ok) ledgerHead = Object.freeze({ ...observed.value });
+        return {
+          ok: false,
+          error: { family: 'FC-TRUST', code: 'OBLIGATION_APPEND_UNCERTAIN' },
+          state: baseState,
+        };
+      }
+    } else {
+      return { ok: false, error: appended.error, state: baseState };
+    }
+    activeBinding = binding;
+    ledgerHead = Object.freeze({ position: record.position, digest: record.contentDigest });
+    nextEventOrdinal = Math.max(nextEventOrdinal, record.position + 2);
+    return {
+      ok: true,
+      value: {
+        state: deepFreeze({ ...baseState, event: record.event, status: 'witnessed' as const }),
+        record: { event: record.event, position: record.position, digest: record.contentDigest },
+      },
+    };
+  };
+
   const appendFact = (fact: Omit<ObligationFact, 'event'>): ObligationResult<ObligationFact> => {
     const binding = activeBinding ?? {
       kind: 'run' as const,
@@ -996,13 +1280,6 @@ export function createScriptedObligationController(
     const complete = deepFreeze({ ...fact, event: persisted.value.event }) as ObligationFact;
     facts = [...facts, complete];
     return ok(complete);
-  };
-
-  const appendIntent = (intent: ObligationResolutionIntent): ObligationResult<void> => {
-    const binding = activeBinding;
-    if (!binding) return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISSING');
-    const persisted = appendDurable({ ...intent }, binding);
-    return persisted.ok ? ok(undefined) : persisted;
   };
 
   const get = (id: unknown): ObligationResult<ResidualObligation> => {
@@ -1358,6 +1635,8 @@ export function createScriptedObligationController(
       if (!authenticated(raw.responder as string, raw.responderProof))
         return fail('FC-AUTHORITY', 'RESPONDER_NOT_AUTHENTICATED');
     }
+    if ([...intents.values()].some((intent) => intent.obligation === current.id && intent.status === 'uncertain'))
+      return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
     const intentKey = derivedDigest('OBLIGATION-RESOLUTION-INTENT', {
       obligation: current.id,
       responder: raw.responder,
@@ -1365,62 +1644,194 @@ export function createScriptedObligationController(
       generation: raw.generation,
       criteriaDigest: raw.criteriaDigest,
       evidence: parsedEvidence.value,
+      observedAt: raw.observedAt,
     });
     if (!intentKey) return fail('FC-TRUST', 'RESOLUTION_INTENT_DIGEST_UNAVAILABLE');
+    const binding = activeBinding;
+    if (!binding) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_BINDING_MISSING');
     const existingIntent = intents.get(intentKey);
-    let recordedIntent = existingIntent;
-    if (!recordedIntent) {
-      recordedIntent = deepFreeze({
-        schema: OBLIGATION_INTENT_SCHEMA,
-        key: intentKey,
-        type: 'EV-OBLIGATION-RESOLVED' as const,
-        obligation: current.id,
-        generation: raw.generation as string,
-        responder: raw.responder as string,
-        grant: raw.grant as string | null,
-        criteriaDigest: raw.criteriaDigest as string,
-        evidence: parsedEvidence.value,
-        status: 'recorded' as const,
+    if (existingIntent?.status === 'confirmed') return ok(current);
+    if (existingIntent?.status === 'uncertain') return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
+    const core = {
+      schema: OBLIGATION_INTENT_SCHEMA as typeof OBLIGATION_INTENT_SCHEMA,
+      key: intentKey,
+      type: 'EV-OBLIGATION-RESOLVED' as const,
+      obligation: current.id,
+      generation: raw.generation as string,
+      responder: raw.responder as string,
+      grant: raw.grant as string | null,
+      criteriaDigest: raw.criteriaDigest as string,
+      evidence: parsedEvidence.value,
+      observedAt: raw.observedAt as number,
+    };
+    let intent = existingIntent;
+    if (!intent) {
+      const content = resolutionIntentContent(core, 'recorded', 'intent');
+      const stage = appendResolutionStage(intentKey, 'intent', content, binding);
+      const stageState = stage.ok ? stage.value.state : stage.state;
+      const candidate = deepFreeze({
+        ...core,
+        status: stage.ok ? ('recorded' as const) : ('uncertain' as const),
+        stage: 'intent' as const,
+        intentStage: stageState,
+        resolutionStage: null,
+        confirmationStage: null,
       }) as ObligationResolutionIntent;
-      const persistedIntent = appendIntent(recordedIntent);
-      if (!persistedIntent.ok) {
-        if (persistedIntent.error.code === 'OBLIGATION_APPEND_UNCERTAIN') {
-          intents = new Map(intents).set(intentKey, deepFreeze({ ...recordedIntent, status: 'uncertain' as const }));
-        }
-        return persistedIntent;
-      }
-      intents = new Map(intents).set(intentKey, recordedIntent);
-    } else if (recordedIntent?.status === 'uncertain') {
-      return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
+      intents = new Map(intents).set(intentKey, candidate);
+      if (!stage.ok) return fail(stage.error.family, stage.error.code);
+      intent = candidate;
     }
-    const updated = {
+    const factBasis = {
+      type: 'EV-OBLIGATION-RESOLVED' as const,
+      obligation: current.id,
+      status: 'resolved' as const,
+      generation: current.generation,
+      criteriaDigest: current.criteria.digest,
+      evidenceDigest: parsedEvidence.value.referenceDigest,
+      grant: current.resolutionGrant ?? (raw.grant as string | null),
+      boundDigest: current.boundDigest,
+      observedAt: raw.observedAt as number,
+    };
+    const factContent = { schema: OBLIGATION_FACT_SCHEMA, ...factBasis } as Readonly<Record<string, unknown>>;
+    let resolutionStage = intent.resolutionStage;
+    if (resolutionStage?.status === 'uncertain')
+      return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
+    if (!resolutionStage) {
+      const stage = appendResolutionStage(intentKey, 'resolution-fact', factContent, binding);
+      const stageState = stage.ok ? stage.value.state : stage.state;
+      const next = deepFreeze({
+        ...intent,
+        status: stage.ok ? ('recorded' as const) : ('uncertain' as const),
+        stage: 'resolution-fact' as const,
+        resolutionStage: stageState,
+      }) as ObligationResolutionIntent;
+      intents = new Map(intents).set(intentKey, next);
+      intent = next;
+      if (!stage.ok) return fail(stage.error.family, stage.error.code);
+      resolutionStage = stageState;
+    }
+    if (!resolutionStage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    const resolutionFact = deepFreeze({ ...factBasis, event: resolutionStage.event }) as ObligationFact;
+    if (!facts.some((fact) => fact.event === resolutionFact.event)) facts = [...facts, resolutionFact];
+    let confirmationStage = intent.confirmationStage;
+    if (confirmationStage?.status === 'uncertain')
+      return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
+    if (!confirmationStage) {
+      const confirmationContent = resolutionIntentContent(core, 'confirmed', 'confirmation');
+      const stage = appendResolutionStage(intentKey, 'confirmation', confirmationContent, binding);
+      const stageState = stage.ok ? stage.value.state : stage.state;
+      const next = deepFreeze({
+        ...intent,
+        status: stage.ok ? ('confirmed' as const) : ('uncertain' as const),
+        stage: 'confirmation' as const,
+        resolutionStage,
+        confirmationStage: stageState,
+      }) as ObligationResolutionIntent;
+      intents = new Map(intents).set(intentKey, next);
+      intent = next;
+      if (!stage.ok) return fail(stage.error.family, stage.error.code);
+      confirmationStage = stageState;
+    }
+    if (!confirmationStage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    if (confirmationStage.status !== 'witnessed') return fail('FC-TRUST', 'RESOLUTION_CONFIRMATION_UNWITNESSED');
+    const committed = deepFreeze({
       ...current,
       status: 'resolved' as const,
-      resolutionEvent: '',
+      resolutionEvent: resolutionFact.event,
       resolutionResponder: raw.responder as string,
       resolutionGrant: raw.grant as string | null,
       resolutionCriteriaDigest: raw.criteriaDigest as string,
       resolutionEvidence: parsedEvidence.value,
-    } as ResidualObligation;
-    const persisted = appendFact({
-      type: 'EV-OBLIGATION-RESOLVED',
-      obligation: current.id,
-      status: updated.status,
-      generation: updated.generation,
-      criteriaDigest: updated.criteria.digest,
-      evidenceDigest: parsedEvidence.value.referenceDigest,
-      grant: updated.resolutionGrant,
-      boundDigest: updated.boundDigest,
-      observedAt: raw.observedAt as number,
     });
-    if (!persisted.ok) return persisted;
-    const committed = deepFreeze({ ...updated, resolutionEvent: persisted.value.event });
-    const confirmedIntent = deepFreeze({ ...recordedIntent, status: 'confirmed' as const });
-    const persistedConfirmation = appendIntent(confirmedIntent);
-    if (!persistedConfirmation.ok) return persistedConfirmation;
     obligations = new Map(obligations).set(current.id, committed);
-    intents = new Map(intents).set(intentKey, confirmedIntent);
     return ok(committed);
+  };
+
+  const advanceReconciledResolution = (
+    seed: ObligationResolutionIntent,
+  ): ObligationResult<ObligationResolutionIntent> => {
+    const current = obligations.get(seed.obligation);
+    if (!current || !activeBinding) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_BINDING_MISSING');
+    let intent = seed;
+    const factBasis = {
+      type: 'EV-OBLIGATION-RESOLVED' as const,
+      obligation: current.id,
+      status: 'resolved' as const,
+      generation: current.generation,
+      criteriaDigest: current.criteria.digest,
+      evidenceDigest: intent.evidence.referenceDigest,
+      grant: intent.grant,
+      boundDigest: current.boundDigest,
+      observedAt: intent.observedAt,
+    };
+    const factContent = { schema: OBLIGATION_FACT_SCHEMA, ...factBasis } as Readonly<Record<string, unknown>>;
+    let resolutionStage = intent.resolutionStage;
+    if (!resolutionStage) {
+      const stage = appendResolutionStage(intent.key, 'resolution-fact', factContent, activeBinding);
+      const stageState = stage.ok ? stage.value.state : stage.state;
+      intent = deepFreeze({
+        ...intent,
+        status: stage.ok ? ('recorded' as const) : ('uncertain' as const),
+        stage: 'resolution-fact' as const,
+        resolutionStage: stageState,
+      }) as ObligationResolutionIntent;
+      intents = new Map(intents).set(intent.key, intent);
+      if (!stage.ok) return fail(stage.error.family, stage.error.code);
+      resolutionStage = stageState;
+    }
+    if (!resolutionStage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    if (resolutionStage.status !== 'witnessed') return fail('FC-TRUST', 'RESOLUTION_FACT_UNWITNESSED');
+    const resolutionFact = deepFreeze({ ...factBasis, event: resolutionStage.event }) as ObligationFact;
+    if (!facts.some((fact) => fact.event === resolutionFact.event)) facts = [...facts, resolutionFact];
+    let confirmationStage = intent.confirmationStage;
+    if (!confirmationStage) {
+      const core = {
+        schema: intent.schema,
+        key: intent.key,
+        type: intent.type,
+        obligation: intent.obligation,
+        generation: intent.generation,
+        responder: intent.responder,
+        grant: intent.grant,
+        criteriaDigest: intent.criteriaDigest,
+        evidence: intent.evidence,
+        observedAt: intent.observedAt,
+      };
+      const confirmationContent = resolutionIntentContent(core, 'confirmed', 'confirmation');
+      const stage = appendResolutionStage(intent.key, 'confirmation', confirmationContent, activeBinding);
+      const stageState = stage.ok ? stage.value.state : stage.state;
+      intent = deepFreeze({
+        ...intent,
+        status: stage.ok ? ('confirmed' as const) : ('uncertain' as const),
+        stage: 'confirmation' as const,
+        resolutionStage,
+        confirmationStage: stageState,
+      }) as ObligationResolutionIntent;
+      intents = new Map(intents).set(intent.key, intent);
+      if (!stage.ok) return fail(stage.error.family, stage.error.code);
+      confirmationStage = stageState;
+    }
+    if (!confirmationStage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    if (confirmationStage.status !== 'witnessed') return fail('FC-TRUST', 'RESOLUTION_CONFIRMATION_UNWITNESSED');
+    const committed = deepFreeze({
+      ...current,
+      status: 'resolved' as const,
+      resolutionEvent: resolutionFact.event,
+      resolutionResponder: intent.responder,
+      resolutionGrant: intent.grant,
+      resolutionCriteriaDigest: intent.criteriaDigest,
+      resolutionEvidence: intent.evidence,
+    });
+    obligations = new Map(obligations).set(current.id, committed);
+    const confirmedIntent = deepFreeze({
+      ...intent,
+      status: 'confirmed' as const,
+      stage: 'confirmation' as const,
+      resolutionStage,
+      confirmationStage,
+    }) as ObligationResolutionIntent;
+    intents = new Map(intents).set(intent.key, confirmedIntent);
+    return ok(confirmedIntent);
   };
 
   const reconcileResolution = (input: unknown): ObligationResult<ObligationResolutionIntent> => {
@@ -1437,21 +1848,66 @@ export function createScriptedObligationController(
     if (prior.status !== 'uncertain') return ok(prior);
     if (raw.outcome === 'indeterminate') return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
     if (!activeBinding || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
-    const records = ledger.records(activeBinding);
-    if (!records.ok) return fail(records.error.family, records.error.code);
-    const expected = { ...prior, status: 'recorded' as const };
-    const matching = records.value.find((record) => sameJson(record.content, { ...expected }));
-    if (matching) {
-      const updated = deepFreeze(expected);
-      intents = new Map(intents).set(prior.key, updated);
-      return ok(updated);
+    const stage =
+      prior.stage === 'intent'
+        ? prior.intentStage
+        : prior.stage === 'resolution-fact'
+          ? prior.resolutionStage
+          : prior.confirmationStage;
+    if (!stage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    let witnessedStage: ObligationResolutionStageState | undefined;
+    const readback = ledger.readback({
+      binding: activeBinding,
+      position: stage.position,
+      transaction: stage.transaction,
+      contentDigest: stage.contentDigest,
+    });
+    let witnessed = false;
+    if (readback.ok) {
+      if (readback.value.kind === 'committed') {
+        if (
+          readback.value.record.position !== stage.position ||
+          readback.value.record.transaction !== stage.transaction ||
+          readback.value.record.contentDigest !== stage.contentDigest ||
+          !sameJson(readback.value.record.content, stage.content)
+        )
+          return fail('FC-TRUST', 'RESOLUTION_STAGE_READBACK_MISMATCH');
+        ledgerHead = Object.freeze({
+          position: readback.value.record.position,
+          digest: readback.value.record.contentDigest,
+        });
+        witnessedStage = deepFreeze({ ...stage, event: readback.value.record.event, status: 'witnessed' as const });
+        witnessed = true;
+      } else if (readback.value.kind !== 'absent') {
+        return fail('FC-TRUST', 'RESOLUTION_STAGE_READBACK_MISMATCH');
+      } else if (raw.outcome === 'confirmed') {
+        return fail('FC-TRUST', 'RESOLUTION_APPEND_UNCONFIRMED');
+      }
+    } else {
+      return fail(readback.error.family, readback.error.code);
     }
-    if (raw.outcome === 'confirmed') return fail('FC-TRUST', 'RESOLUTION_APPEND_UNCONFIRMED');
-    const persisted = appendIntent(expected);
-    if (!persisted.ok) return persisted as ObligationResult<ObligationResolutionIntent>;
-    const updated = deepFreeze(expected);
+    if (!witnessed && raw.outcome === 'confirmed-absence') {
+      const retried = appendResolutionStage(prior.key, stage.stage, stage.content, activeBinding, stage);
+      if (!retried.ok) {
+        const updated = deepFreeze({ ...prior, status: 'uncertain' as const });
+        intents = new Map(intents).set(prior.key, updated);
+        return fail(retried.error.family, retried.error.code);
+      }
+      witnessed = true;
+      witnessedStage = retried.value.state;
+    }
+    if (!witnessed) return fail('FC-TRUST', 'RESOLUTION_APPEND_UNCONFIRMED');
+    if (!witnessedStage) return fail('FC-TRUST', 'RESOLUTION_STAGE_MISSING');
+    const updated = deepFreeze({
+      ...prior,
+      status: 'recorded' as const,
+      stage: stage.stage === 'intent' ? ('resolution-fact' as const) : ('confirmation' as const),
+      intentStage: stage.stage === 'intent' ? witnessedStage : prior.intentStage,
+      resolutionStage: stage.stage === 'resolution-fact' ? witnessedStage : prior.resolutionStage,
+      confirmationStage: stage.stage === 'confirmation' ? witnessedStage : prior.confirmationStage,
+    }) as ObligationResolutionIntent;
     intents = new Map(intents).set(prior.key, updated);
-    return ok(updated);
+    return advanceReconciledResolution(updated);
   };
 
   const expire = (input: unknown): ObligationResult<ResidualObligation> => {
@@ -1567,9 +2023,8 @@ export function restoreScriptedObligationController(
   const matchedFacts = new Set<string>();
   const matchedIntents = new Set<string>();
   const ledgerFactEvents: string[] = [];
-  const ledgerIntentKeys: string[] = [];
-  const ledgerIntentStates = new Map<string, 'recorded' | 'confirmed'>();
-  const resolvedObligations = new Set<string>();
+  const ledgerIntentStages: string[] = [];
+  const ledgerIntentRecords = new Map<string, LedgerRecord>();
   for (const record of records.value) {
     const content = fields(record.content, [
       'schema',
@@ -1585,8 +2040,17 @@ export function restoreScriptedObligationController(
     ]);
     if (content?.schema === OBLIGATION_FACT_SCHEMA) {
       const fact = expectedFacts.get(record.event);
+      if (!fact) {
+        const uncertainStage = validated.value.intents.find(
+          (intent) =>
+            intent.resolutionStage?.status === 'uncertain' &&
+            intent.resolutionStage.event === record.event &&
+            sameJson(intent.resolutionStage.content, record.content),
+        );
+        if (!uncertainStage) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+        continue;
+      }
       if (
-        !fact ||
         !sameJson(
           {
             schema: content.schema,
@@ -1619,7 +2083,6 @@ export function restoreScriptedObligationController(
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
       matchedFacts.add(record.event);
       ledgerFactEvents.push(record.event);
-      if (content.type === 'EV-OBLIGATION-RESOLVED') resolvedObligations.add(content.obligation as string);
       continue;
     }
     const intent = fields(record.content, [
@@ -1632,56 +2095,71 @@ export function restoreScriptedObligationController(
       'grant',
       'criteriaDigest',
       'evidence',
+      'observedAt',
       'status',
+      'stage',
     ]);
     if (intent?.schema === OBLIGATION_INTENT_SCHEMA) {
       const expected = expectedIntents.get(intent.key as string);
-      const status = intent.status === 'recorded' || intent.status === 'confirmed' ? intent.status : undefined;
-      if (!expected || !status || (status === 'confirmed' && !resolvedObligations.has(expected.obligation)))
+      const stageName =
+        intent.stage === 'intent' || intent.stage === 'confirmation'
+          ? (intent.stage as ObligationResolutionStage)
+          : undefined;
+      const expectedStage =
+        expected && stageName === 'intent'
+          ? expected.intentStage
+          : expected && stageName === 'confirmation'
+            ? expected.confirmationStage
+            : null;
+      if (
+        !expected ||
+        !stageName ||
+        !expectedStage ||
+        intent.status !== (stageName === 'intent' ? 'recorded' : 'confirmed')
+      )
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      const { status: _expectedStatus, ...expectedBasis } = expected;
-      const { status: _ledgerStatus, ...ledgerBasis } = intent;
-      if (!sameJson(ledgerBasis, expectedBasis)) {
+      if (!sameJson(record.content, expectedStage.content) || ledgerIntentRecords.has(`${expected.key}:${stageName}`))
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      }
-      if (expected.status === 'recorded' && status !== 'recorded')
-        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      if (expected.status === 'uncertain' && status !== 'recorded')
-        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      if (status === 'recorded' && ledgerIntentStates.has(intent.key as string))
-        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      if (status === 'confirmed' && ledgerIntentStates.get(intent.key as string) !== 'recorded')
-        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      ledgerIntentStates.set(intent.key as string, status);
-      matchedIntents.add(intent.key as string);
-      if (!ledgerIntentKeys.includes(intent.key as string)) ledgerIntentKeys.push(intent.key as string);
+      ledgerIntentRecords.set(`${expected.key}:${stageName}`, record);
+      ledgerIntentStages.push(`${expected.key}:${stageName}`);
+      matchedIntents.add(`${expected.key}:${stageName}`);
     }
   }
   for (const intent of validated.value.intents) {
-    if (intent.status === 'uncertain') {
-      const witnessed = ledgerIntentStates.get(intent.key);
-      if (witnessed !== undefined && witnessed !== 'recorded')
+    const intentRecord = ledgerIntentRecords.get(`${intent.key}:intent`);
+    if (intent.status !== 'uncertain' && !intentRecord)
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+    const resolutionRecord = intent.resolutionStage
+      ? validated.value.facts.find((fact) => fact.event === intent.resolutionStage?.event)
+      : undefined;
+    const confirmationRecord = ledgerIntentRecords.get(`${intent.key}:confirmation`);
+    if (intent.resolutionStage?.status === 'witnessed' && !resolutionRecord)
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+    if (intent.confirmationStage?.status === 'witnessed' && !confirmationRecord)
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+    if (intent.status === 'confirmed' && (!intentRecord || !resolutionRecord || !confirmationRecord))
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+    if (intent.stage === 'confirmation' && !intent.resolutionStage)
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+    if (intent.resolutionStage && intent.confirmationStage) {
+      if (intent.resolutionStage.position >= intent.confirmationStage.position)
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-      continue;
     }
-    if (ledgerIntentStates.get(intent.key) !== intent.status)
+    if (intent.intentStage.position >= (intent.resolutionStage?.position ?? Number.MAX_SAFE_INTEGER))
       return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
   }
-  const expectedLedgerIntentKeys = validated.value.intents
-    .filter((intent) => intent.status !== 'uncertain' || ledgerIntentStates.has(intent.key))
-    .map((intent) => intent.key);
-  const unwitnessedUncertainIntents = validated.value.intents.filter(
-    (intent) => intent.status === 'uncertain' && !ledgerIntentStates.has(intent.key),
-  );
+  const expectedLedgerIntentStages = validated.value.intents.flatMap((intent) => [
+    ...(ledgerIntentRecords.has(`${intent.key}:intent`) ? [`${intent.key}:intent`] : []),
+    ...(ledgerIntentRecords.has(`${intent.key}:confirmation`) ? [`${intent.key}:confirmation`] : []),
+  ]);
   if (
     matchedFacts.size !== expectedFacts.size ||
-    matchedIntents.size + unwitnessedUncertainIntents.length !== expectedIntents.size ||
-    ledgerIntentStates.size !== expectedIntents.size ||
+    matchedIntents.size !== ledgerIntentRecords.size ||
     !sameJson(
       ledgerFactEvents,
       validated.value.facts.map((fact) => fact.event),
     ) ||
-    !sameJson(ledgerIntentKeys, expectedLedgerIntentKeys)
+    !sameJson(ledgerIntentStages, expectedLedgerIntentStages)
   )
     return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
   return ok(createScriptedObligationController({ hydrate: validated.value, dependencies }));
