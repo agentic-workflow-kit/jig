@@ -5,8 +5,8 @@ import {
   registerCertificateClaims,
   registerExecutionClaims,
   registerProviderAdmissionCertificateClaims,
-  snapshotQualificationClaims,
   snapshotProviderAdmissionClaims,
+  snapshotQualificationClaims,
 } from './qualification-registry.js';
 
 /**
