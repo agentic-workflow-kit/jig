@@ -202,6 +202,24 @@ test('rejects the qualification friend package deep import outside exact conform
   assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
 });
 
+test('rejects the protected runtime transition from providers, root, and siblings', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'src', 'index.ts'),
+      "import { createExactLocalCommandAdmissionTransition } from '../../runtime-contracts/dist/provider.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "import { createExactLocalCommandAdmissionTransition } from './provider.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "import { consumeExactLocalCommandAdmissionTransition } from '../../runtime-contracts/dist/provider.js';\n",
+    );
+  });
+  assert.equal(errors.filter((error) => error.includes('imports restricted runtime transition')).length, 3);
+});
+
 test('rejects filesystem deep imports of the private qualification registry', () => {
   const errors = withPackages((root) =>
     writeFileSync(

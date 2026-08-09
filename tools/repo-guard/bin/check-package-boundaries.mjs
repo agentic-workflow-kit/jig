@@ -53,6 +53,18 @@ const qualificationFriendFiles = new Set([
   'packages/conformance/dist/structured-file-qualification.js',
   'packages/conformance/dist/provider-admission-qualification.js',
 ]);
+const runtimeTransitionFriendFiles = new Set([
+  'packages/runtime-contracts/src/qualification-certificate.ts',
+  'packages/runtime-contracts/dist/qualification-certificate.js',
+]);
+const runtimeTransitionSymbols = [
+  'createExactLocalCommandAdmissionTransition',
+  'consumeExactLocalCommandAdmissionTransition',
+];
+const importsRuntimeTransition = (source) =>
+  [...source.matchAll(/(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gu)].some(([, names]) =>
+    runtimeTransitionSymbols.some((symbol) => names.includes(symbol)),
+  );
 const distTarget = (value) => value.startsWith('./dist/') && !value.split('/').includes('..');
 
 function readJson(path, errors, label) {
@@ -310,6 +322,13 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
         )
           errors.push(`${manifest.name} bypasses the private qualification registry boundary`);
       }
+      if (
+        !repoPath.endsWith('/runtime-contracts/src/provider.ts') &&
+        !repoPath.endsWith('/runtime-contracts/dist/provider.js') &&
+        importsRuntimeTransition(source) &&
+        !runtimeTransitionFriendFiles.has(repoPath)
+      )
+        errors.push(`${manifest.name} imports restricted runtime transition`);
     }
     const sources = sourceFiles(join(directory, 'src'));
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);

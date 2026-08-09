@@ -1,10 +1,10 @@
+import { consumeExactLocalCommandAdmissionTransition, createExactLocalCommandAdmissionTransition } from './provider.js';
 import {
   readCertificateClaims,
   readExecutionClaims,
   registerCertificateClaims,
   registerExecutionClaims,
   registerProviderAdmissionCertificateClaims,
-  snapshotProviderAdmissionClaims,
   snapshotQualificationClaims,
 } from './qualification-registry.js';
 
@@ -39,8 +39,9 @@ export function readQualificationCertificateClaims(certificate: unknown) {
  * only after the durable provider-admission transition has accepted the exact
  * manifest, approval, ledger proof, and freshness bound.
  */
-export function issueExactProviderAdmissionCertificate(input: unknown): object | undefined {
-  const claims = snapshotProviderAdmissionClaims(input);
+export function issueExactProviderAdmissionCertificate(): object | undefined {
+  const receipt = createExactLocalCommandAdmissionTransition();
+  const claims = consumeExactLocalCommandAdmissionTransition(receipt);
   if (!claims) return undefined;
   const certificate = Object.freeze({});
   registerProviderAdmissionCertificateClaims(certificate, claims);

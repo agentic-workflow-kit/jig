@@ -130,55 +130,7 @@ const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifest
 };
 
 const admission = () => {
-  const ledger = runtime.createScriptedLedger();
-  const approval = {
-    principal: 'principal/arye',
-    manifestId: manifestValue.manifestId,
-    manifestDigest: manifestValue.manifestDigest,
-    scope: manifestValue.value.scope,
-  };
-  const basisValue = {
-    providerIdentity: provider.LOCAL_COMMAND_VERIFIER_PROVIDER,
-    providerBuild: provider.LOCAL_COMMAND_VERIFIER_BUILD_DIGEST,
-    environment: provider.LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
-    capability: 'PORT-VERIFY/local-command',
-    policyMinimum: 'policy/local-posix-command-verifier/v1',
-    manifestId: manifestValue.manifestId,
-    manifestDigest: manifestValue.manifestDigest,
-    scope: manifestValue.value.scope,
-  };
-  const fixture = runtime.createProviderAdmissionFixture({
-    manifestBytes: manifestValue.bytes,
-    approval,
-    ledger,
-  });
-  const now = Date.now();
-  const start = fixture.start({
-    basis: basisValue,
-    ordinal: 1,
-    deadline: now + 2_000,
-    observedAt: now,
-    retryLimit: 2,
-    predecessor: null,
-  });
-  assert.equal(start.ok, true);
-  const proof = fixture.result({
-    basis: basisValue,
-    ordinal: 1,
-    deadline: now + 2_000,
-    observedAt: now,
-    retryLimit: 2,
-    predecessor: start.value.digest,
-    outcome: 'positive',
-  });
-  assert.equal(proof.ok, true);
-  const certificate = conformance.qualifyLocalCommandAdmission({
-    manifestBytes: manifestValue.bytes,
-    approval,
-    ledger,
-    basis: basisValue,
-    proof: proof.value,
-  });
+  const certificate = conformance.qualifyLocalCommandAdmission();
   assert.ok(certificate);
   return { certificate };
 };
@@ -202,6 +154,9 @@ test('local command provider package is unavailable before exact qualification',
     false,
   );
   assert.equal('createLocalCommandAdmissionTransition' in runtime, false);
+  assert.equal('createExactLocalCommandAdmissionTransition' in runtime, false);
+  assert.equal('issueExactProviderAdmissionCertificate' in runtime, false);
+  assert.equal(conformance.qualifyLocalCommandAdmission.length, 0);
 });
 
 test('manifest and native posture are exact, local, no-shell, and no-credential', () => {
@@ -347,7 +302,7 @@ test('qualified provider binds exact admission, mechanism proof, and command obs
     manifest: manifestValue,
     admission: auth,
   });
-  assert.equal(proof.ok, platform() === 'darwin');
+  assert.equal(proof.ok, platform() === 'darwin', JSON.stringify(proof));
   if (!proof.ok) return;
   const created = provider.createQualifiedLocalCommandProvider({
     manifest: manifestValue,
