@@ -2,7 +2,7 @@ import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@a
 import { isScriptedLedger } from './ledger.js';
 import {
   readCertificateClaims,
-  registerProviderAdmissionCertificateClaims,
+  registerProviderAdmissionExecutionClaims,
   snapshotProviderAdmissionClaims,
   snapshotQualificationClaims,
 } from './qualification-registry.js';
@@ -58,7 +58,7 @@ type Fixture = Readonly<{
       kind: 'eligible';
       manifestId: string;
       providerEnabled: false;
-      certificate?: object;
+      admissionCarrier?: object;
     }>
   >;
   readback(input: unknown): ProviderAdmissionResult<Attempt>;
@@ -470,13 +470,13 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         maxAgeMs: PROVIDER_ADMISSION_MAX_AGE_MS,
       });
       if (!claims) return fail('FC-AUTHORITY', 'EXACT_PROVIDER_ADMISSION_REQUIRED');
-      const certificate = Object.freeze({});
-      registerProviderAdmissionCertificateClaims(certificate, claims);
+      const admissionCarrier = Object.freeze({});
+      registerProviderAdmissionExecutionClaims(admissionCarrier, claims);
       return ok({
         kind: 'eligible',
         manifestId: bound.manifestId,
         providerEnabled: false as const,
-        certificate,
+        admissionCarrier,
       });
     },
     readback(input) {

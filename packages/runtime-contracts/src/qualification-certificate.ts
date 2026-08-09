@@ -1,9 +1,12 @@
 import {
   readCertificateClaims,
   readExecutionClaims,
+  readProviderAdmissionExecutionClaims,
   registerCertificateClaims,
   registerExecutionClaims,
+  registerProviderAdmissionCertificateClaims,
   snapshotQualificationClaims,
+  snapshotProviderAdmissionClaims,
 } from './qualification-registry.js';
 
 /**
@@ -30,4 +33,15 @@ export function mintQualificationCertificate(carrier: unknown): object | undefin
 
 export function readQualificationCertificateClaims(certificate: unknown) {
   return typeof certificate === 'object' && certificate !== null ? readCertificateClaims(certificate) : undefined;
+}
+
+/** Package-private GF-022 issuer; the package root exports no mint path. */
+export function mintProviderAdmissionCertificate(carrier: unknown): object | undefined {
+  if (typeof carrier !== 'object' || carrier === null) return undefined;
+  const claims = readProviderAdmissionExecutionClaims(carrier);
+  const snapshot = snapshotProviderAdmissionClaims(claims);
+  if (!snapshot) return undefined;
+  const certificate = Object.freeze({});
+  registerProviderAdmissionCertificateClaims(certificate, snapshot);
+  return certificate;
 }

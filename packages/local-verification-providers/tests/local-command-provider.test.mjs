@@ -7,6 +7,7 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
+const admissionAuthority = await import('../../runtime-contracts/dist/qualification-certificate.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -169,8 +170,9 @@ const admission = () => {
   assert.equal(proof.ok, true);
   const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: 86_400_000 });
   assert.equal(admitted.ok, true);
-  assert.ok(admitted.value.certificate);
-  return { certificate: admitted.value.certificate };
+  const certificate = admissionAuthority.mintProviderAdmissionCertificate(admitted.value.admissionCarrier);
+  assert.ok(certificate);
+  return { certificate };
 };
 
 const checkoutResource = (requestValue, path = checkoutPath) =>
