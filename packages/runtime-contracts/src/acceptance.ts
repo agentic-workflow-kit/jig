@@ -7,6 +7,8 @@ import {
   validateReviewPublicationObservation,
 } from './review-publication.js';
 
+declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
+
 /** GF-040: pure, scripted, exact-candidate acceptance. No provider or delivery effect is exposed. */
 export const ACCEPTANCE_CONTRACT_VERSION = 'jig.acceptance-contract.v1';
 export const REVIEW_PACKAGE_SCHEMA = 'jig.rp-package.v1';
@@ -19,8 +21,6 @@ export const ACCEPTANCE_POSTURES = Object.freeze(['deterministic', 'none'] as co
 export const FINDING_STATES = Object.freeze(['open', 'resolved', 'reopened', 'superseded'] as const);
 export const VERDICT_KINDS = Object.freeze(['approve', 'changes-required'] as const);
 export const REVIEW_MODES = Object.freeze(['required-venue', 'no-venue'] as const);
-export const ACCEPTANCE_OWNER = 'principal/arye';
-export const OWNER_DECISION_PROOF_DIGEST = 'a'.repeat(64);
 
 export type AcceptancePosture = (typeof ACCEPTANCE_POSTURES)[number];
 export type FindingState = (typeof FINDING_STATES)[number];
@@ -99,6 +99,8 @@ export type Finding = Readonly<{
   requirement: string;
   description: string;
   state: FindingState;
+  originCandidate: string;
+  originPackageDigest: string;
   introducedBy: Readonly<{ session: string; principal: string }>;
   resolutionEvidenceDigest: string | null;
   resolvedBy: Readonly<{ session: string; principal: string }> | null;
@@ -162,13 +164,6 @@ export type AcceptanceProjection = Readonly<{
   blocker: string | null;
 }>;
 
-type OwnerDecision = Readonly<{
-  event: 'EV-OWNER-DECISION';
-  story: string;
-  principal: typeof ACCEPTANCE_OWNER;
-  decision: 'reject-story';
-  proofDigest: typeof OWNER_DECISION_PROOF_DIGEST;
-}>;
 type AcceptanceRecord =
   | Readonly<{ kind: 'package'; package: ReviewPackage }>
   | Readonly<{ kind: 'assignment'; assignment: Assignment }>
@@ -177,10 +172,6 @@ type AcceptanceRecord =
       kind: 'invalidate';
       reason: 'candidate-change' | 'rule-surface' | 'owner-reopen';
       packageDigest: string;
-    }>
-  | Readonly<{
-      kind: 'reject';
-      decision: OwnerDecision;
     }>;
 type JournalEntry = Readonly<{ position: number; previousDigest: string; digest: string; record: AcceptanceRecord }>;
 export type AcceptanceSnapshot = Readonly<{
@@ -201,7 +192,6 @@ export type AcceptanceController = Readonly<{
   assign(input: unknown): AcceptanceResult<Assignment>;
   receiveVerdict(input: unknown): AcceptanceResult<Readonly<{ verdict: Verdict; projection: AcceptanceProjection }>>;
   invalidate(input: unknown): AcceptanceResult<AcceptanceProjection>;
-  rejectStory(input: unknown): AcceptanceResult<AcceptanceProjection>;
   projection(): AcceptanceProjection;
   packages(): readonly ReviewPackage[];
   assignments(): readonly Assignment[];
@@ -278,6 +268,66 @@ const own = (value: unknown, keys: readonly string[]): Record<string, unknown> |
 const array = (value: unknown): readonly unknown[] | undefined =>
   Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype ? Object.freeze([...value]) : undefined;
 const sortedUnique = (values: readonly string[]): readonly string[] => Object.freeze([...new Set(values)].sort());
+function sha256(bytes: Uint8Array | string): string {
+  const input = typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes;
+  const constants = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
+    0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
+    0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819,
+    0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+    0xc67178f2,
+  ];
+  const padded = new Uint8Array(Math.ceil((input.length + 9) / 64) * 64);
+  padded.set(input);
+  padded[input.length] = 0x80;
+  const bitLength = BigInt(input.length) * 8n;
+  for (let index = 0; index < 8; index += 1)
+    padded[padded.length - 1 - index] = Number((bitLength >> BigInt(index * 8)) & 0xffn);
+  const state = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const rotate = (value: number, amount: number) => (value >>> amount) | (value << (32 - amount));
+  const at = (values: Uint8Array | Uint32Array | readonly number[], index: number) => values[index] ?? 0;
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    const words = new Uint32Array(64);
+    for (let index = 0; index < 16; index += 1)
+      words[index] =
+        (at(padded, offset + index * 4) << 24) |
+        (at(padded, offset + index * 4 + 1) << 16) |
+        (at(padded, offset + index * 4 + 2) << 8) |
+        at(padded, offset + index * 4 + 3);
+    for (let index = 16; index < 64; index += 1) {
+      const first =
+        rotate(at(words, index - 15), 7) ^ rotate(at(words, index - 15), 18) ^ (at(words, index - 15) >>> 3);
+      const second =
+        rotate(at(words, index - 2), 17) ^ rotate(at(words, index - 2), 19) ^ (at(words, index - 2) >>> 10);
+      words[index] = (at(words, index - 16) + first + at(words, index - 7) + second) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = state;
+    for (let index = 0; index < 64; index += 1) {
+      const first =
+        (h +
+          (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) +
+          ((e & f) ^ (~e & g)) +
+          at(constants, index) +
+          at(words, index)) >>>
+        0;
+      const second = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + first) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (first + second) >>> 0;
+    }
+    const next = [a, b, c, d, e, f, g, h];
+    for (let index = 0; index < state.length; index += 1) state[index] = (at(state, index) + at(next, index)) >>> 0;
+  }
+  return state.map((part) => part.toString(16).padStart(8, '0')).join('');
+}
 const EVIDENCE_MANIFEST_KEYS = [
   'configurationDigest',
   'schemaVersion',
@@ -305,7 +355,69 @@ const EVIDENCE_MANIFEST_KEYS = [
 ] as const;
 const validateEvidenceManifest = (value: unknown, expectedDigest: string): AcceptanceResult<EvidenceManifest> => {
   const raw = own(value, EVIDENCE_MANIFEST_KEYS);
-  if (!raw || raw.manifestDigest !== expectedDigest || raw.disposition !== 'admitted')
+  const policy = raw && own(raw.policy, ['kind', 'version', 'digest', 'scanPolicyVersion', 'scanPolicyDigest']);
+  const producer = raw && own(raw.producer, ['kind', 'principal', 'session']);
+  const redaction = raw && own(raw.redaction, ['policyVersion', 'status']);
+  const retention = raw && own(raw.retention, ['class', 'windowDays', 'hold']);
+  const loss = raw?.loss === null ? null : raw && own(raw.loss, ['kind', 'omittedBytes']);
+  const artifactFact = raw && own(raw.artifactFact, ['operation', 'mode', 'position', 'headDigest', 'binding']);
+  const basis = raw && Object.fromEntries(EVIDENCE_MANIFEST_KEYS.slice(0, 19).map((key) => [key, raw[key]]));
+  const derived =
+    raw && artifactFact && typeof raw.adoptionTransition === 'string'
+      ? sha256(JSON.stringify({ basis, artifactFact, adoptionTransition: raw.adoptionTransition }))
+      : undefined;
+  if (
+    !raw ||
+    raw.manifestDigest !== expectedDigest ||
+    !isDigest(raw.manifestDigest) ||
+    raw.disposition !== 'admitted' ||
+    !isDigest(raw.configurationDigest) ||
+    raw.schemaVersion !== 'jig.evidence.v1' ||
+    !policy ||
+    !isText(policy.kind) ||
+    !isText(policy.version) ||
+    !isDigest(policy.digest) ||
+    !isText(policy.scanPolicyVersion) ||
+    !isDigest(policy.scanPolicyDigest) ||
+    !['ID-RUN', 'ID-STORY', 'ID-CAND', 'ID-OP', 'ID-TARGET'].includes(raw.subjectKind as string) ||
+    !isText(raw.subjectIdentity) ||
+    !isText(raw.subject) ||
+    !isText(raw.claim) ||
+    !producer ||
+    producer.kind !== 'principal' ||
+    !ID('ID-PRINCIPAL', producer.principal) ||
+    !ID('ID-SESSION', producer.session) ||
+    raw.providerManifest !== null ||
+    !isText(raw.contentType) ||
+    !isText(raw.contentClass) ||
+    !['complete', 'partial'].includes(raw.completeness as string) ||
+    !isDigest(raw.originalDigest) ||
+    !isDigest(raw.artifactDigest) ||
+    !Number.isSafeInteger(raw.originalSize) ||
+    (raw.originalSize as number) <= 0 ||
+    !Number.isSafeInteger(raw.retainedSize) ||
+    (raw.retainedSize as number) <= 0 ||
+    (raw.retainedSize as number) > (raw.originalSize as number) ||
+    !redaction ||
+    !isText(redaction.policyVersion) ||
+    !['none', 'source-redacted'].includes(redaction.status as string) ||
+    !retention ||
+    !isText(retention.class) ||
+    !Number.isSafeInteger(retention.windowDays) ||
+    (retention.windowDays as number) < 0 ||
+    !(retention.hold === null || own(retention.hold, ['id', 'basis', 'status'])?.status === 'active') ||
+    (loss !== null &&
+      (loss?.kind !== 'truncated' || !Number.isSafeInteger(loss.omittedBytes) || (loss.omittedBytes as number) <= 0)) ||
+    !artifactFact ||
+    !isText(artifactFact.operation) ||
+    artifactFact.mode !== 'put' ||
+    !Number.isSafeInteger(artifactFact.position) ||
+    (artifactFact.position as number) < 0 ||
+    !isDigest(artifactFact.headDigest) ||
+    !isText(artifactFact.binding) ||
+    !isText(raw.adoptionTransition) ||
+    derived !== raw.manifestDigest
+  )
     return fail('FC-EVIDENCE', 'INVALID_ADMITTED_EVIDENCE_MANIFEST');
   return ok(raw as EvidenceManifest);
 };
@@ -441,6 +553,12 @@ export function validateAcceptanceEvidence(
     !raw ||
     raw.schema !== ACCEPTANCE_EVIDENCE_SCHEMA ||
     raw.manifestDigest !== candidate.evidenceManifestDigest ||
+    (raw.manifest as EvidenceManifest | undefined)?.subjectKind !== 'ID-CAND' ||
+    (raw.manifest as EvidenceManifest | undefined)?.subjectIdentity !== candidate.id ||
+    (raw.manifest as EvidenceManifest | undefined)?.subject !== `evidence://${candidate.id}/claim/candidate-content` ||
+    (raw.manifest as EvidenceManifest | undefined)?.claim !== 'candidate-content' ||
+    (raw.manifest as EvidenceManifest | undefined)?.producer?.principal !== candidate.principal ||
+    (raw.manifest as EvidenceManifest | undefined)?.producer?.session !== candidate.session ||
     raw.candidate !== candidate.id ||
     raw.candidateContentDigest !== candidate.candidateContentDigest ||
     raw.targetBasisDigest !== candidate.targetBasisDigest ||
@@ -476,7 +594,15 @@ function validateCandidate(value: unknown): AcceptanceResult<AcceptanceCandidate
   )
     return fail('FC-SUBJECT', 'INVALID_CANDIDATE');
   const delivery = validateDeliveryMetadata(raw.deliveryMetadata);
-  if (!delivery.ok || delivery.value.workspaceCommit !== raw.workspaceCommit || delivery.value.session !== raw.session)
+  const deliveryDigest = delivery.ok ? digestOf('CANDIDATE-DELIVERY-METADATA', delivery.value) : undefined;
+  if (
+    !delivery.ok ||
+    !deliveryDigest ||
+    deliveryDigest !== raw.deliveryMetadataDigest ||
+    delivery.value.workspaceCommit !== raw.workspaceCommit ||
+    delivery.value.session !== raw.session ||
+    !same(raw.changedPaths, delivery.value.changedPaths, 'CANDIDATE-CHANGED-PATHS')
+  )
     return fail('FC-SUBJECT', 'INVALID_DELIVERY_METADATA');
   if (
     !raw.id.endsWith(`|${raw.candidateContentDigest}`) ||
@@ -523,6 +649,8 @@ function validFinding(value: unknown, story: string, packageDigest: string): Acc
     'requirement',
     'description',
     'state',
+    'originCandidate',
+    'originPackageDigest',
     'introducedBy',
     'resolutionEvidenceDigest',
     'resolvedBy',
@@ -543,6 +671,8 @@ function validFinding(value: unknown, story: string, packageDigest: string): Acc
     !isText(raw.requirement) ||
     !isText(raw.description) ||
     !FINDING_STATES.includes(raw.state as FindingState) ||
+    !ID('ID-CAND', raw.originCandidate) ||
+    !isDigest(raw.originPackageDigest) ||
     !introduced ||
     !ID('ID-SESSION', introduced.session) ||
     !ID('ID-PRINCIPAL', introduced.principal) ||
@@ -554,6 +684,11 @@ function validFinding(value: unknown, story: string, packageDigest: string): Acc
     return fail('FC-INPUT', 'INVALID_FINDING');
   if (raw.state === 'resolved' && (raw.resolutionEvidenceDigest === null || resolved === null))
     return fail('FC-EVIDENCE', 'RESOLUTION_EVIDENCE_REQUIRED');
+  if (
+    (raw.state === 'open' || raw.state === 'reopened') &&
+    (raw.resolutionEvidenceDigest !== null || resolved !== null || raw.successor !== null)
+  )
+    return fail('FC-TRUST', 'OPEN_FINDING_HAS_RESOLUTION_STATE');
   if (raw.state === 'superseded' && (raw.successor === null || !raw.successor.startsWith(`${story}/finding/`)))
     return fail('FC-INPUT', 'FINDING_SUCCESSOR_REQUIRED');
   return ok(raw as Finding);
@@ -569,13 +704,40 @@ function findingsDigest(findings: readonly Finding[]): string | undefined {
 function validFindingTransition(previous: Finding | undefined, next: Finding): AcceptanceResult<void> {
   if (!previous) return next.state === 'open' ? ok(undefined) : fail('FC-TRUST', 'FINDING_MUST_START_OPEN');
   if (previous.state === 'superseded') return fail('FC-TRUST', 'SUPERSEDED_FINDING_IS_TERMINAL');
-  if (previous.id !== next.id || previous.story !== next.story) return fail('FC-SUBJECT', 'FINDING_LINEAGE_MISMATCH');
+  if (
+    previous.id !== next.id ||
+    previous.story !== next.story ||
+    previous.severity !== next.severity ||
+    previous.requirement !== next.requirement ||
+    previous.description !== next.description ||
+    previous.originCandidate !== next.originCandidate ||
+    previous.originPackageDigest !== next.originPackageDigest ||
+    !same(previous.introducedBy, next.introducedBy, 'FINDING-INTRODUCER')
+  )
+    return fail('FC-SUBJECT', 'FINDING_INTRODUCTION_MUTATION');
   const allowed =
     next.state === previous.state ||
     (previous.state === 'open' && (next.state === 'resolved' || next.state === 'superseded')) ||
     (previous.state === 'reopened' && (next.state === 'resolved' || next.state === 'superseded')) ||
     (previous.state === 'resolved' && next.state === 'reopened');
   if (!allowed) return fail('FC-TRUST', 'INVALID_FINDING_TRANSITION');
+  if (
+    next.state === previous.state &&
+    !same(
+      {
+        resolutionEvidenceDigest: previous.resolutionEvidenceDigest,
+        resolvedBy: previous.resolvedBy,
+        successor: previous.successor,
+      },
+      {
+        resolutionEvidenceDigest: next.resolutionEvidenceDigest,
+        resolvedBy: next.resolvedBy,
+        successor: next.successor,
+      },
+      'FINDING-STATE',
+    )
+  )
+    return fail('FC-TRUST', 'SAME_STATE_FINDING_MUTATION');
   if (next.state === 'resolved' && (next.resolutionEvidenceDigest === null || next.resolvedBy === null))
     return fail('FC-EVIDENCE', 'RESOLUTION_EVIDENCE_REQUIRED');
   if (next.state === 'superseded' && next.successor === null) return fail('FC-TRUST', 'FINDING_SUCCESSOR_REQUIRED');
@@ -610,6 +772,9 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   const requirements = validateFrozenRequirements(raw.frozenRequirements);
   const evidenceManifest = validateEvidenceManifest(raw.evidenceManifest, raw.evidenceManifestDigest);
   const deliveryMetadata = validateDeliveryMetadata(raw.deliveryMetadata);
+  const deliveryDigest = deliveryMetadata.ok
+    ? digestOf('CANDIDATE-DELIVERY-METADATA', deliveryMetadata.value)
+    : undefined;
   const publication =
     raw.publicationObservation && typeof raw.publicationObservation === 'object'
       ? (raw.publicationObservation as { mode?: unknown })
@@ -647,6 +812,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !requirements.ok ||
     !evidenceManifest.ok ||
     !deliveryMetadata.ok ||
+    !deliveryDigest ||
+    deliveryDigest !== raw.deliveryMetadataDigest ||
     !observations.ok ||
     findings.some((finding) => !finding.ok)
   )
@@ -788,8 +955,6 @@ function createController(
         acceptedPackageDigest: null,
         blocker: null,
       });
-    } else if (record.kind === 'reject') {
-      projection = freeze({ ...projection, state: 'Rejected', blocker: null });
     }
   };
   const appendApply = (record: AcceptanceRecord): AcceptanceResult<void> => {
@@ -1043,32 +1208,12 @@ function createController(
     });
     return committed.ok ? ok(projection) : committed;
   };
-  const rejectStory = (rawInput: unknown): AcceptanceResult<AcceptanceProjection> => {
-    const raw = own(rawInput, ['decision']);
-    const decision = raw && own(raw.decision, ['event', 'story', 'principal', 'decision', 'proofDigest']);
-    if (
-      !raw ||
-      !decision ||
-      decision.event !== 'EV-OWNER-DECISION' ||
-      decision.story !== projection.story ||
-      decision.principal !== ACCEPTANCE_OWNER ||
-      decision.decision !== 'reject-story' ||
-      decision.proofDigest !== OWNER_DECISION_PROOF_DIGEST
-    )
-      return fail('FC-AUTHORITY', 'INVALID_OWNER_REJECTION');
-    const committed = appendApply({
-      kind: 'reject',
-      decision: freeze(decision as OwnerDecision),
-    });
-    return committed.ok ? ok(projection) : committed;
-  };
   for (const entry of ledger.entries()) applyRecord(entry.record);
   return Object.freeze({
     assemble,
     assign,
     receiveVerdict,
     invalidate,
-    rejectStory,
     projection: () => projection,
     packages: () => Object.freeze([...packages]),
     assignments: () => Object.freeze([...assignments]),
@@ -1294,22 +1439,6 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
         acceptedPackageDigest: null,
         blocker: null,
       };
-      continue;
-    }
-    if (kind === 'reject') {
-      const fields = own(record, ['kind', 'decision']);
-      const decision = fields && own(fields.decision, ['event', 'story', 'principal', 'decision', 'proofDigest']);
-      if (
-        !fields ||
-        !decision ||
-        decision.event !== 'EV-OWNER-DECISION' ||
-        decision.story !== projection.story ||
-        decision.principal !== ACCEPTANCE_OWNER ||
-        decision.decision !== 'reject-story' ||
-        decision.proofDigest !== OWNER_DECISION_PROOF_DIGEST
-      )
-        return fail('FC-TRUST', 'REJECTION_REPLAY_INVALID');
-      projection = { ...projection, state: 'Rejected', blocker: null };
       continue;
     }
     return fail('FC-TRUST', 'UNKNOWN_ACCEPTANCE_RECORD');

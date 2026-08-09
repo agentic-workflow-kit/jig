@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 const runtime = await import('../dist/index.js');
 const d = (char) => char.repeat(64);
@@ -8,37 +10,69 @@ const story = `${run}/story/acceptance`;
 const basis = d('a');
 const candidateDigest = d('b');
 const targetBasisDigest = d('c');
-const manifestDigest = d('d');
-const deliveryDigest = d('f');
 const ruleSurfaceDigest = d('1');
-const manifestFor = (manifestDigest) => ({
-  configurationDigest: d('0'),
-  schemaVersion: 'evidence/v1',
-  policy: {},
-  subjectKind: 'fixture',
-  subjectIdentity: 'fixture/subject',
-  subject: 'fixture/subject',
-  claim: 'fixture claim',
-  producer: {},
-  providerManifest: null,
-  contentType: 'text/plain',
-  contentClass: 'completeness-critical',
-  completeness: 'complete',
-  originalDigest: d('2'),
-  artifactDigest: d('3'),
-  originalSize: 1,
-  retainedSize: 1,
-  loss: null,
-  redaction: { policyVersion: 'redaction/v1', status: 'none' },
-  retention: {},
-  manifestDigest,
-  disposition: 'admitted',
-  artifactFact: {},
-  adoptionTransition: 'transition/1',
-});
+const hash = (value) => createHash('sha256').update(value).digest('hex');
+const candidateId = `${story}/cand/1|${candidateDigest}`;
+const manifestFor = (subjectCandidate, adoptionTransition) => {
+  const basis = {
+    configurationDigest: d('0'),
+    schemaVersion: 'jig.evidence.v1',
+    policy: {
+      kind: 'fixture-policy',
+      version: 'fixture-policy/v1',
+      digest: d('e'),
+      scanPolicyVersion: 'scan/v1',
+      scanPolicyDigest: d('f'),
+    },
+    subjectKind: 'ID-CAND',
+    subjectIdentity: subjectCandidate,
+    subject: `evidence://${subjectCandidate}/claim/candidate-content`,
+    claim: 'candidate-content',
+    producer: { kind: 'principal', principal: 'principal/implementer', session: `${story}/session/implementer/1` },
+    providerManifest: null,
+    contentType: 'text/plain',
+    contentClass: 'completeness-critical',
+    completeness: 'complete',
+    originalDigest: d('2'),
+    artifactDigest: d('3'),
+    originalSize: 1,
+    retainedSize: 1,
+    loss: null,
+    redaction: { policyVersion: 'scan/v1', status: 'none' },
+    retention: { class: 'fixture', windowDays: 1, hold: null },
+  };
+  const artifactFact = {
+    operation: 'operation/evidence-1',
+    mode: 'put',
+    position: 1,
+    headDigest: d('4'),
+    binding: 'binding',
+  };
+  const manifestDigest = hash(JSON.stringify({ basis, artifactFact, adoptionTransition }));
+  return {
+    ...basis,
+    manifestDigest,
+    disposition: 'admitted',
+    artifactFact,
+    adoptionTransition,
+  };
+};
+const manifest = manifestFor(candidateId, 'transition/evidence/1');
+const manifestDigest = manifest.manifestDigest;
+const deliveryMetadata = {
+  changedPaths: [],
+  commitMessage: 'feat: acceptance',
+  workspaceCommit: 'a'.repeat(40),
+  session: `${story}/session/implementer/1`,
+};
+const deliveryDigest = stageDigest({
+  domain: 'CANDIDATE-DELIVERY-METADATA',
+  excludePaths: [],
+  value: deliveryMetadata,
+}).value.digest;
 const candidate = Object.freeze({
   schema: 'jig.sch-candidate.v1',
-  id: `${story}/cand/1|${candidateDigest}`,
+  id: candidateId,
   run,
   story,
   role: 'implementer',
@@ -61,12 +95,7 @@ const candidate = Object.freeze({
   changedPaths: [],
   treeDigest: d('2'),
   workspaceCommit: 'a'.repeat(40),
-  deliveryMetadata: {
-    changedPaths: [],
-    commitMessage: 'feat: acceptance',
-    workspaceCommit: 'a'.repeat(40),
-    session: `${story}/session/implementer/1`,
-  },
+  deliveryMetadata,
   deliveryMetadataDigest: deliveryDigest,
   evidenceManifestDigest: manifestDigest,
   workspaceFingerprint: 'workspace/fixture',
@@ -100,6 +129,18 @@ const policy = {
   ruleSurfaceDigest,
   digest: policyDigest.value,
 };
+const requiredPolicyDigest = runtime.deriveAcceptancePolicyDigest({
+  posture: 'none',
+  reviewMode: 'required-venue',
+  ruleSurfaceDigest,
+});
+const requiredPolicy = {
+  schema: 'jig.acceptance-policy.v1',
+  posture: 'none',
+  reviewMode: 'required-venue',
+  ruleSurfaceDigest,
+  digest: requiredPolicyDigest.value,
+};
 const publicationSubject = {
   run,
   story,
@@ -110,9 +151,81 @@ const publicationSubject = {
   targetBasisDigest,
 };
 const observation = runtime.createExplicitAbsenceObservation({ mode: 'no-venue', subject: publicationSubject }).value;
+const venueGeneration = `${run}/gen/2|controller-token-1`;
+const retryVenueGeneration = `${run}/gen/3|controller-token-2`;
+const venueManifest = `provider/${d('2')}/authority/${d('3')}`;
+const venueOperation = (ordinal, type, operationGeneration = venueGeneration) => {
+  const transaction = `${run}/txn/${ordinal}/${operationGeneration}|${d(String(ordinal))}`;
+  return { operation: `${transaction}/op/1`, transaction, event: `${run}/event/${ordinal}`, type };
+};
+const venueBinding = (ordinal, type, activeGeneration = venueGeneration, operationGeneration = activeGeneration) => {
+  const entry = venueOperation(ordinal, type, operationGeneration);
+  return {
+    operation: entry.operation,
+    operationType: type,
+    mode: 'required-venue',
+    subject: publicationSubject,
+    repository: 'repository/fixture',
+    candidate: candidate.id,
+    candidateContentDigest: candidateDigest,
+    targetBasisDigest,
+    providerIdentity: 'fixture-provider/v1',
+    sourceRef: 'refs/heads/feature-gf-040',
+    targetRef: 'refs/heads/main',
+    reviewRef: 'refs/jig/review/fixture-1',
+    request: { identity: 'review-request/fixture-1', marker: 'jig-review-request-1', draft: true, mergeable: false },
+    markers: { status: 'jig-status-1', comment: 'jig-comment-1' },
+    explanationDigest: d('4'),
+    fence: { generation: activeGeneration, basis, candidateContentDigest: candidateDigest, targetBasisDigest },
+    generation: activeGeneration,
+    manifest: venueManifest,
+    transition: {
+      kind: 'review-publication-transition',
+      authorizer: 'CP-TRANSITION',
+      controller: 'RT-CONTROLLER',
+      lifecycle: 'Reviewing',
+      operation: entry.operation,
+      proof: {
+        kind: 'committed-witnessed',
+        position: ordinal - 1,
+        event: entry.event,
+        transaction: entry.transaction,
+        operation: entry.operation,
+        recordDigest: d('5'),
+        witnessDigest: d('5'),
+      },
+    },
+    authority: null,
+  };
+};
+const venueBindings = () => [
+  venueBinding(1, 'OPC-REV-PUBLISH'),
+  venueBinding(2, 'OPC-REV-REQUEST'),
+  venueBinding(3, 'OPC-REV-STATUS'),
+  venueBinding(4, 'OPC-REV-COMMENT'),
+];
+const retryVenueBindings = () => [
+  venueBinding(1, 'OPC-REV-PUBLISH', retryVenueGeneration, venueGeneration),
+  venueBinding(2, 'OPC-REV-REQUEST', retryVenueGeneration, venueGeneration),
+  venueBinding(3, 'OPC-REV-STATUS', retryVenueGeneration, venueGeneration),
+  venueBinding(4, 'OPC-REV-COMMENT', retryVenueGeneration, venueGeneration),
+];
+const requiredObservation = runtime
+  .createReviewPublicationController({
+    fixture: runtime.createScriptedReviewPublicationFixture(),
+    transition: runtime.createReviewPublicationTransitionRecorder({ verify: () => ({ ok: true, value: undefined }) }),
+    preservationVerifier: { verify: () => ({ ok: true, value: undefined }) },
+  })
+  .publish({
+    mode: 'required-venue',
+    subject: publicationSubject,
+    bindings: venueBindings(),
+    retryBindings: retryVenueBindings(),
+    faults: ['none', 'none', 'none', 'none'],
+  }).value;
 const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
-  manifest: manifestFor(manifestDigest),
+  manifest,
   manifestDigest,
   candidate: candidate.id,
   candidateContentDigest: candidateDigest,
@@ -123,7 +236,7 @@ const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
 assert.equal(evidenceDigest.ok, true);
 const evidence = {
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
-  manifest: manifestFor(manifestDigest),
+  manifest,
   manifestDigest,
   candidate: candidate.id,
   candidateContentDigest: candidateDigest,
@@ -133,12 +246,21 @@ const evidence = {
   integrityDigest: evidenceDigest.value,
 };
 const candidate2Digest = d('e');
+const candidate2Id = `${story}/cand/2|${candidate2Digest}`;
+const manifest2 = manifestFor(candidate2Id, 'transition/evidence/2');
+const deliveryMetadata2 = { ...deliveryMetadata, commitMessage: 'fix: acceptance' };
+const deliveryDigest2 = stageDigest({
+  domain: 'CANDIDATE-DELIVERY-METADATA',
+  excludePaths: [],
+  value: deliveryMetadata2,
+}).value.digest;
 const candidate2 = Object.freeze({
   ...candidate,
-  id: `${story}/cand/2|${candidate2Digest}`,
+  id: candidate2Id,
   candidateContentDigest: candidate2Digest,
-  evidenceManifestDigest: d('8'),
-  deliveryMetadataDigest: d('7'),
+  evidenceManifestDigest: manifest2.manifestDigest,
+  deliveryMetadata: deliveryMetadata2,
+  deliveryMetadataDigest: deliveryDigest2,
 });
 const observation2 = runtime.createExplicitAbsenceObservation({
   mode: 'no-venue',
@@ -146,7 +268,7 @@ const observation2 = runtime.createExplicitAbsenceObservation({
 }).value;
 const evidence2Digest = runtime.deriveAcceptanceEvidenceDigest({
   schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
-  manifest: manifestFor(candidate2.evidenceManifestDigest),
+  manifest: manifest2,
   manifestDigest: candidate2.evidenceManifestDigest,
   candidate: candidate2.id,
   candidateContentDigest: candidate2Digest,
@@ -156,7 +278,7 @@ const evidence2Digest = runtime.deriveAcceptanceEvidenceDigest({
 });
 const evidence2 = {
   ...evidence,
-  manifest: manifestFor(candidate2.evidenceManifestDigest),
+  manifest: manifest2,
   manifestDigest: candidate2.evidenceManifestDigest,
   candidate: candidate2.id,
   candidateContentDigest: candidate2Digest,
@@ -191,6 +313,46 @@ test('MC-040-01/02/03: package digest binds all members and validates no-venue o
   );
 });
 
+test('MC-040-03/07: required-venue is positive and complementary modes fail closed', () => {
+  const controller = newController();
+  const accepted = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: requiredObservation,
+    policy: requiredPolicy,
+    findings: [],
+    contributorPrincipals: [],
+  });
+  assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  assert.equal(
+    controller.assemble({
+      candidate,
+      requirements,
+      evidence,
+      publicationObservation: observation,
+      policy: requiredPolicy,
+      findings: [],
+      contributorPrincipals: [],
+    }).ok,
+    false,
+  );
+  const noVenueController = newController();
+  assert.equal(
+    noVenueController.assemble({
+      candidate,
+      requirements,
+      evidence,
+      publicationObservation: requiredObservation,
+      policy,
+      findings: [],
+      contributorPrincipals: [],
+    }).ok,
+    false,
+  );
+  assert.equal(runtime.validateReviewPublicationObservation({ ...requiredObservation, draft: false }).ok, false);
+});
+
 test('MC-040-04/06: reviewer principal is fenced and only controller acceptance reaches Accepted', () => {
   const controller = newController();
   const packageValue = controller.assemble({
@@ -213,6 +375,32 @@ test('MC-040-04/06: reviewer principal is fenced and only controller acceptance 
     principal: 'principal/reviewer',
   });
   assert.equal(assignment.ok, true);
+  const forgedSession = `${story}/session/reviewer-forged/1`;
+  const forgedPrincipal = 'principal/reviewer-forged';
+  const forgedAssignmentDigest = stageDigest({
+    domain: 'REVIEW-ASSIGNMENT',
+    excludePaths: [],
+    value: {
+      packageDigest: packageValue.digest,
+      candidate: packageValue.candidate,
+      session: forgedSession,
+      principal: forgedPrincipal,
+      role: 'reviewer',
+    },
+  }).value.digest;
+  assert.equal(
+    controller.receiveVerdict({
+      assignment: {
+        ...assignment.value,
+        session: forgedSession,
+        principal: forgedPrincipal,
+        assignmentDigest: forgedAssignmentDigest,
+      },
+      verdict: 'approve',
+      findings: [],
+    }).ok,
+    false,
+  );
   const verdict = controller.receiveVerdict({ assignment: assignment.value, verdict: 'approve', findings: [] });
   assert.equal(verdict.ok, true);
   assert.equal(verdict.value.projection.state, 'Accepted');
@@ -246,6 +434,8 @@ test('MC-040-05/08: blocking findings require explicit resolution and changes-re
     requirement: 'exact approval',
     description: 'needs changes',
     state: 'open',
+    originCandidate: candidate.id,
+    originPackageDigest: packageValue.digest,
     introducedBy: { session: assignment.session, principal: assignment.principal },
     resolutionEvidenceDigest: null,
     resolvedBy: null,
@@ -296,6 +486,8 @@ test('MC-040-05/08: a fresh Candidate carries finding lineage and requires expli
     requirement: 'exact approval',
     description: 'needs changes',
     state: 'open',
+    originCandidate: candidate.id,
+    originPackageDigest: firstPackage.digest,
     introducedBy: { session: firstAssignment.session, principal: firstAssignment.principal },
     resolutionEvidenceDigest: null,
     resolvedBy: null,
@@ -320,12 +512,21 @@ test('MC-040-05/08: a fresh Candidate carries finding lineage and requires expli
     session: `${story}/session/reviewer/5`,
     principal: 'principal/reviewer-5',
   }).value;
+  assert.equal(
+    controller.receiveVerdict({
+      assignment: secondAssignment,
+      verdict: 'approve',
+      findings: [
+        { ...finding, candidate: candidate2.id, packageDigest: secondPackage.digest, severity: 'non-blocking' },
+      ],
+    }).ok,
+    false,
+  );
   const resolved = {
     ...finding,
     candidate: candidate2.id,
     packageDigest: secondPackage.digest,
     state: 'resolved',
-    introducedBy: { session: secondAssignment.session, principal: secondAssignment.principal },
     resolutionEvidenceDigest: d('6'),
     resolvedBy: { session: secondAssignment.session, principal: secondAssignment.principal },
   };
@@ -361,31 +562,7 @@ test('MC-040-07/09: explicit posture, evidence, and rule invalidation fail close
   }).value;
   assert.deepEqual(controller.invalidate({ packageDigest: packageValue.digest, reason: 'rule-surface' }).ok, true);
   assert.equal(controller.projection().state, 'Reviewing');
-  assert.equal(
-    controller.rejectStory({
-      decision: {
-        event: 'EV-OWNER-DECISION',
-        story,
-        principal: 'principal/not-owner',
-        decision: 'reject-story',
-        proofDigest: d('a'),
-      },
-    }).ok,
-    false,
-  );
-  assert.equal(
-    controller.rejectStory({
-      decision: {
-        event: 'EV-OWNER-DECISION',
-        story,
-        principal: runtime.ACCEPTANCE_OWNER,
-        decision: 'reject-story',
-        proofDigest: runtime.OWNER_DECISION_PROOF_DIGEST,
-      },
-    }).ok,
-    true,
-  );
-  assert.equal(controller.projection().state, 'Rejected');
+  assert.equal('rejectStory' in controller, false);
 });
 
 test('MC-040-10: append-before-transition recovery reconciles a lost acknowledgement', () => {
