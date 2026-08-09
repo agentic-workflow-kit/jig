@@ -125,7 +125,11 @@ test('GF-021: forged self-consistent carriers fail semantic transfer validation'
   const result = runtime.composeEnvelope(input());
   assert.equal(result.ok, true);
 
-  const digest = (domain, value) => codec.stageDigest({ domain, value, excludePaths: [] }).value.digest;
+  const digest = (domain, value) => {
+    const staged = codec.stageDigest({ domain, value, excludePaths: [] });
+    assert.equal(staged.ok, true);
+    return staged.value.digest;
+  };
   const rebind = (carrier) => {
     carrier.digests.plan = digest('EP-PLAN', carrier.plan);
     carrier.digests.policy = digest('EP-POLICY', carrier.policy);
@@ -177,7 +181,7 @@ test('GF-021: forged self-consistent carriers fail semantic transfer validation'
     const rebound = rebind(forged);
     const validation = runtime.validateEnvelopeProposal(rebound);
     assert.equal(validation.ok, false);
-    assert.equal(validation.error.family, 'FC-INPUT');
+    assert.equal(validation.error.code, 'INVALID_ENVELOPE_CARRIER');
   }
 });
 

@@ -424,13 +424,9 @@ test('development intake classifies malformed disposition and successor cuts as 
       },
     },
   );
-  assert.doesNotThrow(() =>
+  assert.deepEqual(
     profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted', successorCut: hostileCut }),
-  );
-  assert.equal(
-    profile.submit({ preview, proposalApproval, manifestApproval, terminalAck: 'accepted', successorCut: hostileCut })
-      .ok,
-    false,
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
   );
   const getterCut = {};
   Object.defineProperties(getterCut, {

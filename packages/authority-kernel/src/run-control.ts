@@ -1128,6 +1128,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       return result;
     },
     terminalStop(rawInput) {
+      externalFence = null;
       const raw = ownFields(rawInput, [
         'requestKey',
         'eventId',

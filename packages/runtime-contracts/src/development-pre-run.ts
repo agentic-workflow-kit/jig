@@ -86,6 +86,13 @@ const ok = <T>(value: T): Result<T> => freeze({ ok: true, value: freeze(value) }
 const fail = (family: Failure['family'], code: string): Result<never> =>
   freeze({ ok: false, error: freeze({ family, code }) });
 
+function isApprovalReadResult(value: unknown): value is ReturnType<PreRunApprovalRepository['read']> {
+  const success = fields(value, ['ok', 'value']);
+  if (success?.ok === true) return true;
+  const failure = fields(value, ['ok', 'error']);
+  return failure?.ok === false;
+}
+
 function fields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
   try {
     if (
@@ -525,6 +532,8 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       } catch {
         return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
       }
+      if (!isApprovalReadResult(storedProposal) || !isApprovalReadResult(storedManifest))
+        return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
       if (
         !storedProposal.ok ||
         !storedManifest.ok ||

@@ -557,6 +557,12 @@ test('uncertain response is reconciled without blind resend', () => {
   });
   assert.equal(uncertain.ok, true, JSON.stringify(uncertain));
   assert.equal(uncertain.value.status, 'uncertain');
+  const restored = runtime.restoreScriptedDoorbellController(controller.snapshot());
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(
+    restored.value.respond({ operation, request: request.value.id, decision: decision.value.event }).error,
+    { family: 'FC-EFFECT', code: 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION' },
+  );
   assert.deepEqual(controller.respond({ operation, request: request.value.id, decision: decision.value.event }).error, {
     family: 'FC-EFFECT',
     code: 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION',

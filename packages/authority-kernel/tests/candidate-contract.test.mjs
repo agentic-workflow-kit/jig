@@ -271,12 +271,16 @@ test('GF-035 exports only candidate/rework semantics and no downstream authority
 test('candidate changed-path canonical order is independent of the host locale', () => {
   const state = makeController();
   const result = createCandidate(state, {
+    operation: op(2),
+    authorizingTransition: tx(2),
     changedPaths: [
-      { path: 'packages/z.ts', contentDigest: d('c') },
+      { path: 'packages/B.ts', contentDigest: d('d') },
       { path: 'packages/a.ts', contentDigest: d('b') },
+      { path: 'packages/z.ts', contentDigest: d('c') },
     ],
   });
   assert.deepEqual(result.changedPaths, [
+    { path: 'packages/B.ts', contentDigest: d('d') },
     { path: 'packages/a.ts', contentDigest: d('b') },
     { path: 'packages/z.ts', contentDigest: d('c') },
   ]);

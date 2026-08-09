@@ -643,6 +643,7 @@ export function validateTransitionOperation(value: unknown): OperationResult<Tra
     !raw.event.startsWith(`${subject.run}/event/`) ||
     !raw.operation.startsWith(`${raw.transaction}/op/`) ||
     !sameLedgerPosition(raw.transaction, raw.event) ||
+    !raw.transaction.includes(`/${fence.generation}|`) ||
     !digest(raw.payloadBasisDigest) ||
     !boundedText(raw.role) ||
     !boundedText(raw.lifecycle) ||

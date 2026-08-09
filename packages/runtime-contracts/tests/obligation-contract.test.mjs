@@ -252,7 +252,7 @@ test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is id
       grant: null,
       generation,
       criteriaDigest: opened.value.criteria.digest,
-      evidence: evidence('c'),
+      evidence: evidence(),
       observedAt: 3000,
     }).value.status,
     'resolved',
@@ -265,7 +265,7 @@ test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is id
       grant: null,
       generation,
       criteriaDigest: opened.value.criteria.digest,
-      evidence: evidence('c'),
+      evidence: evidence(),
       observedAt: 3000,
     }).value.status,
     'resolved',
@@ -346,7 +346,7 @@ test('GF038-MC-04: delegated resolution requires a current exact grant and trust
     grant: grant.value.id,
     generation,
     criteriaDigest: opened.value.criteria.digest,
-    evidence: evidence('c'),
+    evidence: evidence(),
     observedAt: 3000,
   };
   assert.equal(controller.resolve(resolution).value.status, 'resolved');
@@ -354,10 +354,13 @@ test('GF038-MC-04: delegated resolution requires a current exact grant and trust
   const wrongGrantController = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const wrongOpened = wrongGrantController.open(openInput());
   assert.equal(wrongOpened.ok, true);
-  assert.deepEqual(wrongGrantController.resolve({ ...resolution, grant: `${run}/grant/2` }).error, {
-    family: 'FC-FENCE',
-    code: 'CURRENT_GRANT_REQUIRED',
-  });
+  assert.deepEqual(
+    wrongGrantController.resolve({ ...resolution, obligation: wrongOpened.value.id, grant: `${run}/grant/2` }).error,
+    {
+      family: 'FC-FENCE',
+      code: 'CURRENT_GRANT_REQUIRED',
+    },
+  );
   const criteriaController = obligation.createScriptedObligationController({ dependencies: dependencies() });
   const criteriaOpened = criteriaController.open(openInput());
   assert.equal(criteriaOpened.ok, true);
@@ -487,7 +490,7 @@ test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or
     grant: null,
     generation,
     criteriaDigest: uncertainOpened.value.criteria.digest,
-    evidence: evidence('c'),
+    evidence: evidence(),
     observedAt: 3000,
   };
   assert.deepEqual(uncertainController.resolve(uncertainResolution).error, {
@@ -559,7 +562,7 @@ test('GF038-MC-07: every resolution append stage fences uncertainty and reconcil
         grant: null,
         generation,
         criteriaDigest: opened.value.criteria.digest,
-        evidence: evidence('c'),
+        evidence: evidence(),
         observedAt: 3000,
       };
       const attempted = controller.resolve(resolution);

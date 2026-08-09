@@ -436,6 +436,8 @@ const parseFact = (value: unknown): WorkspaceFact | undefined => {
     (raw.kind === 'setup-fact' && (!receipt || raw.operationType !== 'OPC-WS-SETUP')) ||
     (raw.kind === 'workspace-fact' && raw.operationType === 'OPC-WS-SETUP') ||
     (raw.kind === 'preservation-fact' && !raw.preserved) ||
+    (raw.operationType === 'OPC-WS-PRESERVE') !== raw.preserved ||
+    (raw.operationType === 'OPC-WS-SETUP') !== (receipt !== null) ||
     !['workspace-fact', 'setup-fact', 'preservation-fact'].includes(raw.kind as string)
   )
     return undefined;
@@ -521,6 +523,7 @@ const parseSnapshot = (value: unknown): WorkspaceSnapshot | undefined => {
   const facts = (raw.facts as readonly unknown[]).map(parseFact);
   if (
     intents.some((entry) => !entry) ||
+    new Set(intents.map((entry) => entry?.operation)).size !== intents.length ||
     facts.some((entry) => !entry) ||
     (raw.setupIntentKeys as readonly unknown[]).some((entry) => typeof entry !== 'string') ||
     (raw.uncertainOperations as readonly unknown[]).some((entry) => typeof entry !== 'string')
@@ -1035,6 +1038,10 @@ export function restoreWorkspaceController(
 ): WorkspaceResult<WorkspaceController> {
   const snapshot = parseSnapshot(input?.snapshot);
   if (!snapshot) return fail('FC-TRUST', 'INVALID_WORKSPACE_SNAPSHOT');
+  for (const intent of snapshot.intents) {
+    const recorded = input.transition.recordIntent(intent);
+    if (!recorded.ok) return recorded;
+  }
   return ok(
     createWorkspaceControllerInternal(
       {

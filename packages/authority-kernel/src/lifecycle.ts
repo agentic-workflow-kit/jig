@@ -215,7 +215,9 @@ function sameState(left: AuthorityState, right: AuthorityState): boolean {
 }
 
 function sameBinding(left: AuthorityBindings, right: AuthorityBindings): boolean {
-  return hash('LIFECYCLE-BINDING', left) === hash('LIFECYCLE-BINDING', right);
+  const leftDigest = hash('LIFECYCLE-BINDING', left);
+  const rightDigest = hash('LIFECYCLE-BINDING', right);
+  return leftDigest !== undefined && rightDigest !== undefined && leftDigest === rightDigest;
 }
 
 function sameRoot(left: DirectBlockerRoot, right: DirectBlockerRoot | undefined): boolean {
@@ -963,10 +965,11 @@ function validateProjectionTransition(
       !sameState(reduced.value.next, transition.next) ||
       !sameBinding(reduced.value.bindings, transition.bindings) ||
       reduced.value.operations.length !== transition.operations.length ||
-      reduced.value.operations.some(
-        (operation, index) =>
-          hash('LIFECYCLE-OPERATION', operation) !== hash('LIFECYCLE-OPERATION', transition.operations[index]),
-      )
+      reduced.value.operations.some((operation, index) => {
+        const actualDigest = hash('LIFECYCLE-OPERATION', operation);
+        const expectedDigest = hash('LIFECYCLE-OPERATION', transition.operations[index]);
+        return actualDigest === undefined || expectedDigest === undefined || actualDigest !== expectedDigest;
+      })
     )
       return fail('FC-AUTHORITY', 'CATALOGUE_CLOSURE');
   }

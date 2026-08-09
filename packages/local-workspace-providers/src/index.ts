@@ -855,18 +855,22 @@ function fixtureBinding(
 }
 
 function setupFixtureRepository(repository: string): Result<{ head: string }> {
-  mkdirSync(repository, { recursive: true });
-  if (
-    !git(repository, ['init', '--quiet']).ok ||
-    !git(repository, ['config', 'user.name', 'Jig Qualification Fixture']).ok ||
-    !git(repository, ['config', 'user.email', 'fixture@invalid']).ok
-  )
+  try {
+    mkdirSync(repository, { recursive: true });
+    if (
+      !git(repository, ['init', '--quiet']).ok ||
+      !git(repository, ['config', 'user.name', 'Jig Qualification Fixture']).ok ||
+      !git(repository, ['config', 'user.email', 'fixture@invalid']).ok
+    )
+      return fail('FC-MECHANISM', 'FIXTURE_REPOSITORY_FAILED');
+    writeFileSync(join(repository, 'README.md'), 'GF-039 disposable qualification fixture\n');
+    if (!git(repository, ['add', 'README.md']).ok || !git(repository, ['commit', '--quiet', '-m', 'fixture']).ok)
+      return fail('FC-MECHANISM', 'FIXTURE_COMMIT_FAILED');
+    const head = repoHead(repository);
+    return head.ok ? ok({ head: head.value }) : head;
+  } catch {
     return fail('FC-MECHANISM', 'FIXTURE_REPOSITORY_FAILED');
-  writeFileSync(join(repository, 'README.md'), 'GF-039 disposable qualification fixture\n');
-  if (!git(repository, ['add', 'README.md']).ok || !git(repository, ['commit', '--quiet', '-m', 'fixture']).ok)
-    return fail('FC-MECHANISM', 'FIXTURE_COMMIT_FAILED');
-  const head = repoHead(repository);
-  return head.ok ? ok({ head: head.value }) : head;
+  }
 }
 
 export function cleanupLocalGitWorktreeProbe(resourceRoot: string): Result<Readonly<{ removed: string }>> {
@@ -901,17 +905,17 @@ export function runLocalGitWorktreeQualificationProbe(
   const target = join(root, 'target');
   const setup = setupFixtureRepository(source);
   if (!setup.ok) {
-    if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
+    cleanupLocalGitWorktreeProbe(root);
     return setup;
   }
   const environment = discoverLocalGitWorktreeEnvironment(root);
   if (!environment.ok) {
-    if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
+    cleanupLocalGitWorktreeProbe(root);
     return environment;
   }
   const admission = validateAdmission(input?.admission);
   if (!admission.ok) {
-    if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
+    cleanupLocalGitWorktreeProbe(root);
     return admission;
   }
   const run = 'run-000000000001-0123456789abcdef';
@@ -980,7 +984,6 @@ export function runLocalGitWorktreeQualificationProbe(
       return !retire.ok && retire.error.code === 'REAL_RETIRE_DISABLED' && existsSync(join(target, 'README.md'));
     })(),
     noSecrets: !SECRET_VALUE.test(MANIFEST_TEXT),
-    providerConfigurationDeferred: true,
   });
   const passed = Object.values(observations).every(Boolean);
   const requestDigest = digest('WORKSPACE-PROBE-REQUEST', {
@@ -1013,10 +1016,8 @@ export function runLocalGitWorktreeQualificationProbe(
     candidateTree: input.candidateTree,
     fixtureDigest: digest('WORKSPACE-FIXTURE', { source, target, basis }),
     admissionProofDigest: admission.value.proofDigest,
-    admissionObservedAt: Number((input.admission as Record<string, unknown>).observedAt),
-    admissionAgeMs:
-      Number((input.admission as Record<string, unknown>).observedAt) -
-      Number(((input.admission as Record<string, unknown>).proof as Record<string, unknown>).observedAt),
+    admissionObservedAt: admission.value.observedAt,
+    admissionAgeMs: admission.value.ageMs,
     requestDigest,
     resultDigest,
     operationDigest,

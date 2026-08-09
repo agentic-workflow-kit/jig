@@ -9,7 +9,7 @@ const run = 'run-bounds-000000000000000000000000';
 const story = `${run}/story/bounds`;
 const subject = { run, story, basis: d('a') };
 const generation = `${run}/gen/1|controller`;
-const clock = (at, _character = 'b', clockGeneration = generation) => {
+const clock = (at, clockGeneration = generation) => {
   const body = {
     schema: bounds.CLOCK_FACT_VERSION,
     kind: 'witnessed',
@@ -72,7 +72,7 @@ const start = (journal, surface, at = 0, character = '0') =>
     generation,
     policy: policy(),
     startedAt: at,
-    clock: clock(at, character),
+    clock: clock(at),
     factDigest: d(character),
   });
 
@@ -166,7 +166,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
       generation,
       policy: policy(),
       startedAt: 0,
-      clock: clock(0, factCharacter),
+      clock: clock(0),
       factDigest: d(factCharacter),
     });
   assert.equal(startFor(operationOne, '1').ok, true);
@@ -178,7 +178,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
     generation: `${run}/gen/2|controller`,
     policy: policy(),
     startedAt: 0,
-    clock: clock(0, '1', `${run}/gen/2|controller`),
+    clock: clock(0, `${run}/gen/2|controller`),
     factDigest: d('1'),
   });
   assert.equal(staleDuplicate.error.code, 'DUPLICATE_FACT_DIGEST');
@@ -187,7 +187,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
     generation,
     subject: operationOne,
     at: 0,
-    clock: clock(0, '3'),
+    clock: clock(0),
     factDigest: d('3'),
   });
   const second = journal.consume({
@@ -195,7 +195,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
     generation,
     subject: operationTwo,
     at: 0,
-    clock: clock(0, '4'),
+    clock: clock(0),
     factDigest: d('4'),
   });
   assert.equal(first.value.consumed, 1);
@@ -205,7 +205,7 @@ test('CF-BOUNDS: operation-scoped retry instances retain independent fences and 
     generation,
     subject: operationOne,
     at: 0,
-    clock: clock(0, '3'),
+    clock: clock(0),
     conditionDigest: d('5'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('3'),
@@ -223,7 +223,7 @@ test('CF-BOUNDS: every finite surface reaches its catalogued deadline or consump
       generation,
       policy: policy(),
       startedAt: 0,
-      clock: clock(0, '0'),
+      clock: clock(0),
       factDigest: hd(index + 1),
     });
     assert.equal(initial.ok, true, surface);
@@ -235,12 +235,12 @@ test('CF-BOUNDS: every finite surface reaches its catalogued deadline or consump
           generation,
           subject,
           at: 0,
-          clock: clock(0, '1'),
+          clock: clock(0),
           factDigest: hd(100 + index * 10 + attempt),
         }).value;
       }
     } else {
-      terminal = journal.evaluate({ surface, generation, subject, clock: clock(terminal.deadlineAt, '2') }).value;
+      terminal = journal.evaluate({ surface, generation, subject, clock: clock(terminal.deadlineAt) }).value;
     }
     assert.equal(terminal.status, 'exhausted', surface);
     assert.equal(terminal.exhaustion.disposition, terminal.disposition, surface);
@@ -255,7 +255,7 @@ test('CF-CONTAINMENT: count exhaustion is durable, fixed, and idempotent; stale 
     generation,
     subject,
     at: 0,
-    clock: clock(0, 'd'),
+    clock: clock(0),
     factDigest: d('d'),
   });
   assert.equal(first.ok, true);
@@ -266,7 +266,7 @@ test('CF-CONTAINMENT: count exhaustion is durable, fixed, and idempotent; stale 
     generation,
     subject,
     at: 0,
-    clock: clock(0, 'e'),
+    clock: clock(0),
     factDigest: d('e'),
   });
   assert.equal(exhausted.ok, true);
@@ -279,7 +279,7 @@ test('CF-CONTAINMENT: count exhaustion is durable, fixed, and idempotent; stale 
     generation,
     subject,
     at: 0,
-    clock: clock(0, 'e'),
+    clock: clock(0),
     factDigest: d('e'),
   });
   assert.deepEqual(duplicate.value, exhausted.value);
@@ -290,7 +290,7 @@ test('CF-CONTAINMENT: count exhaustion is durable, fixed, and idempotent; stale 
     generation: staleGeneration,
     subject,
     at: 0,
-    clock: clock(0, 'f', staleGeneration),
+    clock: clock(0, staleGeneration),
     factDigest: d('f'),
   });
   assert.equal(stale.error.family, 'FC-FENCE');
@@ -306,7 +306,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     generation,
     subject,
     observation: forged,
-    clock: clock(100, 'd'),
+    clock: clock(100),
   });
   assert.equal(uncommitted.error.code, 'UNCOMMITTED_LIVENESS');
   const mismatchedSource = journal.witnessLiveness({
@@ -324,7 +324,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     kind: 'progress',
     factKind: 'termination',
     factDigest: d('e'),
-    clock: clock(101, 'e'),
+    clock: clock(101),
   });
   assert.equal(mismatchedSource.error.code, 'MALFORMED_BOUND_OBSERVATION');
   const progress = journal.observe({
@@ -332,7 +332,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     generation,
     subject,
     observation: committed,
-    clock: clock(100, 'd'),
+    clock: clock(100),
   });
   assert.equal(progress.ok, true);
   assert.equal(progress.value.startAt, 0);
@@ -353,7 +353,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
       'SCH-CANDIDATE',
       1,
     ),
-    clock: clock(progress.value.deadlineAt, 'e'),
+    clock: clock(progress.value.deadlineAt),
   });
   assert.equal(late.error.code, 'BOUND_DEADLINE_MISSED');
 
@@ -365,7 +365,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     generation,
     subject,
     observation: livenessObservation(silent, 'session-silence', 10, 'heartbeat', d('d')),
-    clock: clock(10, 'd'),
+    clock: clock(10),
   });
   assert.equal(heartbeat.ok, true);
   assert.equal(heartbeat.value.resetCount, 1);
@@ -374,7 +374,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     generation,
     subject,
     observation: livenessObservation(silent, 'session-silence', 20, 'progress', d('e')),
-    clock: clock(20, 'e'),
+    clock: clock(20),
   });
   assert.equal(wrongReset.error.code, 'RESET_NOT_CATALOGUED');
 
@@ -386,7 +386,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
     generation,
     subject,
     observation: livenessObservation(capacity, 'capacity-admission', 1, 'progress', d('d')),
-    clock: clock(1, 'd'),
+    clock: clock(1),
   });
   assert.equal(forbiddenReset.error.code, 'RESET_NOT_CATALOGUED');
   const providerObservation = journal.observe({
@@ -397,7 +397,7 @@ test('CF-BOUNDS: idle and silence reset only from their catalogued durable facts
       ...livenessObservation(journal, 'qualifying-progress-idle', 1, 'progress', d('e')),
       source: 'provider',
     },
-    clock: clock(1, 'e'),
+    clock: clock(1),
   });
   assert.equal(providerObservation.error.code, 'MALFORMED_BOUND_OBSERVATION');
 });
@@ -441,7 +441,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     kind: 'heartbeat',
     factKind: 'heartbeat',
     factDigest: d('a'),
-    clock: clock(1, 'a'),
+    clock: clock(1),
   });
   assert.equal(misplacedHeartbeat.error.code, 'SILENCE_OBSERVATION_SURFACE_REQUIRED');
   const stuckJournal = bounds.createBoundJournal();
@@ -451,7 +451,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     surface: 'qualifying-progress-idle',
     generation,
     subject,
-    clock: clock(stuckIdleInitial.deadlineAt, 'e'),
+    clock: clock(stuckIdleInitial.deadlineAt),
   });
   assert.equal(exhaustedIdle.value.status, 'exhausted');
   const stuck = bounds.classifyLiveness({
@@ -471,7 +471,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     surface: 'session-silence',
     generation,
     subject,
-    clock: clock(deadSilence.deadlineAt, 'e'),
+    clock: clock(deadSilence.deadlineAt),
   });
   assert.equal(exhaustedSilence.value.status, 'exhausted');
   const dead = bounds.classifyLiveness({
@@ -500,7 +500,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     generation,
     subject,
     observation: terminationObservation,
-    clock: clock(10, 'e'),
+    clock: clock(10),
   });
   assert.equal(terminationFact.ok, true);
   assert.deepEqual(
@@ -509,7 +509,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
       generation,
       subject,
       observation: terminationObservation,
-      clock: clock(10, 'e'),
+      clock: clock(10),
     }),
     terminationFact,
   );
@@ -528,7 +528,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     surface: 'owner-provider-answer',
     generation,
     subject,
-    clock: clock(owner.deadlineAt, '1'),
+    clock: clock(owner.deadlineAt),
   });
   assert.equal(exhaustedOwner.value.status, 'exhausted');
   const overdueBasis = journal.humanInputOverdueBasis({
@@ -558,7 +558,7 @@ test('CF-LIVENESS: durable deadline facts classify thinking, stuck, dead, and hu
     surface: 'owner-provider-answer',
     generation,
     subject,
-    clock: clock(divergentOwner.deadlineAt, '1'),
+    clock: clock(divergentOwner.deadlineAt),
   });
   assert.equal(divergentExhaustion.value.status, 'exhausted');
   const divergentOverdue = bounds.classifyLiveness({
@@ -645,7 +645,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
       subject,
       generation,
       position: journal.snapshot().facts.length,
-      clock: clock(1, '2'),
+      clock: clock(1),
       factDigest: d('2'),
       profile,
     }).ok,
@@ -667,7 +667,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
       generation,
       subject,
       observation: checkpoint,
-      clock: clock(10, '3'),
+      clock: clock(10),
     }).ok,
     true,
   );
@@ -679,7 +679,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
     generation,
     factDigest: d('4'),
     position: journal.snapshot().facts.length,
-    clock: clock(11, '4'),
+    clock: clock(11),
     checkpoint: {
       profileDigest: profile.profileDigest,
       checkpointId: 'missing',
@@ -697,7 +697,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
       generation,
       policy: policy(),
       startedAt: 0,
-      clock: clock(0, '5'),
+      clock: clock(0),
       factDigest: d('5'),
     }).ok,
     true,
@@ -709,7 +709,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
     generation,
     factDigest: d('6'),
     position: journal.snapshot().facts.length,
-    clock: clock(11, '6'),
+    clock: clock(11),
     checkpoint: { profileDigest: profile.profileDigest, checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' },
     committed: true,
   });
@@ -724,7 +724,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
       generation: otherGeneration,
       policy: policy(),
       startedAt: 0,
-      clock: clock(0, '7', otherGeneration),
+      clock: clock(0, otherGeneration),
       factDigest: d('7'),
     }).ok,
     true,
@@ -736,7 +736,7 @@ test('CF-LIVENESS: only a frozen profile-declared mechanism checkpoint qualifies
     generation: otherGeneration,
     factDigest: d('8'),
     position: journal.snapshot().facts.length,
-    clock: clock(11, '8', otherGeneration),
+    clock: clock(11, otherGeneration),
     checkpoint: { profileDigest: profile.profileDigest, checkpointId: 'check-1', factKind: 'EV-CHECK-OBSERVATION' },
     committed: true,
   });
@@ -753,7 +753,7 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
     generation,
     subject,
     at: 0,
-    clock: clock(0, '1'),
+    clock: clock(0),
     conditionDigest: d('1'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('a'),
@@ -765,7 +765,7 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
     generation,
     subject,
     at: 1,
-    clock: clock(1, '2'),
+    clock: clock(1),
     conditionDigest: d('2'),
     selector: 'EV-WAKE-DEPENDENCY',
     factDigest: d('b'),
@@ -779,7 +779,7 @@ test('CF-CONTAINMENT: six durable wake selectors are distinct; timer wake only c
     generation,
     subject,
     at: 0,
-    clock: clock(0, '1'),
+    clock: clock(0),
     conditionDigest: d('1'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('a'),
@@ -796,7 +796,7 @@ test('CF-BOUNDS: missed durable deadline chooses the fixed surface disposition; 
     generation,
     subject,
     at: 1,
-    clock: clock(1, 'd'),
+    clock: clock(1),
     conditionDigest: d('d'),
     selector: 'EV-WAKE-TIMER',
     factDigest: d('d'),
@@ -806,14 +806,14 @@ test('CF-BOUNDS: missed durable deadline chooses the fixed surface disposition; 
     surface: 'ledger-registry-intake',
     generation,
     subject,
-    clock: clock(1, 'e'),
+    clock: clock(1),
   });
   assert.equal(timerResult.value.status, 'active');
   const deadline = journal.evaluate({
     surface: 'ledger-registry-intake',
     generation,
     subject,
-    clock: clock(30 * 1000, 'f'),
+    clock: clock(30 * 1000),
   });
   assert.equal(deadline.value.status, 'exhausted');
   assert.equal(deadline.value.disposition, 'recover');
@@ -832,7 +832,7 @@ test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bo
       generation,
       subject,
       at: 0,
-      clock: clock(0, 'd'),
+      clock: clock(0),
       factDigest: hd(901),
     }).ok,
     true,
@@ -843,7 +843,7 @@ test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bo
       generation,
       subject,
       at: 0,
-      clock: clock(0, 'e'),
+      clock: clock(0),
       factDigest: hd(902),
     }).ok,
     true,
@@ -853,7 +853,7 @@ test('CF-CONTAINMENT: uncertain effect reconciliation retains its fixed fence-bo
     generation,
     subject,
     at: 0,
-    clock: clock(0, 'f'),
+    clock: clock(0),
     factDigest: hd(903),
   });
   assert.equal(result.value.status, 'exhausted');
@@ -870,7 +870,7 @@ test('CF-BOUNDS: replay reconstructs the same bound epoch and disposition under 
       generation,
       subject,
       at: 1,
-      clock: clock(1, 'd'),
+      clock: clock(1),
       conditionDigest: d('d'),
       selector: 'EV-WAKE-SETTLEMENT',
       factDigest: d('d'),
@@ -883,7 +883,7 @@ test('CF-BOUNDS: replay reconstructs the same bound epoch and disposition under 
       generation,
       subject,
       at: 1,
-      clock: clock(1, 'e'),
+      clock: clock(1),
       factDigest: d('e'),
     }).ok,
     true,
@@ -894,7 +894,7 @@ test('CF-BOUNDS: replay reconstructs the same bound epoch and disposition under 
       generation,
       subject,
       at: 1,
-      clock: clock(1, 'f'),
+      clock: clock(1),
       factDigest: d('f'),
     }).ok,
     true,
@@ -904,7 +904,7 @@ test('CF-BOUNDS: replay reconstructs the same bound epoch and disposition under 
     generation,
     subject,
     at: 1,
-    clock: clock(1, '1'),
+    clock: clock(1),
     factDigest: d('1'),
   });
   assert.equal(exhausted.ok, true);

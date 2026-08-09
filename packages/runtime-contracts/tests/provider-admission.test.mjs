@@ -374,11 +374,12 @@ test('GF-039 admission: exact owner-approved local Git-worktree manifest uses th
 
 test('GF-039 admission: manifest bytes, digest, scope, principal, cross-manifest and arbitrary registration mismatches fail closed', () => {
   const alteredBytes = new Uint8Array(localGitWorktreeManifestBytes);
-  alteredBytes[alteredBytes.length - 2] ^= 1;
+  const alteredManifest = new TextDecoder().decode(alteredBytes).replace('"vcs":"git"', '"vcs":"Git"');
+  const alteredManifestBytes = new TextEncoder().encode(alteredManifest);
   assert.equal(
     runtime
       .createProviderAdmissionFixture({
-        manifestBytes: alteredBytes,
+        manifestBytes: alteredManifestBytes,
         approval: localGitWorktreeApproval,
         ledger: runtime.createScriptedLedger(),
       })

@@ -19,7 +19,11 @@ const story = (key) => `${run}/story/${key}`;
 const principal = 'principal/owner';
 const grant = `${run}/grant/1`;
 const digest = (letter) => letter.repeat(64);
-const stagedDigest = (domain, value) => codec.stageDigest({ domain, excludePaths: [], value }).value.digest;
+const stagedDigest = (domain, value) => {
+  const result = codec.stageDigest({ domain, excludePaths: [], value });
+  assert.equal(result.ok, true);
+  return result.value.digest;
+};
 
 const proof = (position, ordinal = position + 1, generation = gen(ordinal)) => ({
   position,
@@ -591,6 +595,11 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
   assert.equal(controller.events().length, 0);
   assert.equal(ledger.records().length, 0);
   assert.equal(controller.snapshot().externalFence?.kind, 'FC-TRUST');
+  assert.deepEqual(controller.terminalStop({ ...input, requestKey: 'trust-stop-invalid', reason: '' }).error, {
+    family: 'FC-INPUT',
+    code: 'INVALID_TERMINAL_STOP',
+  });
+  assert.equal(controller.snapshot().externalFence, null);
 
   const forged = makeController({ phase: 'Interrupted / Recovering' });
   const forgedResult = forged.controller.terminalStop({

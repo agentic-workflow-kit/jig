@@ -24,6 +24,7 @@ const intakeRequest = ({ compositionDigest, terminalAck, successorCut }) => {
     ? { schema: 'jig.intake-cut-claim.v1', key: successorCut, acknowledgementKey: compositionDigest }
     : undefined;
   const cutClaimFrame = cutClaim && codec.encodeFrame(cutClaim);
+  if (cutClaim) assert.equal(cutClaimFrame.ok, true);
   const cutClaimDigest = cutClaim && stage('DEVELOPMENT-INTAKE-CUT-CLAIM', cutClaim);
   const acknowledgement = {
     schema: 'jig.intake-ack.v1',

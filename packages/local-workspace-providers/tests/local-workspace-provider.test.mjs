@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -97,29 +98,34 @@ test('GF-039 probe remains non-configuring in the same process and after restart
     admission: admission(),
     retainRoot: true,
   });
-  assert.equal(probe.ok, true);
-  assert.equal('receipt' in probe.value, false);
-  assert.equal('dispatch' in probe.value, false);
-  assert.equal('providerEnabled' in probe.value, false);
-  assert.equal(typeof provider.createQualifiedLocalGitWorktreeProvider, 'undefined');
-  assert.equal(typeof provider.createMechanism, 'undefined');
-  assert.equal(typeof provider.recordLocalGitWorktreeGateEvidence, 'undefined');
-  const restartedProvider = await import('../dist/index.js?gf039-restart');
-  assert.equal(typeof restartedProvider.createQualifiedLocalGitWorktreeProvider, 'undefined');
-  assert.equal(typeof restartedProvider.createMechanism, 'undefined');
-  assert.equal(typeof restartedProvider.recordLocalGitWorktreeGateEvidence, 'undefined');
-  assert.equal(existsSync(join(probe.value.resourceRoot, '.jig-gf039-qualification-evidence.json')), false);
-  assert.equal(existsSync(join(probe.value.resourceRoot, '.jig-gf039-qualification-anchor.json')), false);
-  assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
-    ok: true,
-    value: { removed: probe.value.resourceRoot },
-  });
+  try {
+    assert.equal(probe.ok, true);
+    assert.equal('receipt' in probe.value, false);
+    assert.equal('dispatch' in probe.value, false);
+    assert.equal('providerEnabled' in probe.value, false);
+    assert.equal(typeof provider.createQualifiedLocalGitWorktreeProvider, 'undefined');
+    assert.equal(typeof provider.createMechanism, 'undefined');
+    assert.equal(typeof provider.recordLocalGitWorktreeGateEvidence, 'undefined');
+    const restartedProvider = await import('../dist/index.js?gf039-restart');
+    assert.equal(typeof restartedProvider.createQualifiedLocalGitWorktreeProvider, 'undefined');
+    assert.equal(typeof restartedProvider.createMechanism, 'undefined');
+    assert.equal(typeof restartedProvider.recordLocalGitWorktreeGateEvidence, 'undefined');
+    assert.equal(existsSync(join(probe.value.resourceRoot, '.jig-gf039-qualification-evidence.json')), false);
+    assert.equal(existsSync(join(probe.value.resourceRoot, '.jig-gf039-qualification-anchor.json')), false);
+  } finally {
+    if (probe.ok)
+      assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
+        ok: true,
+        value: { removed: probe.value.resourceRoot },
+      });
+  }
 });
 
 test('GF-039 has no same-user durable qualification recorder and cleanup rejects unsafe resources', () => {
   assert.equal('recordLocalGitWorktreeGateEvidence' in provider, false);
   assert.equal(provider.cleanupLocalGitWorktreeProbe('/').ok, false);
   assert.equal(provider.cleanupLocalGitWorktreeProbe('/Users').ok, false);
+  assert.equal(provider.cleanupLocalGitWorktreeProbe(homedir()).ok, false);
 });
 
 test('GF-039 public surface exposes one local Git provider and no generic or alternate provider mode', () => {
@@ -149,16 +155,20 @@ test('GF-039 conformance evidence cannot enable same-process provider reachabili
     admission: admission(),
     retainRoot: true,
   });
-  assert.equal(probe.ok, true);
-  assert.equal('receipt' in probe.value, false);
-  assert.equal('dispatch' in probe.value, false);
-  assert.equal('providerEnabled' in probe.value, false);
-  assert.equal('dispatchEnabled' in probe.value, false);
-  assert.equal(typeof provider.createQualifiedLocalGitWorktreeProvider, 'undefined');
-  assert.equal(typeof provider.createMechanism, 'undefined');
-  assert.equal(typeof provider.recordLocalGitWorktreeGateEvidence, 'undefined');
-  assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
-    ok: true,
-    value: { removed: probe.value.resourceRoot },
-  });
+  try {
+    assert.equal(probe.ok, true);
+    assert.equal('receipt' in probe.value, false);
+    assert.equal('dispatch' in probe.value, false);
+    assert.equal('providerEnabled' in probe.value, false);
+    assert.equal('dispatchEnabled' in probe.value, false);
+    assert.equal(typeof provider.createQualifiedLocalGitWorktreeProvider, 'undefined');
+    assert.equal(typeof provider.createMechanism, 'undefined');
+    assert.equal(typeof provider.recordLocalGitWorktreeGateEvidence, 'undefined');
+  } finally {
+    if (probe.ok)
+      assert.deepEqual(provider.cleanupLocalGitWorktreeProbe(probe.value.resourceRoot), {
+        ok: true,
+        value: { removed: probe.value.resourceRoot },
+      });
+  }
 });

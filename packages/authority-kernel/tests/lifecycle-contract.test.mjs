@@ -163,6 +163,9 @@ test('lifecycle oracle is versioned and retains the exact governed surface', () 
   ]);
   assert.equal(oracle.storyStates, kernel.STORY_STATES.length);
   assert.equal(oracle.runPhases, kernel.RUN_PHASES.length);
+  assert.deepEqual(oracle.outcomes, ['Landed', 'Blocked', 'Rejected', 'NotRun']);
+  assert.deepEqual(oracle.runOverlays, ['Parked', 'Suspended', 'Interrupted / Recovering', 'Settling', 'Stopped']);
+  assert.deepEqual(oracle.cfSuites, ['CF-BLOCKERS', 'CF-RELEASE', 'CF-CONTAINMENT', 'CF-RUN-CONTROL']);
 });
 
 test('CF-RUN-BASIS: genesis is Preflighting and C-ORDER facts are immutable', () => {
@@ -238,6 +241,7 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     intakeWitness,
     ledger: ledgerFor(witnessed),
   });
+  assert.equal(controller.ok, true);
   const proposed = controller.value.propose({
     event: {
       type: 'EV-WAKE-DEPENDENCY',
@@ -266,6 +270,7 @@ test('CF-RELEASE: only a witnessed Landed basis fact releases a Pending dependen
     intakeWitness,
     ledger: ledgerFor(unlandedWitness),
   });
+  assert.equal(unlandedController.ok, true);
   const forgedEligibility = unlandedController.value.propose({
     event: {
       type: 'EV-WAKE-DEPENDENCY',
