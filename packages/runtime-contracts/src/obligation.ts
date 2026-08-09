@@ -195,6 +195,7 @@ export type ObligationFixtureEvidence = Readonly<{
 
 export type ObligationController = Readonly<{
   open(input: unknown): ObligationResult<ResidualObligation>;
+  openAllocated(input: unknown): ObligationResult<ResidualObligation>;
   issueGrant(input: unknown): ObligationResult<ObligationGrant>;
   revokeGrant(input: unknown): ObligationResult<ObligationGrant>;
   acceptHandoff(input: unknown): ObligationResult<ResidualObligation>;
@@ -1411,6 +1412,112 @@ export function createScriptedObligationController(
     return ok(committed);
   };
 
+  const openAllocated = (input: unknown): ObligationResult<ResidualObligation> => {
+    const raw = fields(input, [
+      'run',
+      'generation',
+      'resource',
+      'duty',
+      'origin',
+      'reason',
+      'preservationEvidence',
+      'accountableOwner',
+      'criteria',
+      'startedAt',
+      'deadline',
+      'policyDigest',
+    ]);
+    if (!raw || !identity('ID-RUN', raw.run) || !identity('ID-GEN', raw.generation))
+      return fail('FC-INPUT', 'INVALID_OBLIGATION_ALLOCATION_INPUT');
+    if (!(raw.generation as string).startsWith(`${raw.run}/gen/`))
+      return fail('FC-SUBJECT', 'INVALID_OBLIGATION_ALLOCATION_SCOPE');
+    if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+    const binding: RunStoreBinding = {
+      kind: 'run',
+      run: raw.run as string,
+      generation: raw.generation as string,
+    };
+    const head = ledger.snapshot(binding);
+    if (!head.ok) return fail(head.error.family, head.error.code);
+    const recordsResult =
+      head.value.position < 0 ? { ok: true as const, value: [] as readonly LedgerRecord[] } : ledger.records(binding);
+    if (!recordsResult.ok) return fail(recordsResult.error.family, recordsResult.error.code);
+    const parsedEvidence = evidenceAuthority ? parseEvidence(raw.preservationEvidence, evidenceAuthority) : undefined;
+    const parsedCriteria = parseCriteria(raw.criteria);
+    if (parsedEvidence?.ok && parsedCriteria?.ok) {
+      const requestedBasis = {
+        run: raw.run,
+        generation: raw.generation,
+        resource: raw.resource,
+        duty: raw.duty,
+        origin: raw.origin,
+        reason: raw.reason,
+        preservationEvidence: parsedEvidence.value,
+        accountableOwner: raw.accountableOwner,
+        criteria: parsedCriteria.value,
+        startedAt: raw.startedAt,
+        deadline: raw.deadline,
+        policyDigest: raw.policyDigest,
+      };
+      for (const existing of obligations.values()) {
+        if (existing.run !== raw.run || existing.origin !== raw.origin) continue;
+        const existingBasis = {
+          run: existing.run,
+          generation: existing.generation,
+          resource: existing.resource,
+          duty: existing.duty,
+          origin: existing.origin,
+          reason: existing.reason,
+          preservationEvidence: existing.preservationEvidence,
+          accountableOwner: existing.accountableOwner,
+          criteria: existing.criteria,
+          startedAt: existing.startedAt,
+          deadline: existing.deadline,
+          policyDigest: existing.policyDigest,
+        };
+        return sameJson(existingBasis, requestedBasis)
+          ? ok(existing)
+          : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
+      }
+    }
+    let highestOrdinal = 0;
+    for (const record of recordsResult.value) {
+      const content = fields(record.content, [
+        'schema',
+        'type',
+        'obligation',
+        'status',
+        'generation',
+        'criteriaDigest',
+        'evidenceDigest',
+        'grant',
+        'boundDigest',
+        'observedAt',
+      ]);
+      if (content?.schema !== OBLIGATION_FACT_SCHEMA || content.type !== 'SCH-OBLIGATION') continue;
+      if (
+        !identity('ID-OBLIGATION', content.obligation) ||
+        !(content.obligation as string).startsWith(`${raw.run}/obligation/`)
+      )
+        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+      const ordinalText = (content.obligation as string).slice(`${raw.run}/obligation/`.length);
+      const ordinal = Number(ordinalText);
+      if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
+        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+      highestOrdinal = Math.max(highestOrdinal, ordinal);
+    }
+    for (const id of obligations.keys()) {
+      if (!id.startsWith(`${raw.run}/obligation/`)) continue;
+      const ordinalText = id.slice(`${raw.run}/obligation/`.length);
+      const ordinal = Number(ordinalText);
+      if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
+        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_STATE_INVALID');
+      highestOrdinal = Math.max(highestOrdinal, ordinal);
+    }
+    if (highestOrdinal === Number.MAX_SAFE_INTEGER) return fail('FC-BOUND', 'OBLIGATION_ORDINAL_EXHAUSTED');
+    return open({ ...raw, obligationOrdinal: highestOrdinal + 1 });
+  };
+
   const issueGrant = (input: unknown): ObligationResult<ObligationGrant> => {
     const raw = fields(input, [
       'grantOrdinal',
@@ -1991,6 +2098,7 @@ export function createScriptedObligationController(
     });
   return Object.freeze({
     open,
+    openAllocated,
     issueGrant,
     revokeGrant,
     acceptHandoff,

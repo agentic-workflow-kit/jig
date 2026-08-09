@@ -20,6 +20,7 @@ const subject = {
 };
 const generation = `${run}/gen/2|controller-token-1`;
 const retryGeneration = `${run}/gen/3|controller-token-2`;
+const retryGeneration2 = `${run}/gen/4|controller-token-3`;
 const manifest = `provider/${digest('c')}/authority/${digest('d')}`;
 const operation = (ordinal, type, activeGeneration = generation) => {
   const transaction = `${run}/txn/${ordinal}/${activeGeneration}|${digest(String(ordinal))}`;
@@ -94,6 +95,11 @@ const retryReviewBindings = () => [
   binding(3, 'OPC-REV-STATUS', retryGeneration, 'Reviewing', generation),
   binding(4, 'OPC-REV-COMMENT', retryGeneration, 'Reviewing', generation),
 ];
+const retryReviewBindingSequences = () =>
+  retryReviewBindings().map((first, index) => [
+    first,
+    binding(index + 1, first.operationType, retryGeneration2, 'Reviewing', generation),
+  ]);
 const retireBindings = () => [
   binding(5, 'OPC-REV-RETIRE-REF', generation, 'Settled'),
   binding(6, 'OPC-REV-RETIRE-REQUEST', generation, 'Settled'),
@@ -123,7 +129,7 @@ const preservation = () => ({
   venueDigest: venueDigest(),
   evidenceDigest: digest('b'),
 });
-const createController = (fixture) =>
+const createController = (fixture, options = {}) =>
   runtime.createReviewPublicationController({
     fixture,
     transition: runtime.createReviewPublicationTransitionRecorder({
@@ -132,7 +138,40 @@ const createController = (fixture) =>
     preservationVerifier: {
       verify: () => ({ ok: true, value: undefined }),
     },
+    obligationController: options.obligationController ?? obligationController(),
   });
+
+const retirementObligationInput = () => ({
+  run,
+  generation,
+  resource: 'refs/jig/review/fixture-1',
+  duty: 'retirement',
+  origin: `${run}/event/5`,
+  reason: 'automatic retirement duty failed after bounded attempts',
+  preservationEvidence: { key: digest('f') },
+  accountableOwner: 'principal/arye',
+  criteria: { subject: 'evidence/fixture-subject', claim: 'preserve the review venue' },
+  startedAt: 1000,
+  deadline: 1000 + 72 * 60 * 60,
+  policyDigest: digest('p'),
+});
+
+const obligationController = (id = `${run}/obligation/1`) => ({
+  openAllocated: () => ({
+    ok: true,
+    value: {
+      id,
+      event: `${run}/event/99`,
+      run,
+      generation,
+      origin: `${run}/event/5`,
+      duty: 'retirement',
+      preservationEvidence: { referenceDigest: preservation().evidenceDigest },
+      boundDigest: digest('q'),
+      criteria: { digest: digest('r') },
+    },
+  }),
+});
 
 test('GF-041 closes the typed D15 carrier and excludes target authority', () => {
   const valid = runtime.validateReviewPublicationBinding(binding(1, 'OPC-REV-PUBLISH'));
@@ -213,6 +252,53 @@ test('mechanism absence alone permits one same-identity retry after reauthorizat
   );
 });
 
+test('each retry ordinal requires a distinct fresh generation and fence', () => {
+  const controller = createController();
+  const result = controller.publish({
+    mode: 'required-venue',
+    subject,
+    bindings: reviewBindings(),
+    retryBindings: retryReviewBindingSequences(),
+    faults: [['mechanism-absence', 'mechanism-absence', 'none'], 'none', 'none', 'none'],
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(
+    controller
+      .snapshot()
+      .reauthorizations.filter((entry) => entry.operation === reviewBindings()[0].operation)
+      .map((entry) => entry.binding.generation),
+    [retryGeneration, retryGeneration2],
+  );
+  assert.equal(runtime.validateReviewPublicationObservation(result.value).ok, true);
+});
+
+test('reauthorization snapshot restores the refreshed binding and rejects tampering', () => {
+  const verifier = { verify: () => ({ ok: true, value: undefined }) };
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  const controller = runtime.createReviewPublicationController({
+    fixture,
+    transition: runtime.createReviewPublicationTransitionRecorder(verifier),
+  });
+  const result = controller.publish({
+    mode: 'required-venue',
+    subject,
+    bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
+    faults: [['mechanism-absence', 'none'], 'none', 'none', 'none'],
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const restored = runtime.restoreReviewPublicationTransitionRecorder(controller.snapshot().transition, verifier);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.reauthorizations(), controller.snapshot().reauthorizations);
+
+  const tampered = structuredClone(controller.snapshot().transition);
+  tampered.reauthorizations[0].binding.fence.generation = generation;
+  assert.deepEqual(runtime.restoreReviewPublicationTransitionRecorder(tampered, verifier), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'INVALID_REVIEW_TRANSITION_SNAPSHOT' },
+  });
+});
+
 test('uncertain post-dispatch effect parks without semantic retry', () => {
   const controller = createController();
   const result = controller.publish({
@@ -245,6 +331,7 @@ test('retirement requires preservation and never treats a no-venue branch as a v
     bindings: retireBindings(),
     faults: ['none', 'none', 'none', 'none'],
     preservation: { kind: 'wrong' },
+    obligation: retirementObligationInput(),
   });
   assert.deepEqual(rejected, { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_PRESERVATION_UNVERIFIED' } });
   const controller = createController();
@@ -252,12 +339,14 @@ test('retirement requires preservation and never treats a no-venue branch as a v
     bindings: retireBindings(),
     faults: ['none', 'none', 'none', 'none'],
     preservation: preservation(),
+    obligation: retirementObligationInput(),
   });
   assert.deepEqual(retired, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
   const uncertain = createController().retire({
     bindings: retireBindings(),
     faults: ['lost-response', 'none', 'none', 'none'],
     preservation: preservation(),
+    obligation: retirementObligationInput(),
   });
   assert.equal(uncertain.ok, true);
   assert.equal(uncertain.value.status, 'obligation');
@@ -267,4 +356,23 @@ test('retirement requires preservation and never treats a no-venue branch as a v
   assert.equal(uncertain.value.completionCriteria, 'preserve-review-venue-and-complete-retirement');
   assert.equal(uncertain.value.evidenceDigest, preservation().evidenceDigest);
   assert.match(uncertain.value.obligationDigest, /^[0-9a-f]{64}$/u);
+});
+
+test('retirement delegates uncertain duty identity to the existing obligation controller', () => {
+  const controller = obligationController(`${run}/obligation/17`);
+  const reviewController = runtime.createReviewPublicationController({
+    fixture: runtime.createScriptedReviewPublicationFixture(),
+    transition: runtime.createReviewPublicationTransitionRecorder({ verify: () => ({ ok: true, value: undefined }) }),
+    preservationVerifier: { verify: () => ({ ok: true, value: undefined }) },
+    obligationController: controller,
+  });
+  const result = reviewController.retire({
+    bindings: retireBindings(),
+    faults: ['lost-response', 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.value.status, 'obligation');
+  assert.equal(result.value.obligation, `${run}/obligation/17`);
 });

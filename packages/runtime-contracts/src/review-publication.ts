@@ -1,4 +1,5 @@
 import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import type { ObligationController } from './obligation.js';
 
 export const REVIEW_PUBLICATION_CONTRACT_VERSION = 'jig.review-publication.v1';
 export const REVIEW_PUBLICATION_PORT = 'PORT-DELIVERY';
@@ -125,9 +126,15 @@ export type ReviewPublicationReauthorization = Readonly<{
   previousAttempt: number;
   attempt: number;
   confirmedAbsenceDigest: string;
+  binding: ReviewPublicationBinding;
+  capabilityDigest: string;
   generation: string;
   fence: ReviewPublicationFence;
   proof: ReviewPublicationCommitProof;
+}>;
+export type ReviewPublicationTransitionSnapshot = Readonly<{
+  intents: readonly ReviewPublicationOperationIntent[];
+  reauthorizations: readonly ReviewPublicationReauthorization[];
 }>;
 
 export type ReviewPublicationAttestation = Readonly<{
@@ -222,6 +229,7 @@ export type ReviewPublicationTransitionRecorder = Readonly<{
   recordReauthorization(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof>;
   intents(): readonly ReviewPublicationOperationIntent[];
   reauthorizations(): readonly ReviewPublicationReauthorization[];
+  snapshot(): ReviewPublicationTransitionSnapshot;
 }>;
 export type ReviewPublicationTrustedVerifier = Readonly<{
   verify(input: unknown): ReviewPublicationResult<void>;
@@ -229,6 +237,7 @@ export type ReviewPublicationTrustedVerifier = Readonly<{
 export type ReviewPublicationPreservationVerifier = Readonly<{
   verify(input: unknown): ReviewPublicationResult<void>;
 }>;
+export type ReviewPublicationObligationController = ObligationController;
 
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
@@ -821,9 +830,10 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
 
 export function createReviewPublicationTransitionRecorder(
   verifierInput?: ReviewPublicationTrustedVerifier,
+  hydrate?: ReviewPublicationTransitionSnapshot,
 ): ReviewPublicationTransitionRecorder {
-  const recorded: ReviewPublicationOperationIntent[] = [];
-  const reauthorizations: ReviewPublicationReauthorization[] = [];
+  const recorded: ReviewPublicationOperationIntent[] = [...(hydrate?.intents ?? [])];
+  const reauthorizations: ReviewPublicationReauthorization[] = [...(hydrate?.reauthorizations ?? [])];
   const verifier =
     verifierInput && typeof Object.getOwnPropertyDescriptor(verifierInput, 'verify')?.value === 'function'
       ? verifierInput
@@ -870,18 +880,28 @@ export function createReviewPublicationTransitionRecorder(
         'previousAttempt',
         'attempt',
         'confirmedAbsenceDigest',
+        'binding',
+        'capabilityDigest',
         'generation',
         'fence',
         'proof',
       ]);
       const existing = raw && recorded.find((entry) => entry.operation === raw.operation);
+      const binding = raw && validateReviewPublicationBinding(raw.binding);
       const fence = raw && existing && parseFence(raw.fence, existing.binding.subject);
       const proof = raw && existing && parseProof(raw.proof, raw.operation as string, existing.binding.subject.run);
       const previousAttempt = raw?.previousAttempt;
       const attempt = raw?.attempt;
+      const capabilityDigest = raw && binding?.ok ? publicationCapabilityDigestForBinding(binding.value) : undefined;
+      const previous =
+        raw && existing && typeof previousAttempt === 'number' && previousAttempt > 1
+          ? reauthorizations.find((entry) => entry.operation === raw.operation && entry.attempt === previousAttempt)
+          : undefined;
+      const predecessorBinding = previous?.binding ?? existing?.binding;
       if (
         !raw ||
         !existing ||
+        !binding?.ok ||
         !fence ||
         !proof ||
         raw.version !== REVIEW_PUBLICATION_CONTRACT_VERSION ||
@@ -894,17 +914,28 @@ export function createReviewPublicationTransitionRecorder(
         attempt !== previousAttempt + 1 ||
         attempt > REVIEW_PUBLICATION_BOUNDS.retryLimit ||
         !safeDigest(raw.confirmedAbsenceDigest) ||
+        !safeDigest(raw.capabilityDigest) ||
+        raw.capabilityDigest !== capabilityDigest ||
+        raw.generation !== binding.value.generation ||
+        !same(fence, binding.value.fence) ||
+        !predecessorBinding ||
+        !bindingsShareRetryIdentity(predecessorBinding, binding.value) ||
+        !same(proof, binding.value.transition.proof) ||
         raw.generation === existing.binding.generation ||
         raw.operation !== existing.operation ||
         reauthorizations.some((entry) => entry.operation === raw.operation && entry.attempt === attempt)
       )
         return fail('FC-AUTHORITY', 'INVALID_REVIEW_REAUTHORIZATION');
+      const verified = verify({ transition: binding.value.transition, binding: binding.value });
+      if (!verified.ok) return verified;
       const value: ReviewPublicationReauthorization = Object.freeze({
         version: REVIEW_PUBLICATION_CONTRACT_VERSION,
         operation: raw.operation,
         previousAttempt: previousAttempt as number,
         attempt: attempt as number,
         confirmedAbsenceDigest: raw.confirmedAbsenceDigest,
+        binding: binding.value,
+        capabilityDigest: capabilityDigest as string,
         generation: raw.generation as string,
         fence,
         proof,
@@ -914,6 +945,11 @@ export function createReviewPublicationTransitionRecorder(
     },
     intents: () => Object.freeze([...recorded]),
     reauthorizations: () => Object.freeze([...reauthorizations]),
+    snapshot: () =>
+      Object.freeze({
+        intents: Object.freeze([...recorded]),
+        reauthorizations: Object.freeze([...reauthorizations]),
+      }),
   });
 }
 
@@ -1026,6 +1062,137 @@ const bindingsShareRetryIdentity = (current: ReviewPublicationBinding, retry: Re
   ) &&
   retry.generation !== current.generation &&
   retry.fence.generation === retry.generation;
+
+const validateReviewPublicationTransitionSnapshot = (
+  value: unknown,
+): ReviewPublicationResult<ReviewPublicationTransitionSnapshot> => {
+  const raw = exactFields(value, ['intents', 'reauthorizations']);
+  if (!raw || !Array.isArray(raw.intents) || !Array.isArray(raw.reauthorizations))
+    return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+  const intents = raw.intents.map((entry) => validateIntent(entry));
+  if (intents.some((entry) => !entry.ok)) return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+  const typedIntents = intents.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
+  const seenOperations = new Set<string>();
+  if (typedIntents.some((entry) => !seenOperations.add(entry.operation)))
+    return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+  const reauthorizations = raw.reauthorizations.map((entry) => {
+    const item = exactFields(entry, [
+      'version',
+      'operation',
+      'previousAttempt',
+      'attempt',
+      'confirmedAbsenceDigest',
+      'binding',
+      'capabilityDigest',
+      'generation',
+      'fence',
+      'proof',
+    ]);
+    const intent = item && typedIntents.find((candidate) => candidate.operation === item.operation);
+    const binding = item && validateReviewPublicationBinding(item.binding);
+    const fence = item && intent && parseFence(item.fence, intent.binding.subject);
+    const proof = item && intent && parseProof(item.proof, item.operation as string, intent.binding.subject.run);
+    if (!item || !intent || !binding?.ok || !fence || !proof) return undefined;
+    return {
+      item,
+      intent,
+      binding: binding.value,
+      fence,
+      proof,
+    };
+  });
+  const validReauthorizations = reauthorizations.filter(
+    (entry): entry is Exclude<(typeof reauthorizations)[number], undefined> => entry !== undefined,
+  );
+  if (validReauthorizations.length !== reauthorizations.length)
+    return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+  if (
+    validReauthorizations.some(
+      (entry) =>
+        !entry ||
+        entry.item.version !== REVIEW_PUBLICATION_CONTRACT_VERSION ||
+        !identity('ID-OP', entry.item.operation) ||
+        !Number.isSafeInteger(entry.item.previousAttempt) ||
+        (entry.item.previousAttempt as number) < 1 ||
+        !Number.isSafeInteger(entry.item.attempt) ||
+        entry.item.attempt !== (entry.item.previousAttempt as number) + 1 ||
+        entry.item.attempt > REVIEW_PUBLICATION_BOUNDS.retryLimit ||
+        !safeDigest(entry.item.confirmedAbsenceDigest) ||
+        !safeDigest(entry.item.capabilityDigest) ||
+        entry.item.capabilityDigest !== publicationCapabilityDigestForBinding(entry.binding) ||
+        entry.item.generation !== entry.binding.generation ||
+        entry.item.generation === entry.intent.binding.generation ||
+        !same(entry.proof, entry.binding.transition.proof) ||
+        !same(entry.fence, entry.binding.fence),
+    )
+  )
+    return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+  const ordered = validReauthorizations.sort(
+    (left, right) => (left.item.attempt as number) - (right.item.attempt as number),
+  );
+  const seenReauthorizations = new Set<string>();
+  for (const entry of ordered) {
+    const key = `${entry.item.operation}:${entry.item.attempt}`;
+    if (seenReauthorizations.has(key)) return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+    const predecessor =
+      entry.item.previousAttempt === 1
+        ? typedIntents.find((intent) => intent.operation === entry.item.operation)?.binding
+        : ordered.find(
+            (candidate) =>
+              candidate.item.operation === entry.item.operation &&
+              candidate.item.attempt === entry.item.previousAttempt,
+          )?.binding;
+    if (!predecessor || !bindingsShareRetryIdentity(predecessor, entry.binding))
+      return fail('FC-TRUST', 'INVALID_REVIEW_TRANSITION_SNAPSHOT');
+    seenReauthorizations.add(key);
+  }
+  return ok(
+    Object.freeze({
+      intents: Object.freeze(typedIntents),
+      reauthorizations: Object.freeze(
+        ordered.map((entry) =>
+          Object.freeze({
+            version: REVIEW_PUBLICATION_CONTRACT_VERSION,
+            operation: entry.item.operation as string,
+            previousAttempt: entry.item.previousAttempt as number,
+            attempt: entry.item.attempt as number,
+            confirmedAbsenceDigest: entry.item.confirmedAbsenceDigest as string,
+            binding: entry.binding,
+            capabilityDigest: entry.item.capabilityDigest as string,
+            generation: entry.item.generation as string,
+            fence: entry.fence,
+            proof: entry.proof,
+          }),
+        ),
+      ),
+    }),
+  );
+};
+
+export function restoreReviewPublicationTransitionRecorder(
+  value: unknown,
+  verifier: ReviewPublicationTrustedVerifier,
+): ReviewPublicationResult<ReviewPublicationTransitionRecorder> {
+  const validated = validateReviewPublicationTransitionSnapshot(value);
+  if (!validated.ok) return validated;
+  const verify = (input: unknown): ReviewPublicationResult<void> => {
+    try {
+      return verifier.verify(input);
+    } catch {
+      return fail('FC-TRUST', 'TRANSITION_PROOF_UNVERIFIED');
+    }
+  };
+  for (const intent of validated.value.intents) {
+    const verified = verify({ transition: intent.binding.transition, binding: intent.binding });
+    if (!verified.ok) return verified;
+  }
+  for (const reauthorization of validated.value.reauthorizations) {
+    const verified = verify({ transition: reauthorization.binding.transition, binding: reauthorization.binding });
+    if (!verified.ok) return verified;
+  }
+  const recorder = createReviewPublicationTransitionRecorder(verifier, validated.value);
+  return ok(recorder);
+}
 
 const validateSubjectObservation = (value: unknown): ReviewPublicationSubject | undefined => parseSubject(value);
 
@@ -1204,6 +1371,7 @@ export type ReviewPublicationController = Readonly<{
     intents: readonly ReviewPublicationOperationIntent[];
     reauthorizations: readonly ReviewPublicationReauthorization[];
     invocations: readonly ReviewPublicationInvocation[];
+    transition: ReviewPublicationTransitionSnapshot;
   }>;
 }>;
 
@@ -1212,11 +1380,13 @@ export function createReviewPublicationController(
     transition?: ReviewPublicationTransitionRecorder;
     fixture?: ScriptedReviewPublicationFixture;
     preservationVerifier?: ReviewPublicationPreservationVerifier;
+    obligationController?: ReviewPublicationObligationController;
   }> = {},
 ): ReviewPublicationController {
   const transition = input.transition ?? createReviewPublicationTransitionRecorder();
   const fixture = input.fixture ?? createScriptedReviewPublicationFixture();
   const preservationVerifier = input.preservationVerifier;
+  const obligationController = input.obligationController;
   const publish = (value: unknown): ReviewPublicationResult<RequiredVenueObservation | ExplicitAbsenceObservation> => {
     const raw =
       exactFields(value, ['mode', 'subject', 'bindings', 'retryBindings', 'faults']) ??
@@ -1240,14 +1410,29 @@ export function createReviewPublicationController(
     const bindings = raw.bindings.map((entry) => validateReviewPublicationBinding(entry));
     if (bindings.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'REVIEW_BINDING_MISMATCH');
     const typed = bindings.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
-    const retryBindingsResult = raw.retryBindings.map((entry) => validateReviewPublicationBinding(entry));
-    if (retryBindingsResult.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'RETRY_BINDING_MISMATCH');
-    const retryTyped = retryBindingsResult.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
+    const retryBindingsResult = raw.retryBindings.map((entry) => {
+      const candidates = Array.isArray(entry) ? entry : [entry];
+      return candidates.map((candidate) => validateReviewPublicationBinding(candidate));
+    });
+    if (retryBindingsResult.some((entries) => entries.length === 0 || entries.some((entry) => !entry.ok)))
+      return fail('FC-SUBJECT', 'RETRY_BINDING_MISMATCH');
+    const retryTyped = retryBindingsResult.map((entries) =>
+      entries.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value),
+    );
     const inputSubject = parseSubject(raw.subject);
     if (!inputSubject || !same(inputSubject, typed[0]?.subject)) return fail('FC-SUBJECT', 'REVIEW_SUBJECT_MISMATCH');
     if (!bindingsSharePublicationIdentity(typed, REVIEW_PUBLICATION_REVIEW_OPERATIONS))
       return fail('FC-SUBJECT', 'REVIEW_BINDING_ORDER_OR_IDENTITY_MISMATCH');
-    if (retryTyped.some((entry, index) => !bindingsShareRetryIdentity(typed[index], entry)))
+    if (
+      retryTyped.some((entries, index) => {
+        let predecessor = typed[index];
+        return entries.some((entry) => {
+          const valid = bindingsShareRetryIdentity(predecessor, entry);
+          predecessor = entry;
+          return !valid;
+        });
+      })
+    )
       return fail('FC-FENCE', 'REVIEW_RETRY_BINDING_NOT_FRESH');
     const faults = (raw.faults ?? []) as readonly (ReviewPublicationFault | readonly ReviewPublicationFault[])[];
     const successes: Array<RequiredVenueObservation['operations'][number]> = [];
@@ -1307,7 +1492,8 @@ export function createReviewPublicationController(
           if (attempt >= REVIEW_PUBLICATION_BOUNDS.retryLimit)
             return fail('FC-BOUND', 'REVIEW_RETRY_EXHAUSTED_BLOCKED');
           attempt += 1;
-          const nextBinding = retryTyped[index];
+          const nextBinding = retryTyped[index]?.[attempt - 2];
+          if (!nextBinding) return fail('FC-BOUND', 'REVIEW_RETRY_BINDING_EXHAUSTED');
           const reauthProof = transition.authorize({ binding: nextBinding });
           if (!reauthProof.ok) return reauthProof;
           const reauth = transition.recordReauthorization({
@@ -1316,6 +1502,8 @@ export function createReviewPublicationController(
             previousAttempt: attempt - 1,
             attempt,
             confirmedAbsenceDigest: lookup.value.observationDigest,
+            binding: nextBinding,
+            capabilityDigest: publicationCapabilityDigestForBinding(nextBinding),
             generation: nextBinding.generation,
             fence: nextBinding.fence,
             proof: reauthProof.value,
@@ -1399,7 +1587,7 @@ export function createReviewPublicationController(
         }
     >
   > => {
-    const raw = exactFields(value, ['bindings', 'faults', 'preservation']);
+    const raw = exactFields(value, ['bindings', 'faults', 'preservation', 'obligation']);
     if (!raw || !Array.isArray(raw.bindings) || raw.bindings.length !== 4 || !Array.isArray(raw.faults))
       return fail('FC-INPUT', 'RETIREMENT_REQUIRES_PRESERVATION');
     const bindings = raw.bindings.map((entry) => validateReviewPublicationBinding(entry));
@@ -1468,21 +1656,35 @@ export function createReviewPublicationController(
         const lookup = fixture.lookup({ operation: binding.operation, binding });
         if (lookup.ok && lookup.value.outcome === 'confirmed-absence') continue;
       }
-      const obligationDigest = digest('REVIEW-RETIREMENT-OBLIGATION', {
-        operation: binding.operation,
+      if (!obligationController) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
+      const allocated = obligationController.openAllocated(raw.obligation);
+      if (!allocated.ok) return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
+      if (
+        allocated.value.run !== binding.subject.run ||
+        allocated.value.generation !== binding.generation ||
+        allocated.value.origin !== intent.proof.event ||
+        allocated.value.duty !== 'retirement' ||
+        allocated.value.preservationEvidence.referenceDigest !== preservationRaw.evidenceDigest
+      )
+        return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_BINDING_MISMATCH');
+      const durableObligationDigest = digest('REVIEW-RETIREMENT-OBLIGATION', {
+        obligation: allocated.value.id,
+        event: allocated.value.event,
+        boundDigest: allocated.value.boundDigest,
+        criteriaDigest: allocated.value.criteria.digest,
         venueDigest: preservationRaw.venueDigest,
         evidenceDigest: preservationRaw.evidenceDigest,
       });
-      return obligationDigest
+      return durableObligationDigest
         ? ok(
             Object.freeze({
               status: 'obligation' as const,
               operation: binding.operation,
-              obligation: `${binding.subject.run}/obligation/1`,
+              obligation: allocated.value.id,
               owner: 'RT-CONTROLLER' as const,
               completionCriteria: 'preserve-review-venue-and-complete-retirement' as const,
               evidenceDigest: preservationRaw.evidenceDigest,
-              obligationDigest,
+              obligationDigest: durableObligationDigest as string,
             }),
           )
         : fail('FC-TRUST', 'RETIREMENT_OBLIGATION_DIGEST_FAILED');
@@ -1497,6 +1699,7 @@ export function createReviewPublicationController(
         intents: transition.intents(),
         reauthorizations: transition.reauthorizations(),
         invocations: fixture.invocations(),
+        transition: transition.snapshot(),
       }),
   });
 }

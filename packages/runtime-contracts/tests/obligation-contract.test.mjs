@@ -203,6 +203,39 @@ test('obligation facts cannot append across a hydrated ledger binding', () => {
   });
 });
 
+test('allocated obligations use durable monotonic readback across replay', () => {
+  const runtimeDependencies = dependencies();
+  const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
+  const first = controller.openAllocated(allocationInput);
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(first.value.id, `${run}/obligation/1`);
+  assert.deepEqual(controller.openAllocated(allocationInput), first);
+  const second = controller.openAllocated({
+    ...allocationInput,
+    origin: `${run}/event/2`,
+    startedAt: 2000,
+    deadline: 2000 + 72 * 60 * 60,
+  });
+  assert.equal(second.ok, true, JSON.stringify(second));
+  assert.equal(second.value.id, `${run}/obligation/2`);
+  assert.deepEqual(controller.openAllocated({ ...allocationInput, reason: 'different failure' }), {
+    ok: false,
+    error: { family: 'FC-SUBJECT', code: 'OBLIGATION_ALLOCATION_COLLISION' },
+  });
+
+  const restored = obligation.restoreScriptedObligationController(controller.snapshot(), runtimeDependencies);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  const replayed = restored.value.openAllocated({
+    ...allocationInput,
+    origin: `${run}/event/2`,
+    startedAt: 2000,
+    deadline: 2000 + 72 * 60 * 60,
+  });
+  assert.equal(replayed.ok, true, JSON.stringify(replayed));
+  assert.equal(replayed.value.id, `${run}/obligation/2`);
+});
+
 test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is idempotent', () => {
   const runtimeDependencies = dependencies();
   const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
