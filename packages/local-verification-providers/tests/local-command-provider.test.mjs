@@ -170,6 +170,7 @@ const admission = () => {
   assert.equal(proof.ok, true);
   const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: 86_400_000 });
   assert.equal(admitted.ok, true);
+  assert.equal('certificate' in admitted.value, false);
   const certificate = admissionAuthority.mintProviderAdmissionCertificate(admitted.value.admissionCarrier);
   assert.ok(certificate);
   return { certificate };
