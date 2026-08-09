@@ -22,6 +22,7 @@ export {
 export type { ProviderAdmissionClaims } from './qualification-registry.js';
 // Claims are readable at the runtime root; issuance remains inside the durable admission transition.
 export { readProviderAdmissionCertificateClaims } from './qualification-registry.js';
+export * from './review-publication.js';
 export * from './session.js';
 export * from './source.js';
 export * from './verification.js';
