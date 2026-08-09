@@ -274,18 +274,10 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(rejected.value.phase, 'Parked');
 
   const ledger = seededLedger({
-    event: 'EV-RUN-RESUME-DECISION',
-    generation: gen(2),
+    event: 'EV-RUN-SUSPEND-DECISION',
+    generation: gen(1),
     ordinal: 2,
-    payload: {
-      kind: 'resume-integrity',
-      run,
-      basisDigest: basis,
-      oldGeneration: gen(1),
-      newGeneration: gen(2),
-      acceptedSuccessor: false,
-      status: 'passed',
-    },
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const { controller: successful } = makeController({ phase: 'Suspended', ledger });
   const resumed = successful.resume({
@@ -306,26 +298,44 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(resumed.value.phase, 'Active');
   assert.equal(resumed.value.generation, gen(2));
   assert.equal(resumed.value.currentGrant.generation, gen(2));
+  assert.equal(ledger.records().filter((record) => record.event === 'EV-RUN-RESUME-DECISION').length, 1);
+  assert.equal(ledger.records().at(-1)?.content.before.phase, 'Suspended');
+  assert.equal(ledger.records().at(-1)?.content.after.phase, 'Active');
+
+  const historicalTriggerLedger = seededLedger({
+    event: 'EV-RUN-RESUME-DECISION',
+    generation: gen(1),
+    payload: { kind: 'resume-integrity', run, basisDigest: basis, oldGeneration: gen(1), newGeneration: gen(2) },
+  });
+  const historicalTrigger = makeController({ phase: 'Suspended', ledger: historicalTriggerLedger }).controller;
+  const historicalResume = historicalTrigger.resume({
+    ...base,
+    requestKey: 'resume-historical-trigger',
+    integrity: {
+      schema: 'jig.resume-integrity.v1',
+      run,
+      basisDigest: basis,
+      oldGeneration: gen(1),
+      newGeneration: gen(2),
+      head: witness(historicalTriggerLedger),
+      acceptedSuccessor: false,
+      status: 'passed',
+    },
+  });
+  assert.equal(historicalResume.ok, true, JSON.stringify(historicalResume));
+  assert.equal(historicalResume.value.phase, 'Parked');
 
   const staleLedger = kernel.createScriptedRunControlLedger({
     seed: [
       {
         requestKey: 'seed-stale-head',
-        event: 'EV-RUN-RESUME-DECISION',
-        transaction: txn(1, gen(2)),
-        payload: {
-          kind: 'resume-integrity',
-          run,
-          basisDigest: basis,
-          oldGeneration: gen(1),
-          newGeneration: gen(2),
-          acceptedSuccessor: false,
-          status: 'passed',
-        },
+        event: 'EV-RUN-SUSPEND-DECISION',
+        transaction: txn(1, gen(1)),
+        payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
       },
       {
         requestKey: 'seed-current-other',
-        event: 'EV-RUN-SUSPEND-DECISION',
+        event: 'EV-RULE-SURFACE-TOUCHED',
         transaction: txn(2, gen(1)),
         payload: { kind: 'other-durable-fact', run, basisDigest: basis, generation: gen(1) },
       },
@@ -368,18 +378,10 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(unboundResume.value.phase, 'Parked');
 
   const touchedLedger = seededLedger({
-    event: 'EV-RUN-RESUME-DECISION',
-    generation: gen(2),
-    ordinal: 2,
-    payload: {
-      kind: 'resume-integrity',
-      run,
-      basisDigest: basis,
-      oldGeneration: gen(1),
-      newGeneration: gen(2),
-      acceptedSuccessor: false,
-      status: 'passed',
-    },
+    event: 'EV-RUN-SUSPEND-DECISION',
+    generation: gen(1),
+    ordinal: 1,
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const touched = makeController({ ledger: touchedLedger }).controller;
   assert.equal(
@@ -398,18 +400,10 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(touched.suspend(suspendInput('touch-suspend-after')).ok, true);
   appendDurable(touchedLedger, {
     requestKey: 'durable-unapproved-head',
-    event: 'EV-RUN-RESUME-DECISION',
-    generation: gen(2),
+    event: 'EV-RUN-SUSPEND-DECISION',
+    generation: gen(1),
     ordinal: 3,
-    payload: {
-      kind: 'resume-integrity',
-      run,
-      basisDigest: basis,
-      oldGeneration: gen(1),
-      newGeneration: gen(2),
-      acceptedSuccessor: false,
-      status: 'passed',
-    },
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const unapproved = touched.resume({
     ...base,
@@ -449,17 +443,9 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
       },
       {
         requestKey: 'seed-resume-integrity',
-        event: 'EV-RUN-RESUME-DECISION',
-        transaction: txn(2, gen(2)),
-        payload: {
-          kind: 'resume-integrity',
-          run,
-          basisDigest: basis,
-          oldGeneration: gen(1),
-          newGeneration: gen(2),
-          acceptedSuccessor: false,
-          status: 'passed',
-        },
+        event: 'EV-RUN-SUSPEND-DECISION',
+        transaction: txn(2, gen(1)),
+        payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
       },
     ],
   });
@@ -480,18 +466,10 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
   assert.equal(approved.suspend(suspendInput('approved-suspend')).ok, true);
   appendDurable(approvedLedger, {
     requestKey: 'durable-approved-head',
-    event: 'EV-RUN-RESUME-DECISION',
-    generation: gen(2),
+    event: 'EV-RUN-SUSPEND-DECISION',
+    generation: gen(1),
     ordinal: 3,
-    payload: {
-      kind: 'resume-integrity',
-      run,
-      basisDigest: basis,
-      oldGeneration: gen(1),
-      newGeneration: gen(2),
-      acceptedSuccessor: false,
-      status: 'passed',
-    },
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const approvedResume = approved.resume({
     ...base,
@@ -515,19 +493,8 @@ test('MC-037-03: resume requires integrity, accepted-successor exclusion, a new 
 
 test('MC-037-04: terminal stop has exactly two guarded origins', () => {
   const ledger = seededLedger({
-    event: 'EV-RUN-TERMINAL-STOP-DECISION',
-    payload: {
-      kind: 'terminal-owner-decision',
-      run,
-      basisDigest: basis,
-      generation: gen(1),
-      principal,
-      grant,
-      resumable: false,
-      remainingResumableTransitions: 0,
-      confirmation: 'no-resumable-transition',
-      reason: 'owner-stop',
-    },
+    event: 'EV-RUN-SUSPEND-DECISION',
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const { controller } = makeController({ phase: 'Suspended', ledger });
   const common = {
@@ -539,6 +506,7 @@ test('MC-037-04: terminal stop has exactly two guarded origins', () => {
     principal,
     grant,
     resumable: false,
+    remainingResumableTransitions: 0,
     reason: 'owner-stop',
     confirmation: 'no-resumable-transition',
     observation: null,
@@ -555,6 +523,39 @@ test('MC-037-04: terminal stop has exactly two guarded origins', () => {
   assert.equal(stopped.ok, true, JSON.stringify(stopped));
   assert.equal(stopped.value.phase, 'Stopped');
   assert.equal(stopped.value.settlement?.openedBy, 'EV-RUN-TERMINAL-STOP-DECISION');
+  assert.equal(ledger.records().filter((record) => record.event === 'EV-RUN-TERMINAL-STOP-DECISION').length, 1);
+  assert.equal(ledger.records().at(-1)?.content.before.phase, 'Suspended');
+  assert.equal(ledger.records().at(-1)?.content.after.phase, 'Stopped');
+  const replayedStop = controller.terminalStop({ ...common, requestKey: 'stop-3' });
+  assert.equal(replayedStop.ok, true, JSON.stringify(replayedStop));
+  assert.equal(ledger.records().filter((record) => record.event === 'EV-RUN-TERMINAL-STOP-DECISION').length, 1);
+
+  const crashLedger = kernel.createScriptedRunControlLedger({
+    fault: 'lost-response',
+    seed: [
+      {
+        requestKey: 'seed-crash-head',
+        event: 'EV-RUN-SUSPEND-DECISION',
+        transaction: txn(1, gen(1)),
+        payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
+      },
+    ],
+  });
+  const crashed = makeController({ phase: 'Suspended', ledger: crashLedger }).controller;
+  const crashResult = crashed.terminalStop({ ...common, requestKey: 'stop-crash', appendBasis: witness(crashLedger) });
+  assert.equal(crashResult.ok, true, JSON.stringify(crashResult));
+  assert.equal(crashLedger.records().length, 2);
+  assert.equal(crashLedger.records().filter((record) => record.event === 'EV-RUN-TERMINAL-STOP-DECISION').length, 1);
+
+  const historicalTrigger = seededLedger({
+    event: 'EV-RUN-TERMINAL-STOP-DECISION',
+    payload: { kind: 'terminal-owner-decision', run, basisDigest: basis, generation: gen(1) },
+  });
+  const historical = makeController({ phase: 'Suspended', ledger: historicalTrigger }).controller;
+  assert.deepEqual(historical.terminalStop({ ...common, appendBasis: witness(historicalTrigger) }).error, {
+    family: 'FC-TRUST',
+    code: 'TRUST_APPEND_BASIS_REQUIRED',
+  });
 
   for (const phase of ['Active', 'Parked', 'Settling']) {
     const fresh = makeController({ phase }).controller;
@@ -576,6 +577,7 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
     principal: null,
     grant: null,
     resumable: null,
+    remainingResumableTransitions: null,
     reason: 'witness-loss',
     confirmation: null,
     observation: null,
@@ -598,6 +600,7 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
     principal: null,
     grant: null,
     resumable: null,
+    remainingResumableTransitions: null,
     reason: 'witness-loss',
     confirmation: null,
     appendBasis: proof(0, 1),
@@ -615,8 +618,8 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
   assert.equal(forged.controller.events().length, 0);
 
   const genericLedger = seededLedger({
-    event: 'EV-RECOVERY-OBSERVATION',
-    payload: { kind: 'recovery-observation', run, basisDigest: basis, generation: gen(1), reason: 'witness-loss' },
+    event: 'EV-RUN-SUSPEND-DECISION',
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const generic = makeController({ phase: 'Interrupted / Recovering', ledger: genericLedger });
   const genericResult = generic.controller.terminalStop({
@@ -632,7 +635,7 @@ test('MC-037-05: absent or untrustworthy trust basis creates only an external fe
       appendBasis: witness(genericLedger),
     },
   });
-  assert.deepEqual(genericResult.error, { family: 'FC-TRUST', code: 'TRUST_OBSERVATION_NOT_WITNESSED' });
+  assert.deepEqual(genericResult.error, { family: 'FC-TRUST', code: 'TRUST_OBSERVATION_REQUIRED' });
   assert.equal(generic.controller.snapshot().phase, 'Interrupted / Recovering');
 });
 
@@ -664,15 +667,8 @@ test('MC-037-06: incomplete or foreign settlement inventory is rejected before c
 
 test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-progress preserved overlay', () => {
   const ledger = seededLedger({
-    event: 'EV-RECOVERY-OBSERVATION',
-    payload: {
-      kind: 'recovery-observation',
-      run,
-      basisDigest: basis,
-      generation: gen(1),
-      reason: 'witness-loss',
-      trustClass: 'FC-TRUST',
-    },
+    event: 'EV-RUN-SUSPEND-DECISION',
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
   });
   const { controller } = makeController({ phase: 'Interrupted / Recovering', ledger });
   const result = controller.terminalStop({
@@ -684,6 +680,7 @@ test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-pro
     principal: null,
     grant: null,
     resumable: null,
+    remainingResumableTransitions: null,
     reason: 'witness-loss',
     confirmation: null,
     appendBasis: witness(ledger),
@@ -693,6 +690,7 @@ test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-pro
       basisDigest: basis,
       generation: gen(1),
       reason: 'witness-loss',
+      trustClass: 'FC-TRUST',
       appendBasis: witness(ledger),
     },
   });
@@ -702,6 +700,9 @@ test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-pro
   assert.equal(overlay?.status, 'opened');
   assert.equal(overlay?.advancedDuties, 0);
   assert.equal(overlay?.completedDuties, 0);
+  assert.equal(ledger.records().filter((record) => record.event === 'EV-RECOVERY-OBSERVATION').length, 1);
+  assert.equal(ledger.records().at(-1)?.content.before.phase, 'Interrupted / Recovering');
+  assert.equal(ledger.records().at(-1)?.content.after.phase, 'Stopped');
   assert.equal(overlay?.duties.length, 10);
   assert.equal(
     overlay?.nextIntents.every((intent) => intent.basisDigest === basis),
@@ -720,6 +721,7 @@ test('MC-037-06/07/08: qualified FC-TRUST recovery atomically opens one zero-pro
       principal: null,
       grant: null,
       resumable: null,
+      remainingResumableTransitions: null,
       reason: 'second',
       confirmation: null,
       appendBasis: witness(ledger),

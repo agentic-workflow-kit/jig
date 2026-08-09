@@ -350,6 +350,18 @@ function currentWitnessedRecord(
   }
 }
 
+function currentPrerequisiteRecord(
+  ledger: RunControlLedger,
+  value: WitnessedAppendBasis,
+  run: string,
+  generation: string,
+  basisDigest: string,
+  forbiddenEvent: RunControlEvent,
+): RunControlCommit | undefined {
+  const record = currentWitnessedRecord(ledger, value, run, generation, basisDigest);
+  return record && record.event !== forbiddenEvent ? record : undefined;
+}
+
 function recordPayloadFields(record: RunControlCommit, names: readonly string[]): Record<string, unknown> | undefined {
   try {
     const content = ownFields(record.content, [
@@ -968,18 +980,15 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       ]);
       const head = integrity && parseWitness(integrity.head);
       const headRecord =
-        head && currentWitnessedRecord(input.ledger, head, input.run, raw.newGeneration as string, input.basisDigest);
-      const headPayload =
-        headRecord &&
-        recordPayloadFields(headRecord, [
-          'kind',
-          'run',
-          'basisDigest',
-          'oldGeneration',
-          'newGeneration',
-          'acceptedSuccessor',
-          'status',
-        ]);
+        head &&
+        currentPrerequisiteRecord(
+          input.ledger,
+          head,
+          input.run,
+          generation,
+          input.basisDigest,
+          'EV-RUN-RESUME-DECISION',
+        );
       const oldNumber = generationNumber(generation);
       const newNumber = generationNumber(raw.newGeneration as string);
       const passed =
@@ -991,13 +1000,6 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         integrity.newGeneration === raw.newGeneration &&
         head !== undefined &&
         headRecord !== undefined &&
-        headPayload?.kind === 'resume-integrity' &&
-        headPayload.run === input.run &&
-        headPayload.basisDigest === input.basisDigest &&
-        headPayload.oldGeneration === generation &&
-        headPayload.newGeneration === raw.newGeneration &&
-        headPayload.acceptedSuccessor === false &&
-        headPayload.status === 'passed' &&
         integrity.acceptedSuccessor === false &&
         integrity.status === 'passed' &&
         oldNumber !== undefined &&
@@ -1090,6 +1092,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         'principal',
         'grant',
         'resumable',
+        'remainingResumableTransitions',
         'reason',
         'confirmation',
         'observation',
@@ -1114,7 +1117,15 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       if (!explicit && !recovery) return fail('FC-AUTHORITY', 'TERMINAL_STOP_ORIGIN_NOT_ALLOWED');
       const appendBasis = parseWitness(raw.appendBasis);
       const basisRecord =
-        appendBasis && currentWitnessedRecord(input.ledger, appendBasis, input.run, generation, input.basisDigest);
+        appendBasis &&
+        currentPrerequisiteRecord(
+          input.ledger,
+          appendBasis,
+          input.run,
+          generation,
+          input.basisDigest,
+          explicit ? 'EV-RUN-TERMINAL-STOP-DECISION' : 'EV-RECOVERY-OBSERVATION',
+        );
       if (!appendBasis || !basisRecord) {
         externalFence = Object.freeze({ kind: 'FC-TRUST', reason: 'TRUST_APPEND_BASIS_REQUIRED' });
         return fail('FC-TRUST', 'TRUST_APPEND_BASIS_REQUIRED');
@@ -1122,35 +1133,13 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       if (explicit) {
         const auth = authenticate(raw, generation);
         if (!auth.ok) return auth;
-        if (raw.resumable !== false || raw.confirmation !== 'no-resumable-transition')
+        if (
+          raw.resumable !== false ||
+          raw.remainingResumableTransitions !== 0 ||
+          raw.confirmation !== 'no-resumable-transition'
+        )
           return fail('FC-AUTHORITY', 'RESUMABLE_SUSPENDED_CANNOT_STOP');
         if (raw.observation !== null) return fail('FC-INPUT', 'EXPLICIT_STOP_OBSERVATION_FORBIDDEN');
-        const decision = recordPayloadFields(basisRecord, [
-          'kind',
-          'run',
-          'basisDigest',
-          'generation',
-          'principal',
-          'grant',
-          'resumable',
-          'remainingResumableTransitions',
-          'confirmation',
-          'reason',
-        ]);
-        if (
-          basisRecord.event !== 'EV-RUN-TERMINAL-STOP-DECISION' ||
-          decision?.kind !== 'terminal-owner-decision' ||
-          decision.run !== input.run ||
-          decision.basisDigest !== input.basisDigest ||
-          decision.generation !== generation ||
-          decision.principal !== raw.principal ||
-          decision.grant !== raw.grant ||
-          decision.resumable !== false ||
-          decision.remainingResumableTransitions !== 0 ||
-          decision.confirmation !== raw.confirmation ||
-          decision.reason !== raw.reason
-        )
-          return fail('FC-AUTHORITY', 'NON_RESUMABLE_DECISION_NOT_WITNESSED');
       } else {
         if (raw.principal !== null || raw.grant !== null || raw.resumable !== null || raw.confirmation !== null)
           return fail('FC-AUTHORITY', 'TRUST_STOP_OWNER_DECISION_FORBIDDEN');
@@ -1160,6 +1149,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           'basisDigest',
           'generation',
           'reason',
+          'trustClass',
           'appendBasis',
         ]);
         const observedBasis = observation && parseWitness(observation.appendBasis);
@@ -1169,29 +1159,13 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           observation.basisDigest !== input.basisDigest ||
           observation.generation !== generation ||
           !text(observation.reason) ||
+          observation.trustClass !== 'FC-TRUST' ||
+          observation.reason !== raw.reason ||
           !observedBasis ||
           !witnessFor(observedBasis, input.run, generation, input.basisDigest) ||
           !same(observedBasis, appendBasis)
         )
           return fail('FC-TRUST', 'TRUST_OBSERVATION_REQUIRED');
-        const observed = recordPayloadFields(basisRecord, [
-          'kind',
-          'run',
-          'basisDigest',
-          'generation',
-          'reason',
-          'trustClass',
-        ]);
-        if (
-          basisRecord.event !== 'EV-RECOVERY-OBSERVATION' ||
-          observed?.kind !== 'recovery-observation' ||
-          observed.run !== input.run ||
-          observed.basisDigest !== input.basisDigest ||
-          observed.generation !== generation ||
-          observed.trustClass !== 'FC-TRUST' ||
-          observed.reason !== observation.reason
-        )
-          return fail('FC-TRUST', 'TRUST_OBSERVATION_NOT_WITNESSED');
       }
       const before = snapshot();
       const duties: SettlementDuty[] = [];
@@ -1225,8 +1199,31 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         after,
         {
           appendBasis,
-          decision: explicit ? { principal: raw.principal, grant: raw.grant, confirmation: raw.confirmation } : null,
-          observation: recovery ? raw.observation : null,
+          decision: explicit
+            ? {
+                kind: 'terminal-owner-decision',
+                run: input.run,
+                basisDigest: input.basisDigest,
+                generation,
+                principal: raw.principal,
+                grant: raw.grant,
+                resumable: raw.resumable,
+                remainingResumableTransitions: raw.remainingResumableTransitions,
+                confirmation: raw.confirmation,
+                reason: raw.reason,
+              }
+            : null,
+          observation: recovery
+            ? {
+                kind: 'recovery-observation',
+                run: input.run,
+                basisDigest: input.basisDigest,
+                generation,
+                reason: raw.reason,
+                trustClass: 'FC-TRUST',
+                appendBasis,
+              }
+            : null,
           settlement: overlay,
         } as unknown as CanonicalJson,
         raw as unknown as CanonicalJson,
