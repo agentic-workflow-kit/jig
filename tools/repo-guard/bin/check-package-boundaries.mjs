@@ -24,10 +24,18 @@ const knownDependencyDirections = {
     '@agentic-workflow-kit/jig-codec',
     '@agentic-workflow-kit/jig-runtime-contracts',
   ]),
+  '@agentic-workflow-kit/jig-local-verification-providers': new Set(['@agentic-workflow-kit/jig-runtime-contracts']),
 };
 const knownNativeCapabilities = {
   '@agentic-workflow-kit/jig-local-file-providers': new Set(['node:fs']),
   '@agentic-workflow-kit/jig-local-workspace-providers': new Set([
+    'node:child_process',
+    'node:crypto',
+    'node:fs',
+    'node:os',
+    'node:path',
+  ]),
+  '@agentic-workflow-kit/jig-local-verification-providers': new Set([
     'node:child_process',
     'node:crypto',
     'node:fs',

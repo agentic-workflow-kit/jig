@@ -65,6 +65,11 @@ const LOCAL_GIT_WORKTREE_PROVIDER_DIGEST = 'baa6e132e39a58e4617adfe1088830df9cd8
 const LOCAL_GIT_WORKTREE_MANIFEST_BYTES = new TextEncoder().encode(
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n',
 );
+const LOCAL_COMMAND_VERIFIER_MANIFEST_DIGEST = '038d5796ca90e0b0e92bd45c4daa7de824eb0c726b22c0d03a3a848ce971d9b7';
+const LOCAL_COMMAND_VERIFIER_PROVIDER_DIGEST = 'b467043e3e2f097f5f94e485bef22307661e18d2332be9c532e04125e6e12474';
+const LOCAL_COMMAND_VERIFIER_MANIFEST_BYTES = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read-checkout","write-disposable-scratch"],"checkout":"read-only","discovery":"binding-only","scratch":"discarded","symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-command-verifier/v1"],"networkAuthority":[],"packageIdentity":"packages/local-verification-providers","providerIdentity":"local-posix-command-verifier/v1","runtimeAuthority":{"environment":"local-posix-command/v1","kind":"native-posix-sandbox-exec","package":"packages/local-verification-providers"},"scope":{"phase":4,"purpose":"local-command-verification","story":"GF-047"},"subprocessAuthority":[{"args":[],"argumentPolicy":"exact","executable":"/usr/bin/true","executableDigest":"a73efca930c2adb1f52eef0d1d3b17d375ee40290fc796653c91c33abf381938","shell":false}]}\n',
+);
 const CAPABILITY_PROOF_CATALOGUE: readonly CapabilityProofCatalogueEntry[] = Object.freeze([
   Object.freeze({
     manifestBytes: APPROVED_MANIFEST_BYTES,
@@ -81,6 +86,14 @@ const CAPABILITY_PROOF_CATALOGUE: readonly CapabilityProofCatalogueEntry[] = Obj
     providerIdentity: 'local-git-worktree-provider/v1',
     principal: 'principal/arye',
     scope: Object.freeze({ phase: 3, purpose: 'qualified-local-git-worktree', story: 'GF-039' }),
+  }),
+  Object.freeze({
+    manifestBytes: LOCAL_COMMAND_VERIFIER_MANIFEST_BYTES,
+    providerDigest: LOCAL_COMMAND_VERIFIER_PROVIDER_DIGEST,
+    manifestDigest: LOCAL_COMMAND_VERIFIER_MANIFEST_DIGEST,
+    providerIdentity: 'local-posix-command-verifier/v1',
+    principal: 'principal/arye',
+    scope: Object.freeze({ phase: 4, purpose: 'local-command-verification', story: 'GF-047' }),
   }),
 ]);
 /** Private immutable catalogue; callers can select no entry and cannot register one. */
