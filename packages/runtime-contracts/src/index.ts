@@ -11,7 +11,14 @@ export * from './development-pre-run.js';
 export * from './envelope.js';
 export * from './ledger.js';
 export * from './obligation.js';
-export * from './provider.js';
+export {
+  PROVIDER_ADMISSION_VERSION,
+  createProviderAdmissionFixture,
+  createStructuredFileAdmission,
+  structuredFileProviderGate,
+  structuredFileQualificationGate,
+} from './provider.js';
+export type { ProviderAdmissionFailure, ProviderAdmissionResult, StructuredFileAdmission } from './provider.js';
 export type { ProviderAdmissionClaims } from './qualification-registry.js';
 // Claims are readable at the runtime root; issuance remains inside the durable admission transition.
 export { readProviderAdmissionCertificateClaims } from './qualification-registry.js';

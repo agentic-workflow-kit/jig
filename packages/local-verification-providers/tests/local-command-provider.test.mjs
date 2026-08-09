@@ -7,6 +7,7 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
+const admissionRuntime = await import('../../runtime-contracts/dist/provider.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -146,7 +147,11 @@ const admission = () => {
     manifestDigest: manifestValue.manifestDigest,
     scope: manifestValue.value.scope,
   };
-  const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: manifestValue.bytes, approval, ledger });
+  const fixture = admissionRuntime.createLocalCommandAdmissionTransition({
+    manifestBytes: manifestValue.bytes,
+    approval,
+    ledger,
+  });
   const now = Date.now();
   const start = fixture.start({
     basis: basisValue,
@@ -192,6 +197,7 @@ test('local command provider package is unavailable before exact qualification',
       .ok,
     false,
   );
+  assert.equal('createLocalCommandAdmissionTransition' in runtime, false);
 });
 
 test('manifest and native posture are exact, local, no-shell, and no-credential', () => {

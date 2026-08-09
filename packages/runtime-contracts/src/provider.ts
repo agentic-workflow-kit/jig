@@ -267,7 +267,7 @@ const basis = (value: unknown, entry: CapabilityProofCatalogueEntry): Basis | un
   });
 };
 
-export function createProviderAdmissionFixture(input: unknown): Fixture {
+function createProviderAdmissionFixtureInternal(input: unknown, issueLocalCommandCarrier: boolean): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const entry = config && ledger ? catalogueEntry(config.manifestBytes) : undefined;
@@ -454,7 +454,8 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         (localCommand && data.maxAgeMs !== PROVIDER_ADMISSION_MAX_AGE_MS)
       )
         return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
-      if (!localCommand) return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
+      if (!localCommand || !issueLocalCommandCarrier)
+        return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
       const claims = snapshotProviderAdmissionClaims({
         principal: 'principal/arye',
         providerIdentity: bound.providerIdentity,
@@ -496,6 +497,15 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     },
     reachability: () => ok({ kind: 'unavailable', providerEnabled: false as const }),
   });
+}
+
+export function createProviderAdmissionFixture(input: unknown): Fixture {
+  return createProviderAdmissionFixtureInternal(input, false);
+}
+
+/** Package-private GF-047 transition; omitted from the runtime package root. */
+export function createLocalCommandAdmissionTransition(input: unknown): Fixture {
+  return createProviderAdmissionFixtureInternal(input, true);
 }
 
 function approval(value: unknown, entry: CapabilityProofCatalogueEntry): Approval | undefined {
