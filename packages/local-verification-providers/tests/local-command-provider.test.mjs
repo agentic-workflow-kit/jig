@@ -252,13 +252,21 @@ test('admission freshness is checked against the current clock at create, restor
   try {
     Date.now = () => issuedAt - provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS - 1;
     assert.deepEqual(
-      provider.createQualifiedLocalCommandProvider({ manifest: manifestValue, admission: auth, qualification: proof.value }),
+      provider.createQualifiedLocalCommandProvider({
+        manifest: manifestValue,
+        admission: auth,
+        qualification: proof.value,
+      }),
       { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
       'future admission is rejected at provider creation',
     );
     Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 10_000;
     assert.deepEqual(
-      provider.createQualifiedLocalCommandProvider({ manifest: manifestValue, admission: auth, qualification: proof.value }),
+      provider.createQualifiedLocalCommandProvider({
+        manifest: manifestValue,
+        admission: auth,
+        qualification: proof.value,
+      }),
       { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
       'stale admission is rejected at provider creation',
     );
@@ -362,10 +370,13 @@ test('qualified provider binds exact admission, mechanism proof, and command obs
   });
   assert.equal(restored.ok, true);
   assert.equal(restored.value.snapshot().observations.length, 1);
-  assert.deepEqual(restored.value.dispatch({ checkoutResource: resource.value, request: request(1), permit: permit(1) }).error, {
-    family: 'FC-EFFECT',
-    code: 'DUPLICATE_OPERATION',
-  });
+  assert.deepEqual(
+    restored.value.dispatch({ checkoutResource: resource.value, request: request(1), permit: permit(1) }).error,
+    {
+      family: 'FC-EFFECT',
+      code: 'DUPLICATE_OPERATION',
+    },
+  );
 });
 
 test('wrong permit, stale qualification, and retry reuse fail closed without command invocation', () => {

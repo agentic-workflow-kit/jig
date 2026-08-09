@@ -1424,8 +1424,7 @@ function createProvider(
       resourceClaims.targetBasisCommit,
       resourceClaims.targetBasisTree,
     );
-    if (!revalidated.ok || !same(revalidated.value, resourceClaims))
-      return fail('FC-SUBJECT', 'CHECKOUT_DRIFT');
+    if (!revalidated.ok || !same(revalidated.value, resourceClaims)) return fail('FC-SUBJECT', 'CHECKOUT_DRIFT');
     if (!existing) requests.push(request);
     const fault = raw.fault as 'lost-response' | 'timeout' | undefined;
     if (raw.fault !== undefined && raw.fault !== 'lost-response' && raw.fault !== 'timeout')
