@@ -161,7 +161,7 @@ const admission = () => {
     basis: basisValue,
     ordinal: 1,
     deadline: now + 2_000,
-    observedAt: now + 1,
+    observedAt: now,
     retryLimit: 2,
     predecessor: start.value.digest,
     outcome: 'positive',
@@ -235,6 +235,66 @@ test('GF-022 admission is opaque and cannot be minted by caller-shaped data', ()
     }),
     { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
   );
+  assert.equal('mintProviderAdmissionCertificate' in runtime, false);
+});
+
+test('admission freshness is checked against the current clock at create, restore, and dispatch', () => {
+  const realNow = Date.now;
+  const issuedAt = realNow();
+  const auth = admission();
+  const proof = provider.runLocalCommandQualificationProbe({
+    candidateCommit,
+    candidateTree,
+    manifest: manifestValue,
+    admission: auth,
+  });
+  if (!proof.ok) return;
+  try {
+    Date.now = () => issuedAt - provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS - 1;
+    assert.deepEqual(
+      provider.createQualifiedLocalCommandProvider({ manifest: manifestValue, admission: auth, qualification: proof.value }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
+      'future admission is rejected at provider creation',
+    );
+    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 1;
+    assert.deepEqual(
+      provider.createQualifiedLocalCommandProvider({ manifest: manifestValue, admission: auth, qualification: proof.value }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
+      'stale admission is rejected at provider creation',
+    );
+  } finally {
+    Date.now = realNow;
+  }
+  const created = provider.createQualifiedLocalCommandProvider({
+    manifest: manifestValue,
+    admission: auth,
+    qualification: proof.value,
+  });
+  if (!created.ok) return;
+  const req = request(1);
+  assert.equal(created.value.enterFinalizing({ origin: 'Accepted', request: req }).ok, true);
+  const resource = checkoutResource(req);
+  assert.equal(resource.ok, true);
+  try {
+    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 1;
+    assert.deepEqual(
+      provider.restoreQualifiedLocalCommandProvider({
+        manifest: manifestValue,
+        admission: auth,
+        qualification: proof.value,
+        snapshot: created.value.snapshot(),
+      }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
+      'stale admission is rejected at restore',
+    );
+    assert.deepEqual(
+      created.value.dispatch({ checkoutResource: resource.value, request: req, permit: permit(1) }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
+      'stale admission is rejected again at dispatch',
+    );
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('dispatch rejects an arbitrary checkout before command execution', () => {

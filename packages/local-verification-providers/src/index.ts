@@ -1404,7 +1404,6 @@ function createProvider(
     ]);
     if (!permitCapability || permitCapability.manifest !== manifestId)
       return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
-    if (!existing) requests.push(request);
     const resourceClaims =
       typeof raw.checkoutResource === 'object' && raw.checkoutResource !== null
         ? checkoutResources.get(raw.checkoutResource)
@@ -1426,6 +1425,7 @@ function createProvider(
     );
     if (!revalidated.ok || !same(revalidated.value, resourceClaims))
       return fail('FC-SUBJECT', 'CHECKOUT_DRIFT');
+    if (!existing) requests.push(request);
     const fault = raw.fault as 'lost-response' | 'timeout' | undefined;
     if (raw.fault !== undefined && raw.fault !== 'lost-response' && raw.fault !== 'timeout')
       return fail('FC-INPUT', 'INVALID_FAULT');
