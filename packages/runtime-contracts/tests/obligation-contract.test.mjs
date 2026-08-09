@@ -185,7 +185,8 @@ test('GF038-MC-01: opening mints one immutable obligation with exact bindings', 
 });
 
 test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is idempotent', () => {
-  const controller = obligation.createScriptedObligationController({ dependencies: dependencies() });
+  const runtimeDependencies = dependencies();
+  const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
   const opened = controller.open(openInput());
   assert.equal(opened.ok, true);
   const handoff = controller.acceptHandoff({
@@ -250,6 +251,10 @@ test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is id
     }).value.status,
     'resolved',
   );
+  const restored = obligation.restoreScriptedObligationController(controller.snapshot(), runtimeDependencies);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.get(opened.value.id), controller.get(opened.value.id));
+  assert.deepEqual(restored.value.intents(), controller.intents());
   assert.equal(controller.facts().filter((fact) => fact.type === 'EV-OBLIGATION-RESOLVED').length, 1);
   assert.equal(
     controller.acceptHandoff({
@@ -448,4 +453,60 @@ test('GF038-MC-07: snapshot recovery preserves open state and rejects hostile or
     family: 'FC-SUBJECT',
     code: 'INVALID_ORIGIN',
   });
+
+  const uncertainDependencies = dependencies();
+  const uncertainController = obligation.createScriptedObligationController({
+    dependencies: uncertainDependencies,
+    ledgerFaultPlan: [{}, { append: 'lost-ack', readback: 'indeterminate-read' }],
+  });
+  const uncertainOpened = uncertainController.open(openInput({ obligationOrdinal: 2 }));
+  assert.equal(uncertainOpened.ok, true);
+  const uncertainResolution = {
+    obligation: uncertainOpened.value.id,
+    responder: 'principal/arye',
+    responderProof: ownerProof,
+    grant: null,
+    generation,
+    criteriaDigest: uncertainOpened.value.criteria.digest,
+    evidence: evidence('c'),
+    observedAt: 3000,
+  };
+  assert.deepEqual(uncertainController.resolve(uncertainResolution).error, {
+    family: 'FC-TRUST',
+    code: 'OBLIGATION_APPEND_UNCERTAIN',
+  });
+  assert.equal(uncertainController.intents()[0]?.status, 'uncertain');
+  const beforeBlindRetry = uncertainController.snapshot();
+  assert.deepEqual(uncertainController.resolve(uncertainResolution).error, {
+    family: 'FC-TRUST',
+    code: 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION',
+  });
+  assert.deepEqual(uncertainController.snapshot(), beforeBlindRetry);
+  const recoveredUncertain = obligation.restoreScriptedObligationController(beforeBlindRetry, uncertainDependencies);
+  assert.equal(recoveredUncertain.ok, true, JSON.stringify(recoveredUncertain));
+  const uncertainIntentKey = recoveredUncertain.value.intents()[0].key;
+  assert.deepEqual(
+    recoveredUncertain.value.reconcileResolution({
+      obligation: uncertainOpened.value.id,
+      intentKey: uncertainIntentKey,
+      outcome: 'indeterminate',
+    }).error,
+    { family: 'FC-TRUST', code: 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION' },
+  );
+  const reconciled = recoveredUncertain.value.reconcileResolution({
+    obligation: uncertainOpened.value.id,
+    intentKey: uncertainIntentKey,
+    outcome: 'confirmed',
+  });
+  assert.equal(reconciled.ok, true, JSON.stringify(reconciled));
+  assert.equal(reconciled.value.status, 'recorded');
+  const resolvedAfterRecovery = recoveredUncertain.value.resolve(uncertainResolution);
+  assert.equal(resolvedAfterRecovery.ok, true, JSON.stringify(resolvedAfterRecovery));
+  assert.equal(resolvedAfterRecovery.value.status, 'resolved');
+  const resolvedReplay = obligation.restoreScriptedObligationController(
+    recoveredUncertain.value.snapshot(),
+    uncertainDependencies,
+  );
+  assert.equal(resolvedReplay.ok, true, JSON.stringify(resolvedReplay));
+  assert.deepEqual(resolvedReplay.value.intents(), recoveredUncertain.value.intents());
 });

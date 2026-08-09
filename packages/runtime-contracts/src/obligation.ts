@@ -6,6 +6,7 @@ import {
   type LedgerRecord,
   type RunStoreBinding,
   type ScriptedLedger,
+  type ScriptedLedgerFault,
 } from './ledger.js';
 
 /** Private GF-038 semantics. No provider, notice, settlement, cleanup, or dispatch authority exists here. */
@@ -43,6 +44,10 @@ export type ObligationFailureFamily =
   | 'FC-TRUST';
 export type ObligationFailure = Readonly<{ family: ObligationFailureFamily; code: string }>;
 export type ObligationResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: ObligationFailure }>;
+export type ObligationLedgerFaultPlan = Readonly<{
+  append?: Extract<ScriptedLedgerFault, 'before-append' | 'after-flush' | 'after-witness' | 'lost-ack'>;
+  readback?: Extract<ScriptedLedgerFault, 'indeterminate-read'>;
+}>;
 
 export type ObligationCriteria = Readonly<{
   schema: typeof OBLIGATION_CRITERIA_SCHEMA;
@@ -176,6 +181,7 @@ export type ObligationController = Readonly<{
   revokeGrant(input: unknown): ObligationResult<ObligationGrant>;
   acceptHandoff(input: unknown): ObligationResult<ResidualObligation>;
   resolve(input: unknown): ObligationResult<ResidualObligation>;
+  reconcileResolution(input: unknown): ObligationResult<ObligationResolutionIntent>;
   expire(input: unknown): ObligationResult<ResidualObligation>;
   wakeSettlement(input: unknown): ObligationResult<ObligationFact>;
   get(id: unknown): ObligationResult<ResidualObligation>;
@@ -432,7 +438,17 @@ function parseEvidence(value: unknown, authority: ScriptedEvidenceFixture): Obli
 
 function sameJson(left: unknown, right: unknown): boolean {
   try {
-    return JSON.stringify(left) === JSON.stringify(right);
+    const normalize = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(normalize);
+      if (value !== null && typeof value === 'object')
+        return Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, normalize((value as Record<string, unknown>)[key])]),
+        );
+      return value;
+    };
+    return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
   } catch {
     return false;
   }
@@ -893,7 +909,11 @@ export function obligationBoundDigest(
 }
 
 export function createScriptedObligationController(
-  options?: Readonly<{ hydrate?: HydratedState; dependencies?: ObligationRuntimeDependencies }>,
+  options?: Readonly<{
+    hydrate?: HydratedState;
+    dependencies?: ObligationRuntimeDependencies;
+    ledgerFaultPlan?: readonly ObligationLedgerFaultPlan[];
+  }>,
 ): ObligationController {
   const ledger = options?.dependencies?.ledger;
   const evidenceAuthority = options?.dependencies?.evidence;
@@ -909,6 +929,7 @@ export function createScriptedObligationController(
   let facts = [...(options?.hydrate?.facts ?? [])];
   let activeBinding: RunStoreBinding | null = options?.hydrate?.ledgerBinding ?? null;
   let ledgerHead: Readonly<{ position: number; digest: string }> | null = options?.hydrate?.ledgerHead ?? null;
+  const ledgerFaultPlan = [...(options?.ledgerFaultPlan ?? [])];
 
   const appendDurable = (
     content: Record<string, unknown>,
@@ -917,6 +938,7 @@ export function createScriptedObligationController(
     Readonly<{ event: string; content: Record<string, unknown>; position: number; digest: string }>
   > => {
     if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+    const faults = ledgerFaultPlan.shift() ?? {};
     const head = ledger.snapshot(binding);
     if (!head.ok) return fail(head.error.family, head.error.code);
     const position = head.value.position + 1;
@@ -930,14 +952,28 @@ export function createScriptedObligationController(
       content: content as never,
     });
     if (!prepared.ok) return fail(prepared.error.family, prepared.error.code);
-    const appended = ledger.append({ binding, expectedPosition: head.value.position, record: prepared.value });
+    const appended = ledger.append(
+      { binding, expectedPosition: head.value.position, record: prepared.value },
+      faults.append,
+    );
     let record: LedgerRecord;
     if (appended.ok) {
       record = appended.value;
     } else {
       if (appended.error.code !== 'ACK_LOST') return fail(appended.error.family, appended.error.code);
-      const readback = ledger.readback({ binding, position, transaction, contentDigest: prepared.value.contentDigest });
-      if (!readback.ok) return fail(readback.error.family, readback.error.code);
+      const readback = ledger.readback(
+        { binding, position, transaction, contentDigest: prepared.value.contentDigest },
+        faults.readback,
+      );
+      if (!readback.ok) {
+        if (readback.error.code === 'INDETERMINATE_READ') {
+          activeBinding = binding;
+          const observed = ledger.snapshot(binding);
+          if (observed.ok) ledgerHead = Object.freeze({ ...observed.value });
+          return fail('FC-TRUST', 'OBLIGATION_APPEND_UNCERTAIN');
+        }
+        return fail(readback.error.family, readback.error.code);
+      }
       if (readback.value.kind !== 'committed') return fail('FC-TRUST', 'OBLIGATION_APPEND_UNCERTAIN');
       record = readback.value.record;
     }
@@ -1347,8 +1383,15 @@ export function createScriptedObligationController(
         status: 'recorded' as const,
       }) as ObligationResolutionIntent;
       const persistedIntent = appendIntent(recordedIntent);
-      if (!persistedIntent.ok) return persistedIntent;
+      if (!persistedIntent.ok) {
+        if (persistedIntent.error.code === 'OBLIGATION_APPEND_UNCERTAIN') {
+          intents = new Map(intents).set(intentKey, deepFreeze({ ...recordedIntent, status: 'uncertain' as const }));
+        }
+        return persistedIntent;
+      }
       intents = new Map(intents).set(intentKey, recordedIntent);
+    } else if (recordedIntent?.status === 'uncertain') {
+      return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
     }
     const updated = {
       ...current,
@@ -1372,9 +1415,43 @@ export function createScriptedObligationController(
     });
     if (!persisted.ok) return persisted;
     const committed = deepFreeze({ ...updated, resolutionEvent: persisted.value.event });
+    const confirmedIntent = deepFreeze({ ...recordedIntent, status: 'confirmed' as const });
+    const persistedConfirmation = appendIntent(confirmedIntent);
+    if (!persistedConfirmation.ok) return persistedConfirmation;
     obligations = new Map(obligations).set(current.id, committed);
-    intents = new Map(intents).set(intentKey, deepFreeze({ ...recordedIntent, status: 'confirmed' as const }));
+    intents = new Map(intents).set(intentKey, confirmedIntent);
     return ok(committed);
+  };
+
+  const reconcileResolution = (input: unknown): ObligationResult<ObligationResolutionIntent> => {
+    const raw = fields(input, ['obligation', 'intentKey', 'outcome']);
+    if (
+      !raw ||
+      !identity('ID-OBLIGATION', raw.obligation) ||
+      !digest(raw.intentKey) ||
+      !['confirmed', 'confirmed-absence', 'indeterminate'].includes(raw.outcome as string)
+    )
+      return fail('FC-INPUT', 'INVALID_RECONCILIATION_INPUT');
+    const prior = intents.get(raw.intentKey as string);
+    if (!prior || prior.obligation !== raw.obligation) return fail('FC-SUBJECT', 'RESOLUTION_INTENT_NOT_FOUND');
+    if (prior.status !== 'uncertain') return ok(prior);
+    if (raw.outcome === 'indeterminate') return fail('FC-TRUST', 'UNCERTAIN_RESOLUTION_REQUIRES_RECONCILIATION');
+    if (!activeBinding || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+    const records = ledger.records(activeBinding);
+    if (!records.ok) return fail(records.error.family, records.error.code);
+    const expected = { ...prior, status: 'recorded' as const };
+    const matching = records.value.find((record) => sameJson(record.content, { ...expected }));
+    if (matching) {
+      const updated = deepFreeze(expected);
+      intents = new Map(intents).set(prior.key, updated);
+      return ok(updated);
+    }
+    if (raw.outcome === 'confirmed') return fail('FC-TRUST', 'RESOLUTION_APPEND_UNCONFIRMED');
+    const persisted = appendIntent(expected);
+    if (!persisted.ok) return persisted as ObligationResult<ObligationResolutionIntent>;
+    const updated = deepFreeze(expected);
+    intents = new Map(intents).set(prior.key, updated);
+    return ok(updated);
   };
 
   const expire = (input: unknown): ObligationResult<ResidualObligation> => {
@@ -1461,6 +1538,7 @@ export function createScriptedObligationController(
     revokeGrant,
     acceptHandoff,
     resolve,
+    reconcileResolution,
     expire,
     wakeSettlement,
     get,
@@ -1490,6 +1568,8 @@ export function restoreScriptedObligationController(
   const matchedIntents = new Set<string>();
   const ledgerFactEvents: string[] = [];
   const ledgerIntentKeys: string[] = [];
+  const ledgerIntentStates = new Map<string, 'recorded' | 'confirmed'>();
+  const resolvedObligations = new Set<string>();
   for (const record of records.value) {
     const content = fields(record.content, [
       'schema',
@@ -1539,6 +1619,7 @@ export function restoreScriptedObligationController(
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
       matchedFacts.add(record.event);
       ledgerFactEvents.push(record.event);
+      if (content.type === 'EV-OBLIGATION-RESOLVED') resolvedObligations.add(content.obligation as string);
       continue;
     }
     const intent = fields(record.content, [
@@ -1555,22 +1636,52 @@ export function restoreScriptedObligationController(
     ]);
     if (intent?.schema === OBLIGATION_INTENT_SCHEMA) {
       const expected = expectedIntents.get(intent.key as string);
-      if (!expected || !sameJson(intent, expected)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      const status = intent.status === 'recorded' || intent.status === 'confirmed' ? intent.status : undefined;
+      if (!expected || !status || (status === 'confirmed' && !resolvedObligations.has(expected.obligation)))
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      const { status: _expectedStatus, ...expectedBasis } = expected;
+      const { status: _ledgerStatus, ...ledgerBasis } = intent;
+      if (!sameJson(ledgerBasis, expectedBasis)) {
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      }
+      if (expected.status === 'recorded' && status !== 'recorded')
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      if (expected.status === 'uncertain' && status !== 'recorded')
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      if (status === 'recorded' && ledgerIntentStates.has(intent.key as string))
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      if (status === 'confirmed' && ledgerIntentStates.get(intent.key as string) !== 'recorded')
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      ledgerIntentStates.set(intent.key as string, status);
       matchedIntents.add(intent.key as string);
-      ledgerIntentKeys.push(intent.key as string);
+      if (!ledgerIntentKeys.includes(intent.key as string)) ledgerIntentKeys.push(intent.key as string);
     }
   }
+  for (const intent of validated.value.intents) {
+    if (intent.status === 'uncertain') {
+      const witnessed = ledgerIntentStates.get(intent.key);
+      if (witnessed !== undefined && witnessed !== 'recorded')
+        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      continue;
+    }
+    if (ledgerIntentStates.get(intent.key) !== intent.status)
+      return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+  }
+  const expectedLedgerIntentKeys = validated.value.intents
+    .filter((intent) => intent.status !== 'uncertain' || ledgerIntentStates.has(intent.key))
+    .map((intent) => intent.key);
+  const unwitnessedUncertainIntents = validated.value.intents.filter(
+    (intent) => intent.status === 'uncertain' && !ledgerIntentStates.has(intent.key),
+  );
   if (
     matchedFacts.size !== expectedFacts.size ||
-    matchedIntents.size !== expectedIntents.size ||
+    matchedIntents.size + unwitnessedUncertainIntents.length !== expectedIntents.size ||
+    ledgerIntentStates.size !== expectedIntents.size ||
     !sameJson(
       ledgerFactEvents,
       validated.value.facts.map((fact) => fact.event),
     ) ||
-    !sameJson(
-      ledgerIntentKeys,
-      validated.value.intents.map((intent) => intent.key),
-    )
+    !sameJson(ledgerIntentKeys, expectedLedgerIntentKeys)
   )
     return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
   return ok(createScriptedObligationController({ hydrate: validated.value, dependencies }));
