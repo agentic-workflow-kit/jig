@@ -1,0 +1,41 @@
+{
+  "skill_name": "orchestrate-story-waves",
+  "evals": [
+    {
+      "id": "pr-wave-three-stories",
+      "prompt": "Deliver the next three eligible tracker stories. Use a separate Codex chat for each, have each chat use an independent reviewer, create a PR, run the default lifecycle, and continue after merge.",
+      "expected_output": "A bounded dependency-aware three-story execution with explicit thread routes, reviewer isolation, verified merges, cleanup, and readiness recomputation.",
+      "files": [],
+      "assertions": [
+        "Only tracker-eligible stories are dispatched",
+        "Every story uses separate implementer and read-only reviewer threads",
+        "The next wave starts only after verified merge",
+        "Exactly three verified story completions are counted"
+      ]
+    },
+    {
+      "id": "integration-phase-mode",
+      "prompt": "Finish the current phase using per-story chats and independent reviewers, but integrate each story into the phase branch and open only one final phase PR.",
+      "expected_output": "Integration mode preserves reviewed story commits, recomputes readiness after integration, and creates one final phase PR with its lifecycle.",
+      "files": [],
+      "assertions": [
+        "No per-story PR is created",
+        "Every candidate receives independent read-only review",
+        "Story commits remain ancestors of the integration result",
+        "Only one final phase PR is created"
+      ]
+    },
+    {
+      "id": "blocked-descendant-independent-lane",
+      "prompt": "Run six stories autonomously. One ready story becomes blocked by missing provider evidence, while another independent lane remains ready.",
+      "expected_output": "Only the blocked story and descendants stop; independent eligible stories continue until the count or governed stop condition.",
+      "files": [],
+      "assertions": [
+        "The skill does not invent provider evidence",
+        "Only descendants of the blocked story are held",
+        "Independent eligible stories continue",
+        "The final report distinguishes completed count from blocked attempts"
+      ]
+    }
+  ]
+}
