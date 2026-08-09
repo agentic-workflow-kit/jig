@@ -63,9 +63,11 @@ that safe-overlap guard. Any attempt to use a real provider closes the overlap u
 exact qualification evidence, recomposed preview, and refreshed approvals pass.
 
 GF-039 is currently deferred: its semantic GF-033 contract and local conformance probe may remain
-in the phase candidate, but a same-user durable sidecar is not an independent qualification
-carrier. Provider reachability stays fail-closed across restart until an owner-authorized carrier,
-fresh exact gate evidence, and exact-candidate review are available.
+in the phase candidate, but the probe returns observations/evidence only. No qualification receipt,
+public provider factory, or same-process provider/dispatch reachability is exposed; a same-user
+durable sidecar is not an independent qualification carrier. Provider reachability stays fail-closed
+across restart until an owner-authorized carrier, fresh exact gate evidence, and exact-candidate
+review are available.
 
 ## Story candidate and integration loop
 

@@ -114,14 +114,11 @@ export type LocalGitWorktreeProbeEvidence = Readonly<{
 export type LocalGitWorktreeProbeResult = Readonly<{
   evidence: LocalGitWorktreeProbeEvidence;
   observations: Readonly<Record<string, boolean>>;
-  receipt: LocalGitWorktreeGateReceipt;
   resourceRoot: string;
   removedResources: readonly string[];
 }>;
 
-export type LocalGitWorktreeGateReceipt = Readonly<Record<never, never>>;
-
-export type LocalGitWorktreeProvider = Readonly<{
+type LocalGitWorktreeProvider = Readonly<{
   dispatch(
     input: Readonly<{ intent: WorkspaceOperationIntent; fault?: LocalGitWorktreeFault }>,
   ): Result<LocalGitWorktreeAttestation>;
@@ -152,7 +149,6 @@ const DIGEST = /^[0-9a-f]{64}$/u;
 const GIT_OBJECT = /^[0-9a-f]{40}$/u;
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const SECRET_VALUE = /(?:secret|token|password|credential|authorization|api[._ -]?key)\s*[=:]/iu;
-const GATE_RECEIPTS = new WeakMap<object, LocalGitWorktreeProbeEvidence>();
 
 function identity(kind: string, value: unknown): value is string {
   return typeof value === 'string' && parseIdentity(kind, value).ok;
@@ -173,16 +169,6 @@ function canonical(value: unknown): string {
 
 function digest(domain: string, value: unknown): string {
   return sha256(canonical({ domain, value }));
-}
-
-function sameEnvironment(left: LocalGitWorktreeEnvironment, right: LocalGitWorktreeEnvironment): boolean {
-  return (
-    left.os === right.os &&
-    left.gitVersion === right.gitVersion &&
-    left.resourceRoot === right.resourceRoot &&
-    left.posture === right.posture &&
-    left.scope === right.scope
-  );
 }
 
 function exactObject(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
@@ -701,32 +687,6 @@ function bindingProof(binding: WorkspaceBinding): WorkspaceCommitProof {
   return proofFor(binding);
 }
 
-function validateEnvironment(environment: unknown): Result<LocalGitWorktreeEnvironment> {
-  const raw = exactObject(environment, ['os', 'gitVersion', 'resourceRoot', 'posture', 'scope']);
-  if (
-    !raw ||
-    (raw.os !== 'darwin' && raw.os !== 'linux') ||
-    !safeText(raw.gitVersion) ||
-    !safeText(raw.resourceRoot) ||
-    raw.posture !== LOCAL_GIT_WORKTREE_POSTURE ||
-    raw.scope !== LOCAL_GIT_WORKTREE_SCOPE
-  )
-    return fail('FC-INPUT', 'INVALID_LOCAL_ENVIRONMENT');
-  if (platform() !== raw.os) return fail('FC-AUTHORITY', 'HOST_OS_MISMATCH');
-  const root = trustedRoot(String(raw.resourceRoot));
-  return root.ok
-    ? ok(
-        Object.freeze({
-          os: raw.os,
-          gitVersion: raw.gitVersion,
-          resourceRoot: root.value,
-          posture: LOCAL_GIT_WORKTREE_POSTURE,
-          scope: LOCAL_GIT_WORKTREE_SCOPE,
-        }),
-      )
-    : root;
-}
-
 function validateAdmission(admission: unknown): Result<LocalGitWorktreeAdmission> {
   const raw = exactObject(admission, [
     'kind',
@@ -854,30 +814,6 @@ export function discoverLocalGitWorktreeEnvironment(resourceRoot: string): Resul
       scope: LOCAL_GIT_WORKTREE_SCOPE,
     }),
   );
-}
-
-export function createQualifiedLocalGitWorktreeProvider(
-  input: Readonly<{ admission: unknown; environment: unknown; receipt: unknown }>,
-): Result<LocalGitWorktreeProvider> {
-  const environment = validateEnvironment(input?.environment);
-  const admission = validateAdmission(input?.admission);
-  if (!environment.ok) return environment;
-  if (!admission.ok) return admission;
-  if (typeof input?.receipt !== 'object' || input.receipt === null) {
-    return fail('FC-TRUST', 'QUALIFICATION_RECEIPT_REQUIRED');
-  }
-  const evidence = GATE_RECEIPTS.get(input.receipt);
-  if (!evidence) return fail('FC-TRUST', 'UNRECORDED_QUALIFICATION_EVIDENCE');
-  if (
-    !sameEnvironment(evidence.environment, environment.value) ||
-    evidence.environmentDigest !== environmentDigest(environment.value) ||
-    evidence.resourceDigest !== digest('WORKSPACE-RESOURCE', environment.value.resourceRoot) ||
-    evidence.admissionProofDigest !== admission.value.proofDigest ||
-    evidence.admissionObservedAt !== admission.value.observedAt ||
-    evidence.admissionAgeMs !== admission.value.ageMs
-  )
-    return fail('FC-AUTHORITY', 'QUALIFICATION_ADMISSION_MISMATCH');
-  return ok(createMechanism(environment.value));
 }
 
 function fixtureIntent(binding: WorkspaceBinding): WorkspaceOperationIntent {
@@ -1044,11 +980,7 @@ export function runLocalGitWorktreeQualificationProbe(
       return !retire.ok && retire.error.code === 'REAL_RETIRE_DISABLED' && existsSync(join(target, 'README.md'));
     })(),
     noSecrets: !SECRET_VALUE.test(MANIFEST_TEXT),
-    gateDeniedWithoutAdmission: !createQualifiedLocalGitWorktreeProvider({
-      admission: undefined,
-      environment: environment.value,
-      receipt: undefined,
-    }).ok,
+    providerConfigurationDeferred: true,
   });
   const passed = Object.values(observations).every(Boolean);
   const requestDigest = digest('WORKSPACE-PROBE-REQUEST', {
@@ -1095,14 +1027,11 @@ export function runLocalGitWorktreeQualificationProbe(
     recordedAt: Date.now(),
     recorder: 'recorder/jig-gf039-real-local/v1',
   });
-  const receipt = Object.freeze({});
-  if (passed) GATE_RECEIPTS.set(receipt, evidence);
   const result = passed
     ? ok(
         Object.freeze({
           evidence,
           observations,
-          receipt,
           resourceRoot: root,
           removedResources: input.retainRoot ? [] : [root],
         }),
