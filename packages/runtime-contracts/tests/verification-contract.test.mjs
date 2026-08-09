@@ -200,6 +200,43 @@ test('CF-MECH-VERIFY: scripted verification accepts only effect-free exact attes
   assert.equal(fixture.dispatch({ request: valid, attestation: attestation(valid) }).error.code, 'DUPLICATE_OPERATION');
 });
 
+test('RT-CONTROLLER / FC-AUTHORITY: dispatch rejects stale Waiting and non-controller permit substitutions before and after restore', () => {
+  const valid = request(1);
+  const substitutions = [
+    { name: 'stale Waiting permit', override: { lifecycle: 'Waiting' } },
+    { name: 'non-controller permit', override: { role: 'provider' } },
+  ];
+
+  for (const { name, override } of substitutions) {
+    const fixture = runtime.createScriptedVerificationFixture(makeAuthorizer([permit(1, override)]));
+    assert.equal(fixture.enterFinalizing({ origin: 'Accepted', request: valid }).ok, true, name);
+    assert.deepEqual(
+      fixture.dispatch({ request: valid, attestation: attestation(valid) }).error,
+      {
+        family: 'FC-AUTHORITY',
+        code: 'INVALID_DISPATCH_PERMIT',
+      },
+      name,
+    );
+    assert.equal(fixture.invocations().length, 0, name);
+
+    const restored = runtime.restoreScriptedVerificationFixture(
+      fixture.snapshot(),
+      makeAuthorizer([permit(1, override)]),
+    );
+    assert.equal(restored.ok, true, name);
+    assert.deepEqual(
+      restored.value.dispatch({ request: valid, attestation: attestation(valid) }).error,
+      {
+        family: 'FC-AUTHORITY',
+        code: 'INVALID_DISPATCH_PERMIT',
+      },
+      name,
+    );
+    assert.equal(restored.value.invocations().length, 0, name);
+  }
+});
+
 test('BND-WAIT-MECHANISM/BND-RETRY: loss is durable and replacement uses a new authorized ID-OP before observation adoption', () => {
   const first = request(1);
   const second = request(2, { operation: operation(2), retryOrdinal: 2, predecessor: first.operation });

@@ -626,8 +626,8 @@ function validatePermit(value: unknown, request: VerificationRequest): boolean {
     !identity('ID-MANIFEST', capability.manifest) ||
     !digest(capability.digest) ||
     raw.authority !== null ||
-    !text(raw.role) ||
-    !boundedText(raw.lifecycle) ||
+    raw.role !== 'controller' ||
+    raw.lifecycle !== 'Finalizing' ||
     !proof ||
     proof.kind !== 'committed-witnessed' ||
     !nonNegativeInteger(proof.position) ||
