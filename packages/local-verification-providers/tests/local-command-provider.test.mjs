@@ -256,7 +256,7 @@ test('admission freshness is checked against the current clock at create, restor
       { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
       'future admission is rejected at provider creation',
     );
-    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 1;
+    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 10_000;
     assert.deepEqual(
       provider.createQualifiedLocalCommandProvider({ manifest: manifestValue, admission: auth, qualification: proof.value }),
       { ok: false, error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' } },
@@ -276,7 +276,7 @@ test('admission freshness is checked against the current clock at create, restor
   const resource = checkoutResource(req);
   assert.equal(resource.ok, true);
   try {
-    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 1;
+    Date.now = () => issuedAt + provider.LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS + 10_000;
     assert.deepEqual(
       provider.restoreQualifiedLocalCommandProvider({
         manifest: manifestValue,
@@ -342,6 +342,10 @@ test('qualified provider binds exact admission, mechanism proof, and command obs
   assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: request(1) }).ok, true);
   const resource = checkoutResource(request(1));
   assert.equal(resource.ok, true, JSON.stringify(resource));
+  assert.deepEqual(
+    qualified.dispatch({ checkoutResource: { ...resource.value }, request: request(1), permit: permit(1) }),
+    { ok: false, error: { family: 'FC-SUBJECT', code: 'CHECKOUT_RESOURCE_REQUIRED' } },
+  );
   const observed = qualified.dispatch({ checkoutResource: resource.value, request: request(1), permit: permit(1) });
   assert.equal(observed.ok, true);
   assert.equal(observed.value.provider, provider.LOCAL_COMMAND_VERIFIER_PROVIDER);

@@ -802,6 +802,7 @@ function validateAdmission(
   admission: unknown,
   manifest: LocalCommandManifest,
 ): LocalCommandResult<LocalCommandAdmission> {
+  const now = Date.now();
   const raw = fields(admission, ['certificate']);
   const claims =
     raw && typeof raw.certificate === 'object' && raw.certificate !== null
@@ -823,8 +824,8 @@ function validateAdmission(
     claims.maxAgeMs !== LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
     !Number.isSafeInteger(claims.observedAt) ||
     claims.observedAt < 0 ||
-    claims.observedAt > Date.now() ||
-    Date.now() - claims.observedAt > LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
+    claims.observedAt > now ||
+    now - claims.observedAt > LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
     currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST
   )
     return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
