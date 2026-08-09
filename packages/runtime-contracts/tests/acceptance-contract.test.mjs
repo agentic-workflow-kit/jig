@@ -365,6 +365,8 @@ const packageDigestFor = (value) =>
       deliveryMetadataDigest: value.deliveryMetadataDigest,
       publicationObservationDigest: value.publicationObservationDigest,
       verificationPosture: value.verificationPosture,
+      reviewMode: value.reviewMode,
+      policyDigest: value.policyDigest,
       ruleSurfaceDigest: value.ruleSurfaceDigest,
       contributorPrincipals: value.contributorPrincipals,
     },
@@ -731,6 +733,142 @@ test('MC-040-02/09/10: self-consistent replay rejects cross-Candidate evidence',
     runtime.restoreScriptedAcceptanceController({
       ...replay,
       projection: { ...replay.projection, packageDigest: redigestedPackage.digest },
+    }).ok,
+    false,
+  );
+});
+
+test('MC-040-04/10: self-consistent replay cannot remove the Candidate principal from the contributor fence', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const forgedPackage = {
+    ...packageValue,
+    contributorPrincipals: [],
+  };
+  const redigestedPackage = { ...forgedPackage, digest: packageDigestFor(forgedPackage) };
+  const selfSession = `${story}/session/self/8`;
+  const assignment = {
+    schema: 'jig.rp-assignment.v1',
+    packageDigest: redigestedPackage.digest,
+    candidate: redigestedPackage.candidate,
+    session: selfSession,
+    principal: redigestedPackage.candidatePrincipal,
+    role: 'reviewer',
+    assignmentDigest: stageDigest({
+      domain: 'REVIEW-ASSIGNMENT',
+      excludePaths: [],
+      value: {
+        packageDigest: redigestedPackage.digest,
+        candidate: redigestedPackage.candidate,
+        session: selfSession,
+        principal: redigestedPackage.candidatePrincipal,
+        role: 'reviewer',
+      },
+    }).value.digest,
+  };
+  const verdict = {
+    schema: runtime.VERDICT_SCHEMA,
+    id: `${story}/verdict/1`,
+    run,
+    story,
+    candidate: redigestedPackage.candidate,
+    packageDigest: redigestedPackage.digest,
+    session: selfSession,
+    principal: redigestedPackage.candidatePrincipal,
+    verdict: 'approve',
+    findings: [],
+    posture: redigestedPackage.verificationPosture,
+    verdictDigest: stageDigest({
+      domain: 'RP-VERDICT',
+      excludePaths: [],
+      value: {
+        id: `${story}/verdict/1`,
+        run,
+        story,
+        candidate: redigestedPackage.candidate,
+        packageDigest: redigestedPackage.digest,
+        session: selfSession,
+        principal: redigestedPackage.candidatePrincipal,
+        verdict: 'approve',
+        findings: [],
+        posture: redigestedPackage.verificationPosture,
+      },
+    }).value.digest,
+  };
+  const replay = redigestSnapshot(controller.snapshot(), [
+    { kind: 'package', package: redigestedPackage },
+    { kind: 'assignment', assignment },
+    { kind: 'verdict', verdict, nextState: 'Accepted' },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...replay,
+      projection: {
+        ...replay.projection,
+        state: 'Accepted',
+        candidate: redigestedPackage.candidate,
+        packageDigest: redigestedPackage.digest,
+        acceptedPackageDigest: redigestedPackage.digest,
+      },
+    }).ok,
+    false,
+  );
+});
+
+test('MC-040-03/07/10: replay retains the frozen publication mode and policy binding', () => {
+  const requiredController = newController();
+  const requiredPackage = requiredController.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: requiredObservation,
+    policy: requiredPolicy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const modeForgedPackage = {
+    ...requiredPackage,
+    publicationObservation: observation,
+    publicationObservationDigest: observation.observationDigest,
+  };
+  const redigestedModePackage = { ...modeForgedPackage, digest: packageDigestFor(modeForgedPackage) };
+  const modeReplay = redigestSnapshot(requiredController.snapshot(), [
+    { kind: 'package', package: redigestedModePackage },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...modeReplay,
+      projection: { ...modeReplay.projection, packageDigest: redigestedModePackage.digest },
+    }).ok,
+    false,
+  );
+
+  const runForgedPackage = {
+    ...requiredPackage,
+    run: otherRun,
+    publicationObservation: requiredObservation,
+    publicationObservationDigest: requiredObservation.observationDigest,
+  };
+  const redigestedRunPackage = { ...runForgedPackage, digest: packageDigestFor(runForgedPackage) };
+  const runReplay = redigestSnapshot(requiredController.snapshot(), [
+    { kind: 'package', package: redigestedRunPackage },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...runReplay,
+      projection: {
+        ...runReplay.projection,
+        run: otherRun,
+        packageDigest: redigestedRunPackage.digest,
+      },
     }).ok,
     false,
   );

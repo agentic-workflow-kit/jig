@@ -126,6 +126,8 @@ export type ReviewPackage = Readonly<{
   publicationObservation: ReviewPublicationObservation;
   publicationObservationDigest: string;
   verificationPosture: AcceptancePosture;
+  reviewMode: ReviewMode;
+  policyDigest: string;
   ruleSurfaceDigest: string;
   contributorPrincipals: readonly string[];
   digest: string;
@@ -757,6 +759,7 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !ID('ID-STORY', raw.story) ||
     !ID('ID-CAND', raw.candidate) ||
     !raw.candidate.startsWith(`${raw.story}/cand/`) ||
+    !raw.story.startsWith(`${raw.run}/story/`) ||
     !ID('ID-PRINCIPAL', raw.candidatePrincipal) ||
     !isDigest(raw.candidateContentDigest) ||
     !isDigest(raw.targetBasisDigest) ||
@@ -767,6 +770,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !isDigest(raw.publicationObservationDigest) ||
     !isDigest(raw.ruleSurfaceDigest) ||
     !ACCEPTANCE_POSTURES.includes(raw.verificationPosture) ||
+    !REVIEW_MODES.includes(raw.reviewMode) ||
+    !isDigest(raw.policyDigest) ||
     !Array.isArray(raw.findings) ||
     !Array.isArray(raw.contributorPrincipals) ||
     !isDigest(raw.digest)
@@ -778,10 +783,6 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   const deliveryDigest = deliveryMetadata.ok
     ? digestOf('CANDIDATE-DELIVERY-METADATA', deliveryMetadata.value)
     : undefined;
-  const publication =
-    raw.publicationObservation && typeof raw.publicationObservation === 'object'
-      ? (raw.publicationObservation as { mode?: unknown })
-      : undefined;
   const observations = observationFor(
     {
       id: raw.candidate,
@@ -790,9 +791,14 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
       candidateContentDigest: raw.candidateContentDigest,
       targetBasisDigest: raw.targetBasisDigest,
     } as AcceptanceCandidate,
-    publication?.mode as string,
+    raw.reviewMode,
     raw.publicationObservation,
   );
+  const policyDigest = deriveAcceptancePolicyDigest({
+    posture: raw.verificationPosture,
+    reviewMode: raw.reviewMode,
+    ruleSurfaceDigest: raw.ruleSurfaceDigest,
+  });
   const fd = findingsDigest(raw.findings);
   const findings = raw.findings.map((finding) => validFinding(finding, raw.story, raw.digest));
   const manifestBound =
@@ -819,6 +825,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     deliveryMetadataDigest: raw.deliveryMetadataDigest,
     publicationObservationDigest: raw.publicationObservationDigest,
     verificationPosture: raw.verificationPosture,
+    reviewMode: raw.reviewMode,
+    policyDigest: raw.policyDigest,
     ruleSurfaceDigest: raw.ruleSurfaceDigest,
     contributorPrincipals: raw.contributorPrincipals,
   });
@@ -827,6 +835,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     !evidenceManifest.ok ||
     !deliveryMetadata.ok ||
     !manifestBound ||
+    !policyDigest.ok ||
+    policyDigest.value !== raw.policyDigest ||
     !deliveryDigest ||
     deliveryDigest !== raw.deliveryMetadataDigest ||
     !observations.ok ||
@@ -841,6 +851,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   if (!packageDigest || packageDigest !== raw.digest) return fail('FC-SUBJECT', 'PACKAGE_DIGEST_MISMATCH');
   if (
     raw.publicationObservation.subject.candidate !== raw.candidate ||
+    raw.publicationObservation.subject.run !== raw.run ||
+    raw.publicationObservation.subject.story !== raw.story ||
     raw.publicationObservation.subject.candidateContentDigest !== raw.candidateContentDigest ||
     raw.publicationObservation.subject.targetBasisDigest !== raw.targetBasisDigest
   )
@@ -849,6 +861,8 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
     return fail('FC-FENCE', 'CONTRIBUTOR_ORDER_MISMATCH');
   if (raw.contributorPrincipals.some((principal) => !ID('ID-PRINCIPAL', principal)))
     return fail('FC-FENCE', 'INVALID_CONTRIBUTOR_PRINCIPAL');
+  if (!raw.contributorPrincipals.includes(raw.candidatePrincipal))
+    return fail('FC-FENCE', 'CANDIDATE_PRINCIPAL_NOT_CONTRIBUTOR');
   return ok(raw);
 }
 
@@ -1113,6 +1127,8 @@ function createController(
       deliveryMetadataDigest: candidate.value.deliveryMetadataDigest,
       publicationObservationDigest: observation.value.observationDigest,
       verificationPosture: policy.value.posture,
+      reviewMode: policy.value.reviewMode,
+      policyDigest: policy.value.digest,
       ruleSurfaceDigest: policy.value.ruleSurfaceDigest,
       contributorPrincipals,
     });
@@ -1140,6 +1156,8 @@ function createController(
       publicationObservation: observation.value,
       publicationObservationDigest: observation.value.observationDigest,
       verificationPosture: policy.value.posture,
+      reviewMode: policy.value.reviewMode,
+      policyDigest: policy.value.digest,
       ruleSurfaceDigest: policy.value.ruleSurfaceDigest,
       contributorPrincipals,
       digest: packageDigest,
