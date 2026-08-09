@@ -927,10 +927,9 @@ function createWorkspaceControllerInternal(
     const bindingResult = validateBinding(value?.binding, 'OPC-WS-SETUP');
     if (!bindingResult.ok) return bindingResult;
     const binding = bindingResult.value;
-    if (value.receipt !== null && !same(parseReceipt(value.receipt)?.binding, binding))
-      return fail('FC-FENCE', 'SETUP_RECEIPT_BINDING_MISMATCH');
     const receipt = value.receipt === null ? null : parseReceipt(value.receipt);
     if (value.receipt !== null && !receipt) return fail('FC-FENCE', 'INVALID_SETUP_RECEIPT');
+    if (receipt && !same(receipt.binding, binding)) return fail('FC-FENCE', 'SETUP_RECEIPT_BINDING_MISMATCH');
     const expectedHostFingerprint = digest('WORKSPACE-HOST', { host: binding.host, manifest: binding.manifest });
     const expectedFreshness = expectedHostFingerprint && freshnessFingerprint(binding, expectedHostFingerprint);
     if (!expectedHostFingerprint || !expectedFreshness) return fail('FC-INPUT', 'SETUP_FRESHNESS_INPUT_INVALID');

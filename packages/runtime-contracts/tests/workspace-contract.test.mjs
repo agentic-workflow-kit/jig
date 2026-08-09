@@ -452,6 +452,13 @@ test('workspace setup attestation requires a setup receipt exactly at the setup 
   });
   const state = controller(fixture);
   assert.deepEqual(
+    state.controller.setup({ binding: binding('op-malformed-setup-receipt', 'OPC-WS-SETUP'), receipt: {} }),
+    {
+      ok: false,
+      error: { family: 'FC-FENCE', code: 'INVALID_SETUP_RECEIPT' },
+    },
+  );
+  assert.deepEqual(
     state.controller.setup({ binding: binding('op-missing-setup-receipt', 'OPC-WS-SETUP'), receipt: null }),
     {
       ok: false,
