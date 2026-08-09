@@ -58,6 +58,20 @@ export type ReviewPublicationRequest = Readonly<{
   mergeable: false;
 }>;
 export type ReviewPublicationMarkers = Readonly<{ status: string; comment: string }>;
+export type ReviewPublicationTransition = Readonly<{
+  kind: 'review-publication-transition';
+  authorizer: 'CP-TRANSITION';
+  controller: 'RT-CONTROLLER';
+  lifecycle: 'Reviewing' | 'Blocked' | 'Settled' | 'Stopped';
+  operation: string;
+  proof: ReviewPublicationCommitProof;
+}>;
+export type ReviewPublicationPreservation = Readonly<{
+  kind: 'review-venue-preservation';
+  status: 'preserved';
+  venueDigest: string;
+  evidenceDigest: string;
+}>;
 
 /** The D15 carrier. It intentionally has no ID-AUTH or target authority field. */
 export type ReviewPublicationBinding = Readonly<{
@@ -69,6 +83,9 @@ export type ReviewPublicationBinding = Readonly<{
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
+  providerIdentity: string;
+  sourceRef: string;
+  targetRef: string;
   reviewRef: string;
   request: ReviewPublicationRequest;
   markers: ReviewPublicationMarkers;
@@ -76,6 +93,7 @@ export type ReviewPublicationBinding = Readonly<{
   fence: ReviewPublicationFence;
   generation: string;
   manifest: string;
+  transition: ReviewPublicationTransition;
   authority: null;
 }>;
 
@@ -139,6 +157,9 @@ export type RequiredVenueObservation = Readonly<{
   kind: 'review-publication-observation';
   mode: 'required-venue';
   subject: ReviewPublicationSubject;
+  providerIdentity: string;
+  sourceRef: string;
+  targetRef: string;
   reviewRef: string;
   request: ReviewPublicationRequest;
   markers: ReviewPublicationMarkers;
@@ -170,6 +191,8 @@ export type ReviewPublicationFault =
   | 'none'
   | 'mechanism-absence'
   | 'lost-response'
+  | 'lost-response-confirmed-effect'
+  | 'lost-response-confirmed-absence'
   | 'contradictory-result'
   | 'invalid-attestation';
 export type ReviewPublicationInvocation = Readonly<{
@@ -192,6 +215,7 @@ export type ScriptedReviewPublicationFixture = Readonly<{
   reachability(): Readonly<{ providerEnabled: false; dispatchEnabled: false; status: 'unavailable' }>;
 }>;
 export type ReviewPublicationTransitionRecorder = Readonly<{
+  authorize(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof>;
   recordIntent(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof>;
   recordReauthorization(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof>;
   intents(): readonly ReviewPublicationOperationIntent[];
@@ -211,6 +235,7 @@ const safeText = (value: unknown): value is string =>
   value.normalize('NFC') === value &&
   !SECRET.test(value);
 const safeDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST.test(value);
+const safeRef = (value: unknown): value is string => safeText(value) && value.startsWith('refs/');
 const identity = (kind: string, value: unknown): value is string =>
   typeof value === 'string' && parseIdentity(kind, value).ok;
 const exactFields = (value: unknown, names: readonly string[]): Record<string, unknown> | undefined => {
@@ -284,6 +309,7 @@ const parseSubject = (value: unknown): ReviewPublicationSubject | undefined => {
     !safeDigest(raw.targetBasisDigest)
   )
     return undefined;
+  if (!raw.candidate.endsWith(`|${raw.candidateContentDigest}`)) return undefined;
   return Object.freeze({
     run: raw.run,
     story: raw.story,
@@ -306,7 +332,7 @@ const parseFence = (value: unknown, subject: ReviewPublicationSubject): ReviewPu
     safeDigest(raw.targetBasisDigest) &&
     raw.targetBasisDigest === subject.targetBasisDigest
     ? Object.freeze({
-        generation: raw.generation,
+        generation: raw.generation as string,
         basis: raw.basis,
         candidateContentDigest: raw.candidateContentDigest,
         targetBasisDigest: raw.targetBasisDigest,
@@ -326,6 +352,25 @@ const parseMarkers = (value: unknown): ReviewPublicationMarkers | undefined => {
     : undefined;
 };
 
+const parseTransition = (value: unknown, operation: string, run: string): ReviewPublicationTransition | undefined => {
+  const raw = exactFields(value, ['kind', 'authorizer', 'controller', 'lifecycle', 'operation', 'proof']);
+  const proof = raw && parseProof(raw.proof, operation, run);
+  return raw && proof && raw.kind === 'review-publication-transition' && raw.authorizer === 'CP-TRANSITION'
+    ? raw.controller === 'RT-CONTROLLER' &&
+      ['Reviewing', 'Blocked', 'Settled', 'Stopped'].includes(raw.lifecycle as string) &&
+      raw.operation === operation
+      ? Object.freeze({
+          kind: 'review-publication-transition' as const,
+          authorizer: 'CP-TRANSITION' as const,
+          controller: 'RT-CONTROLLER' as const,
+          lifecycle: raw.lifecycle as ReviewPublicationTransition['lifecycle'],
+          operation,
+          proof,
+        })
+      : undefined
+    : undefined;
+};
+
 export function validateReviewPublicationBinding(value: unknown): ReviewPublicationResult<ReviewPublicationBinding> {
   const raw = exactFields(value, [
     'operation',
@@ -336,6 +381,9 @@ export function validateReviewPublicationBinding(value: unknown): ReviewPublicat
     'candidate',
     'candidateContentDigest',
     'targetBasisDigest',
+    'providerIdentity',
+    'sourceRef',
+    'targetRef',
     'reviewRef',
     'request',
     'markers',
@@ -343,12 +391,15 @@ export function validateReviewPublicationBinding(value: unknown): ReviewPublicat
     'fence',
     'generation',
     'manifest',
+    'transition',
     'authority',
   ]);
   const subject = raw && parseSubject(raw.subject);
   const fence = raw && subject && parseFence(raw.fence, subject);
   const request = raw && parseRequest(raw.request);
   const markers = raw && parseMarkers(raw.markers);
+  const transition =
+    raw && subject && identity('ID-OP', raw.operation) && parseTransition(raw.transition, raw.operation, subject.run);
   if (
     !raw ||
     !subject ||
@@ -363,10 +414,14 @@ export function validateReviewPublicationBinding(value: unknown): ReviewPublicat
     raw.candidate !== subject.candidate ||
     raw.candidateContentDigest !== subject.candidateContentDigest ||
     raw.targetBasisDigest !== subject.targetBasisDigest ||
+    !safeText(raw.providerIdentity) ||
+    !safeRef(raw.sourceRef) ||
+    !safeRef(raw.targetRef) ||
     !safeText(raw.reviewRef) ||
     !safeDigest(raw.explanationDigest) ||
     !identity('ID-MANIFEST', raw.manifest) ||
     raw.generation !== fence.generation ||
+    !transition ||
     raw.authority !== null
   )
     return fail('FC-INPUT', 'INVALID_REVIEW_PUBLICATION_BINDING');
@@ -380,6 +435,9 @@ export function validateReviewPublicationBinding(value: unknown): ReviewPublicat
       candidate: raw.candidate,
       candidateContentDigest: raw.candidateContentDigest,
       targetBasisDigest: raw.targetBasisDigest,
+      providerIdentity: raw.providerIdentity,
+      sourceRef: raw.sourceRef,
+      targetRef: raw.targetRef,
       reviewRef: raw.reviewRef,
       request,
       markers,
@@ -387,6 +445,7 @@ export function validateReviewPublicationBinding(value: unknown): ReviewPublicat
       fence,
       generation: raw.generation,
       manifest: raw.manifest,
+      transition,
       authority: null,
     }),
   );
@@ -556,27 +615,22 @@ export function validateReviewPublicationAttestation(
   );
 }
 
-const makeProof = (
-  operation: string,
-  subject: ReviewPublicationSubject,
-  seed: unknown,
-): ReviewPublicationCommitProof | undefined => {
-  const coordinates = proofCoordinates(operation, subject.run);
-  const recordDigest = digest('REVIEW-PUBLICATION-INTENT', { operation, subject, seed });
-  return coordinates && recordDigest
-    ? Object.freeze({
-        kind: 'committed-witnessed',
-        position: coordinates.position,
-        event: coordinates.event,
-        transaction: coordinates.transaction,
-        operation,
-        recordDigest,
-        witnessDigest: recordDigest,
-      })
-    : undefined;
-};
-const bindingKey = (binding: ReviewPublicationBinding): string =>
-  digest('REVIEW-PUBLICATION-BINDING', binding) ?? `${binding.operation}\0${binding.reviewRef}`;
+const publicationCapabilityDigest = (value: {
+  subject: ReviewPublicationSubject;
+  providerIdentity: string;
+  sourceRef: string;
+  targetRef: string;
+  reviewRef: string;
+  manifest: string;
+}): string | undefined =>
+  digest('REVIEW-PUBLICATION-CAPABILITY', {
+    subject: value.subject,
+    providerIdentity: value.providerIdentity,
+    sourceRef: value.sourceRef,
+    targetRef: value.targetRef,
+    reviewRef: value.reviewRef,
+    manifest: value.manifest,
+  });
 
 export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicationFixture {
   const invocations: ReviewPublicationInvocation[] = [];
@@ -600,9 +654,15 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     const key = `${intent.value.operation}\0${attempt}`;
     if (dispatched.has(key)) return fail('FC-EFFECT', 'DUPLICATE_REVIEW_DISPATCH');
     if (
-      !['none', 'mechanism-absence', 'lost-response', 'contradictory-result', 'invalid-attestation'].includes(
-        raw.fault as string,
-      )
+      ![
+        'none',
+        'mechanism-absence',
+        'lost-response',
+        'lost-response-confirmed-effect',
+        'lost-response-confirmed-absence',
+        'contradictory-result',
+        'invalid-attestation',
+      ].includes(raw.fault as string)
     )
       return fail('FC-INPUT', 'INVALID_SCRIPTED_REVIEW_FAULT');
     dispatched.add(key);
@@ -610,7 +670,10 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     const result =
       fault === 'mechanism-absence'
         ? 'mechanism-absent'
-        : fault === 'lost-response' || fault === 'contradictory-result'
+        : fault === 'lost-response' ||
+            fault === 'lost-response-confirmed-effect' ||
+            fault === 'lost-response-confirmed-absence' ||
+            fault === 'contradictory-result'
           ? 'lost-response'
           : fault === 'invalid-attestation'
             ? 'invalid'
@@ -629,8 +692,20 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
       outcomes.set(intent.value.operation, 'confirmed-absence');
       return fail('FC-MECHANISM', 'CONFIRMED_MECHANISM_ABSENCE');
     }
-    if (fault === 'lost-response' || fault === 'contradictory-result') {
-      outcomes.set(intent.value.operation, 'indeterminate');
+    if (
+      fault === 'lost-response' ||
+      fault === 'contradictory-result' ||
+      fault === 'lost-response-confirmed-effect' ||
+      fault === 'lost-response-confirmed-absence'
+    ) {
+      outcomes.set(
+        intent.value.operation,
+        fault === 'lost-response-confirmed-effect'
+          ? 'confirmed-effect'
+          : fault === 'lost-response-confirmed-absence'
+            ? 'confirmed-absence'
+            : 'indeterminate',
+      );
       return fail('FC-EFFECT', 'UNCERTAIN_REVIEW_EFFECT');
     }
     if (fault === 'invalid-attestation') return fail('FC-MECHANISM', 'INVALID_REVIEW_PUBLICATION_ATTESTATION');
@@ -705,6 +780,20 @@ export function createReviewPublicationTransitionRecorder(): ReviewPublicationTr
   const recorded: ReviewPublicationOperationIntent[] = [];
   const reauthorizations: ReviewPublicationReauthorization[] = [];
   return Object.freeze({
+    authorize(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof> {
+      const raw = exactFields(input, ['binding', 'retirement']) ?? exactFields(input, ['binding']);
+      const binding = raw && validateReviewPublicationBinding(raw.binding);
+      const retirement = raw?.retirement === true;
+      if (
+        !raw ||
+        !binding?.ok ||
+        (retirement
+          ? binding.value.transition.lifecycle !== 'Settled' && binding.value.transition.lifecycle !== 'Stopped'
+          : binding.value.transition.lifecycle !== 'Reviewing' && binding.value.transition.lifecycle !== 'Blocked')
+      )
+        return fail('FC-AUTHORITY', 'REVIEW_TRANSITION_NOT_AUTHORIZED');
+      return ok(binding.value.transition.proof);
+    },
     recordIntent(input: unknown): ReviewPublicationResult<ReviewPublicationCommitProof> {
       const intent = validateIntent(input);
       if (!intent.ok) return intent;
@@ -744,7 +833,7 @@ export function createReviewPublicationTransitionRecorder(): ReviewPublicationTr
         attempt !== previousAttempt + 1 ||
         attempt > REVIEW_PUBLICATION_BOUNDS.retryLimit ||
         !safeDigest(raw.confirmedAbsenceDigest) ||
-        raw.generation !== existing.binding.generation ||
+        raw.generation === existing.binding.generation ||
         raw.operation !== existing.operation ||
         reauthorizations.some((entry) => entry.operation === raw.operation && entry.attempt === attempt)
       )
@@ -755,7 +844,7 @@ export function createReviewPublicationTransitionRecorder(): ReviewPublicationTr
         previousAttempt: previousAttempt as number,
         attempt: attempt as number,
         confirmedAbsenceDigest: raw.confirmedAbsenceDigest,
-        generation: raw.generation,
+        generation: raw.generation as string,
         fence,
         proof,
       });
@@ -817,6 +906,9 @@ const bindingsSharePublicationIdentity = (
         candidate: binding.candidate,
         candidateContentDigest: binding.candidateContentDigest,
         targetBasisDigest: binding.targetBasisDigest,
+        providerIdentity: binding.providerIdentity,
+        sourceRef: binding.sourceRef,
+        targetRef: binding.targetRef,
         reviewRef: binding.reviewRef,
         request: binding.request,
         markers: binding.markers,
@@ -831,6 +923,9 @@ const bindingsSharePublicationIdentity = (
         candidate: bindings[0]?.candidate,
         candidateContentDigest: bindings[0]?.candidateContentDigest,
         targetBasisDigest: bindings[0]?.targetBasisDigest,
+        providerIdentity: bindings[0]?.providerIdentity,
+        sourceRef: bindings[0]?.sourceRef,
+        targetRef: bindings[0]?.targetRef,
         reviewRef: bindings[0]?.reviewRef,
         request: bindings[0]?.request,
         markers: bindings[0]?.markers,
@@ -841,6 +936,36 @@ const bindingsSharePublicationIdentity = (
       },
     ),
   );
+
+const bindingsShareRetryIdentity = (current: ReviewPublicationBinding, retry: ReviewPublicationBinding): boolean =>
+  current.operation === retry.operation &&
+  current.operationType === retry.operationType &&
+  same(
+    {
+      subject: current.subject,
+      providerIdentity: current.providerIdentity,
+      sourceRef: current.sourceRef,
+      targetRef: current.targetRef,
+      reviewRef: current.reviewRef,
+      request: current.request,
+      markers: current.markers,
+      explanationDigest: current.explanationDigest,
+      manifest: current.manifest,
+    },
+    {
+      subject: retry.subject,
+      providerIdentity: retry.providerIdentity,
+      sourceRef: retry.sourceRef,
+      targetRef: retry.targetRef,
+      reviewRef: retry.reviewRef,
+      request: retry.request,
+      markers: retry.markers,
+      explanationDigest: retry.explanationDigest,
+      manifest: retry.manifest,
+    },
+  ) &&
+  retry.generation !== current.generation &&
+  retry.fence.generation === retry.generation;
 
 const validateSubjectObservation = (value: unknown): ReviewPublicationSubject | undefined => parseSubject(value);
 
@@ -858,6 +983,9 @@ export function validateReviewPublicationObservation(
       'kind',
       'mode',
       'subject',
+      'providerIdentity',
+      'sourceRef',
+      'targetRef',
       'reviewRef',
       'request',
       'markers',
@@ -883,11 +1011,23 @@ export function validateReviewPublicationObservation(
       parsed.version !== REVIEW_PUBLICATION_CONTRACT_VERSION ||
       parsed.kind !== 'review-publication-observation' ||
       parsed.mode !== 'required-venue' ||
+      !safeText(parsed.providerIdentity) ||
+      !safeRef(parsed.sourceRef) ||
+      !safeRef(parsed.targetRef) ||
       !safeText(parsed.reviewRef) ||
       !safeDigest(parsed.explanationDigest) ||
       !safeText(parsed.providerRevision) ||
       !identity('ID-MANIFEST', parsed.manifest) ||
       !safeDigest(parsed.capabilityDigest) ||
+      parsed.capabilityDigest !==
+        publicationCapabilityDigest({
+          subject,
+          providerIdentity: parsed.providerIdentity as string,
+          sourceRef: parsed.sourceRef as string,
+          targetRef: parsed.targetRef as string,
+          reviewRef: parsed.reviewRef as string,
+          manifest: parsed.manifest as string,
+        }) ||
       parsed.draft !== true ||
       parsed.mergeable !== false ||
       !safeDigest(parsed.observationDigest)
@@ -898,6 +1038,9 @@ export function validateReviewPublicationObservation(
       kind: 'review-publication-observation' as const,
       mode: 'required-venue' as const,
       subject,
+      providerIdentity: parsed.providerIdentity,
+      sourceRef: parsed.sourceRef,
+      targetRef: parsed.targetRef,
       reviewRef: parsed.reviewRef,
       request,
       markers,
@@ -958,7 +1101,12 @@ export type ReviewPublicationController = Readonly<{
   publish(input: unknown): ReviewPublicationResult<RequiredVenueObservation | ExplicitAbsenceObservation>;
   retire(
     input: unknown,
-  ): ReviewPublicationResult<Readonly<{ status: 'retired' | 'obligation'; operation: string | null }>>;
+  ): ReviewPublicationResult<
+    Readonly<
+      | { status: 'retired'; operation: string | null }
+      | { status: 'obligation'; operation: string | null; obligationDigest: string }
+    >
+  >;
   snapshot(): Readonly<{
     intents: readonly ReviewPublicationOperationIntent[];
     reauthorizations: readonly ReviewPublicationReauthorization[];
@@ -976,7 +1124,8 @@ export function createReviewPublicationController(
   const fixture = input.fixture ?? createScriptedReviewPublicationFixture();
   const publish = (value: unknown): ReviewPublicationResult<RequiredVenueObservation | ExplicitAbsenceObservation> => {
     const raw =
-      exactFields(value, ['mode', 'subject', 'bindings', 'faults']) ?? exactFields(value, ['mode', 'subject']);
+      exactFields(value, ['mode', 'subject', 'bindings', 'retryBindings', 'faults']) ??
+      exactFields(value, ['mode', 'subject']);
     if (!raw || !REVIEW_PUBLICATION_MODES.includes(raw.mode as ReviewPublicationMode))
       return fail('FC-INPUT', 'UNKNOWN_OR_OMITTED_REVIEW_MODE');
     if (raw.mode === 'no-venue') {
@@ -987,6 +1136,8 @@ export function createReviewPublicationController(
     if (
       !Array.isArray(raw.bindings) ||
       raw.bindings.length !== 4 ||
+      !Array.isArray(raw.retryBindings) ||
+      raw.retryBindings.length !== 4 ||
       !Array.isArray(raw.faults) ||
       raw.faults.length > 4
     )
@@ -994,19 +1145,25 @@ export function createReviewPublicationController(
     const bindings = raw.bindings.map((entry) => validateReviewPublicationBinding(entry));
     if (bindings.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'REVIEW_BINDING_MISMATCH');
     const typed = bindings.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
+    const retryBindingsResult = raw.retryBindings.map((entry) => validateReviewPublicationBinding(entry));
+    if (retryBindingsResult.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'RETRY_BINDING_MISMATCH');
+    const retryTyped = retryBindingsResult.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
     const inputSubject = parseSubject(raw.subject);
     if (!inputSubject || !same(inputSubject, typed[0]?.subject)) return fail('FC-SUBJECT', 'REVIEW_SUBJECT_MISMATCH');
     if (!bindingsSharePublicationIdentity(typed, REVIEW_PUBLICATION_REVIEW_OPERATIONS))
       return fail('FC-SUBJECT', 'REVIEW_BINDING_ORDER_OR_IDENTITY_MISMATCH');
+    if (retryTyped.some((entry, index) => !bindingsShareRetryIdentity(typed[index], entry)))
+      return fail('FC-FENCE', 'REVIEW_RETRY_BINDING_NOT_FRESH');
     const faults = (raw.faults ?? []) as readonly (ReviewPublicationFault | readonly ReviewPublicationFault[])[];
     const successes: Array<RequiredVenueObservation['operations'][number]> = [];
     let providerRevision = '';
     let capabilityDigest = '';
     for (let index = 0; index < typed.length; index += 1) {
       const binding = typed[index];
-      const proof = makeProof(binding.operation, binding.subject, { index, binding: bindingKey(binding) });
-      if (!proof) return fail('FC-AUTHORITY', 'REVIEW_PROOF_COORDINATES_INVALID');
-      const intent: ReviewPublicationOperationIntent = Object.freeze({
+      const authorized = transition.authorize({ binding });
+      if (!authorized.ok) return authorized;
+      const proof = authorized.value;
+      let intent: ReviewPublicationOperationIntent = Object.freeze({
         version: REVIEW_PUBLICATION_CONTRACT_VERSION,
         operation: binding.operation,
         operationType: binding.operationType,
@@ -1024,6 +1181,7 @@ export function createReviewPublicationController(
       let attempt = 1;
       let completed = false;
       while (!completed) {
+        const activeBinding = intent.binding;
         const selectedFault = faults[index];
         const fault = Array.isArray(selectedFault) ? (selectedFault[attempt - 1] ?? 'none') : (selectedFault ?? 'none');
         const dispatched = fixture.dispatch({ intent, attempt, fault });
@@ -1032,55 +1190,66 @@ export function createReviewPublicationController(
           if (!attestation.ok) return attestation;
           successes.push(
             Object.freeze({
-              operation: binding.operation,
-              operationType: binding.operationType,
-              generation: binding.generation,
+              operation: activeBinding.operation,
+              operationType: activeBinding.operationType,
+              generation: activeBinding.generation,
               effect: 'confirmed-effect',
             }),
           );
           providerRevision = attestation.value.providerRevision;
-          capabilityDigest = digest('REVIEW-PUBLICATION-CAPABILITY', binding) ?? '';
+          capabilityDigest = publicationCapabilityDigest(activeBinding) ?? '';
           completed = true;
           continue;
         }
         if (dispatched.error.family === 'FC-MECHANISM' && dispatched.error.code !== 'CONFIRMED_MECHANISM_ABSENCE')
           return fail('FC-MECHANISM', dispatched.error.code);
         if (dispatched.error.family === 'FC-MECHANISM') {
-          const lookup = fixture.lookup({ operation: binding.operation, binding });
+          const lookup = fixture.lookup({ operation: activeBinding.operation, binding: activeBinding });
           if (!lookup.ok || lookup.value.outcome !== 'confirmed-absence')
             return fail('FC-EFFECT', 'MECHANISM_ABSENCE_NOT_CONFIRMED');
           if (attempt >= REVIEW_PUBLICATION_BOUNDS.retryLimit)
             return fail('FC-BOUND', 'REVIEW_RETRY_EXHAUSTED_BLOCKED');
           attempt += 1;
-          const reauthProof = makeProof(binding.operation, binding.subject, {
-            attempt,
-            absence: lookup.value.observationDigest,
-          });
-          if (!reauthProof) return fail('FC-AUTHORITY', 'REVIEW_REAUTH_PROOF_FAILED');
+          const nextBinding = retryTyped[index];
+          const reauthProof = transition.authorize({ binding: nextBinding });
+          if (!reauthProof.ok) return reauthProof;
           const reauth = transition.recordReauthorization({
             version: REVIEW_PUBLICATION_CONTRACT_VERSION,
-            operation: binding.operation,
+            operation: activeBinding.operation,
             previousAttempt: attempt - 1,
             attempt,
             confirmedAbsenceDigest: lookup.value.observationDigest,
-            generation: binding.generation,
-            fence: binding.fence,
-            proof: reauthProof,
+            generation: nextBinding.generation,
+            fence: nextBinding.fence,
+            proof: reauthProof.value,
           });
           if (!reauth.ok) return reauth;
+          intent = Object.freeze({ ...intent, binding: nextBinding, proof: reauth.value });
           continue;
         }
         let recoveryAttempt = 0;
         while (recoveryAttempt < REVIEW_PUBLICATION_BOUNDS.recoveryLimit) {
           recoveryAttempt += 1;
-          const recovery = fixture.lookup({ operation: binding.operation, binding });
+          const recovery = fixture.lookup({ operation: activeBinding.operation, binding: activeBinding });
           if (recovery.ok && recovery.value.outcome === 'confirmed-effect') {
-            return fail('FC-EFFECT', 'REVIEW_EFFECT_RECONCILED_REQUIRES_REAUTHORIZATION');
+            successes.push(
+              Object.freeze({
+                operation: activeBinding.operation,
+                operationType: activeBinding.operationType,
+                generation: activeBinding.generation,
+                effect: 'confirmed-effect',
+              }),
+            );
+            providerRevision = recovery.value.observationDigest;
+            capabilityDigest = publicationCapabilityDigest(activeBinding) ?? '';
+            completed = true;
+            break;
           }
           if (recovery.ok && recovery.value.outcome === 'confirmed-absence') {
             return fail('FC-EFFECT', 'REVIEW_EFFECT_RECONCILED_ABSENCE_REQUIRES_REAUTHORIZATION');
           }
         }
+        if (completed) continue;
         return fail('FC-EFFECT', 'REVIEW_EFFECT_UNCERTAIN_PARKED');
       }
     }
@@ -1090,6 +1259,9 @@ export function createReviewPublicationController(
       kind: 'review-publication-observation',
       mode: 'required-venue',
       subject: first.subject,
+      providerIdentity: first.providerIdentity,
+      sourceRef: first.sourceRef,
+      targetRef: first.targetRef,
       reviewRef: first.reviewRef,
       request: first.request,
       markers: first.markers,
@@ -1108,26 +1280,46 @@ export function createReviewPublicationController(
   };
   const retire = (
     value: unknown,
-  ): ReviewPublicationResult<Readonly<{ status: 'retired' | 'obligation'; operation: string | null }>> => {
-    const raw = exactFields(value, ['bindings', 'faults', 'preserved']);
-    if (
-      !raw ||
-      raw.preserved !== true ||
-      !Array.isArray(raw.bindings) ||
-      raw.bindings.length !== 4 ||
-      !Array.isArray(raw.faults)
-    )
+  ): ReviewPublicationResult<
+    Readonly<
+      | { status: 'retired'; operation: string | null }
+      | { status: 'obligation'; operation: string | null; obligationDigest: string }
+    >
+  > => {
+    const raw = exactFields(value, ['bindings', 'faults', 'preservation']);
+    if (!raw || !Array.isArray(raw.bindings) || raw.bindings.length !== 4 || !Array.isArray(raw.faults))
       return fail('FC-INPUT', 'RETIREMENT_REQUIRES_PRESERVATION');
     const bindings = raw.bindings.map((entry) => validateReviewPublicationBinding(entry));
     if (bindings.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'RETIREMENT_BINDING_MISMATCH');
     const typed = bindings.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
     if (!bindingsSharePublicationIdentity(typed, REVIEW_PUBLICATION_RETIRE_OPERATIONS))
       return fail('FC-AUTHORITY', 'RETIREMENT_OPERATION_REQUIRED');
+    const preservationRaw = exactFields(raw.preservation, ['kind', 'status', 'venueDigest', 'evidenceDigest']);
+    const expectedVenueDigest = digest('REVIEW-PUBLICATION-VENUE', {
+      subject: typed[0]?.subject,
+      providerIdentity: typed[0]?.providerIdentity,
+      sourceRef: typed[0]?.sourceRef,
+      targetRef: typed[0]?.targetRef,
+      reviewRef: typed[0]?.reviewRef,
+      request: typed[0]?.request,
+      markers: typed[0]?.markers,
+      manifest: typed[0]?.manifest,
+    });
+    if (
+      !preservationRaw ||
+      preservationRaw.kind !== 'review-venue-preservation' ||
+      preservationRaw.status !== 'preserved' ||
+      !safeDigest(preservationRaw.venueDigest) ||
+      !safeDigest(preservationRaw.evidenceDigest) ||
+      preservationRaw.venueDigest !== expectedVenueDigest
+    )
+      return fail('FC-TRUST', 'RETIREMENT_PRESERVATION_UNVERIFIED');
     const faults = raw.faults as readonly (ReviewPublicationFault | readonly ReviewPublicationFault[])[];
     for (let index = 0; index < typed.length; index += 1) {
       const binding = typed[index];
-      const proof = makeProof(binding.operation, binding.subject, { retirement: index, binding: bindingKey(binding) });
-      if (!proof) return fail('FC-AUTHORITY', 'REVIEW_PROOF_COORDINATES_INVALID');
+      const authorized = transition.authorize({ binding, retirement: true });
+      if (!authorized.ok) return authorized;
+      const proof = authorized.value;
       const intent: ReviewPublicationOperationIntent = Object.freeze({
         version: REVIEW_PUBLICATION_CONTRACT_VERSION,
         operation: binding.operation,
@@ -1155,7 +1347,14 @@ export function createReviewPublicationController(
         const lookup = fixture.lookup({ operation: binding.operation, binding });
         if (lookup.ok && lookup.value.outcome === 'confirmed-absence') continue;
       }
-      return fail('FC-EFFECT', 'REVIEW_RETIREMENT_UNCERTAIN_OBLIGATION');
+      const obligationDigest = digest('REVIEW-RETIREMENT-OBLIGATION', {
+        operation: binding.operation,
+        venueDigest: preservationRaw.venueDigest,
+        evidenceDigest: preservationRaw.evidenceDigest,
+      });
+      return obligationDigest
+        ? ok(Object.freeze({ status: 'obligation' as const, operation: binding.operation, obligationDigest }))
+        : fail('FC-TRUST', 'RETIREMENT_OBLIGATION_DIGEST_FAILED');
     }
     return ok(Object.freeze({ status: 'retired' as const, operation: typed.at(-1)?.operation ?? null }));
   };

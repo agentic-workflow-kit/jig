@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 const runtime = await import('../dist/index.js');
 const mediation = await import('../dist/mediation.js');
@@ -18,9 +19,10 @@ const subject = {
   targetBasisDigest: digest('9'),
 };
 const generation = `${run}/gen/2|controller-token-1`;
+const retryGeneration = `${run}/gen/3|controller-token-2`;
 const manifest = `provider/${digest('c')}/authority/${digest('d')}`;
-const operation = (ordinal, type) => {
-  const transaction = `${run}/txn/${ordinal}/${generation}|${digest(String(ordinal))}`;
+const operation = (ordinal, type, activeGeneration = generation) => {
+  const transaction = `${run}/txn/${ordinal}/${activeGeneration}|${digest(String(ordinal))}`;
   return {
     operation: `${transaction}/op/1`,
     transaction,
@@ -28,8 +30,23 @@ const operation = (ordinal, type) => {
     type,
   };
 };
-const binding = (ordinal, type) => {
-  const entry = operation(ordinal, type);
+const binding = (
+  ordinal,
+  type,
+  activeGeneration = generation,
+  lifecycle = 'Reviewing',
+  operationGeneration = activeGeneration,
+) => {
+  const entry = operation(ordinal, type, operationGeneration);
+  const proof = {
+    kind: 'committed-witnessed',
+    position: ordinal - 1,
+    event: entry.event,
+    transaction: entry.transaction,
+    operation: entry.operation,
+    recordDigest: digest('a'),
+    witnessDigest: digest('a'),
+  };
   return {
     operation: entry.operation,
     operationType: type,
@@ -39,33 +56,73 @@ const binding = (ordinal, type) => {
     candidate: subject.candidate,
     candidateContentDigest: subject.candidateContentDigest,
     targetBasisDigest: subject.targetBasisDigest,
+    providerIdentity: 'fixture-provider/v1',
+    sourceRef: 'refs/heads/feature-gf-041',
+    targetRef: 'refs/heads/main',
     reviewRef: 'refs/jig/review/fixture-1',
     request: { identity: 'review-request/fixture-1', marker: 'jig-review-request-1', draft: true, mergeable: false },
     markers: { status: 'jig-status-1', comment: 'jig-comment-1' },
     explanationDigest: digest('e'),
     fence: {
-      generation,
+      generation: activeGeneration,
       basis: subject.basis,
       candidateContentDigest: subject.candidateContentDigest,
       targetBasisDigest: subject.targetBasisDigest,
     },
-    generation,
+    generation: activeGeneration,
     manifest,
+    transition: {
+      kind: 'review-publication-transition',
+      authorizer: 'CP-TRANSITION',
+      controller: 'RT-CONTROLLER',
+      lifecycle,
+      operation: entry.operation,
+      proof,
+    },
     authority: null,
   };
 };
 const reviewBindings = () => [
-  binding(1, 'OPC-REV-PUBLISH'),
-  binding(2, 'OPC-REV-REQUEST'),
-  binding(3, 'OPC-REV-STATUS'),
-  binding(4, 'OPC-REV-COMMENT'),
+  binding(1, 'OPC-REV-PUBLISH', generation),
+  binding(2, 'OPC-REV-REQUEST', generation),
+  binding(3, 'OPC-REV-STATUS', generation),
+  binding(4, 'OPC-REV-COMMENT', generation),
+];
+const retryReviewBindings = () => [
+  binding(1, 'OPC-REV-PUBLISH', retryGeneration, 'Reviewing', generation),
+  binding(2, 'OPC-REV-REQUEST', retryGeneration, 'Reviewing', generation),
+  binding(3, 'OPC-REV-STATUS', retryGeneration, 'Reviewing', generation),
+  binding(4, 'OPC-REV-COMMENT', retryGeneration, 'Reviewing', generation),
 ];
 const retireBindings = () => [
-  binding(5, 'OPC-REV-RETIRE-REF'),
-  binding(6, 'OPC-REV-RETIRE-REQUEST'),
-  binding(7, 'OPC-REV-RETIRE-STATUS'),
-  binding(8, 'OPC-REV-RETIRE-COMMENT'),
+  binding(5, 'OPC-REV-RETIRE-REF', generation, 'Settled'),
+  binding(6, 'OPC-REV-RETIRE-REQUEST', generation, 'Settled'),
+  binding(7, 'OPC-REV-RETIRE-STATUS', generation, 'Settled'),
+  binding(8, 'OPC-REV-RETIRE-COMMENT', generation, 'Settled'),
 ];
+const venueDigest = () => {
+  const first = retireBindings()[0];
+  return stageDigest({
+    domain: 'REVIEW-PUBLICATION-VENUE',
+    excludePaths: [],
+    value: {
+      subject: first.subject,
+      providerIdentity: first.providerIdentity,
+      sourceRef: first.sourceRef,
+      targetRef: first.targetRef,
+      reviewRef: first.reviewRef,
+      request: first.request,
+      markers: first.markers,
+      manifest: first.manifest,
+    },
+  }).value.digest;
+};
+const preservation = () => ({
+  kind: 'review-venue-preservation',
+  status: 'preserved',
+  venueDigest: venueDigest(),
+  evidenceDigest: digest('b'),
+});
 
 test('GF-041 closes the typed D15 carrier and excludes target authority', () => {
   const valid = runtime.validateReviewPublicationBinding(binding(1, 'OPC-REV-PUBLISH'));
@@ -111,6 +168,7 @@ test('required venue publishes the exact candidate with four draft/non-mergeable
     mode: 'required-venue',
     subject,
     bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
     faults: ['none', 'none', 'none', 'none'],
   });
   assert.equal(result.ok, true);
@@ -126,7 +184,13 @@ test('required venue publishes the exact candidate with four draft/non-mergeable
 test('mechanism absence alone permits one same-identity retry after reauthorization', () => {
   const controller = runtime.createReviewPublicationController();
   const faults = [['mechanism-absence', 'none'], 'none', 'none', 'none'];
-  const result = controller.publish({ mode: 'required-venue', subject, bindings: reviewBindings(), faults });
+  const result = controller.publish({
+    mode: 'required-venue',
+    subject,
+    bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
+    faults,
+  });
   assert.equal(result.ok, true);
   assert.equal(controller.snapshot().reauthorizations.length, 1);
   assert.deepEqual(
@@ -144,6 +208,7 @@ test('uncertain post-dispatch effect parks without semantic retry', () => {
     mode: 'required-venue',
     subject,
     bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
     faults: ['lost-response', 'none', 'none', 'none'],
   });
   assert.deepEqual(result, { ok: false, error: { family: 'FC-EFFECT', code: 'REVIEW_EFFECT_UNCERTAIN_PARKED' } });
@@ -151,23 +216,38 @@ test('uncertain post-dispatch effect parks without semantic retry', () => {
   assert.equal(controller.snapshot().reauthorizations.length, 0);
 });
 
+test('confirmed recovery effect is adopted without a semantic dispatch retry', () => {
+  const controller = runtime.createReviewPublicationController();
+  const result = controller.publish({
+    mode: 'required-venue',
+    subject,
+    bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
+    faults: ['lost-response-confirmed-effect', 'none', 'none', 'none'],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(controller.snapshot().invocations.length, 4);
+});
+
 test('retirement requires preservation and never treats a no-venue branch as a venue', () => {
   const rejected = runtime
     .createReviewPublicationController()
-    .retire({ bindings: retireBindings(), faults: ['none', 'none', 'none', 'none'], preserved: false });
-  assert.deepEqual(rejected, { ok: false, error: { family: 'FC-INPUT', code: 'RETIREMENT_REQUIRES_PRESERVATION' } });
+    .retire({ bindings: retireBindings(), faults: ['none', 'none', 'none', 'none'], preservation: { kind: 'wrong' } });
+  assert.deepEqual(rejected, { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_PRESERVATION_UNVERIFIED' } });
   const controller = runtime.createReviewPublicationController();
   const retired = controller.retire({
     bindings: retireBindings(),
     faults: ['none', 'none', 'none', 'none'],
-    preserved: true,
+    preservation: preservation(),
   });
   assert.deepEqual(retired, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
-  const uncertain = runtime
-    .createReviewPublicationController()
-    .retire({ bindings: retireBindings(), faults: ['lost-response', 'none', 'none', 'none'], preserved: true });
-  assert.deepEqual(uncertain, {
-    ok: false,
-    error: { family: 'FC-EFFECT', code: 'REVIEW_RETIREMENT_UNCERTAIN_OBLIGATION' },
+  const uncertain = runtime.createReviewPublicationController().retire({
+    bindings: retireBindings(),
+    faults: ['lost-response', 'none', 'none', 'none'],
+    preservation: preservation(),
   });
+  assert.equal(uncertain.ok, true);
+  assert.equal(uncertain.value.status, 'obligation');
+  assert.equal(uncertain.value.operation, retireBindings()[0].operation);
+  assert.match(uncertain.value.obligationDigest, /^[0-9a-f]{64}$/u);
 });
