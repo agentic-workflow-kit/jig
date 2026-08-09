@@ -1488,6 +1488,8 @@ export function restoreScriptedObligationController(
   const expectedIntents = new Map(validated.value.intents.map((intent) => [intent.key, intent]));
   const matchedFacts = new Set<string>();
   const matchedIntents = new Set<string>();
+  const ledgerFactEvents: string[] = [];
+  const ledgerIntentKeys: string[] = [];
   for (const record of records.value) {
     const content = fields(record.content, [
       'schema',
@@ -1536,6 +1538,7 @@ export function restoreScriptedObligationController(
       )
         return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
       matchedFacts.add(record.event);
+      ledgerFactEvents.push(record.event);
       continue;
     }
     const intent = fields(record.content, [
@@ -1554,9 +1557,21 @@ export function restoreScriptedObligationController(
       const expected = expectedIntents.get(intent.key as string);
       if (!expected || !sameJson(intent, expected)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
       matchedIntents.add(intent.key as string);
+      ledgerIntentKeys.push(intent.key as string);
     }
   }
-  if (matchedFacts.size !== expectedFacts.size || matchedIntents.size !== expectedIntents.size)
+  if (
+    matchedFacts.size !== expectedFacts.size ||
+    matchedIntents.size !== expectedIntents.size ||
+    !sameJson(
+      ledgerFactEvents,
+      validated.value.facts.map((fact) => fact.event),
+    ) ||
+    !sameJson(
+      ledgerIntentKeys,
+      validated.value.intents.map((intent) => intent.key),
+    )
+  )
     return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
   return ok(createScriptedObligationController({ hydrate: validated.value, dependencies }));
 }
