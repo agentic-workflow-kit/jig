@@ -33,6 +33,17 @@ const MAX_ARGS = 32;
 const MAX_OUTPUT = 16_384;
 const MAX_PREVIEW = 1_024;
 const qualificationCertificates = new WeakMap<object, LocalCommandQualificationEvidence>();
+type LocalCommandCheckoutResourceClaims = Readonly<{
+  canonicalRoot: string;
+  candidateCommit: string;
+  candidateTree: string;
+  candidateContentDigest: string;
+  targetBasisCommit: string;
+  targetBasisTree: string;
+  targetBasisDigest: string;
+  cleanReceiptDigest: string;
+}>;
+const checkoutResources = new WeakMap<object, LocalCommandCheckoutResourceClaims>();
 const PACKAGE_ROOT = new URL('..', import.meta.url).pathname;
 
 export type LocalCommandFailureFamily = VerificationFailureFamily | 'FC-TRUST';
@@ -96,6 +107,7 @@ export type LocalCommandNativePosture = Readonly<{
 }>;
 
 export type LocalCommandAdmission = ProviderAdmissionClaims;
+export type LocalCommandCheckoutResource = object;
 
 export type LocalCommandOutput = Readonly<{
   stdoutDigest: string;
@@ -288,6 +300,12 @@ function digest(domain: string, value: unknown): string {
 
 export function deriveLocalCommandCheckoutContentDigest(tree: string): string | undefined {
   return GIT_OBJECT.test(tree) ? digest('LOCAL-COMMAND-CHECKOUT-CONTENT', { tree }) : undefined;
+}
+
+export function deriveLocalCommandTargetBasisDigest(commit: string, tree: string): string | undefined {
+  return GIT_OBJECT.test(commit) && GIT_OBJECT.test(tree)
+    ? digest('LOCAL-COMMAND-TARGET-BASIS', { commit, tree })
+    : undefined;
 }
 
 function plain(value: unknown): value is Record<string, unknown> {
@@ -577,19 +595,32 @@ function gitOutput(cwd: string, args: readonly string[], maxBuffer = 4_096): str
   }
 }
 
-function authenticatedCheckout(path: unknown, request: VerificationRequest): LocalCommandResult<string> {
+function authenticatedCheckout(
+  path: unknown,
+  request: VerificationRequest,
+  targetBasisCommit: string,
+  targetBasisTree: string,
+): LocalCommandResult<LocalCommandCheckoutResourceClaims> {
   const trusted = trustedDirectory(path);
   if (!trusted.ok) return trusted;
   const checkout = trusted.value;
   const root = gitOutput(checkout, ['rev-parse', '--show-toplevel']);
   if (root !== checkout) return fail('FC-SUBJECT', 'CHECKOUT_NOT_REPOSITORY');
+  const commit = gitOutput(checkout, ['rev-parse', '--verify', 'HEAD']);
   const tree = gitOutput(checkout, ['rev-parse', '--verify', 'HEAD^{tree}']);
   const contentDigest = tree && deriveLocalCommandCheckoutContentDigest(tree);
+  const targetDigest = deriveLocalCommandTargetBasisDigest(targetBasisCommit, targetBasisTree);
+  const verifiedTargetTree = gitOutput(checkout, ['rev-parse', '--verify', `${targetBasisCommit}^{tree}`]);
   if (
+    !commit ||
     !tree ||
     !contentDigest ||
+    !targetDigest ||
+    verifiedTargetTree !== targetBasisTree ||
     contentDigest !== request.subject.candidateContentDigest ||
-    contentDigest !== request.cleanReceipt.candidateContentDigest
+    contentDigest !== request.cleanReceipt.candidateContentDigest ||
+    targetDigest !== request.fence.targetBasisDigest ||
+    targetDigest !== request.cleanReceipt.targetBasisDigest
   )
     return fail('FC-SUBJECT', 'CHECKOUT_CANDIDATE_MISMATCH');
   if (gitOutput(checkout, ['status', '--porcelain=v1', '--untracked-files=all'], 16_384) !== '')
@@ -600,7 +631,47 @@ function authenticatedCheckout(path: unknown, request: VerificationRequest): Loc
     request.cleanReceipt.network !== 'none'
   )
     return fail('FC-SUBJECT', 'CHECKOUT_RECEIPT_MISMATCH');
-  return ok(checkout);
+  return ok(
+    Object.freeze({
+      canonicalRoot: checkout,
+      candidateCommit: commit,
+      candidateTree: tree,
+      candidateContentDigest: contentDigest,
+      targetBasisCommit,
+      targetBasisTree,
+      targetBasisDigest: targetDigest,
+      cleanReceiptDigest: request.cleanReceipt.receiptDigest,
+    }),
+  );
+}
+
+export function createLocalCommandCheckoutResource(
+  input: Readonly<{
+    checkoutPath: string;
+    request: unknown;
+    targetBasisCommit: string;
+    targetBasisTree: string;
+  }>,
+): LocalCommandResult<LocalCommandCheckoutResource> {
+  const raw = fields(input, ['checkoutPath', 'request', 'targetBasisCommit', 'targetBasisTree']);
+  const requestResult = raw && validateVerificationRequest(raw.request);
+  if (
+    !raw ||
+    !requestResult?.ok ||
+    !GIT_OBJECT.test(String(raw.targetBasisCommit)) ||
+    !GIT_OBJECT.test(String(raw.targetBasisTree))
+  )
+    return fail('FC-INPUT', 'INVALID_CHECKOUT_RESOURCE');
+  const resource = authenticatedCheckout(
+    raw.checkoutPath,
+    requestResult.value,
+    raw.targetBasisCommit as string,
+    raw.targetBasisTree as string,
+  );
+  if (!resource.ok) return resource;
+  const carrier = Object.freeze({});
+  checkoutResources.set(carrier, resource.value);
+  return ok(carrier);
 }
 
 function redacted(value: string): string {
@@ -732,7 +803,10 @@ function validateAdmission(
   manifest: LocalCommandManifest,
 ): LocalCommandResult<LocalCommandAdmission> {
   const raw = fields(admission, ['certificate']);
-  const claims = raw && readProviderAdmissionCertificateClaims(raw.certificate);
+  const claims =
+    raw && typeof raw.certificate === 'object' && raw.certificate !== null
+      ? readProviderAdmissionCertificateClaims(raw.certificate)
+      : undefined;
   if (
     !raw ||
     !claims ||
@@ -749,6 +823,8 @@ function validateAdmission(
     claims.maxAgeMs !== LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
     !Number.isSafeInteger(claims.observedAt) ||
     claims.observedAt < 0 ||
+    claims.observedAt > Date.now() ||
+    Date.now() - claims.observedAt > LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
     currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST
   )
     return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
@@ -1239,6 +1315,7 @@ function parseLocalSnapshot(
 
 function createProvider(
   manifest: LocalCommandManifest,
+  admissionCertificate: unknown,
   qualification: LocalCommandQualificationEvidence,
   initial?: LocalCommandSnapshot,
 ): LocalCommandProvider {
@@ -1275,14 +1352,16 @@ function createProvider(
   const manifestId = manifest.manifestId;
   const dispatch = (input: unknown): LocalCommandResult<LocalCommandObservation> => {
     const raw =
-      fields(input, ['checkoutPath', 'fault', 'permit', 'request']) ??
-      fields(input, ['checkoutPath', 'permit', 'request']);
+      fields(input, ['checkoutResource', 'fault', 'permit', 'request']) ??
+      fields(input, ['checkoutResource', 'permit', 'request']);
     const requestResult = raw && validateVerificationRequest(raw.request);
     if (!raw || !requestResult?.ok) return fail('FC-INPUT', 'INVALID_DISPATCH');
     const request = requestResult.value;
     if (request.policy.posture === 'none') return fail('FC-INPUT', 'VERIFICATION_NOT_DISPATCHABLE');
     if (currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST || !nativePostureCurrent(native))
       return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
+    const currentAdmission = validateAdmission(admissionCertificate, manifest);
+    if (!currentAdmission.ok) return currentAdmission;
     if (
       finalization?.state !== 'Finalizing' ||
       !sameSubject(finalization.subject, request.subject) ||
@@ -1326,6 +1405,27 @@ function createProvider(
     if (!permitCapability || permitCapability.manifest !== manifestId)
       return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
     if (!existing) requests.push(request);
+    const resourceClaims =
+      typeof raw.checkoutResource === 'object' && raw.checkoutResource !== null
+        ? checkoutResources.get(raw.checkoutResource)
+        : undefined;
+    if (!resourceClaims) return fail('FC-SUBJECT', 'CHECKOUT_RESOURCE_REQUIRED');
+    if (
+      resourceClaims.candidateCommit !== qualification.candidateCommit ||
+      resourceClaims.candidateTree !== qualification.candidateTree ||
+      resourceClaims.candidateContentDigest !== request.subject.candidateContentDigest ||
+      resourceClaims.targetBasisDigest !== request.fence.targetBasisDigest ||
+      resourceClaims.cleanReceiptDigest !== request.cleanReceipt.receiptDigest
+    )
+      return fail('FC-SUBJECT', 'CHECKOUT_RESOURCE_MISMATCH');
+    const revalidated = authenticatedCheckout(
+      resourceClaims.canonicalRoot,
+      request,
+      resourceClaims.targetBasisCommit,
+      resourceClaims.targetBasisTree,
+    );
+    if (!revalidated.ok || !same(revalidated.value, resourceClaims))
+      return fail('FC-SUBJECT', 'CHECKOUT_DRIFT');
     const fault = raw.fault as 'lost-response' | 'timeout' | undefined;
     if (raw.fault !== undefined && raw.fault !== 'lost-response' && raw.fault !== 'timeout')
       return fail('FC-INPUT', 'INVALID_FAULT');
@@ -1360,8 +1460,6 @@ function createProvider(
       );
       return fail('FC-MECHANISM', record.code);
     }
-    const checkout = authenticatedCheckout(raw.checkoutPath, request);
-    if (!checkout.ok) return checkout;
     const executable = manifest.value.subprocessAuthority[0];
     let superseded = false;
     try {
@@ -1374,7 +1472,7 @@ function createProvider(
       superseded = true;
       let run: LocalCommandResult<CommandRun>;
       try {
-        run = executeCommand(manifest, checkout.value, scratch, native, request.bounds.waitMs);
+        run = executeCommand(manifest, resourceClaims.canonicalRoot, scratch, native, request.bounds.waitMs);
       } finally {
         rmSync(root, { recursive: true, force: true });
       }
@@ -1542,7 +1640,7 @@ export function createQualifiedLocalCommandProvider(
     qualification.value.nativePosture.scratch !== 'discarded'
   )
     return fail('FC-AUTHORITY', 'EXACT_QUALIFICATION_REQUIRED');
-  return ok(createProvider(manifest.value, qualification.value));
+  return ok(createProvider(manifest.value, input.admission, qualification.value));
 }
 
 export function restoreQualifiedLocalCommandProvider(
@@ -1557,5 +1655,5 @@ export function restoreQualifiedLocalCommandProvider(
   if (!qualification.ok) return qualification;
   const snapshot = parseLocalSnapshot(input.snapshot, manifest.value, qualification.value.nativePosture);
   if (!snapshot.ok) return snapshot;
-  return ok(createProvider(manifest.value, qualification.value, snapshot.value));
+  return ok(createProvider(manifest.value, input.admission, qualification.value, snapshot.value));
 }

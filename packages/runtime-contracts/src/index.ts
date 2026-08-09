@@ -12,7 +12,8 @@ export * from './envelope.js';
 export * from './ledger.js';
 export * from './obligation.js';
 export * from './provider.js';
-export { readProviderAdmissionCertificateClaimsPublic as readProviderAdmissionCertificateClaims } from './qualification-certificate.js';
+// Claims are readable at the runtime root; issuance remains inside the durable admission transition.
+export { readProviderAdmissionCertificateClaims } from './qualification-registry.js';
 export type { ProviderAdmissionClaims } from './qualification-registry.js';
 export * from './session.js';
 export * from './source.js';

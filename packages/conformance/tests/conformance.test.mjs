@@ -613,7 +613,7 @@ test('private structured-file execution mints only an opaque runtime certificate
   const certificate = internal.executeExactStructuredFileQualification(records, providerSubject);
   assert.ok(certificate);
   assert.equal('executeExactStructuredFileQualification' in conformance, false);
-  const friend = await import('@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate');
+  const friend = await import('../../runtime-contracts/dist/qualification-certificate.js');
   assert.equal(friend.mintQualificationCertificate({}), undefined);
   assert.equal(friend.mintQualificationCertificate({ ...certificate }), undefined);
 

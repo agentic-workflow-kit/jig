@@ -7,7 +7,6 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const admissionAuthority = await import('@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -31,7 +30,10 @@ const story = `${run}/story/local-command-verifier`;
 const basis = 'a'.repeat(64);
 const candidateDigest = provider.deriveLocalCommandCheckoutContentDigest(candidateTree);
 assert.equal(typeof candidateDigest, 'string');
-const targetBasisDigest = 'c'.repeat(64);
+const targetBasisCommit = candidateCommit;
+const targetBasisTree = candidateTree;
+const targetBasisDigest = provider.deriveLocalCommandTargetBasisDigest(targetBasisCommit, targetBasisTree);
+assert.equal(typeof targetBasisDigest, 'string');
 const generation = `${run}/gen/2|controller-token`;
 const operation = (ordinal) => `${run}/txn/${ordinal}/${generation}|${basis}/op/${ordinal}`;
 const candidate = `${story}/cand/1|${candidateDigest}`;
@@ -145,11 +147,12 @@ const admission = () => {
     scope: manifestValue.value.scope,
   };
   const fixture = runtime.createProviderAdmissionFixture({ manifestBytes: manifestValue.bytes, approval, ledger });
+  const now = Date.now();
   const start = fixture.start({
     basis: basisValue,
     ordinal: 1,
-    deadline: 2_000,
-    observedAt: 1_000,
+    deadline: now + 2_000,
+    observedAt: now,
     retryLimit: 2,
     predecessor: null,
   });
@@ -157,32 +160,26 @@ const admission = () => {
   const proof = fixture.result({
     basis: basisValue,
     ordinal: 1,
-    deadline: 2_000,
-    observedAt: 1_100,
+    deadline: now + 2_000,
+    observedAt: now + 1,
     retryLimit: 2,
     predecessor: start.value.digest,
     outcome: 'positive',
   });
   assert.equal(proof.ok, true);
-  const execution = admissionAuthority.recordExactProviderAdmissionExecution({
-    principal: 'principal/arye',
-    providerIdentity: provider.LOCAL_COMMAND_VERIFIER_PROVIDER,
-    providerBuild: provider.LOCAL_COMMAND_VERIFIER_BUILD_DIGEST,
-    environment: provider.LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
-    capability: 'PORT-VERIFY/local-command',
-    policyMinimum: 'policy/local-posix-command-verifier/v1',
-    manifestId: manifestValue.manifestId,
-    manifestDigest: manifestValue.manifestDigest,
-    scope: manifestValue.value.scope,
-    proofDigest: proof.value.digest,
-    observedAt: 1_200,
-    maxAgeMs: 86_400_000,
-  });
-  assert.notEqual(execution, undefined);
-  const certificate = admissionAuthority.mintProviderAdmissionCertificate(execution);
-  assert.notEqual(certificate, undefined);
-  return { certificate };
+  const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: 86_400_000 });
+  assert.equal(admitted.ok, true);
+  assert.ok(admitted.value.certificate);
+  return { certificate: admitted.value.certificate };
 };
+
+const checkoutResource = (requestValue, path = checkoutPath) =>
+  provider.createLocalCommandCheckoutResource({
+    checkoutPath: path,
+    request: requestValue,
+    targetBasisCommit,
+    targetBasisTree,
+  });
 
 test('local command provider package is unavailable before exact qualification', () => {
   assert.deepEqual(provider.createQualifiedLocalCommandProvider(), {
@@ -241,22 +238,23 @@ test('GF-022 admission is opaque and cannot be minted by caller-shaped data', ()
 });
 
 test('dispatch rejects an arbitrary checkout before command execution', () => {
+  const auth = admission();
   const proof = provider.runLocalCommandQualificationProbe({
     candidateCommit,
     candidateTree,
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
   });
   if (!proof.ok) return;
   const created = provider.createQualifiedLocalCommandProvider({
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
     qualification: proof.value,
   });
-  assert.equal(created.ok, true);
+  assert.equal(created.ok, true, JSON.stringify(created));
   const qualified = created.value;
   assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: request(1) }).ok, true);
-  assert.deepEqual(qualified.dispatch({ checkoutPath: '/private/tmp', request: request(1), permit: permit(1) }), {
+  assert.deepEqual(checkoutResource(request(1), '/private/tmp'), {
     ok: false,
     error: { family: 'FC-SUBJECT', code: 'CHECKOUT_NOT_REPOSITORY' },
   });
@@ -264,24 +262,27 @@ test('dispatch rejects an arbitrary checkout before command execution', () => {
 });
 
 test('qualified provider binds exact admission, mechanism proof, and command observation', () => {
+  const auth = admission();
   const proof = provider.runLocalCommandQualificationProbe({
     candidateCommit,
     candidateTree,
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
   });
   assert.equal(proof.ok, platform() === 'darwin');
   if (!proof.ok) return;
   const created = provider.createQualifiedLocalCommandProvider({
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
     qualification: proof.value,
   });
-  assert.equal(created.ok, true);
+  assert.equal(created.ok, true, JSON.stringify(created));
   const qualified = created.value;
   assert.deepEqual(qualified.reachability().status, 'qualified');
   assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: request(1) }).ok, true);
-  const observed = qualified.dispatch({ checkoutPath, request: request(1), permit: permit(1) });
+  const resource = checkoutResource(request(1));
+  assert.equal(resource.ok, true, JSON.stringify(resource));
+  const observed = qualified.dispatch({ checkoutResource: resource.value, request: request(1), permit: permit(1) });
   assert.equal(observed.ok, true);
   assert.equal(observed.value.provider, provider.LOCAL_COMMAND_VERIFIER_PROVIDER);
   assert.equal(observed.value.effectFree, true);
@@ -291,31 +292,32 @@ test('qualified provider binds exact admission, mechanism proof, and command obs
   const snapshot = qualified.snapshot();
   const restored = provider.restoreQualifiedLocalCommandProvider({
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
     qualification: proof.value,
     snapshot,
   });
   assert.equal(restored.ok, true);
   assert.equal(restored.value.snapshot().observations.length, 1);
-  assert.deepEqual(restored.value.dispatch({ checkoutPath, request: request(1), permit: permit(1) }).error, {
+  assert.deepEqual(restored.value.dispatch({ checkoutResource: resource.value, request: request(1), permit: permit(1) }).error, {
     family: 'FC-EFFECT',
     code: 'DUPLICATE_OPERATION',
   });
 });
 
 test('wrong permit, stale qualification, and retry reuse fail closed without command invocation', () => {
+  const auth = admission();
   const proof = provider.runLocalCommandQualificationProbe({
     candidateCommit,
     candidateTree,
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
   });
   if (!proof.ok) return;
   const stale = { ...proof.value, manifestDigest: '0'.repeat(64) };
   assert.deepEqual(
     provider.createQualifiedLocalCommandProvider({
       manifest: manifestValue,
-      admission: admission(),
+      admission: auth,
       qualification: stale,
     }),
     {
@@ -326,7 +328,7 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
   assert.deepEqual(
     provider.createQualifiedLocalCommandProvider({
       manifest: manifestValue,
-      admission: admission(),
+      admission: auth,
       qualification: { ...proof.value },
     }),
     {
@@ -336,15 +338,15 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
   );
   const created = provider.createQualifiedLocalCommandProvider({
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
     qualification: proof.value,
   });
-  assert.equal(created.ok, true);
+  assert.equal(created.ok, true, JSON.stringify(created));
   const qualified = created.value;
   assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: request(1) }).ok, true);
   assert.deepEqual(
     qualified.dispatch({
-      checkoutPath,
+      checkoutResource: checkoutResource(request(1)).value,
       request: request(1),
       permit: permit(1, null, `provider/${'0'.repeat(64)}/authority/${'0'.repeat(64)}`),
     }).error,
@@ -355,7 +357,12 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
   );
   assert.equal(qualified.invocations().length, 0);
   assert.deepEqual(
-    qualified.dispatch({ checkoutPath, request: request(1), permit: permit(1), fault: 'timeout' }).error,
+    qualified.dispatch({
+      checkoutResource: checkoutResource(request(1)).value,
+      request: request(1),
+      permit: permit(1),
+      fault: 'timeout',
+    }).error,
     {
       family: 'FC-MECHANISM',
       code: 'MECHANISM_TIMEOUT',
@@ -363,7 +370,7 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
   );
   assert.equal(
     qualified.dispatch({
-      checkoutPath,
+      checkoutResource: checkoutResource(request(2)).value,
       request: request(2, operation(1)),
       permit: permit(2, operation(1)),
     }).ok,
@@ -371,7 +378,7 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
   );
   assert.equal(
     qualified.dispatch({
-      checkoutPath,
+      checkoutResource: checkoutResource(request(3, operation(2))).value,
       request: request(3, operation(2)),
       permit: permit(3, operation(2)),
     }).error.code,
@@ -416,6 +423,7 @@ test('qualification removes its disposable scratch and exposes no delivery or al
 });
 
 test('hostile manifest, posture, qualification, and snapshot inputs remain unavailable', () => {
+  const auth = admission();
   assert.equal(
     provider.createLocalCommandManifest({ executable, executableDigest, args: [], environmentNames: ['SAFE_NAME'] }).ok,
     false,
@@ -426,7 +434,7 @@ test('hostile manifest, posture, qualification, and snapshot inputs remain unava
       candidateCommit: '1'.repeat(40),
       candidateTree,
       manifest: manifestValue,
-      admission: admission(),
+      admission: auth,
     }),
     {
       ok: false,
@@ -437,13 +445,13 @@ test('hostile manifest, posture, qualification, and snapshot inputs remain unava
     candidateCommit,
     candidateTree,
     manifest: manifestValue,
-    admission: admission(),
+    admission: auth,
   });
   if (!proof.ok) return;
   assert.deepEqual(
     provider.createQualifiedLocalCommandProvider({
       manifest: manifestValue,
-      admission: admission(),
+      admission: auth,
       qualification: { ...proof.value, nativePostureDigest: '0'.repeat(64) },
     }),
     {
@@ -454,7 +462,7 @@ test('hostile manifest, posture, qualification, and snapshot inputs remain unava
   assert.deepEqual(
     provider.restoreQualifiedLocalCommandProvider({
       manifest: manifestValue,
-      admission: admission(),
+      admission: auth,
       qualification: proof.value,
       snapshot: { version: 'jig.local-command-verifier.v1', observations: [], verification: {} },
     }),

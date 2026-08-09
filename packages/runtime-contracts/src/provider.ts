@@ -1,6 +1,11 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { isScriptedLedger } from './ledger.js';
-import { readCertificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
+import {
+  readCertificateClaims,
+  registerProviderAdmissionCertificateClaims,
+  snapshotProviderAdmissionClaims,
+  snapshotQualificationClaims,
+} from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -50,7 +55,14 @@ type Fixture = Readonly<{
   result(input: unknown): ProviderAdmissionResult<Attempt>;
   admit(
     input: unknown,
-  ): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>>;
+  ): ProviderAdmissionResult<
+    Readonly<{
+      kind: 'eligible';
+      manifestId: string;
+      providerEnabled: false;
+      certificate?: object;
+    }>
+  >;
   readback(input: unknown): ProviderAdmissionResult<Attempt>;
   reachability(): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>>;
 }>;
@@ -164,6 +176,7 @@ const safeText = (value: unknown): value is string =>
 const safeDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST.test(value);
 const safeTime = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const PROVIDER_ADMISSION_MAX_AGE_MS = 86_400_000;
 const scope = (value: unknown, entry: CapabilityProofCatalogueEntry): Scope | undefined => {
   const data = fields(value, ['phase', 'purpose', 'story']);
   return data &&
@@ -401,7 +414,8 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     start: (input) => write(input, 'start'),
     result: (input) => write(input, 'result'),
     admit(input) {
-      const data = fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
+      const data =
+        fields(input, ['basis', 'maxAgeMs', 'proof']) ?? fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
       const bound = data && entry && basis(data.basis, entry);
       const proofData =
         data &&
@@ -421,7 +435,6 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         !data ||
         !bound ||
         !safeTime(data.maxAgeMs) ||
-        !safeTime(data.observedAt) ||
         !proofData ||
         !Number.isSafeInteger(proofData.ordinal)
       )
@@ -437,9 +450,42 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         proof.basisDigest !== basisDigest
       )
         return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
-      if (data.observedAt < stored.observedAt || data.observedAt - stored.observedAt > data.maxAgeMs)
+      const localCommand = bound.capability === 'PORT-VERIFY/local-command';
+      const now = Date.now();
+      const observedAt = localCommand ? now : data.observedAt;
+      const maxAgeMs = localCommand ? PROVIDER_ADMISSION_MAX_AGE_MS : data.maxAgeMs;
+      if (
+        !safeTime(observedAt) ||
+        !safeTime(maxAgeMs) ||
+        observedAt < stored.observedAt ||
+        observedAt - stored.observedAt > maxAgeMs ||
+        (localCommand && data.maxAgeMs !== PROVIDER_ADMISSION_MAX_AGE_MS)
+      )
         return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
-      return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
+      if (!localCommand) return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
+      const claims = snapshotProviderAdmissionClaims({
+        principal: 'principal/arye',
+        providerIdentity: bound.providerIdentity,
+        providerBuild: bound.providerBuild,
+        environment: bound.environment,
+        capability: bound.capability,
+        policyMinimum: bound.policyMinimum,
+        manifestId: bound.manifestId,
+        manifestDigest: bound.manifestDigest,
+        scope: bound.scope,
+        proofDigest: stored.digest,
+        observedAt,
+        maxAgeMs: PROVIDER_ADMISSION_MAX_AGE_MS,
+      });
+      if (!claims) return fail('FC-AUTHORITY', 'EXACT_PROVIDER_ADMISSION_REQUIRED');
+      const certificate = Object.freeze({});
+      registerProviderAdmissionCertificateClaims(certificate, claims);
+      return ok({
+        kind: 'eligible',
+        manifestId: bound.manifestId,
+        providerEnabled: false as const,
+        certificate,
+      });
     },
     readback(input) {
       const data = fields(input, ['basis', 'ordinal', 'variant']);
