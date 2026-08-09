@@ -275,6 +275,23 @@ function same(left: unknown, right: unknown): boolean {
   return leftDigest !== undefined && leftDigest === derived('VERIFY-COMPARE', right);
 }
 
+function sameRequest(left: VerificationRequest, right: VerificationRequest): boolean {
+  return (
+    left.operation === right.operation &&
+    left.checkClass === right.checkClass &&
+    left.lifecycle === right.lifecycle &&
+    left.retryOrdinal === right.retryOrdinal &&
+    left.predecessor === right.predecessor &&
+    sameSubject(left.subject, right.subject) &&
+    same(left.fence, right.fence) &&
+    left.policy.digest === right.policy.digest &&
+    left.configuration.digest === right.configuration.digest &&
+    left.environment.digest === right.environment.digest &&
+    left.cleanReceipt.receiptDigest === right.cleanReceipt.receiptDigest &&
+    same(left.bounds, right.bounds)
+  );
+}
+
 function capabilityDigest(value: Readonly<Record<string, unknown>>): string | undefined {
   try {
     const result = stageDigest({
@@ -951,6 +968,10 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
   }
   for (const request of requests) {
     const matchingInvocations = invocations.filter((entry) => entry.operation === request.operation);
+    if (matchingInvocations.length === 0) {
+      if (request.policy.posture !== 'none' && raw.finalization === null) return undefined;
+      continue;
+    }
     if (matchingInvocations.length !== 1) return undefined;
     const invocation = matchingInvocations[0];
     if (invocation.result === 'returned') {
@@ -1108,25 +1129,34 @@ export function createScriptedVerificationFixture(
       ? failures.findIndex((entry) => entry.operation === predecessor.operation && entry.supersededBy === null)
       : -1;
     if (request.retryOrdinal > 1 && predecessorFailure < 0) return fail('FC-ORDERING', 'REPLACEMENT_LINEAGE_REQUIRED');
+    const existing = requests.find((entry) => entry.operation === request.operation);
+    if (existing && !sameRequest(existing, request)) return fail('FC-SUBJECT', 'OPERATION_SUBJECT_MISMATCH');
+    if (existing && invocations.some((entry) => entry.operation === request.operation))
+      return fail('FC-EFFECT', 'DUPLICATE_OPERATION');
+    const priorFailure = predecessorFailure >= 0 ? failures[predecessorFailure] : undefined;
     if (predecessorFailure >= 0)
       failures[predecessorFailure] = Object.freeze({
         ...failures[predecessorFailure],
         supersededBy: request.operation,
       });
+    const restorePriorFailure = (): void => {
+      if (predecessorFailure >= 0 && priorFailure) failures[predecessorFailure] = priorFailure;
+    };
     let permit: unknown;
     try {
       permit = authorizer.recordDispatch({ operation: request.operation, ordinal: 1 });
     } catch {
+      restorePriorFailure();
       return fail('FC-AUTHORITY', 'DISPATCH_PERMIT_UNAVAILABLE');
     }
     const permitResult = fields(permit, ['ok', 'value']);
-    if (permitResult?.ok !== true || !validatePermit(permitResult.value, request))
+    if (permitResult?.ok !== true || !validatePermit(permitResult.value, request)) {
+      restorePriorFailure();
       return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
-    const existing = requests.find((entry) => entry.operation === request.operation);
-    if (existing) return fail('FC-EFFECT', 'DUPLICATE_OPERATION');
+    }
     const reason = raw.fault as 'lost-response' | 'timeout' | undefined;
     if (reason) {
-      requests.push(request);
+      if (!existing) requests.push(request);
       const record = Object.freeze({
         schema: VERIFICATION_FAILURE_SCHEMA,
         version: VERIFICATION_CONTRACT_VERSION,
@@ -1153,10 +1183,16 @@ export function createScriptedVerificationFixture(
       return fail('FC-MECHANISM', record.code);
     }
     const checked = observation(raw.attestation, request);
-    if (!checked) return fail('FC-MECHANISM', 'INVALID_ATTESTATION');
+    if (!checked) {
+      restorePriorFailure();
+      return fail('FC-MECHANISM', 'INVALID_ATTESTATION');
+    }
     const earlier = observations.find((entry) => entry.checkClass === checked.checkClass);
-    if (earlier) return fail('FC-ORDERING', 'CHECK_CLASS_ALREADY_OBSERVED');
-    requests.push(request);
+    if (earlier) {
+      restorePriorFailure();
+      return fail('FC-ORDERING', 'CHECK_CLASS_ALREADY_OBSERVED');
+    }
+    if (!existing) requests.push(request);
     observations.push(checked);
     invocations.push(
       Object.freeze({
@@ -1177,6 +1213,9 @@ export function createScriptedVerificationFixture(
     const request = validateRequest(raw.request);
     if (!request || (request.lifecycle !== raw.origin && request.lifecycle !== 'Finalizing'))
       return fail('FC-AUTHORITY', 'INVALID_FINALIZATION_ENTRY');
+    const existing = requests.find((entry) => entry.operation === request.operation);
+    if (existing && !sameRequest(existing, request)) return fail('FC-SUBJECT', 'OPERATION_SUBJECT_MISMATCH');
+    if (!existing) requests.push(request);
     finalization = finalizationState(raw.origin, request);
     return ok(finalization);
   };

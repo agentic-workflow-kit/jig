@@ -219,6 +219,14 @@ test('BND-WAIT-MECHANISM/BND-RETRY: loss is durable and replacement uses a new a
     error: { family: 'FC-MECHANISM', code: 'RESULT_UNCERTAIN' },
   });
   assert.equal(fixture.failures()[0].supersededBy, null);
+  const unauthorized = runtime.createScriptedVerificationFixture(makeAuthorizer([permit(1)]));
+  assert.equal(unauthorized.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
+  assert.equal(unauthorized.dispatch({ request: first, attestation: attestation(first), fault: 'timeout' }).ok, false);
+  assert.equal(
+    unauthorized.dispatch({ request: second, attestation: attestation(second) }).error.code,
+    'INVALID_DISPATCH_PERMIT',
+  );
+  assert.equal(unauthorized.failures()[0].supersededBy, null);
   const forgedReady = structuredClone(fixture.snapshot());
   forgedReady.finalization.readyForDelivery = true;
   assert.equal(runtime.restoreScriptedVerificationFixture(forgedReady, makeAuthorizer([permit(1)])).ok, false);
@@ -303,6 +311,9 @@ test('RP-VERIFY: deterministic pass/fail and explicit none are distinct inside t
   assert.equal(emptyNoOp.ok, true);
   assert.deepEqual(emptyNoOp.value.requiredClasses, []);
   assert.equal(emptyNoOp.value.noOp, true);
+  const restoredNone = runtime.restoreScriptedVerificationFixture(noneFixture.snapshot(), makeAuthorizer([]));
+  assert.equal(restoredNone.ok, true);
+  assert.equal(restoredNone.value.snapshot().finalization?.noOp, true);
 });
 
 test('GF-042 fixture rejects capability substitution and preserves the no-provider boundary', () => {
