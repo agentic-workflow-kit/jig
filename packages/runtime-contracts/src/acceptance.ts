@@ -1048,6 +1048,7 @@ function createController(
         blocker: record.nextState === 'Blocked' ? 'BND-REWORK' : null,
       });
     } else if (record.kind === 'invalidate') {
+      currentAssignment.delete(record.packageDigest);
       projection = freeze({
         ...projection,
         state: 'Reviewing',
@@ -1524,6 +1525,7 @@ function validateSnapshotSemantics(entries: readonly JournalEntry[], reworkLimit
         acceptedPackageDigest: null,
         blocker: null,
       };
+      assignments.delete(fields.packageDigest as string);
       continue;
     }
     return fail('FC-TRUST', 'UNKNOWN_ACCEPTANCE_RECORD');

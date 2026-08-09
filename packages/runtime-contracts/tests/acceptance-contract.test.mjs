@@ -1031,6 +1031,121 @@ test('MC-040-02/06: candidate-change invalidation cannot cross the immutable Sto
   );
 });
 
+test('MC-040-01/06/10: invalidation revokes the prior assignment before unchanged reassembly', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const assignment = controller.assign({
+    package: packageValue,
+    session: `${story}/session/revoked/10`,
+    principal: 'principal/reviewer-revoked',
+  });
+  assert.equal(assignment.ok, true);
+  assert.equal(controller.invalidate({ packageDigest: packageValue.digest, reason: 'owner-reopen' }).ok, true);
+  const reassembled = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  });
+  assert.equal(reassembled.ok, true);
+  assert.equal(controller.receiveVerdict({ assignment: assignment.value, verdict: 'approve', findings: [] }).ok, false);
+  assert.equal(
+    controller.assign({
+      package: reassembled.value,
+      session: `${story}/session/replacement/11`,
+      principal: 'principal/reviewer-replacement',
+    }).ok,
+    true,
+  );
+
+  const replayController = newController();
+  const replayPackage = replayController.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  }).value;
+  const oldAssignment = replayController.assign({
+    package: replayPackage,
+    session: `${story}/session/replay-revoked/12`,
+    principal: 'principal/reviewer-replay-revoked',
+  }).value;
+  assert.equal(replayController.invalidate({ packageDigest: replayPackage.digest, reason: 'owner-reopen' }).ok, true);
+  assert.equal(
+    replayController.assemble({
+      candidate,
+      requirements,
+      evidence,
+      publicationObservation: observation,
+      policy,
+      findings: [],
+      contributorPrincipals: [],
+    }).ok,
+    true,
+  );
+  const snapshot = replayController.snapshot();
+  const staleVerdict = {
+    schema: runtime.VERDICT_SCHEMA,
+    id: `${story}/verdict/1`,
+    run,
+    story,
+    candidate,
+    packageDigest: replayPackage.digest,
+    session: oldAssignment.session,
+    principal: oldAssignment.principal,
+    verdict: 'approve',
+    findings: [],
+    posture: replayPackage.verificationPosture,
+    verdictDigest: stageDigest({
+      domain: 'RP-VERDICT',
+      excludePaths: [],
+      value: {
+        id: `${story}/verdict/1`,
+        run,
+        story,
+        candidate,
+        packageDigest: replayPackage.digest,
+        session: oldAssignment.session,
+        principal: oldAssignment.principal,
+        verdict: 'approve',
+        findings: [],
+        posture: replayPackage.verificationPosture,
+      },
+    }).value.digest,
+  };
+  const staleReplay = redigestSnapshot(snapshot, [
+    ...snapshot.records.map((entry) => entry.record),
+    { kind: 'verdict', verdict: staleVerdict, nextState: 'Accepted' },
+  ]);
+  assert.equal(
+    runtime.restoreScriptedAcceptanceController({
+      ...staleReplay,
+      projection: {
+        ...staleReplay.projection,
+        state: 'Accepted',
+        candidate,
+        packageDigest: replayPackage.digest,
+        acceptedPackageDigest: replayPackage.digest,
+      },
+    }).ok,
+    false,
+  );
+});
+
 test('MC-040-10: self-consistent replay rejects skipped journal positions', () => {
   const controller = newController();
   const packageValue = controller.assemble({
