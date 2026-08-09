@@ -828,10 +828,10 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
   });
 }
 
-export function createReviewPublicationTransitionRecorder(
+const createReviewPublicationTransitionRecorderInternal = (
   verifierInput?: ReviewPublicationTrustedVerifier,
   hydrate?: ReviewPublicationTransitionSnapshot,
-): ReviewPublicationTransitionRecorder {
+): ReviewPublicationTransitionRecorder => {
   const recorded: ReviewPublicationOperationIntent[] = [...(hydrate?.intents ?? [])];
   const reauthorizations: ReviewPublicationReauthorization[] = [...(hydrate?.reauthorizations ?? [])];
   const verifier =
@@ -951,6 +951,12 @@ export function createReviewPublicationTransitionRecorder(
         reauthorizations: Object.freeze([...reauthorizations]),
       }),
   });
+};
+
+export function createReviewPublicationTransitionRecorder(
+  verifierInput?: ReviewPublicationTrustedVerifier,
+): ReviewPublicationTransitionRecorder {
+  return createReviewPublicationTransitionRecorderInternal(verifierInput);
 }
 
 const parseObservationOperations = (value: unknown): RequiredVenueObservation['operations'] | undefined => {
@@ -1190,7 +1196,7 @@ export function restoreReviewPublicationTransitionRecorder(
     const verified = verify({ transition: reauthorization.binding.transition, binding: reauthorization.binding });
     if (!verified.ok) return verified;
   }
-  const recorder = createReviewPublicationTransitionRecorder(verifier, validated.value);
+  const recorder = createReviewPublicationTransitionRecorderInternal(verifier, validated.value);
   return ok(recorder);
 }
 
@@ -1657,6 +1663,41 @@ export function createReviewPublicationController(
         if (lookup.ok && lookup.value.outcome === 'confirmed-absence') continue;
       }
       if (!obligationController) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
+      const obligationInput = exactFields(raw.obligation, [
+        'run',
+        'generation',
+        'resource',
+        'duty',
+        'origin',
+        'reason',
+        'preservationEvidence',
+        'accountableOwner',
+        'criteria',
+        'startedAt',
+        'deadline',
+        'policyDigest',
+      ]);
+      const obligationEvidence = obligationInput && exactFields(obligationInput.preservationEvidence, ['key']);
+      const obligationCriteria = obligationInput && exactFields(obligationInput.criteria, ['subject', 'claim']);
+      const validRetirementObligation =
+        obligationInput &&
+        obligationEvidence &&
+        obligationCriteria &&
+        obligationInput.run === binding.subject.run &&
+        obligationInput.generation === binding.generation &&
+        obligationInput.resource === binding.reviewRef &&
+        obligationInput.duty === 'retirement' &&
+        obligationInput.origin === proof.event &&
+        safeText(obligationInput.reason) &&
+        safeDigest(obligationEvidence.key) &&
+        safeText(obligationCriteria.subject) &&
+        safeText(obligationCriteria.claim) &&
+        obligationInput.accountableOwner === 'principal/arye' &&
+        Number.isSafeInteger(obligationInput.startedAt) &&
+        Number.isSafeInteger(obligationInput.deadline) &&
+        (obligationInput.deadline as number) > (obligationInput.startedAt as number) &&
+        safeDigest(obligationInput.policyDigest);
+      if (!validRetirementObligation) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_BINDING_MISMATCH');
       const allocated = obligationController.openAllocated(raw.obligation);
       if (!allocated.ok) return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
       if (

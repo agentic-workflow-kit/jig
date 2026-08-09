@@ -236,6 +236,34 @@ test('allocated obligations use durable monotonic readback across replay', () =>
   assert.equal(replayed.value.id, `${run}/obligation/2`);
 });
 
+test('allocated duty readback replays an uncertain append and rejects a durable collision', () => {
+  const runtimeDependencies = dependencies();
+  const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
+  const controller = obligation.createScriptedObligationController({
+    dependencies: runtimeDependencies,
+    ledgerFaultPlan: [{ append: 'after-witness', readback: 'indeterminate-read' }],
+  });
+  const uncertain = controller.openAllocated(allocationInput);
+  assert.deepEqual(uncertain, {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'OBLIGATION_APPEND_UNCERTAIN' },
+  });
+
+  const replayed = controller.openAllocated(allocationInput);
+  assert.equal(replayed.ok, true, JSON.stringify(replayed));
+  assert.equal(replayed.value.id, `${run}/obligation/1`);
+  assert.equal(runtimeDependencies.ledger.records({ kind: 'run', run, generation }).value.length, 1);
+  assert.deepEqual(controller.openAllocated({ ...allocationInput, reason: 'different failure' }), {
+    ok: false,
+    error: { family: 'FC-SUBJECT', code: 'OBLIGATION_ALLOCATION_COLLISION' },
+  });
+
+  const independentReplay = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const replayedAgain = independentReplay.openAllocated(allocationInput);
+  assert.equal(replayedAgain.ok, true, JSON.stringify(replayedAgain));
+  assert.equal(replayedAgain.value.id, `${run}/obligation/1`);
+});
+
 test('GF038-MC-02: only the closed lifecycle edges are accepted and replay is idempotent', () => {
   const runtimeDependencies = dependencies();
   const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });

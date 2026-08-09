@@ -169,6 +169,8 @@ export type ObligationFact = Readonly<{
   criteriaDigest: string | null;
   evidenceDigest: string | null;
   grant: string | null;
+  allocationDigest: string | null;
+  allocationOrigin: string | null;
   boundDigest: string;
   observedAt: number | null;
 }>;
@@ -737,6 +739,8 @@ function validFact(value: unknown): value is ObligationFact {
     'criteriaDigest',
     'evidenceDigest',
     'grant',
+    'allocationDigest',
+    'allocationOrigin',
     'boundDigest',
     'observedAt',
   ]);
@@ -760,6 +764,8 @@ function validFact(value: unknown): value is ObligationFact {
       (raw.criteriaDigest === null || digest(raw.criteriaDigest)) &&
       (raw.evidenceDigest === null || digest(raw.evidenceDigest)) &&
       (raw.grant === null || identity('ID-GRANT', raw.grant)) &&
+      (raw.allocationDigest === null || digest(raw.allocationDigest)) &&
+      (raw.allocationOrigin === null || identity('ID-EVENT', raw.allocationOrigin)) &&
       digest(raw.boundDigest) &&
       (raw.observedAt === null || integer(raw.observedAt))
     )
@@ -1008,6 +1014,8 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
       criteriaDigest: obligation?.criteria.digest,
       evidenceDigest: intent.evidence.referenceDigest,
       grant: intent.grant,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: obligation?.boundDigest,
       observedAt: intent.observedAt,
     };
@@ -1110,6 +1118,7 @@ export function createScriptedObligationController(
   const appendDurable = (
     content: Record<string, unknown>,
     binding: RunStoreBinding,
+    transactionSuffix = '0'.repeat(64),
   ): ObligationResult<
     Readonly<{ event: string; content: Record<string, unknown>; position: number; digest: string }>
   > => {
@@ -1118,7 +1127,7 @@ export function createScriptedObligationController(
     const head = ledger.snapshot(binding);
     if (!head.ok) return fail(head.error.family, head.error.code);
     const position = head.value.position + 1;
-    const transaction = `${binding.run}/txn/${position + 1}/${binding.generation}|${'0'.repeat(64)}`;
+    const transaction = `${binding.run}/txn/${position + 1}/${binding.generation}|${transactionSuffix}`;
     const prepared = createLedgerRecord({
       run: binding.run,
       generation: binding.generation,
@@ -1268,7 +1277,10 @@ export function createScriptedObligationController(
     };
   };
 
-  const appendFact = (fact: Omit<ObligationFact, 'event'>): ObligationResult<ObligationFact> => {
+  const appendFact = (
+    fact: Omit<ObligationFact, 'event'>,
+    transactionSuffix = '0'.repeat(64),
+  ): ObligationResult<ObligationFact> => {
     const factRun = fact.obligation.split('/obligation/')[0] as string;
     if (activeBinding && (activeBinding.run !== factRun || activeBinding.generation !== fact.generation))
       return fail('FC-FENCE', 'OBLIGATION_LEDGER_BINDING_MISMATCH');
@@ -1277,7 +1289,7 @@ export function createScriptedObligationController(
       run: factRun,
       generation: fact.generation,
     };
-    const persisted = appendDurable({ schema: OBLIGATION_FACT_SCHEMA, ...fact }, binding);
+    const persisted = appendDurable({ schema: OBLIGATION_FACT_SCHEMA, ...fact }, binding, transactionSuffix);
     if (!persisted.ok) return persisted;
     const complete = deepFreeze({ ...fact, event: persisted.value.event }) as ObligationFact;
     facts = [...facts, complete];
@@ -1290,7 +1302,11 @@ export function createScriptedObligationController(
     return value ? ok(value) : fail('FC-SUBJECT', 'OBLIGATION_NOT_FOUND');
   };
 
-  const open = (input: unknown): ObligationResult<ResidualObligation> => {
+  const open = (
+    input: unknown,
+    allocationKey: string | null = null,
+    replayRecord?: LedgerRecord,
+  ): ObligationResult<ResidualObligation> => {
     const raw = fields(input, [
       'obligationOrdinal',
       'run',
@@ -1395,7 +1411,7 @@ export function createScriptedObligationController(
       const { event: _candidateEvent, ...candidateBasis } = candidate;
       return sameJson(priorBasis, candidateBasis) ? ok(prior) : fail('FC-SUBJECT', 'OBLIGATION_ID_REUSE_MISMATCH');
     }
-    const persisted = appendFact({
+    const factBasis = {
       type: 'SCH-OBLIGATION',
       obligation: id,
       status: 'open',
@@ -1403,9 +1419,39 @@ export function createScriptedObligationController(
       criteriaDigest: candidate.criteria.digest,
       evidenceDigest: candidate.preservationEvidence.referenceDigest,
       grant: null,
+      allocationDigest: allocationKey,
+      allocationOrigin: allocationKey ? (raw.origin as string) : null,
       boundDigest: candidate.boundDigest,
       observedAt: candidate.startedAt,
-    });
+    } as const;
+    const persisted = replayRecord
+      ? (() => {
+          const content = fields(replayRecord.content, [
+            'schema',
+            'type',
+            'obligation',
+            'status',
+            'generation',
+            'criteriaDigest',
+            'evidenceDigest',
+            'grant',
+            'allocationDigest',
+            'allocationOrigin',
+            'boundDigest',
+            'observedAt',
+          ]);
+          if (
+            !content ||
+            !sameJson(content, { schema: OBLIGATION_FACT_SCHEMA, ...factBasis }) ||
+            replayRecord.transaction !==
+              `${candidate.run}/txn/${replayRecord.position + 1}/${candidate.generation}|${allocationKey}`
+          )
+            return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+          const replayed = deepFreeze({ ...factBasis, event: replayRecord.event }) as ObligationFact;
+          if (!facts.some((fact) => fact.event === replayed.event)) facts = [...facts, replayed];
+          return ok(replayed);
+        })()
+      : appendFact(factBasis, allocationKey ?? '0'.repeat(64));
     if (!persisted.ok) return persisted;
     const committed = deepFreeze({ ...candidate, event: persisted.value.event }) as ResidualObligation;
     obligations = new Map(obligations).set(id, committed);
@@ -1444,43 +1490,65 @@ export function createScriptedObligationController(
     if (!recordsResult.ok) return fail(recordsResult.error.family, recordsResult.error.code);
     const parsedEvidence = evidenceAuthority ? parseEvidence(raw.preservationEvidence, evidenceAuthority) : undefined;
     const parsedCriteria = parseCriteria(raw.criteria);
-    if (parsedEvidence?.ok && parsedCriteria?.ok) {
-      const requestedBasis = {
-        run: raw.run,
-        generation: raw.generation,
-        resource: raw.resource,
-        duty: raw.duty,
-        origin: raw.origin,
-        reason: raw.reason,
-        preservationEvidence: parsedEvidence.value,
-        accountableOwner: raw.accountableOwner,
-        criteria: parsedCriteria.value,
-        startedAt: raw.startedAt,
-        deadline: raw.deadline,
-        policyDigest: raw.policyDigest,
+    if (
+      !parsedEvidence?.ok ||
+      !parsedCriteria?.ok ||
+      !validResource(raw.resource) ||
+      !AUTOMATIC_DUTIES.includes(raw.duty as AutomaticDuty) ||
+      !identity('ID-EVENT', raw.origin) ||
+      (eventOrdinal(raw.origin as string) ?? 0) < 1 ||
+      !(raw.origin as string).startsWith(`${raw.run}/event/`) ||
+      !text(raw.reason) ||
+      parsedEvidence.value.subject !== parsedCriteria.value.subject ||
+      parsedEvidence.value.claim !== parsedCriteria.value.claim ||
+      raw.accountableOwner !== OWNER ||
+      !integer(raw.startedAt) ||
+      !integer(raw.deadline) ||
+      raw.deadline <= raw.startedAt ||
+      raw.deadline - raw.startedAt < OBLIGATION_BOUND.minimumSeconds ||
+      raw.deadline - raw.startedAt > OBLIGATION_BOUND.maximumSeconds ||
+      !digest(raw.policyDigest)
+    )
+      return fail('FC-INPUT', 'INVALID_OBLIGATION_ALLOCATION_INPUT');
+    const requestedBasis = {
+      run: raw.run,
+      generation: raw.generation,
+      resource: raw.resource,
+      duty: raw.duty,
+      origin: raw.origin,
+      reason: raw.reason,
+      preservationEvidence: parsedEvidence.value,
+      accountableOwner: raw.accountableOwner,
+      criteria: parsedCriteria.value,
+      startedAt: raw.startedAt,
+      deadline: raw.deadline,
+      policyDigest: raw.policyDigest,
+    };
+    const allocationKey = derivedDigest('OBLIGATION-ALLOCATION', requestedBasis);
+    if (!allocationKey) return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_KEY_UNAVAILABLE');
+    for (const existing of obligations.values()) {
+      if (existing.run !== raw.run || existing.origin !== raw.origin) continue;
+      const existingBasis = {
+        run: existing.run,
+        generation: existing.generation,
+        resource: existing.resource,
+        duty: existing.duty,
+        origin: existing.origin,
+        reason: existing.reason,
+        preservationEvidence: existing.preservationEvidence,
+        accountableOwner: existing.accountableOwner,
+        criteria: existing.criteria,
+        startedAt: existing.startedAt,
+        deadline: existing.deadline,
+        policyDigest: existing.policyDigest,
       };
-      for (const existing of obligations.values()) {
-        if (existing.run !== raw.run || existing.origin !== raw.origin) continue;
-        const existingBasis = {
-          run: existing.run,
-          generation: existing.generation,
-          resource: existing.resource,
-          duty: existing.duty,
-          origin: existing.origin,
-          reason: existing.reason,
-          preservationEvidence: existing.preservationEvidence,
-          accountableOwner: existing.accountableOwner,
-          criteria: existing.criteria,
-          startedAt: existing.startedAt,
-          deadline: existing.deadline,
-          policyDigest: existing.policyDigest,
-        };
-        return sameJson(existingBasis, requestedBasis)
-          ? ok(existing)
-          : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
-      }
+      return sameJson(existingBasis, requestedBasis)
+        ? ok(existing)
+        : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
     }
     let highestOrdinal = 0;
+    let replayRecord: LedgerRecord | undefined;
+    let replayOrdinal: number | undefined;
     for (const record of recordsResult.value) {
       const content = fields(record.content, [
         'schema',
@@ -1491,6 +1559,8 @@ export function createScriptedObligationController(
         'criteriaDigest',
         'evidenceDigest',
         'grant',
+        'allocationDigest',
+        'allocationOrigin',
         'boundDigest',
         'observedAt',
       ]);
@@ -1500,10 +1570,22 @@ export function createScriptedObligationController(
         !(content.obligation as string).startsWith(`${raw.run}/obligation/`)
       )
         return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+      if (
+        (content.allocationDigest === null) !== (content.allocationOrigin === null) ||
+        (content.allocationDigest !== null && !digest(content.allocationDigest)) ||
+        (content.allocationOrigin !== null && !identity('ID-EVENT', content.allocationOrigin))
+      )
+        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
       const ordinalText = (content.obligation as string).slice(`${raw.run}/obligation/`.length);
       const ordinal = Number(ordinalText);
       if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
         return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+      if (content.allocationOrigin === raw.origin) {
+        if (content.allocationDigest !== allocationKey) return fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
+        if (replayRecord) return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+        replayRecord = record;
+        replayOrdinal = ordinal;
+      }
       highestOrdinal = Math.max(highestOrdinal, ordinal);
     }
     for (const id of obligations.keys()) {
@@ -1515,7 +1597,43 @@ export function createScriptedObligationController(
       highestOrdinal = Math.max(highestOrdinal, ordinal);
     }
     if (highestOrdinal === Number.MAX_SAFE_INTEGER) return fail('FC-BOUND', 'OBLIGATION_ORDINAL_EXHAUSTED');
-    return open({ ...raw, obligationOrdinal: highestOrdinal + 1 });
+    if (replayRecord && replayOrdinal !== undefined) {
+      const expectedBound = boundDigestFor({
+        id: `${raw.run}/obligation/${replayOrdinal}`,
+        generation: raw.generation as string,
+        policyDigest: raw.policyDigest as string,
+        startedAt: raw.startedAt as number,
+        deadline: raw.deadline as number,
+      });
+      const replayContent = fields(replayRecord.content, [
+        'schema',
+        'type',
+        'obligation',
+        'status',
+        'generation',
+        'criteriaDigest',
+        'evidenceDigest',
+        'grant',
+        'allocationDigest',
+        'allocationOrigin',
+        'boundDigest',
+        'observedAt',
+      ]);
+      if (
+        !expectedBound ||
+        !replayContent ||
+        replayContent.status !== 'open' ||
+        replayContent.generation !== raw.generation ||
+        replayContent.criteriaDigest !== parsedCriteria.value.digest ||
+        replayContent.evidenceDigest !== parsedEvidence.value.referenceDigest ||
+        replayContent.grant !== null ||
+        replayContent.boundDigest !== expectedBound ||
+        replayContent.observedAt !== raw.startedAt
+      )
+        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
+      return open({ ...raw, obligationOrdinal: replayOrdinal }, allocationKey, replayRecord);
+    }
+    return open({ ...raw, obligationOrdinal: highestOrdinal + 1 }, allocationKey);
   };
 
   const issueGrant = (input: unknown): ObligationResult<ObligationGrant> => {
@@ -1590,6 +1708,8 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: null,
       grant: id,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: current.boundDigest,
       observedAt: candidate.issuedAt,
     });
@@ -1617,6 +1737,8 @@ export function createScriptedObligationController(
         criteriaDigest: current.criteria.digest,
         evidenceDigest: null,
         grant: grant.id,
+        allocationDigest: null,
+        allocationOrigin: null,
         boundDigest: current.boundDigest,
         observedAt: raw.observedAt as number,
       });
@@ -1678,6 +1800,8 @@ export function createScriptedObligationController(
       criteriaDigest: updated.criteria.digest,
       evidenceDigest: null,
       grant: null,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -1797,6 +1921,8 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: parsedEvidence.value.referenceDigest,
       grant: current.resolutionGrant ?? (raw.grant as string | null),
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: current.boundDigest,
       observedAt: raw.observedAt as number,
     };
@@ -1869,6 +1995,8 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: intent.evidence.referenceDigest,
       grant: intent.grant,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: current.boundDigest,
       observedAt: intent.observedAt,
     };
@@ -2040,6 +2168,8 @@ export function createScriptedObligationController(
       criteriaDigest: updated.criteria.digest,
       evidenceDigest: null,
       grant: null,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -2070,6 +2200,8 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: raw.conditionDigest as string,
       grant: null,
+      allocationDigest: null,
+      allocationOrigin: null,
       boundDigest: current.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -2144,6 +2276,8 @@ export function restoreScriptedObligationController(
       'criteriaDigest',
       'evidenceDigest',
       'grant',
+      'allocationDigest',
+      'allocationOrigin',
       'boundDigest',
       'observedAt',
     ]);
@@ -2171,6 +2305,8 @@ export function restoreScriptedObligationController(
             criteriaDigest: content.criteriaDigest,
             evidenceDigest: content.evidenceDigest,
             grant: content.grant,
+            allocationDigest: content.allocationDigest,
+            allocationOrigin: content.allocationOrigin,
             boundDigest: content.boundDigest,
             observedAt: content.observedAt,
           },
@@ -2184,6 +2320,8 @@ export function restoreScriptedObligationController(
             criteriaDigest: fact.criteriaDigest,
             evidenceDigest: fact.evidenceDigest,
             grant: fact.grant,
+            allocationDigest: fact.allocationDigest,
+            allocationOrigin: fact.allocationOrigin,
             boundDigest: fact.boundDigest,
             observedAt: fact.observedAt,
           },

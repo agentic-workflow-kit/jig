@@ -6,7 +6,7 @@ const runtime = await import('../dist/index.js');
 const mediation = await import('../dist/mediation.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
-const digest = (character) => character.repeat(64);
+const digest = (character) => (({ p: 'd' })[character] ?? character).repeat(64);
 const run = 'run-000000000001-0123456789abcdef';
 const story = `${run}/story/plan-a`;
 const subject = {
@@ -156,21 +156,24 @@ const retirementObligationInput = () => ({
   policyDigest: digest('p'),
 });
 
-const obligationController = (id = `${run}/obligation/1`) => ({
-  openAllocated: () => ({
-    ok: true,
-    value: {
-      id,
-      event: `${run}/event/99`,
-      run,
-      generation,
-      origin: `${run}/event/5`,
-      duty: 'retirement',
-      preservationEvidence: { referenceDigest: preservation().evidenceDigest },
-      boundDigest: digest('q'),
-      criteria: { digest: digest('r') },
-    },
-  }),
+const obligationController = (id = `${run}/obligation/1`, onOpen = () => {}) => ({
+  openAllocated: (input) => {
+    onOpen(input);
+    return {
+      ok: true,
+      value: {
+        id,
+        event: `${run}/event/99`,
+        run,
+        generation,
+        origin: `${run}/event/5`,
+        duty: 'retirement',
+        preservationEvidence: { referenceDigest: preservation().evidenceDigest },
+        boundDigest: digest('q'),
+        criteria: { digest: digest('r') },
+      },
+    };
+  },
 });
 
 test('GF-041 closes the typed D15 carrier and excludes target authority', () => {
@@ -299,6 +302,27 @@ test('reauthorization snapshot restores the refreshed binding and rejects tamper
   });
 });
 
+test('public transition recorder cannot hydrate past validated snapshot restore', () => {
+  const verifier = { verify: () => ({ ok: true, value: undefined }) };
+  const controller = runtime.createReviewPublicationController({
+    fixture: runtime.createScriptedReviewPublicationFixture(),
+    transition: runtime.createReviewPublicationTransitionRecorder(verifier),
+  });
+  const result = controller.publish({
+    mode: 'required-venue',
+    subject,
+    bindings: reviewBindings(),
+    retryBindings: retryReviewBindings(),
+    faults: [['mechanism-absence', 'none'], 'none', 'none', 'none'],
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const attemptedHydration = runtime.createReviewPublicationTransitionRecorder(
+    verifier,
+    controller.snapshot().transition,
+  );
+  assert.deepEqual(attemptedHydration.snapshot(), { intents: [], reauthorizations: [] });
+});
+
 test('uncertain post-dispatch effect parks without semantic retry', () => {
   const controller = createController();
   const result = controller.publish({
@@ -375,4 +399,24 @@ test('retirement delegates uncertain duty identity to the existing obligation co
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.status, 'obligation');
   assert.equal(result.value.obligation, `${run}/obligation/17`);
+});
+
+test('retirement rejects a mismatched duty before allocation', () => {
+  let calls = 0;
+  const reviewController = createController(undefined, {
+    obligationController: obligationController(`${run}/obligation/18`, () => {
+      calls += 1;
+    }),
+  });
+  const result = reviewController.retire({
+    bindings: retireBindings(),
+    faults: ['lost-response', 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: { ...retirementObligationInput(), origin: `${run}/event/6` },
+  });
+  assert.deepEqual(result, {
+    ok: false,
+    error: { family: 'FC-AUTHORITY', code: 'RETIREMENT_OBLIGATION_BINDING_MISMATCH' },
+  });
+  assert.equal(calls, 0);
 });
