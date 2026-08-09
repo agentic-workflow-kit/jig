@@ -144,6 +144,7 @@ export type ScriptedLedger = Readonly<{
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
   readPreflight(key: string, variant: 'start' | 'result'): LedgerResult<PreflightResult | Readonly<{ kind: 'absent' }>>;
   snapshot(binding: RunStoreBinding): LedgerResult<Readonly<{ position: number; digest: string }>>;
+  records(binding: RunStoreBinding): LedgerResult<readonly LedgerRecord[]>;
   verifySnapshot(
     binding: RunStoreBinding,
     snapshot: Readonly<{ position: number; digest: string }>,
@@ -1031,6 +1032,16 @@ export function createScriptedLedger(): ScriptedLedger {
       if (!state.ok) return state;
       const verified = verifyChain(state.value.records);
       return verified.ok ? { ok: true, value: freeze(verified.value) } : verified;
+    },
+    records(binding) {
+      const state = forRun(binding);
+      if (!state.ok) return state;
+      const verified = verifyChain(state.value.records);
+      if (!verified.ok) return verified;
+      const witness = witnesses.get(state.value.binding.run);
+      if (!witness || witness.position !== verified.value.position || witness.digest !== verified.value.digest)
+        return fail('FC-TRUST', 'WITNESS_NOT_CURRENT');
+      return { ok: true, value: freeze(state.value.records.map((record) => freeze({ ...record }))) };
     },
     verifySnapshot(binding, snapshot) {
       const state = forRun(binding);
