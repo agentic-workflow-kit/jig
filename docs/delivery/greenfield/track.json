@@ -105,7 +105,7 @@
         "GF-038",
         "GF-039"
       ],
-      "exit_gate": "Scripted intake-to-candidate/rework/park/suspend path, qualified local workspace, bounds/capacity/obligation semantics; no acceptance or landing claim."
+      "exit_gate": "Scripted intake-to-candidate/rework/park/suspend path, bounds/capacity/obligation semantics, and GF-039's deferred local-workspace probe; GF-039 remains unconfigurable pending owner-authorized independent qualification evidence; no acceptance or landing claim."
     },
     {
       "id": 4,
@@ -1940,7 +1940,7 @@
       ],
       "dr_gates": ["DR-5"],
       "story_file": "docs/delivery/greenfield/stories/GF-039.md",
-      "outcome": "Initial qualified local Git worktree host; remote and Windows modes remain unconfigurable.",
+      "outcome": "Deferred: local Git worktree remains unconfigurable pending an owner-authorized independent qualification evidence carrier and fresh exact review; remote and Windows modes remain unconfigurable.",
       "oracle": ["CF-MECH-WORKSPACE", "CF-GATE-PROVIDER"],
       "status": "proposed",
       "product_routes": [
@@ -3764,7 +3764,7 @@
       "semantic_story": "GF-033",
       "provider_story": "GF-039",
       "port": "PORT-WORKSPACE",
-      "rule": "Local Git worktree host remains unconfigurable until its exact CF-MECH-WORKSPACE result passes."
+      "rule": "Local Git worktree host remains unconfigurable until its exact CF-MECH-WORKSPACE result, owner-authorized independent qualification evidence, and exact-candidate review pass; same-user durable sidecars are insufficient."
     },
     {
       "semantic_story": "GF-042",
@@ -3826,7 +3826,7 @@
     "After GF-010, controller/recovery, registry, and artifact lanes may proceed independently.",
     "After GF-022 plus their respective complete prerequisites, GF-020 (GF-019), GF-025 (GF-010/GF-012), and GF-026 (GF-013) may qualify in parallel without blocking GF-023's semantic-only development path; real-provider activation still requires every exact gate.",
     "After GF-030 and GF-012, GF-031 may proceed; after GF-031 plus each lane's remaining prerequisites, GF-032 bounds, GF-033 workspace, and GF-034 session lanes may proceed in parallel.",
-    "GF-039 can qualify alongside candidate work after GF-033/GF-022.",
+    "GF-039 remains deferred alongside candidate work after GF-033/GF-022; it may resume only with an owner-authorized independent qualification evidence carrier, fresh exact gate evidence, and exact-candidate review; same-user durable sidecars do not qualify it.",
     "GF-041 review publication may proceed after GF-015/GF-035; GF-040 acceptance then waits for GF-041 plus its other prerequisites, while GF-042 verification semantics may proceed independently before GF-043 joins GF-040/GF-042; GF-047 qualifies independently of final delivery.",
     "After GF-054, CLI and private MCP lanes may proceed independently.",
     "GF-057, GF-060, and GF-061 qualify independently before GF-062."

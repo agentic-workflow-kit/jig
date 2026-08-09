@@ -62,6 +62,11 @@ false, recovery remains fail-closed without autonomous restore, and the external
 that safe-overlap guard. Any attempt to use a real provider closes the overlap until the applicable
 exact qualification evidence, recomposed preview, and refreshed approvals pass.
 
+GF-039 is currently deferred: its semantic GF-033 contract and local conformance probe may remain
+in the phase candidate, but a same-user durable sidecar is not an independent qualification
+carrier. Provider reachability stays fail-closed across restart until an owner-authorized carrier,
+fresh exact gate evidence, and exact-candidate review are available.
+
 ## Story candidate and integration loop
 
 The implementer commits the candidate and runs the story's required checks in its registered worktree with the policy's minimal non-secret environment-name allowlist. Before checks and after review, record tracked/untracked clean status and the exact `git ls-files --others --ignored --exclude-standard` inventory; fail closed on any residue outside the policy allowlist. The ledger binds the exact candidate commit, base, required command/set and result, timestamp and durable log reference, sanitized environment-name allowlist, ignored-state inventory/decision, reviewer identity, independence, findings and verdict. The reviewer reads the frozen `HEAD`, base, diff, predecessor containment, checks, environment/residue evidence, and status under the [reviewer protocol](./reviewer/README.md); it never runs checks or mutates state.
