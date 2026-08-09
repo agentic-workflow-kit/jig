@@ -32,6 +32,7 @@ const MAX_ARGS = 32;
 const MAX_OUTPUT = 16_384;
 const MAX_PREVIEW = 1_024;
 const qualificationCertificates = new WeakMap<object, LocalCommandQualificationEvidence>();
+const PACKAGE_ROOT = new URL('..', import.meta.url).pathname;
 
 export type LocalCommandFailureFamily = VerificationFailureFamily | 'FC-TRUST';
 export type LocalCommandFailure = Readonly<{ family: LocalCommandFailureFamily; code: string }>;
@@ -263,6 +264,25 @@ function fileDigest(path: string): string | undefined {
 
 function currentBuildDigest(): string | undefined {
   return fileDigest(new URL(import.meta.url) as unknown as string);
+}
+
+function currentCandidateSubject(): Readonly<{ commit: string; tree: string }> | undefined {
+  try {
+    const options = {
+      cwd: PACKAGE_ROOT,
+      env: Object.freeze({ PATH: '/usr/bin:/bin' }),
+      encoding: 'utf8' as const,
+      maxBuffer: 256,
+      shell: false as const,
+      stdio: ['ignore', 'pipe', 'pipe'] as const,
+      timeout: 5_000,
+    };
+    const commit = execFileSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD'], options).trim();
+    const tree = execFileSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD^{tree}'], options).trim();
+    return GIT_OBJECT.test(commit) && GIT_OBJECT.test(tree) ? Object.freeze({ commit, tree }) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function canonical(value: unknown): string {
@@ -798,6 +818,9 @@ export function runLocalCommandQualificationProbe(
     return fail('FC-INPUT', 'CANDIDATE_DIGEST_REQUIRED');
   const manifest = parseManifest(input?.manifest);
   if (!manifest.ok) return manifest;
+  const candidate = currentCandidateSubject();
+  if (!candidate || input.candidateCommit !== candidate.commit || input.candidateTree !== candidate.tree)
+    return fail('FC-AUTHORITY', 'CANDIDATE_SUBJECT_UNBOUND');
   const admission = validateAdmission(input.admission, manifest.value);
   if (!admission.ok) return admission;
   const command = manifest.value.value.subprocessAuthority[0];
@@ -947,6 +970,7 @@ function exactQualification(
       candidateCommit: raw.candidateCommit,
       candidateTree: raw.candidateTree,
     });
+  const candidate = currentCandidateSubject();
   if (
     raw?.kind !== 'CF-GATE-PROVIDER' ||
     raw.status !== 'passed' ||
@@ -955,6 +979,9 @@ function exactQualification(
     raw.provider !== LOCAL_COMMAND_VERIFIER_PROVIDER ||
     raw.providerBuildDigest !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST ||
     raw.providerBuildDigest !== currentBuildDigest() ||
+    !candidate ||
+    raw.candidateCommit !== candidate.commit ||
+    raw.candidateTree !== candidate.tree ||
     raw.manifestId !== manifest.manifestId ||
     raw.manifestDigest !== manifest.manifestDigest ||
     raw.environment !== LOCAL_COMMAND_VERIFIER_ENVIRONMENT ||

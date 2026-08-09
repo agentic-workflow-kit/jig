@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { platform } from 'node:os';
@@ -19,6 +20,10 @@ const manifest = provider.createLocalCommandManifest({
 });
 assert.equal(manifest.ok, true);
 const manifestValue = manifest.value;
+const candidateCommit = execFileSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' }).trim();
+const candidateTree = execFileSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD^{tree}'], {
+  encoding: 'utf8',
+}).trim();
 const run = 'run-000000000042-0123456789abcdef';
 const story = `${run}/story/local-command-verifier`;
 const basis = 'a'.repeat(64);
@@ -194,8 +199,8 @@ test('manifest and native posture are exact, local, no-shell, and no-credential'
 
 test('qualified provider binds exact admission, mechanism proof, and command observation', () => {
   const proof = provider.runLocalCommandQualificationProbe({
-    candidateCommit: '1'.repeat(40),
-    candidateTree: '2'.repeat(40),
+    candidateCommit,
+    candidateTree,
     manifest: manifestValue,
     admission: admission(),
   });
@@ -237,8 +242,8 @@ test('qualified provider binds exact admission, mechanism proof, and command obs
 
 test('wrong permit, stale qualification, and retry reuse fail closed without command invocation', () => {
   const proof = provider.runLocalCommandQualificationProbe({
-    candidateCommit: '1'.repeat(40),
-    candidateTree: '2'.repeat(40),
+    candidateCommit,
+    candidateTree,
     manifest: manifestValue,
     admission: admission(),
   });
@@ -313,16 +318,16 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
 
 test('qualification removes its disposable scratch and exposes no delivery or alternate routes', () => {
   const proof = provider.runLocalCommandQualificationProbe({
-    candidateCommit: '1'.repeat(40),
-    candidateTree: '2'.repeat(40),
+    candidateCommit,
+    candidateTree,
     manifest: manifestValue,
     admission: admission(),
   });
   if (!proof.ok) return;
   assert.deepEqual(
     provider.runLocalCommandQualificationProbe({
-      candidateCommit: '1'.repeat(40),
-      candidateTree: '2'.repeat(40),
+      candidateCommit,
+      candidateTree,
       manifest: manifestValue,
       admission: admission(),
       retainRoot: true,
@@ -353,9 +358,21 @@ test('hostile manifest, posture, qualification, and snapshot inputs remain unava
     false,
   );
   assert.equal(provider.attestLocalPosixPosture({ executable: '/usr/bin/false', manifest: manifestValue }).ok, false);
+  assert.deepEqual(
+    provider.runLocalCommandQualificationProbe({
+      candidateCommit: '1'.repeat(40),
+      candidateTree,
+      manifest: manifestValue,
+      admission: admission(),
+    }),
+    {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'CANDIDATE_SUBJECT_UNBOUND' },
+    },
+  );
   const proof = provider.runLocalCommandQualificationProbe({
-    candidateCommit: '1'.repeat(40),
-    candidateTree: '2'.repeat(40),
+    candidateCommit,
+    candidateTree,
     manifest: manifestValue,
     admission: admission(),
   });

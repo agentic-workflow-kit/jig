@@ -44,7 +44,8 @@ declare module 'node:path' {
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare class URL {
-  constructor(value: string);
+  constructor(value: string, base?: string | URL);
+  readonly pathname: string;
 }
 interface ImportMeta {
   url: string;
