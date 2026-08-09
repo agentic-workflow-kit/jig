@@ -202,6 +202,47 @@ test('exhaustion stores immutable event-time grant binding through later revocat
   assert.deepEqual(runtime.restoreScriptedDoorbellController(controller.snapshot()).value.facts(), controller.facts());
 });
 
+test('revoke then reissue cannot rewrite the prior exhaustion grant carrier', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const request = controller.escalate(requestInput());
+  const grant = controller.issueGrant(grantInput(request.value));
+  assert.equal(grant.ok, true);
+  assert.equal(
+    controller.revokeGrant({
+      grant: grant.value.id,
+      revoker: 'principal/arye',
+      revokerProof: digest('a'),
+      reason: 'rotate-delegate',
+      observedAt: 1500,
+    }).ok,
+    true,
+  );
+  assert.equal(controller.expire({ request: request.value.id, observedAt: deadline }).ok, true);
+  const successor = controller.issueGrant(
+    grantInput(request.value, {
+      grantOrdinal: 2,
+      issuedAt: 2000,
+      expiresAt: 3000,
+      supersedes: grant.value.id,
+    }),
+  );
+  assert.equal(successor.ok, true, JSON.stringify(successor));
+  assert.equal(
+    controller.revokeGrant({
+      grant: successor.value.id,
+      revoker: 'principal/arye',
+      revokerProof: digest('a'),
+      reason: 'close-successor',
+      observedAt: 3001,
+    }).ok,
+    true,
+  );
+  const exhaustion = controller.facts().find((fact) => fact.type === 'EV-BOUND-EXHAUSTED');
+  assert.equal(exhaustion.grant, grant.value.id);
+  assert.equal(exhaustion.grantBinding.status, 'revoked');
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(controller.snapshot()).error, undefined);
+});
+
 test('restore rejects exhaustion rebinding to mutable current grant and detects ordinal collisions', () => {
   const controller = runtime.createScriptedDoorbellController();
   const request = controller.escalate(requestInput());
@@ -246,6 +287,36 @@ test('restore requires every durable record fact and preserves grant expiry inde
   assert.equal(runtime.restoreScriptedDoorbellController(controller.snapshot()).ok, true);
 });
 
+test('restore rejects cross-run events, detached decisions, and active-grant projection drift', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const request = controller.escalate(requestInput());
+  const grant = controller.issueGrant(grantInput(request.value));
+  assert.equal(grant.ok, true);
+  const foreignEvent = structuredClone(controller.snapshot());
+  foreignEvent.grants[0].event = `${'run-000000000099-0123456789abcdef'}/event/2`;
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(foreignEvent).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_DOORBELL_SNAPSHOT',
+  });
+  const detached = runtime.createScriptedDoorbellController();
+  const answered = detached.escalate(requestInput());
+  const decision = detached.decide(decisionInput(answered.value));
+  assert.equal(decision.ok, true);
+  const detachedSnapshot = structuredClone(detached.snapshot());
+  detachedSnapshot.requests[0].status = 'open';
+  detachedSnapshot.requests[0].response = null;
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(detachedSnapshot).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_DOORBELL_SNAPSHOT',
+  });
+  const projection = structuredClone(controller.snapshot());
+  projection.requests[0].currentGrant = null;
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(projection).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_DOORBELL_SNAPSHOT',
+  });
+});
+
 test('hostile containers are rejected without invoking accessors', () => {
   const controller = runtime.createScriptedDoorbellController();
   let accessed = false;
@@ -269,6 +340,7 @@ test('cancel and reissue preserves lineage while fencing the predecessor grant',
   const cancelled = controller.cancelAndReissue({
     request: request.value.id,
     reason: 'context-not-restorable',
+    observedAt: 1100,
     successorParkOrdinal: 2,
     successorBinding: binding({ session: `${story}/session/replacement/2` }),
     successorProof: digest('a'),
@@ -289,6 +361,23 @@ test('cancel and reissue preserves lineage while fencing the predecessor grant',
   assert.equal(runtime.restoreScriptedDoorbellController(controller.snapshot()).ok, true);
 });
 
+test('cancel and reissue requires an actual replacement session', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const request = controller.escalate(requestInput());
+  assert.equal(request.ok, true);
+  assert.deepEqual(
+    controller.cancelAndReissue({
+      request: request.value.id,
+      reason: 'same-session-rejected',
+      observedAt: 1100,
+      successorParkOrdinal: 2,
+      successorBinding: binding(),
+      successorProof: digest('a'),
+    }).error,
+    { family: 'FC-FENCE', code: 'REISSUE_SESSION_NOT_REPLACED' },
+  );
+});
+
 test('uncertain response is reconciled without blind resend', () => {
   const controller = runtime.createScriptedDoorbellController();
   const request = controller.escalate(requestInput());
@@ -306,4 +395,25 @@ test('uncertain response is reconciled without blind resend', () => {
     family: 'FC-EFFECT',
     code: 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION',
   });
+  const secondOperation = operation.replace('/op/1', '/op/2');
+  assert.deepEqual(
+    controller.respond({ operation: secondOperation, request: request.value.id, decision: decision.value.event }).error,
+    {
+      family: 'FC-EFFECT',
+      code: 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION',
+    },
+  );
+  const absent = controller.reconcileResponse({
+    operation,
+    outcome: 'confirmed-absence',
+    observationDigest: null,
+  });
+  assert.equal(absent.ok, true);
+  assert.deepEqual(
+    controller.respond({ operation: secondOperation, request: request.value.id, decision: decision.value.event }).error,
+    {
+      family: 'FC-FENCE',
+      code: 'RESPONSE_ALREADY_RECORDED',
+    },
+  );
 });

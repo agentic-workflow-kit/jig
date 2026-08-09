@@ -375,8 +375,19 @@ function grantBinding(
   });
 }
 
-function sameGrantBinding(left: EventTimeGrantBinding, right: EventTimeGrantBinding): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+function sameImmutableGrantBinding(left: EventTimeGrantBinding, right: EventTimeGrantBinding): boolean {
+  return (
+    left.id === right.id &&
+    left.request === right.request &&
+    left.run === right.run &&
+    left.generation === right.generation &&
+    left.delegate === right.delegate &&
+    left.action === right.action &&
+    left.scope === right.scope &&
+    left.issuedAt === right.issuedAt &&
+    left.expiresAt === right.expiresAt &&
+    left.grantDigest === right.grantDigest
+  );
 }
 
 export function createScriptedDoorbellController(
@@ -618,6 +629,10 @@ export function createScriptedDoorbellController(
       revocationReason: status === 'revoked' ? reason : null,
     }) as DelegationGrant;
     grants = new Map(grants).set(grant.id, updated);
+    const request = requests.get(grant.request);
+    if (request?.currentGrant === grant.id) {
+      requests = new Map(requests).set(request.id, deepFreeze({ ...request, currentGrant: null }));
+    }
     appendFact({
       event,
       type: status === 'revoked' ? 'EV-DELEGATION-REVOKED' : 'EV-DELEGATION-EXPIRED',
@@ -717,7 +732,6 @@ export function createScriptedDoorbellController(
         return fail('FC-FENCE', 'GRANT_NOT_CURRENT');
       }
     }
-    const id = `${request.binding.run}/event/${raw.decisionOrdinal}`;
     const event = eventId(request.binding.run);
     const decision = deepFreeze({
       schema: DECISION_SCHEMA,
@@ -776,6 +790,12 @@ export function createScriptedDoorbellController(
     const prior = [...responseIntents.values()].find((item) => item.operation === raw.operation);
     if (prior)
       return prior.status === 'uncertain' ? fail('FC-EFFECT', 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION') : ok(prior);
+    const priorForRequest = [...responseIntents.values()].find((item) => item.request === request.id);
+    if (priorForRequest) {
+      return priorForRequest.status === 'uncertain'
+        ? fail('FC-EFFECT', 'UNCERTAIN_RESPONSE_REQUIRES_RECONCILIATION')
+        : fail('FC-FENCE', 'RESPONSE_ALREADY_RECORDED');
+    }
     const event = eventId(request.binding.run);
     const intent = deepFreeze({
       schema: RESPONSE_INTENT_SCHEMA,
@@ -847,8 +867,33 @@ export function createScriptedDoorbellController(
     if (request.status !== 'open') return ok(request);
     if (raw.observedAt < request.deadline) return fail('FC-BOUND', 'DECISION_WAIT_NOT_EXHAUSTED');
     if (request.exhaustionCount > 0) return ok(request);
-    const current = request.currentGrant ? (grants.get(request.currentGrant) ?? null) : null;
-    const historicalGrant = current ? grantBinding(current, current.status) : null;
+    const observedAt = raw.observedAt as number;
+    const candidates = [...grants.values()]
+      .filter((grant) => grant.request === request.id && grant.issuedAt <= observedAt)
+      .map((grant) => {
+        const statusFact = facts
+          .filter(
+            (fact) =>
+              fact.grant === grant.id &&
+              (fact.type === 'EV-DELEGATION-REVOKED' || fact.type === 'EV-DELEGATION-EXPIRED') &&
+              typeof fact.observedAt === 'number' &&
+              fact.observedAt <= observedAt,
+          )
+          .sort((left, right) => (left.observedAt ?? 0) - (right.observedAt ?? 0))
+          .at(-1);
+        const status: EventTimeGrantBinding['status'] = statusFact
+          ? statusFact.type === 'EV-DELEGATION-REVOKED'
+            ? 'revoked'
+            : 'expired'
+          : 'active';
+        return { grant, status };
+      })
+      .sort((left, right) => {
+        const issued = right.grant.issuedAt - left.grant.issuedAt;
+        return issued !== 0 ? issued : (eventOrdinal(right.grant.event) ?? 0) - (eventOrdinal(left.grant.event) ?? 0);
+      });
+    const historical = candidates[0] ?? null;
+    const historicalGrant = historical ? grantBinding(historical.grant, historical.status) : null;
     const event = eventId(request.binding.run);
     const updated = deepFreeze({ ...request, exhaustionCount: 1, lastExhaustionEvent: event });
     requests = new Map(requests).set(request.id, updated);
@@ -857,7 +902,7 @@ export function createScriptedDoorbellController(
       type: 'EV-BOUND-EXHAUSTED',
       subject: request.binding.story,
       request: request.id,
-      grant: current?.id ?? null,
+      grant: historical?.grant.id ?? null,
       operation: null,
       binding: request.binding,
       grantBinding: historicalGrant,
@@ -867,13 +912,21 @@ export function createScriptedDoorbellController(
   };
 
   const cancelAndReissue = (input: unknown): DoorbellResult<EscalationRequest> => {
-    const raw = fields(input, ['request', 'reason', 'successorParkOrdinal', 'successorBinding', 'successorProof']);
+    const raw = fields(input, [
+      'request',
+      'reason',
+      'observedAt',
+      'successorParkOrdinal',
+      'successorBinding',
+      'successorProof',
+    ]);
     const successorBinding = raw && parseBinding(raw.successorBinding);
     if (
       !raw ||
       typeof raw.request !== 'string' ||
       !identity('ID-PARK', raw.request) ||
       !text(raw.reason) ||
+      !integer(raw.observedAt) ||
       !integer(raw.successorParkOrdinal) ||
       !successorBinding ||
       !digest(raw.successorProof) ||
@@ -892,6 +945,13 @@ export function createScriptedDoorbellController(
       successorBinding.generation !== request.binding.generation
     )
       return fail('FC-SUBJECT', 'REISSUE_BINDING_MISMATCH');
+    if (successorBinding.session === request.binding.session) return fail('FC-FENCE', 'REISSUE_SESSION_NOT_REPLACED');
+    if (request.currentGrant) {
+      const grant = grants.get(request.currentGrant);
+      if (!grant || grant.status !== 'active') return fail('FC-FENCE', 'CURRENT_GRANT_NOT_ACTIVE');
+      changeGrantStatus(grant, 'revoked', raw.observedAt, OWNER, 'session-replacement');
+    }
+    const currentRequest = requests.get(request.id) ?? request;
     const successorId = `${request.binding.run}/park/${raw.successorParkOrdinal}`;
     const successorDigest = requestDigestFor({
       binding: successorBinding,
@@ -904,13 +964,13 @@ export function createScriptedDoorbellController(
     });
     if (!successorDigest) return fail('FC-TRUST', 'REQUEST_DIGEST_UNAVAILABLE');
     const cancelled = deepFreeze({
-      ...request,
+      ...currentRequest,
       status: 'cancelled' as const,
       successorRequest: successorId,
       closureReason: raw.reason,
     });
     const successor = deepFreeze({
-      ...request,
+      ...currentRequest,
       id: successorId,
       event: eventId(request.binding.run),
       binding: successorBinding,
@@ -920,7 +980,7 @@ export function createScriptedDoorbellController(
       currentGrant: null,
       status: 'open' as const,
       response: null,
-      predecessorRequest: request.id,
+      predecessorRequest: currentRequest.id,
       successorRequest: null,
       closureReason: null,
     }) as EscalationRequest;
@@ -1024,6 +1084,8 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
     eventIds.set(ordinal, event);
     return true;
   };
+  const eventOwnedBy = (event: unknown, run: string): boolean =>
+    typeof event === 'string' && event.startsWith(`${run}/event/`);
   for (const request of requests) {
     const binding = parseSnapshotBinding(request?.binding);
     if (
@@ -1035,6 +1097,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       !identity('ID-PARK', request.id) ||
       request.id !== `${binding.run}/park/${request.id.split('/park/')[1]}` ||
       !registerEvent(request.event) ||
+      !eventOwnedBy(request.event, binding.run) ||
       !DOORBELL_REQUEST_KINDS.includes(request.kind) ||
       !DOORBELL_ACTIONS.includes(request.action) ||
       !text(request.scope) ||
@@ -1047,7 +1110,9 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       request.deadline - request.startedAt > DOORBELL_BOUND.maximumSeconds ||
       !integer(request.exhaustionCount) ||
       request.exhaustionCount > 1 ||
-      (request.lastExhaustionEvent !== null && !identity('ID-EVENT', request.lastExhaustionEvent)) ||
+      (request.lastExhaustionEvent !== null &&
+        (!identity('ID-EVENT', request.lastExhaustionEvent) ||
+          !eventOwnedBy(request.lastExhaustionEvent, binding.run))) ||
       (request.currentGrant !== null && !identity('ID-GRANT', request.currentGrant)) ||
       !['open', 'answered', 'cancelled'].includes(request.status) ||
       (request.response !== null &&
@@ -1072,9 +1137,19 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       !binding ||
       !identity('ID-GRANT', grant.id) ||
       !registerEvent(grant.event) ||
+      !eventOwnedBy(grant.event, binding.run) ||
       !identity('ID-PARK', grant.request) ||
       !requestMap.has(grant.request) ||
       grant.binding.run !== requestMap.get(grant.request)!.binding.run ||
+      grant.binding.story !== requestMap.get(grant.request)!.binding.story ||
+      grant.binding.candidate !== requestMap.get(grant.request)!.binding.candidate ||
+      grant.binding.session !== requestMap.get(grant.request)!.binding.session ||
+      grant.binding.principal !== requestMap.get(grant.request)!.binding.principal ||
+      grant.binding.assignmentOrdinal !== requestMap.get(grant.request)!.binding.assignmentOrdinal ||
+      grant.binding.assignmentBasis !== requestMap.get(grant.request)!.binding.assignmentBasis ||
+      grant.action !== requestMap.get(grant.request)!.action ||
+      grant.scope !== requestMap.get(grant.request)!.scope ||
+      grant.generation !== requestMap.get(grant.request)!.binding.generation ||
       grant.grantor !== OWNER ||
       !identity('ID-PRINCIPAL', grant.delegate) ||
       grant.delegate === OWNER ||
@@ -1086,7 +1161,8 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       grant.expiresAt - grant.issuedAt > DOORBELL_BOUND.maximumSeconds ||
       grant.generation !== binding.generation ||
       !['active', 'revoked', 'expired'].includes(grant.status) ||
-      (grant.statusEvent !== null && !registerEvent(grant.statusEvent)) ||
+      (grant.statusEvent !== null &&
+        (!registerEvent(grant.statusEvent) || !eventOwnedBy(grant.statusEvent, binding.run))) ||
       (grant.status === 'active' && grant.statusEvent !== null) ||
       (grant.status !== 'active' && grant.statusEvent === null) ||
       (grant.status === 'revoked' &&
@@ -1109,6 +1185,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       !binding ||
       !identity('ID-EVENT', decision.event) ||
       !registerEvent(decision.event) ||
+      !eventOwnedBy(decision.event, binding.run) ||
       !integer(decision.decisionOrdinal) ||
       decision.decisionOrdinal < 1 ||
       !requestMap.has(decision.request) ||
@@ -1139,6 +1216,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       intent.type !== 'OPC-SESSION-RESPOND' ||
       !binding ||
       !registerEvent(intent.event) ||
+      !eventOwnedBy(intent.event, binding.run) ||
       !identity('ID-OP', intent.operation) ||
       !identity('ID-PARK', intent.request) ||
       !identity('ID-EVENT', intent.decision) ||
@@ -1148,6 +1226,7 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       intent.port !== DOORBELL_PORT ||
       intent.controller !== DOORBELL_CONTROLLER ||
       !digest(intent.answerDigest) ||
+      intent.answerDigest !== decisionMap.get(intent.decision)?.answerDigest ||
       !['recorded', 'uncertain', 'confirmed', 'confirmed-absence'].includes(intent.status) ||
       (intent.observationDigest !== null && !digest(intent.observationDigest)) ||
       intentMap.has(intent.event)
@@ -1155,54 +1234,244 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     intentMap.set(intent.event, deepFreeze(intent));
   }
+  for (const request of requests) {
+    const decision = request.response ? decisionMap.get(request.response.event) : undefined;
+    if (request.status === 'answered') {
+      if (
+        !request.response ||
+        !decision ||
+        decision.request !== request.id ||
+        decision.responder !== request.response.responder ||
+        decision.answerDigest !== request.response.answerDigest ||
+        !sameBinding(decision.binding, request.binding)
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    } else if (request.response !== null || decision) {
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (request.currentGrant !== null) {
+      const grant = grantMap.get(request.currentGrant);
+      if (
+        !grant ||
+        grant.status !== 'active' ||
+        grant.request !== request.id ||
+        !sameBinding(grant.binding, request.binding) ||
+        grant.generation !== request.binding.generation
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (request.predecessorRequest !== null) {
+      const predecessor = requestMap.get(request.predecessorRequest);
+      if (
+        !predecessor ||
+        predecessor.successorRequest !== request.id ||
+        predecessor.status !== 'cancelled' ||
+        request.binding.session === predecessor.binding.session ||
+        !sameBinding(
+          { ...request.binding, session: predecessor.binding.session },
+          { ...predecessor.binding, session: predecessor.binding.session },
+        )
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (request.successorRequest !== null) {
+      const successor = requestMap.get(request.successorRequest);
+      if (
+        request.status !== 'cancelled' ||
+        !successor ||
+        successor.predecessorRequest !== request.id ||
+        successor.binding.session === request.binding.session ||
+        successor.binding.run !== request.binding.run ||
+        successor.binding.story !== request.binding.story ||
+        successor.binding.candidate !== request.binding.candidate ||
+        successor.binding.principal !== request.binding.principal ||
+        successor.binding.assignmentOrdinal !== request.binding.assignmentOrdinal ||
+        successor.binding.generation !== request.binding.generation
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+  }
+  for (const grant of grants) {
+    const request = requestMap.get(grant.request);
+    if (!request) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    if (grant.status === 'active' && request.currentGrant !== grant.id)
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    if (grant.status !== 'active' && request.currentGrant === grant.id)
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    if (grant.supersedes !== null) {
+      const predecessor = grantMap.get(grant.supersedes);
+      if (
+        !predecessor ||
+        predecessor.request !== grant.request ||
+        predecessor.status === 'active' ||
+        !sameBinding(predecessor.binding, grant.binding) ||
+        predecessor.binding.generation !== grant.binding.generation
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+  }
+  for (const decision of decisions) {
+    const request = requestMap.get(decision.request);
+    if (
+      !request ||
+      request.status !== 'answered' ||
+      !request.response ||
+      request.response.event !== decision.event ||
+      !sameBinding(request.binding, decision.binding)
+    )
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+  }
+  const intentRequests = new Map<string, ResponseIntent>();
+  for (const intent of intents) {
+    if (intentRequests.has(intent.request)) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    intentRequests.set(intent.request, intent);
+  }
+  const grantStatusAt = (grant: DelegationGrant, observedAt: number): EventTimeGrantBinding['status'] => {
+    const statusFact = facts
+      .filter(
+        (fact) =>
+          fact.grant === grant.id &&
+          (fact.type === 'EV-DELEGATION-REVOKED' || fact.type === 'EV-DELEGATION-EXPIRED') &&
+          typeof fact.observedAt === 'number' &&
+          fact.observedAt <= observedAt,
+      )
+      .sort((left, right) => (left.observedAt ?? 0) - (right.observedAt ?? 0))
+      .at(-1);
+    return statusFact ? (statusFact.type === 'EV-DELEGATION-REVOKED' ? 'revoked' : 'expired') : 'active';
+  };
   for (const fact of facts) {
     const binding = parseSnapshotBinding(fact?.binding);
     if (
       !fact ||
       !binding ||
       !registerEvent(fact.event) ||
+      !eventOwnedBy(fact.event, binding.run) ||
       !identity('ID-STORY', fact.subject) ||
+      ![
+        'EV-SESSION-HUMAN-REQUEST',
+        'EV-DELEGATION-GRANT',
+        'EV-OWNER-DECISION',
+        'EV-BOUND-EXHAUSTED',
+        'EV-DELEGATION-REVOKED',
+        'EV-DELEGATION-EXPIRED',
+        'OPC-SESSION-RESPOND',
+      ].includes(fact.type) ||
       (fact.request !== null && !requestMap.has(fact.request)) ||
       (fact.grant !== null && !grantMap.has(fact.grant)) ||
       (fact.operation !== null && !identity('ID-OP', fact.operation)) ||
       (fact.grantBinding !== null && !identity('ID-GRANT', fact.grantBinding.id)) ||
       (fact.grantBinding !== null &&
         (!grantMap.has(fact.grantBinding.id) ||
-          !sameGrantBinding(fact.grantBinding, {
-            ...grantBinding(
-              grantMap.get(fact.grantBinding.id)!,
-              fact.type === 'EV-DELEGATION-REVOKED' ||
-                fact.type === 'EV-DELEGATION-EXPIRED' ||
-                grantMap.get(fact.grantBinding.id)!.status === 'active' ||
-                (grantMap.get(fact.grantBinding.id)!.statusEvent !== null &&
-                  (eventOrdinal(fact.event) ?? 0) <
-                    (eventOrdinal(grantMap.get(fact.grantBinding.id)!.statusEvent!) ?? 0))
-                ? 'active'
-                : grantMap.get(fact.grantBinding.id)!.status,
-            ),
-          })))
+          fact.grant !== fact.grantBinding.id ||
+          !sameImmutableGrantBinding(fact.grantBinding, grantBinding(grantMap.get(fact.grantBinding.id)!, 'active')) ||
+          fact.grantBinding.run !== binding.run ||
+          fact.grantBinding.request !== fact.request)) ||
+      (fact.grant === null && fact.grantBinding !== null) ||
+      (fact.grant !== null && fact.grantBinding === null && fact.type !== 'EV-SESSION-HUMAN-REQUEST')
     )
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     const sourceRequest = fact.request ? requestMap.get(fact.request)! : null;
     if (sourceRequest && !sameBinding(binding, sourceRequest.binding))
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    const sourceGrant = fact.grant ? grantMap.get(fact.grant) : null;
+    if (sourceGrant && !sameBinding(binding, sourceGrant.binding)) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    if (fact.type === 'EV-SESSION-HUMAN-REQUEST') {
+      if (
+        !sourceRequest ||
+        sourceRequest.event !== fact.event ||
+        fact.subject !== sourceRequest.binding.story ||
+        fact.grant !== null ||
+        fact.operation !== null ||
+        fact.grantBinding !== null
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (fact.type === 'EV-DELEGATION-GRANT') {
+      if (
+        !sourceGrant ||
+        sourceGrant.event !== fact.event ||
+        fact.subject !== sourceGrant.binding.story ||
+        fact.request !== sourceGrant.request ||
+        fact.grant !== sourceGrant.id ||
+        fact.operation !== null
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (fact.type === 'EV-OWNER-DECISION') {
+      const decision = decisionMap.get(fact.event);
+      if (
+        !decision ||
+        fact.subject !== decision.binding.story ||
+        fact.request !== decision.request ||
+        fact.grant !== decision.grant ||
+        fact.operation !== null
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (fact.type === 'OPC-SESSION-RESPOND') {
+      const intent = intentMap.get(fact.event);
+      const decision = intent ? decisionMap.get(intent.decision) : null;
+      if (
+        !intent ||
+        !decision ||
+        fact.subject !== intent.binding.story ||
+        fact.request !== intent.request ||
+        fact.grant !== decision.grant ||
+        fact.operation !== intent.operation
+      )
+        return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
+    if (fact.type === 'EV-BOUND-EXHAUSTED' && fact.subject !== sourceRequest?.binding.story)
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     if (
       fact.type === 'EV-BOUND-EXHAUSTED' &&
-      (!sourceRequest || sourceRequest.lastExhaustionEvent !== fact.event || sourceRequest.exhaustionCount !== 1)
+      (!sourceRequest ||
+        sourceRequest.lastExhaustionEvent !== fact.event ||
+        sourceRequest.exhaustionCount !== 1 ||
+        fact.observedAt === null ||
+        (fact.grantBinding !== null && fact.grantBinding.status !== grantStatusAt(sourceGrant!, fact.observedAt)))
     )
       return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     if (fact.type === 'EV-DELEGATION-REVOKED' || fact.type === 'EV-DELEGATION-EXPIRED') {
       const grant = fact.grant ? grantMap.get(fact.grant) : undefined;
       if (
         !grant ||
+        fact.subject !== grant.binding.story ||
         grant.statusEvent !== fact.event ||
         (fact.type === 'EV-DELEGATION-REVOKED' ? grant.status !== 'revoked' : grant.status !== 'expired')
       )
         return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
     }
+    if (fact.grantBinding !== null) {
+      const decision = fact.type === 'EV-OWNER-DECISION' ? decisionMap.get(fact.event) : null;
+      const intent = fact.type === 'OPC-SESSION-RESPOND' ? intentMap.get(fact.event) : null;
+      const observedAt =
+        fact.type === 'EV-DELEGATION-GRANT' ||
+        fact.type === 'EV-DELEGATION-REVOKED' ||
+        fact.type === 'EV-DELEGATION-EXPIRED' ||
+        fact.type === 'EV-BOUND-EXHAUSTED'
+          ? fact.observedAt
+          : (decision?.observedAt ?? (intent ? decisionMap.get(intent.decision)?.observedAt : null));
+      if (observedAt === null || observedAt === undefined) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+      const expectedStatus =
+        fact.type === 'EV-DELEGATION-REVOKED' || fact.type === 'EV-DELEGATION-EXPIRED'
+          ? 'active'
+          : grantStatusAt(sourceGrant!, observedAt);
+      if (fact.grantBinding.status !== expectedStatus) return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+    }
   }
   const factKey = (fact: DoorbellFact): string =>
     `${fact.event}|${fact.type}|${fact.request ?? ''}|${fact.grant ?? ''}|${fact.operation ?? ''}`;
+  const exhaustionFacts = facts.filter((fact) => fact.type === 'EV-BOUND-EXHAUSTED');
+  for (const request of requests.filter((entry) => entry.exhaustionCount === 1)) {
+    if (
+      exhaustionFacts.filter((fact) => fact.request === request.id && fact.event === request.lastExhaustionEvent)
+        .length !== 1
+    )
+      return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
+  }
+  if (exhaustionFacts.some((fact) => fact.request === null || requestMap.get(fact.request)?.exhaustionCount !== 1))
+    return fail('FC-TRUST', 'INVALID_DOORBELL_SNAPSHOT');
   const expectedFacts = [
     ...requests.map((request) => ({
       event: request.event,
@@ -1241,15 +1510,13 @@ export function restoreScriptedDoorbellController(value: unknown): DoorbellResul
         grant: grant.id,
         operation: null,
       })),
-    ...requests
-      .filter((request) => request.exhaustionCount === 1)
-      .map((request) => ({
-        event: request.lastExhaustionEvent!,
-        type: 'EV-BOUND-EXHAUSTED',
-        request: request.id,
-        grant: request.currentGrant,
-        operation: null,
-      })),
+    ...exhaustionFacts.map((fact) => ({
+      event: fact.event,
+      type: fact.type,
+      request: fact.request,
+      grant: fact.grant,
+      operation: fact.operation,
+    })),
   ];
   const expectedCounts = new Map<string, number>();
   for (const expected of expectedFacts) {
