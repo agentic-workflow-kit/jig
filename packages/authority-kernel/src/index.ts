@@ -41,6 +41,7 @@ export {
   operationEffect,
   validateTransitionOperation,
 } from './operation.js';
+export * from './run-control.js';
 export * from './scheduler.js';
 
 export const AUTHORITY_KERNEL_VERSION = 'jig.authority-kernel.v1';
