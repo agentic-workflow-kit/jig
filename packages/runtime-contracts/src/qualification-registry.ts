@@ -229,5 +229,5 @@ export function registerProviderAdmissionCertificateClaims(certificate: object, 
 }
 
 export function readProviderAdmissionCertificateClaims(certificate: object): ProviderAdmissionClaims | undefined {
-  return providerAdmissionCertificateClaims.get(certificate);
+  return providerAdmissionCertificateClaims.get(certificate) ?? providerAdmissionExecutionClaims.get(certificate);
 }

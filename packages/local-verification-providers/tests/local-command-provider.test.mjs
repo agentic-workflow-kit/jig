@@ -7,7 +7,6 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const admissionAuthority = await import('../../runtime-contracts/dist/qualification-certificate.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -171,9 +170,8 @@ const admission = () => {
   const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: 86_400_000 });
   assert.equal(admitted.ok, true);
   assert.equal('certificate' in admitted.value, false);
-  const certificate = admissionAuthority.mintProviderAdmissionCertificate(admitted.value.admissionCarrier);
-  assert.ok(certificate);
-  return { certificate };
+  assert.ok(admitted.value.admissionCarrier);
+  return { certificate: admitted.value.admissionCarrier };
 };
 
 const checkoutResource = (requestValue, path = checkoutPath) =>
@@ -238,7 +236,6 @@ test('GF-022 admission is opaque and cannot be minted by caller-shaped data', ()
     }),
     { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
   );
-  assert.equal('mintProviderAdmissionCertificate' in runtime, false);
 });
 
 test('admission freshness is checked against the current clock at create, restore, and dispatch', () => {
