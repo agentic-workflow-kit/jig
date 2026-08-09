@@ -1,4 +1,5 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { ENVELOPE_BOUNDS } from './envelope.js';
 import { isScriptedEvidenceFixture, type ScriptedEvidenceFixture } from './evidence.js';
 import {
   createLedgerRecord,
@@ -202,7 +203,7 @@ export type ObligationSnapshot = Readonly<{
   grants: readonly ObligationGrant[];
   intents: readonly ObligationResolutionIntent[];
   facts: readonly ObligationFact[];
-  legacyFacts: readonly ObligationFact[];
+  ledgerFacts: readonly ObligationFact[];
 }>;
 
 export type ObligationFixtureEvidence = Readonly<{
@@ -244,7 +245,7 @@ type HydratedState = Readonly<{
   grants: readonly ObligationGrant[];
   intents: readonly ObligationResolutionIntent[];
   facts: readonly ObligationFact[];
-  legacyFacts: readonly ObligationFact[];
+  ledgerFacts: readonly ObligationFact[];
   nextEventOrdinal: number;
   ledgerBinding: RunStoreBinding;
   ledgerHead: Readonly<{ position: number; digest: string }>;
@@ -1033,7 +1034,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
       'grants',
       'intents',
       'facts',
-      'legacyFacts',
+      'ledgerFacts',
     ]) ??
     fields(value, [
       'schema',
@@ -1051,15 +1052,15 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
   const grants = raw && plainArray(raw.grants);
   const intents = raw && plainArray(raw.intents);
   const factValues = raw && plainArray(raw.facts)?.map((fact) => parseFactContent(fact));
-  const legacyFactValues =
-    raw && 'legacyFacts' in raw ? plainArray(raw.legacyFacts)?.map((fact) => parseFactContent(fact)) : [];
+  const ledgerFactValues =
+    raw && 'ledgerFacts' in raw ? plainArray(raw.ledgerFacts)?.map((fact) => parseFactContent(fact)) : [];
   const facts =
     factValues && factValues.every((fact): fact is ObligationFact => fact !== undefined)
       ? Object.freeze(factValues)
       : undefined;
-  const legacyFacts =
-    legacyFactValues && legacyFactValues.every((fact): fact is ObligationFact => fact !== undefined)
-      ? Object.freeze(legacyFactValues)
+  const ledgerFacts =
+    ledgerFactValues && ledgerFactValues.every((fact): fact is ObligationFact => fact !== undefined)
+      ? Object.freeze(ledgerFactValues)
       : undefined;
   if (
     !raw ||
@@ -1079,7 +1080,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     !grants ||
     !intents ||
     !facts ||
-    !legacyFacts
+    !ledgerFacts
   )
     return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   if (
@@ -1087,8 +1088,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     !grants.every(validGrant) ||
     !intents.every(validIntent) ||
     !facts.every(validFact) ||
-    !legacyFacts.every(validFact) ||
-    legacyFacts.some((fact) => fact.allocationVersion !== null)
+    !ledgerFacts.every(validFact)
   )
     return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   const obligationMap = new Map(obligations.map((item) => [item.id, item]));
@@ -1097,8 +1097,8 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     obligationMap.size !== obligations.length ||
     grantMap.size !== grants.length ||
     new Set(facts.map((fact) => fact.event)).size !== facts.length ||
-    new Set(legacyFacts.map((fact) => fact.event)).size !== legacyFacts.length ||
-    legacyFacts.some((fact) => new Set(facts.map((entry) => entry.event)).has(fact.event))
+    new Set(ledgerFacts.map((fact) => fact.event)).size !== ledgerFacts.length ||
+    ledgerFacts.some((fact) => new Set(facts.map((entry) => entry.event)).has(fact.event))
   )
     return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   let highestEvent = 0;
@@ -1117,7 +1117,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     highestEvent = Math.max(highestEvent, ordinal);
     if (fact.grant !== null && !grantMap.has(fact.grant)) return fail('FC-TRUST', 'INVALID_OBLIGATION_SNAPSHOT');
   }
-  for (const fact of legacyFacts) {
+  for (const fact of ledgerFacts) {
     const ordinal = eventOrdinal(fact.event);
     if (
       !ordinal ||
@@ -1243,7 +1243,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
     grants: grants as ObligationGrant[],
     intents: intents as ObligationResolutionIntent[],
     facts: facts as ObligationFact[],
-    legacyFacts: legacyFacts as ObligationFact[],
+    ledgerFacts: ledgerFacts as ObligationFact[],
     nextEventOrdinal: raw.nextEventOrdinal as number,
     ledgerBinding: ledgerBinding as RunStoreBinding,
     ledgerHead: ledgerHead as Readonly<{ position: number; digest: string }>,
@@ -1292,7 +1292,7 @@ export function createScriptedObligationController(
     (options?.hydrate?.intents ?? []).map((item) => [item.key, item]),
   );
   let facts = [...(options?.hydrate?.facts ?? [])];
-  let legacyFacts = [...(options?.hydrate?.legacyFacts ?? [])];
+  let ledgerFacts = [...(options?.hydrate?.ledgerFacts ?? [])];
   let activeBinding: RunStoreBinding | null = options?.hydrate?.ledgerBinding ?? null;
   let ledgerHead: Readonly<{ position: number; digest: string }> | null = options?.hydrate?.ledgerHead ?? null;
   const ledgerFaultPlan = [...(options?.ledgerFaultPlan ?? [])];
@@ -1483,6 +1483,7 @@ export function createScriptedObligationController(
     capturedHead: Readonly<{ position: number; digest: string }>,
     content: Record<string, unknown>,
     allocationKey: string,
+    waitStartedAt: number,
   ): ObligationResult<LedgerRecord> => {
     if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
     const faults = ledgerFaultPlan.shift() ?? {};
@@ -1497,8 +1498,15 @@ export function createScriptedObligationController(
       content: { schema: OBLIGATION_FACT_SCHEMA, ...content } as never,
     });
     if (!prepared.ok) return fail(prepared.error.family, prepared.error.code);
+    const waitLimitMs = ENVELOPE_BOUNDS['BND-WAIT-LEDGER'].default * 1000;
+    const elapsedMs = Math.max(0, Date.now() - waitStartedAt);
     const appended = ledger.append(
-      { binding, expectedPosition: capturedHead.position, record: prepared.value },
+      {
+        binding,
+        expectedPosition: capturedHead.position,
+        record: prepared.value,
+        wait: { elapsedMs, limitMs: waitLimitMs },
+      },
       faults.append,
     );
     let record: LedgerRecord;
@@ -1780,13 +1788,13 @@ export function createScriptedObligationController(
           highestOrdinal: number;
           replayRecord?: LedgerRecord;
           replayOrdinal?: number;
-          legacyFacts: readonly ObligationFact[];
+          ledgerFacts: readonly ObligationFact[];
         }>
       | ObligationFailure => {
       let highestOrdinal = 0;
       let replayRecord: LedgerRecord | undefined;
       let replayOrdinal: number | undefined;
-      const legacyFacts: ObligationFact[] = [];
+      const ledgerFacts: ObligationFact[] = [];
       for (const record of records) {
         const modernContent = fields(record.content, ['schema', ...FACT_FIELDS.filter((field) => field !== 'event')]);
         const priorContent = fields(record.content, [
@@ -1802,7 +1810,7 @@ export function createScriptedObligationController(
         const { schema: _schema, ...factContent } = content;
         const fact = parseFactContent(factContent, record.event);
         if (!fact) return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
-        if (priorContent || legacyContent) legacyFacts.push(fact);
+        ledgerFacts.push(fact);
         if (fact.type !== 'SCH-OBLIGATION') continue;
         if (!identity('ID-OBLIGATION', fact.obligation) || !fact.obligation.startsWith(`${raw.run}/obligation/`))
           return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
@@ -1820,12 +1828,18 @@ export function createScriptedObligationController(
           return { family: 'FC-SUBJECT', code: 'OBLIGATION_ALLOCATION_COLLISION' };
         }
       }
-      return { highestOrdinal, replayRecord, replayOrdinal, legacyFacts };
+      return { highestOrdinal, replayRecord, replayOrdinal, ledgerFacts };
+    };
+    const rememberLedgerFacts = (entries: readonly ObligationFact[], excludedEvent?: string): void => {
+      const knownEvents = new Set([...facts, ...ledgerFacts].map((fact) => fact.event));
+      const newFacts = entries.filter((fact) => fact.event !== excludedEvent && !knownEvents.has(fact.event));
+      if (newFacts.length > 0) ledgerFacts = [...ledgerFacts, ...newFacts];
     };
     for (const existing of obligations.values()) {
       if (existing.run !== raw.run || existing.origin !== raw.origin) continue;
       return sameBasis(existing) ? ok(existing) : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
     }
+    const waitStartedAt = Date.now();
     for (;;) {
       const head = ledger.snapshot(binding);
       if (!head.ok) return fail(head.error.family, head.error.code);
@@ -1834,13 +1848,11 @@ export function createScriptedObligationController(
       if (!recordsResult.ok) return fail(recordsResult.error.family, recordsResult.error.code);
       const inspected = inspectClaims(recordsResult.value);
       if ('family' in inspected) return fail(inspected.family, inspected.code);
-      if (inspected.legacyFacts.length > 0) {
-        const knownLegacyFacts = new Set(legacyFacts.map((fact) => fact.event));
-        const newLegacyFacts = inspected.legacyFacts.filter((fact) => !knownLegacyFacts.has(fact.event));
-        if (newLegacyFacts.length > 0) legacyFacts = [...legacyFacts, ...newLegacyFacts];
-      }
-      if (inspected.replayRecord && inspected.replayOrdinal !== undefined)
+      if (inspected.replayRecord && inspected.replayOrdinal !== undefined) {
+        rememberLedgerFacts(inspected.ledgerFacts, inspected.replayRecord.event);
         return open({ ...raw, obligationOrdinal: inspected.replayOrdinal }, allocationKey, inspected.replayRecord);
+      }
+      rememberLedgerFacts(inspected.ledgerFacts);
       let highestOrdinal = inspected.highestOrdinal;
       for (const id of obligations.keys()) {
         if (!id.startsWith(`${raw.run}/obligation/`)) continue;
@@ -1876,19 +1888,21 @@ export function createScriptedObligationController(
         boundDigest,
         observedAt: raw.startedAt,
       } as const;
-      const appended = appendAllocationClaim(binding, head.value, claim, allocationKey);
+      const appended = appendAllocationClaim(binding, head.value, claim, allocationKey, waitStartedAt);
       if (appended.ok) return open({ ...raw, obligationOrdinal: ordinal }, allocationKey, appended.value);
       if (appended.error.code !== 'EXPECTED_HEAD_MISMATCH') return appended;
       const currentRecords = ledger.records(binding);
       if (!currentRecords.ok) return fail(currentRecords.error.family, currentRecords.error.code);
       const afterConflict = inspectClaims(currentRecords.value);
       if ('family' in afterConflict) return fail(afterConflict.family, afterConflict.code);
-      if (afterConflict.replayRecord && afterConflict.replayOrdinal !== undefined)
+      if (afterConflict.replayRecord && afterConflict.replayOrdinal !== undefined) {
+        rememberLedgerFacts(afterConflict.ledgerFacts, afterConflict.replayRecord.event);
         return open(
           { ...raw, obligationOrdinal: afterConflict.replayOrdinal },
           allocationKey,
           afterConflict.replayRecord,
         );
+      }
       // The proposal above is discarded. The next loop captures a new head and derives a new ordinal.
     }
   };
@@ -2468,7 +2482,7 @@ export function createScriptedObligationController(
       grants: [...grants.values()],
       intents: [...intents.values()],
       facts: [...facts],
-      legacyFacts: [...legacyFacts],
+      ledgerFacts: [...ledgerFacts],
     });
   const fixtureEvidence = (): ObligationFixtureEvidence =>
     Object.freeze({
@@ -2511,13 +2525,13 @@ export function restoreScriptedObligationController(
   const records = dependencies.ledger.records(validated.value.ledgerBinding);
   if (!records.ok) return fail(records.error.family, records.error.code);
   const expectedFacts = new Map(validated.value.facts.map((fact) => [fact.event, fact]));
-  const expectedLegacyFacts = new Map(validated.value.legacyFacts.map((fact) => [fact.event, fact]));
+  const expectedLedgerFacts = new Map(validated.value.ledgerFacts.map((fact) => [fact.event, fact]));
   const expectedIntents = new Map(validated.value.intents.map((intent) => [intent.key, intent]));
   const matchedFacts = new Set<string>();
-  const matchedLegacyFacts = new Set<string>();
+  const matchedLedgerFacts = new Set<string>();
   const matchedIntents = new Set<string>();
   const ledgerFactEvents: string[] = [];
-  const ledgerLegacyFactEvents: string[] = [];
+  const ledgerBaselineFactEvents: string[] = [];
   const ledgerIntentStages: string[] = [];
   const ledgerIntentRecords = new Map<string, LedgerRecord>();
   for (const record of records.value) {
@@ -2535,11 +2549,11 @@ export function restoreScriptedObligationController(
     if (parsedFact) {
       const fact = expectedFacts.get(record.event);
       if (!fact) {
-        const legacyFact = expectedLegacyFacts.get(record.event);
-        if (legacyFact) {
-          if (!sameJson(parsedFact, legacyFact)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
-          matchedLegacyFacts.add(record.event);
-          ledgerLegacyFactEvents.push(record.event);
+        const ledgerFact = expectedLedgerFacts.get(record.event);
+        if (ledgerFact) {
+          if (!sameJson(parsedFact, ledgerFact)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+          matchedLedgerFacts.add(record.event);
+          ledgerBaselineFactEvents.push(record.event);
           continue;
         }
         const uncertainStage = validated.value.intents.find(
@@ -2625,15 +2639,15 @@ export function restoreScriptedObligationController(
   ]);
   if (
     matchedFacts.size !== expectedFacts.size ||
-    matchedLegacyFacts.size !== expectedLegacyFacts.size ||
+    matchedLedgerFacts.size !== expectedLedgerFacts.size ||
     matchedIntents.size !== ledgerIntentRecords.size ||
     !sameJson(
       ledgerFactEvents,
       validated.value.facts.map((fact) => fact.event),
     ) ||
     !sameJson(
-      ledgerLegacyFactEvents,
-      validated.value.legacyFacts.map((fact) => fact.event),
+      ledgerBaselineFactEvents,
+      validated.value.ledgerFacts.map((fact) => fact.event),
     ) ||
     !sameJson(ledgerIntentStages, expectedLedgerIntentStages)
   )

@@ -267,13 +267,41 @@ test('legacy obligation facts contribute ordinals but cannot satisfy allocation 
   });
   assert.equal(prepared.ok, true, JSON.stringify(prepared));
   assert.equal(runtimeDependencies.ledger.append({ binding, expectedPosition: -1, record: prepared.value }).ok, true);
+  const lifecyclePrepared = ledgerRuntime.createLedgerRecord({
+    run,
+    generation,
+    transaction: `${run}/txn/2/${generation}|${digest('1')}`,
+    position: 1,
+    previousDigest: prepared.value.contentDigest,
+    content: {
+      schema: obligation.OBLIGATION_FACT_SCHEMA,
+      type: 'EV-OWNER-DECISION',
+      obligation: `${run}/obligation/1`,
+      status: 'accepted-handoff',
+      generation,
+      criteriaDigest: digest('c'),
+      evidenceDigest: digest('e'),
+      grant: null,
+      allocationVersion: null,
+      allocationKey: null,
+      allocationOrigin: null,
+      allocationBasis: null,
+      boundDigest: legacyContent.boundDigest,
+      observedAt: 2000,
+    },
+  });
+  assert.equal(lifecyclePrepared.ok, true, JSON.stringify(lifecyclePrepared));
+  assert.equal(
+    runtimeDependencies.ledger.append({ binding, expectedPosition: 0, record: lifecyclePrepared.value }).ok,
+    true,
+  );
 
   const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
   const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
   const allocated = controller.openAllocated(allocationInput);
   assert.equal(allocated.ok, true, JSON.stringify(allocated));
   assert.equal(allocated.value.id, `${run}/obligation/2`);
-  assert.equal(allocated.value.event, `${run}/event/2`);
+  assert.equal(allocated.value.event, `${run}/event/3`);
   assert.equal(
     controller.facts().some((fact) => fact.allocationVersion === obligation.OBLIGATION_ALLOCATION_CLAIM_SCHEMA),
     true,
