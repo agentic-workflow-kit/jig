@@ -236,6 +236,51 @@ test('allocated obligations use durable monotonic readback across replay', () =>
   assert.equal(replayed.value.id, `${run}/obligation/2`);
 });
 
+test('legacy obligation facts contribute ordinals but cannot satisfy allocation replay', () => {
+  const runtimeDependencies = dependencies();
+  const binding = { kind: 'run', run, generation };
+  const legacyContent = {
+    schema: obligation.OBLIGATION_FACT_SCHEMA,
+    type: 'SCH-OBLIGATION',
+    obligation: `${run}/obligation/1`,
+    status: 'open',
+    generation,
+    criteriaDigest: digest('c'),
+    evidenceDigest: digest('e'),
+    grant: null,
+    boundDigest: obligation.obligationBoundDigest({
+      id: `${run}/obligation/1`,
+      generation,
+      policyDigest: digest('p'),
+      startedAt: 1000,
+      deadline: 1000 + 72 * 60 * 60,
+    }),
+    observedAt: 1000,
+  };
+  const prepared = ledgerRuntime.createLedgerRecord({
+    run,
+    generation,
+    transaction: `${run}/txn/1/${generation}|${digest('0')}`,
+    position: 0,
+    previousDigest: '0'.repeat(64),
+    content: legacyContent,
+  });
+  assert.equal(prepared.ok, true, JSON.stringify(prepared));
+  assert.equal(runtimeDependencies.ledger.append({ binding, expectedPosition: -1, record: prepared.value }).ok, true);
+
+  const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
+  const allocated = controller.openAllocated(allocationInput);
+  assert.equal(allocated.ok, true, JSON.stringify(allocated));
+  assert.equal(allocated.value.id, `${run}/obligation/2`);
+  assert.equal(allocated.value.event, `${run}/event/2`);
+  assert.equal(
+    controller.facts().some((fact) => fact.allocationVersion === obligation.OBLIGATION_ALLOCATION_CLAIM_SCHEMA),
+    true,
+  );
+  assert.equal(controller.openAllocated(allocationInput).value.id, `${run}/obligation/2`);
+});
+
 test('allocated duty readback replays an uncertain append and rejects a durable collision', () => {
   const runtimeDependencies = dependencies();
   const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();

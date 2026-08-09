@@ -22,6 +22,7 @@ const generation = `${run}/gen/2|controller-token-1`;
 const retryGeneration = `${run}/gen/3|controller-token-2`;
 const retryGeneration2 = `${run}/gen/4|controller-token-3`;
 const manifest = `provider/${digest('c')}/authority/${digest('d')}`;
+const obligationEvidenceSubject = `evidence://run-000000000001-0123456789abcdef/story/plan-a/cand/1|${digest('8')}/claim/candidate-content`;
 const operation = (ordinal, type, activeGeneration = generation) => {
   const transaction = `${run}/txn/${ordinal}/${activeGeneration}|${digest(String(ordinal))}`;
   return {
@@ -148,9 +149,18 @@ const retirementObligationInput = () => ({
   duty: 'retirement',
   origin: `${run}/event/5`,
   reason: 'automatic retirement duty failed after bounded attempts',
-  preservationEvidence: { key: digest('f') },
+  preservationEvidence: {
+    schema: 'jig.obligation-evidence.v1',
+    key: digest('f'),
+    subject: obligationEvidenceSubject,
+    claim: 'preserve the review venue',
+    manifestDigest: digest('c'),
+    artifactDigest: digest('a'),
+    trustRoot: digest('e'),
+    referenceDigest: digest('b'),
+  },
   accountableOwner: 'principal/arye',
-  criteria: { subject: 'evidence/fixture-subject', claim: 'preserve the review venue' },
+  criteria: { subject: obligationEvidenceSubject, claim: 'preserve the review venue' },
   startedAt: 1000,
   deadline: 1000 + 72 * 60 * 60,
   policyDigest: digest('p'),
@@ -159,6 +169,14 @@ const retirementObligationInput = () => ({
 const obligationController = (id = `${run}/obligation/1`, onOpen = () => {}) => ({
   openAllocated: (input) => {
     onOpen(input);
+    const criteriaDigest = runtime.obligationCriteriaDigest(input.criteria);
+    const boundDigest = runtime.obligationBoundDigest({
+      id,
+      generation: input.generation,
+      policyDigest: input.policyDigest,
+      startedAt: input.startedAt,
+      deadline: input.deadline,
+    });
     return {
       ok: true,
       value: {
@@ -166,11 +184,21 @@ const obligationController = (id = `${run}/obligation/1`, onOpen = () => {}) => 
         event: `${run}/event/99`,
         run,
         generation,
+        resource: input.resource,
         origin: `${run}/event/5`,
         duty: 'retirement',
-        preservationEvidence: { referenceDigest: preservation().evidenceDigest },
-        boundDigest: digest('q'),
-        criteria: { digest: digest('r') },
+        reason: input.reason,
+        accountableOwner: 'principal/arye',
+        bound: 'BND-WAIT-DECISION',
+        startedAt: input.startedAt,
+        deadline: input.deadline,
+        policyDigest: input.policyDigest,
+        preservationEvidence: {
+          ...retirementObligationInput().preservationEvidence,
+          referenceDigest: preservation().evidenceDigest,
+        },
+        boundDigest,
+        criteria: { ...input.criteria, digest: criteriaDigest },
       },
     };
   },
@@ -401,22 +429,38 @@ test('retirement delegates uncertain duty identity to the existing obligation co
   assert.equal(result.value.obligation, `${run}/obligation/17`);
 });
 
-test('retirement rejects a mismatched duty before allocation', () => {
-  let calls = 0;
-  const reviewController = createController(undefined, {
-    obligationController: obligationController(`${run}/obligation/18`, () => {
-      calls += 1;
-    }),
-  });
-  const result = reviewController.retire({
-    bindings: retireBindings(),
-    faults: ['lost-response', 'none', 'none', 'none'],
-    preservation: preservation(),
-    obligation: { ...retirementObligationInput(), origin: `${run}/event/6` },
-  });
-  assert.deepEqual(result, {
-    ok: false,
-    error: { family: 'FC-AUTHORITY', code: 'RETIREMENT_OBLIGATION_BINDING_MISMATCH' },
-  });
-  assert.equal(calls, 0);
+test('retirement rejects every binding mismatch before allocation', () => {
+  const valid = retirementObligationInput();
+  const mismatches = [
+    { ...valid, resource: 'refs/jig/review/other' },
+    { ...valid, origin: `${run}/event/6` },
+    { ...valid, duty: 'handoff' },
+    { ...valid, accountableOwner: 'principal/other' },
+    { ...valid, criteria: { ...valid.criteria, claim: 'different claim' } },
+    {
+      ...valid,
+      preservationEvidence: { ...valid.preservationEvidence, referenceDigest: digest('a') },
+    },
+    { ...valid, deadline: valid.startedAt + 1 },
+    { ...valid, policyDigest: 'not-a-digest' },
+  ];
+  for (const obligationInput of mismatches) {
+    let calls = 0;
+    const reviewController = createController(undefined, {
+      obligationController: obligationController(`${run}/obligation/18`, () => {
+        calls += 1;
+      }),
+    });
+    const result = reviewController.retire({
+      bindings: retireBindings(),
+      faults: ['lost-response', 'none', 'none', 'none'],
+      preservation: preservation(),
+      obligation: obligationInput,
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'RETIREMENT_OBLIGATION_BINDING_MISMATCH' },
+    });
+    assert.equal(calls, 0);
+  }
 });

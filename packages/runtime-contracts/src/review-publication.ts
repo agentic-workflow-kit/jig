@@ -1,5 +1,10 @@
 import { type CanonicalJson, parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import type { ObligationController } from './obligation.js';
+import {
+  OBLIGATION_BOUND,
+  type ObligationController,
+  obligationBoundDigest,
+  obligationCriteriaDigest,
+} from './obligation.js';
 
 export const REVIEW_PUBLICATION_CONTRACT_VERSION = 'jig.review-publication.v1';
 export const REVIEW_PUBLICATION_PORT = 'PORT-DELIVERY';
@@ -1677,12 +1682,41 @@ export function createReviewPublicationController(
         'deadline',
         'policyDigest',
       ]);
-      const obligationEvidence = obligationInput && exactFields(obligationInput.preservationEvidence, ['key']);
+      const obligationEvidence =
+        obligationInput &&
+        exactFields(obligationInput.preservationEvidence, [
+          'schema',
+          'key',
+          'subject',
+          'claim',
+          'manifestDigest',
+          'artifactDigest',
+          'trustRoot',
+          'referenceDigest',
+        ]);
       const obligationCriteria = obligationInput && exactFields(obligationInput.criteria, ['subject', 'claim']);
+      const expectedCriteriaDigest =
+        obligationCriteria &&
+        obligationCriteriaDigest({
+          subject: obligationCriteria.subject as string,
+          claim: obligationCriteria.claim as string,
+        });
       const validRetirementObligation =
         obligationInput &&
         obligationEvidence &&
         obligationCriteria &&
+        obligationEvidence.schema === 'jig.obligation-evidence.v1' &&
+        identity('ID-EVSUBJ', obligationEvidence.subject) &&
+        safeText(obligationEvidence.claim) &&
+        safeDigest(obligationEvidence.key) &&
+        safeDigest(obligationEvidence.manifestDigest) &&
+        safeDigest(obligationEvidence.artifactDigest) &&
+        safeDigest(obligationEvidence.trustRoot) &&
+        safeDigest(obligationEvidence.referenceDigest) &&
+        expectedCriteriaDigest &&
+        obligationEvidence.subject === obligationCriteria.subject &&
+        obligationEvidence.claim === obligationCriteria.claim &&
+        obligationEvidence.referenceDigest === preservationRaw.evidenceDigest &&
         obligationInput.run === binding.subject.run &&
         obligationInput.generation === binding.generation &&
         obligationInput.resource === binding.reviewRef &&
@@ -1695,17 +1729,49 @@ export function createReviewPublicationController(
         obligationInput.accountableOwner === 'principal/arye' &&
         Number.isSafeInteger(obligationInput.startedAt) &&
         Number.isSafeInteger(obligationInput.deadline) &&
-        (obligationInput.deadline as number) > (obligationInput.startedAt as number) &&
+        (obligationInput.deadline as number) - (obligationInput.startedAt as number) >=
+          OBLIGATION_BOUND.minimumSeconds &&
+        (obligationInput.deadline as number) - (obligationInput.startedAt as number) <=
+          OBLIGATION_BOUND.maximumSeconds &&
         safeDigest(obligationInput.policyDigest);
       if (!validRetirementObligation) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_BINDING_MISMATCH');
-      const allocated = obligationController.openAllocated(raw.obligation);
+      const allocated = obligationController.openAllocated({
+        ...obligationInput,
+        preservationEvidence: { key: obligationEvidence.key },
+      });
       if (!allocated.ok) return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
+      const returnedEvidence = allocated.value.preservationEvidence;
+      const returnedCriteria = allocated.value.criteria;
+      const returnedBoundDigest = obligationBoundDigest({
+        id: allocated.value.id,
+        generation: allocated.value.generation,
+        policyDigest: obligationInput.policyDigest as string,
+        startedAt: obligationInput.startedAt as number,
+        deadline: obligationInput.deadline as number,
+      });
       if (
         allocated.value.run !== binding.subject.run ||
         allocated.value.generation !== binding.generation ||
+        allocated.value.resource !== obligationInput.resource ||
         allocated.value.origin !== intent.proof.event ||
-        allocated.value.duty !== 'retirement' ||
-        allocated.value.preservationEvidence.referenceDigest !== preservationRaw.evidenceDigest
+        allocated.value.duty !== obligationInput.duty ||
+        allocated.value.reason !== obligationInput.reason ||
+        allocated.value.accountableOwner !== obligationInput.accountableOwner ||
+        allocated.value.startedAt !== obligationInput.startedAt ||
+        allocated.value.deadline !== obligationInput.deadline ||
+        allocated.value.policyDigest !== obligationInput.policyDigest ||
+        allocated.value.bound !== OBLIGATION_BOUND.name ||
+        allocated.value.boundDigest !== returnedBoundDigest ||
+        returnedCriteria.subject !== obligationCriteria.subject ||
+        returnedCriteria.claim !== obligationCriteria.claim ||
+        returnedCriteria.digest !== expectedCriteriaDigest ||
+        returnedEvidence.key !== obligationEvidence.key ||
+        returnedEvidence.subject !== obligationEvidence.subject ||
+        returnedEvidence.claim !== obligationEvidence.claim ||
+        returnedEvidence.manifestDigest !== obligationEvidence.manifestDigest ||
+        returnedEvidence.artifactDigest !== obligationEvidence.artifactDigest ||
+        returnedEvidence.trustRoot !== obligationEvidence.trustRoot ||
+        returnedEvidence.referenceDigest !== preservationRaw.evidenceDigest
       )
         return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_BINDING_MISMATCH');
       const durableObligationDigest = digest('REVIEW-RETIREMENT-OBLIGATION', {

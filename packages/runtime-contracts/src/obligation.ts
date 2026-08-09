@@ -17,6 +17,7 @@ export const OBLIGATION_EVIDENCE_SCHEMA = 'jig.obligation-evidence.v1';
 export const OBLIGATION_GRANT_SCHEMA = 'jig.obligation-grant.v1';
 export const OBLIGATION_INTENT_SCHEMA = 'jig.obligation-resolution-intent.v1';
 export const OBLIGATION_FACT_SCHEMA = 'jig.obligation-fact.v1';
+export const OBLIGATION_ALLOCATION_CLAIM_SCHEMA = 'jig.obligation-allocation-claim.v1';
 export const OBLIGATION_CONTROLLER = 'RT-CONTROLLER';
 export const OBLIGATION_PORT = 'PORT-DECIDE';
 export const OBLIGATION_BOUND = Object.freeze({
@@ -152,6 +153,21 @@ export type ObligationResolutionStageState = Readonly<{
   status: 'witnessed' | 'uncertain';
 }>;
 
+export type ObligationAllocationBasis = Readonly<{
+  run: string;
+  generation: string;
+  resource: string;
+  duty: AutomaticDuty;
+  origin: string;
+  reason: string;
+  preservationEvidence: ObligationEvidence;
+  accountableOwner: 'principal/arye';
+  criteria: ObligationCriteria;
+  startedAt: number;
+  deadline: number;
+  policyDigest: string;
+}>;
+
 export type ObligationFact = Readonly<{
   event: string;
   type:
@@ -169,8 +185,10 @@ export type ObligationFact = Readonly<{
   criteriaDigest: string | null;
   evidenceDigest: string | null;
   grant: string | null;
-  allocationDigest: string | null;
+  allocationVersion: typeof OBLIGATION_ALLOCATION_CLAIM_SCHEMA | null;
+  allocationKey: string | null;
   allocationOrigin: string | null;
+  allocationBasis: ObligationAllocationBasis | null;
   boundDigest: string;
   observedAt: number | null;
 }>;
@@ -194,6 +212,13 @@ export type ObligationFixtureEvidence = Readonly<{
   cleanupEnabled: false;
   mechanism: 'scripted-obligation.v1';
 }>;
+
+const NO_ALLOCATION = Object.freeze({
+  allocationVersion: null,
+  allocationKey: null,
+  allocationOrigin: null,
+  allocationBasis: null,
+} as const);
 
 export type ObligationController = Readonly<{
   open(input: unknown): ObligationResult<ResidualObligation>;
@@ -609,6 +634,134 @@ function validCriteria(value: unknown): value is ObligationCriteria {
   return identity('ID-EVSUBJ', raw.subject) && text(raw.claim) && digest(raw.digest) && expected === raw.digest;
 }
 
+const FACT_FIELDS = [
+  'event',
+  'type',
+  'obligation',
+  'status',
+  'generation',
+  'criteriaDigest',
+  'evidenceDigest',
+  'grant',
+  'allocationVersion',
+  'allocationKey',
+  'allocationOrigin',
+  'allocationBasis',
+  'boundDigest',
+  'observedAt',
+] as const;
+const LEGACY_FACT_FIELDS = [
+  'event',
+  'type',
+  'obligation',
+  'status',
+  'generation',
+  'criteriaDigest',
+  'evidenceDigest',
+  'grant',
+  'boundDigest',
+  'observedAt',
+] as const;
+const PRIOR_ALLOCATION_FACT_FIELDS = [
+  ...LEGACY_FACT_FIELDS.slice(0, 7),
+  'allocationDigest',
+  'allocationOrigin',
+  ...LEGACY_FACT_FIELDS.slice(7),
+] as const;
+
+function validAllocationBasis(value: unknown): value is ObligationAllocationBasis {
+  const raw = fields(value, [
+    'run',
+    'generation',
+    'resource',
+    'duty',
+    'origin',
+    'reason',
+    'preservationEvidence',
+    'accountableOwner',
+    'criteria',
+    'startedAt',
+    'deadline',
+    'policyDigest',
+  ]);
+  return (
+    !!raw &&
+    identity('ID-RUN', raw.run) &&
+    identity('ID-GEN', raw.generation) &&
+    (raw.generation as string).startsWith(`${raw.run}/gen/`) &&
+    validResource(raw.resource) &&
+    AUTOMATIC_DUTIES.includes(raw.duty as AutomaticDuty) &&
+    identity('ID-EVENT', raw.origin) &&
+    (raw.origin as string).startsWith(`${raw.run}/event/`) &&
+    text(raw.reason) &&
+    validEvidence(raw.preservationEvidence) &&
+    validCriteria(raw.criteria) &&
+    (raw.preservationEvidence as ObligationEvidence).subject === (raw.criteria as ObligationCriteria).subject &&
+    (raw.preservationEvidence as ObligationEvidence).claim === (raw.criteria as ObligationCriteria).claim &&
+    raw.accountableOwner === OWNER &&
+    integer(raw.startedAt) &&
+    integer(raw.deadline) &&
+    (raw.deadline as number) > (raw.startedAt as number) &&
+    (raw.deadline as number) - (raw.startedAt as number) >= OBLIGATION_BOUND.minimumSeconds &&
+    (raw.deadline as number) - (raw.startedAt as number) <= OBLIGATION_BOUND.maximumSeconds &&
+    digest(raw.policyDigest)
+  );
+}
+
+function parseFactContent(value: unknown, event?: string): ObligationFact | undefined {
+  const withEvent =
+    event === undefined
+      ? value
+      : typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? { ...(value as Record<string, unknown>), event }
+        : undefined;
+  const raw =
+    fields(withEvent, FACT_FIELDS) ??
+    fields(withEvent, PRIOR_ALLOCATION_FACT_FIELDS) ??
+    fields(withEvent, LEGACY_FACT_FIELDS);
+  if (!raw) return undefined;
+  const normalized = {
+    event: raw.event,
+    type: raw.type,
+    obligation: raw.obligation,
+    status: raw.status,
+    generation: raw.generation,
+    criteriaDigest: raw.criteriaDigest,
+    evidenceDigest: raw.evidenceDigest,
+    grant: raw.grant,
+    allocationVersion: null,
+    allocationKey: null,
+    allocationOrigin: null,
+    allocationBasis: null,
+    boundDigest: raw.boundDigest,
+    observedAt: raw.observedAt,
+  } as ObligationFact;
+  if (!('allocationVersion' in raw)) return normalized;
+  if (
+    raw.allocationVersion === null &&
+    raw.allocationKey === null &&
+    raw.allocationOrigin === null &&
+    raw.allocationBasis === null
+  )
+    return normalized;
+  if (
+    raw.allocationVersion !== OBLIGATION_ALLOCATION_CLAIM_SCHEMA ||
+    !digest(raw.allocationKey) ||
+    !identity('ID-EVENT', raw.allocationOrigin) ||
+    !validAllocationBasis(raw.allocationBasis) ||
+    raw.allocationOrigin !== raw.allocationBasis.origin ||
+    derivedDigest('OBLIGATION-ALLOCATION', raw.allocationBasis as Record<string, unknown>) !== raw.allocationKey
+  )
+    return undefined;
+  return Object.freeze({
+    ...normalized,
+    allocationVersion: OBLIGATION_ALLOCATION_CLAIM_SCHEMA,
+    allocationKey: raw.allocationKey,
+    allocationOrigin: raw.allocationOrigin,
+    allocationBasis: raw.allocationBasis,
+  });
+}
+
 function validObligation(value: unknown): value is ResidualObligation {
   const raw = fields(value, [
     'schema',
@@ -730,20 +883,7 @@ function validObligation(value: unknown): value is ResidualObligation {
 }
 
 function validFact(value: unknown): value is ObligationFact {
-  const raw = fields(value, [
-    'event',
-    'type',
-    'obligation',
-    'status',
-    'generation',
-    'criteriaDigest',
-    'evidenceDigest',
-    'grant',
-    'allocationDigest',
-    'allocationOrigin',
-    'boundDigest',
-    'observedAt',
-  ]);
+  const raw = parseFactContent(value);
   if (
     !raw ||
     !(
@@ -764,8 +904,10 @@ function validFact(value: unknown): value is ObligationFact {
       (raw.criteriaDigest === null || digest(raw.criteriaDigest)) &&
       (raw.evidenceDigest === null || digest(raw.evidenceDigest)) &&
       (raw.grant === null || identity('ID-GRANT', raw.grant)) &&
-      (raw.allocationDigest === null || digest(raw.allocationDigest)) &&
+      (raw.allocationVersion === null || raw.allocationVersion === OBLIGATION_ALLOCATION_CLAIM_SCHEMA) &&
+      (raw.allocationKey === null || digest(raw.allocationKey)) &&
       (raw.allocationOrigin === null || identity('ID-EVENT', raw.allocationOrigin)) &&
+      (raw.allocationBasis === null || validAllocationBasis(raw.allocationBasis)) &&
       digest(raw.boundDigest) &&
       (raw.observedAt === null || integer(raw.observedAt))
     )
@@ -894,7 +1036,11 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
   const obligations = raw && plainArray(raw.obligations);
   const grants = raw && plainArray(raw.grants);
   const intents = raw && plainArray(raw.intents);
-  const facts = raw && plainArray(raw.facts);
+  const factValues = raw && plainArray(raw.facts)?.map((fact) => parseFactContent(fact));
+  const facts =
+    factValues && factValues.every((fact): fact is ObligationFact => fact !== undefined)
+      ? Object.freeze(factValues)
+      : undefined;
   if (
     !raw ||
     raw.schema !== OBLIGATION_CONTRACT_VERSION ||
@@ -1014,8 +1160,7 @@ function validateHydratedState(value: unknown): ObligationResult<HydratedState> 
       criteriaDigest: obligation?.criteria.digest,
       evidenceDigest: intent.evidence.referenceDigest,
       grant: intent.grant,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: obligation?.boundDigest,
       observedAt: intent.observedAt,
     };
@@ -1296,6 +1441,53 @@ export function createScriptedObligationController(
     return ok(complete);
   };
 
+  const appendAllocationClaim = (
+    binding: RunStoreBinding,
+    capturedHead: Readonly<{ position: number; digest: string }>,
+    content: Record<string, unknown>,
+    allocationKey: string,
+  ): ObligationResult<LedgerRecord> => {
+    if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
+    const faults = ledgerFaultPlan.shift() ?? {};
+    const position = capturedHead.position + 1;
+    const transaction = `${binding.run}/txn/${position + 1}/${binding.generation}|${allocationKey}`;
+    const prepared = createLedgerRecord({
+      run: binding.run,
+      generation: binding.generation,
+      transaction,
+      position,
+      previousDigest: capturedHead.digest,
+      content: { schema: OBLIGATION_FACT_SCHEMA, ...content } as never,
+    });
+    if (!prepared.ok) return fail(prepared.error.family, prepared.error.code);
+    const appended = ledger.append(
+      { binding, expectedPosition: capturedHead.position, record: prepared.value },
+      faults.append,
+    );
+    let record: LedgerRecord;
+    if (appended.ok) {
+      record = appended.value;
+    } else if (appended.error.code === 'ACK_LOST') {
+      const readback = ledger.readback(
+        { binding, position, transaction, contentDigest: prepared.value.contentDigest },
+        faults.readback,
+      );
+      if (!readback.ok || readback.value.kind !== 'committed') {
+        activeBinding = binding;
+        const observed = ledger.snapshot(binding);
+        if (observed.ok) ledgerHead = Object.freeze({ ...observed.value });
+        return fail('FC-TRUST', 'OBLIGATION_APPEND_UNCERTAIN');
+      }
+      record = readback.value.record;
+    } else {
+      return fail(appended.error.family, appended.error.code);
+    }
+    activeBinding = binding;
+    ledgerHead = Object.freeze({ position: record.position, digest: record.contentDigest });
+    nextEventOrdinal = Math.max(nextEventOrdinal, record.position + 2);
+    return ok(record);
+  };
+
   const get = (id: unknown): ObligationResult<ResidualObligation> => {
     if (typeof id !== 'string' || !identity('ID-OBLIGATION', id)) return fail('FC-INPUT', 'INVALID_OBLIGATION_ID');
     const value = obligations.get(id);
@@ -1419,37 +1611,46 @@ export function createScriptedObligationController(
       criteriaDigest: candidate.criteria.digest,
       evidenceDigest: candidate.preservationEvidence.referenceDigest,
       grant: null,
-      allocationDigest: allocationKey,
-      allocationOrigin: allocationKey ? (raw.origin as string) : null,
+      ...(allocationKey
+        ? {
+            allocationVersion: OBLIGATION_ALLOCATION_CLAIM_SCHEMA as typeof OBLIGATION_ALLOCATION_CLAIM_SCHEMA,
+            allocationKey,
+            allocationOrigin: raw.origin as string,
+            allocationBasis: {
+              run: raw.run as string,
+              generation: raw.generation as string,
+              resource: raw.resource as string,
+              duty: raw.duty as AutomaticDuty,
+              origin: raw.origin as string,
+              reason: raw.reason as string,
+              preservationEvidence: parsedEvidence.value,
+              accountableOwner: OWNER,
+              criteria: parsedCriteria.value,
+              startedAt: raw.startedAt as number,
+              deadline: raw.deadline as number,
+              policyDigest: raw.policyDigest as string,
+            },
+          }
+        : NO_ALLOCATION),
       boundDigest: candidate.boundDigest,
       observedAt: candidate.startedAt,
     } as const;
     const persisted = replayRecord
       ? (() => {
-          const content = fields(replayRecord.content, [
-            'schema',
-            'type',
-            'obligation',
-            'status',
-            'generation',
-            'criteriaDigest',
-            'evidenceDigest',
-            'grant',
-            'allocationDigest',
-            'allocationOrigin',
-            'boundDigest',
-            'observedAt',
-          ]);
+          const content = fields(replayRecord.content, ['schema', ...FACT_FIELDS.filter((field) => field !== 'event')]);
+          const { schema: _schema, ...factContent } = content ?? {};
+          const replayed = content && parseFactContent(factContent, replayRecord.event);
           if (
             !content ||
-            !sameJson(content, { schema: OBLIGATION_FACT_SCHEMA, ...factBasis }) ||
+            content.schema !== OBLIGATION_FACT_SCHEMA ||
+            !replayed ||
+            !sameJson(replayed, { ...factBasis, event: replayRecord.event }) ||
             replayRecord.transaction !==
               `${candidate.run}/txn/${replayRecord.position + 1}/${candidate.generation}|${allocationKey}`
           )
             return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-          const replayed = deepFreeze({ ...factBasis, event: replayRecord.event }) as ObligationFact;
           if (!facts.some((fact) => fact.event === replayed.event)) facts = [...facts, replayed];
-          return ok(replayed);
+          return ok(Object.freeze(replayed));
         })()
       : appendFact(factBasis, allocationKey ?? '0'.repeat(64));
     if (!persisted.ok) return persisted;
@@ -1478,16 +1679,7 @@ export function createScriptedObligationController(
     if (!(raw.generation as string).startsWith(`${raw.run}/gen/`))
       return fail('FC-SUBJECT', 'INVALID_OBLIGATION_ALLOCATION_SCOPE');
     if (!dependenciesValid || !ledger) return fail('FC-AUTHORITY', 'OBLIGATION_LEDGER_REQUIRED');
-    const binding: RunStoreBinding = {
-      kind: 'run',
-      run: raw.run as string,
-      generation: raw.generation as string,
-    };
-    const head = ledger.snapshot(binding);
-    if (!head.ok) return fail(head.error.family, head.error.code);
-    const recordsResult =
-      head.value.position < 0 ? { ok: true as const, value: [] as readonly LedgerRecord[] } : ledger.records(binding);
-    if (!recordsResult.ok) return fail(recordsResult.error.family, recordsResult.error.code);
+    const binding: RunStoreBinding = { kind: 'run', run: raw.run as string, generation: raw.generation as string };
     const parsedEvidence = evidenceAuthority ? parseEvidence(raw.preservationEvidence, evidenceAuthority) : undefined;
     const parsedCriteria = parseCriteria(raw.criteria);
     if (
@@ -1510,130 +1702,142 @@ export function createScriptedObligationController(
       !digest(raw.policyDigest)
     )
       return fail('FC-INPUT', 'INVALID_OBLIGATION_ALLOCATION_INPUT');
-    const requestedBasis = {
-      run: raw.run,
-      generation: raw.generation,
-      resource: raw.resource,
-      duty: raw.duty,
-      origin: raw.origin,
-      reason: raw.reason,
+    const requestedBasis: ObligationAllocationBasis = Object.freeze({
+      run: raw.run as string,
+      generation: raw.generation as string,
+      resource: raw.resource as string,
+      duty: raw.duty as AutomaticDuty,
+      origin: raw.origin as string,
+      reason: raw.reason as string,
       preservationEvidence: parsedEvidence.value,
-      accountableOwner: raw.accountableOwner,
+      accountableOwner: OWNER,
       criteria: parsedCriteria.value,
-      startedAt: raw.startedAt,
-      deadline: raw.deadline,
-      policyDigest: raw.policyDigest,
-    };
+      startedAt: raw.startedAt as number,
+      deadline: raw.deadline as number,
+      policyDigest: raw.policyDigest as string,
+    });
     const allocationKey = derivedDigest('OBLIGATION-ALLOCATION', requestedBasis);
     if (!allocationKey) return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_KEY_UNAVAILABLE');
+    const sameBasis = (existing: ResidualObligation): boolean =>
+      sameJson(
+        {
+          run: existing.run,
+          generation: existing.generation,
+          resource: existing.resource,
+          duty: existing.duty,
+          origin: existing.origin,
+          reason: existing.reason,
+          preservationEvidence: existing.preservationEvidence,
+          accountableOwner: existing.accountableOwner,
+          criteria: existing.criteria,
+          startedAt: existing.startedAt,
+          deadline: existing.deadline,
+          policyDigest: existing.policyDigest,
+        },
+        requestedBasis,
+      );
+    const inspectClaims = (
+      records: readonly LedgerRecord[],
+    ):
+      | Readonly<{ highestOrdinal: number; replayRecord?: LedgerRecord; replayOrdinal?: number }>
+      | ObligationFailure => {
+      let highestOrdinal = 0;
+      let replayRecord: LedgerRecord | undefined;
+      let replayOrdinal: number | undefined;
+      for (const record of records) {
+        const content =
+          fields(record.content, ['schema', ...FACT_FIELDS.filter((field) => field !== 'event')]) ??
+          fields(record.content, ['schema', ...PRIOR_ALLOCATION_FACT_FIELDS.filter((field) => field !== 'event')]) ??
+          fields(record.content, ['schema', ...LEGACY_FACT_FIELDS.filter((field) => field !== 'event')]);
+        if (!content || content.schema !== OBLIGATION_FACT_SCHEMA) continue;
+        const { schema: _schema, ...factContent } = content;
+        const fact = parseFactContent(factContent, record.event);
+        if (!fact || fact.type !== 'SCH-OBLIGATION')
+          return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
+        if (!identity('ID-OBLIGATION', fact.obligation) || !fact.obligation.startsWith(`${raw.run}/obligation/`))
+          return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
+        const ordinalText = fact.obligation.slice(`${raw.run}/obligation/`.length);
+        const ordinal = Number(ordinalText);
+        if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
+          return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
+        highestOrdinal = Math.max(highestOrdinal, ordinal);
+        if (fact.allocationVersion !== OBLIGATION_ALLOCATION_CLAIM_SCHEMA) continue;
+        if (fact.allocationKey === allocationKey) {
+          if (replayRecord) return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
+          replayRecord = record;
+          replayOrdinal = ordinal;
+        } else if (fact.allocationOrigin === raw.origin) {
+          return { family: 'FC-SUBJECT', code: 'OBLIGATION_ALLOCATION_COLLISION' };
+        }
+      }
+      return { highestOrdinal, replayRecord, replayOrdinal };
+    };
     for (const existing of obligations.values()) {
       if (existing.run !== raw.run || existing.origin !== raw.origin) continue;
-      const existingBasis = {
-        run: existing.run,
-        generation: existing.generation,
-        resource: existing.resource,
-        duty: existing.duty,
-        origin: existing.origin,
-        reason: existing.reason,
-        preservationEvidence: existing.preservationEvidence,
-        accountableOwner: existing.accountableOwner,
-        criteria: existing.criteria,
-        startedAt: existing.startedAt,
-        deadline: existing.deadline,
-        policyDigest: existing.policyDigest,
-      };
-      return sameJson(existingBasis, requestedBasis)
-        ? ok(existing)
-        : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
+      return sameBasis(existing) ? ok(existing) : fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
     }
-    let highestOrdinal = 0;
-    let replayRecord: LedgerRecord | undefined;
-    let replayOrdinal: number | undefined;
-    for (const record of recordsResult.value) {
-      const content = fields(record.content, [
-        'schema',
-        'type',
-        'obligation',
-        'status',
-        'generation',
-        'criteriaDigest',
-        'evidenceDigest',
-        'grant',
-        'allocationDigest',
-        'allocationOrigin',
-        'boundDigest',
-        'observedAt',
-      ]);
-      if (content?.schema !== OBLIGATION_FACT_SCHEMA || content.type !== 'SCH-OBLIGATION') continue;
-      if (
-        !identity('ID-OBLIGATION', content.obligation) ||
-        !(content.obligation as string).startsWith(`${raw.run}/obligation/`)
-      )
-        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-      if (
-        (content.allocationDigest === null) !== (content.allocationOrigin === null) ||
-        (content.allocationDigest !== null && !digest(content.allocationDigest)) ||
-        (content.allocationOrigin !== null && !identity('ID-EVENT', content.allocationOrigin))
-      )
-        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-      const ordinalText = (content.obligation as string).slice(`${raw.run}/obligation/`.length);
-      const ordinal = Number(ordinalText);
-      if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
-        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-      if (content.allocationOrigin === raw.origin) {
-        if (content.allocationDigest !== allocationKey) return fail('FC-SUBJECT', 'OBLIGATION_ALLOCATION_COLLISION');
-        if (replayRecord) return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-        replayRecord = record;
-        replayOrdinal = ordinal;
+    const allocationConflictLimit = 8;
+    for (let conflictAttempt = 0; conflictAttempt < allocationConflictLimit; conflictAttempt += 1) {
+      const head = ledger.snapshot(binding);
+      if (!head.ok) return fail(head.error.family, head.error.code);
+      const recordsResult =
+        head.value.position < 0 ? { ok: true as const, value: [] as readonly LedgerRecord[] } : ledger.records(binding);
+      if (!recordsResult.ok) return fail(recordsResult.error.family, recordsResult.error.code);
+      const inspected = inspectClaims(recordsResult.value);
+      if ('family' in inspected) return fail(inspected.family, inspected.code);
+      if (inspected.replayRecord && inspected.replayOrdinal !== undefined)
+        return open({ ...raw, obligationOrdinal: inspected.replayOrdinal }, allocationKey, inspected.replayRecord);
+      let highestOrdinal = inspected.highestOrdinal;
+      for (const id of obligations.keys()) {
+        if (!id.startsWith(`${raw.run}/obligation/`)) continue;
+        const ordinalText = id.slice(`${raw.run}/obligation/`.length);
+        const ordinal = Number(ordinalText);
+        if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
+          return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_STATE_INVALID');
+        highestOrdinal = Math.max(highestOrdinal, ordinal);
       }
-      highestOrdinal = Math.max(highestOrdinal, ordinal);
-    }
-    for (const id of obligations.keys()) {
-      if (!id.startsWith(`${raw.run}/obligation/`)) continue;
-      const ordinalText = id.slice(`${raw.run}/obligation/`.length);
-      const ordinal = Number(ordinalText);
-      if (!Number.isSafeInteger(ordinal) || ordinal < 1 || String(ordinal) !== ordinalText)
-        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_STATE_INVALID');
-      highestOrdinal = Math.max(highestOrdinal, ordinal);
-    }
-    if (highestOrdinal === Number.MAX_SAFE_INTEGER) return fail('FC-BOUND', 'OBLIGATION_ORDINAL_EXHAUSTED');
-    if (replayRecord && replayOrdinal !== undefined) {
-      const expectedBound = boundDigestFor({
-        id: `${raw.run}/obligation/${replayOrdinal}`,
+      if (highestOrdinal === Number.MAX_SAFE_INTEGER) return fail('FC-BOUND', 'OBLIGATION_ORDINAL_EXHAUSTED');
+      const ordinal = highestOrdinal + 1;
+      const id = `${raw.run}/obligation/${ordinal}`;
+      const boundDigest = boundDigestFor({
+        id,
         generation: raw.generation as string,
         policyDigest: raw.policyDigest as string,
         startedAt: raw.startedAt as number,
         deadline: raw.deadline as number,
       });
-      const replayContent = fields(replayRecord.content, [
-        'schema',
-        'type',
-        'obligation',
-        'status',
-        'generation',
-        'criteriaDigest',
-        'evidenceDigest',
-        'grant',
-        'allocationDigest',
-        'allocationOrigin',
-        'boundDigest',
-        'observedAt',
-      ]);
-      if (
-        !expectedBound ||
-        !replayContent ||
-        replayContent.status !== 'open' ||
-        replayContent.generation !== raw.generation ||
-        replayContent.criteriaDigest !== parsedCriteria.value.digest ||
-        replayContent.evidenceDigest !== parsedEvidence.value.referenceDigest ||
-        replayContent.grant !== null ||
-        replayContent.boundDigest !== expectedBound ||
-        replayContent.observedAt !== raw.startedAt
-      )
-        return fail('FC-TRUST', 'OBLIGATION_ALLOCATION_READBACK_INVALID');
-      return open({ ...raw, obligationOrdinal: replayOrdinal }, allocationKey, replayRecord);
+      if (!boundDigest) return fail('FC-TRUST', 'BOUND_DIGEST_UNAVAILABLE');
+      const claim = {
+        type: 'SCH-OBLIGATION',
+        obligation: id,
+        status: 'open',
+        generation: raw.generation,
+        criteriaDigest: parsedCriteria.value.digest,
+        evidenceDigest: parsedEvidence.value.referenceDigest,
+        grant: null,
+        allocationVersion: OBLIGATION_ALLOCATION_CLAIM_SCHEMA,
+        allocationKey,
+        allocationOrigin: raw.origin,
+        allocationBasis: requestedBasis,
+        boundDigest,
+        observedAt: raw.startedAt,
+      } as const;
+      const appended = appendAllocationClaim(binding, head.value, claim, allocationKey);
+      if (appended.ok) return open({ ...raw, obligationOrdinal: ordinal }, allocationKey, appended.value);
+      if (appended.error.code !== 'EXPECTED_HEAD_MISMATCH') return appended;
+      const currentRecords = ledger.records(binding);
+      if (!currentRecords.ok) return fail(currentRecords.error.family, currentRecords.error.code);
+      const afterConflict = inspectClaims(currentRecords.value);
+      if ('family' in afterConflict) return fail(afterConflict.family, afterConflict.code);
+      if (afterConflict.replayRecord && afterConflict.replayOrdinal !== undefined)
+        return open(
+          { ...raw, obligationOrdinal: afterConflict.replayOrdinal },
+          allocationKey,
+          afterConflict.replayRecord,
+        );
+      // The proposal above is discarded. The next loop captures a new head and derives a new ordinal.
     }
-    return open({ ...raw, obligationOrdinal: highestOrdinal + 1 }, allocationKey);
+    return fail('FC-BOUND', 'OBLIGATION_ALLOCATION_CONFLICT_RETRY_EXHAUSTED');
   };
 
   const issueGrant = (input: unknown): ObligationResult<ObligationGrant> => {
@@ -1708,8 +1912,7 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: null,
       grant: id,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: current.boundDigest,
       observedAt: candidate.issuedAt,
     });
@@ -1737,8 +1940,7 @@ export function createScriptedObligationController(
         criteriaDigest: current.criteria.digest,
         evidenceDigest: null,
         grant: grant.id,
-        allocationDigest: null,
-        allocationOrigin: null,
+        ...NO_ALLOCATION,
         boundDigest: current.boundDigest,
         observedAt: raw.observedAt as number,
       });
@@ -1800,8 +2002,7 @@ export function createScriptedObligationController(
       criteriaDigest: updated.criteria.digest,
       evidenceDigest: null,
       grant: null,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -1921,8 +2122,7 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: parsedEvidence.value.referenceDigest,
       grant: current.resolutionGrant ?? (raw.grant as string | null),
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: current.boundDigest,
       observedAt: raw.observedAt as number,
     };
@@ -1995,8 +2195,7 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: intent.evidence.referenceDigest,
       grant: intent.grant,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: current.boundDigest,
       observedAt: intent.observedAt,
     };
@@ -2168,8 +2367,7 @@ export function createScriptedObligationController(
       criteriaDigest: updated.criteria.digest,
       evidenceDigest: null,
       grant: null,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: updated.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -2200,8 +2398,7 @@ export function createScriptedObligationController(
       criteriaDigest: current.criteria.digest,
       evidenceDigest: raw.conditionDigest as string,
       grant: null,
-      allocationDigest: null,
-      allocationOrigin: null,
+      ...NO_ALLOCATION,
       boundDigest: current.boundDigest,
       observedAt: raw.observedAt as number,
     });
@@ -2267,21 +2464,18 @@ export function restoreScriptedObligationController(
   const ledgerIntentStages: string[] = [];
   const ledgerIntentRecords = new Map<string, LedgerRecord>();
   for (const record of records.value) {
-    const content = fields(record.content, [
-      'schema',
-      'type',
-      'obligation',
-      'status',
-      'generation',
-      'criteriaDigest',
-      'evidenceDigest',
-      'grant',
-      'allocationDigest',
-      'allocationOrigin',
-      'boundDigest',
-      'observedAt',
-    ]);
-    if (content?.schema === OBLIGATION_FACT_SCHEMA) {
+    const content =
+      fields(record.content, ['schema', ...FACT_FIELDS.filter((field) => field !== 'event')]) ??
+      fields(record.content, ['schema', ...PRIOR_ALLOCATION_FACT_FIELDS.filter((field) => field !== 'event')]) ??
+      fields(record.content, ['schema', ...LEGACY_FACT_FIELDS.filter((field) => field !== 'event')]);
+    const parsedFact =
+      content?.schema === OBLIGATION_FACT_SCHEMA
+        ? (() => {
+            const { schema: _schema, ...factContent } = content;
+            return parseFactContent(factContent, record.event);
+          })()
+        : undefined;
+    if (parsedFact) {
       const fact = expectedFacts.get(record.event);
       if (!fact) {
         const uncertainStage = validated.value.intents.find(
@@ -2293,41 +2487,7 @@ export function restoreScriptedObligationController(
         if (!uncertainStage) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
         continue;
       }
-      if (
-        !sameJson(
-          {
-            schema: content.schema,
-            event: record.event,
-            type: content.type,
-            obligation: content.obligation,
-            status: content.status,
-            generation: content.generation,
-            criteriaDigest: content.criteriaDigest,
-            evidenceDigest: content.evidenceDigest,
-            grant: content.grant,
-            allocationDigest: content.allocationDigest,
-            allocationOrigin: content.allocationOrigin,
-            boundDigest: content.boundDigest,
-            observedAt: content.observedAt,
-          },
-          {
-            schema: OBLIGATION_FACT_SCHEMA,
-            event: fact.event,
-            type: fact.type,
-            obligation: fact.obligation,
-            status: fact.status,
-            generation: fact.generation,
-            criteriaDigest: fact.criteriaDigest,
-            evidenceDigest: fact.evidenceDigest,
-            grant: fact.grant,
-            allocationDigest: fact.allocationDigest,
-            allocationOrigin: fact.allocationOrigin,
-            boundDigest: fact.boundDigest,
-            observedAt: fact.observedAt,
-          },
-        )
-      )
-        return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
+      if (!sameJson(parsedFact, fact)) return fail('FC-TRUST', 'OBLIGATION_LEDGER_PROJECTION_MISMATCH');
       matchedFacts.add(record.event);
       ledgerFactEvents.push(record.event);
       continue;
