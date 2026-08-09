@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const runtime = await import('../dist/index.js');
+const intakeCommit = await import('../dist/intake-commit.js');
+const codec = await import('@agentic-workflow-kit/jig-codec');
 const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/ledger-contract-oracle.json'), 'utf8'),
 );
@@ -11,6 +13,36 @@ const binding = Object.freeze({ kind: 'run', run: fixture.run, generation: fixtu
 const digest = (value) => value.repeat(64).slice(0, 64);
 const intakeRun = (position, compositionDigest) =>
   `run-${String(position).padStart(12, '0')}-${compositionDigest.slice(0, 16)}`;
+const cutFor = (label) => Object.freeze({ predecessorRun: fixture.run, position: 4, digest: digest(label) });
+const stage = (domain, value) => {
+  const staged = codec.stageDigest({ domain, excludePaths: [], value });
+  assert.equal(staged.ok, true);
+  return staged.value.digest;
+};
+const intakeRequest = ({ compositionDigest, terminalAck, successorCut }) => {
+  const cutClaim = successorCut
+    ? { schema: 'jig.intake-cut-claim.v1', key: successorCut, acknowledgementKey: compositionDigest }
+    : undefined;
+  const cutClaimFrame = cutClaim && codec.encodeFrame(cutClaim);
+  if (cutClaim) assert.equal(cutClaimFrame.ok, true);
+  const cutClaimDigest = cutClaim && stage('DEVELOPMENT-INTAKE-CUT-CLAIM', cutClaim);
+  const acknowledgement = {
+    schema: 'jig.intake-ack.v1',
+    compositionDigest,
+    terminalAck,
+    cutClaim: cutClaim ? { key: successorCut, contentDigest: cutClaimDigest } : null,
+  };
+  const frame = codec.encodeFrame(acknowledgement);
+  assert.equal(frame.ok, true);
+  return {
+    compositionDigest,
+    acknowledgementDigest: stage('DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT', acknowledgement),
+    terminalAck,
+    acknowledgementBytes: Array.from(frame.value),
+    ...(successorCut ? { successorCut, cutClaimBytes: Array.from(cutClaimFrame.value) } : {}),
+  };
+};
+const intake = (ledger, request, fault) => intakeCommit.commitScriptedIntake(ledger, request, fault);
 
 function record(
   position,
@@ -233,37 +265,34 @@ test('semantic ledger: hostile binding containers fail closed without reflection
 
 test('semantic ledger: intake acknowledgement and successor cut are atomic and contention cannot create a Run', () => {
   const ledger = runtime.createScriptedLedger();
-  const first = ledger.intake({
+  const firstRequest = intakeRequest({
     compositionDigest: fixture.digests.compositionA,
-    acknowledgementDigest: fixture.digests.acknowledgementA,
     terminalAck: 'accepted',
-    successorCut: 'predecessor/4',
+    successorCut: cutFor('a'),
   });
+  const first = intake(ledger, firstRequest);
   assert.equal(first.ok, true);
   assert.equal(first.value.kind, 'acknowledged');
   assert.equal(first.value.run, intakeRun(0, fixture.digests.compositionA));
-  const replay = ledger.intake({
-    compositionDigest: fixture.digests.compositionA,
-    acknowledgementDigest: fixture.digests.acknowledgementA,
-    terminalAck: 'accepted',
-    successorCut: 'predecessor/4',
-  });
+  const replay = intake(ledger, firstRequest);
   assert.deepEqual(replay, first);
   assert.deepEqual(
-    ledger.intake({
-      compositionDigest: fixture.digests.compositionA,
-      acknowledgementDigest: fixture.digests.acknowledgementA,
-      terminalAck: 'accepted',
-      successorCut: 'predecessor/5',
-    }),
+    intake(
+      ledger,
+      intakeRequest({
+        compositionDigest: fixture.digests.compositionA,
+        terminalAck: 'accepted',
+        successorCut: cutFor('b'),
+      }),
+    ),
     { ok: false, error: { family: 'FC-INPUT', code: 'INTAKE_REQUEST_MISMATCH' } },
   );
-  const contender = ledger.intake({
+  const contenderRequest = intakeRequest({
     compositionDigest: fixture.digests.compositionB,
-    acknowledgementDigest: fixture.digests.acknowledgementB,
     terminalAck: 'accepted',
-    successorCut: 'predecessor/4',
+    successorCut: cutFor('a'),
   });
+  const contender = intake(ledger, contenderRequest);
   assert.equal(contender.ok, true);
   assert.equal(contender.value.kind, 'rejected');
   assert.equal(contender.value.reason, 'successor-cut-already-claimed');
@@ -276,101 +305,100 @@ test('semantic ledger: intake acknowledgement and successor cut are atomic and c
   });
   const winnerReadback = ledger.readIntake(fixture.digests.compositionA);
   assert.equal(winnerReadback.ok, true);
-  assert.deepEqual(
-    ledger.intake({
-      compositionDigest: fixture.digests.compositionB,
-      acknowledgementDigest: fixture.digests.acknowledgementB,
-      terminalAck: 'accepted',
-      successorCut: 'predecessor/4',
-    }),
-    contender,
-  );
+  assert.deepEqual(intake(ledger, contenderRequest), contender);
+  const loserReadback = ledger.readIntake(fixture.digests.compositionB);
+  assert.equal(loserReadback.ok, true);
+  assert.equal(loserReadback.value.cutClaimBytes, undefined);
+  const loserAcknowledgement = codec.decodeFrame(Uint8Array.from(loserReadback.value.acknowledgementBytes));
+  assert.equal(loserAcknowledgement.ok, true);
+  assert.equal(loserAcknowledgement.value.terminalAck, 'rejected');
+  assert.equal(loserAcknowledgement.value.cutClaim, null);
+  assert.equal(loserAcknowledgement.value.rejection.kind, 'successor-cut-already-claimed');
 });
 
 test('semantic ledger: a witnessed terminal rejection is replayable and never derives a Run', () => {
   const ledger = runtime.createScriptedLedger();
-  const request = {
-    compositionDigest: fixture.digests.compositionA,
-    acknowledgementDigest: fixture.digests.acknowledgementA,
-    terminalAck: 'rejected',
-  };
-  const rejected = ledger.intake(request);
+  const request = intakeRequest({ compositionDigest: fixture.digests.compositionA, terminalAck: 'rejected' });
+  const rejected = intake(ledger, request);
   assert.deepEqual(rejected, {
     ok: true,
     value: {
       kind: 'rejected',
       position: 0,
       compositionDigest: fixture.digests.compositionA,
-      acknowledgementDigest: fixture.digests.acknowledgementA,
+      acknowledgementDigest: request.acknowledgementDigest,
       reason: 'envelope-rejected',
     },
   });
   assert.equal('run' in rejected.value, false);
-  assert.deepEqual(ledger.intake(request), rejected);
+  assert.deepEqual(intake(ledger, request), rejected);
   const readback = ledger.readIntake(fixture.digests.compositionA);
   assert.equal(readback.ok, true);
   assert.deepEqual(readback.value.result, rejected.value);
   assert.equal(
-    ledger.intake({ ...request, terminalAck: 'accepted' }).ok,
+    intake(ledger, intakeRequest({ compositionDigest: request.compositionDigest, terminalAck: 'accepted' })).ok,
     false,
     'a rejected composition cannot be replayed as accepted',
   );
 });
 
 test('semantic ledger: intake crash and missing companions fail closed without repair', () => {
-  const request = {
+  const request = intakeRequest({
     compositionDigest: fixture.digests.compositionA,
-    acknowledgementDigest: fixture.digests.acknowledgementA,
     terminalAck: 'accepted',
-    successorCut: 'predecessor/4',
-  };
+    successorCut: cutFor('a'),
+  });
   const lost = runtime.createScriptedLedger();
-  assert.deepEqual(lost.intake(request, 'intake-after-flush'), {
+  assert.deepEqual(intake(lost, request, 'intake-after-flush'), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'INTAKE_ACK_LOST' },
   });
   assert.equal(lost.readIntake(request.compositionDigest).ok, false);
+  const afterWitness = runtime.createScriptedLedger();
+  assert.deepEqual(intake(afterWitness, request, 'intake-after-witness'), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'INTAKE_ACK_LOST' },
+  });
+  const afterWitnessReadback = afterWitness.readIntake(request.compositionDigest);
+  assert.equal(afterWitnessReadback.ok, true);
+  assert.deepEqual(afterWitnessReadback.value.acknowledgementBytes, request.acknowledgementBytes);
+  assert.deepEqual(intake(afterWitness, request), { ok: true, value: afterWitnessReadback.value.result });
   const missing = runtime.createScriptedLedger();
-  assert.equal(missing.intake(request, 'intake-missing-companion').ok, false);
+  assert.equal(intake(missing, request, 'intake-missing-companion').ok, false);
   assert.deepEqual(missing.readIntake(request.compositionDigest), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'INTAKE_UNVERIFIABLE' },
   });
   const mismatched = runtime.createScriptedLedger();
-  assert.equal(mismatched.intake(request, 'intake-mismatched-companion').ok, false);
+  assert.equal(intake(mismatched, request, 'intake-mismatched-companion').ok, false);
   assert.deepEqual(mismatched.readIntake(request.compositionDigest), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' },
   });
   const unverifiedWinner = runtime.createScriptedLedger();
-  assert.equal(unverifiedWinner.intake(request, 'intake-missing-companion').ok, false);
+  assert.equal(intake(unverifiedWinner, request, 'intake-missing-companion').ok, false);
   assert.deepEqual(
-    unverifiedWinner.intake({
-      compositionDigest: fixture.digests.compositionB,
-      acknowledgementDigest: fixture.digests.acknowledgementB,
-      terminalAck: 'accepted',
-      successorCut: 'predecessor/4',
-    }),
+    intake(
+      unverifiedWinner,
+      intakeRequest({
+        compositionDigest: fixture.digests.compositionB,
+        terminalAck: 'accepted',
+        successorCut: cutFor('a'),
+      }),
+    ),
     { ok: false, error: { family: 'FC-TRUST', code: 'INTAKE_PAIR_MISMATCH' } },
   );
 });
 
 test('semantic ledger: missing terminal acknowledgement disposition cannot create a Run', () => {
   const ledger = runtime.createScriptedLedger();
-  assert.deepEqual(
-    ledger.intake({
-      compositionDigest: fixture.digests.compositionA,
-      acknowledgementDigest: fixture.digests.acknowledgementA,
-    }),
-    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
-  );
+  assert.deepEqual(ledger.intake({}), { ok: false, error: { family: 'FC-AUTHORITY', code: 'CP_INTAKE_REQUIRED' } });
   assert.equal(ledger.readIntake(fixture.digests.compositionA).ok, false);
   assert.deepEqual(
-    ledger.intake({
+    intake(ledger, {
       compositionDigest: fixture.digests.compositionA,
-      acknowledgementDigest: fixture.digests.acknowledgementA,
       terminalAck: 'accepted',
-      successorCut: '',
+      acknowledgementBytes: [],
     }),
     { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_INTAKE' } },
   );
@@ -386,6 +414,7 @@ test('semantic ledger fixture records semantic metadata without provider qualifi
     'after-witness',
     'lost-ack',
     'intake-after-flush',
+    'intake-after-witness',
     'intake-missing-companion',
     'intake-mismatched-companion',
   ]);

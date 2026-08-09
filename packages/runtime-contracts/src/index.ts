@@ -6,11 +6,15 @@ import {
   FRAME_VERSION,
 } from '@agentic-workflow-kit/jig-codec';
 
+export * from './approval-repository.js';
 export * from './development-pre-run.js';
 export * from './envelope.js';
 export * from './ledger.js';
+export * from './obligation.js';
 export * from './provider.js';
+export * from './session.js';
 export * from './source.js';
+export * from './workspace.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare const TextDecoder: {
@@ -395,3 +399,5 @@ export function createScriptedFake(port: SemanticPortId): ScriptedFake {
     },
   });
 }
+
+export * from './doorbell.js';

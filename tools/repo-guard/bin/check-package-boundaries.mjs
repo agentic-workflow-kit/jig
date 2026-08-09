@@ -16,10 +16,24 @@ const knownDependencyDirections = {
     '@agentic-workflow-kit/jig-runtime-contracts',
   ]),
   '@agentic-workflow-kit/jig-runtime-contracts': new Set(['@agentic-workflow-kit/jig-codec']),
-  '@agentic-workflow-kit/jig-local-file-providers': new Set(['@agentic-workflow-kit/jig-runtime-contracts']),
+  '@agentic-workflow-kit/jig-local-file-providers': new Set([
+    '@agentic-workflow-kit/jig-codec',
+    '@agentic-workflow-kit/jig-runtime-contracts',
+  ]),
+  '@agentic-workflow-kit/jig-local-workspace-providers': new Set([
+    '@agentic-workflow-kit/jig-codec',
+    '@agentic-workflow-kit/jig-runtime-contracts',
+  ]),
 };
 const knownNativeCapabilities = {
   '@agentic-workflow-kit/jig-local-file-providers': new Set(['node:fs']),
+  '@agentic-workflow-kit/jig-local-workspace-providers': new Set([
+    'node:child_process',
+    'node:crypto',
+    'node:fs',
+    'node:os',
+    'node:path',
+  ]),
 };
 const friendSubpaths = {
   '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',

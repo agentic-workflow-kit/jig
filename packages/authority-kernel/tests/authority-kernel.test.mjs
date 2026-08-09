@@ -4,10 +4,15 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 const kernel = await import('../dist/index.js');
+const operation = await import('../dist/operation.js');
 const oracle = JSON.parse(readFileSync(resolve(import.meta.dirname, './fixtures/authority-oracle.json'), 'utf8'));
 
 const run = 'run-000000000001-aaaaaaaaaaaaaaaa';
 const digest = 'a'.repeat(64);
+const candidateContentDigest = 'b'.repeat(64);
+const targetBasisDigest = 'c'.repeat(64);
+const payloadBasisDigest = 'd'.repeat(64);
+const manifest = `provider/${'e'.repeat(64)}/authority/${'f'.repeat(64)}`;
 const ids = Object.freeze({
   story: `${run}/story/story-1`,
   transaction: `${run}/txn/1/${run}/gen/1|generation|${digest}`,
@@ -16,7 +21,16 @@ const ids = Object.freeze({
   generation: `${run}/gen/1|generation`,
 });
 const subject = Object.freeze({ run, story: ids.story, basis: digest });
-const fence = Object.freeze({ generation: ids.generation, basis: digest });
+const fence = Object.freeze({
+  generation: ids.generation,
+  basis: digest,
+});
+const operationFence = Object.freeze({
+  generation: ids.generation,
+  basis: digest,
+  candidateContentDigest,
+  targetBasisDigest,
+});
 const state = Object.freeze({
   storyState: 'Pending',
   runPhase: 'Received',
@@ -32,27 +46,64 @@ const event = Object.freeze({
   fence,
   catalogVersion: 'jig.authority-kernel.v1',
 });
-const bindings = Object.freeze({
-  transaction: ids.transaction,
-  event: ids.event,
-  operation: ids.operation,
-  subject,
-  fence,
-  catalogVersion: 'jig.authority-kernel.v1',
-});
-const ordered = (ordinal, type, edge) => {
+const operationEffect = (type) =>
+  [
+    'OPC-SESSION-COLLECT',
+    'OPC-WS-OBSERVE',
+    'OPC-VERIFY-EXECUTE',
+    'OPC-REV-STATUS',
+    'OPC-REV-RETIRE-STATUS',
+    'OPC-DEL-STATUS',
+    'OPC-DEL-OBSERVE',
+    'OPC-ART-GET',
+  ].includes(type)
+    ? 'observation'
+    : 'effectful';
+const operationBindings = (type = 'OPC-SESSION-OPEN', ordinal = 1) => {
   const transaction = `${run}/txn/${ordinal}/${run}/gen/1|generation|${digest}`;
   const eventId = `${run}/event/${ordinal}`;
+  const route = operation.operationCapabilityRoute(type);
+  const unsignedCapability = {
+    kind: route.kind,
+    port: route.port,
+    operationClass: type,
+    subject: ids.story,
+    fence: operationFence,
+    resourceScope: 'repository/main',
+    manifest,
+  };
+  const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(capabilityDigest.ok, true);
+  return Object.freeze({
+    transaction,
+    event: eventId,
+    operation: `${transaction}/op/1`,
+    subject,
+    fence: operationFence,
+    catalogVersion: 'jig.authority-kernel.v1',
+    payloadBasisDigest,
+    capability: Object.freeze({ ...unsignedCapability, digest: capabilityDigest.value }),
+    authority: type.startsWith('OPC-DEL-')
+      ? Object.freeze({
+          authority: `target/repository-main/auth/1`,
+          registry: `registry/${'1'.repeat(64)}`,
+          basis: targetBasisDigest,
+        })
+      : null,
+    role: type.startsWith('OPC-DEL-') ? 'finalizer' : 'worker',
+    lifecycle: 'Finalizing',
+    effect: operationEffect(type),
+    purpose: 'semantic',
+    predecessor: null,
+    bounds: Object.freeze({ waitMs: 900000, retryLimit: 3, recoveryLimit: 3 }),
+  });
+};
+const bindings = operationBindings();
+const ordered = (ordinal, type, edge, operationType = 'OPC-SESSION-OPEN') => {
+  const operation = operationBindings(operationType, ordinal);
   return {
-    event: { type, edge, id: eventId, subject, fence, catalogVersion: 'jig.authority-kernel.v1' },
-    bindings: {
-      transaction,
-      event: eventId,
-      operation: `${transaction}/op/1`,
-      subject,
-      fence,
-      catalogVersion: 'jig.authority-kernel.v1',
-    },
+    event: { type, edge, id: operation.event, subject, fence, catalogVersion: 'jig.authority-kernel.v1' },
+    bindings: operation,
   };
 };
 
@@ -65,7 +116,7 @@ test('authority kernel catalog is literal, immutable, and exhaustive', () => {
   assert.deepEqual(kernel.STORY_STATES, oracle.storyStates);
   assert.deepEqual(kernel.RUN_PHASES, oracle.runPhases);
   assert.deepEqual(kernel.EVENT_TYPES, oracle.events);
-  assert.deepEqual(kernel.OPERATION_TYPES, oracle.operations);
+  assert.deepEqual(operation.OPERATION_TYPES, oracle.operations);
   assert.deepEqual(kernel.FAILURE_CLASSES, oracle.failures);
   assert.equal(new Set(kernel.STORY_STATES).size, 17);
   assert.equal(new Set(kernel.EVENT_TYPES).size, 32);
@@ -108,15 +159,15 @@ test('authority kernel catalog is literal, immutable, and exhaustive', () => {
       true,
       `${type} must remain a valid SCH-EVENT discriminant`,
     );
-  for (const type of kernel.OPERATION_TYPES)
+  for (const type of operation.OPERATION_TYPES)
     assert.equal(
-      kernel.validateOperation({ type, ...bindings }).ok,
+      kernel.validateOperation({ type, ...operationBindings(type) }).ok,
       true,
       `${type} must remain a valid SCH-OPERATION discriminant`,
     );
   assert.equal(kernel.validateEvent({ ...event, extra: true }).error.failure, 'FC-INPUT');
   const { id: eventId, ...eventWithoutId } = event;
-  const { operation, ...bindingsWithoutOperation } = bindings;
+  const bindingsWithoutOperation = Object.fromEntries(Object.entries(bindings).filter(([key]) => key !== 'operation'));
   assert.equal(kernel.validateEvent(eventWithoutId).error.failure, 'FC-INPUT');
   assert.equal(kernel.validateAuthorityState({ ...state, extra: true }).error.failure, 'FC-INPUT');
   assert.equal(kernel.reduceAuthority(state, event, bindingsWithoutOperation).error.failure, 'FC-INPUT');
@@ -156,12 +207,66 @@ test('authority kernel reducer is total, deterministic, immutable, and fail clos
   );
 });
 
+test('GF-005 authorized operation intents are complete and reject omission or caller widening', () => {
+  const operationType = 'OPC-WS-PROVISION';
+  const operationInput = operationBindings(operationType);
+  const decision = kernel.reduceAuthority(
+    { ...state, storyState: 'Eligible' },
+    { ...event, type: 'EV-WAKE-CAPACITY', edge: 'eligible-preparing' },
+    operationInput,
+  );
+  assert.equal(decision.ok, true);
+  const authorized = decision.value.operations[0];
+  assert.equal(authorized.type, operationType);
+  for (const field of [
+    'transaction',
+    'event',
+    'operation',
+    'subject',
+    'payloadBasisDigest',
+    'fence',
+    'capability',
+    'authority',
+    'role',
+    'lifecycle',
+    'effect',
+    'purpose',
+    'predecessor',
+    'bounds',
+  ]) {
+    const omitted = structuredClone(decision.value);
+    delete omitted.operations[0][field];
+    assert.equal(kernel.validateTransition(omitted).ok, false, `omitted ${field} must fail closed`);
+  }
+
+  const forgedPayload = structuredClone(decision.value);
+  forgedPayload.operations[0].payloadBasisDigest = 'e'.repeat(64);
+  assert.equal(kernel.validateTransition(forgedPayload).ok, false, 'forged payload basis must fail closed');
+
+  const forgedRole = structuredClone(decision.value);
+  forgedRole.operations[0].role = 'attacker';
+  assert.equal(kernel.validateTransition(forgedRole).ok, false, 'forged role must fail closed');
+
+  const forgedCapability = structuredClone(decision.value);
+  const unsignedCapability = { ...forgedCapability.operations[0].capability, resourceScope: 'workspace/other' };
+  delete unsignedCapability.digest;
+  const capabilityDigest = operation.deriveOperationCapabilityDigest(unsignedCapability);
+  assert.equal(capabilityDigest.ok, true);
+  forgedCapability.operations[0].capability = { ...unsignedCapability, digest: capabilityDigest.value };
+  assert.equal(kernel.validateTransition(forgedCapability).ok, false, 'forged capability must fail closed');
+
+  const forgedFence = structuredClone(decision.value);
+  forgedFence.operations[0].fence.candidateContentDigest = 'f'.repeat(64);
+  assert.equal(kernel.validateTransition(forgedFence).ok, false, 'forged fence must fail closed');
+});
+
 test('authority kernel rejects bindings whose transaction was proposed by a stale generation', () => {
   const staleGeneration = `${run}/gen/2|replacement`;
   const staleFence = { ...fence, generation: staleGeneration };
+  const staleOperationFence = { ...operationFence, generation: staleGeneration };
   const staleState = { ...state, fence: staleFence };
   const staleEvent = { ...event, fence: staleFence };
-  const staleBindings = { ...bindings, fence: staleFence };
+  const staleBindings = { ...bindings, fence: staleOperationFence };
   const result = kernel.reduceAuthority(staleState, staleEvent, staleBindings);
   assert.equal(result.ok, false);
   assert.equal(result.error.failure, 'FC-INPUT');
@@ -169,15 +274,34 @@ test('authority kernel rejects bindings whose transaction was proposed by a stal
 
 test('authority kernel fixed-field bindings accept semantically identical insertion-order variants', () => {
   const reorderedSubject = { basis: digest, story: ids.story, run };
-  const reorderedFence = { basis: digest, generation: ids.generation };
+  const reorderedFence = {
+    basis: digest,
+    generation: ids.generation,
+  };
+  const reorderedOperationFence = {
+    targetBasisDigest,
+    candidateContentDigest,
+    basis: digest,
+    generation: ids.generation,
+  };
   const reorderedEvent = { ...event, subject: reorderedSubject, fence: reorderedFence };
+  const reorderedCapability = {
+    ...bindings.capability,
+    fence: reorderedOperationFence,
+    subject: ids.story,
+  };
+  delete reorderedCapability.digest;
+  const reorderedCapabilityDigest = operation.deriveOperationCapabilityDigest(reorderedCapability);
+  assert.equal(reorderedCapabilityDigest.ok, true);
   const reorderedBindings = {
+    ...bindings,
     operation: ids.operation,
-    fence: reorderedFence,
+    fence: reorderedOperationFence,
     event: ids.event,
     catalogVersion: 'jig.authority-kernel.v1',
     subject: reorderedSubject,
     transaction: ids.transaction,
+    capability: { ...reorderedCapability, digest: reorderedCapabilityDigest.value },
   };
   assert.equal(kernel.validateEvent(reorderedEvent).ok, true);
   assert.equal(kernel.reduceAuthority(state, reorderedEvent, reorderedBindings).ok, true);
@@ -267,7 +391,11 @@ test('authority kernel rejects descriptor-valid ordinary-read traps at every aut
     [
       'validateOperation fence',
       () =>
-        kernel.validateOperation({ type: 'OPC-SESSION-OPEN', ...bindings, fence: getThrows({ ...fence }, 'fence') }),
+        kernel.validateOperation({
+          type: 'OPC-SESSION-OPEN',
+          ...bindings,
+          fence: getThrows({ ...operationFence }, 'fence'),
+        }),
     ],
     ['validateAuthorityState outer', () => kernel.validateAuthorityState(getThrows({ ...state }, 'state'))],
     [
@@ -493,12 +621,13 @@ test('authority kernel accepts every explicit legal edge and rejects its event c
   for (const edge of kernel.LEGAL_EDGES) {
     const input = { ...state, storyState: edge.from };
     const trigger = { ...event, type: edge.event, edge: edge.id };
-    const result = kernel.reduceAuthority(input, trigger, bindings);
+    const edgeBindings = operationBindings(edge.operation ?? 'OPC-SESSION-OPEN');
+    const result = kernel.reduceAuthority(input, trigger, edgeBindings);
     assert.equal(result.ok, true, `${edge.from}/${edge.event}`);
     assert.equal(result.value.next.storyState, edge.to);
     for (const illegal of kernel.EVENT_TYPES.filter((candidate) => candidate !== edge.event))
       assert.equal(
-        kernel.reduceAuthority(input, { ...trigger, type: illegal }, bindings).ok,
+        kernel.reduceAuthority(input, { ...trigger, type: illegal }, edgeBindings).ok,
         false,
         `${edge.from}/${illegal}`,
       );
@@ -534,7 +663,7 @@ test('authority kernel covers the normative phase-preserving lifecycle catalog',
     const result = kernel.reduceAuthority(
       { ...state, storyState },
       { ...event, id: `${run}/event/2`, edge: id, type },
-      ordered(2, type, id).bindings,
+      ordered(2, type, id, kernel.LEGAL_EDGES.find((candidate) => candidate.id === id)?.operation).bindings,
     );
     assert.equal(result.ok, true, id);
     assert.equal(result.value.next.storyState, storyState, id);
@@ -544,7 +673,7 @@ test('authority kernel covers the normative phase-preserving lifecycle catalog',
     const result = kernel.reduceAuthority(
       { ...state, storyState },
       { ...event, id: `${run}/event/2`, edge: id, type: 'EV-OWNER-DECISION' },
-      ordered(2, 'EV-OWNER-DECISION', id).bindings,
+      operationBindings('OPC-SESSION-RESPOND', 2),
     );
     assert.equal(result.ok, true, id);
     assert.equal(result.value.next.storyState, storyState, id);
@@ -575,12 +704,15 @@ test('authority kernel Run catalog validates all V3a phases and realizes every c
   for (const edge of kernel.RUN_LEGAL_EDGES) {
     const input = { ...state, runPhase: edge.from };
     const trigger = { ...event, type: edge.event, edge: edge.id };
-    const result = kernel.reduceAuthority(input, trigger, bindings);
+    const result = kernel.reduceAuthority(input, trigger, operationBindings('OPC-SESSION-OPEN'));
     assert.equal(result.ok, true, `${edge.from}/${edge.event}`);
     assert.equal(result.value.next.runPhase, edge.to);
     assert.equal(result.value.next.storyState, input.storyState);
     for (const illegal of kernel.EVENT_TYPES.filter((candidate) => candidate !== edge.event))
-      assert.equal(kernel.reduceAuthority(input, { ...trigger, type: illegal }, bindings).ok, false);
+      assert.equal(
+        kernel.reduceAuthority(input, { ...trigger, type: illegal }, operationBindings('OPC-SESSION-OPEN')).ok,
+        false,
+      );
   }
   assert.equal(
     kernel.reduceAuthority({ ...state, runPhase: 'Received' }, { ...event, edge: 'received-preflighting' }, bindings)

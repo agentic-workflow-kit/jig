@@ -1,4 +1,3 @@
-import type { IntakeReadback, IntakeRequest, IntakeResult } from '@agentic-workflow-kit/jig-runtime-contracts';
 import { createLocalFileWitness } from './local-file-witness.js';
 import {
   ensureConfinedDirectory,
@@ -18,8 +17,44 @@ type IntakeEntry = Readonly<{
   position: number;
   previousDigest: string;
   digest: string;
-  result: IntakeResult;
+  result: LocalIntakeResult;
 }>;
+type LocalIntakeRequest = Readonly<{
+  compositionDigest: string;
+  acknowledgementDigest: string;
+  terminalAck: 'accepted' | 'rejected';
+  successorCut?: string;
+}>;
+type LocalIntakeResult =
+  | Readonly<{
+      kind: 'acknowledged';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      successorCut?: string;
+      run: string;
+    }>
+  | Readonly<{
+      kind: 'rejected';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      reason: 'envelope-rejected';
+    }>
+  | Readonly<{
+      kind: 'rejected';
+      position: number;
+      compositionDigest: string;
+      acknowledgementDigest: string;
+      reason: 'successor-cut-already-claimed';
+      winner: Readonly<{
+        position: number;
+        compositionDigest: string;
+        acknowledgementDigest: string;
+        successorCut: string;
+        run: string;
+      }>;
+    }>;
 const GENESIS = Object.freeze({ position: -1, digest: '0'.repeat(64) });
 const runFor = (position: number, digest: string) => `run-${String(position).padStart(12, '0')}-${digest.slice(0, 16)}`;
 
@@ -76,12 +111,12 @@ export function createLocalFileIntakeForConformance(
       ? all
       : fail('FC-TRUST', head.value.position > current.position ? 'WITNESS_AHEAD' : 'WITNESS_MISMATCH');
   };
-  const publicResult = (result: IntakeResult): IntakeResult =>
+  const publicResult = (result: LocalIntakeResult): LocalIntakeResult =>
     result.kind === 'acknowledged'
       ? Object.freeze({ ...result, run: runFor(result.position, result.compositionDigest) })
       : Object.freeze(result);
   return Object.freeze({
-    create(request: IntakeRequest, fault?: 'after-flush' | 'lost-ack'): FileMechanismResult<IntakeResult> {
+    create(request: LocalIntakeRequest, fault?: 'after-flush' | 'lost-ack'): FileMechanismResult<LocalIntakeResult> {
       if (!independent.ok) return independent;
       if (
         !isDigest(request?.compositionDigest) ||
@@ -119,7 +154,7 @@ export function createLocalFileIntakeForConformance(
           )
         : undefined;
       const position = all.value.length;
-      const result: IntakeResult =
+      const result: LocalIntakeResult =
         request.terminalAck === 'rejected'
           ? Object.freeze({
               kind: 'rejected',
@@ -168,7 +203,9 @@ export function createLocalFileIntakeForConformance(
       if (!advanced.ok) return advanced;
       return fault === 'lost-ack' ? fail('FC-TRUST', 'INTAKE_ACK_LOST') : ok(publicResult(result));
     },
-    read(compositionDigest: string): FileMechanismResult<IntakeReadback> {
+    read(
+      compositionDigest: string,
+    ): FileMechanismResult<Readonly<{ result: LocalIntakeResult; witnessedHeadDigest: string }>> {
       if (!independent.ok) return independent;
       if (!isDigest(compositionDigest)) return fail('FC-INPUT', 'INVALID_INTAKE_KEY');
       const all = trusted();

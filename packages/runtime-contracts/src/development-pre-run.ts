@@ -1,8 +1,18 @@
-import { type CanonicalJson, decodeFrame, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { composeEnvelope, type EnvelopeProposal } from './envelope.js';
+import { type CanonicalJson, decodeFrame, encodeFrame, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import {
+  createPreRunApproval,
+  type DevelopmentApprovalScope,
+  isPreRunApprovalRepository,
+  type PreRunApproval,
+  type PreRunApprovalRepository,
+  validatePreRunApproval,
+} from './approval-repository.js';
+import { composeEnvelope, type EnvelopeProposal, validateEnvelopeProposal } from './envelope.js';
+import { commitScriptedIntake } from './intake-commit.js';
 import {
   type IntakeReadback,
   type IntakeResult,
+  type IntakeSuccessorCut,
   isScriptedLedger,
   type LedgerFailure,
   type LedgerResult,
@@ -13,7 +23,7 @@ export const DEVELOPMENT_PRE_RUN_VERSION = 'jig.development-pre-run.v1';
 
 type Failure = Readonly<{ family: 'FC-INPUT' | 'FC-AUTHORITY' | 'FC-TRUST'; code: string }>;
 type Result<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: Failure | LedgerFailure }>;
-type Scope = Readonly<{ phase: 3; purpose: 'development-only' }>;
+type Scope = DevelopmentApprovalScope;
 type ProviderManifest = Readonly<{
   manifestId: string;
   manifestDigest: string;
@@ -28,16 +38,33 @@ export type DevelopmentPreview = Readonly<{
   proposalDigest: string;
   manifestId: string;
   manifestDigest: string;
+  providerManifestBytes: readonly number[];
+  scope: Scope;
   scopeDigest: string;
   compositionDigest: string;
   proposal: EnvelopeProposal;
 }>;
-export type DevelopmentApproval = Readonly<{
-  kind: 'proposal-approved' | 'provider-manifest-approved';
-  principal: 'principal/arye';
-  subjectDigest: string;
+export type DevelopmentApproval = PreRunApproval;
+export type DevelopmentApprovedEnvelope = Readonly<{
+  version: typeof DEVELOPMENT_PRE_RUN_VERSION;
+  posture: 'development-semantic-only';
+  recovery: 'fail-closed-no-autonomous-restore';
+  providerEnabled: false;
+  dispatchEnabled: false;
+  proposalDigest: string;
+  manifestId: string;
+  manifestDigest: string;
+  providerManifestBytes: readonly number[];
+  scope: Scope;
   scopeDigest: string;
-  approvalDigest: string;
+  compositionDigest: string;
+  proposal: EnvelopeProposal;
+  proposalApproval: DevelopmentApproval;
+  manifestApproval: DevelopmentApproval;
+}>;
+declare const developmentAryePrincipalBrand: unique symbol;
+export type DevelopmentAryePrincipal = Readonly<{
+  readonly [developmentAryePrincipalBrand]: 'principal/arye';
 }>;
 declare const developmentApprovalVerifierBrand: unique symbol;
 export type DevelopmentApprovalVerifier = Readonly<{
@@ -58,6 +85,13 @@ const freeze = <T>(value: T): T => Object.freeze(value);
 const ok = <T>(value: T): Result<T> => freeze({ ok: true, value: freeze(value) });
 const fail = (family: Failure['family'], code: string): Result<never> =>
   freeze({ ok: false, error: freeze({ family, code }) });
+
+function isApprovalReadResult(value: unknown): value is ReturnType<PreRunApprovalRepository['read']> {
+  const success = fields(value, ['ok', 'value']);
+  if (success?.ok === true) return true;
+  const failure = fields(value, ['ok', 'error']);
+  return failure?.ok === false;
+}
 
 function fields(value: unknown, names: readonly string[]): Record<string, unknown> | undefined {
   try {
@@ -87,6 +121,230 @@ function fields(value: unknown, names: readonly string[]): Record<string, unknow
 function staged(domain: string, value: CanonicalJson): string | undefined {
   const result = stageDigest({ domain, excludePaths: [], value });
   return result.ok ? result.value.digest : undefined;
+}
+
+function exactBytes(value: readonly number[]): string {
+  return value.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizeSuccessorCut(value: unknown): IntakeSuccessorCut | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== 3 || keys.some((key) => typeof key !== 'string')) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const predecessorRun = descriptors.predecessorRun;
+    const cutPosition = descriptors.position;
+    const cutDigest = descriptors.digest;
+    if (
+      !predecessorRun?.enumerable ||
+      !('value' in predecessorRun) ||
+      !cutPosition?.enumerable ||
+      !('value' in cutPosition) ||
+      !cutDigest?.enumerable ||
+      !('value' in cutDigest) ||
+      typeof predecessorRun.value !== 'string' ||
+      !/^run-[0-9]{12}-[0-9a-f]{16}$/u.test(predecessorRun.value) ||
+      !Number.isSafeInteger(cutPosition.value) ||
+      cutPosition.value < 0 ||
+      typeof cutDigest.value !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(cutDigest.value)
+    )
+      return undefined;
+    return freeze({ predecessorRun: predecessorRun.value, position: cutPosition.value, digest: cutDigest.value });
+  } catch {
+    return undefined;
+  }
+}
+
+function sameCanonical(left: unknown, right: unknown): boolean {
+  const leftFrame = encodeFrame(left as CanonicalJson);
+  const rightFrame = encodeFrame(right as CanonicalJson);
+  return (
+    leftFrame.ok &&
+    rightFrame.ok &&
+    leftFrame.value.length === rightFrame.value.length &&
+    leftFrame.value.every((byte, index) => byte === rightFrame.value[index])
+  );
+}
+
+function manifestFrame(value: unknown): Uint8Array | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Array.prototype
+    )
+      return undefined;
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+    const length = lengthDescriptor?.value;
+    if (!lengthDescriptor || !Number.isSafeInteger(length) || length < 1 || length > 65_536) return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (
+      keys.length !== length + 1 ||
+      keys.some((key) => key !== 'length' && (typeof key !== 'string' || !/^\d+$/u.test(key)))
+    )
+      return undefined;
+    const bytes = new Uint8Array(length);
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (
+        !descriptor?.enumerable ||
+        !('value' in descriptor) ||
+        !Number.isInteger(descriptor.value) ||
+        descriptor.value < 0 ||
+        descriptor.value > 255
+      )
+        return undefined;
+      bytes[index] = descriptor.value;
+    }
+    return bytes;
+  } catch {
+    return undefined;
+  }
+}
+
+function validPreview(input: unknown): DevelopmentPreview | undefined {
+  const data = fields(input, [
+    'compositionDigest',
+    'dispatchEnabled',
+    'manifestDigest',
+    'manifestId',
+    'posture',
+    'proposal',
+    'proposalDigest',
+    'providerManifestBytes',
+    'providerEnabled',
+    'recovery',
+    'scope',
+    'scopeDigest',
+    'version',
+  ]);
+  const proposal = data && validateEnvelopeProposal(data.proposal);
+  const providerManifestBytes = data && manifestFrame(data.providerManifestBytes);
+  const providerManifest = providerManifestBytes && manifest(providerManifestBytes);
+  const previewScope = data && fields(data.scope, ['phase', 'purpose']);
+  const scopeDigest = previewScope && staged('DEVELOPMENT-PROVIDER-SCOPE', previewScope as CanonicalJson);
+  if (
+    !data ||
+    !proposal?.ok ||
+    !previewScope ||
+    previewScope.phase !== 3 ||
+    previewScope.purpose !== 'development-only' ||
+    data.version !== DEVELOPMENT_PRE_RUN_VERSION ||
+    data.posture !== 'development-semantic-only' ||
+    data.recovery !== 'fail-closed-no-autonomous-restore' ||
+    data.providerEnabled !== false ||
+    data.dispatchEnabled !== false ||
+    typeof data.proposalDigest !== 'string' ||
+    data.proposalDigest !== proposal.value.proposalDigest ||
+    !providerManifest ||
+    typeof data.manifestDigest !== 'string' ||
+    !/^[0-9a-f]{64}$/u.test(data.manifestDigest) ||
+    data.manifestId !== `provider/development/authority/${data.manifestDigest}` ||
+    providerManifest.manifestDigest !== data.manifestDigest ||
+    providerManifest.manifestId !== data.manifestId ||
+    data.scopeDigest !== scopeDigest
+  )
+    return undefined;
+  const proposalDigest = data.proposalDigest as string;
+  const manifestDigest = data.manifestDigest as string;
+  const manifestId = data.manifestId as string;
+  const previewScopeValue = freeze({ phase: 3 as const, purpose: 'development-only' as const });
+  const compositionDigest =
+    scopeDigest &&
+    staged('DEVELOPMENT-COMPOSITION', {
+      version: DEVELOPMENT_PRE_RUN_VERSION,
+      posture: 'development-semantic-only',
+      recovery: 'fail-closed-no-autonomous-restore',
+      proposalDigest,
+      manifestId,
+      manifestDigest,
+      scopeDigest,
+    });
+  if (!scopeDigest || !compositionDigest || data.compositionDigest !== compositionDigest) return undefined;
+  return freeze({
+    version: DEVELOPMENT_PRE_RUN_VERSION,
+    posture: 'development-semantic-only' as const,
+    recovery: 'fail-closed-no-autonomous-restore' as const,
+    providerEnabled: false as const,
+    dispatchEnabled: false as const,
+    proposalDigest,
+    manifestId,
+    manifestDigest,
+    providerManifestBytes: freeze(Array.from(providerManifestBytes)),
+    scope: previewScopeValue,
+    scopeDigest,
+    compositionDigest,
+    proposal: proposal.value,
+  });
+}
+
+function approvedEnvelope(
+  previewInput: unknown,
+  proposalApprovalInput: unknown,
+  manifestApprovalInput: unknown,
+): DevelopmentApprovedEnvelope | undefined {
+  const preview = validPreview(previewInput);
+  const proposalApproval = validatePreRunApproval(proposalApprovalInput);
+  const manifestApproval = validatePreRunApproval(manifestApprovalInput);
+  if (!preview || !proposalApproval.ok || !manifestApproval.ok) return undefined;
+  if (
+    proposalApproval.value.kind !== 'proposal-approved' ||
+    proposalApproval.value.subjectDigest !== preview.proposalDigest ||
+    proposalApproval.value.scopeDigest !== preview.scopeDigest ||
+    !sameCanonical(proposalApproval.value.scope, preview.scope) ||
+    manifestApproval.value.kind !== 'provider-manifest-approved' ||
+    manifestApproval.value.subjectDigest !== preview.manifestDigest ||
+    manifestApproval.value.scopeDigest !== preview.scopeDigest ||
+    !sameCanonical(manifestApproval.value.scope, preview.scope)
+  )
+    return undefined;
+  const compositionDigest = staged('DEVELOPMENT-COMPOSITION', {
+    version: DEVELOPMENT_PRE_RUN_VERSION,
+    posture: 'development-semantic-only',
+    recovery: 'fail-closed-no-autonomous-restore',
+    proposalDigest: preview.proposalDigest,
+    proposalApproval: proposalApproval.value,
+    manifestId: preview.manifestId,
+    manifestDigest: preview.manifestDigest,
+    manifestApproval: manifestApproval.value,
+    scope: preview.scope,
+    scopeDigest: preview.scopeDigest,
+  });
+  return compositionDigest
+    ? freeze({
+        version: DEVELOPMENT_PRE_RUN_VERSION,
+        posture: 'development-semantic-only',
+        recovery: 'fail-closed-no-autonomous-restore',
+        providerEnabled: false,
+        dispatchEnabled: false,
+        proposalDigest: preview.proposalDigest,
+        manifestId: preview.manifestId,
+        manifestDigest: preview.manifestDigest,
+        providerManifestBytes: preview.providerManifestBytes,
+        scope: preview.scope,
+        scopeDigest: preview.scopeDigest,
+        compositionDigest,
+        proposal: preview.proposal,
+        proposalApproval: proposalApproval.value,
+        manifestApproval: manifestApproval.value,
+      })
+    : undefined;
+}
+
+export function composeApprovedDevelopmentEnvelope(input: unknown): Result<DevelopmentApprovedEnvelope> {
+  const data = fields(input, ['manifestApproval', 'preview', 'proposalApproval']);
+  if (!data) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
+  const envelope = approvedEnvelope(data.preview, data.proposalApproval, data.manifestApproval);
+  return envelope ? ok(envelope) : fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
 }
 
 function empty(value: unknown): boolean {
@@ -151,57 +409,46 @@ function manifest(value: unknown): ProviderManifest | undefined {
   }
 }
 
-type ApprovalBinding = Readonly<{
-  proposalApprovals: WeakSet<object>;
-  manifestApprovals: WeakSet<object>;
-}>;
-
-const issuedPreviews = new WeakSet<object>();
+type ApprovalBinding = Readonly<{ repository: PreRunApprovalRepository }>;
 const approvalVerifiers = new WeakMap<object, ApprovalBinding>();
-const claimedApprovalVerifiers = new WeakSet<object>();
 
-export function createDevelopmentApprovalAuthority(): Readonly<{
+export function createDevelopmentApprovalAuthority(input: unknown): Readonly<{
   consumer: DevelopmentApprovalConsumer;
+  principal: DevelopmentAryePrincipal;
   verifier: DevelopmentApprovalVerifier;
 }> {
-  const proposalApprovals = new WeakSet<object>();
-  const manifestApprovals = new WeakSet<object>();
-  const approvalsByDigest = new Map<string, DevelopmentApproval>();
+  const config = fields(input, ['repository']);
+  const repository = config?.repository;
+  const boundRepository = isPreRunApprovalRepository(repository) ? repository : undefined;
+  const principal = freeze({}) as DevelopmentAryePrincipal;
 
   const approve = (input: unknown, kind: DevelopmentApproval['kind']): Result<DevelopmentApproval> => {
-    const data = fields(input, ['preview']);
-    if (typeof data?.preview !== 'object' || data.preview === null || !issuedPreviews.has(data.preview))
-      return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
-    const preview = data.preview as DevelopmentPreview;
-    const subjectDigest = kind === 'proposal-approved' ? preview.proposalDigest : preview.manifestDigest;
-    const approvalDigest = staged('DEVELOPMENT-OWNER-APPROVAL', {
+    const data = fields(input, ['principal', 'preview']);
+    if (!boundRepository || data?.principal !== principal) return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
+    const preview = validPreview(data.preview);
+    if (!preview) return fail('FC-AUTHORITY', 'EXACT_ARYE_PREVIEW_REQUIRED');
+    const created = createPreRunApproval({
       kind,
       principal: 'principal/arye',
-      subjectDigest,
-      scopeDigest: preview.scopeDigest,
+      subjectDigest: kind === 'proposal-approved' ? preview.proposalDigest : preview.manifestDigest,
+      scope: preview.scope,
     });
-    if (!approvalDigest) return fail('FC-INPUT', 'INVALID_APPROVAL');
-    const existing = approvalsByDigest.get(approvalDigest);
-    if (existing) return ok(existing);
-    const approval = freeze({
-      kind,
-      principal: 'principal/arye' as const,
-      subjectDigest,
-      scopeDigest: preview.scopeDigest,
-      approvalDigest,
-    });
-    approvalsByDigest.set(approvalDigest, approval);
-    (kind === 'proposal-approved' ? proposalApprovals : manifestApprovals).add(approval);
-    return ok(approval);
+    if (!created.ok) return created;
+    try {
+      return boundRepository.createIfAbsent(created.value);
+    } catch {
+      return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+    }
   };
 
   const verifier = freeze({}) as DevelopmentApprovalVerifier;
-  approvalVerifiers.set(verifier, freeze({ proposalApprovals, manifestApprovals }));
+  if (boundRepository) approvalVerifiers.set(verifier, freeze({ repository: boundRepository }));
   return freeze({
     consumer: freeze({
       approveProposal: (input: unknown) => approve(input, 'proposal-approved'),
       approveProviderManifest: (input: unknown) => approve(input, 'provider-manifest-approved'),
     }),
+    principal,
     verifier,
   });
 }
@@ -214,10 +461,7 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       ? config.approvalVerifier
       : undefined;
   const availableBinding = verifier ? approvalVerifiers.get(verifier) : undefined;
-  const approvalBinding =
-    ledger && verifier && availableBinding && !claimedApprovalVerifiers.has(verifier) ? availableBinding : undefined;
-  if (verifier && approvalBinding) claimedApprovalVerifiers.add(verifier);
-  const previews = new WeakSet<object>();
+  const approvalBinding = ledger && verifier && availableBinding ? availableBinding : undefined;
   const previewsByDigest = new Map<string, DevelopmentPreview>();
 
   return freeze({
@@ -251,13 +495,13 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
         proposalDigest: proposal.value.proposalDigest,
         manifestId: providerManifest.manifestId,
         manifestDigest: providerManifest.manifestDigest,
+        providerManifestBytes: freeze(Array.from(data.providerManifestBytes as Uint8Array)),
+        scope: providerManifest.scope,
         scopeDigest,
         compositionDigest,
         proposal: proposal.value,
       });
       previewsByDigest.set(compositionDigest, preview);
-      previews.add(preview);
-      issuedPreviews.add(preview);
       return ok(preview);
     },
     submit(input) {
@@ -266,50 +510,99 @@ export function createDevelopmentPreRun(input: unknown): DevelopmentPreRun {
       const withCut = fields(input, ['manifestApproval', 'preview', 'proposalApproval', 'successorCut', 'terminalAck']);
       const data = accepted ?? withCut;
       if (!data) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
+      const suppliedSuccessorCut = data.successorCut;
+      const successorCut = normalizeSuccessorCut(suppliedSuccessorCut);
       if (
         (data.terminalAck !== 'accepted' && data.terminalAck !== 'rejected') ||
-        (data.terminalAck === 'rejected' && data.successorCut !== undefined) ||
-        (data.successorCut !== undefined &&
-          (typeof data.successorCut !== 'string' || data.successorCut.length === 0 || data.successorCut.length > 512))
+        (data.terminalAck === 'rejected' && suppliedSuccessorCut !== undefined) ||
+        (suppliedSuccessorCut !== undefined && successorCut === undefined)
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
-      if (
-        typeof data.preview !== 'object' ||
-        data.preview === null ||
-        !previews.has(data.preview) ||
-        typeof data.proposalApproval !== 'object' ||
-        data.proposalApproval === null ||
-        !approvalBinding?.proposalApprovals.has(data.proposalApproval) ||
-        typeof data.manifestApproval !== 'object' ||
-        data.manifestApproval === null ||
-        !approvalBinding.manifestApprovals.has(data.manifestApproval)
-      )
+      if (!approvalBinding) return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
+      const preview = validPreview(data.preview);
+      const proposalApproval = validatePreRunApproval(data.proposalApproval);
+      const manifestApproval = validatePreRunApproval(data.manifestApproval);
+      if (!preview || !proposalApproval.ok || !manifestApproval.ok)
         return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
-      const preview = data.preview as DevelopmentPreview;
-      const proposalApproval = data.proposalApproval as DevelopmentApproval;
-      const manifestApproval = data.manifestApproval as DevelopmentApproval;
+      let storedProposal: ReturnType<PreRunApprovalRepository['read']>;
+      let storedManifest: ReturnType<PreRunApprovalRepository['read']>;
+      try {
+        storedProposal = approvalBinding.repository.read(proposalApproval.value.key);
+        storedManifest = approvalBinding.repository.read(manifestApproval.value.key);
+      } catch {
+        return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
+      }
+      if (!isApprovalReadResult(storedProposal) || !isApprovalReadResult(storedManifest))
+        return fail('FC-TRUST', 'APPROVAL_STORAGE_UNAVAILABLE');
       if (
-        proposalApproval.kind !== 'proposal-approved' ||
-        proposalApproval.subjectDigest !== preview.proposalDigest ||
-        proposalApproval.scopeDigest !== preview.scopeDigest ||
-        manifestApproval.kind !== 'provider-manifest-approved' ||
-        manifestApproval.subjectDigest !== preview.manifestDigest ||
-        manifestApproval.scopeDigest !== preview.scopeDigest
+        !storedProposal.ok ||
+        !storedManifest.ok ||
+        !sameCanonical(storedProposal.value, proposalApproval.value) ||
+        !sameCanonical(storedManifest.value, manifestApproval.value)
       )
-        return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
-      const acknowledgementDigest = staged('DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT', {
-        compositionDigest: preview.compositionDigest,
-        proposalApprovalDigest: proposalApproval.approvalDigest,
-        manifestApprovalDigest: manifestApproval.approvalDigest,
-        terminalAck: data.terminalAck as 'accepted' | 'rejected',
-        successorCut: (data.successorCut as string | undefined) ?? null,
+        return fail('FC-TRUST', 'EXACT_APPROVAL_READBACK_REQUIRED');
+      const approvedResult = composeApprovedDevelopmentEnvelope({
+        preview,
+        proposalApproval: storedProposal.value,
+        manifestApproval: storedManifest.value,
       });
-      if (!acknowledgementDigest) return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT');
-      return ledger.intake({
-        compositionDigest: preview.compositionDigest,
+      if (!approvedResult.ok) return approvedResult;
+      const approved = approvedResult.value;
+      if (preview.proposalDigest !== approved.proposalDigest || preview.manifestDigest !== approved.manifestDigest)
+        return fail('FC-AUTHORITY', 'EXACT_DEVELOPMENT_APPROVALS_REQUIRED');
+      const cutClaimContent = successorCut
+        ? {
+            schema: 'jig.intake-cut-claim.v1',
+            key: successorCut,
+            acknowledgementKey: approved.compositionDigest,
+          }
+        : undefined;
+      const cutClaimDigest = cutClaimContent && staged('DEVELOPMENT-INTAKE-CUT-CLAIM', cutClaimContent);
+      const acknowledgementContent = {
+        schema: 'jig.intake-ack.v1',
+        compositionDigest: approved.compositionDigest,
+        envelope: {
+          version: approved.version,
+          posture: approved.posture,
+          recovery: approved.recovery,
+          providerEnabled: approved.providerEnabled,
+          dispatchEnabled: approved.dispatchEnabled,
+          proposalDigest: approved.proposalDigest,
+          manifestId: approved.manifestId,
+          manifestDigest: approved.manifestDigest,
+          providerManifestBytesHex: exactBytes(approved.providerManifestBytes),
+          scope: approved.scope,
+          scopeDigest: approved.scopeDigest,
+          compositionDigest: approved.compositionDigest,
+          proposal: approved.proposal,
+        },
+        proposalApproval: approved.proposalApproval,
+        manifestApproval: approved.manifestApproval,
+        terminalAck: data.terminalAck as 'accepted' | 'rejected',
+        cutClaim: cutClaimContent ? { key: successorCut, contentDigest: cutClaimDigest as string } : null,
+      };
+      const acknowledgementCanonical = acknowledgementContent as unknown as CanonicalJson;
+      const acknowledgementDigest = staged('DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT', acknowledgementCanonical);
+      const acknowledgementFrame = encodeFrame(acknowledgementCanonical);
+      const cutClaimFrame = cutClaimContent && encodeFrame(cutClaimContent as CanonicalJson);
+      if (
+        !acknowledgementDigest ||
+        !acknowledgementFrame.ok ||
+        (cutClaimContent && (!cutClaimDigest || !cutClaimFrame?.ok))
+      ) {
+        return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT');
+      }
+      return commitScriptedIntake(ledger, {
+        compositionDigest: approved.compositionDigest,
         acknowledgementDigest,
         terminalAck: data.terminalAck as 'accepted' | 'rejected',
-        ...(data.successorCut ? { successorCut: data.successorCut as string } : {}),
+        acknowledgementBytes: freeze(Array.from(acknowledgementFrame.value)),
+        ...(successorCut
+          ? {
+              successorCut,
+              cutClaimBytes: freeze(Array.from((cutClaimFrame as { ok: true; value: Uint8Array }).value)),
+            }
+          : {}),
       });
     },
     readback(compositionDigest) {

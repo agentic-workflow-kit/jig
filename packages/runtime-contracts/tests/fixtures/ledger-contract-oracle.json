@@ -9,6 +9,7 @@
     "after-witness",
     "lost-ack",
     "intake-after-flush",
+    "intake-after-witness",
     "intake-missing-companion",
     "intake-mismatched-companion"
   ],

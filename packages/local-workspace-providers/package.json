@@ -1,5 +1,5 @@
 {
-  "name": "@agentic-workflow-kit/jig-local-file-providers",
+  "name": "@agentic-workflow-kit/jig-local-workspace-providers",
   "version": "0.0.0",
   "private": true,
   "type": "module",

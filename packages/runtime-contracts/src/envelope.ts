@@ -4,7 +4,7 @@
  */
 import { type CanonicalJson, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { REPOSITORY_POLICY_CATALOGUE } from './repository-policy-catalogue.js';
-import { validateSourcePlan } from './source.js';
+import { type SourcePlan, validateSourcePlan } from './source.js';
 
 export const ENVELOPE_POLICY_VERSION = 'jig.envelope-policy.v1';
 
@@ -36,16 +36,56 @@ export const ENVELOPE_BOUNDS = Object.freeze({
 
 export type EnvelopeFailure = Readonly<{ family: 'FC-INPUT'; code: string }>;
 export type EnvelopeResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: EnvelopeFailure }>;
+export type EnvelopePolicy = Readonly<{
+  catalogue: typeof REPOSITORY_POLICY_CATALOGUE;
+  selections: Readonly<Record<string, number>>;
+  capacities: Readonly<Record<string, number>>;
+  reserves: Readonly<Record<string, number>>;
+}>;
 export type EnvelopeProposal = Readonly<{
   version: typeof ENVELOPE_POLICY_VERSION;
   track: string;
-  policy: Readonly<Record<string, number>>;
+  policy: EnvelopePolicy;
   bounds: Readonly<Record<string, Readonly<{ value: number; rangeVersion: 'jig.envelope-bounds.v1' }>>>;
+  plan: SourcePlan;
+  normalizedPlan: CanonicalJson;
+  profile: CanonicalJson;
+  artifacts: readonly CanonicalJson[];
+  setup: CanonicalJson;
+  ruleSurface: CanonicalJson;
+  guidance: CanonicalJson;
   digests: Readonly<
     Record<'plan' | 'policy' | 'profile' | 'artifacts' | 'setup' | 'ranges' | 'candidate' | 'suite' | 'probe', string>
   >;
   proposalDigest: string;
 }>;
+
+const PROPOSAL_KEYS = Object.freeze([
+  'artifacts',
+  'bounds',
+  'digests',
+  'guidance',
+  'normalizedPlan',
+  'plan',
+  'policy',
+  'profile',
+  'proposalDigest',
+  'ruleSurface',
+  'setup',
+  'track',
+  'version',
+] as const);
+const PROPOSAL_DIGEST_KEYS = Object.freeze([
+  'artifacts',
+  'candidate',
+  'plan',
+  'policy',
+  'probe',
+  'profile',
+  'ranges',
+  'setup',
+  'suite',
+] as const);
 
 const fail = (code: string): EnvelopeResult<never> =>
   Object.freeze({ ok: false, error: Object.freeze({ family: 'FC-INPUT', code }) });
@@ -164,6 +204,130 @@ function containsCredential(value: CanonicalJson): boolean {
   return value !== null && typeof value === 'object' && Object.values(value).some(containsCredential);
 }
 
+function proposalBasis(value: {
+  version: string;
+  track: string;
+  policy: CanonicalJson;
+  bounds: CanonicalJson;
+  plan: CanonicalJson;
+  normalizedPlan: CanonicalJson;
+  profile: CanonicalJson;
+  artifacts: CanonicalJson;
+  setup: CanonicalJson;
+  ruleSurface: CanonicalJson;
+  guidance: CanonicalJson;
+}): CanonicalJson {
+  return {
+    version: value.version,
+    track: value.track,
+    policy: value.policy,
+    bounds: value.bounds,
+    plan: value.plan,
+    normalizedPlan: value.normalizedPlan,
+    profile: value.profile,
+    artifacts: value.artifacts,
+    setup: value.setup,
+    ruleSurface: value.ruleSurface,
+    guidance: value.guidance,
+  };
+}
+
+function proposalDigests(value: {
+  plan: CanonicalJson;
+  policy: CanonicalJson;
+  profile: CanonicalJson;
+  artifacts: CanonicalJson;
+  bounds: CanonicalJson;
+  setup: CanonicalJson;
+  ruleSurface: CanonicalJson;
+}): Record<(typeof PROPOSAL_DIGEST_KEYS)[number], string | undefined> {
+  const policy = object(value.policy);
+  const capacities = policy && object(policy.capacities);
+  const reserves = policy && object(policy.reserves);
+  return {
+    plan: stage('EP-PLAN', value.plan),
+    policy: stage('EP-POLICY', value.policy),
+    profile: stage('EP-PROFILE', value.profile),
+    artifacts: stage('EP-ARTIFACTS', value.artifacts),
+    setup: stage('EP-SETUP', value.setup),
+    ranges: stage('EP-RANGES', value.bounds),
+    candidate: stage('EP-CANDIDATE', value.plan),
+    suite: stage('EP-RULE-SURFACE', value.ruleSurface),
+    probe: capacities && reserves ? stage('EP-PROBE', { capacities, reserves }) : undefined,
+  };
+}
+
+/**
+ * Verifies a transferred proposal carrier without trusting its digest projection.
+ * This is an integrity handoff primitive only; approval, intake, and Run authority remain downstream.
+ */
+export function validateEnvelopeProposal(input: unknown): EnvelopeResult<EnvelopeProposal> {
+  const root = object(snapshot(input));
+  if (!root || !exactKeys(root, PROPOSAL_KEYS)) return fail('INVALID_ENVELOPE_CARRIER');
+  const digests = object(root.digests);
+  if (
+    root.version !== ENVELOPE_POLICY_VERSION ||
+    typeof root.track !== 'string' ||
+    !digests ||
+    !exactKeys(digests, PROPOSAL_DIGEST_KEYS) ||
+    !digest(root.proposalDigest) ||
+    Object.values(digests).some((value) => !digest(value))
+  )
+    return fail('INVALID_ENVELOPE_CARRIER');
+  const basis = proposalBasis({
+    version: root.version,
+    track: root.track,
+    policy: root.policy,
+    bounds: root.bounds,
+    plan: root.plan,
+    normalizedPlan: root.normalizedPlan,
+    profile: root.profile,
+    artifacts: root.artifacts,
+    setup: root.setup,
+    ruleSurface: root.ruleSurface,
+    guidance: root.guidance,
+  });
+  const expectedProposalDigest = stage('EP-PROPOSAL', basis);
+  const expectedDigests = proposalDigests({
+    plan: root.plan,
+    policy: root.policy,
+    profile: root.profile,
+    artifacts: root.artifacts,
+    bounds: root.bounds,
+    setup: root.setup,
+    ruleSurface: root.ruleSurface,
+  });
+  if (
+    expectedProposalDigest !== root.proposalDigest ||
+    PROPOSAL_DIGEST_KEYS.some((key) => expectedDigests[key] !== digests[key])
+  )
+    return fail('ENVELOPE_DIGEST_MISMATCH');
+  const carrierPolicy = object(root.policy);
+  const carrierBounds = object(root.bounds);
+  if (!carrierPolicy || !carrierBounds) return fail('INVALID_ENVELOPE_CARRIER');
+  const requestedBounds = Object.fromEntries(
+    Object.entries(carrierBounds).map(([key, value]) => [key, object(value)?.value ?? null]),
+  );
+  const recomposed = composeEnvelope({
+    plan: root.plan,
+    policy: {
+      track: root.track,
+      selections: carrierPolicy.selections,
+      bounds: requestedBounds,
+      capacities: carrierPolicy.capacities,
+      reserves: carrierPolicy.reserves,
+    },
+    profile: root.profile,
+    artifacts: root.artifacts,
+    setup: root.setup,
+    ruleSurface: root.ruleSurface,
+    guidance: root.guidance,
+  });
+  if (!recomposed.ok || recomposed.value.proposalDigest !== root.proposalDigest)
+    return fail('INVALID_ENVELOPE_CARRIER');
+  return ok(freeze(root as unknown as EnvelopeProposal));
+}
+
 export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal> {
   const root = object(snapshot(input));
   if (!root || !exactKeys(root, ['plan', 'policy', 'profile', 'artifacts', 'setup', 'ruleSurface', 'guidance']))
@@ -212,15 +376,23 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     return fail('CONFIGURATION_INCOMPATIBLE');
   const normalizedPlan = {
     capacities: Object.fromEntries(
-      Object.entries(approvedPlan.value.policy.capacities).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+      Object.entries(approvedPlan.value.policy.capacities).map(([wire, amount]) => [
+        normalizeResource(wire) ?? wire,
+        amount,
+      ]),
     ),
     reserves: Object.fromEntries(
-      Object.entries(approvedPlan.value.policy.reserves).map(([wire, amount]) => [normalizeResource(wire)!, amount]),
+      Object.entries(approvedPlan.value.policy.reserves).map(([wire, amount]) => [
+        normalizeResource(wire) ?? wire,
+        amount,
+      ]),
     ),
     demands: Object.fromEntries(
       approvedPlan.value.stories.map((story) => [
         story.key,
-        Object.fromEntries(Object.entries(story.demand).map(([wire, amount]) => [normalizeResource(wire)!, amount])),
+        Object.fromEntries(
+          Object.entries(story.demand).map(([wire, amount]) => [normalizeResource(wire) ?? wire, amount]),
+        ),
       ]),
     ),
   };
@@ -235,11 +407,11 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     return fail('CROSS_TRACK_INPUT');
   const selected = object(policyInput.selections);
   if (!selected) return fail('INVALID_POLICY');
-  const policy: Record<string, number> = {};
+  const selections: Record<string, number> = {};
   for (const [key, floor] of Object.entries(REPOSITORY_POLICY_CATALOGUE.floors)) {
     const choice = selected[key];
     if (!integer(floor) || !integer(choice) || choice < floor) return fail('WEAKENED_FLOOR');
-    policy[key] = choice;
+    selections[key] = choice;
   }
   if (
     Object.keys(selected).some(
@@ -380,7 +552,8 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     const memoKey = `${key}\u0000${resource}`;
     const known = memo.get(memoKey);
     if (known !== undefined) return known;
-    const story = byStoryKey.get(key)!;
+    const story = byStoryKey.get(key);
+    if (!story) return 0;
     const demand =
       ((normalizedPlan.demands[story.key] as Record<string, number>)[resource] ?? 0) +
       Math.max(0, ...story.dependsOn.map((dependency) => demandAt(dependency, resource, memo)));
@@ -403,10 +576,11 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     )
       return fail('PLAN_FEASIBILITY_FAILED');
   }
-  const canonical = {
+  const policy = { catalogue: REPOSITORY_POLICY_CATALOGUE, selections, capacities, reserves };
+  const canonical = proposalBasis({
     version: ENVELOPE_POLICY_VERSION,
     track,
-    policy: { catalogue: REPOSITORY_POLICY_CATALOGUE, selections: selected, capacities, reserves },
+    policy,
     bounds,
     plan: approvedPlan.value as unknown as CanonicalJson,
     normalizedPlan,
@@ -415,48 +589,24 @@ export function composeEnvelope(input: unknown): EnvelopeResult<EnvelopeProposal
     setup,
     ruleSurface: rules,
     guidance,
-  } as CanonicalJson;
+  });
   const proposalDigest = stage('EP-PROPOSAL', canonical);
-  const policyDigest = stage('EP-POLICY', policy);
-  const profileDigest = stage('EP-PROFILE', profile);
-  const artifactDigest = stage('EP-ARTIFACTS', artifacts);
-  const setupDigest = stage('EP-SETUP', setup);
-  const rangeDigest = stage('EP-RANGES', bounds);
-  const planDigest = stage('EP-PLAN', approvedPlan.value as unknown as CanonicalJson);
-  const candidateDigest = stage('EP-CANDIDATE', approvedPlan.value as unknown as CanonicalJson);
-  const suiteDigest = stage('EP-RULE-SURFACE', rules);
-  const probeDigest = stage('EP-PROBE', { capacities, reserves });
-  if (
-    !digest(proposalDigest) ||
-    !digest(planDigest) ||
-    !digest(policyDigest) ||
-    !digest(profileDigest) ||
-    !digest(artifactDigest) ||
-    !digest(setupDigest) ||
-    !digest(rangeDigest) ||
-    !digest(candidateDigest) ||
-    !digest(suiteDigest) ||
-    !digest(probeDigest)
-  )
+  const componentDigests = proposalDigests({
+    plan: approvedPlan.value as unknown as CanonicalJson,
+    policy,
+    profile,
+    artifacts,
+    bounds,
+    setup,
+    ruleSurface: rules,
+  });
+  if (!digest(proposalDigest) || PROPOSAL_DIGEST_KEYS.some((key) => !digest(componentDigests[key])))
     return fail('DIGEST_FAILURE');
   return ok(
     freeze({
-      version: ENVELOPE_POLICY_VERSION,
-      track,
-      policy,
-      bounds,
-      digests: {
-        plan: planDigest,
-        policy: policyDigest,
-        profile: profileDigest,
-        artifacts: artifactDigest,
-        setup: setupDigest,
-        ranges: rangeDigest,
-        candidate: candidateDigest,
-        suite: suiteDigest,
-        probe: probeDigest,
-      },
+      ...(canonical as Record<string, CanonicalJson>),
+      digests: componentDigests,
       proposalDigest,
-    }),
+    }) as unknown as EnvelopeProposal,
   );
 }

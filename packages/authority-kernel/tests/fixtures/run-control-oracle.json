@@ -1,0 +1,22 @@
+{
+  "contract": "jig.run-control.v1",
+  "schemas": [
+    "jig.sch-rule-surface.v1",
+    "jig.rule-surface-event.v1",
+    "jig.run-control-event.v1",
+    "jig.sch-settlement.v1"
+  ],
+  "events": [
+    "EV-RULE-SURFACE-TOUCHED",
+    "EV-RUN-SUSPEND-DECISION",
+    "EV-RUN-RESUME-DECISION",
+    "EV-RUN-TERMINAL-STOP-DECISION",
+    "EV-RECOVERY-OBSERVATION"
+  ],
+  "terminalOrigins": ["Suspended", "Interrupted / Recovering"],
+  "settlementOpening": {
+    "advancedDuties": 0,
+    "completedDuties": 0,
+    "status": "opened"
+  }
+}

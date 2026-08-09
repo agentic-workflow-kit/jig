@@ -7,11 +7,12 @@ import {
   stageDigest,
   validateStagedDigest,
 } from '@agentic-workflow-kit/jig-codec';
+import { registerScriptedIntake } from './intake-commit.js';
 
 export const LEDGER_VERSION = 'jig.ledger.v1';
 const GENESIS_DIGEST = '0'.repeat(64);
 
-export type LedgerFailureFamily = 'FC-INPUT' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST' | 'FC-BOUND';
+export type LedgerFailureFamily = 'FC-INPUT' | 'FC-AUTHORITY' | 'FC-SUBJECT' | 'FC-FENCE' | 'FC-TRUST' | 'FC-BOUND';
 export type LedgerFailure = Readonly<{ family: LedgerFailureFamily; code: string }>;
 export type LedgerResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: LedgerFailure }>;
 export type RunStoreBinding = Readonly<{ kind: 'run'; run: string; generation: string }>;
@@ -53,13 +54,18 @@ export type IntakeRequest = Readonly<{
   compositionDigest: string;
   acknowledgementDigest: string;
   terminalAck: 'accepted' | 'rejected';
-  successorCut?: string;
+  successorCut?: IntakeSuccessorCut;
+  /** Canonical terminal-ack bytes staged by CP-INTAKE. */
+  acknowledgementBytes: readonly number[];
+  /** Canonical successor-cut claim bytes staged together with an accepted successor ack. */
+  cutClaimBytes?: readonly number[];
 }>;
+export type IntakeSuccessorCut = Readonly<{ predecessorRun: string; position: number; digest: string }>;
 export type IntakeWinnerBinding = Readonly<{
   position: number;
   compositionDigest: string;
   acknowledgementDigest: string;
-  successorCut: string;
+  successorCut: IntakeSuccessorCut;
   run: string;
 }>;
 export type IntakeResult =
@@ -68,7 +74,7 @@ export type IntakeResult =
       position: number;
       compositionDigest: string;
       acknowledgementDigest: string;
-      successorCut?: string;
+      successorCut?: IntakeSuccessorCut;
       run: string;
     }>
   | Readonly<{
@@ -86,7 +92,12 @@ export type IntakeResult =
       reason: 'successor-cut-already-claimed';
       winner: IntakeWinnerBinding;
     }>;
-export type IntakeReadback = Readonly<{ result: IntakeResult; witnessedHeadDigest: string }>;
+export type IntakeReadback = Readonly<{
+  result: IntakeResult;
+  witnessedHeadDigest: string;
+  acknowledgementBytes?: readonly number[];
+  cutClaimBytes?: readonly number[];
+}>;
 export type PreflightRequest = Readonly<{
   key: string;
   variant: 'start' | 'result';
@@ -108,6 +119,7 @@ export type ScriptedLedgerFault =
   | 'fork'
   | 'rollback'
   | 'intake-after-flush'
+  | 'intake-after-witness'
   | 'intake-missing-companion'
   | 'intake-mismatched-companion';
 
@@ -125,13 +137,14 @@ export type ScriptedLedger = Readonly<{
     request: IntakeRequest,
     fault?: Extract<
       ScriptedLedgerFault,
-      'intake-after-flush' | 'intake-missing-companion' | 'intake-mismatched-companion'
+      'intake-after-flush' | 'intake-after-witness' | 'intake-missing-companion' | 'intake-mismatched-companion'
     >,
   ): LedgerResult<IntakeResult>;
   readIntake(compositionDigest: string): LedgerResult<IntakeReadback>;
   preflight(request: PreflightRequest): LedgerResult<PreflightResult>;
   readPreflight(key: string, variant: 'start' | 'result'): LedgerResult<PreflightResult | Readonly<{ kind: 'absent' }>>;
   snapshot(binding: RunStoreBinding): LedgerResult<Readonly<{ position: number; digest: string }>>;
+  records(binding: RunStoreBinding): LedgerResult<readonly LedgerRecord[]>;
   verifySnapshot(
     binding: RunStoreBinding,
     snapshot: Readonly<{ position: number; digest: string }>,
@@ -146,6 +159,7 @@ export type ScriptedLedger = Readonly<{
       | 'lost-ack'
       | 'indeterminate-read'
       | 'intake-after-flush'
+      | 'intake-after-witness'
       | 'intake-missing-companion'
       | 'intake-mismatched-companion'
     >,
@@ -181,6 +195,56 @@ const freezeDeep = <T>(value: T): T => {
   }
   return value;
 };
+
+function normalizeSuccessorCut(value: unknown): IntakeSuccessorCut | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== 3 || keys.some((key) => typeof key !== 'string')) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const predecessorRun = descriptors.predecessorRun;
+    const cutPosition = descriptors.position;
+    const cutDigest = descriptors.digest;
+    if (
+      !predecessorRun?.enumerable ||
+      !('value' in predecessorRun) ||
+      !cutPosition?.enumerable ||
+      !('value' in cutPosition) ||
+      !cutDigest?.enumerable ||
+      !('value' in cutDigest) ||
+      typeof predecessorRun.value !== 'string' ||
+      !parseIdentity('ID-RUN', predecessorRun.value).ok ||
+      !position(cutPosition.value) ||
+      !digest(cutDigest.value)
+    )
+      return undefined;
+    return freeze({ predecessorRun: predecessorRun.value, position: cutPosition.value, digest: cutDigest.value });
+  } catch {
+    return undefined;
+  }
+}
+
+function successorCutKey(value: IntakeSuccessorCut): string | undefined {
+  const staged = stageDigest({ domain: 'INTAKE-CUT-KEY', excludePaths: [], value });
+  return staged.ok ? staged.value.digest : undefined;
+}
+
+function sameCanonical(left: unknown, right: unknown): boolean {
+  const leftFrame = encodeFrame(left as CanonicalJson);
+  const rightFrame = encodeFrame(right as CanonicalJson);
+  return (
+    leftFrame.ok &&
+    rightFrame.ok &&
+    leftFrame.value.length === rightFrame.value.length &&
+    leftFrame.value.every((byte, index) => byte === rightFrame.value[index])
+  );
+}
 
 function snapshotContent(value: unknown): CanonicalJson | undefined {
   const encoded = encodeFrame(value as CanonicalJson);
@@ -423,10 +487,20 @@ export function createScriptedLedger(): ScriptedLedger {
   const currentGenerations = new Map<string, string>();
   type PendingAcknowledgement = Readonly<Omit<Extract<IntakeResult, { kind: 'acknowledged' }>, 'run'>>;
   type StoredIntakeResult = PendingAcknowledgement | Extract<IntakeResult, { kind: 'rejected' }>;
-  const intake = new Map<string, StoredIntakeResult>();
-  const cuts = new Map<string, PendingAcknowledgement>();
+  type StoredIntake = Readonly<{
+    result: StoredIntakeResult;
+    previousDigest: string;
+    headDigest: string;
+    acknowledgementBytes: readonly number[];
+    requestAcknowledgementDigest: string;
+    requestAcknowledgementBytes: readonly number[];
+    cutClaimBytes?: readonly number[];
+  }>;
+  const intake = new Map<string, StoredIntake>();
+  const cuts = new Map<string, StoredIntake>();
+  const intakeOrder: StoredIntake[] = [];
+  let intakeWitness: Readonly<{ position: number; digest: string }> | undefined;
   const preflight = new Map<string, PreflightResult>();
-  const intakeWitnesses = new Map<string, Readonly<{ position: number; digest: string }>>();
 
   const forRun = (input: unknown): LedgerResult<Readonly<{ binding: RunStoreBinding; records: LedgerRecord[] }>> => {
     const binding = normalizedBinding(input);
@@ -460,7 +534,7 @@ export function createScriptedLedger(): ScriptedLedger {
     const run = deriveIntakeRun(result);
     return run.ok ? { ok: true, value: freeze({ ...result, run: run.value }) } : run;
   };
-  const stagedIntakeHead = (result: StoredIntakeResult): LedgerResult<string> => {
+  const stagedIntakeHead = (result: StoredIntakeResult, previousDigest: string): LedgerResult<string> => {
     const staged = stageDigest({
       domain: 'INTAKE-PAIR',
       excludePaths: [],
@@ -468,25 +542,90 @@ export function createScriptedLedger(): ScriptedLedger {
         acknowledgement: result,
         cut: result.kind === 'acknowledged' ? (result.successorCut ?? null) : null,
         position: result.position,
+        previousDigest,
       },
     });
     return staged.ok ? { ok: true, value: staged.value.digest } : fail('FC-TRUST', 'INTAKE_HEAD_INVALID');
   };
-  const verifyIntake = (compositionDigest: string): LedgerResult<IntakeReadback> => {
-    const result = intake.get(compositionDigest);
-    const intakeWitness = intakeWitnesses.get(compositionDigest);
-    if (!result || !intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
-    if (result.kind === 'acknowledged' && result.successorCut && cuts.get(result.successorCut) !== result)
-      return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
-    const stagedHead = stagedIntakeHead(result);
-    if (!stagedHead.ok || intakeWitness.position !== result.position || intakeWitness.digest !== stagedHead.value)
+
+  const bytes = (value: unknown): readonly number[] => {
+    if (value instanceof Uint8Array) return freeze(Array.from(value));
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return [];
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const length = value.length;
+    if (!Number.isSafeInteger(length) || length < 1 || length > 65_536 || Reflect.ownKeys(value).length !== length + 1)
+      return [];
+    const output: number[] = [];
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (
+        !descriptor?.enumerable ||
+        !('value' in descriptor) ||
+        !Number.isInteger(descriptor.value) ||
+        descriptor.value < 0 ||
+        descriptor.value > 255
+      )
+        return [];
+      output.push(descriptor.value);
+    }
+    return freeze(output);
+  };
+
+  const stagedBytes = (value: unknown): readonly number[] => {
+    const normalized = bytes(value);
+    if (normalized.length === 0) return [];
+    const decoded = decodeFrame(new Uint8Array(normalized));
+    return decoded.ok ? normalized : [];
+  };
+
+  const verifyIntakeChain = (): LedgerResult<void> => {
+    let previous = GENESIS_DIGEST;
+    for (let index = 0; index < intakeOrder.length; index += 1) {
+      const stored = intakeOrder[index];
+      if (!stored || stored.result.position !== index || stored.previousDigest !== previous) {
+        return fail('FC-TRUST', 'INTAKE_POSITION_MISMATCH');
+      }
+      const stagedHead = stagedIntakeHead(stored.result, stored.previousDigest);
+      if (!stagedHead.ok || stagedHead.value !== stored.headDigest) return fail('FC-TRUST', 'INTAKE_HEAD_MISMATCH');
+      previous = stored.headDigest;
+    }
+    if (intakeOrder.length === 0) {
+      return intakeWitness === undefined ? { ok: true, value: undefined } : fail('FC-TRUST', 'INTAKE_WITNESS_AHEAD');
+    }
+    const last = intakeOrder.at(-1) as StoredIntake;
+    if (!intakeWitness) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
+    if (intakeWitness.position > last.result.position) return fail('FC-TRUST', 'INTAKE_WITNESS_AHEAD');
+    if (intakeWitness.position !== last.result.position || intakeWitness.digest !== last.headDigest)
       return fail('FC-TRUST', 'INTAKE_WITNESS_MISMATCH');
-    const published = publishedIntake(result);
+    for (const stored of intakeOrder) {
+      if (stored.result.kind === 'acknowledged' && stored.result.successorCut) {
+        const key = successorCutKey(stored.result.successorCut);
+        if (!key || cuts.get(key) !== stored) return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      }
+    }
+    return { ok: true, value: undefined };
+  };
+
+  const verifyIntake = (compositionDigest: string): LedgerResult<IntakeReadback> => {
+    const stored = intake.get(compositionDigest);
+    if (!stored) return fail('FC-TRUST', 'INTAKE_UNVERIFIABLE');
+    const chain = verifyIntakeChain();
+    if (!chain.ok) return chain;
+    const published = publishedIntake(stored.result);
     return published.ok
-      ? { ok: true, value: freeze({ result: published.value, witnessedHeadDigest: intakeWitness.digest }) }
+      ? {
+          ok: true,
+          value: freeze({
+            result: published.value,
+            witnessedHeadDigest: (intakeWitness as { digest: string }).digest,
+            acknowledgementBytes: stored.acknowledgementBytes,
+            ...(stored.cutClaimBytes ? { cutClaimBytes: stored.cutClaimBytes } : {}),
+          }),
+        }
       : published;
   };
 
+  let intakeCommitActive = false;
   const ledger: ScriptedLedger = freeze({
     append(request, fault) {
       const wait = waitWithinBound(request.wait);
@@ -596,48 +735,138 @@ export function createScriptedLedger(): ScriptedLedger {
       return { ok: true, value: undefined };
     },
     intake(request, fault) {
+      if (!intakeCommitActive) return fail('FC-AUTHORITY', 'CP_INTAKE_REQUIRED');
       const terminalAck = request.terminalAck;
+      const suppliedSuccessorCut = request.successorCut;
+      const successorCut = normalizeSuccessorCut(suppliedSuccessorCut);
+      const successorCutKeyValue = successorCut && successorCutKey(successorCut);
       if (
         !digest(request.compositionDigest) ||
         !digest(request.acknowledgementDigest) ||
         (terminalAck !== 'accepted' && terminalAck !== 'rejected') ||
-        (terminalAck === 'rejected' && request.successorCut !== undefined) ||
-        (request.successorCut !== undefined && !nonEmpty(request.successorCut))
+        (terminalAck === 'rejected' && suppliedSuccessorCut !== undefined) ||
+        (suppliedSuccessorCut !== undefined && (!successorCut || !successorCutKeyValue)) ||
+        !Array.isArray(request.acknowledgementBytes)
       )
         return fail('FC-INPUT', 'INVALID_INTAKE');
+      const acknowledgementBytes = stagedBytes(request.acknowledgementBytes);
+      if (acknowledgementBytes.length === 0) return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT_BYTES');
+      const acknowledgementFrame = decodeFrame(new Uint8Array(acknowledgementBytes));
+      if (
+        !acknowledgementFrame.ok ||
+        typeof acknowledgementFrame.value !== 'object' ||
+        acknowledgementFrame.value === null ||
+        Array.isArray(acknowledgementFrame.value)
+      )
+        return fail('FC-INPUT', 'INVALID_INTAKE_ACKNOWLEDGEMENT_BYTES');
+      const acknowledgement = acknowledgementFrame.value as Record<string, unknown>;
+      const acknowledgementCut =
+        typeof acknowledgement.cutClaim === 'object' &&
+        acknowledgement.cutClaim !== null &&
+        !Array.isArray(acknowledgement.cutClaim)
+          ? normalizeSuccessorCut((acknowledgement.cutClaim as Record<string, unknown>).key)
+          : undefined;
       const existing = intake.get(request.compositionDigest);
+      if (
+        existing &&
+        (acknowledgement.terminalAck !== terminalAck ||
+          !sameCanonical(acknowledgementCut ?? null, successorCut ?? null))
+      )
+        return fail('FC-INPUT', 'INTAKE_REQUEST_MISMATCH');
+      if (
+        acknowledgement.compositionDigest !== request.compositionDigest ||
+        acknowledgement.terminalAck !== terminalAck ||
+        !sameCanonical(acknowledgementCut ?? null, successorCut ?? null)
+      )
+        return fail('FC-TRUST', 'INTAKE_ACKNOWLEDGEMENT_MISMATCH');
+      const stagedAcknowledgement = stageDigest({
+        domain: 'DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT',
+        excludePaths: [],
+        value: acknowledgementFrame.value,
+      });
+      if (!stagedAcknowledgement.ok || stagedAcknowledgement.value.digest !== request.acknowledgementDigest)
+        return fail('FC-TRUST', 'INTAKE_ACKNOWLEDGEMENT_MISMATCH');
+      const cutClaimBytes =
+        successorCut === undefined
+          ? undefined
+          : request.cutClaimBytes === undefined
+            ? undefined
+            : stagedBytes(request.cutClaimBytes);
+      if (request.cutClaimBytes !== undefined && (!cutClaimBytes || cutClaimBytes.length === 0))
+        return fail('FC-INPUT', 'INVALID_INTAKE_CUT_CLAIM_BYTES');
+      if (successorCut !== undefined && !cutClaimBytes) return fail('FC-TRUST', 'INTAKE_CUT_CLAIM_MISMATCH');
+      if (cutClaimBytes) {
+        const cutClaimFrame = decodeFrame(new Uint8Array(cutClaimBytes));
+        const cutClaim =
+          cutClaimFrame.ok &&
+          typeof cutClaimFrame.value === 'object' &&
+          cutClaimFrame.value !== null &&
+          !Array.isArray(cutClaimFrame.value)
+            ? (cutClaimFrame.value as Record<string, unknown>)
+            : undefined;
+        const acknowledgementClaim =
+          typeof acknowledgement.cutClaim === 'object' &&
+          acknowledgement.cutClaim !== null &&
+          !Array.isArray(acknowledgement.cutClaim)
+            ? (acknowledgement.cutClaim as Record<string, unknown>)
+            : undefined;
+        const stagedClaim = cutClaimFrame.ok
+          ? stageDigest({ domain: 'DEVELOPMENT-INTAKE-CUT-CLAIM', excludePaths: [], value: cutClaimFrame.value })
+          : undefined;
+        if (
+          !cutClaim ||
+          !sameCanonical(cutClaim.key, successorCut) ||
+          cutClaim.acknowledgementKey !== request.compositionDigest ||
+          !stagedClaim?.ok ||
+          !acknowledgementClaim ||
+          !sameCanonical(acknowledgementClaim.key, successorCut) ||
+          acknowledgementClaim.contentDigest !== stagedClaim.value.digest
+        )
+          return fail('FC-TRUST', 'INTAKE_CUT_CLAIM_MISMATCH');
+      }
+
       if (existing) {
         const read = verifyIntake(request.compositionDigest);
         if (!read.ok) return read;
-        const existingTerminal =
-          existing.kind === 'rejected' && existing.reason === 'envelope-rejected' ? 'rejected' : 'accepted';
-        const existingCut =
-          existing.kind === 'acknowledged'
-            ? existing.successorCut
-            : existing.reason === 'successor-cut-already-claimed'
-              ? existing.winner.successorCut
-              : undefined;
+        const storedResult = existing.result;
         if (
-          existing.acknowledgementDigest !== request.acknowledgementDigest ||
-          existingTerminal !== terminalAck ||
-          existingCut !== request.successorCut
+          existing.requestAcknowledgementDigest !== request.acknowledgementDigest ||
+          existing.requestAcknowledgementBytes.length !== acknowledgementBytes.length ||
+          existing.requestAcknowledgementBytes.some((byte, index) => byte !== acknowledgementBytes[index])
         )
           return fail('FC-INPUT', 'INTAKE_REQUEST_MISMATCH');
-        if (existing.kind === 'rejected' && existing.reason === 'successor-cut-already-claimed') {
-          const winner = verifyIntake(existing.winner.compositionDigest);
+        if (
+          storedResult.kind === 'acknowledged' &&
+          ((existing.cutClaimBytes?.length ?? 0) !== (cutClaimBytes?.length ?? 0) ||
+            existing.cutClaimBytes?.some((byte, index) => byte !== cutClaimBytes?.[index]))
+        )
+          return fail('FC-TRUST', 'INTAKE_CUT_CLAIM_MISMATCH');
+        if (storedResult.kind === 'rejected' && storedResult.reason === 'successor-cut-already-claimed') {
+          const winner = verifyIntake(storedResult.winner.compositionDigest);
           if (
             !winner.ok ||
             winner.value.result.kind !== 'acknowledged' ||
-            winner.value.result.position !== existing.winner.position ||
-            winner.value.result.acknowledgementDigest !== existing.winner.acknowledgementDigest ||
-            winner.value.result.successorCut !== existing.winner.successorCut ||
-            winner.value.result.run !== existing.winner.run
+            winner.value.result.position !== storedResult.winner.position ||
+            winner.value.result.acknowledgementDigest !== storedResult.winner.acknowledgementDigest ||
+            !sameCanonical(winner.value.result.successorCut, storedResult.winner.successorCut) ||
+            winner.value.result.run !== storedResult.winner.run
           )
             return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
         }
         return { ok: true, value: read.value.result };
       }
-      const position = intake.size;
+      if (
+        intakeOrder.some((stored) => {
+          if (stored.result.kind !== 'acknowledged' || stored.result.successorCut === undefined) return false;
+          const key = successorCutKey(stored.result.successorCut);
+          return !key || !cuts.has(key);
+        })
+      )
+        return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      const chain = verifyIntakeChain();
+      if (!chain.ok) return chain;
+      const position = intakeOrder.length;
+      const previousDigest = intakeOrder.at(-1)?.headDigest ?? GENESIS_DIGEST;
       if (terminalAck === 'rejected') {
         const result: StoredIntakeResult = freeze({
           kind: 'rejected',
@@ -646,23 +875,27 @@ export function createScriptedLedger(): ScriptedLedger {
           acknowledgementDigest: request.acknowledgementDigest,
           reason: 'envelope-rejected',
         });
-        intake.set(request.compositionDigest, result);
-        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
-        const stagedHead = stagedIntakeHead(result);
+        const stagedHead = stagedIntakeHead(result, previousDigest);
         if (!stagedHead.ok) return stagedHead;
-        intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
-        return { ok: true, value: result };
+        const stored: StoredIntake = freeze({
+          result,
+          previousDigest,
+          headDigest: stagedHead.value,
+          acknowledgementBytes,
+          requestAcknowledgementDigest: request.acknowledgementDigest,
+          requestAcknowledgementBytes: acknowledgementBytes,
+        });
+        intakeOrder.push(stored);
+        intake.set(request.compositionDigest, stored);
+        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        intakeWitness = freeze({ position, digest: stagedHead.value });
+        if (fault === 'intake-after-witness') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        const published = verifyIntake(request.compositionDigest);
+        return published.ok ? { ok: true, value: published.value.result } : published;
       }
-      const winner = request.successorCut ? cuts.get(request.successorCut) : undefined;
-      const claimed = request.successorCut
-        ? [...intake.values()].find(
-            (result): result is PendingAcknowledgement =>
-              result.kind === 'acknowledged' && result.successorCut === request.successorCut,
-          )
-        : undefined;
-      if (claimed && winner !== claimed) return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      const winner = successorCutKeyValue ? cuts.get(successorCutKeyValue) : undefined;
       if (winner) {
-        const winnerReadback = verifyIntake(winner.compositionDigest);
+        const winnerReadback = verifyIntake(winner.result.compositionDigest);
         if (!winnerReadback.ok || winnerReadback.value.result.kind !== 'acknowledged')
           return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
         const publishedWinner = winnerReadback.value.result;
@@ -676,39 +909,84 @@ export function createScriptedLedger(): ScriptedLedger {
             position: publishedWinner.position,
             compositionDigest: publishedWinner.compositionDigest,
             acknowledgementDigest: publishedWinner.acknowledgementDigest,
-            successorCut: publishedWinner.successorCut as string,
+            successorCut: publishedWinner.successorCut as IntakeSuccessorCut,
             run: publishedWinner.run,
           }),
         });
-        intake.set(request.compositionDigest, result);
-        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
-        const stagedHead = stagedIntakeHead(result);
+        const rejectedAcknowledgement = {
+          ...acknowledgement,
+          terminalAck: 'rejected',
+          cutClaim: null,
+          rejection: { kind: 'successor-cut-already-claimed', winner: publishedWinner },
+        } as unknown as CanonicalJson;
+        const rejectedDigest = stageDigest({
+          domain: 'DEVELOPMENT-INTAKE-ACKNOWLEDGEMENT',
+          excludePaths: [],
+          value: rejectedAcknowledgement,
+        });
+        const rejectedFrame = encodeFrame(rejectedAcknowledgement);
+        if (!rejectedDigest.ok || !rejectedFrame.ok) return fail('FC-TRUST', 'INTAKE_ACKNOWLEDGEMENT_MISMATCH');
+        const storedResult: StoredIntakeResult = freeze({
+          ...result,
+          acknowledgementDigest: rejectedDigest.value.digest,
+        });
+        const stagedHead = stagedIntakeHead(storedResult, previousDigest);
         if (!stagedHead.ok) return stagedHead;
-        intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
-        return { ok: true, value: result };
+        const stored: StoredIntake = freeze({
+          result: storedResult,
+          previousDigest,
+          headDigest: stagedHead.value,
+          acknowledgementBytes: freeze(Array.from(rejectedFrame.value)),
+          requestAcknowledgementDigest: request.acknowledgementDigest,
+          requestAcknowledgementBytes: acknowledgementBytes,
+          // A losing acknowledgement names the witnessed winner but creates no cut claim.
+        });
+        intakeOrder.push(stored);
+        intake.set(request.compositionDigest, stored);
+        if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        intakeWitness = freeze({ position, digest: stagedHead.value });
+        if (fault === 'intake-after-witness') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+        const published = verifyIntake(request.compositionDigest);
+        return published.ok ? { ok: true, value: published.value.result } : published;
       }
       const result: PendingAcknowledgement = freeze({
         kind: 'acknowledged',
         position,
         compositionDigest: request.compositionDigest,
         acknowledgementDigest: request.acknowledgementDigest,
-        ...(request.successorCut ? { successorCut: request.successorCut } : {}),
+        ...(successorCut ? { successorCut } : {}),
       });
-      // The acknowledgement and unique successor cut are committed as one in-memory transaction.
-      intake.set(request.compositionDigest, result);
-      if (request.successorCut) cuts.set(request.successorCut, result);
-      if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
-      if (fault === 'intake-missing-companion' && result.successorCut) cuts.delete(result.successorCut);
-      if (fault === 'intake-mismatched-companion' && result.successorCut)
-        cuts.set(result.successorCut, freeze({ ...result, compositionDigest: '0'.repeat(64) }));
-      // The intake witness is deliberately separate from the pair's durable state and advances only after it.
-      const stagedHead = stagedIntakeHead(result);
+      const stagedHead = stagedIntakeHead(result, previousDigest);
       if (!stagedHead.ok) return stagedHead;
-      if (fault === 'intake-missing-companion') return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
-      intakeWitnesses.set(request.compositionDigest, freeze({ position: result.position, digest: stagedHead.value }));
-      if (fault === 'intake-mismatched-companion') return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
-      const published = publishedIntake(result);
-      return published.ok ? published : fail('FC-TRUST', 'INTAKE_RUN_DERIVATION_FAILED');
+      const stored: StoredIntake = freeze({
+        result,
+        previousDigest,
+        headDigest: stagedHead.value,
+        acknowledgementBytes,
+        requestAcknowledgementDigest: request.acknowledgementDigest,
+        requestAcknowledgementBytes: acknowledgementBytes,
+        ...(cutClaimBytes ? { cutClaimBytes } : {}),
+      });
+      // The acknowledgement and unique successor cut are one semantic commit at one intake position.
+      intakeOrder.push(stored);
+      intake.set(request.compositionDigest, stored);
+      if (successorCutKeyValue) cuts.set(successorCutKeyValue, stored);
+      if (fault === 'intake-after-flush') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+      if (fault === 'intake-missing-companion' && result.successorCut) {
+        const key = successorCutKey(result.successorCut);
+        if (key) cuts.delete(key);
+        return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      }
+      if (fault === 'intake-mismatched-companion' && result.successorCut) {
+        const key = successorCutKey(result.successorCut);
+        if (key) cuts.set(key, freeze({ ...stored, result: freeze({ ...result, compositionDigest: GENESIS_DIGEST }) }));
+        intakeWitness = freeze({ position, digest: stagedHead.value });
+        return fail('FC-TRUST', 'INTAKE_PAIR_MISMATCH');
+      }
+      intakeWitness = freeze({ position, digest: stagedHead.value });
+      if (fault === 'intake-after-witness') return fail('FC-TRUST', 'INTAKE_ACK_LOST');
+      const published = verifyIntake(request.compositionDigest);
+      return published.ok ? { ok: true, value: published.value.result } : published;
     },
     readIntake(compositionDigest) {
       if (!digest(compositionDigest)) return fail('FC-INPUT', 'INVALID_INTAKE_KEY');
@@ -756,6 +1034,16 @@ export function createScriptedLedger(): ScriptedLedger {
       const verified = verifyChain(state.value.records);
       return verified.ok ? { ok: true, value: freeze(verified.value) } : verified;
     },
+    records(binding) {
+      const state = forRun(binding);
+      if (!state.ok) return state;
+      const verified = verifyChain(state.value.records);
+      if (!verified.ok) return verified;
+      const witness = witnesses.get(state.value.binding.run);
+      if (!witness || witness.position !== verified.value.position || witness.digest !== verified.value.digest)
+        return fail('FC-TRUST', 'WITNESS_NOT_CURRENT');
+      return { ok: true, value: freeze(state.value.records.map((record) => freeze({ ...record }))) };
+    },
     verifySnapshot(binding, snapshot) {
       const state = forRun(binding);
       if (!state.ok) return state;
@@ -786,6 +1074,14 @@ export function createScriptedLedger(): ScriptedLedger {
       }
       return { ok: true, value: undefined };
     },
+  });
+  registerScriptedIntake(ledger, (request, fault) => {
+    intakeCommitActive = true;
+    try {
+      return ledger.intake(request, fault);
+    } finally {
+      intakeCommitActive = false;
+    }
   });
   scriptedLedgers.add(ledger);
   return ledger;
