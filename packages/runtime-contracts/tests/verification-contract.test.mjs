@@ -19,7 +19,7 @@ const operation = (position) => `${tx(position)}/op/1`;
 const classSet = Object.freeze([{ name: 'test', evidenceKind: 'test-report', bindingDigest: d('f') }]);
 const policyDigest = runtime.deriveVerificationPolicyDigest({ posture: 'deterministic', required: classSet });
 const configurationDigest = runtime.deriveVerificationConfigurationDigest({
-  bindings: [{ checkClass: 'test', bindingDigest: d('1') }],
+  bindings: [{ checkClass: 'test', bindingDigest: d('f') }],
 });
 const environmentDigest = runtime.deriveVerificationEnvironmentDigest({
   fingerprint: 'environment/fixture',
@@ -33,7 +33,7 @@ assert.equal(policyDigest.ok && configurationDigest.ok && environmentDigest.ok &
 
 const policy = Object.freeze({ posture: 'deterministic', required: classSet, digest: policyDigest.value });
 const configuration = Object.freeze({
-  bindings: Object.freeze([{ checkClass: 'test', bindingDigest: d('1') }]),
+  bindings: Object.freeze([{ checkClass: 'test', bindingDigest: d('f') }]),
   digest: configurationDigest.value,
 });
 const environment = Object.freeze({
@@ -161,12 +161,27 @@ test('GF-042 request and observation bind exact Candidate, basis, class, configu
     { ...valid, checkClass: 'build' },
   ])
     assert.equal(runtime.validateVerificationRequest(changed).ok, false);
+  const emptyConfigurationDigest = runtime.deriveVerificationConfigurationDigest({ bindings: [] });
+  assert.equal(emptyConfigurationDigest.ok, true);
+  assert.equal(
+    runtime.validateVerificationRequest({
+      ...valid,
+      configuration: { bindings: [], digest: emptyConfigurationDigest.value },
+      subject: { ...valid.subject, configurationDigest: emptyConfigurationDigest.value },
+    }).ok,
+    false,
+  );
   assert.equal(Object.isFrozen(runtime.validateVerificationRequest(valid).value), true);
 });
 
 test('CF-MECH-VERIFY: scripted verification accepts only effect-free exact attestations and exposes no provider configuration', () => {
   const valid = request(1);
   const fixture = runtime.createScriptedVerificationFixture(makeAuthorizer([permit(1)]));
+  assert.deepEqual(fixture.dispatch({ request: valid, attestation: attestation(valid) }).error, {
+    family: 'FC-AUTHORITY',
+    code: 'INVALID_FINALIZATION_STATE',
+  });
+  assert.equal(fixture.enterFinalizing({ origin: 'Accepted', request: valid }).ok, true);
   assert.deepEqual(fixture.reachability(), {
     status: 'unavailable',
     providerEnabled: false,
@@ -191,18 +206,36 @@ test('BND-WAIT-MECHANISM/BND-RETRY: loss is durable and replacement uses a new a
   const fixture = runtime.createScriptedVerificationFixture(
     makeAuthorizer([permit(1), permit(2, { predecessor: first.operation })]),
   );
+  assert.equal(fixture.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
+  assert.equal(
+    fixture.dispatch({
+      request: { ...second, retryOrdinal: 2, predecessor: null },
+      attestation: attestation(second),
+    }).error.code,
+    'REPLACEMENT_LINEAGE_REQUIRED',
+  );
   assert.deepEqual(fixture.dispatch({ request: first, attestation: attestation(first), fault: 'lost-response' }), {
     ok: false,
     error: { family: 'FC-MECHANISM', code: 'RESULT_UNCERTAIN' },
   });
   assert.equal(fixture.failures()[0].supersededBy, null);
+  const forgedReady = structuredClone(fixture.snapshot());
+  forgedReady.finalization.readyForDelivery = true;
+  assert.equal(runtime.restoreScriptedVerificationFixture(forgedReady, makeAuthorizer([permit(1)])).ok, false);
   const recovered = runtime.restoreScriptedVerificationFixture(
     fixture.snapshot(),
     makeAuthorizer([permit(1), permit(2, { predecessor: first.operation })]),
   );
   assert.equal(recovered.ok, true);
+  assert.equal(recovered.value.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
   assert.equal(recovered.value.dispatch({ request: second, attestation: attestation(second) }).ok, true);
   assert.equal(recovered.value.failures()[0].supersededBy, second.operation);
+  const forgedLineage = structuredClone(recovered.value.snapshot());
+  forgedLineage.failures[0].supersededBy = null;
+  assert.equal(
+    runtime.restoreScriptedVerificationFixture(forgedLineage, makeAuthorizer([permit(1), permit(2)])).ok,
+    false,
+  );
   assert.deepEqual(
     recovered.value.invocations().map((entry) => entry.operation),
     [first.operation, second.operation],
@@ -210,6 +243,7 @@ test('BND-WAIT-MECHANISM/BND-RETRY: loss is durable and replacement uses a new a
   const exhausted = runtime.createScriptedVerificationFixture(
     makeAuthorizer([permit(1), permit(2, { predecessor: first.operation })]),
   );
+  assert.equal(exhausted.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
   assert.equal(exhausted.dispatch({ request: first, attestation: attestation(first), fault: 'timeout' }).ok, false);
   assert.equal(
     exhausted.dispatch({
@@ -282,10 +316,11 @@ test('GF-042 fixture rejects capability substitution and preserves the no-provid
     },
   });
   const fixture = runtime.createScriptedVerificationFixture(makeAuthorizer([wrongPermit]));
+  assert.equal(fixture.enterFinalizing({ origin: 'Accepted', request: valid }).ok, true);
   assert.deepEqual(fixture.dispatch({ request: valid, attestation: attestation(valid) }).error, {
     family: 'FC-AUTHORITY',
     code: 'INVALID_DISPATCH_PERMIT',
   });
   assert.equal(fixture.snapshot().observations.length, 0);
-  assert.equal(fixture.snapshot().finalization, null);
+  assert.deepEqual(fixture.snapshot().finalization?.observations, []);
 });

@@ -517,6 +517,12 @@ function validateRequest(value: unknown): VerificationRequest | undefined {
     (parsedPolicy.posture === 'none' &&
       raw.checkClass !== null &&
       !parsedPolicy.required.some((entry) => entry.name === raw.checkClass)) ||
+    parsedPolicy.required.some(
+      (entry) =>
+        !parsedConfiguration.bindings.some(
+          (binding) => binding.checkClass === entry.name && binding.bindingDigest === entry.bindingDigest,
+        ),
+    ) ||
     parsedSubject.checkClasses.join('|') !== parsedPolicy.required.map((entry) => entry.name).join('|') ||
     parsedSubject.configurationDigest !== parsedConfiguration.digest ||
     parsedSubject.environmentDigest !== parsedEnvironment.digest ||
@@ -816,6 +822,22 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
     if (!parsed || requests.some((entry) => entry.operation === parsed.operation)) return undefined;
     requests.push(parsed);
   }
+  for (const request of requests) {
+    if (request.retryOrdinal === 1) {
+      if (request.predecessor !== null) return undefined;
+      continue;
+    }
+    const predecessor = requests.find((entry) => entry.operation === request.predecessor);
+    if (
+      !predecessor ||
+      request.predecessor === null ||
+      predecessor.retryOrdinal + 1 !== request.retryOrdinal ||
+      request.subject.candidate !== predecessor.subject.candidate ||
+      !sameSubject(request.subject, predecessor.subject) ||
+      !same(request.fence, predecessor.fence)
+    )
+      return undefined;
+  }
   const observations: VerificationObservation[] = [];
   for (const value of observationValues) {
     const operation = plain(value) ? Object.getOwnPropertyDescriptor(value, 'operation')?.value : undefined;
@@ -877,6 +899,30 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
       }),
     );
   }
+  for (const failure of failures) {
+    const invocation = invocationValues
+      .map((value) => fields(value, ['operation', 'checkClass', 'retryOrdinal', 'result', 'effect']))
+      .find((entry) => entry?.operation === failure.operation);
+    if (!invocation || invocation.result !== failure.reason) return undefined;
+    if (failure.supersededBy !== null) {
+      const successor = requests.find((entry) => entry.operation === failure.supersededBy);
+      if (
+        !successor ||
+        successor.predecessor !== failure.operation ||
+        successor.retryOrdinal !== failure.retryOrdinal + 1 ||
+        !sameSubject(successor.subject, failure.subject) ||
+        !same(successor.fence, failure.fence)
+      )
+        return undefined;
+    }
+  }
+  for (const request of requests) {
+    if (
+      request.retryOrdinal > 1 &&
+      !failures.some((entry) => entry.operation === request.predecessor && entry.supersededBy === request.operation)
+    )
+      return undefined;
+  }
   const invocations: VerificationInvocation[] = [];
   for (const value of invocationValues) {
     const item = fields(value, ['operation', 'checkClass', 'retryOrdinal', 'result', 'effect']);
@@ -885,6 +931,7 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
       !item ||
       !request ||
       !text(item.checkClass) ||
+      request.checkClass === null ||
       item.checkClass !== request.checkClass ||
       !nonNegativeInteger(item.retryOrdinal) ||
       item.retryOrdinal !== request.retryOrdinal ||
@@ -901,6 +948,19 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
         effect: 'observation',
       }),
     );
+  }
+  for (const request of requests) {
+    const matchingInvocations = invocations.filter((entry) => entry.operation === request.operation);
+    if (matchingInvocations.length !== 1) return undefined;
+    const invocation = matchingInvocations[0];
+    if (invocation.result === 'returned') {
+      if (!observations.some((entry) => entry.operation === request.operation)) return undefined;
+    } else if (!failures.some((entry) => entry.operation === request.operation && entry.reason === invocation.result))
+      return undefined;
+  }
+  for (const observation of observations) {
+    if (!invocations.some((entry) => entry.operation === observation.operation && entry.result === 'returned'))
+      return undefined;
   }
   let finalization: FinalizationVerificationState | null = null;
   if (raw.finalization !== null) {
@@ -923,8 +983,16 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
     const required = item && list(item.requiredClasses);
     const finalObservations = item && list(item.observations);
     const deliveryOperations = item && list(item.deliveryOperations, 0);
+    const anchor =
+      item &&
+      requests.find(
+        (entry) =>
+          parsedSubject && parsedFence && sameSubject(entry.subject, parsedSubject) && same(entry.fence, parsedFence),
+      );
+    const expectedRequired = anchor?.policy.required.map((entry) => entry.name);
     if (
       !item ||
+      !anchor ||
       !['Waiting', 'Accepted'].includes(item.origin as string) ||
       !['Finalizing', 'Reworking'].includes(item.state as string) ||
       !VERIFICATION_POSTURES.includes(item.posture as VerificationPosture) ||
@@ -938,7 +1006,12 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
       item.acceptanceGranted !== false ||
       item.landingGranted !== false ||
       item.noOp !== (item.posture === 'none') ||
-      !['boolean'].includes(typeof item.readyForDelivery)
+      !['boolean'].includes(typeof item.readyForDelivery) ||
+      item.posture !== anchor.policy.posture ||
+      !expectedRequired ||
+      required.length !== expectedRequired.length ||
+      required.some((entry, index) => entry !== expectedRequired[index]) ||
+      (item.origin !== anchor.lifecycle && anchor.lifecycle !== 'Finalizing')
     )
       return undefined;
     const normalizedObservations: VerificationObservation[] = [];
@@ -951,6 +1024,15 @@ function parseSnapshot(value: unknown): VerificationSnapshot | undefined {
       if (!parsed || !sameSubject(parsed.subject, parsedSubject) || !same(parsed.fence, parsedFence)) return undefined;
       normalizedObservations.push(parsed);
     }
+    if (new Set(normalizedObservations.map((entry) => entry.checkClass)).size !== normalizedObservations.length)
+      return undefined;
+    const observedClasses = new Set(normalizedObservations.map((entry) => entry.checkClass));
+    const hasFailure = normalizedObservations.some((entry) => entry.outcome === 'fail');
+    const expectedState = hasFailure ? 'Reworking' : 'Finalizing';
+    const expectedReady =
+      item.posture === 'none' || (!hasFailure && expectedRequired.every((entry) => observedClasses.has(entry)));
+    if (item.state !== expectedState || item.readyForDelivery !== expectedReady) return undefined;
+    if (item.posture === 'none' && normalizedObservations.length !== 0) return undefined;
     finalization = Object.freeze({
       origin: item.origin as 'Waiting' | 'Accepted',
       state: item.state as 'Finalizing' | 'Reworking',
@@ -999,18 +1081,38 @@ export function createScriptedVerificationFixture(
       return fail('FC-INPUT', 'INVALID_DISPATCH');
     const request = validateRequest(raw.request);
     if (!request || request.policy.posture === 'none') return fail('FC-INPUT', 'VERIFICATION_NOT_DISPATCHABLE');
-    if (request.lifecycle !== 'Finalizing' && request.lifecycle !== 'Accepted' && request.lifecycle !== 'Waiting')
+    if (
+      request.lifecycle !== 'Finalizing' ||
+      !finalization ||
+      finalization.state !== 'Finalizing' ||
+      !sameSubject(finalization.subject, request.subject) ||
+      !same(finalization.fence, request.fence)
+    )
       return fail('FC-AUTHORITY', 'INVALID_FINALIZATION_STATE');
     if (request.retryOrdinal > request.bounds.retryLimit) return fail('FC-BOUND', 'RETRY_EXHAUSTED');
-    const previous = requests.at(-1);
+    const predecessor = request.predecessor
+      ? requests.find((entry) => entry.operation === request.predecessor)
+      : undefined;
     if (
-      previous &&
-      request.retryOrdinal > 1 &&
-      (request.predecessor !== previous.operation ||
-        request.retryOrdinal !== previous.retryOrdinal + 1 ||
-        !failures.some((entry) => entry.operation === previous.operation && entry.supersededBy === null))
+      (request.retryOrdinal === 1 && request.predecessor !== null) ||
+      (request.retryOrdinal > 1 &&
+        (!predecessor ||
+          predecessor.retryOrdinal + 1 !== request.retryOrdinal ||
+          !sameSubject(predecessor.subject, request.subject) ||
+          !same(predecessor.fence, request.fence) ||
+          !failures.some((entry) => entry.operation === predecessor.operation && entry.supersededBy === null))) ||
+      (request.retryOrdinal > 1 && !predecessor)
     )
       return fail('FC-ORDERING', 'REPLACEMENT_LINEAGE_REQUIRED');
+    const predecessorFailure = predecessor
+      ? failures.findIndex((entry) => entry.operation === predecessor.operation && entry.supersededBy === null)
+      : -1;
+    if (request.retryOrdinal > 1 && predecessorFailure < 0) return fail('FC-ORDERING', 'REPLACEMENT_LINEAGE_REQUIRED');
+    if (predecessorFailure >= 0)
+      failures[predecessorFailure] = Object.freeze({
+        ...failures[predecessorFailure],
+        supersededBy: request.operation,
+      });
     let permit: unknown;
     try {
       permit = authorizer.recordDispatch({ operation: request.operation, ordinal: 1 });
@@ -1025,12 +1127,6 @@ export function createScriptedVerificationFixture(
     const reason = raw.fault as 'lost-response' | 'timeout' | undefined;
     if (reason) {
       requests.push(request);
-      if (request.predecessor) {
-        const failed = failures.findIndex(
-          (entry) => entry.operation === request.predecessor && entry.supersededBy === null,
-        );
-        if (failed >= 0) failures[failed] = Object.freeze({ ...failures[failed], supersededBy: request.operation });
-      }
       const record = Object.freeze({
         schema: VERIFICATION_FAILURE_SCHEMA,
         version: VERIFICATION_CONTRACT_VERSION,
@@ -1061,12 +1157,6 @@ export function createScriptedVerificationFixture(
     const earlier = observations.find((entry) => entry.checkClass === checked.checkClass);
     if (earlier) return fail('FC-ORDERING', 'CHECK_CLASS_ALREADY_OBSERVED');
     requests.push(request);
-    if (request.predecessor) {
-      const failed = failures.findIndex(
-        (entry) => entry.operation === request.predecessor && entry.supersededBy === null,
-      );
-      if (failed >= 0) failures[failed] = Object.freeze({ ...failures[failed], supersededBy: request.operation });
-    }
     observations.push(checked);
     invocations.push(
       Object.freeze({
