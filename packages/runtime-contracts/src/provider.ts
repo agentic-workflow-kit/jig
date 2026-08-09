@@ -53,9 +53,7 @@ type Fixture = Readonly<{
   approve(input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>>;
   start(input: unknown): ProviderAdmissionResult<Attempt>;
   result(input: unknown): ProviderAdmissionResult<Attempt>;
-  admit(
-    input: unknown,
-  ): ProviderAdmissionResult<
+  admit(input: unknown): ProviderAdmissionResult<
     Readonly<{
       kind: 'eligible';
       manifestId: string;
@@ -431,13 +429,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
           'predecessor',
           'retryLimit',
         ]);
-      if (
-        !data ||
-        !bound ||
-        !safeTime(data.maxAgeMs) ||
-        !proofData ||
-        !Number.isSafeInteger(proofData.ordinal)
-      )
+      if (!data || !bound || !safeTime(data.maxAgeMs) || !proofData || !Number.isSafeInteger(proofData.ordinal))
         return fail('FC-INPUT', 'INVALID_ADMISSION');
       const basisDigest = digest('CAPABILITY-PROOF-BASIS', bound);
       const proof = proofData as Attempt;
