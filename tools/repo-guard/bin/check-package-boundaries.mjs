@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { repoRoot } from './repo-root.mjs';
@@ -24,6 +24,7 @@ const knownDependencyDirections = {
     '@agentic-workflow-kit/jig-codec',
     '@agentic-workflow-kit/jig-runtime-contracts',
   ]),
+  '@agentic-workflow-kit/jig-local-verification-providers': new Set(['@agentic-workflow-kit/jig-runtime-contracts']),
 };
 const knownNativeCapabilities = {
   '@agentic-workflow-kit/jig-local-file-providers': new Set(['node:fs']),
@@ -34,10 +35,60 @@ const knownNativeCapabilities = {
     'node:os',
     'node:path',
   ]),
+  '@agentic-workflow-kit/jig-local-verification-providers': new Set([
+    'node:child_process',
+    'node:crypto',
+    'node:fs',
+    'node:os',
+    'node:path',
+  ]),
 };
 const friendSubpaths = {
   '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',
 };
+const qualificationFriendRelativeImport = '../../runtime-contracts/dist/qualification-certificate.js';
+const qualificationFriendFiles = new Set([
+  'packages/conformance/src/structured-file-qualification.ts',
+  'packages/conformance/src/provider-admission-qualification.ts',
+  'packages/conformance/dist/structured-file-qualification.js',
+  'packages/conformance/dist/provider-admission-qualification.js',
+]);
+const providerAdmissionQualificationImport = '../../conformance/dist/provider-admission-qualification.js';
+const providerAdmissionQualificationTarget = 'packages/conformance/dist/provider-admission-qualification';
+const providerAdmissionQualificationImporters = new Set([
+  'packages/local-verification-providers/tests/local-command-provider.test.mjs',
+]);
+const providerAdmissionQualificationOwnFiles = new Set([
+  'packages/conformance/src/provider-admission-qualification.ts',
+  'packages/conformance/dist/provider-admission-qualification.js',
+  'packages/conformance/dist/provider-admission-qualification.d.ts',
+]);
+const providerAdmissionQualificationReference = /provider-admission-qualification(?:\.js)?/u;
+
+function resolvesToProviderAdmissionQualification(specifier, repoPath, rootDir) {
+  if (providerAdmissionQualificationReference.test(specifier)) return true;
+  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return false;
+  const importer = join(rootDir, repoPath);
+  const resolvedPath = relative(rootDir, resolve(dirname(importer), specifier))
+    .split('/')
+    .join('/');
+  return (
+    resolvedPath === providerAdmissionQualificationTarget ||
+    resolvedPath === `${providerAdmissionQualificationTarget}.js`
+  );
+}
+const runtimeTransitionFriendFiles = new Set([
+  'packages/runtime-contracts/src/qualification-certificate.ts',
+  'packages/runtime-contracts/dist/qualification-certificate.js',
+]);
+const runtimeTransitionSymbols = [
+  'createExactLocalCommandAdmissionTransition',
+  'consumeExactLocalCommandAdmissionTransition',
+];
+const importsRuntimeTransition = (source) =>
+  [...source.matchAll(/(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gu)].some(([, names]) =>
+    runtimeTransitionSymbols.some((symbol) => names.includes(symbol)),
+  );
 const distTarget = (value) => value.startsWith('./dist/') && !value.split('/').includes('..');
 
 function readJson(path, errors, label) {
@@ -283,12 +334,42 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
 
   for (const { directory, manifest } of manifests) {
     validateManifest(manifest, directory, workspaceNames, errors);
-    if (manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts')
-      for (const path of codeFiles(directory)) {
-        const source = readFileSync(path, 'utf8');
-        if (importSpecifiers(source).some((specifier) => /(?:^|\/)qualification-registry(?:\.js)?$/u.test(specifier)))
+    for (const path of codeFiles(directory)) {
+      const source = readFileSync(path, 'utf8');
+      const repoPath = relative(resolve(rootDir), resolve(path)).split('/').join('/');
+      const providerAdmissionQualificationAllowed = providerAdmissionQualificationImporters.has(repoPath);
+      let reportedProviderAdmissionQualification = false;
+      for (const specifier of importSpecifiers(source)) {
+        if (specifier === qualificationFriendRelativeImport && !qualificationFriendFiles.has(repoPath))
+          errors.push(`${manifest.name} imports restricted qualification friend ${specifier}`);
+        if (
+          resolvesToProviderAdmissionQualification(specifier, repoPath, rootDir) &&
+          !(providerAdmissionQualificationAllowed && specifier === providerAdmissionQualificationImport)
+        ) {
+          errors.push(`${manifest.name} imports restricted provider admission qualification ${specifier}`);
+          reportedProviderAdmissionQualification = true;
+        }
+        if (
+          manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts' &&
+          /(?:^|\/)qualification-registry(?:\.js)?$/u.test(specifier)
+        )
           errors.push(`${manifest.name} bypasses the private qualification registry boundary`);
       }
+      if (
+        providerAdmissionQualificationReference.test(source) &&
+        !providerAdmissionQualificationOwnFiles.has(repoPath) &&
+        !providerAdmissionQualificationAllowed &&
+        !reportedProviderAdmissionQualification
+      )
+        errors.push(`${manifest.name} references restricted provider admission qualification`);
+      if (
+        !repoPath.endsWith('/runtime-contracts/src/provider.ts') &&
+        !repoPath.endsWith('/runtime-contracts/dist/provider.js') &&
+        importsRuntimeTransition(source) &&
+        !runtimeTransitionFriendFiles.has(repoPath)
+      )
+        errors.push(`${manifest.name} imports restricted runtime transition`);
+    }
     const sources = sourceFiles(join(directory, 'src'));
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);
     for (const path of sources) {
@@ -299,7 +380,10 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
         if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
         else if (knownNativeCapabilities[manifest.name]?.has(specifier)) continue;
         else if (Object.hasOwn(friendSubpaths, specifier)) {
-          if (friendSubpaths[specifier] !== manifest.name)
+          if (
+            friendSubpaths[specifier] !== manifest.name ||
+            !qualificationFriendFiles.has(relative(resolve(rootDir), resolve(path)).split('/').join('/'))
+          )
             errors.push(`${manifest.name} imports restricted friend subpath ${specifier}`);
         } else if (!specifier.startsWith(packagePrefix))
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);

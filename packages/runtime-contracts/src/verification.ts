@@ -1295,6 +1295,14 @@ export function validateVerificationObservation(
   return parsed ? ok(parsed) : fail('FC-EVIDENCE', 'INVALID_CHECK_OBSERVATION');
 }
 
+/**
+ * Provider adapters use the semantic permit validator before crossing a native mechanism edge.
+ * It is deliberately validation-only: it does not record an Operation or change fixture state.
+ */
+export function validateVerificationPermit(value: unknown, request: VerificationRequest): VerificationResult<void> {
+  return validatePermit(value, request) ? ok(undefined) : fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
+}
+
 export function restoreScriptedVerificationFixture(
   value: unknown,
   authorizer: VerificationAuthorizer,

@@ -1,7 +1,7 @@
 import {
   mintQualificationCertificate,
   recordExactStructuredFileExecution,
-} from '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';
+} from '../../runtime-contracts/dist/qualification-certificate.js';
 import { type EvidenceRecord, observeProvider, type Subject } from './index.js';
 
 /** Package-internal execution fixture; deliberately absent from root/package exports. */
