@@ -1,14 +1,19 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
+  constants,
   existsSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { homedir, platform, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -176,6 +181,7 @@ const PROBE_OBSERVATION_KEYS = [
   'gateDeniedWithoutAdmission',
 ] as const;
 const GATE_RECORD_FILE = '.jig-gf039-qualification-evidence.json';
+const GATE_ANCHOR_FILE = '.jig-gf039-qualification-anchor.json';
 const GATE_RECEIPTS = new WeakMap<object, LocalGitWorktreeProbeEvidence>();
 
 function identity(kind: string, value: unknown): value is string {
@@ -197,6 +203,32 @@ function canonical(value: unknown): string {
 
 function digest(domain: string, value: unknown): string {
   return sha256(canonical({ domain, value }));
+}
+
+function writeCreateOnly(path: string, text: string): void {
+  const descriptor = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+  try {
+    const bytes = new TextEncoder().encode(text);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const written = writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
+      if (!Number.isSafeInteger(written) || written <= 0) throw new Error('short write');
+      offset += written;
+    }
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function sameEnvironment(left: LocalGitWorktreeEnvironment, right: LocalGitWorktreeEnvironment): boolean {
+  return (
+    left.os === right.os &&
+    left.gitVersion === right.gitVersion &&
+    left.resourceRoot === right.resourceRoot &&
+    left.posture === right.posture &&
+    left.scope === right.scope
+  );
 }
 
 function exactObject(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
@@ -1017,6 +1049,9 @@ export function createQualifiedLocalGitWorktreeProvider(
   const evidence = GATE_RECEIPTS.get(input.receipt);
   if (!evidence) return fail('FC-TRUST', 'UNRECORDED_QUALIFICATION_EVIDENCE');
   if (
+    !sameEnvironment(evidence.environment, environment.value) ||
+    evidence.environmentDigest !== environmentDigest(environment.value) ||
+    evidence.resourceDigest !== digest('WORKSPACE-RESOURCE', environment.value.resourceRoot) ||
     evidence.admissionProofDigest !== admission.value.proofDigest ||
     evidence.admissionObservedAt !== admission.value.observedAt ||
     evidence.admissionAgeMs !== admission.value.ageMs
@@ -1032,9 +1067,24 @@ export function recordLocalGitWorktreeGateEvidence(input: unknown): Result<Local
   if (!root.ok || !disposableRoot(root.value)) return fail('FC-AUTHORITY', 'RESOURCE_SCOPE_MISMATCH');
   try {
     const recordPath = join(root.value, GATE_RECORD_FILE);
-    if (!existsSync(recordPath) || lstatSync(recordPath).isSymbolicLink())
+    const anchorPath = join(root.value, GATE_ANCHOR_FILE);
+    if (
+      !existsSync(recordPath) ||
+      !existsSync(anchorPath) ||
+      lstatSync(recordPath).isSymbolicLink() ||
+      lstatSync(anchorPath).isSymbolicLink()
+    )
       return fail('FC-TRUST', 'QUALIFICATION_RECORD_UNAVAILABLE');
-    const evidence = JSON.parse(readFileSync(recordPath, 'utf8')) as unknown;
+    const record = exactObject(JSON.parse(readFileSync(recordPath, 'utf8')), [
+      'anchorDigest',
+      'evidence',
+      'evidenceDigest',
+    ]);
+    const anchor = exactObject(JSON.parse(readFileSync(anchorPath, 'utf8')), ['evidenceDigest', 'kind']);
+    const evidence = record?.evidence;
+    const evidenceText = evidence === undefined ? undefined : JSON.stringify(evidence);
+    const evidenceDigest = evidenceText === undefined ? undefined : sha256(evidenceText);
+    const anchorText = anchor ? JSON.stringify(anchor) : undefined;
     const env = exactObject((evidence as Record<string, unknown>)?.environment, [
       'os',
       'gitVersion',
@@ -1042,7 +1092,18 @@ export function recordLocalGitWorktreeGateEvidence(input: unknown): Result<Local
       'posture',
       'scope',
     ]);
-    if (!env || env.resourceRoot !== root.value) return fail('FC-AUTHORITY', 'EVIDENCE_ENVIRONMENT_REQUIRED');
+    if (
+      !record ||
+      !anchor ||
+      anchor.kind !== 'gf039-qualification-anchor/v1' ||
+      evidenceDigest !== record.evidenceDigest ||
+      evidenceDigest !== anchor.evidenceDigest ||
+      !anchorText ||
+      record.anchorDigest !== sha256(anchorText) ||
+      !env ||
+      env.resourceRoot !== root.value
+    )
+      return fail('FC-TRUST', 'QUALIFICATION_RECORD_MISMATCH');
     const result = validateEvidence(evidence, env as unknown as LocalGitWorktreeEnvironment);
     if (!result.ok) return result;
     const receipt = Object.freeze({});
@@ -1270,7 +1331,17 @@ export function runLocalGitWorktreeQualificationProbe(
   });
   if (passed) {
     try {
-      writeFileSync(join(root, GATE_RECORD_FILE), JSON.stringify(evidence));
+      const evidenceText = JSON.stringify(evidence);
+      const evidenceDigest = sha256(evidenceText);
+      const anchorText = JSON.stringify({
+        evidenceDigest,
+        kind: 'gf039-qualification-anchor/v1',
+      });
+      writeCreateOnly(join(root, GATE_ANCHOR_FILE), `${anchorText}\n`);
+      writeCreateOnly(
+        join(root, GATE_RECORD_FILE),
+        `${JSON.stringify({ anchorDigest: sha256(anchorText), evidence, evidenceDigest })}\n`,
+      );
     } catch {
       if (!input.retainRoot) cleanupLocalGitWorktreeProbe(root);
       return fail('FC-TRUST', 'QUALIFICATION_RECORD_FAILED');

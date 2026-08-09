@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -160,6 +160,16 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
     }).ok,
     false,
   );
+  const alternateRoot = realpathSync(mkdtempSync(join(tmpdir(), 'jig-gf039-alternate-')));
+  assert.equal(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      environment: { ...environment, resourceRoot: alternateRoot },
+      receipt,
+    }).ok,
+    false,
+  );
+  rmSync(alternateRoot, { recursive: true, force: true });
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission({ startObservedAt: 1001, proofObservedAt: 1101, observedAt: 1201 }),

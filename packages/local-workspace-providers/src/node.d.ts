@@ -13,7 +13,10 @@ declare module 'node:crypto' {
 }
 
 declare module 'node:fs' {
+  export const constants: Readonly<{ O_CREAT: number; O_EXCL: number; O_WRONLY: number }>;
+  export function closeSync(fd: number): void;
   export function existsSync(path: string): boolean;
+  export function fsyncSync(fd: number): void;
   export function lstatSync(path: string): {
     isDirectory(): boolean;
     isFile(): boolean;
@@ -21,9 +24,11 @@ declare module 'node:fs' {
   };
   export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
   export function mkdtempSync(prefix: string): string;
+  export function openSync(path: string, flags: number, mode?: number): number;
   export function readFileSync(path: string, encoding: 'utf8'): string;
   export function realpathSync(path: string): string;
   export function rmSync(path: string, options: { force: boolean; recursive: boolean }): void;
+  export function writeSync(fd: number, buffer: Uint8Array, offset: number, length: number): number;
   export function writeFileSync(path: string, data: string): void;
 }
 
