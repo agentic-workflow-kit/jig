@@ -58,12 +58,14 @@ const appendDurable = (ledger, { requestKey, event: durableEvent, payload, gener
   const transaction = txn(ordinal, generation);
   const result = ledger.append({
     requestKey,
+    requestDigest: stagedDigest('RUN-CONTROL-REQUEST', payload),
     expectedPosition: position,
     transaction,
     content: {
       schema: kernel.RUN_CONTROL_EVENT_SCHEMA,
       controller: kernel.RUN_CONTROL_CONTROLLER,
       requestKey,
+      requestDigest: stagedDigest('RUN-CONTROL-REQUEST', payload),
       event: durableEvent,
       position,
       transaction,
@@ -776,6 +778,50 @@ test('recreated controllers restore persisted request-key idempotency before mut
     family: 'FC-FENCE',
     code: 'IDEMPOTENCY_KEY_COLLISION',
   });
+});
+
+test('recreated controllers validate raw request digests for touch and terminal stop', () => {
+  const touchedLedger = kernel.createScriptedRunControlLedger();
+  const touched = makeController({ ledger: touchedLedger }).controller;
+  const touch = {
+    requestKey: 'touch-recreated',
+    eventId: event(1),
+    observedRuleSurfaceDigest: touchedRule,
+    changedSubjects: [story('one')],
+    basisDigest: basis,
+    generation: gen(1),
+    candidateDigest: candidate,
+    reapprovalDigest: null,
+  };
+  assert.equal(touched.touchRuleSurface(touch).ok, true);
+  const reopenedTouch = makeController({ phase: 'Parked', ledger: touchedLedger }).controller;
+  assert.equal(reopenedTouch.touchRuleSurface(touch).ok, true);
+  assert.equal(touchedLedger.records().length, 1);
+
+  const terminalLedger = seededLedger({
+    event: 'EV-RUN-SUSPEND-DECISION',
+    payload: { kind: 'current-durable-head', run, basisDigest: basis, generation: gen(1) },
+  });
+  const terminal = makeController({ phase: 'Suspended', ledger: terminalLedger }).controller;
+  const stop = {
+    requestKey: 'terminal-recreated',
+    eventId: event(2),
+    run,
+    basisDigest: basis,
+    generation: gen(1),
+    principal,
+    grant,
+    resumable: false,
+    remainingResumableTransitions: 0,
+    reason: 'owner-stop',
+    confirmation: 'no-resumable-transition',
+    observation: null,
+    appendBasis: witness(terminalLedger),
+  };
+  assert.equal(terminal.terminalStop(stop).ok, true);
+  const reopenedTerminal = makeController({ phase: 'Stopped', ledger: terminalLedger }).controller;
+  assert.equal(reopenedTerminal.terminalStop(stop).ok, true);
+  assert.equal(terminalLedger.records().length, 2);
 });
 
 test('descriptor-safe validation rejects accessors, unknown fields, and hostile external objects', () => {

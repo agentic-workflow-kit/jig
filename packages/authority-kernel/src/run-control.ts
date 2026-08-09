@@ -327,6 +327,7 @@ function witnessedRecord(
         'schema',
         'controller',
         'requestKey',
+        'requestDigest',
         'event',
         'position',
         'transaction',
@@ -339,12 +340,12 @@ function witnessedRecord(
       content &&
       fields.position === value.position &&
       digest(fields.requestDigest) &&
-      fields.requestDigest === hash('RUN-CONTROL-REQUEST', content.payload) &&
       fields.transaction === value.transaction &&
       fields.contentDigest === value.recordDigest &&
       value.recordDigest === value.witnessDigest &&
       content.position === value.position &&
       content.transaction === value.transaction &&
+      content.requestDigest === fields.requestDigest &&
       hash('RUN-CONTROL-EVENT', fields.content) === value.recordDigest
     );
     return valid ? (fields as unknown as RunControlCommit) : undefined;
@@ -387,6 +388,7 @@ function recordPayloadFields(record: RunControlCommit, names: readonly string[])
       'schema',
       'controller',
       'requestKey',
+      'requestDigest',
       'event',
       'position',
       'transaction',
@@ -662,11 +664,18 @@ function appendCommit(
 ): RunControlResult<RunControlCommit> {
   try {
     const existing = ledger.readback({ requestKey });
-    if (existing.ok && existing.value !== null) return ok(existing.value);
+    if (existing.ok && existing.value !== null)
+      return existing.value.requestDigest === requestDigest
+        ? ok(existing.value)
+        : fail('FC-FENCE', 'IDEMPOTENCY_KEY_COLLISION');
     const appended = ledger.append({ requestKey, requestDigest, expectedPosition, transaction, content });
     if (appended.ok) return appended;
     const recovered = ledger.readback({ requestKey });
-    return recovered.ok && recovered.value !== null ? ok(recovered.value) : fail('FC-TRUST', 'ATOMIC_APPEND_UNCERTAIN');
+    return recovered.ok && recovered.value !== null && recovered.value.requestDigest === requestDigest
+      ? ok(recovered.value)
+      : recovered.ok && recovered.value !== null
+        ? fail('FC-FENCE', 'IDEMPOTENCY_KEY_COLLISION')
+        : fail('FC-TRUST', 'ATOMIC_APPEND_UNCERTAIN');
   } catch {
     return fail('FC-TRUST', 'ATOMIC_APPEND_UNCERTAIN');
   }
@@ -674,6 +683,7 @@ function appendCommit(
 
 function eventContent(
   requestKey: string,
+  requestDigest: string,
   event: RunControlEvent,
   position: number,
   transaction: string,
@@ -685,6 +695,7 @@ function eventContent(
     schema: RUN_CONTROL_EVENT_SCHEMA,
     controller: RUN_CONTROL_CONTROLLER,
     requestKey,
+    requestDigest,
     event,
     position,
     transaction,
@@ -728,6 +739,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
             'schema',
             'controller',
             'requestKey',
+            'requestDigest',
             'event',
             'position',
             'transaction',
@@ -747,10 +759,10 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           content.schema === RUN_CONTROL_EVENT_SCHEMA &&
           content.controller === RUN_CONTROL_CONTROLLER &&
           content.requestKey === fields.requestKey &&
+          content.requestDigest === fields.requestDigest &&
           content.event === fields.event &&
           content.position === fields.position &&
           content.transaction === fields.transaction &&
-          fields.requestDigest === hash('RUN-CONTROL-REQUEST', content.payload) &&
           hash('RUN-CONTROL-EVENT', fields.content) === fields.contentDigest
         );
       })
@@ -821,7 +833,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
     if (priorDigest !== undefined) return ok(snapshot());
     const positionValue = events.length;
     const transaction = `${input.run}/txn/${positionValue + 1}/${after.generation}|${input.basisDigest}`;
-    const content = eventContent(requestKey, event, positionValue, transaction, before, after, payload);
+    const content = eventContent(requestKey, requestDigest, event, positionValue, transaction, before, after, payload);
     if (!content) return fail('FC-INPUT', 'EVENT_DIGEST');
     const appended = appendCommit(input.ledger, requestKey, requestDigest, positionValue, transaction, content);
     if (!appended.ok) return appended;
@@ -1288,10 +1300,13 @@ export function createScriptedRunControlLedger(
   const records: RunControlCommit[] = [];
   const fault = options.fault ?? 'none';
   for (const seed of options.seed ?? []) {
+    const requestDigest = seed.requestDigest ?? hash('RUN-CONTROL-REQUEST', seed.payload);
+    if (!requestDigest) continue;
     const content = deepFreeze({
       schema: RUN_CONTROL_EVENT_SCHEMA,
       controller: RUN_CONTROL_CONTROLLER,
       requestKey: seed.requestKey,
+      requestDigest,
       event: seed.event,
       position: records.length,
       transaction: seed.transaction,
@@ -1300,7 +1315,6 @@ export function createScriptedRunControlLedger(
       payload: seed.payload,
     });
     const contentDigest = hash('RUN-CONTROL-EVENT', content);
-    const requestDigest = seed.requestDigest ?? hash('RUN-CONTROL-REQUEST', seed.payload);
     if (!contentDigest || !requestDigest) continue;
     records.push(
       deepFreeze({
@@ -1321,6 +1335,7 @@ export function createScriptedRunControlLedger(
         'schema',
         'controller',
         'requestKey',
+        'requestDigest',
         'event',
         'position',
         'transaction',
@@ -1333,6 +1348,8 @@ export function createScriptedRunControlLedger(
         typeof event.event !== 'string' ||
         !RUN_CONTROL_EVENTS.includes(event.event as RunControlEvent) ||
         event.transaction !== input.transaction ||
+        !digest(event.requestDigest) ||
+        event.requestDigest !== (input.requestDigest ?? hash('RUN-CONTROL-REQUEST', event.payload)) ||
         !identity('ID-TXN', input.transaction)
       )
         return fail('FC-INPUT', 'LEDGER_EVENT_SHAPE');
@@ -1341,7 +1358,7 @@ export function createScriptedRunControlLedger(
       if (!contentDigest || !requestDigest) return fail('FC-INPUT', 'LEDGER_CONTENT_DIGEST');
       const record = deepFreeze({
         requestKey: input.requestKey,
-        requestDigest,
+        requestDigest: event.requestDigest as string,
         event: event.event as RunControlEvent,
         position: records.length,
         transaction: input.transaction,

@@ -530,6 +530,9 @@ test('cancel and reissue rejects non-positive and colliding successor ordinals b
   assert.equal(first.ok, true);
   const collision = controller.escalate(requestInput({ parkOrdinal: 3 }));
   assert.equal(collision.ok, true);
+  const collisionGrant = controller.issueGrant(grantInput(collision.value, { grantOrdinal: 2 }));
+  assert.equal(collisionGrant.ok, true);
+  const beforeCollision = controller.snapshot();
   const collided = controller.cancelAndReissue({
     ...replacement,
     request: collision.value.id,
@@ -537,6 +540,7 @@ test('cancel and reissue rejects non-positive and colliding successor ordinals b
     successorBinding: binding({ session: `${story}/session/replacement/3` }),
   });
   assert.deepEqual(collided.error, { family: 'FC-SUBJECT', code: 'REQUEST_ID_REUSE_MISMATCH' });
+  assert.deepEqual(controller.snapshot(), beforeCollision);
   assert.equal(controller.request(`${run}/park/2`).value.predecessorRequest, request.value.id);
 });
 

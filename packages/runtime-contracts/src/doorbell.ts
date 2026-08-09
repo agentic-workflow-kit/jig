@@ -1007,12 +1007,6 @@ export function createScriptedDoorbellController(
     )
       return fail('FC-SUBJECT', 'REISSUE_BINDING_MISMATCH');
     if (successorBinding.session === request.binding.session) return fail('FC-FENCE', 'REISSUE_SESSION_NOT_REPLACED');
-    if (request.currentGrant) {
-      const grant = grants.get(request.currentGrant);
-      if (!grant || grant.status !== 'active') return fail('FC-FENCE', 'CURRENT_GRANT_NOT_ACTIVE');
-      changeGrantStatus(grant, 'revoked', raw.observedAt, OWNER, 'session-replacement');
-    }
-    const currentRequest = requests.get(request.id) ?? request;
     const successorId = `${request.binding.run}/park/${raw.successorParkOrdinal}`;
     const successorDigest = requestDigestFor({
       binding: successorBinding,
@@ -1025,6 +1019,12 @@ export function createScriptedDoorbellController(
     });
     if (!successorDigest) return fail('FC-TRUST', 'REQUEST_DIGEST_UNAVAILABLE');
     if (requests.has(successorId)) return fail('FC-SUBJECT', 'REQUEST_ID_REUSE_MISMATCH');
+    if (request.currentGrant) {
+      const grant = grants.get(request.currentGrant);
+      if (!grant || grant.status !== 'active') return fail('FC-FENCE', 'CURRENT_GRANT_NOT_ACTIVE');
+      changeGrantStatus(grant, 'revoked', raw.observedAt, OWNER, 'session-replacement');
+    }
+    const currentRequest = requests.get(request.id) ?? request;
     const cancelled = deepFreeze({
       ...currentRequest,
       status: 'cancelled' as const,
