@@ -12,6 +12,7 @@ export * from './envelope.js';
 export * from './ledger.js';
 export * from './obligation.js';
 export * from './provider.js';
+export * from './review-publication.js';
 export * from './session.js';
 export * from './source.js';
 export * from './workspace.js';
