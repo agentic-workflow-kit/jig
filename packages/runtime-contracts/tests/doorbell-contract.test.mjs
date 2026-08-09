@@ -5,7 +5,9 @@ const runtime = await import('../dist/doorbell.js');
 
 const digest = (character) => character.repeat(64);
 const run = 'run-000000000034-0123456789abcdef';
+const runTwo = 'run-000000000035-0123456789abcdef';
 const story = `${run}/story/implementer-doorbell`;
+const storyTwo = `${runTwo}/story/implementer-doorbell`;
 const candidate = `${story}/cand/1|${digest('c')}`;
 const session = `${story}/session/implementer/1`;
 const principal = 'principal/agent-one';
@@ -315,6 +317,90 @@ test('restore rejects cross-run events, detached decisions, and active-grant pro
     family: 'FC-TRUST',
     code: 'INVALID_DOORBELL_SNAPSHOT',
   });
+});
+
+test('nested hostile snapshot accessors fail closed before any dereference', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  assert.equal(controller.escalate(requestInput()).ok, true);
+  const snapshot = structuredClone(controller.snapshot());
+  let accessed = false;
+  Object.defineProperty(snapshot.requests[0].binding, 'run', {
+    get() {
+      accessed = true;
+      throw new Error('nested getter');
+    },
+    enumerable: true,
+  });
+  assert.deepEqual(runtime.restoreScriptedDoorbellController(snapshot).error, {
+    family: 'FC-TRUST',
+    code: 'INVALID_DOORBELL_SNAPSHOT',
+  });
+  assert.equal(accessed, false);
+});
+
+test('equal and backdated grant status timestamps preserve committed event order', () => {
+  const equal = runtime.createScriptedDoorbellController();
+  const equalRequest = equal.escalate(requestInput());
+  const equalGrant = equal.issueGrant(grantInput(equalRequest.value));
+  assert.equal(equalGrant.ok, true);
+  assert.equal(equal.expire({ request: equalRequest.value.id, observedAt: deadline }).ok, true);
+  assert.equal(
+    equal.revokeGrant({
+      grant: equalGrant.value.id,
+      revoker: 'principal/arye',
+      revokerProof: digest('a'),
+      reason: 'late-equal-time-revocation',
+      observedAt: deadline,
+    }).ok,
+    true,
+  );
+  assert.equal(equal.facts().find((fact) => fact.type === 'EV-BOUND-EXHAUSTED').grantBinding.status, 'active');
+  assert.equal(runtime.restoreScriptedDoorbellController(equal.snapshot()).ok, true);
+
+  const backdated = runtime.createScriptedDoorbellController();
+  const backdatedRequest = backdated.escalate(requestInput());
+  const backdatedGrant = backdated.issueGrant(grantInput(backdatedRequest.value));
+  assert.equal(backdatedGrant.ok, true);
+  assert.equal(
+    backdated.revokeGrant({
+      grant: backdatedGrant.value.id,
+      revoker: 'principal/arye',
+      revokerProof: digest('a'),
+      reason: 'backdated-revocation',
+      observedAt: deadline - 1,
+    }).ok,
+    true,
+  );
+  assert.equal(backdated.expire({ request: backdatedRequest.value.id, observedAt: deadline }).ok, true);
+  assert.equal(backdated.facts().find((fact) => fact.type === 'EV-BOUND-EXHAUSTED').grantBinding.status, 'revoked');
+  assert.equal(runtime.restoreScriptedDoorbellController(backdated.snapshot()).ok, true);
+});
+
+test('event ordinals are independent per Run and restore preserves each stream', () => {
+  const controller = runtime.createScriptedDoorbellController();
+  const secondBinding = {
+    ...binding(),
+    run: runTwo,
+    story: storyTwo,
+    candidate: `${storyTwo}/cand/1|${digest('c')}`,
+    session: `${storyTwo}/session/implementer/1`,
+    generation: `${runTwo}/gen/1|controller`,
+  };
+  const first = controller.escalate(requestInput({ parkOrdinal: 1 }));
+  const second = controller.escalate(
+    requestInput({ parkOrdinal: 1, binding: secondBinding, observedAt: 2000, deadline: 2000 + 72 * 60 * 60 }),
+  );
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(first.value.event, `${run}/event/1`);
+  assert.equal(second.value.event, `${runTwo}/event/1`);
+  assert.equal(runtime.restoreScriptedDoorbellController(controller.snapshot()).ok, true);
+  const restored = runtime.restoreScriptedDoorbellController(controller.snapshot()).value;
+  const next = restored.escalate(
+    requestInput({ parkOrdinal: 2, binding: secondBinding, observedAt: 3000, deadline: 3000 + 72 * 60 * 60 }),
+  );
+  assert.equal(next.ok, true, JSON.stringify(next));
+  assert.equal(next.value.event, `${runTwo}/event/2`);
 });
 
 test('hostile containers are rejected without invoking accessors', () => {
