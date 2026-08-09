@@ -398,3 +398,5 @@ export function createScriptedFake(port: SemanticPortId): ScriptedFake {
     },
   });
 }
+
+export * from './doorbell.js';
