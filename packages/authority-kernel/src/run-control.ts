@@ -68,7 +68,16 @@ export type FinalizationFence = Readonly<{
 }>;
 
 export type SettlementNextIntent = Readonly<{
-  kind: 'preserve-story' | 'reconcile-operation' | 'close-finalization' | 'release-authority' | 'resolve-obligation';
+  kind:
+    | 'preserve-story'
+    | 'reconcile-operation'
+    | 'close-finalization'
+    | 'reconcile-session'
+    | 'reconcile-review'
+    | 'reconcile-workspace'
+    | 'release-authority'
+    | 'reconcile-artifact'
+    | 'resolve-obligation';
   duty: string;
   basisDigest: string;
   authorizationBasis: string;
@@ -124,13 +133,14 @@ export type RunControlCommit = Readonly<{
   requestKey: string;
   event: RunControlEvent;
   position: number;
+  transaction: string;
   contentDigest: string;
   content: CanonicalJson;
 }>;
 
 export type RunControlLedger = Readonly<{
   append(
-    input: Readonly<{ requestKey: string; expectedPosition: number; content: CanonicalJson }>,
+    input: Readonly<{ requestKey: string; expectedPosition: number; transaction: string; content: CanonicalJson }>,
   ): RunControlResult<RunControlCommit>;
   readback(input: Readonly<{ requestKey: string }>): RunControlResult<RunControlCommit | null>;
   records(): readonly RunControlCommit[];
@@ -279,6 +289,68 @@ function parseWitness(value: unknown): WitnessedAppendBasis | undefined {
 function witnessFor(value: WitnessedAppendBasis, run: string, generation: string, basisDigest: string): boolean {
   return value.transaction.startsWith(`${run}/txn/`) && value.transaction.includes(`/${generation}|${basisDigest}`);
 }
+
+function witnessedRecord(
+  ledger: RunControlLedger,
+  value: WitnessedAppendBasis,
+  run: string,
+  generation: string,
+  basisDigest: string,
+): RunControlCommit | undefined {
+  if (!witnessFor(value, run, generation, basisDigest)) return undefined;
+  try {
+    const records = ledger.records();
+    if (!Array.isArray(records)) return undefined;
+    const record = records[value.position];
+    if (!record) return undefined;
+    const fields = ownFields(record, ['requestKey', 'event', 'position', 'transaction', 'contentDigest', 'content']);
+    const content =
+      fields &&
+      ownFields(fields.content, [
+        'schema',
+        'controller',
+        'requestKey',
+        'event',
+        'position',
+        'transaction',
+        'before',
+        'after',
+        'payload',
+      ]);
+    return fields &&
+      content &&
+      fields.position === value.position &&
+      fields.transaction === value.transaction &&
+      fields.contentDigest === value.recordDigest &&
+      value.recordDigest === value.witnessDigest &&
+      content.position === value.position &&
+      content.transaction === value.transaction &&
+      hash('RUN-CONTROL-EVENT', fields.content) === value.recordDigest
+      ? (fields as unknown as RunControlCommit)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function recordPayloadFields(record: RunControlCommit, names: readonly string[]): Record<string, unknown> | undefined {
+  try {
+    const content = ownFields(record.content, [
+      'schema',
+      'controller',
+      'requestKey',
+      'event',
+      'position',
+      'transaction',
+      'before',
+      'after',
+      'payload',
+    ]);
+    return content ? ownFields(content.payload, names) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 function parseGrant(value: unknown, run: string, basisDigest: string, generation: string): RunControlGrant | undefined {
   const raw = ownFields(value, ['principal', 'grant', 'run', 'basisDigest', 'generation', 'scope']);
   return raw &&
@@ -324,9 +396,17 @@ function parseNextIntent(value: unknown, _run: string, basisDigest: string): Set
   const raw = ownFields(value, ['kind', 'duty', 'basisDigest', 'authorizationBasis']);
   return raw &&
     typeof raw.kind === 'string' &&
-    ['preserve-story', 'reconcile-operation', 'close-finalization', 'release-authority', 'resolve-obligation'].includes(
-      raw.kind,
-    ) &&
+    [
+      'preserve-story',
+      'reconcile-operation',
+      'close-finalization',
+      'reconcile-session',
+      'reconcile-review',
+      'reconcile-workspace',
+      'release-authority',
+      'reconcile-artifact',
+      'resolve-obligation',
+    ].includes(raw.kind) &&
     text(raw.duty) &&
     raw.basisDigest === basisDigest &&
     text(raw.authorizationBasis)
@@ -340,9 +420,17 @@ function parseDuty(value: unknown, run: string, basisDigest: string): Settlement
     identity('ID-SETTLEMENT', `${run}/settlement/terminal-stop`) &&
     text(raw.id) &&
     typeof raw.kind === 'string' &&
-    ['preserve-story', 'reconcile-operation', 'close-finalization', 'release-authority', 'resolve-obligation'].includes(
-      raw.kind,
-    ) &&
+    [
+      'preserve-story',
+      'reconcile-operation',
+      'close-finalization',
+      'reconcile-session',
+      'reconcile-review',
+      'reconcile-workspace',
+      'release-authority',
+      'reconcile-artifact',
+      'resolve-obligation',
+    ].includes(raw.kind) &&
     (raw.story === null || (identity('ID-STORY', raw.story) && raw.story.startsWith(`${run}/story/`))) &&
     ordinal(raw.ordinal) &&
     raw.basisDigest === basisDigest &&
@@ -351,6 +439,55 @@ function parseDuty(value: unknown, run: string, basisDigest: string): Settlement
     next.duty === raw.id
     ? deepFreeze({ ...raw, nextIntent: next } as unknown as SettlementDuty)
     : undefined;
+}
+
+const SETTLEMENT_GLOBAL_DUTIES = Object.freeze([
+  'reconcile-session',
+  'reconcile-review',
+  'reconcile-workspace',
+  'release-authority',
+  'reconcile-artifact',
+  'resolve-obligation',
+] as const);
+
+function settlementAuthorizationBasis(
+  run: string,
+  basisDigest: string,
+  kind: SettlementNextIntent['kind'],
+  subject: string,
+): string | undefined {
+  return hash('SETTLEMENT-AUTHORIZATION', { run, basisDigest, kind, subject });
+}
+
+export function createSettlementDuties(
+  run: string,
+  basisDigest: string,
+  stories: readonly StorySnapshot[],
+  fences: readonly FinalizationFence[],
+): readonly SettlementDuty[] {
+  const entries: SettlementDuty[] = [];
+  const add = (kind: SettlementNextIntent['kind'], story: string | null, subject: string): void => {
+    const id = `${run}/settlement/duty/${kind}/${subject}`;
+    const authorizationBasis = settlementAuthorizationBasis(run, basisDigest, kind, subject);
+    if (!authorizationBasis) return;
+    entries.push({
+      id,
+      kind,
+      story,
+      ordinal: entries.length + 1,
+      basisDigest,
+      status: 'open',
+      nextIntent: { kind, duty: id, basisDigest, authorizationBasis },
+    });
+  };
+  for (const item of [...stories].sort((left, right) => left.story.localeCompare(right.story)))
+    add('preserve-story', item.story, item.story);
+  for (const fence of [...fences].sort((left, right) => left.operation.localeCompare(right.operation))) {
+    add('reconcile-operation', fence.story, fence.operation);
+    add('close-finalization', fence.story, fence.operation);
+  }
+  for (const kind of SETTLEMENT_GLOBAL_DUTIES) add(kind, null, run);
+  return Object.freeze(entries.map((entry) => deepFreeze(entry)));
 }
 function parseRuleBasis(
   value: unknown,
@@ -444,6 +581,9 @@ function parseControllerInput(value: unknown): RunControlResult<ControllerInput>
     new Set(dutyValues.map((entry) => entry.id)).size !== dutyValues.length
   )
     return fail('FC-SUBJECT', 'DUPLICATE_RUN_CONTROL_SUBJECT');
+  const expectedDuties = createSettlementDuties(raw.run as string, raw.basisDigest as string, storyValues, fenceValues);
+  if (expectedDuties.length !== dutyValues.length || !same(sorted(dutyValues), expectedDuties))
+    return fail('FC-AUTHORITY', 'INCOMPLETE_SETTLEMENT_DUTY_INVENTORY');
   return ok({
     run: raw.run as string,
     phase: raw.phase as RunControlPhase,
@@ -462,12 +602,13 @@ function appendCommit(
   ledger: RunControlLedger,
   requestKey: string,
   expectedPosition: number,
+  transaction: string,
   content: CanonicalJson,
 ): RunControlResult<RunControlCommit> {
   try {
     const existing = ledger.readback({ requestKey });
     if (existing.ok && existing.value !== null) return ok(existing.value);
-    const appended = ledger.append({ requestKey, expectedPosition, content });
+    const appended = ledger.append({ requestKey, expectedPosition, transaction, content });
     if (appended.ok) return appended;
     const recovered = ledger.readback({ requestKey });
     return recovered.ok && recovered.value !== null ? ok(recovered.value) : fail('FC-TRUST', 'ATOMIC_APPEND_UNCERTAIN');
@@ -480,6 +621,7 @@ function eventContent(
   requestKey: string,
   event: RunControlEvent,
   position: number,
+  transaction: string,
   before: RunControlSnapshot,
   after: RunControlSnapshot,
   payload: CanonicalJson,
@@ -490,6 +632,7 @@ function eventContent(
     requestKey,
     event,
     position,
+    transaction,
     before,
     after,
     payload,
@@ -514,9 +657,45 @@ export function createRunControlController(value: unknown): RunControlResult<Run
     const records = input.ledger.records();
     if (
       !Array.isArray(records) ||
-      !records.every(
-        (record) => ownFields(record, ['requestKey', 'event', 'position', 'contentDigest', 'content']) !== undefined,
-      )
+      !records.every((record) => {
+        const fields = ownFields(record, [
+          'requestKey',
+          'event',
+          'position',
+          'transaction',
+          'contentDigest',
+          'content',
+        ]);
+        const content =
+          fields &&
+          ownFields(fields.content, [
+            'schema',
+            'controller',
+            'requestKey',
+            'event',
+            'position',
+            'transaction',
+            'before',
+            'after',
+            'payload',
+          ]);
+        return !!(
+          fields &&
+          content &&
+          text(fields.requestKey) &&
+          RUN_CONTROL_EVENTS.includes(fields.event as RunControlEvent) &&
+          position(fields.position) &&
+          identity('ID-TXN', fields.transaction) &&
+          digest(fields.contentDigest) &&
+          content.schema === RUN_CONTROL_EVENT_SCHEMA &&
+          content.controller === RUN_CONTROL_CONTROLLER &&
+          content.requestKey === fields.requestKey &&
+          content.event === fields.event &&
+          content.position === fields.position &&
+          content.transaction === fields.transaction &&
+          hash('RUN-CONTROL-EVENT', fields.content) === fields.contentDigest
+        );
+      })
     )
       return fail('FC-TRUST', 'INVALID_LEDGER_RECORDS');
     initialRecords = records;
@@ -563,11 +742,15 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       return fail('FC-FENCE', 'IDEMPOTENCY_KEY_COLLISION');
     if (priorDigest !== undefined) return ok(snapshot());
     const positionValue = events.length;
-    const content = eventContent(requestKey, event, positionValue, before, after, payload);
+    const transaction = `${input.run}/txn/${positionValue + 1}/${after.generation}|${input.basisDigest}`;
+    const content = eventContent(requestKey, event, positionValue, transaction, before, after, payload);
     if (!content) return fail('FC-INPUT', 'EVENT_DIGEST');
-    const appended = appendCommit(input.ledger, requestKey, positionValue, content);
+    const appended = appendCommit(input.ledger, requestKey, positionValue, transaction, content);
     if (!appended.ok) return appended;
-    if (appended.value.contentDigest !== (hash('RUN-CONTROL-EVENT', content) as string))
+    if (
+      appended.value.contentDigest !== (hash('RUN-CONTROL-EVENT', content) as string) ||
+      appended.value.transaction !== transaction
+    )
       return fail('FC-TRUST', 'APPEND_CONTENT_MISMATCH');
     requestDigests.set(requestKey, requestDigest);
     events.push(appended.value);
@@ -629,6 +812,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         return fail('FC-RULES', 'INVALID_RULE_SURFACE_TOUCH');
       const duplicate = replay(raw.requestKey, raw);
       if (duplicate) return duplicate;
+      if (phase !== 'Active' && phase !== 'Parked') return fail('FC-RULES', 'RULE_SURFACE_TOUCH_ORIGIN_NOT_ALLOWED');
       const before = snapshot();
       phase = 'Parked';
       currentRuleSurfaceDigest = raw.observedRuleSurfaceDigest as string;
@@ -714,6 +898,7 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         'targetPhase',
         'integrity',
         'reapprovalDigest',
+        'reapprovalBasis',
       ]);
       if (
         !raw ||
@@ -741,6 +926,19 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         'status',
       ]);
       const head = integrity && parseWitness(integrity.head);
+      const headRecord =
+        head && witnessedRecord(input.ledger, head, input.run, raw.newGeneration as string, input.basisDigest);
+      const headPayload =
+        headRecord &&
+        recordPayloadFields(headRecord, [
+          'kind',
+          'run',
+          'basisDigest',
+          'oldGeneration',
+          'newGeneration',
+          'acceptedSuccessor',
+          'status',
+        ]);
       const oldNumber = generationNumber(generation);
       const newNumber = generationNumber(raw.newGeneration as string);
       const passed =
@@ -751,13 +949,60 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         integrity.oldGeneration === generation &&
         integrity.newGeneration === raw.newGeneration &&
         head !== undefined &&
-        witnessFor(head, input.run, raw.newGeneration as string, input.basisDigest) &&
+        headRecord !== undefined &&
+        headPayload?.kind === 'resume-integrity' &&
+        headPayload.run === input.run &&
+        headPayload.basisDigest === input.basisDigest &&
+        headPayload.oldGeneration === generation &&
+        headPayload.newGeneration === raw.newGeneration &&
+        headPayload.acceptedSuccessor === false &&
+        headPayload.status === 'passed' &&
         integrity.acceptedSuccessor === false &&
         integrity.status === 'passed' &&
         oldNumber !== undefined &&
         newNumber !== undefined &&
         newNumber > oldNumber;
-      const reapproved = !ruleReapprovalRequired || raw.reapprovalDigest === currentRuleSurfaceDigest;
+      const approvalBasis = parseWitness(raw.reapprovalBasis);
+      const approvalRecord =
+        approvalBasis && witnessedRecord(input.ledger, approvalBasis, input.run, generation, input.basisDigest);
+      const approvalPayload =
+        approvalRecord &&
+        recordPayloadFields(approvalRecord, [
+          'kind',
+          'run',
+          'basisDigest',
+          'generation',
+          'ruleSurfaceDigest',
+          'candidateDigest',
+          'principal',
+          'grant',
+          'approvalDigest',
+        ]);
+      const approvalWithoutDigest = approvalPayload && {
+        kind: approvalPayload.kind,
+        run: approvalPayload.run,
+        basisDigest: approvalPayload.basisDigest,
+        generation: approvalPayload.generation,
+        ruleSurfaceDigest: approvalPayload.ruleSurfaceDigest,
+        candidateDigest: approvalPayload.candidateDigest,
+        principal: approvalPayload.principal,
+        grant: approvalPayload.grant,
+      };
+      const reapproved =
+        !ruleReapprovalRequired ||
+        (!!approvalPayload &&
+          approvalRecord !== undefined &&
+          digest(raw.reapprovalDigest) &&
+          raw.reapprovalDigest === approvalPayload.approvalDigest &&
+          approvalPayload.kind === 'rule-reapproval' &&
+          approvalPayload.run === input.run &&
+          approvalPayload.basisDigest === input.basisDigest &&
+          approvalPayload.generation === generation &&
+          approvalPayload.ruleSurfaceDigest === currentRuleSurfaceDigest &&
+          approvalPayload.candidateDigest === input.frozenRuleSurface.candidateDigest &&
+          approvalPayload.principal === currentGrant.principal &&
+          approvalPayload.grant === currentGrant.grant &&
+          approvalPayload.approvalDigest === hash('RULE-REAPPROVAL', approvalWithoutDigest));
       const before = snapshot();
       if (!passed || !reapproved) {
         phase = 'Parked';
@@ -825,7 +1070,9 @@ export function createRunControlController(value: unknown): RunControlResult<Run
       const recovery = phase === 'Interrupted / Recovering';
       if (!explicit && !recovery) return fail('FC-AUTHORITY', 'TERMINAL_STOP_ORIGIN_NOT_ALLOWED');
       const appendBasis = parseWitness(raw.appendBasis);
-      if (!appendBasis || !witnessFor(appendBasis, input.run, generation, input.basisDigest)) {
+      const basisRecord =
+        appendBasis && witnessedRecord(input.ledger, appendBasis, input.run, generation, input.basisDigest);
+      if (!appendBasis || !basisRecord) {
         externalFence = Object.freeze({ kind: 'FC-TRUST', reason: 'TRUST_APPEND_BASIS_REQUIRED' });
         return fail('FC-TRUST', 'TRUST_APPEND_BASIS_REQUIRED');
       }
@@ -835,6 +1082,29 @@ export function createRunControlController(value: unknown): RunControlResult<Run
         if (raw.resumable !== false || raw.confirmation !== 'no-resumable-transition')
           return fail('FC-AUTHORITY', 'RESUMABLE_SUSPENDED_CANNOT_STOP');
         if (raw.observation !== null) return fail('FC-INPUT', 'EXPLICIT_STOP_OBSERVATION_FORBIDDEN');
+        const decision = recordPayloadFields(basisRecord, [
+          'kind',
+          'run',
+          'basisDigest',
+          'generation',
+          'principal',
+          'grant',
+          'resumable',
+          'confirmation',
+          'reason',
+        ]);
+        if (
+          decision?.kind !== 'terminal-owner-decision' ||
+          decision.run !== input.run ||
+          decision.basisDigest !== input.basisDigest ||
+          decision.generation !== generation ||
+          decision.principal !== raw.principal ||
+          decision.grant !== raw.grant ||
+          decision.resumable !== false ||
+          decision.confirmation !== raw.confirmation ||
+          decision.reason !== raw.reason
+        )
+          return fail('FC-AUTHORITY', 'NON_RESUMABLE_DECISION_NOT_WITNESSED');
       } else {
         if (raw.principal !== null || raw.grant !== null || raw.resumable !== null || raw.confirmation !== null)
           return fail('FC-AUTHORITY', 'TRUST_STOP_OWNER_DECISION_FORBIDDEN');
@@ -858,6 +1128,15 @@ export function createRunControlController(value: unknown): RunControlResult<Run
           !same(observedBasis, appendBasis)
         )
           return fail('FC-TRUST', 'TRUST_OBSERVATION_REQUIRED');
+        const observed = recordPayloadFields(basisRecord, ['kind', 'run', 'basisDigest', 'generation', 'reason']);
+        if (
+          observed?.kind !== 'recovery-observation' ||
+          observed.run !== input.run ||
+          observed.basisDigest !== input.basisDigest ||
+          observed.generation !== generation ||
+          observed.reason !== observation.reason
+        )
+          return fail('FC-TRUST', 'TRUST_OBSERVATION_NOT_WITNESSED');
       }
       const before = snapshot();
       const duties: SettlementDuty[] = [];
@@ -910,10 +1189,43 @@ export function createRunControlController(value: unknown): RunControlResult<Run
 }
 
 export function createScriptedRunControlLedger(
-  options: Readonly<{ fault?: 'none' | 'lost-response' | 'unwitnessed' }> = {},
+  options: Readonly<{
+    fault?: 'none' | 'lost-response' | 'unwitnessed';
+    seed?: readonly Readonly<{
+      requestKey: string;
+      event: RunControlEvent;
+      transaction: string;
+      payload: CanonicalJson;
+    }>[];
+  }> = {},
 ): RunControlLedger {
   const records: RunControlCommit[] = [];
   const fault = options.fault ?? 'none';
+  for (const seed of options.seed ?? []) {
+    const content = deepFreeze({
+      schema: RUN_CONTROL_EVENT_SCHEMA,
+      controller: RUN_CONTROL_CONTROLLER,
+      requestKey: seed.requestKey,
+      event: seed.event,
+      position: records.length,
+      transaction: seed.transaction,
+      before: null,
+      after: null,
+      payload: seed.payload,
+    });
+    const contentDigest = hash('RUN-CONTROL-EVENT', content);
+    if (!contentDigest) continue;
+    records.push(
+      deepFreeze({
+        requestKey: seed.requestKey,
+        event: seed.event,
+        position: records.length,
+        transaction: seed.transaction,
+        contentDigest,
+        content,
+      }),
+    );
+  }
   return Object.freeze({
     append(input) {
       if (input.expectedPosition !== records.length) return fail('FC-FENCE', 'LEDGER_POSITION_MISMATCH');
@@ -923,11 +1235,18 @@ export function createScriptedRunControlLedger(
         'requestKey',
         'event',
         'position',
+        'transaction',
         'before',
         'after',
         'payload',
       ]);
-      if (!event || typeof event.event !== 'string' || !RUN_CONTROL_EVENTS.includes(event.event as RunControlEvent))
+      if (
+        !event ||
+        typeof event.event !== 'string' ||
+        !RUN_CONTROL_EVENTS.includes(event.event as RunControlEvent) ||
+        event.transaction !== input.transaction ||
+        !identity('ID-TXN', input.transaction)
+      )
         return fail('FC-INPUT', 'LEDGER_EVENT_SHAPE');
       const contentDigest = hash('RUN-CONTROL-EVENT', input.content);
       if (!contentDigest) return fail('FC-INPUT', 'LEDGER_CONTENT_DIGEST');
@@ -935,6 +1254,7 @@ export function createScriptedRunControlLedger(
         requestKey: input.requestKey,
         event: event.event as RunControlEvent,
         position: records.length,
+        transaction: input.transaction,
         contentDigest,
         content: input.content,
       });
