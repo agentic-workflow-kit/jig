@@ -105,6 +105,8 @@ export type LocalGitWorktreeProbeEvidence = Readonly<{
     os: 'darwin' | 'linux';
     gitVersion: string;
   }>;
+  observations: Readonly<Record<string, boolean>>;
+  invocations: readonly Readonly<{ operation: string; operationType: WorkspaceOperationType; result: string }>[];
   recordedAt: number;
   recorder: 'recorder/jig-gf039-real-local/v1';
 }>;
@@ -147,7 +149,21 @@ const DIGEST = /^[0-9a-f]{64}$/u;
 const GIT_OBJECT = /^[0-9a-f]{40}$/u;
 const SECRET = /(?:secret|token|password|credential|authorization|api[._ -]?key)/iu;
 const SECRET_VALUE = /(?:secret|token|password|credential|authorization|api[._ -]?key)\s*[=:]/iu;
-const RECORDED_EVIDENCE = new WeakSet<object>();
+const PROBE_OBSERVATION_KEYS = [
+  'nativeIsolation',
+  'exactBasis',
+  'cleanliness',
+  'freshness',
+  'idempotentSetup',
+  'setupReplacementNoOp',
+  'idempotentProvision',
+  'lostResponseReconciles',
+  'crashRecovery',
+  'preservationBeforeRetire',
+  'retireDisabledPreservesWorkspace',
+  'noSecrets',
+  'gateDeniedWithoutAdmission',
+] as const;
 
 function identity(kind: string, value: unknown): value is string {
   return typeof value === 'string' && parseIdentity(kind, value).ok;
@@ -180,10 +196,38 @@ function exactObject(value: unknown, keys: readonly string[]): Record<string, un
     )
       return undefined;
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    const actual = Object.keys(descriptors).sort();
-    if (actual.join('\0') !== [...keys].sort().join('\0') || !keys.every((key) => 'value' in descriptors[key]))
+    const actual = Reflect.ownKeys(value);
+    const expected = [...keys].sort();
+    if (
+      actual.some((key) => typeof key !== 'string') ||
+      actual.length !== expected.length ||
+      [...actual].sort().some((key, index) => key !== expected[index]) ||
+      !keys.every((key) => descriptors[key]?.enumerable && 'value' in descriptors[key])
+    )
       return undefined;
     return Object.fromEntries(keys.map((key) => [key, descriptors[key]?.value]));
+  } catch {
+    return undefined;
+  }
+}
+
+function exactArray(value: unknown): readonly unknown[] | undefined {
+  try {
+    if (
+      !Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Array.prototype ||
+      Reflect.ownKeys(value).length !== value.length + 1 ||
+      Reflect.ownKeys(value).some((key) => typeof key !== 'string')
+    )
+      return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+    if (!lengthDescriptor || !('value' in lengthDescriptor)) return undefined;
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor?.enumerable || !('value' in descriptor)) return undefined;
+    }
+    return [...value];
   } catch {
     return undefined;
   }
@@ -851,10 +895,14 @@ function validateEvidence(
     'operationDigest',
     'probeDigest',
     'runner',
+    'observations',
+    'invocations',
     'recordedAt',
     'recorder',
   ]);
   const runner = raw && exactObject(raw.runner, ['runtime', 'os', 'gitVersion']);
+  const observations = raw && exactObject(raw.observations, PROBE_OBSERVATION_KEYS);
+  const invocations = raw && exactArray(raw.invocations);
   const candidate = currentCandidateIdentity();
   if (
     raw?.kind !== 'CF-GATE-PROVIDER' ||
@@ -887,9 +935,35 @@ function validateEvidence(
     runner.os !== environment.os ||
     runner.gitVersion !== environment.gitVersion ||
     raw.recorder !== 'recorder/jig-gf039-real-local/v1' ||
-    !Number.isSafeInteger(raw.recordedAt)
-  )
+    !Number.isSafeInteger(raw.recordedAt) ||
+    !observations ||
+    PROBE_OBSERVATION_KEYS.some((key) => observations[key] !== true) ||
+    !invocations ||
+    invocations.some((entry) => {
+      const invocation = exactObject(entry, ['operation', 'operationType', 'result']);
+      return (
+        !invocation ||
+        !identity('ID-OP', invocation.operation) ||
+        !['OPC-WS-PROVISION', 'OPC-WS-SETUP', 'OPC-WS-OBSERVE', 'OPC-WS-PRESERVE', 'OPC-WS-RETIRE'].includes(
+          String(invocation.operationType),
+        ) ||
+        typeof invocation.result !== 'string'
+      );
+    }) ||
+    raw.requestDigest !==
+      digest('WORKSPACE-PROBE-REQUEST', {
+        candidateCommit: raw.candidateCommit,
+        candidateTree: raw.candidateTree,
+        provider: LOCAL_GIT_WORKTREE_PROVIDER,
+        manifest: LOCAL_GIT_WORKTREE_MANIFEST_DIGEST,
+        environment,
+      }) ||
+    raw.resultDigest !== digest('WORKSPACE-PROBE-RESULT', { observations }) ||
+    raw.operationDigest !== digest('WORKSPACE-PROBE-OPERATIONS', invocations) ||
+    raw.probeDigest !== digest('WORKSPACE-PROBE', { observations })
+  ) {
     return fail('FC-AUTHORITY', 'QUALIFICATION_EVIDENCE_MISMATCH');
+  }
   if (
     (raw.recordedAt as number) > Date.now() ||
     Date.now() - (raw.recordedAt as number) > LOCAL_GIT_WORKTREE_MAX_PROOF_AGE_MS
@@ -932,8 +1006,6 @@ export function createQualifiedLocalGitWorktreeProvider(
     evidence.value.admissionAgeMs !== admission.value.ageMs
   )
     return fail('FC-AUTHORITY', 'QUALIFICATION_ADMISSION_MISMATCH');
-  if (typeof input?.evidence !== 'object' || input.evidence === null || !RECORDED_EVIDENCE.has(input.evidence))
-    return fail('FC-AUTHORITY', 'UNRECORDED_QUALIFICATION_EVIDENCE');
   return ok(createMechanism(environment.value));
 }
 
@@ -950,9 +1022,7 @@ export function recordLocalGitWorktreeGateEvidence(input: unknown): Result<Local
   ]);
   if (!env) return fail('FC-AUTHORITY', 'EVIDENCE_ENVIRONMENT_REQUIRED');
   const result = validateEvidence(evidence, env as unknown as LocalGitWorktreeEnvironment);
-  return result.ok && typeof evidence === 'object' && evidence !== null && RECORDED_EVIDENCE.has(evidence)
-    ? result
-    : fail('FC-AUTHORITY', 'UNRECORDED_QUALIFICATION_EVIDENCE');
+  return result;
 }
 
 function fixtureIntent(binding: WorkspaceBinding): WorkspaceOperationIntent {
@@ -1164,11 +1234,12 @@ export function runLocalGitWorktreeQualificationProbe(
     resultDigest,
     operationDigest,
     probeDigest: digest('WORKSPACE-PROBE', { observations }),
+    observations: Object.freeze({ ...observations }),
+    invocations: provider.invocations(),
     runner,
     recordedAt: Date.now(),
     recorder: 'recorder/jig-gf039-real-local/v1',
   });
-  RECORDED_EVIDENCE.add(evidence);
   const result = passed
     ? ok(
         Object.freeze({ evidence, observations, resourceRoot: root, removedResources: input.retainRoot ? [] : [root] }),

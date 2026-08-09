@@ -229,6 +229,49 @@ test('workspace contract: exact fresh setup receipt is a no-op and stale receipt
   assert.equal(fabricated.value.kind, 'setup-fact');
 });
 
+test('workspace contract: exact durable setup fact restores across controller restart before freshness decision', () => {
+  const first = controller();
+  const initial = first.controller.setup({ binding: binding('op-setup-restart', 'OPC-WS-SETUP'), receipt: null });
+  assert.equal(initial.ok, true);
+  const restored = workspace.restoreWorkspaceController({
+    transition: workspace.createWorkspaceTransitionRecorder(),
+    fixture: first.fixture,
+    snapshot: structuredClone(first.controller.snapshot()),
+  });
+  assert.equal(restored.ok, true);
+  assert.deepEqual(
+    restored.value.setup({ binding: binding('op-setup-restart', 'OPC-WS-SETUP'), receipt: initial.value.setupReceipt }),
+    { ok: true, value: { status: 'no-op' } },
+  );
+  assert.equal(restored.value.facts().length, 1);
+});
+
+test('workspace contract: hidden and symbol authority fields fail closed during restore and dispatch', () => {
+  const base = binding('op-hostile-fields', 'OPC-WS-OBSERVE');
+  assert.equal(controller().controller.observe({ binding: { ...base, [Symbol('hidden')]: true } }).ok, false);
+  const nonEnumerableBinding = { ...base };
+  Object.defineProperty(nonEnumerableBinding, 'path', { value: base.path, enumerable: false });
+  assert.equal(controller().controller.observe({ binding: nonEnumerableBinding }).ok, false);
+  const accessorBinding = { ...base };
+  Object.defineProperty(accessorBinding, 'path', { get: () => base.path, enumerable: true });
+  assert.equal(controller().controller.observe({ binding: accessorBinding }).ok, false);
+
+  const first = controller();
+  assert.equal(first.controller.observe({ binding: base }).ok, true);
+  const hostileSnapshot = structuredClone(first.controller.snapshot());
+  Object.defineProperty(hostileSnapshot.facts[0], 'kind', {
+    value: hostileSnapshot.facts[0].kind,
+    enumerable: false,
+  });
+  assert.deepEqual(
+    workspace.restoreWorkspaceController({
+      transition: workspace.createWorkspaceTransitionRecorder(),
+      snapshot: hostileSnapshot,
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'INVALID_WORKSPACE_SNAPSHOT' } },
+  );
+});
+
 test('workspace contract: dirty and ambiguous observations fail closed without writing facts', () => {
   for (const cleanliness of ['dirty', 'ambiguous']) {
     const base = workspace.createScriptedWorkspaceFixture();

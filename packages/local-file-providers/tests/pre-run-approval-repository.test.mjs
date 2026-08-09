@@ -27,6 +27,15 @@ test.after(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
+test('pre-Run approval repository rejects omitted, relative, and unresolved placeholder roots', () => {
+  assert.throws(() => provider.createLocalPreRunApprovalRepository(), /INVALID_APPROVAL_ROOT/);
+  assert.throws(() => provider.createLocalPreRunApprovalRepository('state/pre-run-approvals'), /INVALID_APPROVAL_ROOT/);
+  assert.throws(
+    () => provider.createLocalPreRunApprovalRepository(provider.PRE_RUN_APPROVAL_ROOT),
+    /INVALID_APPROVAL_ROOT/,
+  );
+});
+
 test('pre-Run approval repository is immutable, exact, and recoverable across instances', () => {
   const { root, repository, record } = fixture();
   assert.deepEqual(Object.keys(repository).sort(), ['createIfAbsent', 'read']);

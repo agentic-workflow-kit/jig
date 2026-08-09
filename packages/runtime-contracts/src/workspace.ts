@@ -162,6 +162,15 @@ export type WorkspaceController = Readonly<{
   >;
   intents(): readonly WorkspaceOperationIntent[];
   facts(): readonly WorkspaceFact[];
+  snapshot(): WorkspaceSnapshot;
+}>;
+
+export type WorkspaceSnapshot = Readonly<{
+  version: typeof WORKSPACE_CONTRACT_VERSION;
+  intents: readonly WorkspaceOperationIntent[];
+  facts: readonly WorkspaceFact[];
+  setupIntentKeys: readonly string[];
+  uncertainOperations: readonly string[];
 }>;
 
 const DIGEST = /^[0-9a-f]{64}$/u;
@@ -189,9 +198,15 @@ const exactFields = (value: unknown, names: readonly string[]): Record<string, u
   if (!isPlain(value)) return undefined;
   try {
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    const keys = Object.keys(descriptors).sort();
-    if (keys.join('\0') !== [...names].sort().join('\0')) return undefined;
-    if (!names.every((name) => 'value' in descriptors[name])) return undefined;
+    const keys = Reflect.ownKeys(value);
+    const expected = [...names].sort();
+    if (
+      keys.some((key) => typeof key !== 'string') ||
+      keys.length !== expected.length ||
+      [...keys].sort().some((key, index) => key !== expected[index])
+    )
+      return undefined;
+    if (!names.every((name) => descriptors[name]?.enumerable && 'value' in descriptors[name])) return undefined;
     return Object.fromEntries(names.map((name) => [name, descriptors[name].value]));
   } catch {
     return undefined;
@@ -382,6 +397,141 @@ const parseReceipt = (value: unknown): WorkspaceSetupReceipt | undefined => {
     effectDigest: raw.effectDigest,
     completed: true,
     proof,
+  });
+};
+
+const parseFact = (value: unknown): WorkspaceFact | undefined => {
+  const raw = exactFields(value, [
+    'version',
+    'kind',
+    'operation',
+    'operationType',
+    'binding',
+    'hostFingerprint',
+    'workspaceFingerprint',
+    'contentDigest',
+    'cleanliness',
+    'setupReceipt',
+    'preserved',
+    'proof',
+  ]);
+  const binding = raw && parseBinding(raw.binding);
+  const proof = raw && binding && parseProof(raw.proof, raw.operation as string, binding.subject.run);
+  const receipt = raw?.setupReceipt === null ? null : parseReceipt(raw?.setupReceipt);
+  if (
+    !raw ||
+    raw.version !== WORKSPACE_CONTRACT_VERSION ||
+    !binding ||
+    !identity('ID-OP', raw.operation) ||
+    raw.operation !== binding.operation ||
+    raw.operationType !== binding.operationType ||
+    !safeDigest(raw.hostFingerprint) ||
+    !safeDigest(raw.workspaceFingerprint) ||
+    !safeDigest(raw.contentDigest) ||
+    !['clean', 'dirty', 'ambiguous'].includes(raw.cleanliness as string) ||
+    raw.setupReceipt === undefined ||
+    (raw.setupReceipt !== null && !receipt) ||
+    typeof raw.preserved !== 'boolean' ||
+    !proof ||
+    (raw.kind === 'setup-fact' && (!receipt || raw.operationType !== 'OPC-WS-SETUP')) ||
+    (raw.kind === 'workspace-fact' && raw.operationType === 'OPC-WS-SETUP') ||
+    (raw.kind === 'preservation-fact' && !raw.preserved) ||
+    !['workspace-fact', 'setup-fact', 'preservation-fact'].includes(raw.kind as string)
+  )
+    return undefined;
+  const normalizedReceipt: WorkspaceSetupReceipt | null = receipt ?? null;
+  if (
+    normalizedReceipt &&
+    (!same(normalizedReceipt.binding, binding) ||
+      normalizedReceipt.operation !== raw.operation ||
+      normalizedReceipt.hostFingerprint !== raw.hostFingerprint ||
+      normalizedReceipt.workspaceFingerprint !== raw.workspaceFingerprint ||
+      normalizedReceipt.recipeDigest !== binding.recipeDigest ||
+      normalizedReceipt.inputFingerprintDigest !== binding.inputFingerprintDigest ||
+      normalizedReceipt.freshnessFingerprint !== freshnessFingerprint(binding, raw.hostFingerprint) ||
+      normalizedReceipt.effectDigest !==
+        digest('WORKSPACE-SETUP-EFFECT', { binding, contentDigest: raw.contentDigest }) ||
+      !same(normalizedReceipt.proof, proof))
+  )
+    return undefined;
+  return Object.freeze({
+    version: WORKSPACE_CONTRACT_VERSION,
+    kind: raw.kind as WorkspaceFact['kind'],
+    operation: raw.operation,
+    operationType: raw.operationType as WorkspaceOperationType,
+    binding,
+    hostFingerprint: raw.hostFingerprint,
+    workspaceFingerprint: raw.workspaceFingerprint,
+    contentDigest: raw.contentDigest,
+    cleanliness: raw.cleanliness as WorkspaceCleanliness,
+    setupReceipt: normalizedReceipt,
+    preserved: raw.preserved,
+    proof,
+  });
+};
+
+const parseSnapshot = (value: unknown): WorkspaceSnapshot | undefined => {
+  const raw = exactFields(value, ['version', 'intents', 'facts', 'setupIntentKeys', 'uncertainOperations']);
+  if (!raw || raw.version !== WORKSPACE_CONTRACT_VERSION) return undefined;
+  const arrays = [raw.intents, raw.facts, raw.setupIntentKeys, raw.uncertainOperations];
+  if (
+    arrays.some(
+      (entry) =>
+        !Array.isArray(entry) ||
+        Object.getPrototypeOf(entry) !== Array.prototype ||
+        Reflect.ownKeys(entry).length !== entry.length + 1 ||
+        Reflect.ownKeys(entry).some((key) => typeof key !== 'string'),
+    )
+  )
+    return undefined;
+  const intents = (raw.intents as readonly unknown[]).map((entry) => {
+    const parsed = exactFields(entry, [
+      'version',
+      'operation',
+      'operationType',
+      'effect',
+      'port',
+      'capability',
+      'binding',
+      'proof',
+    ]);
+    const binding = parsed && parseBinding(parsed.binding);
+    const proof = parsed && binding && parseProof(parsed.proof, parsed.operation as string, binding.subject.run);
+    return parsed &&
+      binding &&
+      proof &&
+      parsed.version === WORKSPACE_CONTRACT_VERSION &&
+      parsed.operation === binding.operation &&
+      parsed.operationType === binding.operationType &&
+      parsed.effect === operationEffect(binding.operationType) &&
+      parsed.port === WORKSPACE_PORT &&
+      parsed.capability === WORKSPACE_CAPABILITY
+      ? (Object.freeze({
+          version: WORKSPACE_CONTRACT_VERSION,
+          operation: parsed.operation,
+          operationType: parsed.operationType as WorkspaceOperationType,
+          effect: parsed.effect as WorkspaceOperationEffect,
+          port: WORKSPACE_PORT,
+          capability: WORKSPACE_CAPABILITY,
+          binding,
+          proof,
+        }) as WorkspaceOperationIntent)
+      : undefined;
+  });
+  const facts = (raw.facts as readonly unknown[]).map(parseFact);
+  if (
+    intents.some((entry) => !entry) ||
+    facts.some((entry) => !entry) ||
+    (raw.setupIntentKeys as readonly unknown[]).some((entry) => typeof entry !== 'string') ||
+    (raw.uncertainOperations as readonly unknown[]).some((entry) => typeof entry !== 'string')
+  )
+    return undefined;
+  return Object.freeze({
+    version: WORKSPACE_CONTRACT_VERSION,
+    intents: Object.freeze(intents as WorkspaceOperationIntent[]),
+    facts: Object.freeze(facts as WorkspaceFact[]),
+    setupIntentKeys: Object.freeze([...(raw.setupIntentKeys as string[])]),
+    uncertainOperations: Object.freeze([...(raw.uncertainOperations as string[])]),
   });
 };
 
@@ -699,15 +849,16 @@ export function createWorkspaceTransitionRecorder(): WorkspaceTransitionRecorder
   });
 }
 
-export function createWorkspaceController(
+function createWorkspaceControllerInternal(
   input: Readonly<{ transition: WorkspaceTransitionRecorder; fixture?: ScriptedWorkspaceFixture }>,
+  snapshot?: WorkspaceSnapshot,
 ): WorkspaceController {
   const fixture = input.fixture ?? createScriptedWorkspaceFixture();
-  const intents: WorkspaceOperationIntent[] = [];
-  const facts: WorkspaceFact[] = [];
-  const preserved = new Set<string>();
-  const setupIntents = new Set<string>();
-  const uncertain = new Set<string>();
+  const intents: WorkspaceOperationIntent[] = [...(snapshot?.intents ?? [])];
+  const facts: WorkspaceFact[] = [...(snapshot?.facts ?? [])];
+  const preserved = new Set<string>(facts.filter((fact) => fact.preserved).map((fact) => bindingKey(fact.binding)));
+  const setupIntents = new Set<string>(snapshot?.setupIntentKeys ?? []);
+  const uncertain = new Set<string>(snapshot?.uncertainOperations ?? []);
 
   const execute = (bindingInput: unknown, fault: WorkspaceFault = 'none'): WorkspaceResult<WorkspaceFact> => {
     const bindingResult = validateBinding(bindingInput);
@@ -735,6 +886,8 @@ export function createWorkspaceController(
         witnessDigest: intentDigest,
       }),
     });
+    if (intents.some((existing) => existing.operation === intent.operation))
+      return fail('FC-EFFECT', 'DUPLICATE_WORKSPACE_INTENT');
     const recorded = input.transition.recordIntent(intent);
     if (!recorded.ok) return recorded;
     intents.push(intent);
@@ -854,5 +1007,39 @@ export function createWorkspaceController(
     reconcile,
     intents: () => Object.freeze([...intents]),
     facts: () => Object.freeze([...facts]),
+    snapshot: () =>
+      Object.freeze({
+        version: WORKSPACE_CONTRACT_VERSION,
+        intents: Object.freeze([...intents]),
+        facts: Object.freeze([...facts]),
+        setupIntentKeys: Object.freeze([...setupIntents]),
+        uncertainOperations: Object.freeze([...uncertain]),
+      }),
   });
+}
+
+export function createWorkspaceController(
+  input: Readonly<{ transition: WorkspaceTransitionRecorder; fixture?: ScriptedWorkspaceFixture }>,
+): WorkspaceController {
+  return createWorkspaceControllerInternal(input);
+}
+
+export function restoreWorkspaceController(
+  input: Readonly<{
+    transition: WorkspaceTransitionRecorder;
+    fixture?: ScriptedWorkspaceFixture;
+    snapshot: unknown;
+  }>,
+): WorkspaceResult<WorkspaceController> {
+  const snapshot = parseSnapshot(input?.snapshot);
+  if (!snapshot) return fail('FC-TRUST', 'INVALID_WORKSPACE_SNAPSHOT');
+  return ok(
+    createWorkspaceControllerInternal(
+      {
+        transition: input.transition,
+        fixture: input.fixture,
+      },
+      snapshot,
+    ),
+  );
 }

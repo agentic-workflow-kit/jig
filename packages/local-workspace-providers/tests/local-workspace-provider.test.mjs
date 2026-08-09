@@ -139,6 +139,24 @@ test('GF-039 gate remains unavailable without GF-022 admission, exact evidence, 
     }).ok,
     true,
   );
+  const persisted = structuredClone(probe.value.evidence);
+  assert.equal(provider.recordLocalGitWorktreeGateEvidence({ evidence: persisted }).ok, true);
+  assert.equal(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      evidence: persisted,
+      environment,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    provider.createQualifiedLocalGitWorktreeProvider({
+      admission: admission(),
+      evidence: { ...persisted, resultDigest: repeatDigest('f') },
+      environment,
+    }).ok,
+    false,
+  );
   assert.deepEqual(
     provider.createQualifiedLocalGitWorktreeProvider({
       admission: admission({ startObservedAt: 1001, proofObservedAt: 1101, observedAt: 1201 }),

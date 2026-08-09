@@ -71,8 +71,8 @@ function readStored(path: string): ApprovalRepositoryResult<PreRunApproval> {
   }
 }
 
-export function createLocalPreRunApprovalRepository(root: string = PRE_RUN_APPROVAL_ROOT): PreRunApprovalRepository {
-  if (typeof root !== 'string' || root.length === 0 || root.includes('\u0000'))
+export function createLocalPreRunApprovalRepository(root: string): PreRunApprovalRepository {
+  if (typeof root !== 'string' || root.length === 0 || root.includes('\u0000') || !root.startsWith('/'))
     throw new TypeError('INVALID_APPROVAL_ROOT');
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const reference = (key: string): string => `${root}/${key}.approval`;
