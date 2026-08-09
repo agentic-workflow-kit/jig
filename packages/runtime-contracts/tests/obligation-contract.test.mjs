@@ -279,6 +279,9 @@ test('legacy obligation facts contribute ordinals but cannot satisfy allocation 
     true,
   );
   assert.equal(controller.openAllocated(allocationInput).value.id, `${run}/obligation/2`);
+  const restored = obligation.restoreScriptedObligationController(controller.snapshot(), runtimeDependencies);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(restored.value.openAllocated(allocationInput).value.id, `${run}/obligation/2`);
 });
 
 test('allocated duty readback replays an uncertain append and rejects a durable collision', () => {
