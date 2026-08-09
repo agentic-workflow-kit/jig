@@ -1,11 +1,6 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import { isScriptedLedger } from './ledger.js';
-import {
-  readCertificateClaims,
-  registerProviderAdmissionExecutionClaims,
-  snapshotProviderAdmissionClaims,
-  snapshotQualificationClaims,
-} from './qualification-registry.js';
+import { readCertificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -58,7 +53,6 @@ type Fixture = Readonly<{
       kind: 'eligible';
       manifestId: string;
       providerEnabled: false;
-      admissionCarrier?: object;
     }>
   >;
   readback(input: unknown): ProviderAdmissionResult<Attempt>;
@@ -267,7 +261,7 @@ const basis = (value: unknown, entry: CapabilityProofCatalogueEntry): Basis | un
   });
 };
 
-function createProviderAdmissionFixtureInternal(input: unknown, issueLocalCommandCarrier: boolean): Fixture {
+function createProviderAdmissionFixtureInternal(input: unknown): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const entry = config && ledger ? catalogueEntry(config.manifestBytes) : undefined;
@@ -454,31 +448,7 @@ function createProviderAdmissionFixtureInternal(input: unknown, issueLocalComman
         (localCommand && data.maxAgeMs !== PROVIDER_ADMISSION_MAX_AGE_MS)
       )
         return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
-      if (!localCommand || !issueLocalCommandCarrier)
-        return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
-      const claims = snapshotProviderAdmissionClaims({
-        principal: 'principal/arye',
-        providerIdentity: bound.providerIdentity,
-        providerBuild: bound.providerBuild,
-        environment: bound.environment,
-        capability: bound.capability,
-        policyMinimum: bound.policyMinimum,
-        manifestId: bound.manifestId,
-        manifestDigest: bound.manifestDigest,
-        scope: bound.scope,
-        proofDigest: stored.digest,
-        observedAt,
-        maxAgeMs: PROVIDER_ADMISSION_MAX_AGE_MS,
-      });
-      if (!claims) return fail('FC-AUTHORITY', 'EXACT_PROVIDER_ADMISSION_REQUIRED');
-      const admissionCarrier = Object.freeze({});
-      registerProviderAdmissionExecutionClaims(admissionCarrier, claims);
-      return ok({
-        kind: 'eligible',
-        manifestId: bound.manifestId,
-        providerEnabled: false as const,
-        admissionCarrier,
-      });
+      return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
     },
     readback(input) {
       const data = fields(input, ['basis', 'ordinal', 'variant']);
@@ -500,12 +470,7 @@ function createProviderAdmissionFixtureInternal(input: unknown, issueLocalComman
 }
 
 export function createProviderAdmissionFixture(input: unknown): Fixture {
-  return createProviderAdmissionFixtureInternal(input, false);
-}
-
-/** Package-private GF-047 transition; omitted from the runtime package root. */
-export function createLocalCommandAdmissionTransition(input: unknown): Fixture {
-  return createProviderAdmissionFixtureInternal(input, true);
+  return createProviderAdmissionFixtureInternal(input);
 }
 
 function approval(value: unknown, entry: CapabilityProofCatalogueEntry): Approval | undefined {

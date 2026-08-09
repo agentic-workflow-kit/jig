@@ -3,6 +3,8 @@ import {
   readExecutionClaims,
   registerCertificateClaims,
   registerExecutionClaims,
+  registerProviderAdmissionCertificateClaims,
+  snapshotProviderAdmissionClaims,
   snapshotQualificationClaims,
 } from './qualification-registry.js';
 
@@ -30,4 +32,17 @@ export function mintQualificationCertificate(carrier: unknown): object | undefin
 
 export function readQualificationCertificateClaims(certificate: unknown) {
   return typeof certificate === 'object' && certificate !== null ? readCertificateClaims(certificate) : undefined;
+}
+
+/**
+ * Repository-private GF-022 friend surface. The conformance harness calls this
+ * only after the durable provider-admission transition has accepted the exact
+ * manifest, approval, ledger proof, and freshness bound.
+ */
+export function issueExactProviderAdmissionCertificate(input: unknown): object | undefined {
+  const claims = snapshotProviderAdmissionClaims(input);
+  if (!claims) return undefined;
+  const certificate = Object.freeze({});
+  registerProviderAdmissionCertificateClaims(certificate, claims);
+  return certificate;
 }

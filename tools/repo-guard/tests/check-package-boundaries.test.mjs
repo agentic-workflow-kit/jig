@@ -158,6 +158,50 @@ test('permits the qualification friend subpath only from conformance', () => {
   assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
 });
 
+test('permits the qualification friend relative import only from exact conformance modules', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'conformance', 'src', 'provider-admission-qualification.ts'),
+      "import '../../runtime-contracts/dist/qualification-certificate.js';\n",
+    ),
+  );
+  assert.deepEqual(errors, []);
+});
+
+test('rejects qualification friend relative imports from local providers', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'src', 'index.ts'),
+      "import '../../runtime-contracts/dist/qualification-certificate.js';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted qualification friend')));
+});
+
+test('rejects qualification friend relative imports from runtime and arbitrary siblings', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "import '../../runtime-contracts/dist/qualification-certificate.js';\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "import '../../runtime-contracts/dist/qualification-certificate.js';\n",
+    );
+  });
+  assert.equal(errors.filter((error) => error.includes('imports restricted qualification friend')).length, 2);
+});
+
+test('rejects the qualification friend package deep import outside exact conformance modules', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'runtime-contracts', 'src', 'index.ts'),
+      "import '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted friend subpath')));
+});
+
 test('rejects filesystem deep imports of the private qualification registry', () => {
   const errors = withPackages((root) =>
     writeFileSync(

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { repoRoot } from './repo-root.mjs';
@@ -46,6 +46,13 @@ const knownNativeCapabilities = {
 const friendSubpaths = {
   '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',
 };
+const qualificationFriendRelativeImport = '../../runtime-contracts/dist/qualification-certificate.js';
+const qualificationFriendFiles = new Set([
+  'packages/conformance/src/structured-file-qualification.ts',
+  'packages/conformance/src/provider-admission-qualification.ts',
+  'packages/conformance/dist/structured-file-qualification.js',
+  'packages/conformance/dist/provider-admission-qualification.js',
+]);
 const distTarget = (value) => value.startsWith('./dist/') && !value.split('/').includes('..');
 
 function readJson(path, errors, label) {
@@ -291,12 +298,19 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
 
   for (const { directory, manifest } of manifests) {
     validateManifest(manifest, directory, workspaceNames, errors);
-    if (manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts')
-      for (const path of codeFiles(directory)) {
-        const source = readFileSync(path, 'utf8');
-        if (importSpecifiers(source).some((specifier) => /(?:^|\/)qualification-registry(?:\.js)?$/u.test(specifier)))
+    for (const path of codeFiles(directory)) {
+      const source = readFileSync(path, 'utf8');
+      const repoPath = relative(resolve(rootDir), resolve(path)).split('/').join('/');
+      for (const specifier of importSpecifiers(source)) {
+        if (specifier === qualificationFriendRelativeImport && !qualificationFriendFiles.has(repoPath))
+          errors.push(`${manifest.name} imports restricted qualification friend ${specifier}`);
+        if (
+          manifest.name !== '@agentic-workflow-kit/jig-runtime-contracts' &&
+          /(?:^|\/)qualification-registry(?:\.js)?$/u.test(specifier)
+        )
           errors.push(`${manifest.name} bypasses the private qualification registry boundary`);
       }
+    }
     const sources = sourceFiles(join(directory, 'src'));
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);
     for (const path of sources) {
@@ -307,7 +321,10 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
         if (specifier.startsWith('./') || specifier.startsWith('../')) continue;
         else if (knownNativeCapabilities[manifest.name]?.has(specifier)) continue;
         else if (Object.hasOwn(friendSubpaths, specifier)) {
-          if (friendSubpaths[specifier] !== manifest.name)
+          if (
+            friendSubpaths[specifier] !== manifest.name ||
+            !qualificationFriendFiles.has(relative(resolve(rootDir), resolve(path)).split('/').join('/'))
+          )
             errors.push(`${manifest.name} imports restricted friend subpath ${specifier}`);
         } else if (!specifier.startsWith(packagePrefix))
           errors.push(`${manifest.name} source imports a non-workspace capability: ${specifier}`);

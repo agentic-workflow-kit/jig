@@ -7,7 +7,7 @@ import test from 'node:test';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const admissionRuntime = await import('../../runtime-contracts/dist/provider.js');
+const conformance = await import('../../conformance/dist/provider-admission-qualification.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -147,7 +147,7 @@ const admission = () => {
     manifestDigest: manifestValue.manifestDigest,
     scope: manifestValue.value.scope,
   };
-  const fixture = admissionRuntime.createLocalCommandAdmissionTransition({
+  const fixture = runtime.createProviderAdmissionFixture({
     manifestBytes: manifestValue.bytes,
     approval,
     ledger,
@@ -172,11 +172,15 @@ const admission = () => {
     outcome: 'positive',
   });
   assert.equal(proof.ok, true);
-  const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: 86_400_000 });
-  assert.equal(admitted.ok, true);
-  assert.equal('certificate' in admitted.value, false);
-  assert.ok(admitted.value.admissionCarrier);
-  return { certificate: admitted.value.admissionCarrier };
+  const certificate = conformance.qualifyLocalCommandAdmission({
+    manifestBytes: manifestValue.bytes,
+    approval,
+    ledger,
+    basis: basisValue,
+    proof: proof.value,
+  });
+  assert.ok(certificate);
+  return { certificate };
 };
 
 const checkoutResource = (requestValue, path = checkoutPath) =>

@@ -198,7 +198,6 @@ export function snapshotProviderAdmissionClaims(value: unknown): ProviderAdmissi
 const certificateClaims = new WeakMap<object, QualificationClaims>();
 const executionClaims = new WeakMap<object, QualificationClaims>();
 const providerAdmissionCertificateClaims = new WeakMap<object, ProviderAdmissionClaims>();
-const providerAdmissionExecutionClaims = new WeakMap<object, ProviderAdmissionClaims>();
 
 export function registerExecutionClaims(carrier: object, claims: QualificationClaims): void {
   executionClaims.set(carrier, claims);
@@ -216,18 +215,10 @@ export function readCertificateClaims(certificate: object): QualificationClaims 
   return certificateClaims.get(certificate);
 }
 
-export function registerProviderAdmissionExecutionClaims(carrier: object, claims: ProviderAdmissionClaims): void {
-  providerAdmissionExecutionClaims.set(carrier, claims);
-}
-
-export function readProviderAdmissionExecutionClaims(carrier: object): ProviderAdmissionClaims | undefined {
-  return providerAdmissionExecutionClaims.get(carrier);
-}
-
 export function registerProviderAdmissionCertificateClaims(certificate: object, claims: ProviderAdmissionClaims): void {
   providerAdmissionCertificateClaims.set(certificate, claims);
 }
 
 export function readProviderAdmissionCertificateClaims(certificate: object): ProviderAdmissionClaims | undefined {
-  return providerAdmissionCertificateClaims.get(certificate) ?? providerAdmissionExecutionClaims.get(certificate);
+  return providerAdmissionCertificateClaims.get(certificate);
 }

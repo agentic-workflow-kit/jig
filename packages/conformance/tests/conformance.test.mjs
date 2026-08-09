@@ -612,39 +612,8 @@ test('private structured-file execution mints only an opaque runtime certificate
   const records = conformance.append([], input('CF-MECH-SOURCE', { subject: providerSubject })).records;
   const certificate = internal.executeExactStructuredFileQualification(records, providerSubject);
   assert.ok(certificate);
+  assert.equal(Object.isFrozen(certificate), true);
   assert.equal('executeExactStructuredFileQualification' in conformance, false);
-  const friend = await import('../../runtime-contracts/dist/qualification-certificate.js');
-  assert.equal(friend.mintQualificationCertificate({}), undefined);
-  assert.equal(friend.mintQualificationCertificate({ ...certificate }), undefined);
-
-  const exactClaims = {
-    subject: { ...providerSubject },
-    resourceDigest: 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd',
-    capability: 'PORT-SOURCE/read-structured-json',
-    policyMinimum: 'policy/structured-file-source/v1',
-  };
-  const { candidateTree, ...incompleteSubject } = exactClaims.subject;
-  assert.equal(
-    friend.recordExactStructuredFileExecution({ ...exactClaims, subject: incompleteSubject }),
-    undefined,
-    'every exact conformance-subject field is required before carrier registration',
-  );
-  assert.equal(candidateTree, hash);
-
-  const carrier = friend.recordExactStructuredFileExecution(exactClaims);
-  assert.ok(carrier);
-  exactClaims.subject.providerBuildDigest = '0'.repeat(64);
-  exactClaims.subject.candidateTree = '0'.repeat(64);
-  exactClaims.resourceDigest = '0'.repeat(64);
-  const isolatedCertificate = friend.mintQualificationCertificate(carrier);
-  assert.ok(isolatedCertificate, 'mutating caller-owned input cannot alter the registered snapshot');
-  const stored = friend.readQualificationCertificateClaims(isolatedCertificate);
-  assert.ok(stored);
-  assert.equal(Object.isFrozen(stored), true);
-  assert.equal(Object.isFrozen(stored.subject), true);
-  assert.equal(stored.subject.providerBuildDigest, providerSubject.providerBuildDigest);
-  assert.equal(stored.subject.candidateTree, providerSubject.candidateTree);
-  assert.equal(stored.resourceDigest, 'fe23b4511a1abafef43ee38c6bc0c6496d4a3787ac9a913bd4634f960fce2bbd');
 });
 test('conformance direct evaluators reject forged, schema-less, self-attested, and malformed records', () => {
   const routes = conformance.PRODUCT_ROUTE_ORACLE.map((route) => ({
