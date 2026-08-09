@@ -255,6 +255,17 @@ test('wrong permit, stale qualification, and retry reuse fail closed without com
       error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' },
     },
   );
+  assert.deepEqual(
+    provider.createQualifiedLocalCommandProvider({
+      manifest: manifestValue,
+      admission: admission(),
+      qualification: { ...proof.value },
+    }),
+    {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'EXACT_QUALIFICATION_REQUIRED' },
+    },
+  );
   const created = provider.createQualifiedLocalCommandProvider({
     manifest: manifestValue,
     admission: admission(),
@@ -308,6 +319,19 @@ test('qualification removes its disposable scratch and exposes no delivery or al
     admission: admission(),
   });
   if (!proof.ok) return;
+  assert.deepEqual(
+    provider.runLocalCommandQualificationProbe({
+      candidateCommit: '1'.repeat(40),
+      candidateTree: '2'.repeat(40),
+      manifest: manifestValue,
+      admission: admission(),
+      retainRoot: true,
+    }),
+    {
+      ok: false,
+      error: { family: 'FC-AUTHORITY', code: 'DISPOSABLE_SCRATCH_REQUIRED' },
+    },
+  );
   assert.equal(proof.value.kind, 'CF-GATE-PROVIDER');
   assert.equal(proof.value.provider, provider.LOCAL_COMMAND_VERIFIER_PROVIDER);
   assert.deepEqual(proof.value.removedResources, [proof.value.resourceRoot]);

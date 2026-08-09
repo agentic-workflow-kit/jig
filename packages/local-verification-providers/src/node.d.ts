@@ -25,7 +25,7 @@ declare module 'node:fs' {
   export function lstatSync(path: string): { isDirectory(): boolean; isSymbolicLink(): boolean };
   export function mkdtempSync(prefix: string): string;
   export function mkdirSync(path: string, options: { recursive: boolean }): void;
-  export function readFileSync(path: string): Uint8Array;
+  export function readFileSync(path: string | URL): Uint8Array;
   export function realpathSync(path: string): string;
   export function rmSync(path: string, options: { force: boolean; recursive: boolean }): void;
 }
@@ -43,6 +43,12 @@ declare module 'node:path' {
 }
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
+declare class URL {
+  constructor(value: string);
+}
+interface ImportMeta {
+  url: string;
+}
 declare const TextDecoder: {
   new (label?: string, options?: { fatal?: boolean }): { decode(input?: Uint8Array): string };
 };

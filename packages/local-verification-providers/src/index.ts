@@ -18,9 +18,7 @@ export const LOCAL_COMMAND_VERIFIER_POSTURE = 'local-posix-command-verifier/v1';
 export const LOCAL_COMMAND_VERIFIER_ENVIRONMENT = 'local-posix-command/v1';
 export const LOCAL_COMMAND_VERIFIER_SUITE_VERSION = 'gf047.cf-mech-verify.v1';
 export const LOCAL_COMMAND_VERIFIER_PROBE_VERSION = 'gf047.local-posix-command-probe.v1';
-export const LOCAL_COMMAND_VERIFIER_BUILD_DIGEST = sha256(
-  'local-posix-command-verifier/v1|no-shell|exact-args|sandbox-exec|redacted-output|retry-lineage',
-);
+export const LOCAL_COMMAND_VERIFIER_BUILD_DIGEST = sha256(readFileSync(new URL(import.meta.url)));
 export const LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS = 86_400_000;
 
 const MANIFEST_VERSION = 'provider-authority/v1';
@@ -33,6 +31,7 @@ const SECRET_NAME = /(?:secret|token|password|credential|authorization|api[._ -]
 const MAX_ARGS = 32;
 const MAX_OUTPUT = 16_384;
 const MAX_PREVIEW = 1_024;
+const qualificationCertificates = new WeakMap<object, LocalCommandQualificationEvidence>();
 
 export type LocalCommandFailureFamily = VerificationFailureFamily | 'FC-TRUST';
 export type LocalCommandFailure = Readonly<{ family: LocalCommandFailureFamily; code: string }>;
@@ -162,6 +161,7 @@ export type LocalCommandQualificationEvidence = Readonly<{
   admissionProofDigest: string;
   mechanismGate: 'CF-MECH-VERIFY:passed';
   observations: Readonly<Record<string, boolean>>;
+  result: CommandRun;
   requestDigest: string;
   resultDigest: string;
   probeDigest: string;
@@ -259,6 +259,10 @@ function fileDigest(path: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function currentBuildDigest(): string | undefined {
+  return fileDigest(new URL(import.meta.url) as unknown as string);
 }
 
 function canonical(value: unknown): string {
@@ -568,6 +572,16 @@ function nativePostureDigest(value: LocalCommandNativePosture): string {
   return digest('LOCAL-COMMAND-NATIVE-POSTURE', posture);
 }
 
+function nativePostureCurrent(value: LocalCommandNativePosture): boolean {
+  return (
+    platform() === 'darwin' &&
+    value.os === 'darwin' &&
+    value.sandboxExecutable === SANDBOX_EXECUTABLE &&
+    value.sandboxExecutableDigest === fileDigest(SANDBOX_EXECUTABLE) &&
+    value.digest === nativePostureDigest(value)
+  );
+}
+
 export function attestLocalPosixPosture(
   input: Readonly<{ executable: string; manifest: LocalCommandManifest; network?: 'denied' | 'allowed' }>,
 ): LocalCommandResult<LocalCommandNativePosture> {
@@ -613,6 +627,7 @@ function executeCommand(
   waitMs: number,
 ): LocalCommandResult<CommandRun> {
   const command = manifest.value.subprocessAuthority[0];
+  if (!nativePostureCurrent(native)) return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
   try {
     const stdout = execFileSync(
       SANDBOX_EXECUTABLE,
@@ -778,6 +793,7 @@ export function runLocalCommandQualificationProbe(
     retainRoot?: boolean;
   }>,
 ): LocalCommandResult<LocalCommandQualificationEvidence> {
+  if (input.retainRoot) return fail('FC-AUTHORITY', 'DISPOSABLE_SCRATCH_REQUIRED');
   if (!GIT_OBJECT.test(input?.candidateCommit) || !GIT_OBJECT.test(input?.candidateTree))
     return fail('FC-INPUT', 'CANDIDATE_DIGEST_REQUIRED');
   const manifest = parseManifest(input?.manifest);
@@ -795,7 +811,10 @@ export function runLocalCommandQualificationProbe(
     mkdirSync(checkout, { recursive: true });
     mkdirSync(scratch, { recursive: true });
     const run = executeCommand(manifest.value, checkout, scratch, native.value, 15_000);
-    if (!run.ok) return run;
+    if (!run.ok || run.value.outcome !== 'pass') {
+      rmSync(root, { recursive: true, force: true });
+      return fail('FC-MECHANISM', 'CF_MECH_VERIFY_FAILED');
+    }
     const environmentDigest = digest('LOCAL-COMMAND-ENVIRONMENT', {
       environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
       names: [],
@@ -839,6 +858,7 @@ export function runLocalCommandQualificationProbe(
       admissionProofDigest: admission.value.proofDigest,
       mechanismGate: 'CF-MECH-VERIFY:passed' as const,
       observations,
+      result: run.value,
       requestDigest,
       resultDigest,
       probeDigest: digest('LOCAL-COMMAND-PROBE', { requestDigest, resultDigest, observations }),
@@ -846,11 +866,10 @@ export function runLocalCommandQualificationProbe(
       removedResources: [] as readonly string[],
       recorder: 'recorder/jig-gf047-local-command/v1' as const,
     });
-    if (!input.retainRoot) {
-      rmSync(root, { recursive: true, force: true });
-      return ok(Object.freeze({ ...evidence, removedResources: Object.freeze([root]) }));
-    }
-    return ok(evidence);
+    rmSync(root, { recursive: true, force: true });
+    const certificate = Object.freeze({ ...evidence, removedResources: Object.freeze([root]) });
+    qualificationCertificates.set(certificate, certificate);
+    return ok(certificate);
   } catch {
     if (root && existsSync(root) && !input.retainRoot) rmSync(root, { recursive: true, force: true });
     return fail('FC-MECHANISM', 'QUALIFICATION_PROBE_FAILED');
@@ -862,6 +881,9 @@ function exactQualification(
   manifest: LocalCommandManifest,
   admission: LocalCommandAdmission,
 ): LocalCommandResult<LocalCommandQualificationEvidence> {
+  const trusted = typeof input === 'object' && input !== null ? qualificationCertificates.get(input) : undefined;
+  if (!trusted) return fail('FC-AUTHORITY', 'EXACT_QUALIFICATION_REQUIRED');
+  input = trusted;
   const raw = fields(input, [
     'admissionProofDigest',
     'candidateCommit',
@@ -882,6 +904,7 @@ function exactQualification(
     'providerBuildDigest',
     'recorder',
     'removedResources',
+    'result',
     'requestDigest',
     'resourceRoot',
     'resultDigest',
@@ -902,6 +925,9 @@ function exactQualification(
       'scratch',
     ]);
   const observations = raw && plain(raw.observations) ? raw.observations : undefined;
+  const result = raw && fields(raw.result, ['outcome', 'output']);
+  const resultOutput =
+    result && fields(result.output, ['stderrDigest', 'stderrPreview', 'stdoutDigest', 'stdoutPreview', 'truncated']);
   const observationNames = [
     'bounded-redacted-output',
     'declared-env-only',
@@ -928,6 +954,7 @@ function exactQualification(
     raw.probe !== LOCAL_COMMAND_VERIFIER_PROBE_VERSION ||
     raw.provider !== LOCAL_COMMAND_VERIFIER_PROVIDER ||
     raw.providerBuildDigest !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST ||
+    raw.providerBuildDigest !== currentBuildDigest() ||
     raw.manifestId !== manifest.manifestId ||
     raw.manifestDigest !== manifest.manifestDigest ||
     raw.environment !== LOCAL_COMMAND_VERIFIER_ENVIRONMENT ||
@@ -942,6 +969,19 @@ function exactQualification(
     !DIGEST.test(String(raw.requestDigest)) ||
     !DIGEST.test(String(raw.resultDigest)) ||
     !DIGEST.test(String(raw.probeDigest)) ||
+    !result ||
+    result.outcome !== 'pass' ||
+    !resultOutput ||
+    !DIGEST.test(String(resultOutput.stdoutDigest)) ||
+    !DIGEST.test(String(resultOutput.stderrDigest)) ||
+    typeof resultOutput.stdoutPreview !== 'string' ||
+    typeof resultOutput.stderrPreview !== 'string' ||
+    resultOutput.stdoutPreview.length > MAX_PREVIEW ||
+    resultOutput.stderrPreview.length > MAX_PREVIEW ||
+    typeof resultOutput.truncated !== 'boolean' ||
+    resultOutput.stdoutPreview.includes('secret=') ||
+    resultOutput.stderrPreview.includes('secret=') ||
+    raw.resultDigest !== digest('LOCAL-COMMAND-PROBE-RESULT', { run: result, native: raw.nativePostureDigest }) ||
     !native ||
     native.os !== 'darwin' ||
     native.sandboxExecutable !== SANDBOX_EXECUTABLE ||
@@ -957,7 +997,10 @@ function exactQualification(
     raw.fixtureDigest !== digest('LOCAL-COMMAND-FIXTURE', { command, scope: SCOPE }) ||
     raw.requestDigest !== expectedRequestDigest ||
     !Array.isArray(raw.removedResources) ||
+    raw.removedResources.length !== 1 ||
+    raw.removedResources[0] !== raw.resourceRoot ||
     raw.removedResources.some((entry) => typeof entry !== 'string') ||
+    existsSync(String(raw.resourceRoot)) ||
     !observations ||
     Object.keys(observations).length !== observationNames.length ||
     observationNames.some((name) => observations[name] !== true) ||
@@ -1260,6 +1303,8 @@ function createProvider(
     if (!raw || !requestResult?.ok) return fail('FC-INPUT', 'INVALID_DISPATCH');
     const request = requestResult.value;
     if (request.policy.posture === 'none') return fail('FC-INPUT', 'VERIFICATION_NOT_DISPATCHABLE');
+    if (currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST || !nativePostureCurrent(native))
+      return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
     if (
       finalization?.state !== 'Finalizing' ||
       !sameSubject(finalization.subject, request.subject) ||
@@ -1356,6 +1401,7 @@ function createProvider(
         rmSync(root, { recursive: true, force: true });
       }
       if (!run.ok) {
+        if (run.error.code !== 'MECHANISM_TIMEOUT') return run;
         const record = Object.freeze({
           schema: 'jig.ev-check-failure.v1' as const,
           version: 'jig.verification-contract.v1' as const,
