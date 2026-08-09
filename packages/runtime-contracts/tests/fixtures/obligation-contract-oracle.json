@@ -1,0 +1,15 @@
+{
+  "contractVersion": "jig.obligation-contract.v1",
+  "schema": "jig.sch-obligation.v1",
+  "criteriaSchema": "jig.obligation-criteria.v1",
+  "evidenceSchema": "jig.obligation-evidence.v1",
+  "bound": "BND-WAIT-DECISION",
+  "statuses": ["open", "accepted-handoff", "resolved"],
+  "duties": ["retirement", "preservation", "surfacing", "post-terminal-export"],
+  "events": ["EV-OWNER-DECISION", "EV-OBLIGATION-RESOLVED", "EV-BOUND-EXHAUSTED", "EV-WAKE-SETTLEMENT"],
+  "providerEnabled": false,
+  "dispatchEnabled": false,
+  "settlementOverlayEnabled": false,
+  "cleanupEnabled": false,
+  "noticeChannelEnabled": false
+}
