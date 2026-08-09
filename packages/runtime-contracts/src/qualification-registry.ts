@@ -28,6 +28,21 @@ export type QualificationClaims = Readonly<{
   policyMinimum: string;
 }>;
 
+export type ProviderAdmissionClaims = Readonly<{
+  principal: 'principal/arye';
+  providerIdentity: string;
+  providerBuild: string;
+  environment: string;
+  capability: 'PORT-VERIFY/local-command';
+  policyMinimum: 'policy/local-posix-command-verifier/v1';
+  manifestId: string;
+  manifestDigest: string;
+  scope: Readonly<{ phase: 4; purpose: 'local-command-verification'; story: 'GF-047' }>;
+  proofDigest: string;
+  observedAt: number;
+  maxAgeMs: 86_400_000;
+}>;
+
 const CLAIM_KEYS = Object.freeze(['capability', 'policyMinimum', 'resourceDigest', 'subject'] as const);
 const SUBJECT_KEYS = Object.freeze([
   'buildDigest',
@@ -65,6 +80,21 @@ const DIGEST_FIELDS = new Set<keyof QualificationSubject>([
   'toolchainDigest',
 ]);
 const DIGEST = /^[0-9a-f]{64}$/u;
+const PROVIDER_ADMISSION_KEYS = Object.freeze([
+  'capability',
+  'environment',
+  'manifestDigest',
+  'manifestId',
+  'maxAgeMs',
+  'observedAt',
+  'policyMinimum',
+  'principal',
+  'proofDigest',
+  'providerBuild',
+  'providerIdentity',
+  'scope',
+] as const);
+const PROVIDER_ADMISSION_SCOPE_KEYS = Object.freeze(['phase', 'purpose', 'story'] as const);
 
 function exactDataObject(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
   try {
@@ -120,8 +150,55 @@ export function snapshotQualificationClaims(value: unknown): QualificationClaims
   }) as QualificationClaims;
 }
 
+export function snapshotProviderAdmissionClaims(value: unknown): ProviderAdmissionClaims | undefined {
+  const claims = exactDataObject(value, PROVIDER_ADMISSION_KEYS);
+  const scope = claims && exactDataObject(claims.scope, PROVIDER_ADMISSION_SCOPE_KEYS);
+  const providerIdentity = claims && safeText(claims.providerIdentity) ? claims.providerIdentity : undefined;
+  const providerBuild = claims && safeText(claims.providerBuild) ? claims.providerBuild : undefined;
+  const environment = claims && safeText(claims.environment) ? claims.environment : undefined;
+  const manifestId = claims && safeText(claims.manifestId) ? claims.manifestId : undefined;
+  const observedAt = claims && typeof claims.observedAt === 'number' ? claims.observedAt : undefined;
+  const manifestDigest = claims && typeof claims.manifestDigest === 'string' ? claims.manifestDigest : undefined;
+  const proofDigest = claims && typeof claims.proofDigest === 'string' ? claims.proofDigest : undefined;
+  if (
+    !claims ||
+    !scope ||
+    claims.principal !== 'principal/arye' ||
+    claims.capability !== 'PORT-VERIFY/local-command' ||
+    claims.policyMinimum !== 'policy/local-posix-command-verifier/v1' ||
+    scope.phase !== 4 ||
+    scope.purpose !== 'local-command-verification' ||
+    scope.story !== 'GF-047' ||
+    claims.maxAgeMs !== 86_400_000
+  )
+    return undefined;
+  if (observedAt === undefined || !Number.isSafeInteger(observedAt) || observedAt < 0) return undefined;
+  if (!providerIdentity || !providerBuild || !environment || !manifestId) return undefined;
+  if (!manifestDigest || !proofDigest || !DIGEST.test(manifestDigest) || !DIGEST.test(proofDigest)) return undefined;
+  return Object.freeze({
+    principal: 'principal/arye' as const,
+    providerIdentity,
+    providerBuild,
+    environment,
+    capability: 'PORT-VERIFY/local-command' as const,
+    policyMinimum: 'policy/local-posix-command-verifier/v1' as const,
+    manifestId,
+    manifestDigest,
+    scope: Object.freeze({
+      phase: 4 as const,
+      purpose: 'local-command-verification' as const,
+      story: 'GF-047' as const,
+    }),
+    proofDigest,
+    observedAt,
+    maxAgeMs: 86_400_000 as const,
+  });
+}
+
 const certificateClaims = new WeakMap<object, QualificationClaims>();
 const executionClaims = new WeakMap<object, QualificationClaims>();
+const providerAdmissionCertificateClaims = new WeakMap<object, ProviderAdmissionClaims>();
+const providerAdmissionExecutionClaims = new WeakMap<object, ProviderAdmissionClaims>();
 
 export function registerExecutionClaims(carrier: object, claims: QualificationClaims): void {
   executionClaims.set(carrier, claims);
@@ -137,4 +214,20 @@ export function registerCertificateClaims(certificate: object, claims: Qualifica
 
 export function readCertificateClaims(certificate: object): QualificationClaims | undefined {
   return certificateClaims.get(certificate);
+}
+
+export function registerProviderAdmissionExecutionClaims(carrier: object, claims: ProviderAdmissionClaims): void {
+  providerAdmissionExecutionClaims.set(carrier, claims);
+}
+
+export function readProviderAdmissionExecutionClaims(carrier: object): ProviderAdmissionClaims | undefined {
+  return providerAdmissionExecutionClaims.get(carrier);
+}
+
+export function registerProviderAdmissionCertificateClaims(certificate: object, claims: ProviderAdmissionClaims): void {
+  providerAdmissionCertificateClaims.set(certificate, claims);
+}
+
+export function readProviderAdmissionCertificateClaims(certificate: object): ProviderAdmissionClaims | undefined {
+  return providerAdmissionCertificateClaims.get(certificate);
 }

@@ -4,7 +4,8 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  createProviderAdmissionFixture,
+  type ProviderAdmissionClaims,
+  readProviderAdmissionCertificateClaims,
   type VerificationFailureFamily,
   type VerificationFence,
   type VerificationRequest,
@@ -94,20 +95,7 @@ export type LocalCommandNativePosture = Readonly<{
   digest: string;
 }>;
 
-export type LocalCommandAdmission = Readonly<{
-  kind: 'gf022-provider-admission';
-  story: 'GF-022';
-  principal: 'principal/arye';
-  manifestId: string;
-  manifestDigest: string;
-  proofDigest: string;
-  ledger: unknown;
-  approval: unknown;
-  basis: unknown;
-  proof: unknown;
-  observedAt: number;
-  maxAgeMs: number;
-}>;
+export type LocalCommandAdmission = ProviderAdmissionClaims;
 
 export type LocalCommandOutput = Readonly<{
   stdoutDigest: string;
@@ -296,6 +284,10 @@ function canonical(value: unknown): string {
 
 function digest(domain: string, value: unknown): string {
   return sha256(canonical({ domain, value }));
+}
+
+export function deriveLocalCommandCheckoutContentDigest(tree: string): string | undefined {
+  return GIT_OBJECT.test(tree) ? digest('LOCAL-COMMAND-CHECKOUT-CONTENT', { tree }) : undefined;
 }
 
 function plain(value: unknown): value is Record<string, unknown> {
@@ -569,6 +561,48 @@ function trustedDirectory(path: unknown): LocalCommandResult<string> {
   }
 }
 
+function gitOutput(cwd: string, args: readonly string[], maxBuffer = 4_096): string | undefined {
+  try {
+    return execFileSync('/usr/bin/git', [...args], {
+      cwd,
+      env: Object.freeze({ PATH: '/usr/bin:/bin' }),
+      encoding: 'utf8',
+      maxBuffer,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5_000,
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function authenticatedCheckout(path: unknown, request: VerificationRequest): LocalCommandResult<string> {
+  const trusted = trustedDirectory(path);
+  if (!trusted.ok) return trusted;
+  const checkout = trusted.value;
+  const root = gitOutput(checkout, ['rev-parse', '--show-toplevel']);
+  if (root !== checkout) return fail('FC-SUBJECT', 'CHECKOUT_NOT_REPOSITORY');
+  const tree = gitOutput(checkout, ['rev-parse', '--verify', 'HEAD^{tree}']);
+  const contentDigest = tree && deriveLocalCommandCheckoutContentDigest(tree);
+  if (
+    !tree ||
+    !contentDigest ||
+    contentDigest !== request.subject.candidateContentDigest ||
+    contentDigest !== request.cleanReceipt.candidateContentDigest
+  )
+    return fail('FC-SUBJECT', 'CHECKOUT_CANDIDATE_MISMATCH');
+  if (gitOutput(checkout, ['status', '--porcelain=v1', '--untracked-files=all'], 16_384) !== '')
+    return fail('FC-SUBJECT', 'CHECKOUT_NOT_CLEAN');
+  if (
+    request.cleanReceipt.checkout !== 'read-only' ||
+    request.cleanReceipt.scratch !== 'discarded' ||
+    request.cleanReceipt.network !== 'none'
+  )
+    return fail('FC-SUBJECT', 'CHECKOUT_RECEIPT_MISMATCH');
+  return ok(checkout);
+}
+
 function redacted(value: string): string {
   const masked = value.replace(
     /(?:secret|token|password|credential|authorization|api[._ -]?key)\s*[:=]\s*[^\s,;]+/giu,
@@ -697,111 +731,28 @@ function validateAdmission(
   admission: unknown,
   manifest: LocalCommandManifest,
 ): LocalCommandResult<LocalCommandAdmission> {
-  const raw = fields(admission, [
-    'approval',
-    'basis',
-    'kind',
-    'ledger',
-    'manifestDigest',
-    'manifestId',
-    'maxAgeMs',
-    'observedAt',
-    'principal',
-    'proof',
-    'proofDigest',
-    'story',
-  ]);
-  const proof =
-    raw &&
-    fields(raw.proof, [
-      'basisDigest',
-      'deadline',
-      'digest',
-      'key',
-      'kind',
-      'observedAt',
-      'ordinal',
-      'outcome',
-      'predecessor',
-      'retryLimit',
-    ]);
-  const basis =
-    raw &&
-    fields(raw.basis, [
-      'capability',
-      'environment',
-      'manifestDigest',
-      'manifestId',
-      'policyMinimum',
-      'providerBuild',
-      'providerIdentity',
-      'scope',
-    ]);
+  const raw = fields(admission, ['certificate']);
+  const claims = raw && readProviderAdmissionCertificateClaims(raw.certificate);
   if (
     !raw ||
-    !proof ||
-    !basis ||
-    raw.kind !== 'gf022-provider-admission' ||
-    raw.story !== 'GF-022' ||
-    raw.principal !== 'principal/arye' ||
-    raw.manifestId !== manifest.manifestId ||
-    raw.manifestDigest !== manifest.manifestDigest ||
-    basis.providerIdentity !== LOCAL_COMMAND_VERIFIER_PROVIDER ||
-    basis.providerBuild !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST ||
-    basis.environment !== LOCAL_COMMAND_VERIFIER_ENVIRONMENT ||
-    basis.capability !== 'PORT-VERIFY/local-command' ||
-    basis.policyMinimum !== 'policy/local-posix-command-verifier/v1' ||
-    basis.manifestId !== manifest.manifestId ||
-    basis.manifestDigest !== manifest.manifestDigest ||
-    !same(basis.scope, SCOPE) ||
-    !DIGEST.test(String(raw.proofDigest)) ||
-    raw.proofDigest !== proof.digest ||
-    raw.maxAgeMs !== LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
-    !Number.isSafeInteger(raw.observedAt) ||
-    !Number.isSafeInteger(proof.observedAt) ||
-    Number(raw.observedAt) < Number(proof.observedAt) ||
-    Number(raw.observedAt) - Number(proof.observedAt) > Number(raw.maxAgeMs)
+    !claims ||
+    claims.principal !== 'principal/arye' ||
+    claims.providerIdentity !== LOCAL_COMMAND_VERIFIER_PROVIDER ||
+    claims.providerBuild !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST ||
+    claims.environment !== LOCAL_COMMAND_VERIFIER_ENVIRONMENT ||
+    claims.capability !== 'PORT-VERIFY/local-command' ||
+    claims.policyMinimum !== 'policy/local-posix-command-verifier/v1' ||
+    claims.manifestId !== manifest.manifestId ||
+    claims.manifestDigest !== manifest.manifestDigest ||
+    !same(claims.scope, SCOPE) ||
+    !DIGEST.test(claims.proofDigest) ||
+    claims.maxAgeMs !== LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS ||
+    !Number.isSafeInteger(claims.observedAt) ||
+    claims.observedAt < 0 ||
+    currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST
   )
     return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
-  try {
-    const fixture = createProviderAdmissionFixture({
-      manifestBytes: manifest.bytes,
-      approval: raw.approval,
-      ledger: raw.ledger,
-    });
-    const approved = fixture.approve(raw.approval);
-    const admitted = fixture.admit({
-      basis: raw.basis,
-      proof: raw.proof,
-      observedAt: raw.observedAt,
-      maxAgeMs: raw.maxAgeMs,
-    });
-    if (
-      !approved.ok ||
-      !admitted.ok ||
-      admitted.value.providerEnabled !== false ||
-      admitted.value.manifestId !== manifest.manifestId
-    )
-      return fail('FC-AUTHORITY', 'GF022_ADMISSION_REQUIRED');
-  } catch {
-    return fail('FC-TRUST', 'GF022_ADMISSION_UNAVAILABLE');
-  }
-  return ok(
-    Object.freeze({
-      kind: 'gf022-provider-admission' as const,
-      story: 'GF-022' as const,
-      principal: 'principal/arye' as const,
-      manifestId: manifest.manifestId,
-      manifestDigest: manifest.manifestDigest,
-      proofDigest: String(raw.proofDigest),
-      ledger: raw.ledger,
-      approval: raw.approval,
-      basis: raw.basis,
-      proof: raw.proof,
-      observedAt: Number(raw.observedAt),
-      maxAgeMs: Number(raw.maxAgeMs),
-    }),
-  );
+  return ok(claims);
 }
 
 export function runLocalCommandQualificationProbe(
@@ -1409,7 +1360,7 @@ function createProvider(
       );
       return fail('FC-MECHANISM', record.code);
     }
-    const checkout = trustedDirectory(raw.checkoutPath);
+    const checkout = authenticatedCheckout(raw.checkoutPath, request);
     if (!checkout.ok) return checkout;
     const executable = manifest.value.subprocessAuthority[0];
     let superseded = false;

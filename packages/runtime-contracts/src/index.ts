@@ -12,6 +12,8 @@ export * from './envelope.js';
 export * from './ledger.js';
 export * from './obligation.js';
 export * from './provider.js';
+export { readProviderAdmissionCertificateClaimsPublic as readProviderAdmissionCertificateClaims } from './qualification-certificate.js';
+export type { ProviderAdmissionClaims } from './qualification-registry.js';
 export * from './session.js';
 export * from './source.js';
 export * from './verification.js';
