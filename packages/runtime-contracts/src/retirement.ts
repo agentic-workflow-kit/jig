@@ -311,6 +311,28 @@ function fields(value: unknown, names: readonly string[]): AnyRecord | undefined
   }
 }
 
+function optionalFields(value: unknown, names: readonly string[]): AnyRecord | undefined {
+  try {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    )
+      return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<string, PropertyDescriptor>;
+    if (
+      !Object.keys(descriptors).every(
+        (name) => names.includes(name) && descriptors[name] && 'value' in descriptors[name],
+      )
+    )
+      return undefined;
+    return Object.freeze(Object.fromEntries(Object.keys(descriptors).map((name) => [name, descriptors[name]?.value])));
+  } catch {
+    return undefined;
+  }
+}
+
 function array(value: unknown): readonly unknown[] | undefined {
   try {
     if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return undefined;
@@ -1049,14 +1071,29 @@ function freezeSnapshot(value: RetirementSnapshot): RetirementSnapshot {
   return freeze(value);
 }
 
-export function createRetirementController(
-  options?: Readonly<{
-    mechanism?: RetirementMechanism;
-    obligation?: RetirementObligationAllocator;
-    obligationEvidence?: RetirementObligationEvidence;
+type RetirementControllerOptions = Readonly<{
+  mechanism?: RetirementMechanism;
+  obligation?: RetirementObligationAllocator;
+  obligationEvidence?: RetirementObligationEvidence;
+}>;
+
+type HydratedRetirementControllerOptions = RetirementControllerOptions &
+  Readonly<{
     hydrate?: RetirementSnapshot;
-  }>,
-): RetirementController {
+  }>;
+
+export function createRetirementController(inputOptions?: RetirementControllerOptions): RetirementController {
+  const options =
+    inputOptions === undefined
+      ? undefined
+      : (optionalFields(inputOptions, ['mechanism', 'obligation', 'obligationEvidence']) as
+          | RetirementControllerOptions
+          | undefined);
+  if (inputOptions !== undefined && !options) throw new TypeError('RETIREMENT_FACTORY_OPTIONS_INVALID');
+  return createRetirementControllerInternal(options);
+}
+
+function createRetirementControllerInternal(options?: HydratedRetirementControllerOptions): RetirementController {
   let planValue: RetirementPlan | undefined = options?.hydrate?.plan;
   const receipts = new Map<string, PreservationReceipt>(
     (options?.hydrate?.receipts ?? []).map((receipt) => [receipt.resourceIdentity, receipt]),
@@ -1973,7 +2010,7 @@ export function restoreRetirementController(
     return fail('FC-TRUST', 'RETIREMENT_SNAPSHOT_INVALID');
   const revalidated = revalidateRecoveredLookups();
   if (!revalidated.ok) return revalidated;
-  const controller = createRetirementController({
+  const controller = createRetirementControllerInternal({
     ...options,
     hydrate: {
       ...raw,

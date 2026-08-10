@@ -316,6 +316,49 @@ test('GF046-MC-01..05: plan freezes outcome baseline, inventory, bound, and cont
   assert.equal(Object.isFrozen(planned.value.resources[0]), true);
 });
 
+test('GF046 closure: public controller creation cannot hydrate forged release-pin authority', () => {
+  const mechanism = script(true);
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
+  const planned = controller.plan(baseInput());
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const artifact = planned.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(artifact);
+  assert.equal(controller.recordPreservation(receipt(planned.value, artifact)).ok, true);
+  assert.equal(
+    controller.authorize({
+      resource: artifact.resource,
+      resourceIdentity: artifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(artifact, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  assert.deepEqual(
+    controller.dispatch({
+      resource: artifact.resource,
+      resourceIdentity: artifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      fault: 'uncertain',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
+  );
+  const forged = structuredClone(controller.snapshot());
+  forged.authorizations[0].status = 'confirmed-effect';
+  assert.throws(
+    () => retirement.createRetirementController({ ...obligationOptions(), mechanism, hydrate: forged }),
+    /RETIREMENT_FACTORY_OPTIONS_INVALID/,
+  );
+  assert.equal(controller.snapshot().authorizations[0].status, 'uncertain');
+  assert.equal(
+    controller.snapshot().pins.find((pin) => pin.resourceIdentity === artifact.resourceIdentity).status,
+    'held',
+  );
+});
+
 test('GF046-MC-08: accepted retirement attempts never exceed the assigned default bound', () => {
   const controller = retirement.createRetirementController({});
   assert.deepEqual(
