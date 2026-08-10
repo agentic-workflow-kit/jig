@@ -1,0 +1,17 @@
+{
+  "story": "GF-045",
+  "oracle": "CF-BLOCK-SURFACING",
+  "mechanism": "CF-MECH-DELIVERY",
+  "port": "PORT-DELIVERY",
+  "outcome": "one durable marker preserves Blocked/held and releases no dependent",
+  "excluded": [
+    "acceptance",
+    "finalization",
+    "merge",
+    "landing",
+    "release",
+    "retirement",
+    "notice-channel",
+    "provider-admission"
+  ]
+}

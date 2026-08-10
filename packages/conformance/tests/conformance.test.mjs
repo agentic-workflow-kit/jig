@@ -8,6 +8,9 @@ import { encodeFrame } from '@agentic-workflow-kit/jig-codec';
 const conformance = await import('../dist/index.js');
 const oracleText = readFileSync(resolve(import.meta.dirname, './fixtures/conformance-oracle.json'), 'utf8');
 const oracle = JSON.parse(oracleText);
+const blockSurfacingOracle = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, './fixtures/block-surfacing-oracle.json'), 'utf8'),
+);
 const hash = 'a'.repeat(64);
 const subject = Object.freeze({
   candidateContentDigest: hash,
@@ -42,6 +45,23 @@ const rawInput = (suite, changes = {}) => ({
   complete: true,
   attempt: 1,
   ...changes,
+});
+
+test('GF045 oracle binds block surfacing to the delivery mechanism boundary without release authority', () => {
+  assert.equal(blockSurfacingOracle.story, 'GF-045');
+  assert.equal(conformance.SUITES.includes(blockSurfacingOracle.oracle), true);
+  assert.equal(conformance.SUITES.includes(blockSurfacingOracle.mechanism), true);
+  assert.equal(conformance.MECHANISM_PORTS[blockSurfacingOracle.mechanism], blockSurfacingOracle.port);
+  assert.deepEqual(blockSurfacingOracle.excluded, [
+    'acceptance',
+    'finalization',
+    'merge',
+    'landing',
+    'release',
+    'retirement',
+    'notice-channel',
+    'provider-admission',
+  ]);
 });
 const input = (suite, changes = {}) => {
   const encoded = encodeFrame(rawInput(suite, changes));

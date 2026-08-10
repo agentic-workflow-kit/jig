@@ -8,6 +8,7 @@ import {
 
 export * from './acceptance.js';
 export * from './approval-repository.js';
+export * from './block-surfacing.js';
 export * from './delivery.js';
 export * from './development-pre-run.js';
 export * from './envelope.js';
