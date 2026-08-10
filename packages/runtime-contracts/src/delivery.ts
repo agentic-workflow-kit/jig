@@ -1,5 +1,10 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { type ReviewPackage, restoreScriptedAcceptanceController, validateAcceptancePackage } from './acceptance.js';
+import {
+  type ReviewPackage,
+  restoreScriptedAcceptanceController,
+  validateAcceptanceCandidate,
+  validateAcceptancePackage,
+} from './acceptance.js';
 import { type FinalizerBinding, restoreScriptedFinalizerController } from './finalizer.js';
 
 export const DELIVERY_CONTRACT_VERSION = 'jig.delivery-contract.v1';
@@ -32,7 +37,7 @@ export const DELIVERY_STRATEGIES = Object.freeze([
 
 type DeliveryOperationClass = (typeof DELIVERY_OPERATION_CLASSES)[number];
 type DeliveryStrategy = (typeof DELIVERY_STRATEGIES)[number];
-type DeliveryOutcome = 'success' | 'absent' | 'uncertain' | 'held' | 'failure';
+type DeliveryOutcome = 'success' | 'absent' | 'uncertain' | 'held' | 'failure' | 'conflict';
 type DeliveryObservationOutcome = 'ready' | 'absent' | 'held' | 'advanced' | 'conflict' | 'uncertain' | 'present';
 type DeliveryStatus = 'Ready' | 'Recovering' | 'TargetWait' | 'Parked' | 'Landed';
 export type DeliveryFailureFamily =
@@ -60,10 +65,13 @@ export type DeliveryEffectFact = Readonly<{
   type: DeliveryOperationClass;
   target: string;
   registry: string;
+  generation: string;
+  authority: string;
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
   correlationKey: string;
+  resourceIdentity: string;
   outcome: DeliveryOutcome;
   observedAt: number;
   failurePhase: 'pre-dispatch' | 'post-dispatch' | null;
@@ -76,6 +84,8 @@ export type DeliveryObservationFact = Readonly<{
   subject: 'target' | 'gate' | 'effect';
   target: string;
   registry: string;
+  generation: string;
+  authority: string;
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
@@ -95,10 +105,12 @@ export type DeliveryIntent = Readonly<{
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
+  subject: 'target' | 'gate' | 'effect';
   generation: string;
   authority: string;
   transition: string;
   correlationKey: string;
+  resourceIdentity: string;
   strategy: DeliveryStrategy;
 }>;
 export type DeliveryLandingProof = Readonly<{
@@ -128,6 +140,8 @@ export type DeliveryCarrier = Readonly<{
   targetBasisDigest: string;
   generation: string;
   authority: string;
+  anchorOperation: string;
+  anchorTransition: string;
   acceptedPackageDigest: string;
   strategy: DeliveryStrategyBinding;
   waitTargetSeconds: number;
@@ -250,6 +264,10 @@ const derive = (domain: string, value: unknown): string | undefined => {
   const result = stageDigest({ domain, excludePaths: [], value: value as never });
   return result.ok ? result.value.digest : undefined;
 };
+const operationTransition = (operation: string): string | undefined => {
+  const marker = operation.lastIndexOf('/op/');
+  return marker > 0 ? operation.slice(0, marker) : undefined;
+};
 
 export function deriveDeliveryStrategyDigest(mode: DeliveryStrategy): string | undefined {
   return DELIVERY_STRATEGIES.includes(mode) ? derive('DELIVERY-STRATEGY', { mode }) : undefined;
@@ -304,12 +322,15 @@ function validateEffect(value: unknown): DeliveryResult<DeliveryEffectFact> {
     'candidate',
     'candidateContentDigest',
     'correlationKey',
+    'authority',
     'failurePhase',
+    'generation',
     'kind',
     'observedAt',
     'operation',
     'outcome',
     'registry',
+    'resourceIdentity',
     'result',
     'schema',
     'target',
@@ -323,13 +344,17 @@ function validateEffect(value: unknown): DeliveryResult<DeliveryEffectFact> {
     !identity('ID-OP', raw.operation) ||
     !DELIVERY_OPERATION_CLASSES.includes(raw.type as DeliveryOperationClass) ||
     !identity('ID-REGISTRY', raw.registry) ||
+    !identity('ID-GEN', raw.generation) ||
+    !identity('ID-AUTH', raw.authority) ||
     !identity('ID-TARGET', raw.target) ||
     !identity('ID-CAND', raw.candidate) ||
     !digest(raw.candidateContentDigest) ||
     !digest(raw.targetBasisDigest) ||
     typeof raw.correlationKey !== 'string' ||
     !TEXT.test(raw.correlationKey) ||
-    !['success', 'absent', 'uncertain', 'held', 'failure'].includes(raw.outcome as string) ||
+    typeof raw.resourceIdentity !== 'string' ||
+    !TEXT.test(raw.resourceIdentity) ||
+    !['success', 'absent', 'uncertain', 'held', 'failure', 'conflict'].includes(raw.outcome as string) ||
     (raw.failurePhase !== null && raw.failurePhase !== 'pre-dispatch' && raw.failurePhase !== 'post-dispatch') ||
     !position(raw.observedAt)
   )
@@ -343,7 +368,9 @@ function validateObservation(value: unknown): DeliveryResult<DeliveryObservation
     'candidate',
     'candidateContentDigest',
     'correlationKey',
+    'authority',
     'kind',
+    'generation',
     'observedAt',
     'operation',
     'outcome',
@@ -362,6 +389,8 @@ function validateObservation(value: unknown): DeliveryResult<DeliveryObservation
     !identity('ID-OP', raw.operation) ||
     !['target', 'gate', 'effect'].includes(raw.subject as string) ||
     !identity('ID-REGISTRY', raw.registry) ||
+    !identity('ID-GEN', raw.generation) ||
+    !identity('ID-AUTH', raw.authority) ||
     !identity('ID-TARGET', raw.target) ||
     !identity('ID-CAND', raw.candidate) ||
     !digest(raw.candidateContentDigest) ||
@@ -452,6 +481,7 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
   const raw = own(input, [
     'acceptanceSnapshot',
     'binding',
+    'candidateCarrier',
     'finalizerSnapshot',
     'registry',
     'strategy',
@@ -460,6 +490,8 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
   if (!raw) return fail('FC-INPUT', 'INVALID_DELIVERY_ADMISSION');
   const binding = validateBinding(raw.binding);
   if (!binding.ok) return binding;
+  const candidateCarrier = validateAcceptanceCandidate(raw.candidateCarrier);
+  if (!candidateCarrier.ok) return fail('FC-TRUST', 'INVALID_CANDIDATE_CARRIER');
   const strategy = createDeliveryStrategy(raw.strategy);
   if (!strategy.ok) return strategy;
   const acceptance = restoreScriptedAcceptanceController(raw.acceptanceSnapshot);
@@ -487,6 +519,13 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
   const authority = projection.authority;
   const waiter = projection.waiters.find((item) => item.story === acceptanceProjection.story);
   const entry = projection.entry;
+  const anchorRecords = restoredFinalizer.value
+    .records()
+    .filter((item) => item.record.kind === 'delivery-intent' && item.record.type === 'OPC-DEL-ANCHOR');
+  const anchorRecord = anchorRecords.length === 1 ? anchorRecords[0] : undefined;
+  const anchorIntent = anchorRecord?.record.kind === 'delivery-intent' ? anchorRecord.record : undefined;
+  const anchorOperation = anchorIntent?.operation;
+  const anchorTransition = anchorOperation ? operationTransition(anchorOperation) : undefined;
   if (
     reachability.providerEnabled ||
     reachability.externalEffects ||
@@ -496,17 +535,39 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     !entry ||
     !entry.readyForDelivery ||
     projection.pendingDeliveryOperations.length === 0 ||
+    projection.pendingDeliveryOperations.length !== 1 ||
+    !anchorIntent ||
+    projection.pendingDeliveryOperations[0] !== anchorOperation ||
+    !anchorTransition ||
     !waiter ||
     waiter.acceptedPackageDigest !== checkedPackage.value.digest ||
     checkedPackage.value.story !== waiter.story ||
     checkedPackage.value.candidate !== waiter.candidate ||
     checkedPackage.value.candidateContentDigest !== waiter.candidateContentDigest ||
     checkedPackage.value.targetBasisDigest !== waiter.targetBasisDigest ||
+    candidateCarrier.value.id !== checkedPackage.value.candidate ||
+    candidateCarrier.value.run !== checkedPackage.value.run ||
+    candidateCarrier.value.story !== checkedPackage.value.story ||
+    candidateCarrier.value.session !== checkedPackage.value.deliveryMetadata.session ||
+    candidateCarrier.value.deliveryMetadataDigest !== checkedPackage.value.deliveryMetadataDigest ||
+    candidateCarrier.value.workspaceCommit !== checkedPackage.value.deliveryMetadata.workspaceCommit ||
+    !same(
+      candidateCarrier.value.changedPaths,
+      checkedPackage.value.deliveryMetadata.changedPaths,
+      'CANDIDATE-CHANGE-SET',
+    ) ||
+    candidateCarrier.value.candidateContentDigest !== checkedPackage.value.candidateContentDigest ||
+    candidateCarrier.value.targetBasisDigest !== checkedPackage.value.targetBasisDigest ||
     authority.registry !== binding.value.registry ||
     authority.target !== binding.value.target ||
     authority.candidate !== checkedPackage.value.candidate ||
     authority.candidateContentDigest !== checkedPackage.value.candidateContentDigest ||
-    authority.targetBasisDigest !== checkedPackage.value.targetBasisDigest
+    authority.targetBasisDigest !== checkedPackage.value.targetBasisDigest ||
+    anchorIntent.authority.candidate !== checkedPackage.value.candidate ||
+    anchorIntent.authority.candidateContentDigest !== checkedPackage.value.candidateContentDigest ||
+    anchorIntent.authority.targetBasisDigest !== checkedPackage.value.targetBasisDigest ||
+    anchorIntent.authority.authority !== authority.authority ||
+    anchorIntent.authority.generation !== authority.generation
   )
     return fail('FC-FENCE', 'FINALIZER_CARRIER_MISMATCH');
   const changedPaths = packageCandidate(checkedPackage.value);
@@ -528,10 +589,9 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     recoveryLimit: DELIVERY_WAIT_BOUNDS.recoveryLimit.minimum + 2,
     changedPaths: changedPaths.value,
     workspaceCommit: candidate.deliveryMetadata.workspaceCommit,
-    treeDigest:
-      candidate.deliveryMetadata.changedPaths.length > 0
-        ? (derive('DELIVERY-CANDIDATE-TREE', candidate.deliveryMetadata.changedPaths) ?? ZERO)
-        : ZERO,
+    treeDigest: candidateCarrier.value.treeDigest,
+    anchorOperation,
+    anchorTransition,
   });
 }
 
@@ -543,18 +603,21 @@ function validateOperation(input: unknown, carrier: DeliveryCarrier): DeliveryRe
     'correlationKey',
     'generation',
     'operation',
+    'resourceIdentity',
     'registry',
     'strategy',
     'target',
     'targetBasisDigest',
     'transition',
     'type',
+    'subject',
   ]);
   if (
     !raw ||
     !identity('ID-OP', raw.operation) ||
     !identity('ID-TXN', raw.transition) ||
     !(raw.transition as string).startsWith(`${carrier.run}/`) ||
+    operationTransition(raw.operation as string) !== raw.transition ||
     !DELIVERY_OPERATION_CLASSES.includes(raw.type as DeliveryOperationClass) ||
     raw.target !== carrier.binding.target ||
     raw.registry !== carrier.binding.registry ||
@@ -564,8 +627,11 @@ function validateOperation(input: unknown, carrier: DeliveryCarrier): DeliveryRe
     raw.generation !== carrier.generation ||
     raw.authority !== carrier.authority ||
     raw.strategy !== carrier.strategy.mode ||
+    !['target', 'gate', 'effect'].includes(raw.subject as string) ||
     typeof raw.correlationKey !== 'string' ||
-    !TEXT.test(raw.correlationKey)
+    !TEXT.test(raw.correlationKey) ||
+    typeof raw.resourceIdentity !== 'string' ||
+    !TEXT.test(raw.resourceIdentity)
   )
     return fail('FC-FENCE', 'DELIVERY_OPERATION_FENCE_MISMATCH');
   return ok({
@@ -578,10 +644,12 @@ function validateOperation(input: unknown, carrier: DeliveryCarrier): DeliveryRe
     candidate: carrier.candidate,
     candidateContentDigest: carrier.candidateContentDigest,
     targetBasisDigest: carrier.targetBasisDigest,
+    subject: raw.subject as 'target' | 'gate' | 'effect',
     generation: carrier.generation,
     authority: carrier.authority,
     transition: raw.transition as string,
     correlationKey: raw.correlationKey as string,
+    resourceIdentity: raw.resourceIdentity as string,
     strategy: carrier.strategy.mode,
   });
 }
@@ -596,6 +664,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
   const raw = own(input, [
     'acceptanceSnapshot',
     'binding',
+    'candidateCarrier',
     'finalizerSnapshot',
     'mechanism',
     'registry',
@@ -609,6 +678,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
   const admittedCarrier = admitCarrier({
     acceptanceSnapshot: raw.acceptanceSnapshot,
     binding: raw.binding,
+    candidateCarrier: raw.candidateCarrier,
     finalizerSnapshot: raw.finalizerSnapshot,
     registry: raw.registry,
     strategy: raw.strategy,
@@ -698,6 +768,17 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       };
       status = 'TargetWait';
     }
+    if (record.kind === 'effect' && record.fact.type === 'OPC-DEL-ANCHOR' && record.fact.outcome === 'conflict') {
+      status = 'Parked';
+    }
+    if (
+      record.kind === 'observation' &&
+      record.fact.subject === 'target' &&
+      (record.fact.outcome === 'advanced' || record.fact.outcome === 'conflict')
+    ) {
+      targetWait = null;
+      status = 'Parked';
+    }
     return ok(undefined);
   };
   const replay = (entry: JournalEntry): DeliveryResult<void> => {
@@ -782,6 +863,17 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       };
       status = 'TargetWait';
     }
+    if (record.kind === 'effect' && record.fact.type === 'OPC-DEL-ANCHOR' && record.fact.outcome === 'conflict') {
+      status = 'Parked';
+    }
+    if (
+      record.kind === 'observation' &&
+      record.fact.subject === 'target' &&
+      (record.fact.outcome === 'advanced' || record.fact.outcome === 'conflict')
+    ) {
+      targetWait = null;
+      status = 'Parked';
+    }
     return ok(undefined);
   };
   const projection = (): DeliveryProjection =>
@@ -827,6 +919,19 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (status === 'Landed' || status === 'Parked') return fail('FC-AUTHORITY', 'DELIVERY_TERMINAL');
     if (recovery && intent.type !== 'OPC-DEL-OBSERVE') return fail('FC-RECOVERY', 'RECOVERY_OBSERVATION_REQUIRED');
     if (targetWait && intent.type === 'OPC-DEL-MERGE') return fail('FC-BOUND', 'TARGET_WAIT_REOBSERVATION_REQUIRED');
+    if (
+      intent.type === 'OPC-DEL-ANCHOR' &&
+      (intent.operation !== carrier.anchorOperation || intent.transition !== carrier.anchorTransition)
+    )
+      return fail('FC-FENCE', 'GF043_ANCHOR_OPERATION_MISMATCH');
+    if (intent.type === 'OPC-DEL-OBSERVE' && intent.subject === 'effect' && !recovery)
+      return fail('FC-RECOVERY', 'RECOVERY_OBSERVATION_REQUIRED');
+    if (intent.type === 'OPC-DEL-OBSERVE' && intent.subject === 'target') {
+      const merge =
+        successful('OPC-DEL-MERGE') ??
+        [...effects.values()].find((fact) => fact.type === 'OPC-DEL-MERGE' && fact.outcome === 'held');
+      if (!merge) return fail('FC-AUTHORITY', 'MERGE_EFFECT_REQUIRED_BEFORE_TARGET_OBSERVATION');
+    }
     const priorSameType = [...effects.values()].filter((fact) => fact.type === intent.type);
     if (intent.type === 'OPC-DEL-ANCHOR' && priorSameType.some((fact) => fact.outcome === 'success'))
       return fail('FC-AUTHORITY', 'ANCHOR_ALREADY_ESTABLISHED');
@@ -838,9 +943,13 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-AUTHORITY', 'REQUEST_REQUIRED');
     if (intent.type === 'OPC-DEL-MERGE' && !successful('OPC-DEL-REQUEST'))
       return fail('FC-AUTHORITY', 'REQUEST_REQUIRED');
-    const previous = [...effects.values()].find(
+    const priorAbsent = [...effects.values()].filter(
       (fact) => fact.type === intent.type && fact.outcome === 'absent' && fact.failurePhase === 'pre-dispatch',
     );
+    const previous = priorAbsent.find(
+      (fact) => fact.correlationKey === intent.correlationKey && fact.resourceIdentity === intent.resourceIdentity,
+    );
+    if (priorAbsent.length > 0 && !previous) return fail('FC-FENCE', 'RETRY_RESOURCE_FENCE_MISMATCH');
     if (previous) {
       const ordinal = priorSameType.filter((fact) => fact.outcome === 'absent').length + 1;
       if (ordinal > DELIVERY_WAIT_BOUNDS.retryLimit.maximum) return fail('FC-BOUND', 'DELIVERY_RETRY_EXHAUSTED');
@@ -873,10 +982,13 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       fact.value.type !== intent.type ||
       fact.value.target !== carrier.binding.target ||
       fact.value.registry !== carrier.binding.registry ||
+      fact.value.generation !== carrier.generation ||
+      fact.value.authority !== carrier.authority ||
       fact.value.candidate !== carrier.candidate ||
       fact.value.candidateContentDigest !== carrier.candidateContentDigest ||
       fact.value.targetBasisDigest !== carrier.targetBasisDigest ||
-      fact.value.correlationKey !== intent.correlationKey
+      fact.value.correlationKey !== intent.correlationKey ||
+      fact.value.resourceIdentity !== intent.resourceIdentity
     )
       return fail('FC-FENCE', 'EFFECT_FACT_FENCE_MISMATCH');
     const appended = append({ kind: 'effect', fact: fact.value });
@@ -916,11 +1028,14 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-MECHANISM', 'DELIVERY_OBSERVATION_FAILED');
     }
     if (!fact.ok) return fact;
+    if (intent.subject !== rawValue.subject) return fail('FC-FENCE', 'OBSERVATION_SUBJECT_MISMATCH');
     if (
       fact.value.operation !== intent.operation ||
       fact.value.subject !== rawValue.subject ||
       fact.value.target !== carrier.binding.target ||
       fact.value.registry !== carrier.binding.registry ||
+      fact.value.generation !== carrier.generation ||
+      fact.value.authority !== carrier.authority ||
       fact.value.candidate !== carrier.candidate ||
       fact.value.candidateContentDigest !== carrier.candidateContentDigest ||
       fact.value.targetBasisDigest !== carrier.targetBasisDigest ||
@@ -1001,19 +1116,44 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (landing || status === 'Landed') return fail('FC-AUTHORITY', 'LANDING_ALREADY_RECORDED');
     const merge = effects.get(rawValue.mergeOperation as string);
     const observation = observations.get(rawValue.targetObservationOperation as string);
+    const mergeIntentEntry = journal.find(
+      (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === rawValue.mergeOperation,
+    );
+    const mergeEffectEntry = journal.find(
+      (entry) => entry.record.kind === 'effect' && entry.record.fact.operation === rawValue.mergeOperation,
+    );
+    const observationIntentEntry = journal.find(
+      (entry) =>
+        entry.record.kind === 'intent' && entry.record.intent.operation === rawValue.targetObservationOperation,
+    );
+    const observationEntry = journal.find(
+      (entry) =>
+        entry.record.kind === 'observation' && entry.record.fact.operation === rawValue.targetObservationOperation,
+    );
     if (
       merge?.type !== 'OPC-DEL-MERGE' ||
       !(merge.outcome === 'success' || resolvedEffects.has(merge.operation)) ||
+      !mergeIntentEntry ||
+      !mergeEffectEntry ||
       !observation ||
+      !observationIntentEntry ||
+      !observationEntry ||
+      mergeEffectEntry.position >= observationIntentEntry.position ||
+      mergeEffectEntry.position >= observationEntry.position ||
       observation.subject !== 'target' ||
       observation.resolvesOperation !== merge.operation ||
-      observation.outcome !== 'ready'
+      observation.outcome !== 'ready' ||
+      observation.correlationKey !== merge.correlationKey
     )
       return fail('FC-EVIDENCE', 'AUTHORITATIVE_LANDING_OBSERVATION_REQUIRED');
     const anchor =
       successful('OPC-DEL-ANCHOR') ??
       [...effects.values()].find((fact) => fact.type === 'OPC-DEL-ANCHOR' && resolvedEffects.has(fact.operation));
-    if (!anchor || anchor.result.anchorRegistry !== carrier.binding.registry)
+    if (
+      !anchor ||
+      anchor.operation !== carrier.anchorOperation ||
+      anchor.result.anchorRegistry !== carrier.binding.registry
+    )
       return fail('FC-FENCE', 'REGISTRY_ANCHOR_REQUIRED');
     const changedPathsDigest = derive('DELIVERY-CHANGE-SET', {
       targetBasisDigest: carrier.targetBasisDigest,
@@ -1022,8 +1162,9 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     const equivalent =
       carrier.strategy.mode === 'direct-fast-forward'
         ? observation.result.commit === carrier.workspaceCommit &&
+          observation.result.treeDigest === carrier.treeDigest &&
           observation.result.contentDigest === carrier.candidateContentDigest
-        : observation.result.treeDigest === carrier.candidateContentDigest &&
+        : observation.result.treeDigest === carrier.treeDigest &&
           observation.result.changedPathsDigest === changedPathsDigest;
     if (!equivalent) return fail('FC-EVIDENCE', 'LP_EQUIVALENCE_FAILED');
     const proof: DeliveryLandingProof = {

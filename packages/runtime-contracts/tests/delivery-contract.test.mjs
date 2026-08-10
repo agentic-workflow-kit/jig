@@ -13,6 +13,7 @@ const basis = d('a');
 const binding = Object.freeze({ descriptor: d('c'), registry: `registry/${d('c')}`, target: 'target/finalizer' });
 const transition = (ordinal) => `${run}/txn/${ordinal}/${generation}|${basis}`;
 const operation = (ordinal) => `${transition(ordinal)}/op/1`;
+const transitionForOperation = (value) => value.slice(0, value.lastIndexOf('/op/'));
 const policy = runtime.createFinalizerPolicy({
   posture: 'none',
   requiredClasses: [],
@@ -367,52 +368,79 @@ const makeAdmission = (key, workspaceCommit = null) => {
     verificationRequests: [verificationRequest],
   });
   assert.equal(entry.ok, true, JSON.stringify(entry));
-  const anchorCarrier = finalizer.value.authorizeAnchor({ operation: operation(6), authority: granted.value });
+  const anchorOperation = operation(6);
+  const anchorCarrier = finalizer.value.authorizeAnchor({ operation: anchorOperation, authority: granted.value });
   assert.equal(anchorCarrier.ok, true, JSON.stringify(anchorCarrier));
   return {
     ...data,
     candidate: data.candidate,
     acceptanceController,
     finalizer: finalizer.value,
+    anchorOperation,
     registry,
     verificationAuthorizer,
     strategy: null,
   };
 };
 
-const factEffect = (data, op, type, outcome, result = {}, observedAt = 10, failurePhase = null) => ({
+const factEffect = (
+  data,
+  op,
+  type,
+  outcome,
+  result = {},
+  observedAt = 10,
+  failurePhase = null,
+  resourceIdentity = null,
+  generationOverride = null,
+  authorityOverride = null,
+) => ({
   schema: runtime.DELIVERY_EVENT_SCHEMA,
   kind: 'EV-EFFECT-CERTAINTY',
   operation: op,
   type,
   target: binding.target,
   registry: binding.registry,
+  generation: generationOverride ?? generation,
+  authority: authorityOverride ?? data.finalizer.projection().authority.authority,
   candidate: data.candidate.id,
   candidateContentDigest: data.candidateContentDigest,
   targetBasisDigest: data.targetBasisDigest,
   correlationKey: `corr/${op.split('/').at(-4)}`,
+  resourceIdentity: resourceIdentity ?? `resource/${type.toLowerCase()}`,
   outcome,
   observedAt,
   failurePhase,
   result,
 });
-const factObservation = (data, op, subject, outcome, resolvesOperation, result = {}, observedAt = 20) => ({
+const factObservation = (
+  data,
+  op,
+  subject,
+  outcome,
+  resolvesOperation,
+  result = {},
+  observedAt = 20,
+  correlationKey = null,
+) => ({
   schema: runtime.DELIVERY_EVENT_SCHEMA,
   kind: subject === 'target' ? 'EV-TARGET-FACT' : 'EV-DELIVERY-OBSERVATION',
   operation: op,
   subject,
   target: binding.target,
   registry: binding.registry,
+  generation,
+  authority: data.finalizer.projection().authority.authority,
   candidate: data.candidate.id,
   candidateContentDigest: data.candidateContentDigest,
   targetBasisDigest: data.targetBasisDigest,
-  correlationKey: `corr/${op.split('/').at(-4)}`,
+  correlationKey: correlationKey ?? `corr/${op.split('/').at(-4)}`,
   resolvesOperation,
   outcome,
   observedAt,
   result,
 });
-const request = (data, op, type, ordinal) => ({
+const request = (data, op, type, _ordinal, subject = 'target', correlationKey = null, resourceIdentity = null) => ({
   operation: op,
   type,
   target: binding.target,
@@ -422,9 +450,11 @@ const request = (data, op, type, ordinal) => ({
   targetBasisDigest: data.targetBasisDigest,
   generation,
   authority: data.finalizer.projection().authority.authority,
-  transition: transition(100 + ordinal),
+  transition: transitionForOperation(op),
   strategy: data.strategy,
-  correlationKey: `corr/${op.split('/').at(-4)}`,
+  subject,
+  correlationKey: correlationKey ?? `corr/${op.split('/').at(-4)}`,
+  resourceIdentity: resourceIdentity ?? `resource/${type.toLowerCase()}`,
 });
 
 const makeController = (
@@ -434,40 +464,110 @@ const makeController = (
   offset = 0,
   uncertainMerge = false,
   heldMerge = false,
+  specialMerge = null,
+  observedTreeDigest = null,
+  targetOutcome = 'ready',
+  anchorConflict = false,
+  preDispatchAbsentType = null,
+  staleEffectFence = false,
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
   const digest = runtime.deriveDeliveryStrategyDigest(mode);
   const effects = [];
-  const addEffect = (ordinal, type, outcome = 'success', result = {}, observedAt = 10, failurePhase = null) =>
-    effects.push(factEffect(data, operation(offset + ordinal), type, outcome, result, observedAt, failurePhase));
+  const nonAnchorOperation = (ordinal) => operation(offset + ordinal + 10);
+  const addEffect = (ordinal, type, outcome = 'success', result = {}, observedAt = 10, failurePhase = null) => {
+    const effectOperation = type === 'OPC-DEL-ANCHOR' ? data.anchorOperation : nonAnchorOperation(ordinal);
+    effects.push(
+      factEffect(
+        data,
+        effectOperation,
+        type,
+        type === 'OPC-DEL-ANCHOR' && anchorConflict ? 'conflict' : preDispatchAbsentType === type ? 'absent' : outcome,
+        result,
+        observedAt,
+        type === preDispatchAbsentType ? 'pre-dispatch' : failurePhase,
+        null,
+        staleEffectFence ? `${run}/gen/2|stale` : null,
+        staleEffectFence ? 'target/finalizer/auth/2' : null,
+      ),
+    );
+  };
   addEffect(1, 'OPC-DEL-ANCHOR', 'success', { anchorRegistry: binding.registry });
   addEffect(2, 'OPC-DEL-PUBLISH');
   addEffect(3, 'OPC-DEL-REQUEST');
   addEffect(4, 'OPC-DEL-STATUS');
   addEffect(5, 'OPC-DEL-COMMENT');
-  addEffect(6, 'OPC-DEL-MERGE', uncertainMerge ? 'uncertain' : heldMerge ? 'held' : 'success', {}, 10);
+  addEffect(
+    6,
+    'OPC-DEL-MERGE',
+    specialMerge ?? (uncertainMerge ? 'uncertain' : heldMerge ? 'held' : 'success'),
+    {},
+    10,
+  );
   const changedPathsDigest = runtime.deriveDeliveryChangeSetDigest({
     targetBasisDigest: data.targetBasisDigest,
     changedPaths: [],
   });
   const targetResult =
     mode === 'direct-fast-forward'
-      ? { commit: workspaceCommit, contentDigest: data.candidateContentDigest }
-      : { treeDigest: data.candidateContentDigest, changedPathsDigest };
+      ? { commit: workspaceCommit, treeDigest: data.candidate.treeDigest, contentDigest: data.candidateContentDigest }
+      : { treeDigest: observedTreeDigest ?? data.candidate.treeDigest, changedPathsDigest };
+  const mergeCorrelation = `corr/${nonAnchorOperation(6).split('/').at(-4)}`;
   const observations = uncertainMerge
-    ? [factObservation(data, operation(offset + 7), 'effect', 'absent', operation(offset + 6), {}, 20)]
+    ? [
+        factObservation(
+          data,
+          nonAnchorOperation(7),
+          'effect',
+          'absent',
+          nonAnchorOperation(6),
+          {},
+          20,
+          mergeCorrelation,
+        ),
+      ]
     : heldMerge
       ? [
-          factObservation(data, operation(offset + 7), 'target', 'held', operation(offset + 6), {}, 100),
-          factObservation(data, operation(offset + 8), 'target', 'held', operation(offset + 6), {}, 1_900),
+          factObservation(
+            data,
+            nonAnchorOperation(7),
+            'target',
+            'held',
+            nonAnchorOperation(6),
+            {},
+            100,
+            mergeCorrelation,
+          ),
+          factObservation(
+            data,
+            nonAnchorOperation(8),
+            'target',
+            'held',
+            nonAnchorOperation(6),
+            {},
+            1_900,
+            mergeCorrelation,
+          ),
         ]
-      : [factObservation(data, operation(offset + 7), 'target', 'ready', operation(offset + 6), targetResult, 20)];
+      : [
+          factObservation(
+            data,
+            nonAnchorOperation(7),
+            'target',
+            targetOutcome,
+            nonAnchorOperation(6),
+            targetResult,
+            20,
+            mergeCorrelation,
+          ),
+        ];
   const mechanism = runtime.createScriptedDeliveryMechanism({ effects, observations });
   assert.equal(mechanism.ok, true, JSON.stringify(mechanism));
   const controller = runtime.createScriptedDeliveryController({
     acceptanceSnapshot: data.acceptanceController.snapshot(),
     binding,
+    candidateCarrier: data.candidate,
     finalizerSnapshot: data.finalizer.snapshot(),
     registry: data.registry,
     strategy: { mode, digest: digest },
@@ -481,14 +581,14 @@ const makeController = (
     controller: controller.value,
     mechanism: mechanism.value,
     operations: {
-      anchor: operation(offset + 1),
-      publish: operation(offset + 2),
-      request: operation(offset + 3),
-      status: operation(offset + 4),
-      comment: operation(offset + 5),
-      merge: operation(offset + 6),
-      observe: operation(offset + 7),
-      observe2: operation(offset + 8),
+      anchor: data.anchorOperation,
+      publish: nonAnchorOperation(2),
+      request: nonAnchorOperation(3),
+      status: nonAnchorOperation(4),
+      comment: nonAnchorOperation(5),
+      merge: nonAnchorOperation(6),
+      observe: nonAnchorOperation(7),
+      observe2: nonAnchorOperation(8),
     },
     mode,
     changedPathsDigest,
@@ -508,10 +608,32 @@ test('CF-MECH-DELIVERY/MC-044-02: all final-delivery operations are fenced, dura
   authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
   authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
   authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    false,
+  );
   authorizeAndDispatch(data, 'OPC-DEL-STATUS', data.operations.status, 4);
   authorizeAndDispatch(data, 'OPC-DEL-COMMENT', data.operations.comment, 5);
   authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
-  const observed = data.controller.authorize(request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7));
+  const observed = data.controller.authorize(
+    request(
+      data,
+      data.operations.observe,
+      'OPC-DEL-OBSERVE',
+      7,
+      'target',
+      `corr/${data.operations.merge.split('/').at(-4)}`,
+    ),
+  );
   assert.equal(observed.ok, true, JSON.stringify(observed));
   assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
   const landed = data.controller.recordLanded({
@@ -527,6 +649,10 @@ test('CF-MECH-DELIVERY/MC-044-02: all final-delivery operations are fenced, dura
 
 test('GF044-MC-01/MC-03/CF-DOUBLE-EFFECT: wrong binding, exact intent replay, and response uncertainty fail closed', () => {
   const data = makeController('merge-commit', 'delivery-uncertain', null, 100, true);
+  assert.deepEqual(data.controller.authorize(request(data, operation(999), 'OPC-DEL-ANCHOR', 1)).error, {
+    family: 'FC-FENCE',
+    code: 'GF043_ANCHOR_OPERATION_MISMATCH',
+  });
   const bad = data.controller.authorize({
     ...request(data, data.operations.anchor, 'OPC-DEL-ANCHOR', 1),
     target: 'target/other',
@@ -546,6 +672,29 @@ test('GF044-MC-01/MC-03/CF-DOUBLE-EFFECT: wrong binding, exact intent replay, an
   assert.equal(data.controller.authorize(request(data, data.operations.status, 'OPC-DEL-STATUS', 4)).ok, false);
 });
 
+test('GF044-MC-01: stale generation and ID-AUTH echoes cannot attest an otherwise matching effect', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-stale-fence',
+    null,
+    120,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    true,
+  );
+  const authorized = data.controller.authorize(request(data, data.operations.anchor, 'OPC-DEL-ANCHOR', 1));
+  assert.equal(authorized.ok, true, JSON.stringify(authorized));
+  assert.deepEqual(data.controller.dispatch({ operation: data.operations.anchor }).error, {
+    family: 'FC-FENCE',
+    code: 'EFFECT_FACT_FENCE_MISMATCH',
+  });
+});
+
 test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-free observation and permits only a new ID-OP', () => {
   const data = makeController('merge-commit', 'delivery-recovery', null, 200, true);
   authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
@@ -557,6 +706,7 @@ test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-fr
   const recovered = runtime.restoreScriptedDeliveryController(data.controller.snapshot(), {
     acceptanceSnapshot: data.acceptanceController.snapshot(),
     binding,
+    candidateCarrier: data.candidate,
     finalizerSnapshot: data.finalizer.snapshot(),
     registry: data.registry,
     strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
@@ -564,7 +714,16 @@ test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-fr
     mechanism: data.mechanism,
   });
   assert.equal(recovered.ok, true, JSON.stringify(recovered));
-  const observation = recovered.value.authorize(request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7));
+  const observation = recovered.value.authorize(
+    request(
+      data,
+      data.operations.observe,
+      'OPC-DEL-OBSERVE',
+      7,
+      'effect',
+      `corr/${data.operations.merge.split('/').at(-4)}`,
+    ),
+  );
   assert.equal(observation.ok, true, JSON.stringify(observation));
   const recoveredObservation = recovered.value.observe({ operation: data.operations.observe, subject: 'effect' });
   assert.equal(recoveredObservation.ok, true, JSON.stringify(recoveredObservation));
@@ -587,7 +746,19 @@ test('GF044-MC-05/MC-06/LP-EQUIV: all four frozen integration strategies require
     authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
     authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
     authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
-    assert.equal(data.controller.authorize(request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7)).ok, true);
+    assert.equal(
+      data.controller.authorize(
+        request(
+          data,
+          data.operations.observe,
+          'OPC-DEL-OBSERVE',
+          7,
+          'target',
+          `corr/${data.operations.merge.split('/').at(-4)}`,
+        ),
+      ).ok,
+      true,
+    );
     assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
     assert.equal(
       data.controller.recordLanded({
@@ -598,6 +769,113 @@ test('GF044-MC-05/MC-06/LP-EQUIV: all four frozen integration strategies require
       true,
     );
   }
+  const mismatch = makeController('merge-commit', 'delivery-domain-mismatch', null, 700, false, false, null, d('a'));
+  authorizeAndDispatch(mismatch, 'OPC-DEL-ANCHOR', mismatch.operations.anchor, 1);
+  authorizeAndDispatch(mismatch, 'OPC-DEL-PUBLISH', mismatch.operations.publish, 2);
+  authorizeAndDispatch(mismatch, 'OPC-DEL-REQUEST', mismatch.operations.request, 3);
+  authorizeAndDispatch(mismatch, 'OPC-DEL-MERGE', mismatch.operations.merge, 6);
+  assert.equal(
+    mismatch.controller.authorize(
+      request(
+        mismatch,
+        mismatch.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${mismatch.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(mismatch.controller.observe({ operation: mismatch.operations.observe, subject: 'target' }).ok, true);
+  assert.deepEqual(
+    mismatch.controller.recordLanded({
+      operation: operation(799),
+      mergeOperation: mismatch.operations.merge,
+      targetObservationOperation: mismatch.operations.observe,
+    }).error,
+    { family: 'FC-EVIDENCE', code: 'LP_EQUIVALENCE_FAILED' },
+  );
+});
+
+test('GF044-MC-07/MC-08: anchor conflict and ordinary target movement park and fence all further delivery effects', () => {
+  const anchorConflict = makeController(
+    'merge-commit',
+    'delivery-anchor-conflict',
+    null,
+    800,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    true,
+  );
+  authorizeAndDispatch(anchorConflict, 'OPC-DEL-ANCHOR', anchorConflict.operations.anchor, 1);
+  assert.equal(anchorConflict.controller.projection().status, 'Parked');
+  assert.equal(
+    anchorConflict.controller.authorize(request(anchorConflict, anchorConflict.operations.merge, 'OPC-DEL-MERGE', 6))
+      .ok,
+    false,
+  );
+
+  const moved = makeController(
+    'merge-commit',
+    'delivery-target-moved',
+    null,
+    820,
+    false,
+    false,
+    null,
+    null,
+    'advanced',
+  );
+  authorizeAndDispatch(moved, 'OPC-DEL-ANCHOR', moved.operations.anchor, 1);
+  authorizeAndDispatch(moved, 'OPC-DEL-PUBLISH', moved.operations.publish, 2);
+  authorizeAndDispatch(moved, 'OPC-DEL-REQUEST', moved.operations.request, 3);
+  authorizeAndDispatch(moved, 'OPC-DEL-MERGE', moved.operations.merge, 6);
+  assert.equal(
+    moved.controller.authorize(
+      request(
+        moved,
+        moved.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${moved.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(moved.controller.observe({ operation: moved.operations.observe, subject: 'target' }).ok, true);
+  assert.equal(moved.controller.projection().status, 'Parked');
+  assert.equal(moved.controller.authorize(request(moved, operation(899), 'OPC-DEL-MERGE', 9)).ok, false);
+});
+
+test('GF044-MC-04/CF-DOUBLE-EFFECT: retry requires the exact prior absence correlation and resource identity', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-retry-fence',
+    null,
+    900,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    'OPC-DEL-PUBLISH',
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  const first = data.controller.authorize(request(data, data.operations.publish, 'OPC-DEL-PUBLISH', 2));
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(data.controller.dispatch({ operation: data.operations.publish }).ok, true);
+  assert.deepEqual(
+    data.controller.authorize(
+      request(data, operation(913), 'OPC-DEL-PUBLISH', 3, 'target', 'corr/foreign', 'resource/foreign'),
+    ).error,
+    { family: 'FC-FENCE', code: 'RETRY_RESOURCE_FENCE_MISMATCH' },
+  );
 });
 
 test('GF044-MC-08/BND-WAIT-TARGET: held integration re-observes and parks at the governed bound without re-requesting merge', () => {
@@ -606,10 +884,34 @@ test('GF044-MC-08/BND-WAIT-TARGET: held integration re-observes and parks at the
   authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
   authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
   authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
-  assert.equal(data.controller.authorize(request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7)).ok, true);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
   assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
   assert.equal(data.controller.authorize(request(data, operation(509), 'OPC-DEL-MERGE', 9)).ok, false);
-  assert.equal(data.controller.authorize(request(data, data.operations.observe2, 'OPC-DEL-OBSERVE', 8)).ok, true);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe2,
+        'OPC-DEL-OBSERVE',
+        8,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
   assert.equal(data.controller.observe({ operation: data.operations.observe2, subject: 'target' }).ok, true);
   assert.equal(data.controller.projection().status, 'Parked');
   assert.equal(data.controller.wake({ operation: data.operations.observe2, at: 1_900 }).ok, false);
