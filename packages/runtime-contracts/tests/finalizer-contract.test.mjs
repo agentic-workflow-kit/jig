@@ -452,6 +452,55 @@ const targetFact = (
   observedAt: 2,
 });
 
+test('MC-043-INPUT: finalizer digest boundaries fail closed for circular, accessor, and proxy inputs', () => {
+  const circularClasses = [];
+  circularClasses.push(circularClasses);
+  const circularInput = {
+    posture: 'deterministic',
+    requiredClasses: circularClasses,
+    waitCapacitySeconds: 3_600,
+    waitTargetSeconds: 3_600,
+    refreshLimit: 2,
+  };
+  assert.doesNotThrow(() => runtime.deriveFinalizerPolicyDigest(circularInput));
+  assert.equal(runtime.deriveFinalizerPolicyDigest(circularInput), undefined);
+
+  const accessorClasses = [];
+  Object.defineProperty(accessorClasses, 0, {
+    enumerable: true,
+    get() {
+      throw new Error('hostile accessor');
+    },
+  });
+  accessorClasses.length = 1;
+  const accessorInput = { ...circularInput, requiredClasses: accessorClasses };
+  assert.doesNotThrow(() => runtime.deriveFinalizerPolicyDigest(accessorInput));
+  assert.equal(runtime.deriveFinalizerPolicyDigest(accessorInput), undefined);
+
+  const hostileAuthority = new Proxy(
+    {},
+    {
+      getPrototypeOf() {
+        return Object.prototype;
+      },
+      ownKeys() {
+        throw new Error('hostile proxy');
+      },
+    },
+  );
+  const waiter = makeWaiter('hostile-digest', 1, nonePolicy);
+  const { controller } = controllerFor(waiter);
+  const release = { authority: hostileAuthority, operation: operation(900), reason: 'rework' };
+  let result;
+  assert.doesNotThrow(() => {
+    result = controller.release(release);
+  });
+  assert.deepEqual(result, {
+    ok: false,
+    error: { family: 'FC-FENCE', code: 'STALE_FINALIZER_RELEASE' },
+  });
+});
+
 test('GF-043 entry consumes exact GF-042 request/observation and fences forged local lookalikes', () => {
   const waiter = makeWaiter('verify', 1, policy);
   const request = verificationRequest(waiter, 4);

@@ -256,13 +256,16 @@ const nonNegative = (value: unknown): value is number =>
 const identity = (kind: string, value: unknown): value is string =>
   typeof value === 'string' && parseIdentity(kind, value).ok;
 const same = (left: unknown, right: unknown, domain = 'FINALIZER-COMPARE'): boolean => {
-  const a = stageDigest({ domain, excludePaths: [], value: left as never });
-  const b = stageDigest({ domain, excludePaths: [], value: right as never });
-  return a.ok && b.ok && a.value.digest === b.value.digest;
+  const a = derived(domain, left);
+  return a !== undefined && a === derived(domain, right);
 };
 const derived = (domain: string, value: unknown): string | undefined => {
-  const result = stageDigest({ domain, excludePaths: [], value: value as never });
-  return result.ok ? result.value.digest : undefined;
+  try {
+    const result = stageDigest({ domain, excludePaths: [], value: value as never });
+    return result.ok ? result.value.digest : undefined;
+  } catch {
+    return undefined;
+  }
 };
 function validateBinding(input: unknown): FinalizerResult<FinalizerBinding> {
   const raw = own(input, ['descriptor', 'registry', 'target']);
