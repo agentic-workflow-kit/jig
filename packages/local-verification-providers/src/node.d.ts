@@ -46,6 +46,10 @@ declare module 'node:path' {
   export function resolve(...paths: string[]): string;
 }
 
+declare module 'node:url' {
+  export function fileURLToPath(url: string | URL): string;
+}
+
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 declare class URL {
   constructor(value: string, base?: string | URL);

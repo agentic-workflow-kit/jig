@@ -41,12 +41,13 @@ const knownNativeCapabilities = {
     'node:fs',
     'node:os',
     'node:path',
+    'node:url',
   ]),
 };
 const friendSubpaths = {
   '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate': '@agentic-workflow-kit/jig-conformance',
 };
-const qualificationFriendRelativeImport = '../../runtime-contracts/dist/qualification-certificate.js';
+const qualificationFriendTarget = 'packages/runtime-contracts/dist/qualification-certificate';
 const qualificationFriendFiles = new Set([
   'packages/conformance/src/structured-file-qualification.ts',
   'packages/conformance/src/provider-admission-qualification.ts',
@@ -79,17 +80,49 @@ function resolvesToProviderAdmissionQualification(specifier, repoPath, rootDir) 
 }
 const runtimeTransitionFriendFiles = new Set([
   'packages/runtime-contracts/src/qualification-certificate.ts',
+  'packages/runtime-contracts/dist/qualification-certificate.d.ts',
   'packages/runtime-contracts/dist/qualification-certificate.js',
 ]);
 const runtimeTransitionSymbols = [
   'createExactLocalCommandAdmissionTransition',
   'consumeExactLocalCommandAdmissionTransition',
 ];
-const importsRuntimeTransition = (source) =>
-  [...source.matchAll(/(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gu)].some(([, names]) =>
-    runtimeTransitionSymbols.some((symbol) => names.includes(symbol)),
-  );
+const runtimeTransitionTargets = new Set([
+  'packages/runtime-contracts/src/provider',
+  'packages/runtime-contracts/dist/provider',
+]);
 const distTarget = (value) => value.startsWith('./dist/') && !value.split('/').includes('..');
+
+function resolvesToTarget(specifier, repoPath, rootDir, targets) {
+  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return false;
+  const importer = join(rootDir, repoPath);
+  const resolvedPath = relative(rootDir, resolve(dirname(importer), specifier))
+    .split('/')
+    .join('/');
+  return targets.has(resolvedPath.replace(/\.js$/u, ''));
+}
+
+function resolvesToQualificationFriend(specifier, repoPath, rootDir) {
+  return (
+    specifier === '@agentic-workflow-kit/jig-runtime-contracts/qualification-certificate' ||
+    resolvesToTarget(specifier, repoPath, rootDir, new Set([qualificationFriendTarget]))
+  );
+}
+
+function resolvesToRuntimeTransition(specifier, repoPath, rootDir) {
+  return (
+    specifier === '@agentic-workflow-kit/jig-runtime-contracts/provider' ||
+    resolvesToTarget(specifier, repoPath, rootDir, runtimeTransitionTargets)
+  );
+}
+
+function importsRuntimeTransition(source, repoPath, rootDir) {
+  return [...source.matchAll(/(?:import|export)\s*(\*[^\n]*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/gu)].some(
+    ([, names, specifier]) =>
+      resolvesToRuntimeTransition(specifier, repoPath, rootDir) &&
+      (names.trim().startsWith('*') || runtimeTransitionSymbols.some((symbol) => names.includes(symbol))),
+  );
+}
 
 function readJson(path, errors, label) {
   try {
@@ -340,7 +373,7 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
       const providerAdmissionQualificationAllowed = providerAdmissionQualificationImporters.has(repoPath);
       let reportedProviderAdmissionQualification = false;
       for (const specifier of importSpecifiers(source)) {
-        if (specifier === qualificationFriendRelativeImport && !qualificationFriendFiles.has(repoPath))
+        if (resolvesToQualificationFriend(specifier, repoPath, rootDir) && !qualificationFriendFiles.has(repoPath))
           errors.push(`${manifest.name} imports restricted qualification friend ${specifier}`);
         if (
           resolvesToProviderAdmissionQualification(specifier, repoPath, rootDir) &&
@@ -355,6 +388,8 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
         )
           errors.push(`${manifest.name} bypasses the private qualification registry boundary`);
       }
+      if (importsRuntimeTransition(source, repoPath, rootDir) && !runtimeTransitionFriendFiles.has(repoPath))
+        errors.push(`${manifest.name} imports restricted runtime transition`);
       if (
         providerAdmissionQualificationReference.test(source) &&
         !providerAdmissionQualificationOwnFiles.has(repoPath) &&
@@ -362,13 +397,6 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
         !reportedProviderAdmissionQualification
       )
         errors.push(`${manifest.name} references restricted provider admission qualification`);
-      if (
-        !repoPath.endsWith('/runtime-contracts/src/provider.ts') &&
-        !repoPath.endsWith('/runtime-contracts/dist/provider.js') &&
-        importsRuntimeTransition(source) &&
-        !runtimeTransitionFriendFiles.has(repoPath)
-      )
-        errors.push(`${manifest.name} imports restricted runtime transition`);
     }
     const sources = sourceFiles(join(directory, 'src'));
     if (!sources.length) errors.push(`${manifest.name} must own at least one TypeScript source file`);
