@@ -219,7 +219,9 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
     execFileSync('/usr/bin/git', ['config', 'user.email', 'gf047@example.invalid'], { cwd: packageRoot });
     execFileSync('/usr/bin/git', ['config', 'user.name', 'GF-047'], { cwd: packageRoot });
     writeFileSync(join(packageRoot, 'tracked.txt'), 'tracked\n');
-    execFileSync('/usr/bin/git', ['add', '.gitignore', 'dist/index.js', 'package.json', 'tracked.txt'], { cwd: packageRoot });
+    execFileSync('/usr/bin/git', ['add', '.gitignore', 'dist/index.js', 'package.json', 'tracked.txt'], {
+      cwd: packageRoot,
+    });
     execFileSync('/usr/bin/git', ['commit', '-q', '-m', 'fixture'], { cwd: packageRoot });
     const tempCommit = execFileSync('/usr/bin/git', ['rev-parse', 'HEAD'], {
       cwd: packageRoot,
