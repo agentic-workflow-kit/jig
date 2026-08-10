@@ -875,7 +875,7 @@ export function createRetirementController(
         resource.value,
         'PRESERVATION_REQUIRED_BEFORE_RETIREMENT',
       );
-      if (!obligation.ok) return fail(obligation.error.code, obligation.error.message);
+      if (!obligation.ok) return fail(obligation.error.family, obligation.error.code);
       return fail('FC-EVIDENCE', 'PRESERVATION_REQUIRED_BEFORE_RETIREMENT');
     }
     if (
