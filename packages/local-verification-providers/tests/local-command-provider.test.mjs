@@ -11,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { platform } from 'node:os';
+import { platform, tmpdir } from 'node:os';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
@@ -240,7 +240,7 @@ test('qualification attests actual confinement and rejects reordered or wildcard
 });
 
 test('checkout resources reject nested symlinks and traversal-shaped roots before native execution', () => {
-  const root = realpathSync(mkdtempSync('/private/tmp/gf047-checkout-test-'));
+  const root = realpathSync(mkdtempSync(`${realpathSync(tmpdir())}/gf047-checkout-test-`));
   try {
     const repository = `${root}/repository`;
     mkdirSync(repository, { recursive: true });
