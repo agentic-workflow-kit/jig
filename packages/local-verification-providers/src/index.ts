@@ -1108,7 +1108,40 @@ function sandboxProfile(
   ].join('\n');
 }
 
-type CommandRun = Readonly<{ outcome: 'pass' | 'fail'; output: LocalCommandOutput }>;
+type CommandRun = Readonly<{
+  outcome: 'pass' | 'fail';
+  output: LocalCommandOutput;
+  launcherArgs: readonly string[];
+}>;
+
+function classifyProcessFailure(error: unknown, fallback: LocalCommandFailure): LocalCommandFailure | undefined {
+  const record = (typeof error === 'object' && error !== null ? error : {}) as Record<string, unknown>;
+  if (record.signal !== undefined && record.signal !== null)
+    return { family: 'FC-MECHANISM', code: 'COMMAND_SIGNALLED' };
+  if (record.code === 'ETIMEDOUT') return { family: 'FC-MECHANISM', code: 'MECHANISM_TIMEOUT' };
+  if (record.code === 'ENOBUFS') return { family: 'FC-MECHANISM', code: 'COMMAND_OUTPUT_LIMIT_EXCEEDED' };
+  if (typeof record.code === 'string') return fallback;
+  if (!Number.isSafeInteger(record.status)) return { family: 'FC-MECHANISM', code: 'MALFORMED_COMMAND_RESULT' };
+  const stderr = typeof record.stderr === 'string' ? record.stderr : '';
+  if (/(?:sandbox|operation not permitted|permission denied)/iu.test(stderr))
+    return { family: 'FC-AUTHORITY', code: 'SANDBOX_CONFINEMENT_FAILED' };
+  return undefined;
+}
+
+function exactLauncherArgs(value: unknown, command: LocalCommandManifestValue['subprocessAuthority'][number]) {
+  const args = list(value, MAX_ARGS + 3);
+  if (
+    !args ||
+    args.length !== command.args.length + 3 ||
+    args[0] !== '-p' ||
+    typeof args[1] !== 'string' ||
+    args[1].length === 0 ||
+    args[2] !== command.executable ||
+    !same(args.slice(3), command.args)
+  )
+    return undefined;
+  return Object.freeze(args as string[]);
+}
 
 function executeCommand(
   manifest: LocalCommandManifest,
@@ -1129,7 +1162,8 @@ function executeCommand(
   );
   if (!profile) return fail('FC-SUBJECT', 'CHECKOUT_UNTRUSTED');
   try {
-    const stdout = execFileSync(SANDBOX_EXECUTABLE, ['-p', profile, command.executable, ...command.args], {
+    const launcherArgs = Object.freeze(['-p', profile, command.executable, ...command.args]);
+    const stdout = execFileSync(SANDBOX_EXECUTABLE, launcherArgs, {
       cwd: checkout,
       env: Object.freeze({}),
       encoding: 'utf8',
@@ -1146,10 +1180,11 @@ function executeCommand(
       stderrPreview: '',
       truncated: safeStdout.truncated,
     });
-    return ok({ outcome: 'pass', output: resultOutput });
+    return ok({ outcome: 'pass', output: resultOutput, launcherArgs });
   } catch (error) {
     const record = (typeof error === 'object' && error !== null ? error : {}) as Record<string, unknown>;
-    if (record.signal === 'SIGTERM' || record.code === 'ETIMEDOUT') return fail('FC-MECHANISM', 'MECHANISM_TIMEOUT');
+    const typedFailure = classifyProcessFailure(error, { family: 'FC-AUTHORITY', code: 'COMMAND_LAUNCH_FAILED' });
+    if (typedFailure) return fail(typedFailure.family, typedFailure.code);
     const stdout = typeof record.stdout === 'string' ? record.stdout : '';
     const stderr = typeof record.stderr === 'string' ? record.stderr : '';
     const safeStdout = output(stdout);
@@ -1163,6 +1198,7 @@ function executeCommand(
         stderrPreview: safeStderr.value,
         truncated: safeStdout.truncated || safeStderr.truncated,
       }),
+      launcherArgs: Object.freeze(['-p', profile, command.executable, ...command.args]),
     });
   } finally {
     void native;
@@ -1181,7 +1217,7 @@ function runConfinementProbe(
   checkout: string,
   scratch: string,
   policy: SandboxPolicyDescriptor,
-): ConfinementProbeResult | undefined {
+): LocalCommandResult<ConfinementProbeResult> {
   const runtime = Object.freeze([
     Object.freeze({
       path: policy.confinementProbe.executable,
@@ -1233,7 +1269,7 @@ function runConfinementProbe(
     ];
     for (const outputPath of probeOutputPaths) writeFileSync(outputPath, '', { encoding: 'utf8', flag: 'wx' });
     const profile = sandboxProfile(checkout, scratch, runtime, policy, [], [inside, ...probeOutputPaths]);
-    if (!profile) return undefined;
+    if (!profile) return fail('FC-AUTHORITY', 'SANDBOX_CONFINEMENT_FAILED');
     const readUnderSandbox = (path: string, outputPath: string): Readonly<{ ok: boolean; output: string }> => {
       let outputFd: number | undefined;
       try {
@@ -1255,29 +1291,34 @@ function runConfinementProbe(
       }
     };
     const insideRead = readUnderSandbox(inside, join(scratch, 'inside-output.txt'));
-    if (!insideRead.ok || insideRead.output !== marker) return undefined;
+    if (!insideRead.ok || insideRead.output !== marker) return fail('FC-AUTHORITY', 'SANDBOX_CONFINEMENT_FAILED');
     const outsideDenied = !readUnderSandbox(outside, join(scratch, 'outside-output.txt')).ok;
-    if (!outsideDenied) return undefined;
+    if (!outsideDenied) return fail('FC-AUTHORITY', 'SANDBOX_CONFINEMENT_FAILED');
     const ignoredSymlinkDenied = !readUnderSandbox(ignoredSymlink, join(scratch, 'ignored-link-output.txt')).ok;
     const ignoredCredentialDenied = !readUnderSandbox(ignoredCredential, join(scratch, 'ignored-credential-output.txt'))
       .ok;
-    if (!ignoredSymlinkDenied || !ignoredCredentialDenied) return undefined;
-    return Object.freeze({
-      insideAllowed: true,
-      outsideDenied: true,
-      ignoredSymlinkDenied: true,
-      ignoredCredentialDenied: true,
-      digest: digest('LOCAL-COMMAND-CONFINEMENT-TEST', {
+    if (!ignoredSymlinkDenied || !ignoredCredentialDenied) return fail('FC-AUTHORITY', 'SANDBOX_CONFINEMENT_FAILED');
+    return ok(
+      Object.freeze({
         insideAllowed: true,
         outsideDenied: true,
         ignoredSymlinkDenied: true,
         ignoredCredentialDenied: true,
-        profileDigest: digest('LOCAL-COMMAND-RENDERED-POLICY', profile),
-        runtimeReadDigest: runtimeReadDigest(runtime),
+        digest: digest('LOCAL-COMMAND-CONFINEMENT-TEST', {
+          insideAllowed: true,
+          outsideDenied: true,
+          ignoredSymlinkDenied: true,
+          ignoredCredentialDenied: true,
+          profileDigest: digest('LOCAL-COMMAND-RENDERED-POLICY', profile),
+          runtimeReadDigest: runtimeReadDigest(runtime),
+        }),
       }),
-    });
-  } catch {
-    return undefined;
+    );
+  } catch (error) {
+    const typedFailure = classifyProcessFailure(error, { family: 'FC-AUTHORITY', code: 'SANDBOX_CONFINEMENT_FAILED' });
+    return typedFailure
+      ? fail(typedFailure.family, typedFailure.code)
+      : fail('FC-AUTHORITY', 'SANDBOX_CONFINEMENT_FAILED');
   }
 }
 
@@ -1349,9 +1390,11 @@ export function runLocalCommandQualificationProbe(
     const scratch = join(root, 'scratch');
     mkdirSync(checkout, { recursive: true });
     mkdirSync(scratch, { recursive: true });
-    const confinement = runConfinementProbe(checkout, scratch, manifest.value.value.sandboxPolicyAuthority);
-    if (!confinement) failure = { family: 'FC-AUTHORITY', code: 'CF_MECH_VERIFY_FAILED' };
+    const confinementResult = runConfinementProbe(checkout, scratch, manifest.value.value.sandboxPolicyAuthority);
+    if (!confinementResult.ok) failure = confinementResult.error;
+    const confinement = confinementResult.ok ? confinementResult.value : undefined;
     const run = confinement ? executeCommand(manifest.value, checkout, scratch, native.value, 15_000) : undefined;
+    if (!failure && run && !run.ok) failure = run.error;
     if (!failure && (!run?.ok || run.value.outcome !== 'pass'))
       failure = { family: 'FC-MECHANISM', code: 'CF_MECH_VERIFY_FAILED' };
     if (!failure && confinement && run?.ok) {
@@ -1362,7 +1405,7 @@ export function runLocalCommandQualificationProbe(
       const observations = Object.freeze({
         'exact-manifest': true,
         'exact-executable-digest': sha256(readFileSync(command.executable)) === command.executableDigest,
-        'exact-args': command.args.length >= 0,
+        'exact-args': Boolean(exactLauncherArgs(run.value.launcherArgs, command)),
         'no-shell': true,
         'declared-env-only': true,
         'no-credentials': manifest.value.value.credentialAuthority.length === 0,
@@ -1498,7 +1541,8 @@ function exactQualification(
       'scratch',
     ]);
   const observations = raw && plain(raw.observations) ? raw.observations : undefined;
-  const result = raw && fields(raw.result, ['outcome', 'output']);
+  const result = raw && fields(raw.result, ['launcherArgs', 'outcome', 'output']);
+  const launcherArgs = result && exactLauncherArgs(result.launcherArgs, command);
   const resultOutput =
     result && fields(result.output, ['stderrDigest', 'stderrPreview', 'stdoutDigest', 'stdoutPreview', 'truncated']);
   const observationNames = [
@@ -1557,6 +1601,7 @@ function exactQualification(
     !DIGEST.test(String(raw.trackedReadDigest)) ||
     !DIGEST.test(String(raw.confinementTestDigest)) ||
     !result ||
+    !launcherArgs ||
     result.outcome !== 'pass' ||
     !resultOutput ||
     !DIGEST.test(String(resultOutput.stdoutDigest)) ||
