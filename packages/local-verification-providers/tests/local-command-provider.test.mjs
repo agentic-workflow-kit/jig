@@ -254,7 +254,7 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
     else
       assert.deepEqual(qualification, {
         ok: false,
-        error: { family: 'FC-AUTHORITY', code: 'NATIVE_POSTURE_UNAVAILABLE' },
+        error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' },
       });
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -284,7 +284,7 @@ test('canonical keys and tracked paths do not consult the host locale', () => {
     else
       assert.deepEqual(qualification, {
         ok: false,
-        error: { family: 'FC-AUTHORITY', code: 'NATIVE_POSTURE_UNAVAILABLE' },
+        error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' },
       });
   } finally {
     String.prototype.localeCompare = original;
