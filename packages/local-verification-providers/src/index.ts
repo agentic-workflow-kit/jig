@@ -1934,6 +1934,7 @@ function parseLocalSnapshot(
   const parsedObservations = Object.freeze(observations as LocalCommandObservation[]);
   if (!validRestoredFailureHistory(parsedRequests, parsedFailures, parsedInvocations, parsedObservations))
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+  let parsedFinalization: LocalCommandFinalizationSnapshot | null = null;
   if (verification.finalization !== null) {
     const final = fields(verification.finalization, [
       'acceptanceGranted',
@@ -1949,6 +1950,29 @@ function parseLocalSnapshot(
       'state',
       'subject',
     ]);
+    const anchor =
+      final && plain(final.subject) && plain(final.fence)
+        ? parsedRequests.find(
+            (request: VerificationRequest) => same(final.subject, request.subject) && same(final.fence, request.fence),
+          )
+        : undefined;
+    const expectedRequired = anchor?.policy.required.map((entry) => entry.name);
+    const finalObservations =
+      final && Array.isArray(final.observations)
+        ? final.observations.map((entry) => {
+            const request = parsedRequests.find(
+              (candidate: VerificationRequest) => plain(entry) && candidate.operation === entry.operation,
+            );
+            return request ? validateObservation(entry, request, manifest, native) : undefined;
+          })
+        : undefined;
+    const finalObservationValues = Array.isArray(finalObservations)
+      ? finalObservations.filter((entry): entry is LocalCommandObservation => Boolean(entry))
+      : [];
+    const observedClasses = new Set(finalObservationValues.map((entry) => entry.checkClass));
+    const hasFailure = finalObservationValues.some((entry) => entry.outcome === 'fail');
+    const expectedState = hasFailure ? 'Reworking' : 'Finalizing';
+    const expectedReady = !hasFailure && Boolean(expectedRequired?.every((entry) => observedClasses.has(entry)));
     if (
       !final ||
       !Array.isArray(final.observations) ||
@@ -1961,17 +1985,43 @@ function parseLocalSnapshot(
       final.posture !== 'deterministic' ||
       !['Waiting', 'Accepted'].includes(String(final.origin)) ||
       !['Finalizing', 'Reworking'].includes(String(final.state)) ||
-      typeof final.readyForDelivery !== 'boolean' ||
+      final.state !== expectedState ||
+      final.readyForDelivery !== expectedReady ||
       final.requiredClasses.some((entry) => typeof entry !== 'string') ||
-      !plain(final.subject) ||
-      !plain(final.fence) ||
-      !parsedRequests.some(
-        (request: VerificationRequest) =>
-          sameSubject(request.subject, final.subject as VerificationSubject) &&
-          sameFence(request.fence, final.fence as VerificationFence),
-      )
+      !anchor ||
+      !expectedRequired ||
+      final.requiredClasses.length !== expectedRequired.length ||
+      final.requiredClasses.some((entry, index) => entry !== expectedRequired[index]) ||
+      finalObservations === undefined ||
+      finalObservations.some((entry) => !entry) ||
+      finalObservationValues.length !== new Set(finalObservationValues.map((entry) => entry.operation)).size ||
+      finalObservationValues.length !== observedClasses.size ||
+      finalObservationValues.some(
+        (entry) => !sameSubject(entry.subject, anchor.subject) || !sameFence(entry.fence, anchor.fence),
+      ) ||
+      finalObservationValues.some(
+        (entry) =>
+          !parsedObservations.some(
+            (observation) => observation.operation === entry.operation && same(observation, entry),
+          ),
+      ) ||
+      (final.origin !== anchor.lifecycle && anchor.lifecycle !== 'Finalizing')
     )
       return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+    parsedFinalization = Object.freeze({
+      origin: final.origin as 'Waiting' | 'Accepted',
+      state: expectedState,
+      posture: 'deterministic',
+      subject: anchor.subject,
+      fence: anchor.fence,
+      requiredClasses: Object.freeze([...expectedRequired]),
+      observations: Object.freeze(finalObservationValues),
+      noOp: false,
+      readyForDelivery: expectedReady,
+      deliveryOperations: Object.freeze([]) as readonly [],
+      acceptanceGranted: false,
+      landingGranted: false,
+    });
   }
   return ok(
     Object.freeze({
@@ -1982,7 +2032,7 @@ function parseLocalSnapshot(
         observations: parsedObservations,
         failures: Object.freeze(parsedFailures),
         invocations: Object.freeze(parsedInvocations),
-        finalization: verification.finalization as LocalCommandFinalizationSnapshot | null,
+        finalization: parsedFinalization,
       }),
       observations: parsedObservations,
     }),

@@ -344,6 +344,10 @@ test('restore rejects failure history that is not bound to the exact request, in
     permit: permit(2, first.operation),
   });
   assert.equal(secondObserved.ok, true, JSON.stringify(secondObserved));
+  assert.deepEqual(qualified.consume({ observation: secondObserved.value }), {
+    ok: true,
+    value: { state: 'Finalizing', readyForDelivery: true },
+  });
   const valid = qualified.snapshot();
   const failure = valid.verification.failures[0];
   const invocation = valid.verification.invocations.find((entry) => entry.operation === first.operation);
@@ -407,6 +411,36 @@ test('restore rejects failure history that is not bound to the exact request, in
         entry.operation === second.operation ? { ...entry, observedAt: entry.observedAt + 1 } : entry,
       ),
     },
+    {
+      name: 'empty required classes',
+      finalization: { ...valid.verification.finalization, requiredClasses: [] },
+    },
+    {
+      name: 'altered required classes',
+      finalization: { ...valid.verification.finalization, requiredClasses: ['other'] },
+    },
+    {
+      name: 'forged final observations',
+      finalization: { ...valid.verification.finalization, observations: [] },
+    },
+    {
+      name: 'mismatched final observation fence',
+      finalization: {
+        ...valid.verification.finalization,
+        observations: valid.verification.finalization.observations.map((entry) => ({
+          ...entry,
+          fence: { ...entry.fence, targetBasisDigest: 'b'.repeat(64) },
+        })),
+      },
+    },
+    {
+      name: 'forged finalization state',
+      finalization: { ...valid.verification.finalization, state: 'Reworking' },
+    },
+    {
+      name: 'forged finalization readiness',
+      finalization: { ...valid.verification.finalization, readyForDelivery: false },
+    },
   ];
   for (const testCase of cases) {
     const verification = {
@@ -414,6 +448,7 @@ test('restore rejects failure history that is not bound to the exact request, in
       failures: testCase.failures ?? valid.verification.failures,
       invocations: testCase.invocations ?? valid.verification.invocations,
       observations: testCase.verificationObservations ?? valid.verification.observations,
+      finalization: testCase.finalization ?? valid.verification.finalization,
     };
     assert.deepEqual(
       restore(verification, testCase.observations ?? valid.observations),
