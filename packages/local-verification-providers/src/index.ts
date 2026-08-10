@@ -26,6 +26,7 @@ import {
   validateVerificationPermit,
   validateVerificationRequest,
 } from '@agentic-workflow-kit/jig-runtime-contracts';
+import { classifyProcessFailure } from './process-failure.js';
 
 export const LOCAL_COMMAND_VERIFIER_PROVIDER = 'local-posix-command-verifier/v1';
 export const LOCAL_COMMAND_VERIFIER_POSTURE = 'local-posix-command-verifier/v1';
@@ -1113,20 +1114,6 @@ type CommandRun = Readonly<{
   output: LocalCommandOutput;
   launcherArgs: readonly string[];
 }>;
-
-function classifyProcessFailure(error: unknown, fallback: LocalCommandFailure): LocalCommandFailure | undefined {
-  const record = (typeof error === 'object' && error !== null ? error : {}) as Record<string, unknown>;
-  if (record.signal !== undefined && record.signal !== null)
-    return { family: 'FC-MECHANISM', code: 'COMMAND_SIGNALLED' };
-  if (record.code === 'ETIMEDOUT') return { family: 'FC-MECHANISM', code: 'MECHANISM_TIMEOUT' };
-  if (record.code === 'ENOBUFS') return { family: 'FC-MECHANISM', code: 'COMMAND_OUTPUT_LIMIT_EXCEEDED' };
-  if (typeof record.code === 'string') return fallback;
-  if (!Number.isSafeInteger(record.status)) return { family: 'FC-MECHANISM', code: 'MALFORMED_COMMAND_RESULT' };
-  const stderr = typeof record.stderr === 'string' ? record.stderr : '';
-  if (/(?:sandbox|operation not permitted|permission denied)/iu.test(stderr))
-    return { family: 'FC-AUTHORITY', code: 'SANDBOX_CONFINEMENT_FAILED' };
-  return undefined;
-}
 
 function exactLauncherArgs(value: unknown, command: LocalCommandManifestValue['subprocessAuthority'][number]) {
   const args = list(value, MAX_ARGS + 3);
