@@ -170,7 +170,7 @@ test('GF046-MC-01..05: plan freezes outcome baseline, inventory, bound, and cont
 });
 
 test('GF046-MC-01/05: every holder family requires its own preservation receipt before retirement or release-pin', () => {
-  const controller = retirement.createRetirementController({});
+  const controller = retirement.createRetirementController({ obligation: obligationAllocator() });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const operations = new Map([
