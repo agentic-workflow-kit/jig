@@ -822,8 +822,12 @@ test('MC-043-FENCE: hostile nested acceptance manifest cannot escape finalizer r
       },
     },
   ];
+  let recordDispatchCalls = 0;
   const verification = runtime.createScriptedVerificationFixture({
-    recordDispatch: () => ({ ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } }),
+    recordDispatch: () => {
+      recordDispatchCalls += 1;
+      return { ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } };
+    },
   });
   const created = runtime.createScriptedFinalizerController({
     binding,
@@ -850,8 +854,9 @@ test('MC-043-FENCE: hostile nested acceptance manifest cannot escape finalizer r
           : entry,
       ),
     };
+    let enqueued;
     assert.doesNotThrow(() => {
-      const enqueued = created.value.enqueue({
+      enqueued = created.value.enqueue({
         operation: waiter.operation,
         run: waiter.run,
         story: waiter.story,
@@ -861,9 +866,13 @@ test('MC-043-FENCE: hostile nested acceptance manifest cannot escape finalizer r
         ...admission,
         acceptanceController: { snapshot: () => hostileSnapshot },
       });
-      assert.equal(enqueued.ok, false);
+    });
+    assert.deepEqual(enqueued, {
+      ok: false,
+      error: { family: 'FC-TRUST', code: 'INVALID_ACCEPTANCE_READBACK' },
     });
   }
+  assert.equal(recordDispatchCalls, 0);
 });
 
 test('MC-043-FENCE: configured non-default target is admitted and cross-target facts fail closed', () => {
