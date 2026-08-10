@@ -184,6 +184,69 @@ test('GF038-MC-01: opening mints one immutable obligation with exact bindings', 
   assert.equal(controller.facts().filter((fact) => fact.type === 'SCH-OBLIGATION').length, 1);
 });
 
+test('public open surface ignores internal replay parameters supplied by JavaScript callers', () => {
+  const runtimeDependencies = dependencies();
+  const sourceController = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
+  const allocated = sourceController.openAllocated(allocationInput);
+  assert.equal(allocated.ok, true, JSON.stringify(allocated));
+  const allocationFact = sourceController
+    .facts()
+    .find(
+      (fact) =>
+        fact.type === 'SCH-OBLIGATION' && fact.allocationVersion === obligation.OBLIGATION_ALLOCATION_CLAIM_SCHEMA,
+    );
+  const allocationRecord = runtimeDependencies.ledger.records({ kind: 'run', run, generation }).value[0];
+  assert.equal(typeof allocationFact?.allocationKey, 'string');
+  assert.equal(allocationRecord?.content.type, 'SCH-OBLIGATION');
+
+  const publicController = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const opened = publicController.open(openInput(), allocationFact.allocationKey, allocationRecord);
+  assert.equal(publicController.open.length, 1);
+  assert.equal(opened.ok, true, JSON.stringify(opened));
+  assert.equal(opened.value.event, `${run}/event/2`);
+  assert.equal(opened.value.id, `${run}/obligation/1`);
+  assert.equal(runtimeDependencies.ledger.records({ kind: 'run', run, generation }).value.length, 2);
+});
+
+test('allocation scan rejects malformed durable facts before recording a ledger baseline', () => {
+  const runtimeDependencies = dependencies();
+  const binding = { kind: 'run', run, generation };
+  const prepared = ledgerRuntime.createLedgerRecord({
+    run,
+    generation,
+    transaction: `${run}/txn/1/${generation}|${digest('0')}`,
+    position: 0,
+    previousDigest: '0'.repeat(64),
+    content: {
+      schema: obligation.OBLIGATION_FACT_SCHEMA,
+      type: 'SCH-OBLIGATION',
+      obligation: `${run}/obligation/1`,
+      status: 'open',
+      generation,
+      criteriaDigest: digest('c'),
+      evidenceDigest: digest('e'),
+      grant: null,
+      allocationVersion: null,
+      allocationKey: null,
+      allocationOrigin: null,
+      allocationBasis: null,
+      boundDigest: 'malformed-bound-digest',
+      observedAt: 1000,
+    },
+  });
+  assert.equal(prepared.ok, true, JSON.stringify(prepared));
+  assert.equal(runtimeDependencies.ledger.append({ binding, expectedPosition: -1, record: prepared.value }).ok, true);
+
+  const controller = obligation.createScriptedObligationController({ dependencies: runtimeDependencies });
+  const { obligationOrdinal: _ordinal, ...allocationInput } = openInput();
+  assert.deepEqual(controller.openAllocated(allocationInput), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' },
+  });
+  assert.equal(controller.snapshot().ledgerFacts.length, 0);
+});
+
 test('obligation facts cannot append across a hydrated ledger binding', () => {
   const controller = obligation.createScriptedObligationController({
     dependencies: dependencies(),

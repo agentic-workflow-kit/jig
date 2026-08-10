@@ -1809,7 +1809,7 @@ export function createScriptedObligationController(
         if (!content || content.schema !== OBLIGATION_FACT_SCHEMA) continue;
         const { schema: _schema, ...factContent } = content;
         const fact = parseFactContent(factContent, record.event);
-        if (!fact) return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
+        if (!fact || !validFact(fact)) return { family: 'FC-TRUST', code: 'OBLIGATION_ALLOCATION_READBACK_INVALID' };
         ledgerFacts.push(fact);
         if (fact.type !== 'SCH-OBLIGATION') continue;
         if (!identity('ID-OBLIGATION', fact.obligation) || !fact.obligation.startsWith(`${raw.run}/obligation/`))
@@ -2494,7 +2494,7 @@ export function createScriptedObligationController(
       mechanism: MECHANISM,
     });
   return Object.freeze({
-    open,
+    open: (input: unknown) => open(input),
     openAllocated,
     issueGrant,
     revokeGrant,
