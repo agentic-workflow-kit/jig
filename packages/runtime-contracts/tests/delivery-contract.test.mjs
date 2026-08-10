@@ -443,6 +443,7 @@ const factObservation = (
   result = {},
   observedAt = 20,
   correlationKey = null,
+  resourceIdentity = null,
 ) => ({
   schema: runtime.DELIVERY_EVENT_SCHEMA,
   kind: subject === 'target' ? 'EV-TARGET-FACT' : 'EV-DELIVERY-OBSERVATION',
@@ -456,6 +457,11 @@ const factObservation = (
   candidateContentDigest: data.candidateContentDigest,
   targetBasisDigest: data.targetBasisDigest,
   correlationKey: correlationKey ?? `corr/${op.split('/').at(-4)}`,
+  resourceIdentity:
+    resourceIdentity ??
+    (subject === 'effect'
+      ? `resource/${resolvesOperation === data.anchorOperation ? 'opc-del-anchor' : 'opc-del-merge'}`
+      : 'resource/opc-del-observe'),
   resolvesOperation,
   outcome,
   observedAt,
@@ -475,7 +481,8 @@ const request = (data, op, type, _ordinal, subject = 'target', correlationKey = 
   strategy: data.strategy,
   subject,
   correlationKey: correlationKey ?? `corr/${op.split('/').at(-4)}`,
-  resourceIdentity: resourceIdentity ?? `resource/${type.toLowerCase()}`,
+  resourceIdentity:
+    resourceIdentity ?? (subject === 'effect' ? 'resource/opc-del-merge' : `resource/${type.toLowerCase()}`),
 });
 
 const makeController = (
@@ -497,6 +504,10 @@ const makeController = (
   secondTargetOutcome = null,
   recoveryObservationOutcome = 'absent',
   retryLimit = undefined,
+  anchorUncertain = false,
+  anchorObservationResolvesOperation = null,
+  anchorObservationCorrelationKey = null,
+  anchorObservationResourceIdentity = null,
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
@@ -506,12 +517,20 @@ const makeController = (
   const nonAnchorOperation = (ordinal) => operation(offset + ordinal + 10);
   const addEffect = (ordinal, type, outcome = 'success', result = {}, observedAt = 10, failurePhase = null) => {
     const effectOperation = type === 'OPC-DEL-ANCHOR' ? data.anchorOperation : nonAnchorOperation(ordinal);
+    const effectOutcome =
+      type === 'OPC-DEL-ANCHOR' && anchorConflict
+        ? 'conflict'
+        : type === 'OPC-DEL-ANCHOR' && anchorUncertain
+          ? 'uncertain'
+          : preDispatchAbsentType === type
+            ? 'absent'
+            : outcome;
     effects.push(
       factEffect(
         data,
         effectOperation,
         type,
-        type === 'OPC-DEL-ANCHOR' && anchorConflict ? 'conflict' : preDispatchAbsentType === type ? 'absent' : outcome,
+        effectOutcome,
         result,
         observedAt,
         type === preDispatchAbsentType ? 'pre-dispatch' : failurePhase,
@@ -542,86 +561,101 @@ const makeController = (
       ? { commit: workspaceCommit, treeDigest: data.candidate.treeDigest, contentDigest: data.candidateContentDigest }
       : { treeDigest: observedTreeDigest ?? data.candidate.treeDigest, changedPathsDigest };
   const mergeCorrelation = `corr/${nonAnchorOperation(6).split('/').at(-4)}`;
-  const observations = uncertainMerge
+  const observations = anchorUncertain
     ? [
         factObservation(
           data,
           nonAnchorOperation(7),
           'effect',
-          recoveryObservationOutcome,
-          nonAnchorOperation(6),
-          {},
+          'present',
+          anchorObservationResolvesOperation ?? data.anchorOperation,
+          { anchorRegistry: binding.registry },
           20,
-          mergeCorrelation,
+          anchorObservationCorrelationKey ?? `corr/${data.anchorOperation.split('/').at(-4)}`,
+          anchorObservationResourceIdentity ?? 'resource/opc-del-anchor',
         ),
       ]
-    : heldMerge
+    : uncertainMerge
       ? [
           factObservation(
             data,
             nonAnchorOperation(7),
-            'target',
-            'held',
+            'effect',
+            recoveryObservationOutcome,
             nonAnchorOperation(6),
             {},
-            100,
-            mergeCorrelation,
-          ),
-          factObservation(
-            data,
-            nonAnchorOperation(8),
-            'target',
-            'held',
-            nonAnchorOperation(6),
-            {},
-            1_900,
-            mergeCorrelation,
-          ),
-        ]
-      : [
-          ...(remoteGateRequired
-            ? [
-                factObservation(
-                  data,
-                  nonAnchorOperation(9),
-                  'gate',
-                  'ready',
-                  null,
-                  {
-                    gateSubject: remoteGate.subject,
-                    gateState: remoteGateState,
-                    attestationDigest: d('b'),
-                  },
-                  remoteGateObservedAt,
-                  remoteGate.correlationKey,
-                ),
-              ]
-            : []),
-          factObservation(
-            data,
-            nonAnchorOperation(7),
-            'target',
-            targetOutcome,
-            nonAnchorOperation(6),
-            targetResult,
             20,
             mergeCorrelation,
           ),
-          ...(secondTargetOutcome
-            ? [
-                factObservation(
-                  data,
-                  nonAnchorOperation(8),
-                  'target',
-                  secondTargetOutcome,
-                  nonAnchorOperation(6),
-                  targetResult,
-                  30,
-                  mergeCorrelation,
-                ),
-              ]
-            : []),
-        ];
+        ]
+      : heldMerge
+        ? [
+            factObservation(
+              data,
+              nonAnchorOperation(7),
+              'target',
+              'held',
+              nonAnchorOperation(6),
+              {},
+              100,
+              mergeCorrelation,
+            ),
+            factObservation(
+              data,
+              nonAnchorOperation(8),
+              'target',
+              'held',
+              nonAnchorOperation(6),
+              {},
+              1_900,
+              mergeCorrelation,
+            ),
+          ]
+        : [
+            ...(remoteGateRequired
+              ? [
+                  factObservation(
+                    data,
+                    nonAnchorOperation(9),
+                    'gate',
+                    'ready',
+                    null,
+                    {
+                      gateSubject: remoteGate.subject,
+                      gateState: remoteGateState,
+                      attestationDigest: d('b'),
+                    },
+                    remoteGateObservedAt,
+                    remoteGate.correlationKey,
+                    remoteGate.resourceIdentity,
+                  ),
+                ]
+              : []),
+            factObservation(
+              data,
+              nonAnchorOperation(7),
+              'target',
+              targetOutcome,
+              nonAnchorOperation(6),
+              targetResult,
+              20,
+              mergeCorrelation,
+            ),
+            ...(secondTargetOutcome
+              ? [
+                  factObservation(
+                    data,
+                    nonAnchorOperation(8),
+                    'target',
+                    secondTargetOutcome,
+                    nonAnchorOperation(6),
+                    targetResult,
+                    30,
+                    mergeCorrelation,
+                  ),
+                ]
+              : []),
+          ];
   const mechanism = runtime.createScriptedDeliveryMechanism({ effects, observations });
   assert.equal(mechanism.ok, true, JSON.stringify(mechanism));
   const controller = runtime.createScriptedDeliveryController({
@@ -956,6 +990,113 @@ test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-fr
   assert.equal(recovered.value.authorize(request(data, replacement, 'OPC-DEL-MERGE', 9)).ok, true);
   assert.equal(recovered.value.authorize(request(data, data.operations.merge, 'OPC-DEL-MERGE', 6)).ok, true);
   assert.equal(recovered.value.dispatch({ operation: data.operations.merge }).ok, false);
+});
+
+test('GF044-MC-04/MC-07: anchor recovery bridges only the exact original operation, correlation, and resource', () => {
+  const exact = makeController(
+    'merge-commit',
+    'delivery-anchor-recovery-exact',
+    null,
+    320,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    undefined,
+    true,
+  );
+  authorizeAndDispatch(exact, 'OPC-DEL-ANCHOR', exact.operations.anchor, 1);
+  const exactCorrelation = `corr/${exact.anchorOperation.split('/').at(-4)}`;
+  assert.equal(
+    exact.controller.authorize(
+      request(
+        exact,
+        exact.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'effect',
+        exactCorrelation,
+        'resource/opc-del-anchor',
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(exact.controller.observe({ operation: exact.operations.observe, subject: 'effect' }).ok, true);
+  assert.equal(exact.controller.projection().finalizer.anchorRegistry, binding.registry);
+  assert.equal(exact.controller.projection().status, 'Ready');
+
+  for (const [label, overrides] of [
+    ['resolves-operation', { resolvesOperation: operation(7) }],
+    ['correlation', { correlationKey: 'corr/foreign' }],
+    ['resource', { resourceIdentity: 'resource/foreign' }],
+  ]) {
+    const data = makeController(
+      'merge-commit',
+      `delivery-anchor-recovery-${label}`,
+      null,
+      340 + label.length,
+      false,
+      false,
+      null,
+      null,
+      'ready',
+      false,
+      null,
+      false,
+      false,
+      90,
+      'pass',
+      null,
+      'absent',
+      undefined,
+      true,
+      overrides.resolvesOperation ?? null,
+      overrides.correlationKey ?? null,
+      overrides.resourceIdentity ?? null,
+    );
+    authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+    const correlation = overrides.correlationKey ?? `corr/${data.anchorOperation.split('/').at(-4)}`;
+    const resource = overrides.resourceIdentity ?? 'resource/opc-del-anchor';
+    const authorized = data.controller.authorize(
+      request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7, 'effect', correlation, resource),
+    );
+    assert.equal(authorized.ok, true, `${label}: ${JSON.stringify(authorized)}`);
+    const rejected = data.controller.observe({ operation: data.operations.observe, subject: 'effect' });
+    assert.deepEqual(rejected.error, { family: 'FC-FENCE', code: 'GF043_ANCHOR_RECOVERY_FACT_MISMATCH' });
+    assert.equal(data.controller.projection().status, 'Recovering');
+    assert.equal(data.controller.projection().recovery?.observations, 0);
+    assert.deepEqual(data.controller.projection().finalizer.pendingDeliveryOperations, [data.anchorOperation]);
+    const snapshot = data.controller.snapshot();
+    assert.equal(
+      snapshot.finalizerSnapshot.records.some((entry) => entry.record.kind === 'target-fact'),
+      false,
+    );
+    const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+      acceptanceSnapshot: data.acceptanceController.snapshot(),
+      binding,
+      candidateCarrier: data.candidate,
+      finalizerSnapshot: snapshot.finalizerSnapshot,
+      remoteGate: data.remoteGate,
+      registry: data.registry,
+      retryLimit: data.controller.projection().carrier.retryLimit,
+      strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+      verificationAuthorizer: data.verificationAuthorizer,
+      mechanism: data.mechanism,
+    });
+    assert.equal(restored.ok, true, `${label}: ${JSON.stringify(restored)}`);
+    const replayRejected = restored.value.observe({ operation: data.operations.observe, subject: 'effect' });
+    assert.deepEqual(replayRejected.error, { family: 'FC-FENCE', code: 'GF043_ANCHOR_RECOVERY_FACT_MISMATCH' });
+    assert.deepEqual(restored.value.projection().finalizer.pendingDeliveryOperations, [data.anchorOperation]);
+  }
 });
 
 test('GF044 hosted correction: restore derives status from the authenticated journal and rejects a forged snapshot status', () => {

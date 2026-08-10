@@ -113,6 +113,7 @@ export type DeliveryObservationFact = Readonly<{
   candidateContentDigest: string;
   targetBasisDigest: string;
   correlationKey: string;
+  resourceIdentity: string;
   resolvesOperation: string | null;
   outcome: DeliveryObservationOutcome;
   observedAt: number;
@@ -473,6 +474,7 @@ function validateObservation(value: unknown): DeliveryResult<DeliveryObservation
     'operation',
     'outcome',
     'registry',
+    'resourceIdentity',
     'resolvesOperation',
     'result',
     'schema',
@@ -495,6 +497,8 @@ function validateObservation(value: unknown): DeliveryResult<DeliveryObservation
     !digest(raw.targetBasisDigest) ||
     typeof raw.correlationKey !== 'string' ||
     !TEXT.test(raw.correlationKey) ||
+    typeof raw.resourceIdentity !== 'string' ||
+    !TEXT.test(raw.resourceIdentity) ||
     (raw.resolvesOperation !== null && !identity('ID-OP', raw.resolvesOperation)) ||
     !['ready', 'absent', 'held', 'advanced', 'conflict', 'uncertain', 'present'].includes(raw.outcome as string) ||
     !position(raw.observedAt)
@@ -1110,7 +1114,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (latest?.record.kind !== 'observation' || !validRemoteGate(latest.record.fact)) return undefined;
     return latest.record.fact;
   };
-  const bridgeAnchorFact = (
+  const bridgeAnchorEffectFact = (
     input: Readonly<{ outcome: 'present' | 'conflict'; result: Readonly<Record<string, string>>; observedAt: number }>,
   ): DeliveryResult<void> => {
     const finalizerAuthority = finalizerController.projection().authority;
@@ -1130,6 +1134,49 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       anchorRegistry: input.result.anchorRegistry ?? null,
       outcome: input.outcome,
       observedAt: input.observedAt,
+    };
+    const recorded = finalizerController.recordTargetFact({ authority: finalizerAuthority, fact: targetFact });
+    return recorded.ok ? ok(undefined) : fail('FC-TRUST', 'GF043_CARRIER_CONTINUITY_REQUIRED');
+  };
+  const bridgeAnchorRecoveryObservation = (fact: DeliveryObservationFact): DeliveryResult<void> => {
+    const recovering = recovery;
+    const recoveringEffect = recovering ? effects.get(recovering.operation) : undefined;
+    if (
+      !recovering ||
+      recovering.operation !== carrier.anchorOperation ||
+      recoveringEffect?.type !== 'OPC-DEL-ANCHOR' ||
+      recoveringEffect.outcome !== 'uncertain' ||
+      fact.subject !== 'effect' ||
+      fact.outcome !== 'present' ||
+      fact.resolvesOperation !== recoveringEffect.operation ||
+      fact.correlationKey !== recoveringEffect.correlationKey ||
+      fact.resourceIdentity !== recoveringEffect.resourceIdentity ||
+      fact.target !== carrier.binding.target ||
+      fact.registry !== carrier.binding.registry ||
+      fact.generation !== carrier.generation ||
+      fact.authority !== carrier.authority ||
+      fact.candidate !== carrier.candidate ||
+      fact.candidateContentDigest !== carrier.candidateContentDigest ||
+      fact.targetBasisDigest !== carrier.targetBasisDigest
+    )
+      return fail('FC-FENCE', 'GF043_ANCHOR_RECOVERY_FACT_MISMATCH');
+    const finalizerAuthority = finalizerController.projection().authority;
+    if (
+      !finalizerAuthority ||
+      finalizerAuthority.authority !== carrier.authority ||
+      finalizerAuthority.generation !== carrier.generation
+    )
+      return fail('FC-FENCE', 'GF043_AUTHORITY_CONTINUITY_MISMATCH');
+    const targetFact = {
+      schema: FINALIZER_EVENT_SCHEMA,
+      kind: 'EV-TARGET-FACT' as const,
+      operation: carrier.anchorOperation,
+      target: carrier.binding.target,
+      registry: carrier.binding.registry,
+      targetBasisDigest: carrier.targetBasisDigest,
+      anchorRegistry: fact.result.anchorRegistry ?? null,
+      outcome: 'present' as const,
+      observedAt: fact.observedAt,
     };
     const recorded = finalizerController.recordTargetFact({ authority: finalizerAuthority, fact: targetFact });
     return recorded.ok ? ok(undefined) : fail('FC-TRUST', 'GF043_CARRIER_CONTINUITY_REQUIRED');
@@ -1229,7 +1276,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     )
       return fail('FC-FENCE', 'EFFECT_FACT_FENCE_MISMATCH');
     if (intent.type === 'OPC-DEL-ANCHOR' && (fact.value.outcome === 'success' || fact.value.outcome === 'conflict')) {
-      const bridged = bridgeAnchorFact({
+      const bridged = bridgeAnchorEffectFact({
         outcome: fact.value.outcome === 'success' ? 'present' : 'conflict',
         result: fact.value.result,
         observedAt: fact.value.observedAt,
@@ -1272,22 +1319,14 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       fact.value.candidate !== carrier.candidate ||
       fact.value.candidateContentDigest !== carrier.candidateContentDigest ||
       fact.value.targetBasisDigest !== carrier.targetBasisDigest ||
-      fact.value.correlationKey !== intent.correlationKey
+      fact.value.correlationKey !== intent.correlationKey ||
+      fact.value.resourceIdentity !== intent.resourceIdentity
     )
       return fail('FC-FENCE', 'OBSERVATION_FACT_FENCE_MISMATCH');
     if (fact.value.subject === 'gate' && !validRemoteGate(fact.value))
       return fail('FC-EVIDENCE', 'REMOTE_GATE_ATTESTATION_INVALID');
-    if (
-      recovery &&
-      recovery.operation === carrier.anchorOperation &&
-      fact.value.subject === 'effect' &&
-      fact.value.outcome === 'present'
-    ) {
-      const bridged = bridgeAnchorFact({
-        outcome: 'present',
-        result: fact.value.result,
-        observedAt: fact.value.observedAt,
-      });
+    if (recovery && recovery.operation === carrier.anchorOperation && fact.value.subject === 'effect') {
+      const bridged = bridgeAnchorRecoveryObservation(fact.value);
       if (!bridged.ok) return bridged;
     }
     const recoveryBeforeObservation = recovery;
