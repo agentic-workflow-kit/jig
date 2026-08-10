@@ -1340,6 +1340,7 @@ export function createRetirementController(
     )
       return fail('FC-SUBJECT', 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH');
     const certainty = raw.certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
+    if (authorization.status !== 'uncertain') return fail('FC-EFFECT', 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN');
     if (certainty === 'indeterminate') return fail('FC-EFFECT', 'RETIREMENT_EFFECT_INDETERMINATE');
     if (certainty === 'confirmed-effect') {
       const resource = planValue?.resources.find(

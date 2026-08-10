@@ -635,6 +635,17 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
     }),
     { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
   );
+  const indeterminate = controller.reconcile({
+    operation: 'OPC-ART-DISPOSE',
+    resourceIdentity: artifactResource.resourceIdentity,
+    mode: 'release-pin',
+    certainty: 'indeterminate',
+  });
+  assert.deepEqual(indeterminate, {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_INDETERMINATE' },
+  });
+  assert.equal(controller.snapshot().authorizations[0].status, 'uncertain');
   const witnessAdvance = {
     previousHead: artifactResource.witness.head,
     previousLineage: artifactResource.witness.lineage,
@@ -675,16 +686,135 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
     restored.value.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
     'released',
   );
-  const indeterminate = controller.reconcile({
+});
+
+test('GF046-MC-07: reconciliation is only legal for uncertain operations and terminal calls are inert', () => {
+  const prepare = (withMechanism = false) => {
+    const controller = retirement.createRetirementController({
+      ...obligationOptions(),
+      ...(withMechanism ? { mechanism: script(true) } : {}),
+    });
+    const planned = controller.plan(baseInput());
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
+    assert.ok(artifactResource);
+    assert.equal(controller.recordPreservation(receipt(planned.value, artifactResource)).ok, true);
+    assert.equal(
+      controller.authorize({
+        resource: artifactResource.resource,
+        resourceIdentity: artifactResource.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        holderTransition: holderTransition(artifactResource, 'OPC-ART-DISPOSE'),
+      }).ok,
+      true,
+    );
+    assert.deepEqual(
+      controller.dispatch({
+        resource: artifactResource.resource,
+        resourceIdentity: artifactResource.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        fault: 'uncertain',
+      }),
+      { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
+    );
+    return { controller, artifactResource };
+  };
+  const effectInput = (artifactResource) => ({
     operation: 'OPC-ART-DISPOSE',
     resourceIdentity: artifactResource.resourceIdentity,
     mode: 'release-pin',
-    certainty: 'indeterminate',
+    certainty: 'confirmed-effect',
+    head: digest('1'),
+    witness: digest('2'),
+    witnessAdvance: {
+      previousHead: artifactResource.witness.head,
+      previousLineage: artifactResource.witness.lineage,
+      head: digest('1'),
+      lineage: digest('2'),
+      currency: 'current',
+    },
   });
-  assert.deepEqual(indeterminate, {
+
+  const committed = retirement.createRetirementController(obligationOptions());
+  const committedPlan = committed.plan(baseInput());
+  assert.equal(committedPlan.ok, true, JSON.stringify(committedPlan));
+  const committedArtifact = committedPlan.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(committedArtifact);
+  assert.equal(committed.recordPreservation(receipt(committedPlan.value, committedArtifact)).ok, true);
+  assert.equal(
+    committed.authorize({
+      resource: committedArtifact.resource,
+      resourceIdentity: committedArtifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(committedArtifact, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  const committedBefore = committed.snapshot();
+  assert.deepEqual(committed.reconcile(effectInput(committedArtifact)), {
     ok: false,
-    error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_INDETERMINATE' },
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
   });
+  assert.deepEqual(committed.snapshot(), committedBefore);
+
+  const effect = prepare();
+  assert.equal(effect.controller.reconcile(effectInput(effect.artifactResource)).ok, true);
+  const effectBefore = effect.controller.snapshot();
+  assert.deepEqual(
+    effect.controller.reconcile({
+      ...effectInput(effect.artifactResource),
+      certainty: 'confirmed-absence',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' } },
+  );
+  assert.deepEqual(effect.controller.snapshot(), effectBefore);
+  assert.equal(effect.controller.adopt(effectInput(effect.artifactResource)).ok, true);
+  assert.equal(
+    effect.controller.snapshot().pins.find((pin) => pin.resourceIdentity === effect.artifactResource.resourceIdentity)
+      .status,
+    'released',
+  );
+  assert.deepEqual(
+    effect.controller.dispatch({
+      resource: effect.artifactResource.resource,
+      resourceIdentity: effect.artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'SEMANTIC_EFFECT_ALREADY_CONFIRMED' } },
+  );
+
+  const absence = prepare();
+  assert.equal(
+    absence.controller.reconcile({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: absence.artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-absence',
+    }).ok,
+    true,
+  );
+  const absenceBefore = absence.controller.snapshot();
+  assert.deepEqual(absence.controller.reconcile(effectInput(absence.artifactResource)), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
+  });
+  assert.deepEqual(absence.controller.snapshot(), absenceBefore);
+  assert.equal(
+    absence.controller.reauthorize({
+      resourceIdentity: absence.artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      mode: 'release-pin',
+    }).ok,
+    true,
+  );
 });
 
 test('GF046-MC-07/08: uncertain effects cannot retry before absence plus reauthorization, and bounds do not reset', () => {
