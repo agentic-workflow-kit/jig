@@ -6,6 +6,7 @@ import {
   deriveDeliveryGateRequirementDigest,
   deriveDeliveryStrategyDigest,
 } from './delivery.js';
+import { FINALIZER_EVENT_SCHEMA } from './finalizer.js';
 import type { ObligationController, ObligationSnapshot, ResidualObligation } from './obligation.js';
 import { type ReviewPublicationBinding, validateReviewPublicationBinding } from './review-publication.js';
 
@@ -585,6 +586,11 @@ function validateProofJournal(value: unknown, domain: string, matches: (record: 
   return matched;
 }
 
+function operationTransition(value: string): string {
+  const marker = value.lastIndexOf('/op/');
+  return marker > 0 ? value.slice(0, marker) : '';
+}
+
 function validateFinalDeliveryProof(
   value: unknown,
   carrier: Record<string, unknown>,
@@ -655,6 +661,7 @@ function validateFinalDeliveryProof(
         'verificationOperations',
       ])
     : undefined;
+  const bindingFields = fields(carrier.binding, ['descriptor', 'registry', 'target']);
   const intents = projection ? array(projection.intents, 4_096) : undefined;
   const deliveryIntent = intents?.find((candidate) => {
     if (!plain(candidate)) return false;
@@ -682,31 +689,70 @@ function validateFinalDeliveryProof(
       candidate.type === operationType
     );
   }) as Record<string, unknown> | undefined;
-  const requestEffect = projection
-    ? array(projection.effects, 4_096)?.some((candidate) => {
-        const effect = fields(candidate, [
-          'authority',
-          'candidate',
-          'candidateContentDigest',
-          'correlationKey',
-          'failurePhase',
-          'generation',
-          'kind',
-          'observedAt',
-          'operation',
-          'outcome',
-          'registry',
-          'resourceIdentity',
-          'result',
-          'schema',
-          'target',
-          'targetBasisDigest',
-          'type',
-        ]);
-        return Boolean(effect && effect.type === 'OPC-DEL-REQUEST' && effect.outcome === 'success');
-      })
-    : false;
-  const bindingFields = fields(carrier.binding, ['descriptor', 'registry', 'target']);
+  const requestIntent = intents?.find((candidate) => {
+    if (!plain(candidate)) return false;
+    const expectedKeys = [
+      'authority',
+      'candidate',
+      'candidateContentDigest',
+      'correlationKey',
+      'generation',
+      'kind',
+      'operation',
+      'registry',
+      'resourceIdentity',
+      'schema',
+      'strategy',
+      'subject',
+      'target',
+      'targetBasisDigest',
+      'transition',
+      'type',
+    ].sort();
+    return same(Object.keys(candidate).sort(), expectedKeys) && candidate.type === 'OPC-DEL-REQUEST';
+  }) as Record<string, unknown> | undefined;
+  const requestEffect = (
+    projection
+      ? array(projection.effects, 4_096)?.find((candidate) => {
+          const effect = fields(candidate, [
+            'authority',
+            'candidate',
+            'candidateContentDigest',
+            'correlationKey',
+            'failurePhase',
+            'generation',
+            'kind',
+            'observedAt',
+            'operation',
+            'outcome',
+            'registry',
+            'resourceIdentity',
+            'result',
+            'schema',
+            'target',
+            'targetBasisDigest',
+            'type',
+          ]);
+          return Boolean(
+            effect &&
+              effect.schema === DELIVERY_EVENT_SCHEMA &&
+              effect.kind === 'EV-EFFECT-CERTAINTY' &&
+              effect.type === 'OPC-DEL-REQUEST' &&
+              effect.outcome === 'success' &&
+              effect.target === bindingFields?.target &&
+              effect.registry === bindingFields?.registry &&
+              effect.generation === carrier.generation &&
+              effect.authority === carrier.authority &&
+              effect.candidate === carrier.candidate &&
+              effect.candidateContentDigest === carrier.candidateContentDigest &&
+              effect.targetBasisDigest === carrier.targetBasisDigest &&
+              typeof effect.correlationKey === 'string' &&
+              typeof effect.resourceIdentity === 'string',
+          );
+        })
+      : undefined
+  ) as Record<string, unknown> | undefined;
+  const carrierStrategy = fields(carrier.strategy, ['digest', 'mode']);
   const pendingDeliveryOperations = finalizerProjection
     ? array(finalizerProjection.pendingDeliveryOperations, 4_096)
     : undefined;
@@ -735,6 +781,22 @@ function validateFinalDeliveryProof(
     deliveryIntent.transition === transition &&
     typeof deliveryIntent.correlationKey === 'string' &&
     typeof deliveryIntent.resourceIdentity === 'string';
+  const exactRequestIntent =
+    requestIntent &&
+    requestIntent.schema === DELIVERY_EVENT_SCHEMA &&
+    requestIntent.operation === requestEffect?.operation &&
+    requestIntent.target === bindingFields?.target &&
+    requestIntent.registry === bindingFields?.registry &&
+    requestIntent.candidate === carrier.candidate &&
+    requestIntent.candidateContentDigest === carrier.candidateContentDigest &&
+    requestIntent.targetBasisDigest === carrier.targetBasisDigest &&
+    requestIntent.generation === carrier.generation &&
+    requestIntent.authority === carrier.authority &&
+    requestIntent.transition === operationTransition(requestIntent.operation as string) &&
+    requestIntent.subject === 'target' &&
+    requestIntent.strategy === carrierStrategy?.mode &&
+    typeof requestIntent.correlationKey === 'string' &&
+    typeof requestIntent.resourceIdentity === 'string';
   const finalizerRecord = (record: unknown): boolean => {
     const candidate = fields(record, ['authority', 'operation', 'type', 'kind']);
     return Boolean(
@@ -745,9 +807,48 @@ function validateFinalDeliveryProof(
         same(candidate.authority, authority),
     );
   };
+  const finalizerTargetFact = (record: unknown): boolean => {
+    const candidate = fields(record, ['fact', 'kind', 'operation', 'relatedOperation']);
+    const fact = candidate
+      ? fields(candidate.fact, [
+          'anchorRegistry',
+          'kind',
+          'observedAt',
+          'operation',
+          'outcome',
+          'registry',
+          'schema',
+          'target',
+          'targetBasisDigest',
+        ])
+      : undefined;
+    return Boolean(
+      candidate &&
+        candidate.kind === 'target-fact' &&
+        candidate.operation === null &&
+        candidate.relatedOperation === carrier.anchorOperation &&
+        fact &&
+        fact.schema === FINALIZER_EVENT_SCHEMA &&
+        fact.kind === 'EV-TARGET-FACT' &&
+        fact.operation === carrier.anchorOperation &&
+        fact.target === bindingFields?.target &&
+        fact.registry === bindingFields?.registry &&
+        fact.targetBasisDigest === carrier.targetBasisDigest &&
+        fact.anchorRegistry === bindingFields?.registry &&
+        fact.outcome === 'present',
+    );
+  };
   const deliveryRecord = (record: unknown): boolean => {
     const candidate = fields(record, ['intent', 'kind']);
     return Boolean(candidate && candidate.kind === 'intent' && same(candidate.intent, deliveryIntent));
+  };
+  const requestEffectRecord = (record: unknown): boolean => {
+    const candidate = fields(record, ['fact', 'kind']);
+    return Boolean(candidate && candidate.kind === 'effect' && same(candidate.fact, requestEffect));
+  };
+  const requestIntentRecord = (record: unknown): boolean => {
+    const candidate = fields(record, ['intent', 'kind']);
+    return Boolean(candidate && candidate.kind === 'intent' && same(candidate.intent, requestIntent));
   };
   const proofResult = Boolean(
     snapshot &&
@@ -767,19 +868,23 @@ function validateFinalDeliveryProof(
       finalizerProjection &&
       finalizerProjection.status === 'Finalizing' &&
       finalizerProjection.anchorRegistry === bindingFields?.registry &&
-      pendingDeliveryOperations?.includes(carrier.anchorOperation) &&
+      pendingDeliveryOperations?.length === 0 &&
       typeof finalizerProjection.refreshCount === 'number' &&
       finalizerProjection.refreshCount >= 0 &&
       exactAuthority &&
       entry &&
-      entry.operation === carrier.anchorOperation &&
-      entry.origin === 'Accepted' &&
+      identity('ID-OP', entry.operation) &&
+      ['Waiting', 'Accepted'].includes(String(entry.origin)) &&
       entry.readyForDelivery === true &&
       entry.authority &&
       same(entry.authority, authority) &&
       exactIntent &&
+      exactRequestIntent &&
       requestEffect &&
+      validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerTargetFact) &&
       validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerRecord) &&
+      validateProofJournal(snapshot.records, 'DELIVERY-RECORD', requestEffectRecord) &&
+      validateProofJournal(snapshot.records, 'DELIVERY-RECORD', requestIntentRecord) &&
       validateProofJournal(snapshot.records, 'DELIVERY-RECORD', deliveryRecord),
   );
   return proofResult;

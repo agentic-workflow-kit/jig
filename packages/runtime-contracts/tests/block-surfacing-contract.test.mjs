@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { stageDigest } from '@agentic-workflow-kit/jig-codec';
 
@@ -105,74 +106,424 @@ const finalRemoteGateBasis = {
   registry: finalBindingRegistry,
   target: finalBindingTarget,
 };
+const realPredecessor = (() => {
+  const durableCandidateContentDigest = stageDigest({
+    domain: 'CANDIDATE-CONTENT',
+    excludePaths: [],
+    value: { targetBasisDigest: digest('d'), changedPaths: [], treeDigest: digest('a'), workspaceCommit: null },
+  }).value.digest;
+  const candidate = `${story}/cand/1|${durableCandidateContentDigest}`;
+  const candidateRecord = {
+    schema: 'jig.sch-candidate.v1',
+    id: candidate,
+    run,
+    story,
+    role: 'implementer',
+    session: `${story}/session/implementer/1`,
+    principal: 'principal/arye',
+    sessionOrdinal: 1,
+    assignmentOrdinal: 1,
+    source: 'session-result',
+    sourceEventKey: digest('1'),
+    sourceEvent: {
+      event: 'EV-SESSION-RESULT',
+      operation: operation(1),
+      sessionOrdinal: 1,
+      assignmentOrdinal: 1,
+      commitProof: {
+        kind: 'committed-witnessed',
+        position: 0,
+        event: `${run}/event/1`,
+        transaction: transaction(1),
+        recordDigest: digest('5'),
+        witnessDigest: digest('5'),
+      },
+    },
+    candidateCreationKey: '',
+    runBasisDigest: digest('0'),
+    targetBasisDigest: digest('d'),
+    changedPaths: [],
+    treeDigest: digest('a'),
+    workspaceCommit: null,
+    deliveryMetadata: {
+      changedPaths: [],
+      commitMessage: null,
+      workspaceCommit: null,
+      session: `${story}/session/implementer/1`,
+    },
+    deliveryMetadataDigest: '',
+    evidenceManifestDigest: digest('f'),
+    workspaceFingerprint: digest('1'),
+    workspaceFactDigest: digest('2'),
+    candidateContentDigest: durableCandidateContentDigest,
+    posture: 'none',
+    generation,
+    authorizingTransition: transaction(1),
+    commitProof: {
+      kind: 'committed-witnessed',
+      position: 0,
+      event: `${run}/event/1`,
+      transaction: transaction(1),
+      recordDigest: digest('5'),
+      witnessDigest: digest('5'),
+    },
+  };
+  candidateRecord.deliveryMetadataDigest = stageDigest({
+    domain: 'CANDIDATE-DELIVERY-METADATA',
+    excludePaths: [],
+    value: candidateRecord.deliveryMetadata,
+  }).value.digest;
+  candidateRecord.candidateCreationKey = stageDigest({
+    domain: 'CANDIDATE-CREATION-KEY',
+    excludePaths: [],
+    value: {
+      source: candidateRecord.source,
+      story,
+      session: candidateRecord.session,
+      producerKey: candidateRecord.sourceEventKey,
+      candidateContentDigest: durableCandidateContentDigest,
+    },
+  }).value.digest;
+  const workspaceTransition = runtime.createWorkspaceTransitionRecorder();
+  const workspaceController = runtime.createWorkspaceController({
+    transition: workspaceTransition,
+    fixture: runtime.createScriptedWorkspaceFixture(),
+  });
+  const workspaceObservation = workspaceController.observe({
+    binding: {
+      operation: operation(90),
+      operationType: 'OPC-WS-OBSERVE',
+      subject: { run, story, basis: digest('0') },
+      repository: 'repository/fixture-main',
+      path: '/workspace/fixture-main',
+      basis: digest('0'),
+      recipeDigest: digest('8'),
+      inputFingerprintDigest: digest('9'),
+      host: 'host/fixture-main',
+      manifest: `provider/${digest('3')}/authority/${digest('4')}`,
+    },
+  });
+  assert.equal(workspaceObservation.ok, true, JSON.stringify(workspaceObservation));
+  candidateRecord.workspaceFingerprint = workspaceObservation.value.workspaceFingerprint;
+  candidateRecord.workspaceFactDigest = workspaceObservation.value.contentDigest;
+  const manifestBasis = {
+    configurationDigest: digest('0'),
+    schemaVersion: 'jig.evidence.v1',
+    policy: {
+      kind: 'fixture-policy',
+      version: 'fixture-policy/v1',
+      digest: digest('e'),
+      scanPolicyVersion: 'scan/v1',
+      scanPolicyDigest: digest('f'),
+    },
+    subjectKind: 'ID-CAND',
+    subjectIdentity: candidate,
+    subject: `evidence://${candidate}/claim/candidate-content`,
+    claim: 'candidate-content',
+    producer: { kind: 'principal', principal: 'principal/arye', session: candidateRecord.session },
+    providerManifest: null,
+    contentType: 'text/plain',
+    contentClass: 'completeness-critical',
+    completeness: 'complete',
+    originalDigest: digest('2'),
+    artifactDigest: durableCandidateContentDigest,
+    originalSize: 1,
+    retainedSize: 1,
+    loss: null,
+    redaction: { policyVersion: 'scan/v1', status: 'none' },
+    retention: { class: 'fixture', windowDays: 1, hold: null },
+  };
+  const artifactFact = {
+    operation: operation(91),
+    mode: 'put',
+    position: 1,
+    headDigest: digest('4'),
+    binding: 'binding',
+  };
+  const manifestDigest = createHash('sha256')
+    .update(JSON.stringify({ basis: manifestBasis, artifactFact, adoptionTransition: `${candidate}/transition` }))
+    .digest('hex');
+  const manifest = {
+    ...manifestBasis,
+    manifestDigest,
+    disposition: 'admitted',
+    artifactFact,
+    adoptionTransition: `${candidate}/transition`,
+  };
+  candidateRecord.evidenceManifestDigest = manifestDigest;
+  const acceptance = runtime.createScriptedAcceptanceController({ reworkLimit: 2 }).value;
+  const requirementsDigest = runtime.deriveFrozenRequirementsDigest({
+    requirements: ['finalize'],
+    acceptanceCriteria: ['exact'],
+  }).value;
+  const policyDigest = runtime.deriveAcceptancePolicyDigest({
+    posture: 'none',
+    reviewMode: 'no-venue',
+    ruleSurfaceDigest: digest('6'),
+  }).value;
+  const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
+    schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+    manifest,
+    manifestDigest,
+    candidate,
+    candidateContentDigest: durableCandidateContentDigest,
+    targetBasisDigest: digest('d'),
+    disposition: 'admitted',
+    availability: 'available',
+  }).value;
+  const publication = runtime.createExplicitAbsenceObservation({
+    mode: 'no-venue',
+    subject: {
+      run,
+      story,
+      basis: digest('c'),
+      repository: 'repository/fixture-main',
+      candidate,
+      candidateContentDigest: durableCandidateContentDigest,
+      targetBasisDigest: digest('d'),
+    },
+  }).value;
+  const assembled = acceptance.assemble({
+    candidate: candidateRecord,
+    requirements: {
+      schema: 'jig.frozen-requirements.v1',
+      requirements: ['finalize'],
+      acceptanceCriteria: ['exact'],
+      digest: requirementsDigest,
+    },
+    evidence: {
+      schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+      manifest,
+      manifestDigest,
+      candidate,
+      candidateContentDigest: durableCandidateContentDigest,
+      targetBasisDigest: digest('d'),
+      disposition: 'admitted',
+      availability: 'available',
+      integrityDigest: evidenceDigest,
+    },
+    publicationObservation: publication,
+    policy: {
+      schema: 'jig.acceptance-policy.v1',
+      posture: 'none',
+      reviewMode: 'no-venue',
+      ruleSurfaceDigest: digest('6'),
+      digest: policyDigest,
+    },
+    findings: [],
+    contributorPrincipals: [],
+  });
+  assert.equal(assembled.ok, true, JSON.stringify(assembled));
+  const assignment = acceptance.assign({
+    package: assembled.value,
+    session: `${story}/session/reviewer/1`,
+    principal: 'principal/reviewer',
+  });
+  assert.equal(assignment.ok, true, JSON.stringify(assignment));
+  assert.equal(acceptance.receiveVerdict({ assignment: assignment.value, verdict: 'approve', findings: [] }).ok, true);
+  const verification = runtime.createScriptedVerificationFixture({
+    recordDispatch: () => ({ ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } }),
+  });
+  const registry = runtime.createScriptedRegistry();
+  const finalizerPolicy = runtime.createFinalizerPolicy({
+    posture: 'none',
+    requiredClasses: [],
+    waitCapacitySeconds: 3_600,
+    waitTargetSeconds: 1_800,
+    refreshLimit: 2,
+  }).value;
+  const finalizer = runtime.createScriptedFinalizerController({
+    binding: { descriptor: finalBindingDescriptor, registry: finalBindingRegistry, target: finalBindingTarget },
+    registry,
+    verification,
+  }).value;
+  const waiter = finalizer.enqueue({
+    operation: operation(1),
+    run,
+    story,
+    comparator: { priority: 1, ordinal: 1, story },
+    policy: finalizerPolicy,
+    waitedAt: 10,
+    candidateCarrier: candidateRecord,
+    acceptanceController: acceptance,
+    workspaceController,
+  });
+  assert.equal(waiter.ok, true, JSON.stringify(waiter));
+  const granted = finalizer.grant({ operation: operation(2), story, waitedAt: 10 });
+  assert.equal(granted.ok, true, JSON.stringify(granted));
+  const entry = finalizer.enterFinalizing({
+    operation: operation(3),
+    origin: 'Waiting',
+    verificationRequests: [
+      {
+        schema: runtime.VERIFICATION_REQUEST_SCHEMA,
+        version: runtime.VERIFICATION_CONTRACT_VERSION,
+        type: runtime.VERIFICATION_OPERATION,
+        port: runtime.VERIFICATION_PORT,
+        capability: runtime.VERIFICATION_CAPABILITY,
+        operation: operation(4),
+        subject: {
+          candidate,
+          candidateContentDigest: durableCandidateContentDigest,
+          basisDigest: digest('0'),
+          checkClasses: [],
+          configurationDigest: runtime.deriveVerificationConfigurationDigest({ bindings: [] }).value,
+          environmentDigest: runtime.deriveVerificationEnvironmentDigest({
+            fingerprint: 'environment/fixture',
+            declaredNames: [],
+          }).value,
+          cleanReceiptDigest: runtime.deriveVerificationCleanReceiptDigest({
+            candidateContentDigest: durableCandidateContentDigest,
+            targetBasisDigest: digest('d'),
+          }).value,
+        },
+        fence: {
+          generation,
+          basis: digest('0'),
+          candidateContentDigest: durableCandidateContentDigest,
+          targetBasisDigest: digest('d'),
+        },
+        policy: {
+          posture: 'none',
+          required: [],
+          digest: runtime.deriveVerificationPolicyDigest({ posture: 'none', required: [] }).value,
+        },
+        configuration: { bindings: [], digest: runtime.deriveVerificationConfigurationDigest({ bindings: [] }).value },
+        environment: {
+          fingerprint: 'environment/fixture',
+          declaredNames: [],
+          digest: runtime.deriveVerificationEnvironmentDigest({ fingerprint: 'environment/fixture', declaredNames: [] })
+            .value,
+        },
+        cleanReceipt: {
+          candidateContentDigest: durableCandidateContentDigest,
+          targetBasisDigest: digest('d'),
+          receiptDigest: runtime.deriveVerificationCleanReceiptDigest({
+            candidateContentDigest: durableCandidateContentDigest,
+            targetBasisDigest: digest('d'),
+          }).value,
+          checkout: 'read-only',
+          scratch: 'discarded',
+          network: 'none',
+        },
+        checkClass: null,
+        lifecycle: 'Finalizing',
+        retryOrdinal: 1,
+        predecessor: null,
+        bounds: { waitMs: 5_000, retryLimit: 2 },
+      },
+    ],
+  });
+  assert.equal(entry.ok, true, JSON.stringify(entry));
+  const anchor = finalizer.authorizeAnchor({ operation: request, authority: granted.value });
+  assert.equal(anchor.ok, true, JSON.stringify(anchor));
+  const authority = finalizer.projection().authority.authority;
+  const effect = (op, type, result = {}) => ({
+    schema: runtime.DELIVERY_EVENT_SCHEMA,
+    kind: 'EV-EFFECT-CERTAINTY',
+    operation: op,
+    type,
+    target: finalBindingTarget,
+    registry: finalBindingRegistry,
+    generation,
+    authority,
+    candidate,
+    candidateContentDigest: durableCandidateContentDigest,
+    targetBasisDigest: digest('d'),
+    correlationKey: `correlation/${type.toLowerCase()}`,
+    resourceIdentity: `resource/${type.toLowerCase()}`,
+    outcome: 'success',
+    observedAt: 100,
+    failurePhase: null,
+    result,
+  });
+  const operationFor = (ordinal) => `${transaction(ordinal)}/op/1`;
+  const statusOperation = finalOperation;
+  const effects = [
+    effect(request, 'OPC-DEL-ANCHOR', { anchorRegistry: finalBindingRegistry }),
+    effect(operationFor(7), 'OPC-DEL-PUBLISH'),
+    effect(operationFor(8), 'OPC-DEL-REQUEST'),
+    effect(statusOperation, 'OPC-DEL-STATUS'),
+  ];
+  const intent = (op, type) => ({
+    operation: op,
+    type,
+    target: finalBindingTarget,
+    registry: finalBindingRegistry,
+    candidate,
+    candidateContentDigest: durableCandidateContentDigest,
+    targetBasisDigest: digest('d'),
+    generation,
+    authority,
+    transition: op.slice(0, op.lastIndexOf('/op/')),
+    strategy: 'squash',
+    subject: 'target',
+    correlationKey: `correlation/${type.toLowerCase()}`,
+    resourceIdentity: `resource/${type.toLowerCase()}`,
+  });
+  const mechanism = runtime.createScriptedDeliveryMechanism({ effects, observations: [] }).value;
+  const controller = runtime.createScriptedDeliveryController({
+    acceptanceSnapshot: acceptance.snapshot(),
+    binding: { descriptor: finalBindingDescriptor, registry: finalBindingRegistry, target: finalBindingTarget },
+    candidateCarrier: candidateRecord,
+    finalizerSnapshot: finalizer.snapshot(),
+    registry,
+    remoteGate: {
+      ...finalRemoteGateBasis,
+      acceptedPackageDigest: acceptance.projection().acceptedPackageDigest,
+      candidate,
+      digest: runtime.deriveDeliveryGateRequirementDigest({
+        ...finalRemoteGateBasis,
+        acceptedPackageDigest: acceptance.projection().acceptedPackageDigest,
+        candidate,
+      }),
+    },
+    strategy: { mode: 'squash', digest: runtime.deriveDeliveryStrategyDigest('squash') },
+    verificationAuthorizer: {
+      recordDispatch: () => ({ ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } }),
+    },
+    mechanism,
+    initialSnapshot: undefined,
+  });
+  assert.equal(controller.ok, true, JSON.stringify(controller));
+  for (const [op, type] of [
+    [request, 'OPC-DEL-ANCHOR'],
+    [operationFor(7), 'OPC-DEL-PUBLISH'],
+    [operationFor(8), 'OPC-DEL-REQUEST'],
+    [statusOperation, 'OPC-DEL-STATUS'],
+  ]) {
+    assert.equal(controller.value.authorize(intent(op, type)).ok, true);
+    assert.equal(controller.value.dispatch({ operation: op }).ok, true);
+  }
+  const snapshot = controller.value.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: acceptance.snapshot(),
+    binding: { descriptor: finalBindingDescriptor, registry: finalBindingRegistry, target: finalBindingTarget },
+    candidateCarrier: candidateRecord,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    registry,
+    remoteGate: snapshot.carrier.remoteGate,
+    strategy: snapshot.carrier.strategy,
+    verificationAuthorizer: {
+      recordDispatch: () => ({ ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } }),
+    },
+    mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  return snapshot;
+})();
+const finalCarrier = realPredecessor.carrier;
 const finalSubject = Object.freeze({
   ...subject,
+  run: finalCarrier.run,
+  story: finalCarrier.story,
+  generation: finalCarrier.generation,
+  candidate: finalCarrier.candidate,
+  request: finalCarrier.anchorOperation,
   outcome: 'held',
   scope: 'final-delivery',
-  authority: finalAuthority,
-  fence: finalAuthority,
-});
-const finalCarrier = Object.freeze({
-  binding: { descriptor: finalBindingDescriptor, registry: finalBindingRegistry, target: finalBindingTarget },
-  run,
-  story,
-  candidate,
-  candidatePrincipal: 'principal/arye',
-  candidateContentDigest: digest('b'),
-  targetBasisDigest: digest('d'),
-  generation,
-  authority: finalAuthority,
-  anchorOperation: request,
-  anchorTransition: transaction(2),
-  remoteGate: {
-    ...finalRemoteGateBasis,
-    digest: runtime.deriveDeliveryGateRequirementDigest(finalRemoteGateBasis),
-  },
-  acceptedPackageDigest: finalAcceptedPackageDigest,
-  strategy: { mode: 'squash', digest: runtime.deriveDeliveryStrategyDigest('squash') },
-  waitTargetSeconds: 60,
-  recoveryLimit: 3,
-  changedPaths: [],
-  workspaceCommit: null,
-  treeDigest: digest('a'),
-});
-const finalizerAuthority = Object.freeze({
-  authority: finalAuthority,
-  authorityGeneration: 1,
-  registry: finalBindingRegistry,
-  target: finalBindingTarget,
-  story,
-  candidate,
-  candidateContentDigest: digest('b'),
-  targetBasisDigest: digest('d'),
-  eligibilityBasis: digest('c'),
-  generation,
-});
-const finalizerEntry = Object.freeze({
-  operation: request,
-  origin: 'Accepted',
-  authority: finalizerAuthority,
-  posture: 'deterministic',
-  requiredClasses: Object.freeze([]),
-  verificationOperations: Object.freeze([]),
-  observations: Object.freeze([]),
-  noOp: false,
-  readyForDelivery: true,
-});
-const finalizerProjection = Object.freeze({
-  status: 'Finalizing',
-  waiters: Object.freeze([]),
-  authority: finalizerAuthority,
-  entry: finalizerEntry,
-  pendingDeliveryOperations: Object.freeze([request]),
-  anchorRegistry: finalBindingRegistry,
-  refreshCount: 0,
-});
-const finalizerRecord = Object.freeze({
-  kind: 'delivery-intent',
-  operation: request,
-  type: 'OPC-DEL-ANCHOR',
-  authority: finalizerAuthority,
+  authority: finalCarrier.authority,
+  fence: finalCarrier.authority,
 });
 const journal = (domain, records) => {
   let previousDigest = digest('0');
@@ -185,82 +536,21 @@ const journal = (domain, records) => {
     }),
   );
 };
-const finalizerSnapshot = Object.freeze({
-  schema: 'jig.finalizer-snapshot.v1',
-  binding: finalCarrier.binding,
-  registryHead: Object.freeze({ position: 0, digest: digest('0') }),
-  records: journal('FINALIZER-RECORD', [finalizerRecord]),
-  projection: finalizerProjection,
-  verificationSnapshot: Object.freeze({}),
-});
-const requestEffect = Object.freeze({
-  schema: 'jig.delivery-event.v1',
-  kind: 'EV-EFFECT-CERTAINTY',
-  operation: operation(7),
-  type: 'OPC-DEL-REQUEST',
-  target: finalBindingTarget,
-  registry: finalBindingRegistry,
-  generation,
-  authority: finalAuthority,
-  candidate,
-  candidateContentDigest: digest('b'),
-  targetBasisDigest: digest('d'),
-  correlationKey: 'delivery/request/gf045',
-  resourceIdentity: 'resource/gf045-request',
-  outcome: 'success',
-  observedAt: 1_000,
-  failurePhase: null,
-  result: Object.freeze({}),
-});
-const finalDeliveryIntent = Object.freeze({
-  schema: 'jig.delivery-event.v1',
-  kind: 'OPERATION-INTENT',
-  operation: finalOperation,
-  type: 'OPC-DEL-STATUS',
-  target: finalBindingTarget,
-  registry: finalBindingRegistry,
-  candidate,
-  candidateContentDigest: digest('b'),
-  targetBasisDigest: digest('d'),
-  subject: 'target',
-  generation,
-  authority: finalAuthority,
-  transition: transaction(2),
-  correlationKey: 'delivery/status/gf045',
-  resourceIdentity: 'resource/gf045-status',
-  strategy: 'squash',
-});
-const finalDeliveryProjection = Object.freeze({
-  status: 'Ready',
-  carrier: finalCarrier,
-  intents: Object.freeze([finalDeliveryIntent]),
-  effects: Object.freeze([requestEffect]),
-  observations: Object.freeze([]),
-  landing: null,
-  releasedStories: Object.freeze([]),
-  recovery: null,
-  targetWait: null,
-  finalizer: finalizerProjection,
-});
-const finalDeliverySnapshot = Object.freeze({
-  schema: 'jig.delivery-snapshot.v1',
-  carrier: finalCarrier,
-  status: 'Ready',
-  records: journal('DELIVERY-RECORD', [
-    { kind: 'effect', fact: requestEffect },
-    { kind: 'intent', intent: finalDeliveryIntent },
-  ]),
-  projection: finalDeliveryProjection,
-  finalizerSnapshot,
-});
+const finalDeliverySnapshot = realPredecessor;
+const finalizerSnapshot = finalDeliverySnapshot.finalizerSnapshot;
+const finalizerProjection = finalizerSnapshot.projection;
+const finalizerEntry = finalizerProjection.entry;
+const requestEffect = finalDeliverySnapshot.projection.effects.find((fact) => fact.type === 'OPC-DEL-REQUEST');
+const finalDeliveryIntent = finalDeliverySnapshot.projection.intents.find((intent) => intent.type === 'OPC-DEL-STATUS');
+const finalDeliveryProjection = finalDeliverySnapshot.projection;
 const finalScope = Object.freeze({
   kind: 'final-delivery',
   carrier: finalCarrier,
   deliverySnapshot: finalDeliverySnapshot,
-  operation: finalOperation,
+  operation: finalDeliveryIntent.operation,
   operationType: 'OPC-DEL-STATUS',
   requestIdentity: request,
-  transition: transaction(2),
+  transition: finalDeliveryIntent.transition,
 });
 const obligationId = `${run}/obligation/1`;
 const criteria = Object.freeze({
@@ -567,6 +857,51 @@ test('GF045 rejects stale or cross-scope authority and wrong operation class', (
       authorization(
         {
           scope: Object.freeze({ ...finalScope, deliverySnapshot: undefined }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
+  assert.equal(
+    held.authorize(
+      authorization(
+        {
+          scope: Object.freeze({
+            ...finalScope,
+            deliverySnapshot: Object.freeze({
+              ...finalDeliverySnapshot,
+              projection: Object.freeze({
+                ...finalDeliveryProjection,
+                effects: Object.freeze([
+                  Object.freeze({ ...requestEffect, candidate: `${story}/cand/2|${digest('c')}` }),
+                ]),
+              }),
+            }),
+          }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
+  assert.equal(
+    held.authorize(
+      authorization(
+        {
+          scope: Object.freeze({
+            ...finalScope,
+            deliverySnapshot: Object.freeze({
+              ...finalDeliverySnapshot,
+              records: journal('DELIVERY-RECORD', [
+                {
+                  kind: 'effect',
+                  fact: Object.freeze({ ...requestEffect, targetBasisDigest: digest('f') }),
+                },
+                { kind: 'intent', intent: finalDeliveryIntent },
+              ]),
+            }),
+          }),
         },
         true,
       ),
