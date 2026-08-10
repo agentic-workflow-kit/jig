@@ -1,0 +1,34 @@
+{
+  "story": "GF-046",
+  "controller": "RT-CONTROLLER",
+  "transitionWriter": "CP-TRANSITION",
+  "suites": ["CF-SEPARATION", "CF-PRESERVATION", "CF-EVIDENCE-LIFECYCLE"],
+  "operations": [
+    "OPC-SESSION-CLOSE",
+    "OPC-WS-PRESERVE",
+    "OPC-WS-RETIRE",
+    "OPC-REV-RETIRE-REF",
+    "OPC-REV-RETIRE-REQUEST",
+    "OPC-REV-RETIRE-STATUS",
+    "OPC-REV-RETIRE-COMMENT",
+    "OPC-ART-DISPOSE"
+  ],
+  "ports": {
+    "PORT-LEDGER": "record-only",
+    "PORT-SESSION": "dispatch",
+    "PORT-WORKSPACE": "dispatch",
+    "PORT-DELIVERY": "dispatch",
+    "PORT-ARTIFACT": "release-pin-only"
+  },
+  "exclusions": [
+    "outcome-decision",
+    "acceptance",
+    "landing",
+    "release",
+    "GF-050-settlement",
+    "dispose-bytes",
+    "provider-admission",
+    "external-destructive-cleanup"
+  ],
+  "providerPosture": "scripted-unavailable"
+}

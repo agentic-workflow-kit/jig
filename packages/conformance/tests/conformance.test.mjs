@@ -11,6 +11,9 @@ const oracle = JSON.parse(oracleText);
 const blockSurfacingOracle = JSON.parse(
   readFileSync(resolve(import.meta.dirname, './fixtures/block-surfacing-oracle.json'), 'utf8'),
 );
+const retirementOracle = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, './fixtures/retirement-oracle.json'), 'utf8'),
+);
 const hash = 'a'.repeat(64);
 const subject = Object.freeze({
   candidateContentDigest: hash,
@@ -62,6 +65,18 @@ test('GF045 oracle binds block surfacing to the delivery mechanism boundary with
     'notice-channel',
     'provider-admission',
   ]);
+});
+test('GF046 oracle binds preservation, separation, and evidence lifecycle without disposal authority', () => {
+  assert.deepEqual(retirementOracle, conformance.RETIREMENT_CONFORMANCE);
+  assert.deepEqual(conformance.RETIREMENT_CONFORMANCE.suites, [
+    'CF-SEPARATION',
+    'CF-PRESERVATION',
+    'CF-EVIDENCE-LIFECYCLE',
+  ]);
+  assert.equal(conformance.RETIREMENT_CONFORMANCE.ports['PORT-LEDGER'], 'record-only');
+  assert.equal(conformance.RETIREMENT_CONFORMANCE.ports['PORT-ARTIFACT'], 'release-pin-only');
+  assert.equal(conformance.RETIREMENT_CONFORMANCE.exclusions.includes('dispose-bytes'), true);
+  assert.equal(conformance.RETIREMENT_CONFORMANCE.providerPosture, 'scripted-unavailable');
 });
 const input = (suite, changes = {}) => {
   const encoded = encodeFrame(rawInput(suite, changes));
