@@ -1006,7 +1006,7 @@ function sandboxProfile(
 ): string | undefined {
   const canonicalCheckout = canonicalDirectory(checkout);
   const canonicalScratch = canonicalDirectory(scratch);
-  if (!canonicalCheckout || !canonicalScratch || !pathWithin(dirname(canonicalCheckout), canonicalScratch)) return undefined;
+  if (!canonicalCheckout || !canonicalScratch || pathWithin(canonicalCheckout, canonicalScratch)) return undefined;
   const literals = [...new Set([...SANDBOX_SYSTEM_READ_LITERALS, ...pathAncestors(canonicalCheckout), ...runtime.map((entry) => entry.path)])];
   const maps = [...new Set(runtime.map((entry) => entry.path))];
   if (policy.systemReadLiterals.some((entry, index) => entry !== SANDBOX_SYSTEM_READ_LITERALS[index])) return undefined;
