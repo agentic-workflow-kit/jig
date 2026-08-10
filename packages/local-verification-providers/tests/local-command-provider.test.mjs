@@ -208,6 +208,7 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
   try {
     mkdirSync(dist, { recursive: true });
     cpSync(new URL('../dist/index.js', import.meta.url), join(dist, 'index.js'));
+    cpSync(new URL('../dist/process-failure.js', import.meta.url), join(dist, 'process-failure.js'));
     writeFileSync(join(packageRoot, 'package.json'), '{"type":"module"}\n');
     writeFileSync(join(packageRoot, '.gitignore'), 'node_modules\nnode_modules/\n');
     symlinkSync(
@@ -219,9 +220,13 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
     execFileSync('/usr/bin/git', ['config', 'user.email', 'gf047@example.invalid'], { cwd: packageRoot });
     execFileSync('/usr/bin/git', ['config', 'user.name', 'GF-047'], { cwd: packageRoot });
     writeFileSync(join(packageRoot, 'tracked.txt'), 'tracked\n');
-    execFileSync('/usr/bin/git', ['add', '.gitignore', 'dist/index.js', 'package.json', 'tracked.txt'], {
-      cwd: packageRoot,
-    });
+    execFileSync(
+      '/usr/bin/git',
+      ['add', '.gitignore', 'dist/index.js', 'dist/process-failure.js', 'package.json', 'tracked.txt'],
+      {
+        cwd: packageRoot,
+      },
+    );
     execFileSync('/usr/bin/git', ['commit', '-q', '-m', 'fixture'], { cwd: packageRoot });
     const tempCommit = execFileSync('/usr/bin/git', ['rev-parse', 'HEAD'], {
       cwd: packageRoot,
@@ -239,15 +244,18 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
       environmentNames: [],
     });
     assert.equal(tempManifest.ok, true);
-    assert.deepEqual(
-      imported.runLocalCommandQualificationProbe({
-        candidateCommit: tempCommit,
-        candidateTree: tempTree,
-        manifest: tempManifest.value,
-        admission: { certificate: {} },
-      }),
-      { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
-    );
+    const qualification = imported.runLocalCommandQualificationProbe({
+      candidateCommit: tempCommit,
+      candidateTree: tempTree,
+      manifest: tempManifest.value,
+      admission: admission(),
+    });
+    if (platform() === 'darwin') assert.equal(qualification.ok, true, JSON.stringify(qualification));
+    else
+      assert.deepEqual(qualification, {
+        ok: false,
+        error: { family: 'FC-AUTHORITY', code: 'NATIVE_POSTURE_UNAVAILABLE' },
+      });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -266,15 +274,18 @@ test('canonical keys and tracked paths do not consult the host locale', () => {
       environmentNames: [],
     });
     assert.equal(exactManifest.ok, true);
-    assert.deepEqual(
-      provider.runLocalCommandQualificationProbe({
-        candidateCommit,
-        candidateTree,
-        manifest: exactManifest.value,
-        admission: { certificate: {} },
-      }),
-      { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
-    );
+    const qualification = provider.runLocalCommandQualificationProbe({
+      candidateCommit,
+      candidateTree,
+      manifest: exactManifest.value,
+      admission: admission(),
+    });
+    if (platform() === 'darwin') assert.equal(qualification.ok, true, JSON.stringify(qualification));
+    else
+      assert.deepEqual(qualification, {
+        ok: false,
+        error: { family: 'FC-AUTHORITY', code: 'NATIVE_POSTURE_UNAVAILABLE' },
+      });
   } finally {
     String.prototype.localeCompare = original;
   }
@@ -295,6 +306,11 @@ test('qualification attests actual confinement and rejects reordered or wildcard
   assert.equal(proof.value.observations['ignored-symlink-denied'], true);
   assert.equal(proof.value.observations['ignored-credential-denied'], true);
   assert.equal(proof.value.observations['tracked-read-digest'], true);
+  assert.equal(proof.value.observations['exact-args'], true);
+  assert.deepEqual(proof.value.result.launcherArgs.slice(2), [
+    executable,
+    ...manifestValue.value.subprocessAuthority[0].args,
+  ]);
   assert.equal(proof.value.confinementTestDigest.length, 64);
   assert.equal(proof.value.runtimeReadDigest, proof.value.nativePosture.runtimeReadDigest);
   assert.equal(proof.value.sandboxPolicyDigest, proof.value.nativePosture.sandboxPolicyDigest);
