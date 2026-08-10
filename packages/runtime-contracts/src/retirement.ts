@@ -975,8 +975,13 @@ export function createRetirementController(
       (receipt.value.evidenceKey !== options.obligationEvidence.key ||
         receipt.value.evidenceSubject !== options.obligationEvidence.subject ||
         receipt.value.evidenceClaim !== options.obligationEvidence.claim)
-    )
+    ) {
+      const resource = resourceFor(receipt.value.resourceIdentity);
+      if (!resource.ok) return resource;
+      const obligation = openResidualObligation(resource.value, 'PRESERVATION_EVIDENCE_REFERENCE_MISMATCH');
+      if (!obligation.ok) return fail(obligation.error.family, obligation.error.code);
       return fail('FC-EVIDENCE', 'PRESERVATION_EVIDENCE_REFERENCE_MISMATCH');
+    }
     const prior = receipts.get(receipt.value.resourceIdentity);
     if (prior) return equal(prior, receipt.value) ? ok(prior) : fail('FC-FENCE', 'PRESERVATION_RECEIPT_REUSE_MISMATCH');
     receipts.set(receipt.value.resourceIdentity, receipt.value);

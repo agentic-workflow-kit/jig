@@ -308,6 +308,25 @@ test('GF046-MC-04/07: preservation receipt requires exact readback and selects F
     ok: false,
     error: { family: 'FC-EVIDENCE', code: 'PRESERVATION_READBACK_MISMATCH' },
   });
+  const mismatchController = retirement.createRetirementController(obligationOptions());
+  const mismatchPlan = mismatchController.plan(baseInput());
+  assert.equal(mismatchPlan.ok, true, JSON.stringify(mismatchPlan));
+  const mismatchWorkspace = mismatchPlan.value.resources.find((resource) => resource.kind === 'workspace');
+  assert.ok(mismatchWorkspace);
+  assert.deepEqual(
+    mismatchController.recordPreservation(
+      receipt(mismatchPlan.value, mismatchWorkspace, {
+        evidenceKey: digest('a'),
+      }),
+    ),
+    { ok: false, error: { family: 'FC-EVIDENCE', code: 'PRESERVATION_EVIDENCE_REFERENCE_MISMATCH' } },
+  );
+  assert.equal(mismatchController.snapshot().obligations.length, 1);
+  assert.equal(mismatchController.snapshot().obligations[0].resource, mismatchWorkspace.resource);
+  assert.equal(mismatchController.snapshot().obligations[0].deadline, retirementDeadline);
+  const mismatchRestored = retirement.restoreRetirementController(mismatchController.snapshot(), obligationOptions());
+  assert.equal(mismatchRestored.ok, true, JSON.stringify(mismatchRestored));
+  assert.deepEqual(mismatchRestored.value.snapshot(), mismatchController.snapshot());
   const preserved = controller.recordPreservation(receipt(planned.value, workspace));
   assert.equal(preserved.ok, true, JSON.stringify(preserved));
   assert.equal(preserved.value.kind, 'EV-WORKSPACE-PRESERVED');
