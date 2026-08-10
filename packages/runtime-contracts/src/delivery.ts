@@ -1146,8 +1146,89 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (!same(finalizerController.snapshot(), snapshot.finalizerSnapshot, 'DELIVERY-FINALIZER-RECOVERY'))
       return fail('FC-TRUST', 'DELIVERY_FINALIZER_REPLAY_MISMATCH');
   }
+  const sameEffectFence = (
+    left: DeliveryEffectFact | DeliveryObservationFact | DeliveryIntent,
+    right: DeliveryEffectFact | DeliveryObservationFact | DeliveryIntent,
+  ): boolean =>
+    left.target === right.target &&
+    left.registry === right.registry &&
+    left.generation === right.generation &&
+    left.authority === right.authority &&
+    left.candidate === right.candidate &&
+    left.candidateContentDigest === right.candidateContentDigest &&
+    left.targetBasisDigest === right.targetBasisDigest &&
+    left.correlationKey === right.correlationKey &&
+    left.resourceIdentity === right.resourceIdentity;
+  const reconciledSuccess = (fact: DeliveryEffectFact): boolean => {
+    if (fact.outcome !== 'uncertain' || !resolvedEffects.has(fact.operation)) return false;
+    const intents = journal.filter(
+      (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === fact.operation,
+    );
+    const effectsForOperation = journal.filter(
+      (entry) => entry.record.kind === 'effect' && entry.record.fact.operation === fact.operation,
+    );
+    const observationsForOperation = journal.filter(
+      (entry) =>
+        entry.record.kind === 'observation' &&
+        entry.record.fact.subject === 'effect' &&
+        entry.record.fact.resolvesOperation === fact.operation &&
+        entry.record.fact.outcome === 'present',
+    );
+    const observationIntents = journal.filter((entry) => {
+      if (
+        entry.record.kind !== 'intent' ||
+        entry.record.intent.type !== 'OPC-DEL-OBSERVE' ||
+        entry.record.intent.subject !== 'effect'
+      )
+        return false;
+      const observationOperation = entry.record.intent.operation;
+      return observationsForOperation.some(
+        (observationEntry) =>
+          observationEntry.record.kind === 'observation' &&
+          observationEntry.record.fact.operation === observationOperation,
+      );
+    });
+    const resolutions = journal.filter(
+      (entry) =>
+        entry.record.kind === 'recovery-resolved' &&
+        entry.record.operation === fact.operation &&
+        entry.record.outcome === 'success',
+    );
+    if (
+      intents.length !== 1 ||
+      effectsForOperation.length !== 1 ||
+      observationsForOperation.length !== 1 ||
+      observationIntents.length !== 1 ||
+      resolutions.length !== 1
+    )
+      return false;
+    const intentEntry = intents[0];
+    const effectEntry = effectsForOperation[0];
+    const observationIntentEntry = observationIntents[0];
+    const observationEntry = observationsForOperation[0];
+    const resolutionEntry = resolutions[0];
+    if (
+      intentEntry.record.kind !== 'intent' ||
+      effectEntry.record.kind !== 'effect' ||
+      observationIntentEntry.record.kind !== 'intent' ||
+      observationEntry.record.kind !== 'observation' ||
+      resolutionEntry.record.kind !== 'recovery-resolved' ||
+      resolutionEntry.record.observedOperation !== observationEntry.record.fact.operation ||
+      intentEntry.record.intent.type !== fact.type ||
+      !sameEffectFence(fact, intentEntry.record.intent) ||
+      !sameEffectFence(fact, observationIntentEntry.record.intent) ||
+      !sameEffectFence(fact, observationEntry.record.fact) ||
+      effectEntry.position >= observationIntentEntry.position ||
+      observationIntentEntry.position >= observationEntry.position ||
+      intentEntry.position >= effectEntry.position ||
+      observationEntry.position >= resolutionEntry.position
+    )
+      return false;
+    return true;
+  };
+  const isSuccessful = (fact: DeliveryEffectFact): boolean => fact.outcome === 'success' || reconciledSuccess(fact);
   const successful = (type: DeliveryOperationClass): DeliveryEffectFact | undefined =>
-    [...effects.values()].find((fact) => fact.type === type && fact.outcome === 'success');
+    [...effects.values()].find((fact) => fact.type === type && isSuccessful(fact));
   const anchorRootsAtCarrier = (anchor: DeliveryEffectFact): boolean => {
     const seen = new Set<string>();
     let current = anchor.operation;
@@ -1530,7 +1611,8 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       .find((entry) => entry.record.kind === 'observation' && entry.record.fact.subject === 'target');
     if (
       merge?.type !== 'OPC-DEL-MERGE' ||
-      !(merge.outcome === 'success' || resolvedEffects.has(merge.operation)) ||
+      !merge ||
+      !isSuccessful(merge) ||
       !mergeIntentEntry ||
       !mergeEffectEntry ||
       !observation ||
@@ -1546,9 +1628,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     )
       return fail('FC-EVIDENCE', 'AUTHORITATIVE_LANDING_OBSERVATION_REQUIRED');
     if (carrier.remoteGate.required && !currentRemoteGate()) return fail('FC-EVIDENCE', 'REMOTE_GATE_REQUIRED');
-    const anchor =
-      successful('OPC-DEL-ANCHOR') ??
-      [...effects.values()].find((fact) => fact.type === 'OPC-DEL-ANCHOR' && resolvedEffects.has(fact.operation));
+    const anchor = successful('OPC-DEL-ANCHOR');
     if (!anchor || !anchorRootsAtCarrier(anchor) || anchor.result.anchorRegistry !== carrier.binding.registry)
       return fail('FC-FENCE', 'REGISTRY_ANCHOR_REQUIRED');
     const changedPathsDigest = derive('DELIVERY-CHANGE-SET', {
