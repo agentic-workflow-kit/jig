@@ -1715,6 +1715,110 @@ function validateObservation(
   }) as unknown as LocalCommandObservation;
 }
 
+function sameRetryContract(left: VerificationRequest, right: VerificationRequest): boolean {
+  return (
+    left.lifecycle === right.lifecycle &&
+    left.checkClass === right.checkClass &&
+    sameSubject(left.subject, right.subject) &&
+    sameFence(left.fence, right.fence) &&
+    same(left.policy, right.policy) &&
+    same(left.configuration, right.configuration) &&
+    same(left.environment, right.environment) &&
+    same(left.cleanReceipt, right.cleanReceipt) &&
+    same(left.bounds, right.bounds)
+  );
+}
+
+function validRestoredFailureHistory(
+  requests: readonly VerificationRequest[],
+  failures: readonly LocalCommandFailureRecord[],
+  invocations: readonly LocalCommandInvocation[],
+): boolean {
+  try {
+    const requestsByOperation = new Map<string, VerificationRequest>();
+    for (const request of requests) {
+      if (requestsByOperation.has(request.operation) || request.retryOrdinal < 1) return false;
+      requestsByOperation.set(request.operation, request);
+    }
+    for (const request of requests) {
+      if (request.retryOrdinal === 1) {
+        if (request.predecessor !== null) return false;
+        continue;
+      }
+      const predecessor = request.predecessor ? requestsByOperation.get(request.predecessor) : undefined;
+      if (
+        !predecessor ||
+        predecessor.retryOrdinal + 1 !== request.retryOrdinal ||
+        !sameRetryContract(request, predecessor)
+      )
+        return false;
+    }
+
+    const failuresByOperation = new Map<string, LocalCommandFailureRecord>();
+    for (const failure of failures) {
+      const request = requestsByOperation.get(failure.operation);
+      if (
+        !request ||
+        failuresByOperation.has(failure.operation) ||
+        failure.retryOrdinal !== request.retryOrdinal ||
+        !same(failure.subject, request.subject) ||
+        !same(failure.fence, request.fence) ||
+        (failure.reason === 'timeout' && failure.code !== 'MECHANISM_TIMEOUT') ||
+        (failure.reason === 'lost-response' && failure.code !== 'RESULT_UNCERTAIN')
+      )
+        return false;
+      const matchingInvocations = invocations.filter((entry) => entry.operation === failure.operation);
+      if (
+        matchingInvocations.length !== 1 ||
+        matchingInvocations[0]?.retryOrdinal !== request.retryOrdinal ||
+        matchingInvocations[0]?.checkClass !== request.checkClass ||
+        matchingInvocations[0]?.result !== failure.reason ||
+        matchingInvocations[0]?.effect !== 'observation'
+      )
+        return false;
+      if (failure.supersededBy !== null) {
+        const successor = requestsByOperation.get(failure.supersededBy);
+        if (
+          !successor ||
+          successor.predecessor !== failure.operation ||
+          successor.retryOrdinal !== failure.retryOrdinal + 1 ||
+          !sameRetryContract(successor, request)
+        )
+          return false;
+      }
+      failuresByOperation.set(failure.operation, failure);
+    }
+
+    const invocationsByOperation = new Map<string, LocalCommandInvocation>();
+    for (const invocation of invocations) {
+      const request = requestsByOperation.get(invocation.operation);
+      if (
+        !request ||
+        invocationsByOperation.has(invocation.operation) ||
+        invocation.checkClass !== request.checkClass ||
+        invocation.retryOrdinal !== request.retryOrdinal ||
+        (invocation.result !== 'returned' && !failuresByOperation.has(invocation.operation)) ||
+        (invocation.result === 'returned' && failuresByOperation.has(invocation.operation))
+      )
+        return false;
+      invocationsByOperation.set(invocation.operation, invocation);
+    }
+
+    for (const request of requests) {
+      if (
+        request.retryOrdinal > 1 &&
+        !failures.some(
+          (failure) => failure.operation === request.predecessor && failure.supersededBy === request.operation,
+        )
+      )
+        return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function parseLocalSnapshot(
   value: unknown,
   manifest: LocalCommandManifest,
@@ -1790,6 +1894,10 @@ function parseLocalSnapshot(
   });
   if (failures.some((entry) => !entry) || invocations.some((entry) => !entry))
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+  const parsedFailures = failures as LocalCommandFailureRecord[];
+  const parsedInvocations = invocations as LocalCommandInvocation[];
+  if (!validRestoredFailureHistory(parsedRequests, parsedFailures, parsedInvocations))
+    return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   if (verification.finalization !== null) {
     const final = fields(verification.finalization, [
       'acceptanceGranted',
@@ -1837,8 +1945,8 @@ function parseLocalSnapshot(
         version: 'jig.verification-contract.v1' as const,
         requests: parsedRequests,
         observations: parsedObservations,
-        failures: Object.freeze(failures as LocalCommandFailureRecord[]),
-        invocations: Object.freeze(invocations as LocalCommandInvocation[]),
+        failures: Object.freeze(parsedFailures),
+        invocations: Object.freeze(parsedInvocations),
         finalization: verification.finalization as LocalCommandFinalizationSnapshot | null,
       }),
       observations: parsedObservations,

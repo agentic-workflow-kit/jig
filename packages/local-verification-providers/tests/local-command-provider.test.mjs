@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
@@ -101,14 +102,14 @@ const request = (ordinal, predecessor = null) =>
     predecessor,
     bounds: { waitMs: 5_000, retryLimit: 2 },
   });
-const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifestId) => {
+const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifestId, permitFence = fence) => {
   const operationId = operation(ordinal);
   const capabilityWithoutDigest = {
     kind: 'CB-VERIFY',
     port: 'PORT-VERIFY',
     operationClass: 'OPC-VERIFY-EXECUTE',
     subject: story,
-    fence,
+    fence: permitFence,
     resourceScope: 'verify/local-command',
     manifest: manifestId,
   };
@@ -120,7 +121,7 @@ const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifest
     ordinal: 1,
     type: 'OPC-VERIFY-EXECUTE',
     subject: { run, story, basis },
-    fence,
+    fence: permitFence,
     capability: { ...capabilityWithoutDigest, digest: capabilityDigest.value },
     authority: null,
     role: 'controller',
@@ -293,7 +294,7 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     );
     assert.deepEqual(
       provider.createLocalCommandCheckoutResource({
-        checkoutPath: '/private/tmp/../tmp',
+        checkoutPath: join(realpathSync(tmpdir()), '..', basename(realpathSync(tmpdir()))),
         request: request(1),
         targetBasisCommit,
         targetBasisTree,
@@ -302,6 +303,115 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('restore rejects failure history that is not bound to the exact request, invocation, and retry chain', () => {
+  const auth = admission();
+  const proof = provider.runLocalCommandQualificationProbe({
+    candidateCommit,
+    candidateTree,
+    manifest: manifestValue,
+    admission: auth,
+  });
+  if (!proof.ok) return;
+  const created = provider.createQualifiedLocalCommandProvider({
+    manifest: manifestValue,
+    admission: auth,
+    qualification: proof.value,
+  });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const qualified = created.value;
+  const first = request(1);
+  assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
+  const base = qualified.snapshot();
+  const failure = {
+    schema: 'jig.ev-check-failure.v1',
+    version: 'jig.verification-contract.v1',
+    kind: 'failure',
+    operation: first.operation,
+    retryOrdinal: first.retryOrdinal,
+    reason: 'timeout',
+    family: 'FC-MECHANISM',
+    code: 'MECHANISM_TIMEOUT',
+    subject: first.subject,
+    fence: first.fence,
+    supersededBy: null,
+  };
+  const invocation = {
+    operation: first.operation,
+    checkClass: first.checkClass,
+    retryOrdinal: first.retryOrdinal,
+    result: 'timeout',
+    effect: 'observation',
+  };
+  const valid = {
+    ...base,
+    verification: {
+      ...base.verification,
+      failures: [failure],
+      invocations: [invocation],
+    },
+  };
+  const restore = (verification) =>
+    provider.restoreQualifiedLocalCommandProvider({
+      manifest: manifestValue,
+      admission: auth,
+      qualification: proof.value,
+      snapshot: { ...valid, verification },
+    });
+  const second = request(2, first.operation);
+  assert.equal(
+    restore({
+      ...valid.verification,
+      requests: [first, second],
+      failures: [{ ...failure, supersededBy: second.operation }],
+      invocations: [invocation, { ...invocation, operation: second.operation, retryOrdinal: 2, result: 'returned' }],
+    }).ok,
+    true,
+    'genuine restored supersession chain remains retryable',
+  );
+  const invalid = { family: 'FC-TRUST', code: 'INVALID_LOCAL_COMMAND_SNAPSHOT' };
+  const cases = [
+    {
+      name: 'orphan operation',
+      failures: [{ ...failure, operation: operation(99) }],
+    },
+    {
+      name: 'cross-subject failure',
+      failures: [{ ...failure, subject: { ...failure.subject, candidate: `${story}/other` } }],
+    },
+    {
+      name: 'cross-fence failure',
+      failures: [{ ...failure, fence: { ...failure.fence, basis: 'b'.repeat(64) } }],
+    },
+    {
+      name: 'wrong retry ordinal',
+      failures: [{ ...failure, retryOrdinal: 2 }],
+    },
+    {
+      name: 'missing matching invocation',
+      invocations: [],
+    },
+    {
+      name: 'wrong invocation result',
+      invocations: [{ ...invocation, result: 'returned' }],
+    },
+    {
+      name: 'orphan supersession',
+      failures: [{ ...failure, supersededBy: operation(2) }],
+    },
+  ];
+  for (const testCase of cases) {
+    assert.deepEqual(
+      restore({
+        ...valid.verification,
+        failures: testCase.failures ?? valid.verification.failures,
+        invocations: testCase.invocations ?? valid.verification.invocations,
+      }),
+      { ok: false, error: invalid },
+      testCase.name,
+    );
   }
 });
 
