@@ -415,6 +415,7 @@ const factEffect = (
   resourceIdentity = null,
   generationOverride = null,
   authorityOverride = null,
+  correlationKeyOverride = null,
 ) => ({
   schema: runtime.DELIVERY_EVENT_SCHEMA,
   kind: 'EV-EFFECT-CERTAINTY',
@@ -427,7 +428,7 @@ const factEffect = (
   candidate: data.candidate.id,
   candidateContentDigest: data.candidateContentDigest,
   targetBasisDigest: data.targetBasisDigest,
-  correlationKey: `corr/${op.split('/').at(-4)}`,
+  correlationKey: correlationKeyOverride ?? `corr/${op.split('/').at(-4)}`,
   resourceIdentity: resourceIdentity ?? `resource/${type.toLowerCase()}`,
   outcome,
   observedAt,
@@ -509,6 +510,8 @@ const makeController = (
   anchorObservationCorrelationKey = null,
   anchorObservationResourceIdentity = null,
   anchorObservationOutcome = 'present',
+  anchorRetryOutcomes = null,
+  anchorRecoveryOutcomes = null,
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
@@ -516,6 +519,7 @@ const makeController = (
   const digest = runtime.deriveDeliveryStrategyDigest(mode);
   const effects = [];
   const nonAnchorOperation = (ordinal) => operation(offset + ordinal + 10);
+  const anchorRetryOperations = (anchorRetryOutcomes ?? []).map((_, index) => operation(offset + 70 + index));
   const addEffect = (ordinal, type, outcome = 'success', result = {}, observedAt = 10, failurePhase = null) => {
     const effectOperation = type === 'OPC-DEL-ANCHOR' ? data.anchorOperation : nonAnchorOperation(ordinal);
     const effectOutcome =
@@ -542,6 +546,23 @@ const makeController = (
     );
   };
   addEffect(1, 'OPC-DEL-ANCHOR', 'success', { anchorRegistry: binding.registry });
+  for (const [index, outcome] of (anchorRetryOutcomes ?? []).entries()) {
+    effects.push(
+      factEffect(
+        data,
+        anchorRetryOperations[index],
+        'OPC-DEL-ANCHOR',
+        outcome,
+        outcome === 'success' ? { anchorRegistry: binding.registry } : {},
+        30 + index,
+        null,
+        'resource/opc-del-anchor',
+        null,
+        null,
+        `corr/${data.anchorOperation.split('/').at(-4)}`,
+      ),
+    );
+  }
   addEffect(2, 'OPC-DEL-PUBLISH');
   addEffect(3, 'OPC-DEL-REQUEST');
   addEffect(4, 'OPC-DEL-STATUS');
@@ -562,20 +583,23 @@ const makeController = (
       ? { commit: workspaceCommit, treeDigest: data.candidate.treeDigest, contentDigest: data.candidateContentDigest }
       : { treeDigest: observedTreeDigest ?? data.candidate.treeDigest, changedPathsDigest };
   const mergeCorrelation = `corr/${nonAnchorOperation(6).split('/').at(-4)}`;
+  const anchorAttemptOperations = [data.anchorOperation, ...anchorRetryOperations];
   const observations = anchorUncertain
-    ? [
+    ? (anchorRecoveryOutcomes ?? [anchorObservationOutcome]).map((outcome, index) =>
         factObservation(
           data,
-          nonAnchorOperation(7),
+          nonAnchorOperation(7 + index),
           'effect',
-          anchorObservationOutcome,
-          anchorObservationResolvesOperation ?? data.anchorOperation,
-          anchorObservationOutcome === 'present' ? { anchorRegistry: binding.registry } : {},
-          20,
-          anchorObservationCorrelationKey ?? `corr/${data.anchorOperation.split('/').at(-4)}`,
-          anchorObservationResourceIdentity ?? 'resource/opc-del-anchor',
+          outcome,
+          anchorObservationResolvesOperation ?? anchorAttemptOperations[index],
+          outcome === 'present' ? { anchorRegistry: binding.registry } : {},
+          20 + index,
+          index === 0
+            ? (anchorObservationCorrelationKey ?? `corr/${data.anchorOperation.split('/').at(-4)}`)
+            : `corr/${data.anchorOperation.split('/').at(-4)}`,
+          index === 0 ? (anchorObservationResourceIdentity ?? 'resource/opc-del-anchor') : 'resource/opc-del-anchor',
         ),
-      ]
+      )
     : uncertainMerge
       ? [
           factObservation(
@@ -687,6 +711,7 @@ const makeController = (
       observe: nonAnchorOperation(7),
       observe2: nonAnchorOperation(8),
       gate: nonAnchorOperation(9),
+      anchorRetry: anchorRetryOperations,
     },
     mode,
     remoteGate,
@@ -1157,6 +1182,178 @@ test('GF044-MC-04: exact anchor absence resolves recovery without mutating the f
   });
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.projection(), data.controller.projection());
+});
+
+test('GF044-MC-04/MC-07: exact anchor absence authorizes a fresh bounded replacement operation across restore', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-anchor-retry',
+    null,
+    420,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    2,
+    true,
+    null,
+    null,
+    null,
+    'present',
+    ['success'],
+    ['absent'],
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  const correlation = `corr/${data.anchorOperation.split('/').at(-4)}`;
+  const replacement = data.operations.anchorRetry[0];
+  assert.deepEqual(
+    data.controller.authorize(
+      request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).error,
+    { family: 'FC-RECOVERY', code: 'RECOVERY_OBSERVATION_REQUIRED' },
+  );
+  assert.equal(
+    data.controller.authorize(
+      request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'effect' }).ok, true);
+
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(
+    restored.value.authorize({
+      ...request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+      target: 'target/foreign',
+    }).error,
+    { family: 'FC-FENCE', code: 'DELIVERY_OPERATION_FENCE_MISMATCH' },
+  );
+  assert.deepEqual(
+    restored.value.authorize(
+      request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', 'corr/foreign', 'resource/foreign'),
+    ).error,
+    { family: 'FC-FENCE', code: 'RETRY_RESOURCE_FENCE_MISMATCH' },
+  );
+  const authorized = restored.value.authorize(
+    request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+  );
+  assert.equal(authorized.ok, true, JSON.stringify(authorized));
+  const retrySnapshot = restored.value.snapshot();
+  const replayed = runtime.restoreScriptedDeliveryController(retrySnapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: retrySnapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(replayed.ok, true, JSON.stringify(replayed));
+  const retryRecord = replayed.value.records().find((entry) => entry.record.kind === 'retry-authorized');
+  assert.deepEqual(retryRecord?.record, {
+    kind: 'retry-authorized',
+    operation: replacement,
+    predecessor: data.anchorOperation,
+    ordinal: 1,
+    correlationKey: correlation,
+    resourceIdentity: 'resource/opc-del-anchor',
+  });
+  assert.equal(replayed.value.dispatch({ operation: replacement }).ok, true);
+  assert.equal(replayed.value.projection().finalizer.anchorRegistry, binding.registry);
+  assert.deepEqual(replayed.value.projection().finalizer.pendingDeliveryOperations, []);
+  assert.equal(replayed.value.dispatch({ operation: data.anchorOperation }).ok, false);
+  assert.equal(
+    replayed.value.authorize(
+      request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(replayed.value.dispatch({ operation: replacement }).ok, false);
+});
+
+test('GF044-MC-04/BND-RETRY: anchor replacement exhausts at the configured bound and does not bypass lineage', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-anchor-retry-exhaustion',
+    null,
+    450,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    1,
+    true,
+    null,
+    null,
+    null,
+    'present',
+    ['uncertain'],
+    ['absent', 'absent'],
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  const correlation = `corr/${data.anchorOperation.split('/').at(-4)}`;
+  assert.equal(
+    data.controller.authorize(
+      request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'effect' }).ok, true);
+  const replacement = data.operations.anchorRetry[0];
+  assert.equal(
+    data.controller.authorize(
+      request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.dispatch({ operation: replacement }).ok, true);
+  assert.equal(
+    data.controller.authorize(
+      request(data, data.operations.observe2, 'OPC-DEL-OBSERVE', 8, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe2, subject: 'effect' }).ok, true);
+  const exhausted = data.controller.authorize(
+    request(data, operation(999), 'OPC-DEL-ANCHOR', 3, 'effect', correlation, 'resource/opc-del-anchor'),
+  );
+  assert.deepEqual(exhausted.error, { family: 'FC-BOUND', code: 'DELIVERY_RETRY_EXHAUSTED' });
+  assert.equal(data.controller.projection().status, 'Ready');
+  assert.equal(data.controller.records().filter((entry) => entry.record.kind === 'retry-authorized').length, 1);
 });
 
 test('GF044 hosted correction: restore derives status from the authenticated journal and rejects a forged snapshot status', () => {

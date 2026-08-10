@@ -193,7 +193,14 @@ type DeliveryRecord =
   | Readonly<{ kind: 'intent'; intent: DeliveryIntent }>
   | Readonly<{ kind: 'effect'; fact: DeliveryEffectFact }>
   | Readonly<{ kind: 'observation'; fact: DeliveryObservationFact }>
-  | Readonly<{ kind: 'retry-authorized'; operation: string; predecessor: string; ordinal: number }>
+  | Readonly<{
+      kind: 'retry-authorized';
+      operation: string;
+      predecessor: string;
+      ordinal: number;
+      correlationKey: string;
+      resourceIdentity: string;
+    }>
   | Readonly<{ kind: 'recovery-resolved'; operation: string; observedOperation: string; outcome: 'success' | 'absent' }>
   | Readonly<{ kind: 'wait-exhausted'; operation: string; observedOperation: string }>
   | Readonly<{ kind: 'landing'; proof: DeliveryLandingProof }>
@@ -873,7 +880,78 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
   let recovery: DeliveryProjection['recovery'] = null;
   let targetWait: DeliveryProjection['targetWait'] = null;
   const released = new Set<string>();
+  const anchorEffects = (): DeliveryEffectFact[] =>
+    [...effects.values()].filter((fact) => fact.type === 'OPC-DEL-ANCHOR');
+  const exactAnchorAbsence = (predecessor: string): DeliveryResult<DeliveryEffectFact> => {
+    const effect = effects.get(predecessor);
+    const resolution = [...journal]
+      .reverse()
+      .find(
+        (entry) =>
+          entry.record.kind === 'recovery-resolved' &&
+          entry.record.operation === predecessor &&
+          entry.record.outcome === 'absent',
+      );
+    const observation =
+      resolution?.record.kind === 'recovery-resolved'
+        ? observations.get(resolution.record.observedOperation)
+        : undefined;
+    if (
+      effect?.type !== 'OPC-DEL-ANCHOR' ||
+      effect?.outcome !== 'uncertain' ||
+      !resolution ||
+      resolution.record.kind !== 'recovery-resolved' ||
+      !observation ||
+      observation.subject !== 'effect' ||
+      observation.outcome !== 'absent' ||
+      observation.resolvesOperation !== predecessor ||
+      observation.correlationKey !== effect.correlationKey ||
+      observation.resourceIdentity !== effect.resourceIdentity ||
+      observation.target !== carrier.binding.target ||
+      observation.registry !== carrier.binding.registry ||
+      observation.generation !== carrier.generation ||
+      observation.authority !== carrier.authority ||
+      observation.candidate !== carrier.candidate ||
+      observation.candidateContentDigest !== carrier.candidateContentDigest ||
+      observation.targetBasisDigest !== carrier.targetBasisDigest ||
+      effect?.target !== carrier.binding.target ||
+      effect?.registry !== carrier.binding.registry ||
+      effect?.generation !== carrier.generation ||
+      effect?.authority !== carrier.authority ||
+      effect?.candidate !== carrier.candidate ||
+      effect?.candidateContentDigest !== carrier.candidateContentDigest ||
+      effect?.targetBasisDigest !== carrier.targetBasisDigest
+    )
+      return fail('FC-FENCE', 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED');
+    return ok(effect);
+  };
+  const validateRetryAuthorization = (
+    record: Extract<DeliveryRecord, { kind: 'retry-authorized' }>,
+  ): DeliveryResult<void> => {
+    const predecessor = effects.get(record.predecessor);
+    if (predecessor?.type !== 'OPC-DEL-ANCHOR') return ok(undefined);
+    const attempts = anchorEffects();
+    if (
+      !identity('ID-OP', record.operation) ||
+      !identity('ID-OP', record.predecessor) ||
+      record.operation === record.predecessor ||
+      !Number.isSafeInteger(record.ordinal) ||
+      record.ordinal < 1 ||
+      record.ordinal > carrier.retryLimit ||
+      record.ordinal !== attempts.length ||
+      attempts.at(-1)?.operation !== record.predecessor ||
+      record.correlationKey !== predecessor.correlationKey ||
+      record.resourceIdentity !== predecessor.resourceIdentity
+    )
+      return fail('FC-FENCE', 'GF043_ANCHOR_RETRY_FENCE_MISMATCH');
+    const absence = exactAnchorAbsence(record.predecessor);
+    return absence.ok ? ok(undefined) : absence;
+  };
   const append = (record: DeliveryRecord): DeliveryResult<void> => {
+    if (record.kind === 'retry-authorized') {
+      const validated = validateRetryAuthorization(record);
+      if (!validated.ok) return validated;
+    }
     const previousDigest = journal.at(-1)?.digest ?? ZERO;
     const positionValue = journal.length + 1;
     const digestValue = journalDigest({ position: positionValue, previousDigest, record });
@@ -972,6 +1050,10 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       record: entry.record,
     });
     if (!expected || expected !== entry.digest) return fail('FC-TRUST', 'DELIVERY_JOURNAL_DIGEST_MISMATCH');
+    if (entry.record.kind === 'retry-authorized') {
+      const validated = validateRetryAuthorization(entry.record);
+      if (!validated.ok) return validated;
+    }
     journal.push(entry);
     const record = entry.record;
     if (record.kind === 'intent') intents.set(record.intent.operation, record.intent);
@@ -1143,7 +1225,6 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     const recoveringEffect = recovering ? effects.get(recovering.operation) : undefined;
     if (
       !recovering ||
-      recovering.operation !== carrier.anchorOperation ||
       recoveringEffect?.type !== 'OPC-DEL-ANCHOR' ||
       recoveringEffect.outcome !== 'uncertain' ||
       fact.subject !== 'effect' ||
@@ -1194,11 +1275,34 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (status === 'Landed' || status === 'Parked') return fail('FC-AUTHORITY', 'DELIVERY_TERMINAL');
     if (recovery && intent.type !== 'OPC-DEL-OBSERVE') return fail('FC-RECOVERY', 'RECOVERY_OBSERVATION_REQUIRED');
     if (targetWait && intent.type === 'OPC-DEL-MERGE') return fail('FC-BOUND', 'TARGET_WAIT_REOBSERVATION_REQUIRED');
-    if (
-      intent.type === 'OPC-DEL-ANCHOR' &&
-      (intent.operation !== carrier.anchorOperation || intent.transition !== carrier.anchorTransition)
-    )
-      return fail('FC-FENCE', 'GF043_ANCHOR_OPERATION_MISMATCH');
+    if (intent.type === 'OPC-DEL-ANCHOR') {
+      const attempts = anchorEffects();
+      if (attempts.length === 0) {
+        if (intent.operation !== carrier.anchorOperation || intent.transition !== carrier.anchorTransition)
+          return fail('FC-FENCE', 'GF043_ANCHOR_OPERATION_MISMATCH');
+      } else {
+        const predecessor = attempts.at(-1);
+        if (!predecessor) return fail('FC-FENCE', 'GF043_ANCHOR_RETRY_PREDECESSOR_MISSING');
+        const absence = exactAnchorAbsence(predecessor.operation);
+        if (!absence.ok) return fail('FC-RECOVERY', 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED');
+        if (
+          intent.correlationKey !== predecessor.correlationKey ||
+          intent.resourceIdentity !== predecessor.resourceIdentity
+        )
+          return fail('FC-FENCE', 'RETRY_RESOURCE_FENCE_MISMATCH');
+        const ordinal = attempts.length;
+        if (ordinal > carrier.retryLimit) return fail('FC-BOUND', 'DELIVERY_RETRY_EXHAUSTED');
+        const retry = append({
+          kind: 'retry-authorized',
+          operation: intent.operation,
+          predecessor: predecessor.operation,
+          ordinal,
+          correlationKey: predecessor.correlationKey,
+          resourceIdentity: predecessor.resourceIdentity,
+        });
+        if (!retry.ok) return retry;
+      }
+    }
     if (intent.type === 'OPC-DEL-OBSERVE' && intent.subject === 'effect' && !recovery)
       return fail('FC-RECOVERY', 'RECOVERY_OBSERVATION_REQUIRED');
     if (intent.subject === 'gate' && !carrier.remoteGate.required)
@@ -1243,6 +1347,8 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
         operation: intent.operation,
         predecessor: previous.operation,
         ordinal,
+        correlationKey: previous.correlationKey,
+        resourceIdentity: previous.resourceIdentity,
       });
       if (!retry.ok) return retry;
     }
@@ -1326,7 +1432,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-FENCE', 'OBSERVATION_FACT_FENCE_MISMATCH');
     if (fact.value.subject === 'gate' && !validRemoteGate(fact.value))
       return fail('FC-EVIDENCE', 'REMOTE_GATE_ATTESTATION_INVALID');
-    if (recovery && recovery.operation === carrier.anchorOperation && fact.value.subject === 'effect') {
+    if (recovery && fact.value.subject === 'effect' && effects.get(recovery.operation)?.type === 'OPC-DEL-ANCHOR') {
       const bridged = bridgeAnchorRecoveryObservation(fact.value);
       if (!bridged.ok) return bridged;
     }
