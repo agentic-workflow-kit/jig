@@ -254,6 +254,7 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
         ...tempRequest.subject,
         candidate: `${story}/cand/1|${tempContentDigest}`,
         candidateContentDigest: tempContentDigest,
+        cleanReceiptDigest: tempReceipt.value,
       },
       fence: {
         ...tempRequest.fence,
