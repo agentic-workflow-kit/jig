@@ -284,6 +284,7 @@ const script = (witnessAdvanced = false, lookupCertainty = 'confirmed-effect') =
             currency: 'current',
           },
           certainty: 'confirmed-effect',
+          lookupAttestation: lookupAttestation(input, 'confirmed-effect'),
         }),
       };
     },
@@ -744,6 +745,130 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
   assert.equal(
     restored.value.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
     'released',
+  );
+});
+
+test('GF046-ATTEST-02: direct dispatch recovery re-verifies the mechanism receipt before release-pin adoption', () => {
+  const mechanism = script(true);
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
+  const planned = controller.plan(baseInput());
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(artifactResource);
+  assert.equal(controller.recordPreservation(receipt(planned.value, artifactResource)).ok, true);
+  assert.equal(
+    controller.authorize({
+      resource: artifactResource.resource,
+      resourceIdentity: artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(artifactResource, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  const dispatched = controller.dispatch({
+    resource: artifactResource.resource,
+    resourceIdentity: artifactResource.resourceIdentity,
+    operation: 'OPC-ART-DISPOSE',
+    port: 'PORT-ARTIFACT',
+    mode: 'release-pin',
+  });
+  assert.equal(dispatched.ok, true, JSON.stringify(dispatched));
+  const snapshot = controller.snapshot();
+  assert.equal(snapshot.authorizations[0].lookupAttestation?.capability, 'CAP-RETIREMENT-LOOKUP');
+
+  assert.deepEqual(retirement.restoreRetirementController(snapshot, obligationOptions()), {
+    ok: false,
+    error: { family: 'FC-MECHANISM', code: 'RETIREMENT_LOOKUP_UNAVAILABLE' },
+  });
+  const restored = retirement.restoreRetirementController(snapshot, { ...obligationOptions(), mechanism });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.snapshot(), snapshot);
+  assert.equal(
+    restored.value.adopt({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      head: dispatched.value.head,
+      witness: dispatched.value.witness,
+      witnessAdvance: dispatched.value.witnessAdvance,
+    }).ok,
+    true,
+  );
+
+  const forgedSnapshot = structuredClone(snapshot);
+  const forgedAuthorization = forgedSnapshot.authorizations[0];
+  const forgedWitnessAdvance = {
+    ...forgedAuthorization.lookupAttestation.witnessAdvance,
+    head: digest('9'),
+    lineage: digest('8'),
+  };
+  const forgedAttestation = {
+    ...forgedAuthorization.lookupAttestation,
+    newHead: digest('9'),
+    newLineage: digest('8'),
+    witnessAdvance: forgedWitnessAdvance,
+    digest: '',
+  };
+  const forgedAttestationDigest = stageDigest({
+    domain: 'GF046-RETIREMENT-LOOKUP',
+    excludePaths: ['digest'],
+    value: forgedAttestation,
+  });
+  assert.equal(forgedAttestationDigest.ok, true, JSON.stringify(forgedAttestationDigest));
+  forgedAttestation.digest = forgedAttestationDigest.value.digest;
+  forgedAuthorization.lookupAttestation = forgedAttestation;
+  forgedAuthorization.witnessAdvance = forgedWitnessAdvance;
+  const forgedJournal = forgedSnapshot.journal.find((entry) => entry.kind === 'dispatch-result');
+  assert.ok(forgedJournal);
+  forgedJournal.lookupAttestation = structuredClone(forgedAttestation);
+  forgedJournal.lookupAttestationDigest = forgedAttestation.digest;
+  forgedJournal.lookupHead = forgedAttestation.newHead;
+  forgedJournal.lookupLineage = forgedAttestation.newLineage;
+  forgedJournal.lookupWitnessAdvance = structuredClone(forgedWitnessAdvance);
+  forgedJournal.result.lookupAttestation = structuredClone(forgedAttestation);
+  forgedJournal.result.head = forgedAttestation.newHead;
+  forgedJournal.result.witness = forgedAttestation.newLineage;
+  forgedJournal.result.witnessAdvance = structuredClone(forgedWitnessAdvance);
+  forgedSnapshot.journal[forgedSnapshot.journal.indexOf(forgedJournal)] = JSON.parse(JSON.stringify(forgedJournal));
+  const forgedJournalDigest = stageDigest({
+    domain: 'GF046-RETIREMENT-JOURNAL',
+    excludePaths: [],
+    value: forgedSnapshot.journal,
+  });
+  assert.equal(forgedJournalDigest.ok, true, JSON.stringify(forgedJournalDigest));
+  forgedSnapshot.journalDigest = forgedJournalDigest.value.digest;
+  assert.deepEqual(retirement.restoreRetirementController(forgedSnapshot, { ...obligationOptions(), mechanism }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'RETIREMENT_LOOKUP_REVALIDATION_FAILED' },
+  });
+  assert.equal(
+    forgedSnapshot.pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
+    'held',
+  );
+
+  mechanism.setLookupCertainty('indeterminate');
+  assert.deepEqual(retirement.restoreRetirementController(snapshot, { ...obligationOptions(), mechanism }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'RETIREMENT_LOOKUP_REVALIDATION_FAILED' },
+  });
+  mechanism.setLookupCertainty('confirmed-effect');
+  const mismatchingMechanism = {
+    ...mechanism,
+    lookup(input) {
+      const result = mechanism.lookup(input);
+      if (!result.ok) return result;
+      return { ...result, value: { ...result.value, newHead: digest('7') } };
+    },
+  };
+  assert.deepEqual(
+    retirement.restoreRetirementController(snapshot, { ...obligationOptions(), mechanism: mismatchingMechanism }),
+    {
+      ok: false,
+      error: { family: 'FC-TRUST', code: 'RETIREMENT_LOOKUP_REVALIDATION_FAILED' },
+    },
   );
 });
 

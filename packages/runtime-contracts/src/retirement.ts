@@ -1361,6 +1361,7 @@ export function createRetirementController(
       'head',
       'witness',
       'witnessAdvance',
+      'lookupAttestation',
     ]);
     const preservation = receipts.get(authorization.resourceIdentity);
     const resource = planValue.resources.find(
@@ -1370,6 +1371,7 @@ export function createRetirementController(
     if (
       !fact ||
       !priorWitness ||
+      !resource ||
       fact.resource !== authorization.resource ||
       fact.resourceIdentity !== authorization.resourceIdentity ||
       fact.operation !== authorization.operation ||
@@ -1378,7 +1380,8 @@ export function createRetirementController(
       fact.certainty !== 'confirmed-effect' ||
       !digest(fact.head) ||
       !digest(fact.witness) ||
-      !validWitnessAdvance(fact.witnessAdvance, priorWitness, fact.head, fact.witness)
+      !validWitnessAdvance(fact.witnessAdvance, priorWitness, fact.head, fact.witness) ||
+      !validLookupAttestation(fact.lookupAttestation, authorization, resource, priorWitness, 'confirmed-effect')
     ) {
       const obligation = requireResidualForDuty(authorization, 'retirement adapter receipt was invalid');
       if (!obligation.ok) return obligation;
@@ -1394,9 +1397,26 @@ export function createRetirementController(
         ...authorization,
         status: 'confirmed-effect' as const,
         witnessAdvance: fact.witnessAdvance,
+        lookupAttestation: fact.lookupAttestation,
       }),
     );
-    journal.push(freeze({ kind: 'dispatch-result', result }));
+    const journalResult = JSON.parse(JSON.stringify(result)) as Readonly<Record<string, unknown>>;
+    const journalAttestation = JSON.parse(JSON.stringify(fact.lookupAttestation)) as RetirementLookupAttestation;
+    journal.push(
+      freeze({
+        kind: 'dispatch-result',
+        operation: authorization.operation,
+        resourceIdentity: authorization.resourceIdentity,
+        result: journalResult,
+        lookupAttestation: journalAttestation,
+        lookupAttestationDigest: journalAttestation.digest,
+        lookupHead: journalAttestation.newHead,
+        lookupLineage: journalAttestation.newLineage,
+        lookupWitnessAdvance: journalAttestation.witnessAdvance
+          ? Object.freeze({ ...journalAttestation.witnessAdvance })
+          : null,
+      }),
+    );
     return ok(result);
   };
 
@@ -1723,22 +1743,19 @@ export function restoreRetirementController(
         )
       );
     if (value.status !== 'confirmed-effect') return value.witnessAdvance === null && value.lookupAttestation === null;
-    if (value.lookupAttestation !== null)
-      return (
-        validLookupAttestation(
-          value.lookupAttestation,
-          value as RetirementAuthorization,
-          resource,
-          priorWitness,
-          'confirmed-effect',
-        ) && equal(value.witnessAdvance, (value.lookupAttestation as RetirementLookupAttestation).witnessAdvance)
+    const attestationValid =
+      value.lookupAttestation !== null &&
+      validLookupAttestation(
+        value.lookupAttestation,
+        value as RetirementAuthorization,
+        resource,
+        priorWitness,
+        'confirmed-effect',
       );
-    return validWitnessAdvance(
-      value.witnessAdvance,
-      priorWitness,
-      (value.witnessAdvance as AnyRecord)?.head,
-      (value.witnessAdvance as AnyRecord)?.lineage,
-    );
+    const advanceValid =
+      value.lookupAttestation !== null &&
+      equal(value.witnessAdvance, (value.lookupAttestation as RetirementLookupAttestation).witnessAdvance);
+    return attestationValid && advanceValid;
   };
   const revalidateRecoveredLookups = (): RetirementResult<null> => {
     const recovered = authorizationValues?.filter(
@@ -1760,14 +1777,15 @@ export function restoreRetirementController(
       const records = journalValues?.filter((entry) => {
         const value = entry as AnyRecord;
         return (
-          value.kind === 'reconcile' &&
+          (value.kind === 'reconcile' || value.kind === 'dispatch-result') &&
           value.operation === authorization.operation &&
           value.resourceIdentity === authorization.resourceIdentity
         );
       });
-      const record =
-        records?.length === 1
-          ? fields(records[0], [
+      const record = records?.length === 1 ? (records[0] as AnyRecord) : undefined;
+      const parsedRecord =
+        record?.kind === 'reconcile'
+          ? fields(record, [
               'kind',
               'operation',
               'resourceIdentity',
@@ -1778,27 +1796,70 @@ export function restoreRetirementController(
               'lookupLineage',
               'lookupWitnessAdvance',
             ])
-          : undefined;
+          : record?.kind === 'dispatch-result'
+            ? fields(record, [
+                'kind',
+                'operation',
+                'resourceIdentity',
+                'result',
+                'lookupAttestation',
+                'lookupAttestationDigest',
+                'lookupHead',
+                'lookupLineage',
+                'lookupWitnessAdvance',
+              ])
+            : undefined;
       const recorded = record?.lookupAttestation;
+      const dispatchResult =
+        parsedRecord?.kind === 'dispatch-result'
+          ? fields(parsedRecord.result, [
+              'resource',
+              'resourceIdentity',
+              'operation',
+              'port',
+              'mode',
+              'certainty',
+              'head',
+              'witness',
+              'witnessAdvance',
+              'lookupAttestation',
+              'holderTransition',
+            ])
+          : undefined;
+      const recordedCertainty =
+        parsedRecord?.kind === 'dispatch-result' ? dispatchResult?.certainty : parsedRecord?.certainty;
       if (
         !resource ||
         !priorWitness ||
-        !record ||
-        record.kind !== 'reconcile' ||
-        record.operation !== authorization.operation ||
-        record.resourceIdentity !== authorization.resourceIdentity ||
+        !parsedRecord ||
+        (parsedRecord.kind === 'reconcile' &&
+          (record?.operation !== authorization.operation ||
+            record?.resourceIdentity !== authorization.resourceIdentity)) ||
+        (parsedRecord.kind === 'dispatch-result' &&
+          (!dispatchResult ||
+            dispatchResult.resource !== authorization.resource ||
+            dispatchResult.resourceIdentity !== authorization.resourceIdentity ||
+            dispatchResult.operation !== authorization.operation ||
+            dispatchResult.port !== authorization.port ||
+            dispatchResult.mode !== authorization.mode ||
+            dispatchResult.certainty !== 'confirmed-effect' ||
+            !equal(dispatchResult.lookupAttestation, recorded) ||
+            !equal(dispatchResult.head, persistedAttestation.newHead) ||
+            !equal(dispatchResult.witness, persistedAttestation.newLineage) ||
+            !equal(dispatchResult.witnessAdvance, persistedAttestation.witnessAdvance) ||
+            !equal(dispatchResult.holderTransition, authorization.holderTransition))) ||
         !validLookupAttestation(
           recorded,
           authorization,
           resource,
           priorWitness,
-          record.certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate',
+          recordedCertainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate',
         ) ||
         !equal(recorded, authorization.lookupAttestation) ||
-        record.lookupAttestationDigest !== persistedAttestation.digest ||
-        record.lookupHead !== persistedAttestation.newHead ||
-        record.lookupLineage !== persistedAttestation.newLineage ||
-        !equal(record.lookupWitnessAdvance, persistedAttestation.witnessAdvance)
+        parsedRecord.lookupAttestationDigest !== persistedAttestation.digest ||
+        parsedRecord.lookupHead !== persistedAttestation.newHead ||
+        parsedRecord.lookupLineage !== persistedAttestation.newLineage ||
+        !equal(parsedRecord.lookupWitnessAdvance, persistedAttestation.witnessAdvance)
       )
         return fail('FC-TRUST', 'RETIREMENT_LOOKUP_JOURNAL_BINDING_INVALID');
       let lookedUp: RetirementResult<Readonly<Record<string, unknown>>>;
@@ -1815,7 +1876,7 @@ export function restoreRetirementController(
             holderTransition: authorization.holderTransition,
             preservationReceipt: preservation,
             preservationWitness: priorWitness,
-            priorStatus: 'uncertain',
+            priorStatus: parsedRecord.kind === 'dispatch-result' ? 'committed' : 'uncertain',
           }),
         );
       } catch {
