@@ -166,13 +166,13 @@ test('manifest and native posture are exact, local, no-shell, and no-credential'
   assert.equal(manifestBytes.includes('"runtimeReadAuthority"'), true);
   assert.equal(manifestBytes.includes('"sandboxPolicyAuthority"'), true);
   assert.deepEqual(
-    manifestValue.runtimeReadAuthority.map(({ path, role }) => ({ path, role })),
+    manifestValue.value.runtimeReadAuthority.map(({ path, role }) => ({ path, role })),
     [
       { path: executable, role: 'executable' },
       { path: '/usr/lib/dyld', role: 'dynamic-loader' },
     ],
   );
-  assert.deepEqual(manifestValue.sandboxPolicyAuthority.systemReadLiterals, [
+  assert.deepEqual(manifestValue.value.sandboxPolicyAuthority.systemReadLiterals, [
     '/',
     '/private',
     '/private/etc',
@@ -250,7 +250,11 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     const tempRequest = request(1);
     const boundRequest = {
       ...tempRequest,
-      subject: { ...tempRequest.subject, candidateContentDigest: tempContentDigest },
+      subject: {
+        ...tempRequest.subject,
+        candidate: `${story}/cand/1|${tempContentDigest}`,
+        candidateContentDigest: tempContentDigest,
+      },
       fence: {
         ...tempRequest.fence,
         candidateContentDigest: tempContentDigest,
