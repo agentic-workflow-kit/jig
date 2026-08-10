@@ -415,6 +415,61 @@ test('MC-040-01/02/03: package digest binds all members and validates no-venue o
   );
 });
 
+test('MC-040-02: hostile nested manifest basis remains typed and fail closed across validation and restore', () => {
+  const controller = newController();
+  const packageValue = controller.assemble({
+    candidate,
+    requirements,
+    evidence,
+    publicationObservation: observation,
+    policy,
+    findings: [],
+    contributorPrincipals: [],
+  });
+  assert.equal(packageValue.ok, true, JSON.stringify(packageValue));
+
+  const circularBasis = {};
+  circularBasis.self = circularBasis;
+  const throwingBasis = {
+    toJSON: () => {
+      throw new Error('hostile manifest basis');
+    },
+  };
+  const hostileManifests = [
+    {
+      ...manifest,
+      retention: { ...manifest.retention, hold: { id: 'hold/1', basis: circularBasis, status: 'active' } },
+    },
+    {
+      ...manifest,
+      retention: { ...manifest.retention, hold: { id: 'hold/2', basis: throwingBasis, status: 'active' } },
+    },
+  ];
+
+  for (const hostileManifest of hostileManifests) {
+    assert.doesNotThrow(() => {
+      const checked = runtime.validateAcceptancePackage({ ...packageValue.value, evidenceManifest: hostileManifest });
+      assert.equal(checked.ok, false);
+    });
+    const snapshot = controller.snapshot();
+    const hostileSnapshot = {
+      ...snapshot,
+      records: snapshot.records.map((entry) =>
+        entry.record.kind === 'package'
+          ? {
+              ...entry,
+              record: { ...entry.record, package: { ...entry.record.package, evidenceManifest: hostileManifest } },
+            }
+          : entry,
+      ),
+    };
+    assert.doesNotThrow(() => {
+      const restored = runtime.restoreScriptedAcceptanceController(hostileSnapshot);
+      assert.equal(restored.ok, false);
+    });
+  }
+});
+
 test('MC-040-03/07: required-venue is positive and complementary modes fail closed', () => {
   const controller = newController();
   const accepted = controller.assemble({

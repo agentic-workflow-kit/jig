@@ -758,6 +758,65 @@ test('MC-043-REFRESH: forged GF-040/workspace lookalikes and stale basis cannot 
   assert.equal(controller.projection().authority.targetBasisDigest, waiter.targetBasisDigest);
 });
 
+test('MC-043-FENCE: hostile nested acceptance manifest cannot escape finalizer readback validation', () => {
+  const waiter = makeWaiter('hostile-acceptance-readback', 1, nonePolicy);
+  const admission = admissionFor(waiter);
+  const snapshot = admission.acceptanceController.snapshot();
+  const circularBasis = {};
+  circularBasis.self = circularBasis;
+  const packageRecord = snapshot.records.find((entry) => entry.record.kind === 'package').record.package;
+  const hostileBases = [
+    circularBasis,
+    {
+      toJSON: () => {
+        throw new Error('hostile manifest basis');
+      },
+    },
+  ];
+  const verification = runtime.createScriptedVerificationFixture({
+    recordDispatch: () => ({ ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } }),
+  });
+  const created = runtime.createScriptedFinalizerController({
+    binding,
+    registry: runtime.createScriptedRegistry(),
+    verification,
+  });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  for (const [index, hostileBasis] of hostileBases.entries()) {
+    const hostileManifest = {
+      ...packageRecord.evidenceManifest,
+      retention: {
+        ...packageRecord.evidenceManifest.retention,
+        hold: { id: `hold/${index + 1}`, basis: hostileBasis, status: 'active' },
+      },
+    };
+    const hostileSnapshot = {
+      ...snapshot,
+      records: snapshot.records.map((entry) =>
+        entry.record.kind === 'package'
+          ? {
+              ...entry,
+              record: { ...entry.record, package: { ...entry.record.package, evidenceManifest: hostileManifest } },
+            }
+          : entry,
+      ),
+    };
+    assert.doesNotThrow(() => {
+      const enqueued = created.value.enqueue({
+        operation: waiter.operation,
+        run: waiter.run,
+        story: waiter.story,
+        comparator: waiter.comparator,
+        policy: waiter.policy,
+        waitedAt: waiter.waitedAt,
+        ...admission,
+        acceptanceController: { snapshot: () => hostileSnapshot },
+      });
+      assert.equal(enqueued.ok, false);
+    });
+  }
+});
+
 test('MC-043-FENCE: configured non-default target is admitted and cross-target facts fail closed', () => {
   const waiter = makeWaiter('configured-target', 1, nonePolicy);
   const configuredBinding = Object.freeze({

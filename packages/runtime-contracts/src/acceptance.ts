@@ -365,10 +365,15 @@ const validateEvidenceManifest = (value: unknown, expectedDigest: string): Accep
   const loss = raw?.loss === null ? null : raw && own(raw.loss, ['kind', 'omittedBytes']);
   const artifactFact = raw && own(raw.artifactFact, ['operation', 'mode', 'position', 'headDigest', 'binding']);
   const basis = raw && Object.fromEntries(EVIDENCE_MANIFEST_KEYS.slice(0, 19).map((key) => [key, raw[key]]));
-  const derived =
-    raw && artifactFact && typeof raw.adoptionTransition === 'string'
-      ? sha256(JSON.stringify({ basis, artifactFact, adoptionTransition: raw.adoptionTransition }))
-      : undefined;
+  let derived: string | undefined;
+  try {
+    derived =
+      raw && artifactFact && typeof raw.adoptionTransition === 'string'
+        ? sha256(JSON.stringify({ basis, artifactFact, adoptionTransition: raw.adoptionTransition }))
+        : undefined;
+  } catch {
+    derived = undefined;
+  }
   if (
     !raw ||
     raw.manifestDigest !== expectedDigest ||
