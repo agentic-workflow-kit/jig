@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
