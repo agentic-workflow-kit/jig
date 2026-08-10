@@ -1715,6 +1715,131 @@ function validateObservation(
   }) as unknown as LocalCommandObservation;
 }
 
+function sameRetryContract(left: VerificationRequest, right: VerificationRequest): boolean {
+  return (
+    left.lifecycle === right.lifecycle &&
+    left.checkClass === right.checkClass &&
+    sameSubject(left.subject, right.subject) &&
+    sameFence(left.fence, right.fence) &&
+    same(left.policy, right.policy) &&
+    same(left.configuration, right.configuration) &&
+    same(left.environment, right.environment) &&
+    same(left.cleanReceipt, right.cleanReceipt) &&
+    same(left.bounds, right.bounds)
+  );
+}
+
+function validRestoredFailureHistory(
+  requests: readonly VerificationRequest[],
+  failures: readonly LocalCommandFailureRecord[],
+  invocations: readonly LocalCommandInvocation[],
+  observations: readonly LocalCommandObservation[],
+): boolean {
+  try {
+    const requestsByOperation = new Map<string, VerificationRequest>();
+    for (const request of requests) {
+      if (requestsByOperation.has(request.operation) || request.retryOrdinal < 1) return false;
+      requestsByOperation.set(request.operation, request);
+    }
+    for (const request of requests) {
+      if (request.retryOrdinal === 1) {
+        if (request.predecessor !== null) return false;
+        continue;
+      }
+      const predecessor = request.predecessor ? requestsByOperation.get(request.predecessor) : undefined;
+      if (
+        !predecessor ||
+        predecessor.retryOrdinal + 1 !== request.retryOrdinal ||
+        !sameRetryContract(request, predecessor)
+      )
+        return false;
+    }
+
+    const failuresByOperation = new Map<string, LocalCommandFailureRecord>();
+    for (const failure of failures) {
+      const request = requestsByOperation.get(failure.operation);
+      if (
+        !request ||
+        failuresByOperation.has(failure.operation) ||
+        failure.retryOrdinal !== request.retryOrdinal ||
+        !same(failure.subject, request.subject) ||
+        !same(failure.fence, request.fence) ||
+        (failure.reason === 'timeout' && failure.code !== 'MECHANISM_TIMEOUT') ||
+        (failure.reason === 'lost-response' && failure.code !== 'RESULT_UNCERTAIN')
+      )
+        return false;
+      const matchingInvocations = invocations.filter((entry) => entry.operation === failure.operation);
+      if (
+        matchingInvocations.length !== 1 ||
+        matchingInvocations[0]?.retryOrdinal !== request.retryOrdinal ||
+        matchingInvocations[0]?.checkClass !== request.checkClass ||
+        matchingInvocations[0]?.result !== failure.reason ||
+        matchingInvocations[0]?.effect !== 'observation'
+      )
+        return false;
+      if (failure.supersededBy !== null) {
+        const successor = requestsByOperation.get(failure.supersededBy);
+        if (
+          !successor ||
+          successor.predecessor !== failure.operation ||
+          successor.retryOrdinal !== failure.retryOrdinal + 1 ||
+          !sameRetryContract(successor, request)
+        )
+          return false;
+      }
+      failuresByOperation.set(failure.operation, failure);
+    }
+
+    const invocationsByOperation = new Map<string, LocalCommandInvocation>();
+    for (const invocation of invocations) {
+      const request = requestsByOperation.get(invocation.operation);
+      const matchingObservations = observations.filter((entry) => entry.operation === invocation.operation);
+      if (
+        !request ||
+        invocationsByOperation.has(invocation.operation) ||
+        invocation.checkClass !== request.checkClass ||
+        invocation.retryOrdinal !== request.retryOrdinal ||
+        (invocation.result !== 'returned' && !failuresByOperation.has(invocation.operation)) ||
+        (invocation.result === 'returned' &&
+          (failuresByOperation.has(invocation.operation) ||
+            matchingObservations.length !== 1 ||
+            matchingObservations[0]?.checkClass !== invocation.checkClass))
+      )
+        return false;
+      invocationsByOperation.set(invocation.operation, invocation);
+    }
+
+    const observationsByOperation = new Map<string, LocalCommandObservation>();
+    for (const observation of observations) {
+      const request = requestsByOperation.get(observation.operation);
+      const invocation = invocationsByOperation.get(observation.operation);
+      if (
+        !request ||
+        observationsByOperation.has(observation.operation) ||
+        !invocation ||
+        invocation.result !== 'returned' ||
+        invocation.checkClass !== observation.checkClass ||
+        invocation.retryOrdinal !== request.retryOrdinal
+      )
+        return false;
+      observationsByOperation.set(observation.operation, observation);
+    }
+
+    for (const request of requests) {
+      if (
+        request.retryOrdinal > 1 &&
+        !failures.some(
+          (failure) => failure.operation === request.predecessor && failure.supersededBy === request.operation,
+        )
+      )
+        return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function parseLocalSnapshot(
   value: unknown,
   manifest: LocalCommandManifest,
@@ -1748,7 +1873,21 @@ function parseLocalSnapshot(
     );
     return request ? validateObservation(entry, request, manifest, native) : undefined;
   });
-  if (observations.some((entry) => !entry) || verification.observations.length !== raw.observations.length)
+  const verificationObservations = verification.observations.map((entry) => {
+    const request = parsedRequests.find(
+      (candidate: VerificationRequest) => plain(entry) && candidate.operation === entry.operation,
+    );
+    return request ? validateObservation(entry, request, manifest, native) : undefined;
+  });
+  if (
+    observations.some((entry) => !entry) ||
+    verificationObservations.some((entry) => !entry) ||
+    verificationObservations.length !== observations.length ||
+    observations.some((entry, index) => !same(entry, verificationObservations[index])) ||
+    observations.some(
+      (entry, index) => observations.findIndex((candidate) => candidate?.operation === entry?.operation) !== index,
+    )
+  )
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   const failures = verification.failures.map((entry) => {
     const item = fields(entry, [
@@ -1790,6 +1929,12 @@ function parseLocalSnapshot(
   });
   if (failures.some((entry) => !entry) || invocations.some((entry) => !entry))
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+  const parsedFailures = failures as LocalCommandFailureRecord[];
+  const parsedInvocations = invocations as LocalCommandInvocation[];
+  const parsedObservations = Object.freeze(observations as LocalCommandObservation[]);
+  if (!validRestoredFailureHistory(parsedRequests, parsedFailures, parsedInvocations, parsedObservations))
+    return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+  let parsedFinalization: LocalCommandFinalizationSnapshot | null = null;
   if (verification.finalization !== null) {
     const final = fields(verification.finalization, [
       'acceptanceGranted',
@@ -1805,6 +1950,29 @@ function parseLocalSnapshot(
       'state',
       'subject',
     ]);
+    const anchor =
+      final && plain(final.subject) && plain(final.fence)
+        ? parsedRequests.find(
+            (request: VerificationRequest) => same(final.subject, request.subject) && same(final.fence, request.fence),
+          )
+        : undefined;
+    const expectedRequired = anchor?.policy.required.map((entry) => entry.name);
+    const finalObservations =
+      final && Array.isArray(final.observations)
+        ? final.observations.map((entry) => {
+            const request = parsedRequests.find(
+              (candidate: VerificationRequest) => plain(entry) && candidate.operation === entry.operation,
+            );
+            return request ? validateObservation(entry, request, manifest, native) : undefined;
+          })
+        : undefined;
+    const finalObservationValues = Array.isArray(finalObservations)
+      ? finalObservations.filter((entry): entry is LocalCommandObservation => Boolean(entry))
+      : [];
+    const observedClasses = new Set(finalObservationValues.map((entry) => entry.checkClass));
+    const hasFailure = finalObservationValues.some((entry) => entry.outcome === 'fail');
+    const expectedState = hasFailure ? 'Reworking' : 'Finalizing';
+    const expectedReady = !hasFailure && Boolean(expectedRequired?.every((entry) => observedClasses.has(entry)));
     if (
       !final ||
       !Array.isArray(final.observations) ||
@@ -1817,19 +1985,44 @@ function parseLocalSnapshot(
       final.posture !== 'deterministic' ||
       !['Waiting', 'Accepted'].includes(String(final.origin)) ||
       !['Finalizing', 'Reworking'].includes(String(final.state)) ||
-      typeof final.readyForDelivery !== 'boolean' ||
+      final.state !== expectedState ||
+      final.readyForDelivery !== expectedReady ||
       final.requiredClasses.some((entry) => typeof entry !== 'string') ||
-      !plain(final.subject) ||
-      !plain(final.fence) ||
-      !parsedRequests.some(
-        (request: VerificationRequest) =>
-          sameSubject(request.subject, final.subject as VerificationSubject) &&
-          sameFence(request.fence, final.fence as VerificationFence),
-      )
+      !anchor ||
+      !expectedRequired ||
+      final.requiredClasses.length !== expectedRequired.length ||
+      final.requiredClasses.some((entry, index) => entry !== expectedRequired[index]) ||
+      finalObservations === undefined ||
+      finalObservations.some((entry) => !entry) ||
+      finalObservationValues.length !== new Set(finalObservationValues.map((entry) => entry.operation)).size ||
+      finalObservationValues.length !== observedClasses.size ||
+      finalObservationValues.some(
+        (entry) => !sameSubject(entry.subject, anchor.subject) || !sameFence(entry.fence, anchor.fence),
+      ) ||
+      finalObservationValues.some(
+        (entry) =>
+          !parsedObservations.some(
+            (observation) => observation.operation === entry.operation && same(observation, entry),
+          ),
+      ) ||
+      (final.origin !== anchor.lifecycle && anchor.lifecycle !== 'Finalizing')
     )
       return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
+    parsedFinalization = Object.freeze({
+      origin: final.origin as 'Waiting' | 'Accepted',
+      state: expectedState,
+      posture: 'deterministic',
+      subject: anchor.subject,
+      fence: anchor.fence,
+      requiredClasses: Object.freeze([...expectedRequired]),
+      observations: Object.freeze(finalObservationValues),
+      noOp: false,
+      readyForDelivery: expectedReady,
+      deliveryOperations: Object.freeze([]) as readonly [],
+      acceptanceGranted: false,
+      landingGranted: false,
+    });
   }
-  const parsedObservations = Object.freeze(observations as LocalCommandObservation[]);
   return ok(
     Object.freeze({
       version: 'jig.local-command-verifier.v1' as const,
@@ -1837,9 +2030,9 @@ function parseLocalSnapshot(
         version: 'jig.verification-contract.v1' as const,
         requests: parsedRequests,
         observations: parsedObservations,
-        failures: Object.freeze(failures as LocalCommandFailureRecord[]),
-        invocations: Object.freeze(invocations as LocalCommandInvocation[]),
-        finalization: verification.finalization as LocalCommandFinalizationSnapshot | null,
+        failures: Object.freeze(parsedFailures),
+        invocations: Object.freeze(parsedInvocations),
+        finalization: parsedFinalization,
       }),
       observations: parsedObservations,
     }),

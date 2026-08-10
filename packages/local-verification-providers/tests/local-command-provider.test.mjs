@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
+import { basename } from 'node:path';
 import test from 'node:test';
 
 const provider = await import('../dist/index.js');
@@ -101,14 +102,14 @@ const request = (ordinal, predecessor = null) =>
     predecessor,
     bounds: { waitMs: 5_000, retryLimit: 2 },
   });
-const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifestId) => {
+const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifestId, permitFence = fence) => {
   const operationId = operation(ordinal);
   const capabilityWithoutDigest = {
     kind: 'CB-VERIFY',
     port: 'PORT-VERIFY',
     operationClass: 'OPC-VERIFY-EXECUTE',
     subject: story,
-    fence,
+    fence: permitFence,
     resourceScope: 'verify/local-command',
     manifest: manifestId,
   };
@@ -120,7 +121,7 @@ const permit = (ordinal, predecessor = null, manifestId = manifestValue.manifest
     ordinal: 1,
     type: 'OPC-VERIFY-EXECUTE',
     subject: { run, story, basis },
-    fence,
+    fence: permitFence,
     capability: { ...capabilityWithoutDigest, digest: capabilityDigest.value },
     authority: null,
     role: 'controller',
@@ -293,7 +294,7 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     );
     assert.deepEqual(
       provider.createLocalCommandCheckoutResource({
-        checkoutPath: '/private/tmp/../tmp',
+        checkoutPath: `${realpathSync(tmpdir())}/../${basename(realpathSync(tmpdir()))}`,
         request: request(1),
         targetBasisCommit,
         targetBasisTree,
@@ -302,6 +303,158 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('restore rejects failure history that is not bound to the exact request, invocation, and retry chain', () => {
+  const auth = admission();
+  const proof = provider.runLocalCommandQualificationProbe({
+    candidateCommit,
+    candidateTree,
+    manifest: manifestValue,
+    admission: auth,
+  });
+  if (!proof.ok) return;
+  const created = provider.createQualifiedLocalCommandProvider({
+    manifest: manifestValue,
+    admission: auth,
+    qualification: proof.value,
+  });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const qualified = created.value;
+  const first = request(1);
+  assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
+  const firstResource = checkoutResource(first);
+  assert.equal(firstResource.ok, true, JSON.stringify(firstResource));
+  assert.deepEqual(
+    qualified.dispatch({
+      checkoutResource: firstResource.value,
+      request: first,
+      permit: permit(1),
+      fault: 'timeout',
+    }),
+    { ok: false, error: { family: 'FC-MECHANISM', code: 'MECHANISM_TIMEOUT' } },
+  );
+  const second = request(2, first.operation);
+  const secondResource = checkoutResource(second);
+  assert.equal(secondResource.ok, true, JSON.stringify(secondResource));
+  const secondObserved = qualified.dispatch({
+    checkoutResource: secondResource.value,
+    request: second,
+    permit: permit(2, first.operation),
+  });
+  assert.equal(secondObserved.ok, true, JSON.stringify(secondObserved));
+  assert.deepEqual(qualified.consume({ observation: secondObserved.value }), {
+    ok: true,
+    value: { state: 'Finalizing', readyForDelivery: true },
+  });
+  const valid = qualified.snapshot();
+  const failure = valid.verification.failures[0];
+  const invocation = valid.verification.invocations.find((entry) => entry.operation === first.operation);
+  const secondObservation = valid.observations.find((entry) => entry.operation === second.operation);
+  assert.ok(failure);
+  assert.ok(invocation);
+  assert.ok(secondObservation);
+  const restore = (verification, observations = valid.observations) =>
+    provider.restoreQualifiedLocalCommandProvider({
+      manifest: manifestValue,
+      admission: auth,
+      qualification: proof.value,
+      snapshot: { ...valid, observations, verification },
+    });
+  assert.equal(restore(valid.verification).ok, true, 'genuine restored supersession chain remains retryable');
+  const invalid = { family: 'FC-TRUST', code: 'INVALID_LOCAL_COMMAND_SNAPSHOT' };
+  const cases = [
+    {
+      name: 'orphan operation',
+      failures: [{ ...failure, operation: operation(99) }],
+    },
+    {
+      name: 'cross-subject failure',
+      failures: [{ ...failure, subject: { ...failure.subject, candidate: `${story}/other` } }],
+    },
+    {
+      name: 'cross-fence failure',
+      failures: [{ ...failure, fence: { ...failure.fence, basis: 'b'.repeat(64) } }],
+    },
+    {
+      name: 'wrong retry ordinal',
+      failures: [{ ...failure, retryOrdinal: 2 }],
+    },
+    {
+      name: 'missing matching invocation',
+      invocations: [],
+    },
+    {
+      name: 'wrong invocation result',
+      invocations: valid.verification.invocations.map((entry) =>
+        entry.operation === first.operation ? { ...entry, result: 'returned' } : entry,
+      ),
+    },
+    {
+      name: 'orphan supersession',
+      failures: [{ ...failure, supersededBy: operation(99) }, ...valid.verification.failures.slice(1)],
+    },
+    {
+      name: 'missing returned observation',
+      observations: [],
+      verificationObservations: [],
+    },
+    {
+      name: 'duplicate returned observation',
+      observations: [...valid.observations, secondObservation],
+      verificationObservations: [...valid.verification.observations, secondObservation],
+    },
+    {
+      name: 'divergent mirrored observation',
+      verificationObservations: valid.verification.observations.map((entry) =>
+        entry.operation === second.operation ? { ...entry, observedAt: entry.observedAt + 1 } : entry,
+      ),
+    },
+    {
+      name: 'empty required classes',
+      finalization: { ...valid.verification.finalization, requiredClasses: [] },
+    },
+    {
+      name: 'altered required classes',
+      finalization: { ...valid.verification.finalization, requiredClasses: ['other'] },
+    },
+    {
+      name: 'forged final observations',
+      finalization: { ...valid.verification.finalization, observations: [] },
+    },
+    {
+      name: 'mismatched final observation fence',
+      finalization: {
+        ...valid.verification.finalization,
+        observations: valid.verification.finalization.observations.map((entry) => ({
+          ...entry,
+          fence: { ...entry.fence, targetBasisDigest: 'b'.repeat(64) },
+        })),
+      },
+    },
+    {
+      name: 'forged finalization state',
+      finalization: { ...valid.verification.finalization, state: 'Reworking' },
+    },
+    {
+      name: 'forged finalization readiness',
+      finalization: { ...valid.verification.finalization, readyForDelivery: false },
+    },
+  ];
+  for (const testCase of cases) {
+    const verification = {
+      ...valid.verification,
+      failures: testCase.failures ?? valid.verification.failures,
+      invocations: testCase.invocations ?? valid.verification.invocations,
+      observations: testCase.verificationObservations ?? valid.verification.observations,
+      finalization: testCase.finalization ?? valid.verification.finalization,
+    };
+    assert.deepEqual(
+      restore(verification, testCase.observations ?? valid.observations),
+      { ok: false, error: invalid },
+      testCase.name,
+    );
   }
 });
 
