@@ -273,6 +273,7 @@ test('BND-WAIT-MECHANISM/BND-RETRY: loss is durable and replacement uses a new a
   );
   assert.equal(recovered.ok, true);
   assert.equal(recovered.value.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
+  assert.equal(recovered.value.stageReplacement({ request: second }).ok, true);
   assert.equal(recovered.value.dispatch({ request: second, attestation: attestation(second) }).ok, true);
   assert.equal(recovered.value.failures()[0].supersededBy, second.operation);
   const forgedLineage = structuredClone(recovered.value.snapshot());

@@ -434,11 +434,17 @@ const controllerFor = (waiter, requests = []) => {
   return { controller: controller.value, verification, verificationAuthorizer, registry, authority: granted.value };
 };
 
-const targetFact = (operationId, outcome, anchorRegistry = null, targetBasisDigest = d('f')) => ({
+const targetFact = (
+  operationId,
+  outcome,
+  anchorRegistry = null,
+  targetBasisDigest = d('f'),
+  target = binding.target,
+) => ({
   schema: runtime.FINALIZER_EVENT_SCHEMA,
   kind: 'EV-TARGET-FACT',
   operation: operationId,
-  target: binding.target,
+  target,
   registry: binding.registry,
   targetBasisDigest,
   anchorRegistry,
@@ -564,7 +570,7 @@ test('MC-043-VERIFY-GATE/MC-043-RECOVERY: retry failure derives bounds and stage
     retryOrdinal: 2,
     predecessor: request.operation,
   };
-  const { controller, authority, verification } = controllerFor(waiter, [request, replacement]);
+  const { controller, verification, verificationAuthorizer, registry } = controllerFor(waiter, [request, replacement]);
   assert.equal(
     controller.enterFinalizing({ operation: operation(72), origin: 'Waiting', verificationRequests: [request] }).ok,
     true,
@@ -579,7 +585,20 @@ test('MC-043-VERIFY-GATE/MC-043-RECOVERY: retry failure derives bounds and stage
     controller.projection().entry.verificationOperations.some((item) => item.operation === replacement.operation),
     true,
   );
-  assert.equal(controller.observeVerification({ authority, observation: attestation(replacement) }).ok, true);
+  const snapshot = controller.snapshot();
+  const restored = runtime.restoreScriptedFinalizerController(snapshot, {
+    binding,
+    registry,
+    verificationAuthorizer,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(
+    restored.value.observeVerification({
+      authority: restored.value.projection().authority,
+      observation: attestation(replacement),
+    }).ok,
+    true,
+  );
   assert.equal(verification.failures()[0].supersededBy, replacement.operation);
 });
 
@@ -691,6 +710,7 @@ test('MC-043-RECOVERY/BND-WAIT-TARGET: wakes reread and append durable per-waite
 
 test('MC-043-REFRESH: forged GF-040/workspace lookalikes and stale basis cannot rebind authority', () => {
   const waiter = makeWaiter('refresh', 1, nonePolicy);
+  const admission = admissionFor(waiter);
   const request = verificationRequest(waiter, 60, 'none', null);
   const { controller, authority } = controllerFor(waiter, [request]);
   assert.equal(
@@ -717,5 +737,65 @@ test('MC-043-REFRESH: forged GF-040/workspace lookalikes and stale basis cannot 
     }).ok,
     false,
   );
+  const alteredCarrier = {
+    ...admission.candidateCarrier,
+    id: `${waiter.story}/cand/2|${waiter.candidateContentDigest}`,
+    sourceEvent: {
+      ...admission.candidateCarrier.sourceEvent,
+      operation: `${d('z')}/op/1`,
+    },
+  };
+  assert.equal(
+    controller.refresh({
+      operation: operation(64),
+      authority,
+      candidateCarrier: alteredCarrier,
+      acceptanceController: admission.acceptanceController,
+      workspaceController: admission.workspaceController,
+    }).ok,
+    false,
+  );
   assert.equal(controller.projection().authority.targetBasisDigest, waiter.targetBasisDigest);
+});
+
+test('MC-043-FENCE: configured non-default target is admitted and cross-target facts fail closed', () => {
+  const waiter = makeWaiter('configured-target', 1, nonePolicy);
+  const configuredBinding = Object.freeze({
+    descriptor: d('d'),
+    registry: `registry/${d('d')}`,
+    target: 'target/configured',
+  });
+  const verification = runtime.createScriptedVerificationFixture({ recordDispatch: () => ({ ok: false }) });
+  const registry = runtime.createScriptedRegistry();
+  const created = runtime.createScriptedFinalizerController({ binding: configuredBinding, registry, verification });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const admission = admissionFor(waiter);
+  assert.equal(
+    created.value.enqueue({
+      operation: waiter.operation,
+      run: waiter.run,
+      story: waiter.story,
+      comparator: waiter.comparator,
+      policy: waiter.policy,
+      waitedAt: waiter.waitedAt,
+      ...admission,
+    }).ok,
+    true,
+  );
+  const granted = created.value.grant({ operation: operation(101), story: waiter.story, waitedAt: waiter.waitedAt });
+  assert.equal(granted.ok, true, JSON.stringify(granted));
+  const request = verificationRequest(waiter, 103, 'none', null);
+  assert.equal(
+    created.value.enterFinalizing({ operation: operation(104), origin: 'Waiting', verificationRequests: [request] }).ok,
+    true,
+  );
+  const anchor = created.value.authorizeAnchor({ operation: operation(102), authority: granted.value });
+  assert.equal(anchor.ok, true, JSON.stringify(anchor));
+  assert.equal(
+    created.value.recordTargetFact({
+      authority: granted.value,
+      fact: targetFact(anchor.value.operation, 'same-registry', configuredBinding.registry, d('f'), binding.target),
+    }).ok,
+    false,
+  );
 });

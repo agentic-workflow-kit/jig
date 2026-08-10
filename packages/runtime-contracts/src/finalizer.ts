@@ -529,7 +529,7 @@ function acceptedPackage(input: unknown, candidate: AcceptanceCandidate): Finali
 function durableWorkspace(
   input: unknown,
   candidate: AcceptanceCandidate,
-  binding: FinalizerBinding,
+  _binding: FinalizerBinding,
 ): FinalizerResult<ReturnType<WorkspaceController['facts']>[number]> {
   if (!input || typeof input !== 'object' || typeof (input as WorkspaceController).facts !== 'function')
     return fail('FC-TRUST', 'DURABLE_WORKSPACE_READBACK_REQUIRED');
@@ -548,8 +548,7 @@ function durableWorkspace(
     fact.value.binding.subject.run !== candidate.run ||
     fact.value.binding.subject.story !== candidate.story ||
     fact.value.binding.subject.basis !== candidate.runBasisDigest ||
-    fact.value.binding.operationType !== 'OPC-WS-OBSERVE' ||
-    binding.target !== 'target/finalizer'
+    fact.value.binding.operationType !== 'OPC-WS-OBSERVE'
   )
     return fail('FC-EVIDENCE', 'INVALID_FINALIZER_WORKSPACE_FACT');
   return ok(fact.value);
@@ -1349,7 +1348,7 @@ function makeController(
       return fail('FC-FENCE', 'STALE_REFRESH_AUTHORITY');
     if (refreshCount >= (waiters.get(authority.story)?.policy.refreshLimit ?? 0))
       return fail('FC-BOUND', 'REFRESH_EXHAUSTED');
-    const candidateResult = validateAcceptanceCandidate(raw.candidateCarrier);
+    const candidateResult = validateCandidateCarrier(raw.candidateCarrier);
     if (!candidateResult.ok) return fail('FC-EVIDENCE', 'DURABLE_CANDIDATE_REQUIRED');
     const candidate = candidateResult.value;
     if (candidate.id === authority.candidate) return fail('FC-AUTHORITY', 'CANDIDATE_REFRESH_REQUIRED');
