@@ -216,7 +216,7 @@ test('permits provider admission qualification only from the local integration t
   const errors = withPackages((root) =>
     writeFileSync(
       join(root, 'packages', 'local-verification-providers', 'tests', 'local-command-provider.test.mjs'),
-      "import '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';\n",
+      "import '../../conformance/dist/provider-admission-qualification.js';\n",
     ),
   );
   assert.deepEqual(errors, []);
@@ -244,13 +244,20 @@ test('rejects provider admission qualification deep imports from runtime, provid
 });
 
 test('rejects provider admission qualification package deep imports', () => {
-  const errors = withPackages((root) =>
+  const errors = withPackages((root) => {
     writeFileSync(
       join(root, 'packages', 'codec', 'src', 'index.ts'),
       "import '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';\n",
-    ),
+    );
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'tests', 'local-command-provider.test.mjs'),
+      "import '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';\n",
+    );
+  });
+  assert.equal(
+    errors.filter((error) => error.includes('imports restricted provider admission qualification')).length,
+    2,
   );
-  assert.ok(errors.some((error) => error.includes('imports restricted provider admission qualification')));
 });
 
 test('rejects alternate relative, dynamic, and re-export spellings of provider admission qualification', () => {

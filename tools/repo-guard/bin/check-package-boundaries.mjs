@@ -55,8 +55,6 @@ const qualificationFriendFiles = new Set([
   'packages/conformance/dist/provider-admission-qualification.js',
 ]);
 const providerAdmissionQualificationImport = '../../conformance/dist/provider-admission-qualification.js';
-const providerAdmissionQualificationPackageImport =
-  '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';
 const providerAdmissionQualificationTarget = 'packages/conformance/dist/provider-admission-qualification';
 const providerAdmissionQualificationImporters = new Set([
   'packages/local-verification-providers/tests/local-command-provider.test.mjs',
@@ -379,10 +377,7 @@ export function validatePackageBoundaries(rootDir = repoRoot) {
           errors.push(`${manifest.name} imports restricted qualification friend ${specifier}`);
         if (
           resolvesToProviderAdmissionQualification(specifier, repoPath, rootDir) &&
-          !(
-            providerAdmissionQualificationAllowed &&
-            [providerAdmissionQualificationImport, providerAdmissionQualificationPackageImport].includes(specifier)
-          )
+          !(providerAdmissionQualificationAllowed && specifier === providerAdmissionQualificationImport)
         ) {
           errors.push(`${manifest.name} imports restricted provider admission qualification ${specifier}`);
           reportedProviderAdmissionQualification = true;

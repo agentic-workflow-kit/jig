@@ -19,7 +19,7 @@ import { pathToFileURL } from 'node:url';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const conformance = await import('@agentic-workflow-kit/jig-conformance/provider-admission-qualification');
+const conformance = await import('../../conformance/dist/provider-admission-qualification.js');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
