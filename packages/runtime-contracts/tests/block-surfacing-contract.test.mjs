@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { stageDigest } from '@agentic-workflow-kit/jig-codec';
 
 const runtime = await import('../dist/index.js');
 
@@ -135,9 +136,127 @@ const finalCarrier = Object.freeze({
   workspaceCommit: null,
   treeDigest: digest('a'),
 });
+const finalizerAuthority = Object.freeze({
+  authority: finalAuthority,
+  authorityGeneration: 1,
+  registry: finalBindingRegistry,
+  target: finalBindingTarget,
+  story,
+  candidate,
+  candidateContentDigest: digest('b'),
+  targetBasisDigest: digest('d'),
+  eligibilityBasis: digest('c'),
+  generation,
+});
+const finalizerEntry = Object.freeze({
+  operation: request,
+  origin: 'Accepted',
+  authority: finalizerAuthority,
+  posture: 'deterministic',
+  requiredClasses: Object.freeze([]),
+  verificationOperations: Object.freeze([]),
+  observations: Object.freeze([]),
+  noOp: false,
+  readyForDelivery: true,
+});
+const finalizerProjection = Object.freeze({
+  status: 'Finalizing',
+  waiters: Object.freeze([]),
+  authority: finalizerAuthority,
+  entry: finalizerEntry,
+  pendingDeliveryOperations: Object.freeze([request]),
+  anchorRegistry: finalBindingRegistry,
+  refreshCount: 0,
+});
+const finalizerRecord = Object.freeze({
+  kind: 'delivery-intent',
+  operation: request,
+  type: 'OPC-DEL-ANCHOR',
+  authority: finalizerAuthority,
+});
+const journal = (domain, records) => {
+  let previousDigest = digest('0');
+  return Object.freeze(
+    records.map((record, index) => {
+      const basis = { position: index + 1, previousDigest, record };
+      const current = stageDigest({ domain, excludePaths: [], value: basis }).value.digest;
+      previousDigest = current;
+      return Object.freeze({ ...basis, digest: current });
+    }),
+  );
+};
+const finalizerSnapshot = Object.freeze({
+  schema: 'jig.finalizer-snapshot.v1',
+  binding: finalCarrier.binding,
+  registryHead: Object.freeze({ position: 0, digest: digest('0') }),
+  records: journal('FINALIZER-RECORD', [finalizerRecord]),
+  projection: finalizerProjection,
+  verificationSnapshot: Object.freeze({}),
+});
+const requestEffect = Object.freeze({
+  schema: 'jig.delivery-event.v1',
+  kind: 'EV-EFFECT-CERTAINTY',
+  operation: operation(7),
+  type: 'OPC-DEL-REQUEST',
+  target: finalBindingTarget,
+  registry: finalBindingRegistry,
+  generation,
+  authority: finalAuthority,
+  candidate,
+  candidateContentDigest: digest('b'),
+  targetBasisDigest: digest('d'),
+  correlationKey: 'delivery/request/gf045',
+  resourceIdentity: 'resource/gf045-request',
+  outcome: 'success',
+  observedAt: 1_000,
+  failurePhase: null,
+  result: Object.freeze({}),
+});
+const finalDeliveryIntent = Object.freeze({
+  schema: 'jig.delivery-event.v1',
+  kind: 'OPERATION-INTENT',
+  operation: finalOperation,
+  type: 'OPC-DEL-STATUS',
+  target: finalBindingTarget,
+  registry: finalBindingRegistry,
+  candidate,
+  candidateContentDigest: digest('b'),
+  targetBasisDigest: digest('d'),
+  subject: 'target',
+  generation,
+  authority: finalAuthority,
+  transition: transaction(2),
+  correlationKey: 'delivery/status/gf045',
+  resourceIdentity: 'resource/gf045-status',
+  strategy: 'squash',
+});
+const finalDeliveryProjection = Object.freeze({
+  status: 'Ready',
+  carrier: finalCarrier,
+  intents: Object.freeze([finalDeliveryIntent]),
+  effects: Object.freeze([requestEffect]),
+  observations: Object.freeze([]),
+  landing: null,
+  releasedStories: Object.freeze([]),
+  recovery: null,
+  targetWait: null,
+  finalizer: finalizerProjection,
+});
+const finalDeliverySnapshot = Object.freeze({
+  schema: 'jig.delivery-snapshot.v1',
+  carrier: finalCarrier,
+  status: 'Ready',
+  records: journal('DELIVERY-RECORD', [
+    { kind: 'effect', fact: requestEffect },
+    { kind: 'intent', intent: finalDeliveryIntent },
+  ]),
+  projection: finalDeliveryProjection,
+  finalizerSnapshot,
+});
 const finalScope = Object.freeze({
   kind: 'final-delivery',
   carrier: finalCarrier,
+  deliverySnapshot: finalDeliverySnapshot,
   operation: finalOperation,
   operationType: 'OPC-DEL-STATUS',
   requestIdentity: request,
@@ -443,6 +562,40 @@ test('GF045 rejects stale or cross-scope authority and wrong operation class', (
   const { controller: held } = controller({ finalDelivery: true });
   assert.equal(held.authorize(authorization({}, true)).ok, true);
   assert.equal(held.authorize(authorization({ scope: reviewScope, type: 'OPC-REV-STATUS' }, true)).ok, false);
+  assert.equal(
+    held.authorize(
+      authorization(
+        {
+          scope: Object.freeze({ ...finalScope, deliverySnapshot: undefined }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
+  assert.equal(
+    held.authorize(
+      authorization(
+        {
+          scope: Object.freeze({
+            ...finalScope,
+            deliverySnapshot: Object.freeze({
+              ...finalDeliverySnapshot,
+              finalizerSnapshot: Object.freeze({
+                ...finalizerSnapshot,
+                projection: Object.freeze({
+                  ...finalizerProjection,
+                  entry: Object.freeze({ ...finalizerEntry, operation: operation(8) }),
+                }),
+              }),
+            }),
+          }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
   assert.equal(
     held.authorize(
       authorization(

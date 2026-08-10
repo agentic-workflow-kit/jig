@@ -1,5 +1,11 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { type DeliveryCarrier, deriveDeliveryGateRequirementDigest, deriveDeliveryStrategyDigest } from './delivery.js';
+import {
+  DELIVERY_EVENT_SCHEMA,
+  type DeliveryCarrier,
+  type DeliverySnapshot,
+  deriveDeliveryGateRequirementDigest,
+  deriveDeliveryStrategyDigest,
+} from './delivery.js';
 import type { ObligationController, ObligationSnapshot, ResidualObligation } from './obligation.js';
 import { type ReviewPublicationBinding, validateReviewPublicationBinding } from './review-publication.js';
 
@@ -52,6 +58,7 @@ export type BlockSurfacingReviewScope = Readonly<{
 export type BlockSurfacingFinalDeliveryScope = Readonly<{
   kind: 'final-delivery';
   carrier: DeliveryCarrier;
+  deliverySnapshot: DeliverySnapshot;
   operation: string;
   operationType: 'OPC-DEL-STATUS' | 'OPC-DEL-COMMENT';
   requestIdentity: string;
@@ -557,12 +564,241 @@ function validateMechanism(value: unknown): BlockSurfacingResult<ScriptedBlockSu
   return ok(value as ScriptedBlockSurfacingMechanism);
 }
 
+function validateProofJournal(value: unknown, domain: string, matches: (record: unknown) => boolean): boolean {
+  const records = array(value, 4_096);
+  if (!records) return false;
+  let previousDigest = '0'.repeat(64);
+  let matched = false;
+  for (const [index, candidate] of records.entries()) {
+    const entry = fields(candidate, ['digest', 'position', 'previousDigest', 'record']);
+    if (!entry || entry.position !== index + 1 || entry.previousDigest !== previousDigest || !digest(entry.digest))
+      return false;
+    const expected = digestValue(domain, {
+      position: entry.position,
+      previousDigest: entry.previousDigest,
+      record: entry.record,
+    });
+    if (!expected || expected !== entry.digest) return false;
+    matched ||= matches(entry.record);
+    previousDigest = entry.digest;
+  }
+  return matched;
+}
+
+function validateFinalDeliveryProof(
+  value: unknown,
+  carrier: Record<string, unknown>,
+  operation: string,
+  operationType: string,
+  transition: string,
+): value is DeliverySnapshot {
+  const snapshot = fields(value, ['carrier', 'finalizerSnapshot', 'projection', 'records', 'schema', 'status']);
+  const projection = snapshot
+    ? fields(snapshot.projection, [
+        'carrier',
+        'effects',
+        'finalizer',
+        'intents',
+        'landing',
+        'observations',
+        'recovery',
+        'releasedStories',
+        'status',
+        'targetWait',
+      ])
+    : undefined;
+  const finalizerSnapshot = snapshot
+    ? fields(snapshot.finalizerSnapshot, [
+        'binding',
+        'projection',
+        'records',
+        'registryHead',
+        'schema',
+        'verificationSnapshot',
+      ])
+    : undefined;
+  const finalizerProjection = finalizerSnapshot
+    ? fields(finalizerSnapshot.projection, [
+        'anchorRegistry',
+        'authority',
+        'entry',
+        'pendingDeliveryOperations',
+        'refreshCount',
+        'status',
+        'waiters',
+      ])
+    : undefined;
+  const authority = finalizerProjection
+    ? fields(finalizerProjection.authority, [
+        'authority',
+        'authorityGeneration',
+        'candidate',
+        'candidateContentDigest',
+        'eligibilityBasis',
+        'generation',
+        'registry',
+        'story',
+        'target',
+        'targetBasisDigest',
+      ])
+    : undefined;
+  const entry = finalizerProjection
+    ? fields(finalizerProjection.entry, [
+        'authority',
+        'noOp',
+        'observations',
+        'operation',
+        'origin',
+        'posture',
+        'readyForDelivery',
+        'requiredClasses',
+        'verificationOperations',
+      ])
+    : undefined;
+  const intents = projection ? array(projection.intents, 4_096) : undefined;
+  const deliveryIntent = intents?.find((candidate) => {
+    if (!plain(candidate)) return false;
+    const expectedKeys = [
+      'authority',
+      'candidate',
+      'candidateContentDigest',
+      'correlationKey',
+      'generation',
+      'kind',
+      'operation',
+      'registry',
+      'resourceIdentity',
+      'schema',
+      'strategy',
+      'subject',
+      'target',
+      'targetBasisDigest',
+      'transition',
+      'type',
+    ].sort();
+    return (
+      same(Object.keys(candidate).sort(), expectedKeys) &&
+      candidate.operation === operation &&
+      candidate.type === operationType
+    );
+  }) as Record<string, unknown> | undefined;
+  const requestEffect = projection
+    ? array(projection.effects, 4_096)?.some((candidate) => {
+        const effect = fields(candidate, [
+          'authority',
+          'candidate',
+          'candidateContentDigest',
+          'correlationKey',
+          'failurePhase',
+          'generation',
+          'kind',
+          'observedAt',
+          'operation',
+          'outcome',
+          'registry',
+          'resourceIdentity',
+          'result',
+          'schema',
+          'target',
+          'targetBasisDigest',
+          'type',
+        ]);
+        return Boolean(effect && effect.type === 'OPC-DEL-REQUEST' && effect.outcome === 'success');
+      })
+    : false;
+  const bindingFields = fields(carrier.binding, ['descriptor', 'registry', 'target']);
+  const pendingDeliveryOperations = finalizerProjection
+    ? array(finalizerProjection.pendingDeliveryOperations, 4_096)
+    : undefined;
+  const exactAuthority =
+    authority &&
+    authority.authority === carrier.authority &&
+    authority.candidate === carrier.candidate &&
+    authority.candidateContentDigest === carrier.candidateContentDigest &&
+    authority.targetBasisDigest === carrier.targetBasisDigest &&
+    authority.generation === carrier.generation &&
+    authority.registry === (bindingFields?.registry ?? null) &&
+    authority.target === (bindingFields?.target ?? null) &&
+    authority.story === carrier.story;
+  const exactIntent =
+    deliveryIntent &&
+    deliveryIntent.schema === DELIVERY_EVENT_SCHEMA &&
+    deliveryIntent.operation === operation &&
+    deliveryIntent.type === operationType &&
+    deliveryIntent.target === bindingFields?.target &&
+    deliveryIntent.registry === bindingFields?.registry &&
+    deliveryIntent.candidate === carrier.candidate &&
+    deliveryIntent.candidateContentDigest === carrier.candidateContentDigest &&
+    deliveryIntent.targetBasisDigest === carrier.targetBasisDigest &&
+    deliveryIntent.generation === carrier.generation &&
+    deliveryIntent.authority === carrier.authority &&
+    deliveryIntent.transition === transition &&
+    typeof deliveryIntent.correlationKey === 'string' &&
+    typeof deliveryIntent.resourceIdentity === 'string';
+  const finalizerRecord = (record: unknown): boolean => {
+    const candidate = fields(record, ['authority', 'operation', 'type', 'kind']);
+    return Boolean(
+      candidate &&
+        candidate.kind === 'delivery-intent' &&
+        candidate.type === 'OPC-DEL-ANCHOR' &&
+        candidate.operation === carrier.anchorOperation &&
+        same(candidate.authority, authority),
+    );
+  };
+  const deliveryRecord = (record: unknown): boolean => {
+    const candidate = fields(record, ['intent', 'kind']);
+    return Boolean(candidate && candidate.kind === 'intent' && same(candidate.intent, deliveryIntent));
+  };
+  const proofResult = Boolean(
+    snapshot &&
+      snapshot.schema === 'jig.delivery-snapshot.v1' &&
+      snapshot.status === projection?.status &&
+      ['Ready', 'TargetWait'].includes(String(snapshot.status)) &&
+      same(snapshot.carrier, carrier) &&
+      projection &&
+      same(projection.carrier, carrier) &&
+      projection.status !== 'Landed' &&
+      projection.status !== 'Parked' &&
+      same(projection.finalizer, finalizerProjection) &&
+      finalizerSnapshot &&
+      finalizerSnapshot.schema === 'jig.finalizer-snapshot.v1' &&
+      same(finalizerSnapshot.binding, carrier.binding) &&
+      same(finalizerSnapshot.projection, finalizerProjection) &&
+      finalizerProjection &&
+      finalizerProjection.status === 'Finalizing' &&
+      finalizerProjection.anchorRegistry === bindingFields?.registry &&
+      pendingDeliveryOperations?.includes(carrier.anchorOperation) &&
+      typeof finalizerProjection.refreshCount === 'number' &&
+      finalizerProjection.refreshCount >= 0 &&
+      exactAuthority &&
+      entry &&
+      entry.operation === carrier.anchorOperation &&
+      entry.origin === 'Accepted' &&
+      entry.readyForDelivery === true &&
+      entry.authority &&
+      same(entry.authority, authority) &&
+      exactIntent &&
+      requestEffect &&
+      validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerRecord) &&
+      validateProofJournal(snapshot.records, 'DELIVERY-RECORD', deliveryRecord),
+  );
+  return proofResult;
+}
+
 function validateFinalDeliveryScope(
   value: unknown,
   subject: BlockSurfacingSubject,
   marker: BlockMarker,
 ): BlockSurfacingResult<BlockSurfacingFinalDeliveryScope> {
-  const raw = fields(value, ['carrier', 'kind', 'operation', 'operationType', 'requestIdentity', 'transition']);
+  const raw = fields(value, [
+    'carrier',
+    'deliverySnapshot',
+    'kind',
+    'operation',
+    'operationType',
+    'requestIdentity',
+    'transition',
+  ]);
   const carrier = raw
     ? fields(raw.carrier, [
         'acceptedPackageDigest',
@@ -697,9 +933,20 @@ function validateFinalDeliveryScope(
     (carrier.workspaceCommit !== null && !boundedText(carrier.workspaceCommit, 256))
   )
     return fail('FC-AUTHORITY', 'INVALID_FINAL_DELIVERY_SCOPE');
+  if (
+    !validateFinalDeliveryProof(
+      raw.deliverySnapshot,
+      carrier,
+      raw.operation as string,
+      raw.operationType as string,
+      raw.transition as string,
+    )
+  )
+    return fail('FC-AUTHORITY', 'FINAL_DELIVERY_PROVENANCE_REQUIRED');
   return ok({
     kind: 'final-delivery',
     carrier: carrier as unknown as DeliveryCarrier,
+    deliverySnapshot: raw.deliverySnapshot as DeliverySnapshot,
     operation: raw.operation as string,
     operationType: raw.operationType as BlockSurfacingFinalDeliveryScope['operationType'],
     requestIdentity: raw.requestIdentity as string,
@@ -715,7 +962,7 @@ function validateSurfacingScope(
   const raw = fields(
     value,
     ['kind'],
-    ['binding', 'carrier', 'operation', 'operationType', 'requestIdentity', 'transition'],
+    ['binding', 'carrier', 'deliverySnapshot', 'operation', 'operationType', 'requestIdentity', 'transition'],
   );
   if (!raw) return fail('FC-AUTHORITY', 'BLOCK_SCOPE_REQUIRED');
   if (raw.kind === 'review-publication') {
