@@ -523,6 +523,7 @@ const makeController = (
   anchorRetryOutcomes = null,
   anchorRecoveryOutcomes = null,
   anchorRetryLanding = false,
+  anchorDirectFailurePhase = 'pre-dispatch',
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
@@ -549,7 +550,11 @@ const makeController = (
         effectOutcome,
         result,
         observedAt,
-        type === preDispatchAbsentType ? 'pre-dispatch' : failurePhase,
+        type === preDispatchAbsentType
+          ? type === 'OPC-DEL-ANCHOR'
+            ? anchorDirectFailurePhase
+            : 'pre-dispatch'
+          : failurePhase,
         null,
         staleEffectFence ? `${run}/gen/2|stale` : null,
         staleEffectFence ? 'target/finalizer/auth/2' : null,
@@ -1382,6 +1387,210 @@ test('GF044-MC-04/BND-RETRY: anchor replacement exhausts at the configured bound
   assert.deepEqual(exhausted.error, { family: 'FC-BOUND', code: 'DELIVERY_RETRY_EXHAUSTED' });
   assert.equal(data.controller.projection().status, 'Ready');
   assert.equal(data.controller.records().filter((entry) => entry.record.kind === 'retry-authorized').length, 1);
+});
+
+test('GF044-MC-04/MC-05/MC-06: direct pre-dispatch anchor absence restores, retries, lands, and releases', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-anchor-direct-absence',
+    null,
+    540,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    'OPC-DEL-ANCHOR',
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    2,
+    false,
+    null,
+    null,
+    null,
+    'present',
+    ['success'],
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  assert.equal(data.controller.projection().status, 'Ready');
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: 2,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  data.controller = restored.value;
+  const correlation = `corr/${data.anchorOperation.split('/').at(-4)}`;
+  const replacement = data.operations.anchorRetry[0];
+  assert.equal(
+    data.controller.authorize(
+      request(data, replacement, 'OPC-DEL-ANCHOR', 2, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.dispatch({ operation: replacement }).ok, true);
+  authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
+  authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  authorizeAndDispatch(data, 'OPC-DEL-STATUS', data.operations.status, 4);
+  authorizeAndDispatch(data, 'OPC-DEL-COMMENT', data.operations.comment, 5);
+  authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
+  const mergeCorrelation = `corr/${data.operations.merge.split('/').at(-4)}`;
+  assert.equal(
+    data.controller.authorize(request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7, 'target', mergeCorrelation))
+      .ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
+  const landed = data.controller.recordLanded({
+    operation: operation(559),
+    mergeOperation: data.operations.merge,
+    targetObservationOperation: data.operations.observe,
+  });
+  assert.equal(landed.ok, true, JSON.stringify(landed));
+  assert.equal(data.controller.projection().status, 'Landed');
+  assert.deepEqual(data.controller.projection().releasedStories, [data.story]);
+  assert.deepEqual(data.controller.projection().finalizer.pendingDeliveryOperations, []);
+});
+
+test('GF044-MC-04: direct anchor absence rejects post-dispatch and unspecified failure phases', () => {
+  for (const [label, phase] of [
+    ['post-dispatch', 'post-dispatch'],
+    ['unspecified', null],
+  ]) {
+    const data = makeController(
+      'merge-commit',
+      `delivery-anchor-direct-${label}`,
+      null,
+      label === 'post-dispatch' ? 570 : 580,
+      false,
+      false,
+      null,
+      null,
+      'ready',
+      false,
+      'OPC-DEL-ANCHOR',
+      false,
+      false,
+      90,
+      'pass',
+      null,
+      'absent',
+      2,
+      false,
+      null,
+      null,
+      null,
+      'present',
+      ['success'],
+      null,
+      false,
+      phase,
+    );
+    authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+    assert.deepEqual(
+      data.controller.authorize(
+        request(
+          data,
+          data.operations.anchorRetry[0],
+          'OPC-DEL-ANCHOR',
+          2,
+          'effect',
+          `corr/${data.anchorOperation.split('/').at(-4)}`,
+          'resource/opc-del-anchor',
+        ),
+      ).error,
+      { family: 'FC-RECOVERY', code: 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED' },
+    );
+  }
+});
+
+test('GF044-MC-04/CF-DOUBLE-EFFECT: direct absence replay rejects an effect-before-intent forged journal', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-anchor-direct-order',
+    null,
+    590,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    'OPC-DEL-ANCHOR',
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    2,
+    false,
+    null,
+    null,
+    null,
+    'present',
+    ['success'],
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  const correlation = `corr/${data.anchorOperation.split('/').at(-4)}`;
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.anchorRetry[0],
+        'OPC-DEL-ANCHOR',
+        2,
+        'effect',
+        correlation,
+        'resource/opc-del-anchor',
+      ),
+    ).ok,
+    true,
+  );
+  const snapshot = data.controller.snapshot();
+  const records = [...snapshot.records];
+  const intent = records.find(
+    (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === data.anchorOperation,
+  );
+  const effect = records.find(
+    (entry) => entry.record.kind === 'effect' && entry.record.fact.operation === data.anchorOperation,
+  );
+  assert.ok(intent && effect);
+  const moved = new Set([intent, effect]);
+  const forged = {
+    ...snapshot,
+    records: redigestDeliveryRecords([
+      effect.record,
+      intent.record,
+      ...records.filter((entry) => !moved.has(entry)).map((entry) => entry.record),
+    ]),
+  };
+  const restored = runtime.restoreScriptedDeliveryController(forged, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: 2,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.deepEqual(restored.error, { family: 'FC-FENCE', code: 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED' });
 });
 
 test('GF044-MC-05/MC-06/MC-07: fresh anchor retry completes delivery landing and release through the original GF-043 carrier', () => {

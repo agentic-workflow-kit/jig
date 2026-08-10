@@ -887,6 +887,9 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     const effectEntry = [...journal].find(
       (entry) => entry.record.kind === 'effect' && entry.record.fact.operation === predecessor,
     );
+    const anchorIntentEntry = [...journal].find(
+      (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === predecessor,
+    );
     const resolution = [...journal]
       .reverse()
       .find(
@@ -911,11 +914,33 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       : undefined;
     if (
       effect?.type !== 'OPC-DEL-ANCHOR' ||
-      effect?.outcome !== 'uncertain' ||
+      !effectEntry ||
+      !anchorIntentEntry ||
+      anchorIntentEntry.record.kind !== 'intent' ||
+      anchorIntentEntry.record.intent.type !== 'OPC-DEL-ANCHOR' ||
+      anchorIntentEntry.record.intent.operation !== predecessor ||
+      anchorIntentEntry.record.intent.correlationKey !== effect.correlationKey ||
+      anchorIntentEntry.record.intent.resourceIdentity !== effect.resourceIdentity ||
+      anchorIntentEntry.position >= effectEntry.position ||
+      effect?.target !== carrier.binding.target ||
+      effect?.registry !== carrier.binding.registry ||
+      effect?.generation !== carrier.generation ||
+      effect?.authority !== carrier.authority ||
+      effect?.candidate !== carrier.candidate ||
+      effect?.candidateContentDigest !== carrier.candidateContentDigest ||
+      effect?.targetBasisDigest !== carrier.targetBasisDigest
+    )
+      return fail('FC-FENCE', 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED');
+    if (effect.outcome === 'absent') {
+      return effect.failurePhase === 'pre-dispatch'
+        ? ok(effect)
+        : fail('FC-FENCE', 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED');
+    }
+    if (
+      effect.outcome !== 'uncertain' ||
       !resolution ||
       resolution.record.kind !== 'recovery-resolved' ||
       !observation ||
-      !effectEntry ||
       !observationIntentEntry ||
       observationIntentEntry.record.kind !== 'intent' ||
       observationIntentEntry.record.intent.type !== 'OPC-DEL-OBSERVE' ||
@@ -938,14 +963,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       observation.authority !== carrier.authority ||
       observation.candidate !== carrier.candidate ||
       observation.candidateContentDigest !== carrier.candidateContentDigest ||
-      observation.targetBasisDigest !== carrier.targetBasisDigest ||
-      effect?.target !== carrier.binding.target ||
-      effect?.registry !== carrier.binding.registry ||
-      effect?.generation !== carrier.generation ||
-      effect?.authority !== carrier.authority ||
-      effect?.candidate !== carrier.candidate ||
-      effect?.candidateContentDigest !== carrier.candidateContentDigest ||
-      effect?.targetBasisDigest !== carrier.targetBasisDigest
+      observation.targetBasisDigest !== carrier.targetBasisDigest
     )
       return fail('FC-FENCE', 'GF043_ANCHOR_REAUTHORIZATION_REQUIRED');
     return ok(effect);
@@ -1377,9 +1395,12 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-AUTHORITY', 'REQUEST_REQUIRED');
     if (intent.type === 'OPC-DEL-MERGE' && carrier.remoteGate.required && !currentRemoteGate())
       return fail('FC-EVIDENCE', 'REMOTE_GATE_REQUIRED');
-    const priorAbsent = [...effects.values()].filter(
-      (fact) => fact.type === intent.type && fact.outcome === 'absent' && fact.failurePhase === 'pre-dispatch',
-    );
+    const priorAbsent =
+      intent.type === 'OPC-DEL-ANCHOR'
+        ? []
+        : [...effects.values()].filter(
+            (fact) => fact.type === intent.type && fact.outcome === 'absent' && fact.failurePhase === 'pre-dispatch',
+          );
     const previous = priorAbsent.find(
       (fact) => fact.correlationKey === intent.correlationKey && fact.resourceIdentity === intent.resourceIdentity,
     );
