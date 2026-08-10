@@ -177,6 +177,7 @@ export type VerificationAuthorizer = Readonly<{
 
 export type ScriptedVerificationFixture = Readonly<{
   dispatch(input: unknown): VerificationResult<VerificationObservation>;
+  stageReplacement(input: unknown): VerificationResult<VerificationRequest>;
   enterFinalizing(input: unknown): VerificationResult<FinalizationVerificationState>;
   consume(input: unknown): VerificationResult<FinalizationVerificationState>;
   snapshot(): VerificationSnapshot;
@@ -1104,8 +1105,7 @@ export function createScriptedVerificationFixture(
     if (!request || request.policy.posture === 'none') return fail('FC-INPUT', 'VERIFICATION_NOT_DISPATCHABLE');
     if (
       request.lifecycle !== 'Finalizing' ||
-      !finalization ||
-      finalization.state !== 'Finalizing' ||
+      finalization?.state !== 'Finalizing' ||
       !sameSubject(finalization.subject, request.subject) ||
       !same(finalization.fence, request.fence)
     )
@@ -1206,6 +1206,45 @@ export function createScriptedVerificationFixture(
     return ok(checked);
   };
 
+  const stageReplacement = (input: unknown): VerificationResult<VerificationRequest> => {
+    const raw = fields(input, ['request']);
+    const request = raw && validateRequest(raw.request);
+    if (!request) return fail('FC-INPUT', 'INVALID_REPLACEMENT_REQUEST');
+    if (
+      finalization?.state !== 'Finalizing' ||
+      !sameSubject(finalization.subject, request.subject) ||
+      !same(finalization.fence, request.fence)
+    )
+      return fail('FC-AUTHORITY', 'INVALID_FINALIZATION_STATE');
+    if (request.retryOrdinal <= 1 || !request.predecessor) return fail('FC-ORDERING', 'REPLACEMENT_LINEAGE_REQUIRED');
+    const predecessorFailure = failures.find(
+      (entry) => entry.operation === request.predecessor && entry.supersededBy === null,
+    );
+    const predecessor = requests.find((entry) => entry.operation === request.predecessor);
+    if (
+      !predecessorFailure ||
+      !predecessor ||
+      predecessor.retryOrdinal + 1 !== request.retryOrdinal ||
+      !sameSubject(predecessor.subject, request.subject) ||
+      !same(predecessor.fence, request.fence)
+    )
+      return fail('FC-ORDERING', 'REPLACEMENT_LINEAGE_REQUIRED');
+    const existing = requests.find((entry) => entry.operation === request.operation);
+    if (existing)
+      return sameRequest(existing, request) ? ok(existing) : fail('FC-SUBJECT', 'OPERATION_SUBJECT_MISMATCH');
+    let permit: unknown;
+    try {
+      permit = authorizer.recordDispatch({ operation: request.operation, ordinal: 1 });
+    } catch {
+      return fail('FC-AUTHORITY', 'DISPATCH_PERMIT_UNAVAILABLE');
+    }
+    const permitResult = fields(permit, ['ok', 'value']);
+    if (permitResult?.ok !== true || !validatePermit(permitResult.value, request))
+      return fail('FC-AUTHORITY', 'INVALID_DISPATCH_PERMIT');
+    requests.push(request);
+    return ok(request);
+  };
+
   const enterFinalizing = (input: unknown): VerificationResult<FinalizationVerificationState> => {
     const raw = fields(input, ['origin', 'request']);
     if (!raw || (raw.origin !== 'Waiting' && raw.origin !== 'Accepted'))
@@ -1267,6 +1306,7 @@ export function createScriptedVerificationFixture(
     });
   return Object.freeze({
     dispatch,
+    stageReplacement,
     enterFinalizing,
     consume,
     snapshot,

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { stageDigest } from '@agentic-workflow-kit/jig-codec';
 
@@ -35,12 +36,18 @@ const nonePolicy = runtime.createFinalizerPolicy({
 
 const makeWaiter = (key, ordinal, finalizerPolicy, candidateChar = 'e', waitedAt = 10) => {
   const story = `${run}/story/${key}`;
+  const candidateContentDigest = stageDigest({
+    domain: 'CANDIDATE-CONTENT',
+    excludePaths: [],
+    value: { targetBasisDigest: d('f'), changedPaths: [], treeDigest: d(candidateChar), workspaceCommit: null },
+  }).value.digest;
   return {
     operation: operation(ordinal),
     run,
     story,
-    candidate: `${story}/cand/1|${d(candidateChar)}`,
-    candidateContentDigest: d(candidateChar),
+    candidate: `${story}/cand/1|${candidateContentDigest}`,
+    candidateContentDigest,
+    treeDigest: d(candidateChar),
     targetBasisDigest: d('f'),
     generation,
     comparator: { priority: 1, ordinal, story },
@@ -49,6 +56,229 @@ const makeWaiter = (key, ordinal, finalizerPolicy, candidateChar = 'e', waitedAt
     policy: finalizerPolicy,
     waitedAt,
   };
+};
+
+const hash = (value) => createHash('sha256').update(value).digest('hex');
+const manifestFor = (candidate, contentDigest, session) => {
+  const basis = {
+    configurationDigest: d('0'),
+    schemaVersion: 'jig.evidence.v1',
+    policy: {
+      kind: 'fixture-policy',
+      version: 'fixture-policy/v1',
+      digest: d('e'),
+      scanPolicyVersion: 'scan/v1',
+      scanPolicyDigest: d('f'),
+    },
+    subjectKind: 'ID-CAND',
+    subjectIdentity: candidate,
+    subject: `evidence://${candidate}/claim/candidate-content`,
+    claim: 'candidate-content',
+    producer: { kind: 'principal', principal: 'principal/implementer', session },
+    providerManifest: null,
+    contentType: 'text/plain',
+    contentClass: 'completeness-critical',
+    completeness: 'complete',
+    originalDigest: d('2'),
+    artifactDigest: contentDigest,
+    originalSize: 1,
+    retainedSize: 1,
+    loss: null,
+    redaction: { policyVersion: 'scan/v1', status: 'none' },
+    retention: { class: 'fixture', windowDays: 1, hold: null },
+  };
+  const artifactFact = { operation: operation(91), mode: 'put', position: 1, headDigest: d('4'), binding: 'binding' };
+  return {
+    ...basis,
+    manifestDigest: hash(JSON.stringify({ basis, artifactFact, adoptionTransition: `${candidate}/transition` })),
+    disposition: 'admitted',
+    artifactFact,
+    adoptionTransition: `${candidate}/transition`,
+  };
+};
+
+const admissionFor = (waiter) => {
+  const workspaceTransition = runtime.createWorkspaceTransitionRecorder();
+  const workspaceController = runtime.createWorkspaceController({
+    transition: workspaceTransition,
+    fixture: runtime.createScriptedWorkspaceFixture(),
+  });
+  const workspaceOperation = operation(90 + waiter.comparator.ordinal);
+  const workspaceBinding = {
+    operation: workspaceOperation,
+    operationType: 'OPC-WS-OBSERVE',
+    subject: { run, story: waiter.story, basis: waiter.eligibilityBasis },
+    repository: 'repository/finalizer-fixture',
+    path: '/workspace/finalizer-fixture',
+    basis: waiter.eligibilityBasis,
+    recipeDigest: d('8'),
+    inputFingerprintDigest: d('9'),
+    host: 'host/finalizer-fixture',
+    manifest: `provider/${d('3')}/authority/${d('4')}`,
+  };
+  const observed = workspaceController.observe({ binding: workspaceBinding });
+  assert.equal(observed.ok, true, JSON.stringify(observed));
+  const candidate = {
+    schema: 'jig.sch-candidate.v1',
+    id: waiter.candidate,
+    run,
+    story: waiter.story,
+    role: 'implementer',
+    session: `${waiter.story}/session/implementer/1`,
+    principal: 'principal/implementer',
+    sessionOrdinal: 1,
+    assignmentOrdinal: 1,
+    source: 'session-result',
+    sourceEventKey: d('1'),
+    sourceEvent: {
+      event: 'EV-SESSION-RESULT',
+      operation: `${operation(waiter.comparator.ordinal).slice(0, operation(waiter.comparator.ordinal).lastIndexOf('/op/'))}/op/1`,
+      sessionOrdinal: 1,
+      assignmentOrdinal: 1,
+      commitProof: {
+        kind: 'committed-witnessed',
+        position: waiter.comparator.ordinal - 1,
+        event: `${run}/event/${waiter.comparator.ordinal}`,
+        transaction: operation(waiter.comparator.ordinal).slice(
+          0,
+          operation(waiter.comparator.ordinal).lastIndexOf('/op/'),
+        ),
+        recordDigest: d('5'),
+        witnessDigest: d('5'),
+      },
+    },
+    candidateCreationKey: '',
+    runBasisDigest: waiter.eligibilityBasis,
+    targetBasisDigest: waiter.targetBasisDigest,
+    changedPaths: [],
+    treeDigest: waiter.treeDigest,
+    workspaceCommit: null,
+    deliveryMetadata: {
+      changedPaths: [],
+      commitMessage: null,
+      workspaceCommit: null,
+      session: `${waiter.story}/session/implementer/1`,
+    },
+    deliveryMetadataDigest: '',
+    evidenceManifestDigest: '',
+    workspaceFingerprint: observed.value.workspaceFingerprint,
+    workspaceFactDigest: observed.value.contentDigest,
+    candidateContentDigest: waiter.candidateContentDigest,
+    posture: waiter.policy.posture,
+    generation: waiter.generation,
+    authorizingTransition: operation(waiter.comparator.ordinal).slice(
+      0,
+      operation(waiter.comparator.ordinal).lastIndexOf('/op/'),
+    ),
+    commitProof: {
+      kind: 'committed-witnessed',
+      position: waiter.comparator.ordinal - 1,
+      event: `${run}/event/${waiter.comparator.ordinal}`,
+      transaction: operation(waiter.comparator.ordinal).slice(
+        0,
+        operation(waiter.comparator.ordinal).lastIndexOf('/op/'),
+      ),
+      recordDigest: d('5'),
+      witnessDigest: d('5'),
+    },
+  };
+  candidate.candidateCreationKey = stageDigest({
+    domain: 'CANDIDATE-CREATION-KEY',
+    excludePaths: [],
+    value: {
+      source: candidate.source,
+      story: candidate.story,
+      session: candidate.session,
+      producerKey: candidate.sourceEventKey,
+      candidateContentDigest: candidate.candidateContentDigest,
+    },
+  }).value.digest;
+  candidate.deliveryMetadataDigest = stageDigest({
+    domain: 'CANDIDATE-DELIVERY-METADATA',
+    excludePaths: [],
+    value: candidate.deliveryMetadata,
+  }).value.digest;
+  const manifest = manifestFor(candidate.id, candidate.candidateContentDigest, candidate.session);
+  candidate.evidenceManifestDigest = manifest.manifestDigest;
+  const evidenceDigest = runtime.deriveAcceptanceEvidenceDigest({
+    schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+    manifest,
+    manifestDigest: manifest.manifestDigest,
+    candidate: candidate.id,
+    candidateContentDigest: candidate.candidateContentDigest,
+    targetBasisDigest: candidate.targetBasisDigest,
+    disposition: 'admitted',
+    availability: 'available',
+  });
+  assert.equal(evidenceDigest.ok, true, JSON.stringify(evidenceDigest));
+  const publication = runtime.createExplicitAbsenceObservation({
+    mode: 'no-venue',
+    subject: {
+      run,
+      story: waiter.story,
+      basis: waiter.eligibilityBasis,
+      repository: 'repository/finalizer-fixture',
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
+    },
+  });
+  assert.equal(publication.ok, true, JSON.stringify(publication));
+  const requirementsDigest = runtime.deriveFrozenRequirementsDigest({
+    requirements: ['finalize'],
+    acceptanceCriteria: ['exact'],
+  });
+  const policyDigest = runtime.deriveAcceptancePolicyDigest({
+    posture: waiter.policy.posture,
+    reviewMode: 'no-venue',
+    ruleSurfaceDigest: d('6'),
+  });
+  assert.equal(requirementsDigest.ok && policyDigest.ok, true);
+  const acceptanceController = runtime.createScriptedAcceptanceController({ reworkLimit: 2 }).value;
+  const assembled = acceptanceController.assemble({
+    candidate,
+    requirements: {
+      schema: 'jig.frozen-requirements.v1',
+      requirements: ['finalize'],
+      acceptanceCriteria: ['exact'],
+      digest: requirementsDigest.value,
+    },
+    evidence: {
+      schema: runtime.ACCEPTANCE_EVIDENCE_SCHEMA,
+      manifest,
+      manifestDigest: manifest.manifestDigest,
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
+      disposition: 'admitted',
+      availability: 'available',
+      integrityDigest: evidenceDigest.value,
+    },
+    publicationObservation: publication.value,
+    policy: {
+      schema: 'jig.acceptance-policy.v1',
+      posture: waiter.policy.posture,
+      reviewMode: 'no-venue',
+      ruleSurfaceDigest: d('6'),
+      digest: policyDigest.value,
+    },
+    findings: [],
+    contributorPrincipals: [],
+  });
+  assert.equal(assembled.ok, true, JSON.stringify(assembled));
+  const assignment = acceptanceController.assign({
+    package: assembled.value,
+    session: `${waiter.story}/session/reviewer/1`,
+    principal: 'principal/reviewer',
+  });
+  assert.equal(assignment.ok, true, JSON.stringify(assignment));
+  const verdict = acceptanceController.receiveVerdict({
+    assignment: assignment.value,
+    verdict: 'approve',
+    findings: [],
+  });
+  assert.equal(verdict.ok, true, JSON.stringify(verdict));
+  return { candidateCarrier: candidate, acceptanceController, workspaceController };
 };
 
 const verificationRequest = (waiter, ordinal, posture = 'deterministic', checkClass = 'test') => {
@@ -146,8 +376,8 @@ const permit = (request, ordinal) => {
       recordDigest: d('5'),
       witnessDigest: d('5'),
     },
-    purpose: 'semantic',
-    predecessor: null,
+    purpose: request.retryOrdinal > 1 ? 'replacement' : 'semantic',
+    predecessor: request.predecessor,
   };
 };
 
@@ -174,16 +404,26 @@ const attestation = (request, outcome = 'pass', overrides = {}) => ({
 
 const controllerFor = (waiter, requests = []) => {
   const permits = requests.map((request, index) => permit(request, index + 1));
-  const verification = runtime.createScriptedVerificationFixture({
+  const verificationAuthorizer = {
     recordDispatch(input) {
       const value = permits.find((candidate) => candidate.operation === input.operation);
       return value ? { ok: true, value } : { ok: false, error: { family: 'FC-AUTHORITY', code: 'NOT_AUTHORIZED' } };
     },
-  });
+  };
+  const verification = runtime.createScriptedVerificationFixture(verificationAuthorizer);
   const registry = runtime.createScriptedRegistry();
   const controller = runtime.createScriptedFinalizerController({ binding, registry, verification });
   assert.equal(controller.ok, true);
-  const enqueued = controller.value.enqueue(waiter);
+  const admission = admissionFor(waiter);
+  const enqueued = controller.value.enqueue({
+    operation: waiter.operation,
+    run: waiter.run,
+    story: waiter.story,
+    comparator: waiter.comparator,
+    policy: waiter.policy,
+    waitedAt: waiter.waitedAt,
+    ...admission,
+  });
   assert.equal(enqueued.ok, true, JSON.stringify(enqueued));
   const granted = controller.value.grant({
     operation: operation(waiter.comparator.ordinal + 100),
@@ -191,7 +431,7 @@ const controllerFor = (waiter, requests = []) => {
     waitedAt: waiter.waitedAt,
   });
   assert.equal(granted.ok, true, JSON.stringify(granted));
-  return { controller: controller.value, verification, registry, authority: granted.value };
+  return { controller: controller.value, verification, verificationAuthorizer, registry, authority: granted.value };
 };
 
 const targetFact = (operationId, outcome, anchorRegistry = null, targetBasisDigest = d('f')) => ({
@@ -229,14 +469,55 @@ test('GF-043 entry consumes exact GF-042 request/observation and fences forged l
   assert.equal(controller.authorizeAnchor({ operation: operation(6), authority }).ok, true);
 });
 
+test('MC-043-ORDER/MC-043-FENCE: fully shaped forged candidate cannot enter before durable acceptance readback', () => {
+  const waiter = makeWaiter('forged-admission', 1, nonePolicy);
+  const admission = admissionFor(waiter);
+  const forged = {
+    ...admission.candidateCarrier,
+    id: `${waiter.story}/cand/9|${d('z')}`,
+    candidateContentDigest: d('z'),
+  };
+  const created = runtime.createScriptedFinalizerController({
+    binding,
+    verification: runtime.createScriptedVerificationFixture({ recordDispatch: () => ({ ok: false }) }),
+  });
+  assert.equal(created.ok, true);
+  assert.equal(
+    created.value.enqueue({
+      operation: waiter.operation,
+      run: waiter.run,
+      story: waiter.story,
+      comparator: waiter.comparator,
+      policy: waiter.policy,
+      waitedAt: waiter.waitedAt,
+      candidateCarrier: forged,
+      acceptanceController: admission.acceptanceController,
+      workspaceController: admission.workspaceController,
+    }).ok,
+    false,
+  );
+});
+
 test('CF-ORDER/CF-CAPACITY: comparator-least grant and durable waiter start enforce one holder and individual bounds', () => {
   const high = makeWaiter('high', 2, nonePolicy, '8', 100);
   const low = makeWaiter('low', 1, nonePolicy, '9', 10);
   const verification = runtime.createScriptedVerificationFixture({ recordDispatch: () => ({ ok: false }) });
   const created = runtime.createScriptedFinalizerController({ binding, verification });
   assert.equal(created.ok, true);
-  assert.equal(created.value.enqueue(high).ok, true);
-  assert.equal(created.value.enqueue(low).ok, true);
+  const enqueue = (waiter) => {
+    const admission = admissionFor(waiter);
+    return created.value.enqueue({
+      operation: waiter.operation,
+      run: waiter.run,
+      story: waiter.story,
+      comparator: waiter.comparator,
+      policy: waiter.policy,
+      waitedAt: waiter.waitedAt,
+      ...admission,
+    });
+  };
+  assert.equal(enqueue(high).ok, true);
+  assert.equal(enqueue(low).ok, true);
   assert.equal(created.value.grant({ operation: operation(10), story: high.story, waitedAt: 100 }).ok, false);
   assert.equal(created.value.grant({ operation: operation(11), story: low.story, waitedAt: 10 }).ok, true);
   assert.equal(created.value.grant({ operation: operation(12), story: high.story, waitedAt: 100 }).ok, false);
@@ -275,10 +556,37 @@ test('MC-043-VERIFY-GATE and release scope: failed exact observation creates the
   assert.equal(controller.release({ operation: operation(33), authority, reason: 'rework' }).ok, true);
 });
 
+test('MC-043-VERIFY-GATE/MC-043-RECOVERY: retry failure derives bounds and stages only an exact new-ID GF-042 request', () => {
+  const waiter = makeWaiter('retry', 1, policy);
+  const request = verificationRequest(waiter, 70);
+  const replacement = {
+    ...verificationRequest(waiter, 71),
+    retryOrdinal: 2,
+    predecessor: request.operation,
+  };
+  const { controller, authority, verification } = controllerFor(waiter, [request, replacement]);
+  assert.equal(
+    controller.enterFinalizing({ operation: operation(72), origin: 'Waiting', verificationRequests: [request] }).ok,
+    true,
+  );
+  const failure = controller.recordVerificationFailure({
+    operation: request.operation,
+    reason: 'timeout',
+    replacementRequest: replacement,
+  });
+  assert.equal(failure.ok, true, JSON.stringify(failure));
+  assert.equal(
+    controller.projection().entry.verificationOperations.some((item) => item.operation === replacement.operation),
+    true,
+  );
+  assert.equal(controller.observeVerification({ authority, observation: attestation(replacement) }).ok, true);
+  assert.equal(verification.failures()[0].supersededBy, replacement.operation);
+});
+
 test('MC-043-RECOVERY: snapshot carries GF-042 state and registry witnesses; tampered local projection is rejected', () => {
   const waiter = makeWaiter('recovery', 1, nonePolicy);
   const request = verificationRequest(waiter, 40, 'none', null);
-  const { controller, verification, registry } = controllerFor(waiter, [request]);
+  const { controller, verification, verificationAuthorizer, registry } = controllerFor(waiter, [request]);
   const authority = controller.projection().authority;
   const entry = controller.enterFinalizing({
     operation: operation(41),
@@ -289,16 +597,34 @@ test('MC-043-RECOVERY: snapshot carries GF-042 state and registry witnesses; tam
   assert.equal(entry.value.noOp, true);
   assert.deepEqual(entry.value.verificationOperations, []);
   const snapshot = controller.snapshot();
-  const restoredFixture = runtime.createScriptedVerificationFixture(
-    { recordDispatch: () => ({ ok: false }) },
-    snapshot.verificationSnapshot,
-  );
   const restored = runtime.restoreScriptedFinalizerController(snapshot, {
     binding,
     registry,
-    verification: restoredFixture,
+    verificationAuthorizer,
   });
   assert.equal(restored.ok, true, JSON.stringify(restored));
+  const forgedVerificationSnapshot = {
+    ...snapshot.verificationSnapshot,
+    finalization: { ...snapshot.verificationSnapshot.finalization, readyForDelivery: false },
+  };
+  let originalPreviousDigest = d('0');
+  const redigestedOriginal = snapshot.records.map((item) => {
+    const previousDigest = originalPreviousDigest;
+    const digestValue = stageDigest({
+      domain: 'FINALIZER-RECORD',
+      excludePaths: [],
+      value: { position: item.position, previousDigest, record: item.record },
+    }).value.digest;
+    originalPreviousDigest = digestValue;
+    return { ...item, previousDigest, digest: digestValue };
+  });
+  assert.equal(
+    runtime.restoreScriptedFinalizerController(
+      { ...snapshot, records: redigestedOriginal, verificationSnapshot: forgedVerificationSnapshot },
+      { binding, registry, verificationAuthorizer },
+    ).ok,
+    false,
+  );
   const changedRecords = snapshot.records.map((item) =>
     item.record.kind === 'grant'
       ? {
@@ -331,7 +657,7 @@ test('MC-043-RECOVERY: snapshot carries GF-042 state and registry witnesses; tam
     },
   };
   assert.equal(
-    runtime.restoreScriptedFinalizerController(tampered, { binding, registry, verification: restoredFixture }).ok,
+    runtime.restoreScriptedFinalizerController(tampered, { binding, registry, verificationAuthorizer }).ok,
     false,
   );
   assert.equal(verification.snapshot().finalization.state, 'Finalizing');

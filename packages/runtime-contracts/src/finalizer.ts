@@ -1,12 +1,15 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
 import {
+  type AcceptanceCandidate,
   type AcceptanceController,
   type ReviewPackage,
+  restoreScriptedAcceptanceController,
   validateAcceptanceCandidate,
   validateAcceptancePackage,
 } from './acceptance.js';
 import { createScriptedRegistry, type RegistryRecord } from './registry.js';
 import {
+  restoreScriptedVerificationFixture,
   type ScriptedVerificationFixture,
   type VerificationObservation,
   type VerificationRequest,
@@ -156,6 +159,7 @@ type FinalizerRecord =
       relatedOperation: string;
       reason: 'lost-response' | 'timeout';
       exhausted: boolean;
+      replacement: VerificationRequest | null;
     }>
   | Readonly<{ kind: 'delivery-intent'; operation: string; type: 'OPC-DEL-ANCHOR'; authority: FinalizerAuthority }>
   | Readonly<{ kind: 'target-fact'; operation: null; relatedOperation: string; fact: FinalizerTargetFact }>
@@ -377,82 +381,178 @@ function validateWaiterInput(
 ): FinalizerResult<Readonly<{ waiter: Omit<FinalizerWaiter, 'handle'>; operation: string; fault?: string }>> {
   const raw =
     own(input, [
-      'acceptedPackageDigest',
-      'candidate',
-      'candidateContentDigest',
+      'acceptanceController',
+      'candidateCarrier',
       'comparator',
-      'eligibilityBasis',
-      'generation',
       'operation',
       'policy',
       'run',
       'story',
-      'targetBasisDigest',
       'waitedAt',
+      'workspaceController',
     ]) ??
     own(input, [
-      'acceptedPackageDigest',
-      'candidate',
-      'candidateContentDigest',
+      'acceptanceController',
+      'candidateCarrier',
       'comparator',
-      'eligibilityBasis',
       'fault',
-      'generation',
       'operation',
       'policy',
       'run',
       'story',
-      'targetBasisDigest',
       'waitedAt',
+      'workspaceController',
     ]);
-  if (
-    !raw ||
-    !identity('ID-OP', raw.operation) ||
-    !identity('ID-RUN', raw.run) ||
-    !identity('ID-STORY', raw.story) ||
-    !identity('ID-CAND', raw.candidate) ||
-    !identity('ID-GEN', raw.generation)
-  )
+  if (!raw || !identity('ID-OP', raw.operation) || !identity('ID-RUN', raw.run) || !identity('ID-STORY', raw.story))
     return fail('FC-INPUT', 'INVALID_FINALIZER_WAITER');
-  if (
-    !raw.story.startsWith(`${raw.run}/story/`) ||
-    !raw.candidate.startsWith(`${raw.story}/cand/`) ||
-    !raw.generation.startsWith(`${raw.run}/gen/`)
-  )
-    return fail('FC-SUBJECT', 'FINALIZER_WAITER_SCOPE_MISMATCH');
-  if (
-    !digest(raw.candidateContentDigest) ||
-    !digest(raw.targetBasisDigest) ||
-    !digest(raw.eligibilityBasis) ||
-    !digest(raw.acceptedPackageDigest) ||
-    !position(raw.waitedAt)
-  )
+  if (!raw.story.startsWith(`${raw.run}/story/`) || !position(raw.waitedAt))
     return fail('FC-INPUT', 'INVALID_FINALIZER_WAITER_DIGEST');
   if (raw.fault !== undefined && !['after-flush', 'after-witness', 'lost-ack'].includes(raw.fault as string))
     return fail('FC-INPUT', 'INVALID_FINALIZER_FAULT');
+  const candidateResult = validateCandidateCarrier(raw.candidateCarrier);
+  if (!candidateResult.ok) return fail('FC-EVIDENCE', 'DURABLE_CANDIDATE_REQUIRED');
+  const candidate = candidateResult.value;
+  if (
+    candidate.run !== raw.run ||
+    candidate.story !== raw.story ||
+    !identity('ID-GEN', candidate.generation) ||
+    !candidate.generation.startsWith(`${raw.run}/gen/`)
+  )
+    return fail('FC-FENCE', 'FINALIZER_WAITER_SCOPE_MISMATCH');
+  const acceptance = acceptedPackage(raw.acceptanceController, candidate);
+  if (!acceptance.ok) return acceptance;
+  const workspace = durableWorkspace(raw.workspaceController, candidate, binding);
+  if (!workspace.ok) return workspace;
   const comparator = validateComparator(raw.comparator, raw.story as string);
   const policy = validatePolicy(raw.policy);
   if (!comparator.ok) return comparator;
   if (!policy.ok) return policy;
+  if (acceptance.value.verificationPosture !== policy.value.posture)
+    return fail('FC-FENCE', 'FINALIZER_POLICY_POSTURE_MISMATCH');
   return ok({
     operation: raw.operation as string,
     fault: raw.fault as string | undefined,
     waiter: {
-      run: raw.run as string,
-      story: raw.story as string,
-      candidate: raw.candidate as string,
-      candidateContentDigest: raw.candidateContentDigest as string,
-      targetBasisDigest: raw.targetBasisDigest as string,
-      generation: raw.generation as string,
+      run: candidate.run,
+      story: candidate.story,
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
+      generation: candidate.generation,
       registry: binding.registry,
       target: binding.target,
       comparator: comparator.value,
-      eligibilityBasis: raw.eligibilityBasis as string,
-      acceptedPackageDigest: raw.acceptedPackageDigest as string,
+      eligibilityBasis: candidate.runBasisDigest,
+      acceptedPackageDigest: acceptance.value.digest,
       policy: policy.value,
       waitedAt: raw.waitedAt as number,
     },
   });
+}
+
+function validateCandidateCarrier(value: unknown): FinalizerResult<AcceptanceCandidate> {
+  const checked = validateAcceptanceCandidate(value);
+  if (!checked.ok) return fail('FC-EVIDENCE', 'DURABLE_CANDIDATE_REQUIRED');
+  const candidate = checked.value;
+  const sourceEvent = field(candidate, 'sourceEvent');
+  const proof = plain(sourceEvent) ? field(sourceEvent, 'commitProof') : undefined;
+  const proofPosition = plain(proof) ? field(proof, 'position') : undefined;
+  const transition = field(candidate, 'authorizingTransition');
+  const sourceOperation = plain(sourceEvent) ? field(sourceEvent, 'operation') : undefined;
+  const expectedContent = derived('CANDIDATE-CONTENT', {
+    targetBasisDigest: candidate.targetBasisDigest,
+    changedPaths: candidate.changedPaths,
+    treeDigest: candidate.treeDigest,
+    workspaceCommit: candidate.workspaceCommit,
+  });
+  const expectedCreationKey = derived('CANDIDATE-CREATION-KEY', {
+    source: field(candidate, 'source'),
+    story: candidate.story,
+    session: candidate.session,
+    producerKey: field(candidate, 'sourceEventKey'),
+    candidateContentDigest: candidate.candidateContentDigest,
+  });
+  if (
+    !['session-result', 'workspace-refresh'].includes(field(candidate, 'source') as string) ||
+    !digest(field(candidate, 'sourceEventKey')) ||
+    !digest(field(candidate, 'workspaceFingerprint')) ||
+    !identity('ID-TXN', transition) ||
+    !identity('ID-OP', sourceOperation) ||
+    sourceOperation !== `${transition}/op/1` ||
+    !plain(sourceEvent) ||
+    sourceEvent.event !==
+      (field(candidate, 'source') === 'session-result' ? 'EV-SESSION-RESULT' : 'EV-WORKSPACE-FACT') ||
+    sourceEvent.sessionOrdinal !== field(candidate, 'sessionOrdinal') ||
+    sourceEvent.assignmentOrdinal !== field(candidate, 'assignmentOrdinal') ||
+    !plain(proof) ||
+    proof.kind !== 'committed-witnessed' ||
+    !position(proofPosition) ||
+    !identity('ID-EVENT', field(proof, 'event')) ||
+    field(proof, 'event') !== `${candidate.run}/event/${(proofPosition as number) + 1}` ||
+    field(proof, 'transaction') !== transition ||
+    !digest(field(proof, 'recordDigest')) ||
+    field(proof, 'recordDigest') !== field(proof, 'witnessDigest') ||
+    expectedContent !== candidate.candidateContentDigest ||
+    expectedCreationKey !== field(candidate, 'candidateCreationKey')
+  )
+    return fail('FC-EVIDENCE', 'INVALID_GF035_CANDIDATE_CARRIER');
+  return checked;
+}
+
+function acceptedPackage(input: unknown, candidate: AcceptanceCandidate): FinalizerResult<ReviewPackage> {
+  if (!input || typeof input !== 'object' || typeof (input as AcceptanceController).snapshot !== 'function')
+    return fail('FC-TRUST', 'DURABLE_ACCEPTANCE_READBACK_REQUIRED');
+  let snapshot: unknown;
+  try {
+    snapshot = (input as AcceptanceController).snapshot();
+  } catch {
+    return fail('FC-TRUST', 'DURABLE_ACCEPTANCE_READBACK_FAILED');
+  }
+  const restored = restoreScriptedAcceptanceController(snapshot);
+  if (!restored.ok) return fail('FC-TRUST', 'INVALID_ACCEPTANCE_READBACK');
+  const projection = restored.value.projection();
+  if (projection.state !== 'Accepted' || projection.candidate !== candidate.id || !projection.acceptedPackageDigest)
+    return fail('FC-AUTHORITY', 'FINALIZER_ACCEPTANCE_REQUIRED');
+  const packageValue = restored.value.packages().find((item) => item.digest === projection.acceptedPackageDigest);
+  const checked = validateAcceptancePackage(packageValue);
+  if (
+    !checked.ok ||
+    checked.value.candidate !== candidate.id ||
+    checked.value.candidateContentDigest !== candidate.candidateContentDigest ||
+    checked.value.targetBasisDigest !== candidate.targetBasisDigest ||
+    checked.value.digest !== projection.acceptedPackageDigest
+  )
+    return fail('FC-AUTHORITY', 'FINALIZER_ACCEPTANCE_REQUIRED');
+  return checked;
+}
+
+function durableWorkspace(
+  input: unknown,
+  candidate: AcceptanceCandidate,
+  binding: FinalizerBinding,
+): FinalizerResult<ReturnType<WorkspaceController['facts']>[number]> {
+  if (!input || typeof input !== 'object' || typeof (input as WorkspaceController).facts !== 'function')
+    return fail('FC-TRUST', 'DURABLE_WORKSPACE_READBACK_REQUIRED');
+  let facts: ReturnType<WorkspaceController['facts']>;
+  try {
+    facts = (input as WorkspaceController).facts();
+  } catch {
+    return fail('FC-TRUST', 'DURABLE_WORKSPACE_READBACK_FAILED');
+  }
+  const fact = facts
+    .map((item) => validateWorkspaceFact(item))
+    .find((item) => item.ok && item.value.contentDigest === candidate.workspaceFactDigest);
+  if (
+    fact?.ok !== true ||
+    fact.value.cleanliness !== 'clean' ||
+    fact.value.binding.subject.run !== candidate.run ||
+    fact.value.binding.subject.story !== candidate.story ||
+    fact.value.binding.subject.basis !== candidate.runBasisDigest ||
+    fact.value.binding.operationType !== 'OPC-WS-OBSERVE' ||
+    binding.target !== 'target/finalizer'
+  )
+    return fail('FC-EVIDENCE', 'INVALID_FINALIZER_WORKSPACE_FACT');
+  return ok(fact.value);
 }
 
 function registryState(registry: RegistryAdapter, binding: FinalizerBinding): FinalizerResult<RegistryState> {
@@ -618,6 +718,12 @@ function makeController(
         if (failed) status = 'Reworking';
       }
     } else if (record.kind === 'verification-failure') {
+      if (record.replacement && entry) {
+        const operations = entry.verificationOperations.some((item) => item.operation === record.replacement?.operation)
+          ? entry.verificationOperations
+          : Object.freeze([...entry.verificationOperations, record.replacement]);
+        entry = freeze({ ...entry, verificationOperations: operations });
+      }
       if (record.exhausted) {
         status = 'Blocked';
         if (entry) entry = freeze({ ...entry, readyForDelivery: false });
@@ -782,11 +888,20 @@ function makeController(
           return false;
       } else if (item.record.kind === 'verification-failure') {
         const failureRecord = item.record as Extract<FinalizerRecord, { kind: 'verification-failure' }>;
+        const failure = state.failures.find(
+          (candidate) =>
+            candidate.operation === failureRecord.relatedOperation && candidate.reason === failureRecord.reason,
+        );
         if (
-          !state.failures.some(
-            (failure) =>
-              failure.operation === failureRecord.relatedOperation && failure.reason === failureRecord.reason,
-          )
+          !failure ||
+          (failureRecord.replacement
+            ? failure.supersededBy !== null && failure.supersededBy !== failureRecord.replacement.operation
+            : failure.supersededBy !== null)
+        )
+          return false;
+        if (
+          failureRecord.replacement &&
+          !state.requests.some((request) => same(request, failureRecord.replacement, 'FINALIZER-REPLACEMENT-WITNESS'))
         )
           return false;
       }
@@ -1074,28 +1189,46 @@ function makeController(
     return result.ok ? ok(projection()) : result;
   };
   const recordVerificationFailure = (input: unknown): FinalizerResult<FinalizerProjection> => {
-    const raw = own(input, ['exhausted', 'operation', 'reason']);
-    if (
-      !raw ||
-      !identity('ID-OP', raw.operation) ||
-      !['lost-response', 'timeout'].includes(raw.reason as string) ||
-      typeof raw.exhausted !== 'boolean'
-    )
+    const raw = own(input, ['operation', 'reason']) ?? own(input, ['operation', 'reason', 'replacementRequest']);
+    if (!raw || !identity('ID-OP', raw.operation) || !['lost-response', 'timeout'].includes(raw.reason as string))
       return fail('FC-INPUT', 'INVALID_VERIFICATION_FAILURE');
     if (!entry?.verificationOperations.some((item) => item.operation === raw.operation))
       return fail('FC-SUBJECT', 'UNKNOWN_VERIFICATION_OPERATION');
     const request = entry.verificationOperations.find((item) => item.operation === raw.operation);
     if (!request) return fail('FC-SUBJECT', 'UNKNOWN_VERIFICATION_OPERATION');
+    const replacementValue = raw.replacementRequest;
+    const replacement = replacementValue === undefined ? undefined : validateVerificationRequest(replacementValue);
+    if (replacementValue !== undefined && !replacement?.ok)
+      return fail('FC-EVIDENCE', 'GF042_REPLACEMENT_REQUEST_REQUIRED');
+    if (
+      replacement?.ok &&
+      (replacement.value.operation === request.operation ||
+        replacement.value.retryOrdinal !== request.retryOrdinal + 1 ||
+        replacement.value.predecessor !== request.operation ||
+        !same(replacement.value.subject, request.subject, 'FINALIZER-REPLACEMENT-SUBJECT') ||
+        !same(replacement.value.fence, request.fence, 'FINALIZER-REPLACEMENT-FENCE') ||
+        !same(replacement.value.policy, request.policy, 'FINALIZER-REPLACEMENT-POLICY') ||
+        !same(replacement.value.configuration, request.configuration, 'FINALIZER-REPLACEMENT-CONFIG') ||
+        !same(replacement.value.environment, request.environment, 'FINALIZER-REPLACEMENT-ENV') ||
+        !same(replacement.value.cleanReceipt, request.cleanReceipt, 'FINALIZER-REPLACEMENT-RECEIPT') ||
+        replacement.value.checkClass !== request.checkClass ||
+        !same(replacement.value.bounds, request.bounds, 'FINALIZER-REPLACEMENT-BOUNDS'))
+    )
+      return fail('FC-FENCE', 'GF042_REPLACEMENT_FENCE_MISMATCH');
+    const shouldExhaust = request.retryOrdinal >= request.bounds.retryLimit;
+    if (shouldExhaust && replacementValue !== undefined) return fail('FC-BOUND', 'GF042_RETRY_ALREADY_EXHAUSTED');
+    if (!shouldExhaust && !replacement?.ok) return fail('FC-BOUND', 'GF042_REPLACEMENT_REQUIRED');
+    const prior = journal.find(
+      (item) => item.record.kind === 'verification-failure' && item.record.relatedOperation === raw.operation,
+    );
     const record: FinalizerRecord = {
       kind: 'verification-failure',
       operation: null,
       relatedOperation: raw.operation as string,
       reason: raw.reason as 'lost-response' | 'timeout',
-      exhausted: raw.exhausted as boolean,
+      exhausted: shouldExhaust,
+      replacement: replacement?.ok ? replacement.value : null,
     };
-    const prior = journal.find(
-      (item) => item.record.kind === 'verification-failure' && item.record.relatedOperation === raw.operation,
-    );
     if (prior && prior.record.kind === 'verification-failure')
       return same(prior.record, record, 'FINALIZER-FAILURE-REPLAY')
         ? ok(projection())
@@ -1110,6 +1243,19 @@ function makeController(
       (dispatched.error.code !== 'RESULT_UNCERTAIN' && dispatched.error.code !== 'MECHANISM_TIMEOUT')
     )
       return fail('FC-MECHANISM', 'GF042_FAILURE_NOT_RECORDED');
+    const durableFailure = verification
+      .failures()
+      .find((failure) => failure.operation === request.operation && failure.reason === raw.reason);
+    if (!durableFailure || durableFailure.supersededBy !== null)
+      return fail('FC-TRUST', 'GF042_FAILURE_WITNESS_MISSING');
+    if (replacement?.ok) {
+      if (typeof verification.stageReplacement !== 'function')
+        return fail('FC-TRUST', 'GF042_REPLACEMENT_STAGE_UNAVAILABLE');
+      const staged = verification.stageReplacement({ request: replacement.value });
+      if (!staged.ok) return fail('FC-AUTHORITY', 'GF042_REPLACEMENT_REJECTED');
+      if (!same(staged.value, replacement.value, 'FINALIZER-REPLACEMENT-STAGE'))
+        return fail('FC-TRUST', 'GF042_REPLACEMENT_WITNESS_MISMATCH');
+    }
     const result = append(record);
     return result.ok ? ok(projection()) : result;
   };
@@ -1209,48 +1355,10 @@ function makeController(
     if (candidate.id === authority.candidate) return fail('FC-AUTHORITY', 'CANDIDATE_REFRESH_REQUIRED');
     if (!candidate.id.startsWith(`${authority.story}/cand/`) || candidate.generation !== authority.generation)
       return fail('FC-FENCE', 'REFRESH_CANDIDATE_SCOPE_MISMATCH');
-    const acceptanceController = raw.acceptanceController as AcceptanceController;
-    const workspaceController = raw.workspaceController as WorkspaceController;
-    if (
-      !acceptanceController ||
-      typeof acceptanceController.projection !== 'function' ||
-      typeof acceptanceController.packages !== 'function' ||
-      !workspaceController ||
-      typeof workspaceController.facts !== 'function'
-    )
-      return fail('FC-TRUST', 'DURABLE_PREDECESSOR_CARRIERS_REQUIRED');
-    let acceptanceProjection: ReturnType<AcceptanceController['projection']>;
-    let packages: readonly ReviewPackage[];
-    let facts: ReturnType<WorkspaceController['facts']>;
-    try {
-      acceptanceProjection = acceptanceController.projection();
-      packages = acceptanceController.packages();
-      facts = workspaceController.facts();
-    } catch {
-      return fail('FC-TRUST', 'DURABLE_PREDECESSOR_READBACK_FAILED');
-    }
-    if (
-      acceptanceProjection.state !== 'Accepted' ||
-      acceptanceProjection.candidate !== candidate.id ||
-      !acceptanceProjection.acceptedPackageDigest
-    )
-      return fail('FC-AUTHORITY', 'REFRESH_ACCEPTANCE_REQUIRED');
-    const acceptedPackage = packages.find((item) => item.digest === acceptanceProjection.acceptedPackageDigest);
-    const packageResult = validateAcceptancePackage(acceptedPackage);
-    if (
-      !packageResult.ok ||
-      packageResult.value.candidate !== candidate.id ||
-      packageResult.value.candidateContentDigest !== candidate.candidateContentDigest ||
-      packageResult.value.targetBasisDigest !== candidate.targetBasisDigest ||
-      packageResult.value.digest !== acceptanceProjection.acceptedPackageDigest
-    )
-      return fail('FC-AUTHORITY', 'REFRESH_ACCEPTANCE_REQUIRED');
-    const durablePackage = packageResult.value;
-    const workspace = facts
-      .map((fact) => validateWorkspaceFact(fact))
-      .find((fact) => fact.ok && fact.value.contentDigest === candidate.workspaceFactDigest);
-    if (workspace?.ok !== true) return fail('FC-EVIDENCE', 'INVALID_REFRESH_WORKSPACE_FACT');
-    if (workspace.value.cleanliness !== 'clean' || workspace.value.binding.subject.story !== authority.story)
+    const durablePackage = acceptedPackage(raw.acceptanceController, candidate);
+    if (!durablePackage.ok) return durablePackage;
+    const workspace = durableWorkspace(raw.workspaceController, candidate, binding);
+    if (!workspace.ok || workspace.value.binding.subject.story !== authority.story)
       return fail('FC-EVIDENCE', 'INVALID_REFRESH_WORKSPACE_FACT');
     const operation = raw.operation as string;
     const hadIntent = journal.some(
@@ -1302,7 +1410,7 @@ function makeController(
       candidate: candidate.id,
       candidateContentDigest: candidate.candidateContentDigest,
       targetBasisDigest: candidate.targetBasisDigest,
-      acceptedPackageDigest: durablePackage.digest,
+      acceptedPackageDigest: durablePackage.value.digest,
       handle: waiter.handle,
     });
     const created = makeAuthority(
@@ -1509,6 +1617,7 @@ export function createScriptedFinalizerController(input: unknown = {}): Finalize
   if (
     !verification ||
     typeof verification.dispatch !== 'function' ||
+    typeof verification.stageReplacement !== 'function' ||
     typeof verification.enterFinalizing !== 'function' ||
     typeof verification.consume !== 'function' ||
     typeof verification.snapshot !== 'function'
@@ -1549,10 +1658,18 @@ export function restoreScriptedFinalizerController(
   const suppliedBinding = validateBinding(field(supplied, 'binding'));
   if (!suppliedBinding.ok || !same(suppliedBinding.value, binding.value, 'FINALIZER-BINDING-RECOVERY'))
     return fail('FC-FENCE', 'FINALIZER_BINDING_MISMATCH');
+  const suppliedAuthorizer = field(supplied, 'verificationAuthorizer');
+  if (!plain(suppliedAuthorizer) || typeof field(suppliedAuthorizer, 'recordDispatch') !== 'function')
+    return fail('FC-TRUST', 'GF042_VERIFICATION_AUTHORIZER_REQUIRED');
+  const restoredVerification = restoreScriptedVerificationFixture(
+    field(snapshot, 'verificationSnapshot'),
+    suppliedAuthorizer as { recordDispatch(input: unknown): unknown },
+  );
+  if (!restoredVerification.ok) return fail('FC-TRUST', 'INVALID_VERIFICATION_SNAPSHOT');
   const created = createScriptedFinalizerController({
     binding: binding.value,
     registry: field(supplied, 'registry'),
-    verification: field(supplied, 'verification'),
+    verification: restoredVerification.value,
     initialSnapshot: snapshot as FinalizerSnapshot,
   });
   return created;
