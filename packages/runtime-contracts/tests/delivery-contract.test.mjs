@@ -14,6 +14,27 @@ const binding = Object.freeze({ descriptor: d('c'), registry: `registry/${d('c')
 const transition = (ordinal) => `${run}/txn/${ordinal}/${generation}|${basis}`;
 const operation = (ordinal) => `${transition(ordinal)}/op/1`;
 const transitionForOperation = (value) => value.slice(0, value.lastIndexOf('/op/'));
+const makeRemoteGateRequirement = (data, required) => {
+  const authority = data.finalizer.projection().authority;
+  const acceptedPackageDigest = data.acceptanceController.projection().acceptedPackageDigest;
+  const value = {
+    schema: 'jig.delivery-gate-requirement.v1',
+    required,
+    subject: required ? 'gate/required' : null,
+    correlationKey: required ? 'gate/correlation/1' : null,
+    resourceIdentity: required ? 'gate/resource/1' : null,
+    maxAgeSeconds: required ? 50 : null,
+    asOf: required ? 100 : null,
+    acceptedPackageDigest,
+    candidate: data.candidate.id,
+    targetBasisDigest: data.targetBasisDigest,
+    generation,
+    authority: authority.authority,
+    registry: binding.registry,
+    target: binding.target,
+  };
+  return { ...value, digest: runtime.deriveDeliveryGateRequirementDigest(value) };
+};
 const policy = runtime.createFinalizerPolicy({
   posture: 'none',
   requiredClasses: [],
@@ -470,9 +491,14 @@ const makeController = (
   anchorConflict = false,
   preDispatchAbsentType = null,
   staleEffectFence = false,
+  remoteGateRequired = false,
+  remoteGateObservedAt = 90,
+  remoteGateState = 'pass',
+  secondTargetOutcome = null,
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
+  const remoteGate = makeRemoteGateRequirement(data, remoteGateRequired);
   const digest = runtime.deriveDeliveryStrategyDigest(mode);
   const effects = [];
   const nonAnchorOperation = (ordinal) => operation(offset + ordinal + 10);
@@ -551,6 +577,24 @@ const makeController = (
           ),
         ]
       : [
+          ...(remoteGateRequired
+            ? [
+                factObservation(
+                  data,
+                  nonAnchorOperation(9),
+                  'gate',
+                  'ready',
+                  null,
+                  {
+                    gateSubject: remoteGate.subject,
+                    gateState: remoteGateState,
+                    attestationDigest: d('b'),
+                  },
+                  remoteGateObservedAt,
+                  remoteGate.correlationKey,
+                ),
+              ]
+            : []),
           factObservation(
             data,
             nonAnchorOperation(7),
@@ -561,6 +605,20 @@ const makeController = (
             20,
             mergeCorrelation,
           ),
+          ...(secondTargetOutcome
+            ? [
+                factObservation(
+                  data,
+                  nonAnchorOperation(8),
+                  'target',
+                  secondTargetOutcome,
+                  nonAnchorOperation(6),
+                  targetResult,
+                  30,
+                  mergeCorrelation,
+                ),
+              ]
+            : []),
         ];
   const mechanism = runtime.createScriptedDeliveryMechanism({ effects, observations });
   assert.equal(mechanism.ok, true, JSON.stringify(mechanism));
@@ -570,6 +628,7 @@ const makeController = (
     candidateCarrier: data.candidate,
     finalizerSnapshot: data.finalizer.snapshot(),
     registry: data.registry,
+    remoteGate,
     strategy: { mode, digest: digest },
     verificationAuthorizer: data.verificationAuthorizer,
     mechanism: mechanism.value,
@@ -589,8 +648,10 @@ const makeController = (
       merge: nonAnchorOperation(6),
       observe: nonAnchorOperation(7),
       observe2: nonAnchorOperation(8),
+      gate: nonAnchorOperation(9),
     },
     mode,
+    remoteGate,
     changedPathsDigest,
     targetResult,
   };
@@ -606,6 +667,8 @@ const authorizeAndDispatch = (data, type, op, ordinal) => {
 test('CF-MECH-DELIVERY/MC-044-02: all final-delivery operations are fenced, durable, and provider-attested', () => {
   const data = makeController();
   authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  assert.equal(data.controller.projection().finalizer.anchorRegistry, binding.registry);
+  assert.deepEqual(data.controller.projection().finalizer.pendingDeliveryOperations, []);
   authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
   authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
   assert.equal(
@@ -645,6 +708,161 @@ test('CF-MECH-DELIVERY/MC-044-02: all final-delivery operations are fenced, dura
   assert.equal(data.controller.projection().status, 'Landed');
   assert.deepEqual(data.controller.projection().releasedStories, [data.story]);
   assert.equal(data.controller.reachability().landingEnabled, false);
+});
+
+test('GF044-MC-07/MC-08: a later advanced target observation permanently invalidates an earlier ready proof', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-stale-ready',
+    null,
+    50,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    'advanced',
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
+  authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe2,
+        'OPC-DEL-OBSERVE',
+        8,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe2, subject: 'target' }).ok, true);
+  assert.equal(data.controller.projection().status, 'Parked');
+  assert.deepEqual(
+    data.controller.recordLanded({
+      operation: operation(59),
+      mergeOperation: data.operations.merge,
+      targetObservationOperation: data.operations.observe,
+    }).error,
+    { family: 'FC-AUTHORITY', code: 'DELIVERY_TERMINAL' },
+  );
+});
+
+test('GF044-MC-02/MC-06/RP-REMOTE: required gates are exact, fresh, passing, and consumed before merge', () => {
+  const missing = makeController(
+    'merge-commit',
+    'delivery-required-gate-missing',
+    null,
+    60,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    true,
+  );
+  authorizeAndDispatch(missing, 'OPC-DEL-ANCHOR', missing.operations.anchor, 1);
+  authorizeAndDispatch(missing, 'OPC-DEL-PUBLISH', missing.operations.publish, 2);
+  authorizeAndDispatch(missing, 'OPC-DEL-REQUEST', missing.operations.request, 3);
+  assert.deepEqual(missing.controller.authorize(request(missing, missing.operations.merge, 'OPC-DEL-MERGE', 6)).error, {
+    family: 'FC-EVIDENCE',
+    code: 'REMOTE_GATE_REQUIRED',
+  });
+  assert.deepEqual(
+    missing.controller.authorize(
+      request(
+        missing,
+        missing.operations.gate,
+        'OPC-DEL-OBSERVE',
+        9,
+        'gate',
+        'gate/foreign',
+        missing.remoteGate.resourceIdentity,
+      ),
+    ).error,
+    { family: 'FC-FENCE', code: 'REMOTE_GATE_OPERATION_FENCE_MISMATCH' },
+  );
+  assert.equal(
+    missing.controller.authorize(
+      request(
+        missing,
+        missing.operations.gate,
+        'OPC-DEL-OBSERVE',
+        9,
+        'gate',
+        missing.remoteGate.correlationKey,
+        missing.remoteGate.resourceIdentity,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(missing.controller.observe({ operation: missing.operations.gate, subject: 'gate' }).ok, true);
+  authorizeAndDispatch(missing, 'OPC-DEL-MERGE', missing.operations.merge, 6);
+
+  const stale = makeController(
+    'merge-commit',
+    'delivery-required-gate-stale',
+    null,
+    70,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    true,
+    0,
+  );
+  authorizeAndDispatch(stale, 'OPC-DEL-ANCHOR', stale.operations.anchor, 1);
+  authorizeAndDispatch(stale, 'OPC-DEL-PUBLISH', stale.operations.publish, 2);
+  authorizeAndDispatch(stale, 'OPC-DEL-REQUEST', stale.operations.request, 3);
+  assert.equal(
+    stale.controller.authorize(
+      request(
+        stale,
+        stale.operations.gate,
+        'OPC-DEL-OBSERVE',
+        9,
+        'gate',
+        stale.remoteGate.correlationKey,
+        stale.remoteGate.resourceIdentity,
+      ),
+    ).ok,
+    true,
+  );
+  assert.deepEqual(stale.controller.observe({ operation: stale.operations.gate, subject: 'gate' }).error, {
+    family: 'FC-EVIDENCE',
+    code: 'REMOTE_GATE_ATTESTATION_INVALID',
+  });
 });
 
 test('GF044-MC-01/MC-03/CF-DOUBLE-EFFECT: wrong binding, exact intent replay, and response uncertainty fail closed', () => {
@@ -707,13 +925,16 @@ test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-fr
     acceptanceSnapshot: data.acceptanceController.snapshot(),
     binding,
     candidateCarrier: data.candidate,
-    finalizerSnapshot: data.finalizer.snapshot(),
+    finalizerSnapshot: data.controller.snapshot().finalizerSnapshot,
+    remoteGate: data.remoteGate,
     registry: data.registry,
     strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
     verificationAuthorizer: data.verificationAuthorizer,
     mechanism: data.mechanism,
   });
   assert.equal(recovered.ok, true, JSON.stringify(recovered));
+  assert.equal(recovered.value.projection().finalizer.anchorRegistry, binding.registry);
+  assert.deepEqual(recovered.value.projection().finalizer.pendingDeliveryOperations, []);
   const observation = recovered.value.authorize(
     request(
       data,

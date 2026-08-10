@@ -5,7 +5,13 @@ import {
   validateAcceptanceCandidate,
   validateAcceptancePackage,
 } from './acceptance.js';
-import { type FinalizerBinding, restoreScriptedFinalizerController } from './finalizer.js';
+import {
+  FINALIZER_EVENT_SCHEMA,
+  type FinalizerBinding,
+  type FinalizerProjection,
+  type FinalizerSnapshot,
+  restoreScriptedFinalizerController,
+} from './finalizer.js';
 
 export const DELIVERY_CONTRACT_VERSION = 'jig.delivery-contract.v1';
 export const DELIVERY_SNAPSHOT_SCHEMA = 'jig.delivery-snapshot.v1';
@@ -56,6 +62,23 @@ export type DeliveryResult<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok
 
 export type DeliveryStrategyBinding = Readonly<{
   mode: DeliveryStrategy;
+  digest: string;
+}>;
+export type DeliveryGateRequirement = Readonly<{
+  schema: 'jig.delivery-gate-requirement.v1';
+  required: boolean;
+  subject: string | null;
+  correlationKey: string | null;
+  resourceIdentity: string | null;
+  maxAgeSeconds: number | null;
+  asOf: number | null;
+  acceptedPackageDigest: string;
+  candidate: string;
+  targetBasisDigest: string;
+  generation: string;
+  authority: string;
+  registry: string;
+  target: string;
   digest: string;
 }>;
 export type DeliveryEffectFact = Readonly<{
@@ -142,6 +165,7 @@ export type DeliveryCarrier = Readonly<{
   authority: string;
   anchorOperation: string;
   anchorTransition: string;
+  remoteGate: DeliveryGateRequirement;
   acceptedPackageDigest: string;
   strategy: DeliveryStrategyBinding;
   waitTargetSeconds: number;
@@ -160,6 +184,7 @@ export type DeliveryProjection = Readonly<{
   releasedStories: readonly string[];
   recovery: Readonly<{ operation: string; observations: number; limit: number }> | null;
   targetWait: Readonly<{ operation: string; startedAt: number; deadline: number; observations: number }> | null;
+  finalizer: FinalizerProjection;
 }>;
 
 type DeliveryRecord =
@@ -178,6 +203,7 @@ export type DeliverySnapshot = Readonly<{
   status: DeliveryStatus;
   records: readonly JournalEntry[];
   projection: DeliveryProjection;
+  finalizerSnapshot: FinalizerSnapshot;
 }>;
 
 export type ScriptedDeliveryMechanism = Readonly<{
@@ -280,6 +306,77 @@ export function deriveDeliveryChangeSetDigest(
   }>,
 ): string | undefined {
   return derive('DELIVERY-CHANGE-SET', input);
+}
+
+const gateRequirementDigestInput = (
+  value: Readonly<Omit<DeliveryGateRequirement, 'digest'>>,
+): Readonly<Omit<DeliveryGateRequirement, 'digest'>> => value;
+
+export function deriveDeliveryGateRequirementDigest(
+  input: Readonly<Omit<DeliveryGateRequirement, 'digest'>>,
+): string | undefined {
+  return derive('DELIVERY-GATE-REQUIREMENT', gateRequirementDigestInput(input));
+}
+
+function validateGateRequirement(value: unknown): DeliveryResult<DeliveryGateRequirement> {
+  const raw = own(value, [
+    'acceptedPackageDigest',
+    'asOf',
+    'authority',
+    'candidate',
+    'correlationKey',
+    'digest',
+    'generation',
+    'maxAgeSeconds',
+    'registry',
+    'required',
+    'resourceIdentity',
+    'schema',
+    'subject',
+    'target',
+    'targetBasisDigest',
+  ]);
+  if (
+    raw?.schema !== 'jig.delivery-gate-requirement.v1' ||
+    typeof raw.required !== 'boolean' ||
+    !digest(raw.acceptedPackageDigest) ||
+    !identity('ID-CAND', raw.candidate) ||
+    !digest(raw.targetBasisDigest) ||
+    !identity('ID-GEN', raw.generation) ||
+    !identity('ID-AUTH', raw.authority) ||
+    !identity('ID-REGISTRY', raw.registry) ||
+    !identity('ID-TARGET', raw.target) ||
+    !digest(raw.digest)
+  )
+    return fail('FC-INPUT', 'INVALID_REMOTE_GATE_REQUIREMENT');
+  if (raw.required) {
+    if (
+      typeof raw.subject !== 'string' ||
+      !TEXT.test(raw.subject) ||
+      typeof raw.correlationKey !== 'string' ||
+      !TEXT.test(raw.correlationKey) ||
+      typeof raw.resourceIdentity !== 'string' ||
+      !TEXT.test(raw.resourceIdentity) ||
+      !position(raw.asOf) ||
+      typeof raw.maxAgeSeconds !== 'number' ||
+      !Number.isSafeInteger(raw.maxAgeSeconds) ||
+      raw.maxAgeSeconds < 1 ||
+      raw.maxAgeSeconds > DELIVERY_WAIT_BOUNDS.targetSeconds.maximum
+    )
+      return fail('FC-INPUT', 'INVALID_REMOTE_GATE_REQUIREMENT');
+  } else if (
+    raw.subject !== null ||
+    raw.correlationKey !== null ||
+    raw.resourceIdentity !== null ||
+    raw.asOf !== null ||
+    raw.maxAgeSeconds !== null
+  )
+    return fail('FC-AUTHORITY', 'NO_REQUIRED_GATE_MUST_BE_EXPLICIT');
+  const { digest: suppliedDigest, ...digestInput } = raw;
+  const expected = deriveDeliveryGateRequirementDigest(digestInput as Omit<DeliveryGateRequirement, 'digest'>);
+  return expected && expected === suppliedDigest
+    ? ok(raw as DeliveryGateRequirement)
+    : fail('FC-FENCE', 'REMOTE_GATE_POLICY_DIGEST_MISMATCH');
 }
 
 export function createDeliveryStrategy(input: unknown): DeliveryResult<DeliveryStrategyBinding> {
@@ -484,6 +581,7 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     'candidateCarrier',
     'finalizerSnapshot',
     'registry',
+    'remoteGate',
     'strategy',
     'verificationAuthorizer',
   ]);
@@ -492,6 +590,8 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
   if (!binding.ok) return binding;
   const candidateCarrier = validateAcceptanceCandidate(raw.candidateCarrier);
   if (!candidateCarrier.ok) return fail('FC-TRUST', 'INVALID_CANDIDATE_CARRIER');
+  const remoteGate = validateGateRequirement(raw.remoteGate);
+  if (!remoteGate.ok) return remoteGate;
   const strategy = createDeliveryStrategy(raw.strategy);
   if (!strategy.ok) return strategy;
   const acceptance = restoreScriptedAcceptanceController(raw.acceptanceSnapshot);
@@ -526,6 +626,21 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
   const anchorIntent = anchorRecord?.record.kind === 'delivery-intent' ? anchorRecord.record : undefined;
   const anchorOperation = anchorIntent?.operation;
   const anchorTransition = anchorOperation ? operationTransition(anchorOperation) : undefined;
+  const anchorTargetRecord = anchorOperation
+    ? restoredFinalizer.value
+        .records()
+        .find((item) => item.record.kind === 'target-fact' && item.record.relatedOperation === anchorOperation)
+    : undefined;
+  const anchorContinuity =
+    Boolean(anchorOperation) &&
+    ((projection.pendingDeliveryOperations.length === 1 &&
+      projection.pendingDeliveryOperations[0] === anchorOperation) ||
+      (projection.pendingDeliveryOperations.length === 0 &&
+        projection.anchorRegistry === binding.value.registry &&
+        anchorTargetRecord?.record.kind === 'target-fact' &&
+        anchorTargetRecord.record.fact.outcome === 'present'));
+  if (!anchorOperation || !anchorTransition || !anchorIntent)
+    return fail('FC-FENCE', 'FINALIZER_ANCHOR_CARRIER_MISSING');
   if (
     reachability.providerEnabled ||
     reachability.externalEffects ||
@@ -534,11 +649,7 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     !authority ||
     !entry ||
     !entry.readyForDelivery ||
-    projection.pendingDeliveryOperations.length === 0 ||
-    projection.pendingDeliveryOperations.length !== 1 ||
-    !anchorIntent ||
-    projection.pendingDeliveryOperations[0] !== anchorOperation ||
-    !anchorTransition ||
+    !anchorContinuity ||
     !waiter ||
     waiter.acceptedPackageDigest !== checkedPackage.value.digest ||
     checkedPackage.value.story !== waiter.story ||
@@ -567,7 +678,14 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     anchorIntent.authority.candidateContentDigest !== checkedPackage.value.candidateContentDigest ||
     anchorIntent.authority.targetBasisDigest !== checkedPackage.value.targetBasisDigest ||
     anchorIntent.authority.authority !== authority.authority ||
-    anchorIntent.authority.generation !== authority.generation
+    anchorIntent.authority.generation !== authority.generation ||
+    remoteGate.value.acceptedPackageDigest !== checkedPackage.value.digest ||
+    remoteGate.value.candidate !== checkedPackage.value.candidate ||
+    remoteGate.value.targetBasisDigest !== checkedPackage.value.targetBasisDigest ||
+    remoteGate.value.generation !== authority.generation ||
+    remoteGate.value.authority !== authority.authority ||
+    remoteGate.value.registry !== binding.value.registry ||
+    remoteGate.value.target !== binding.value.target
   )
     return fail('FC-FENCE', 'FINALIZER_CARRIER_MISMATCH');
   const changedPaths = packageCandidate(checkedPackage.value);
@@ -592,6 +710,7 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     treeDigest: candidateCarrier.value.treeDigest,
     anchorOperation,
     anchorTransition,
+    remoteGate: remoteGate.value,
   });
 }
 
@@ -668,6 +787,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     'finalizerSnapshot',
     'mechanism',
     'registry',
+    'remoteGate',
     'strategy',
     'verificationAuthorizer',
     'initialSnapshot',
@@ -675,17 +795,33 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
   if (!raw) return fail('FC-INPUT', 'INVALID_DELIVERY_CONTROLLER');
   const mechanism = validateMechanism(raw.mechanism);
   if (!mechanism.ok) return mechanism;
+  const initialSnapshot = plain(raw.initialSnapshot) ? raw.initialSnapshot : undefined;
+  const embeddedFinalizerSnapshot = initialSnapshot ? field(initialSnapshot, 'finalizerSnapshot') : undefined;
+  if (
+    embeddedFinalizerSnapshot !== undefined &&
+    !same(embeddedFinalizerSnapshot, raw.finalizerSnapshot, 'DELIVERY-FINALIZER-INPUT')
+  )
+    return fail('FC-FENCE', 'FINALIZER_SNAPSHOT_RECOVERY_MISMATCH');
+  const finalizerSnapshot = embeddedFinalizerSnapshot ?? raw.finalizerSnapshot;
   const admittedCarrier = admitCarrier({
     acceptanceSnapshot: raw.acceptanceSnapshot,
     binding: raw.binding,
     candidateCarrier: raw.candidateCarrier,
-    finalizerSnapshot: raw.finalizerSnapshot,
+    finalizerSnapshot,
     registry: raw.registry,
+    remoteGate: raw.remoteGate,
     strategy: raw.strategy,
     verificationAuthorizer: raw.verificationAuthorizer,
   });
   if (!admittedCarrier.ok) return admittedCarrier;
   const carrier = admittedCarrier.value;
+  const restoredFinalizer = restoreScriptedFinalizerController(finalizerSnapshot, {
+    binding: raw.binding,
+    registry: raw.registry,
+    verificationAuthorizer: raw.verificationAuthorizer,
+  });
+  if (!restoredFinalizer.ok) return fail('FC-TRUST', 'INVALID_FINALIZER_CARRIER');
+  const finalizerController = restoredFinalizer.value;
   let status: DeliveryStatus = 'Ready';
   const journal: JournalEntry[] = [];
   const intents = new Map<string, DeliveryIntent>();
@@ -887,6 +1023,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       releasedStories: Object.freeze([...released].sort()),
       recovery,
       targetWait,
+      finalizer: finalizerController.projection(),
     });
   if (raw.initialSnapshot !== undefined) {
     const snapshot = raw.initialSnapshot as DeliverySnapshot;
@@ -904,9 +1041,60 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     status = snapshot.status;
     if (!same(snapshot.projection, projection(), 'DELIVERY-SNAPSHOT-PROJECTION'))
       return fail('FC-TRUST', 'DELIVERY_PROJECTION_REPLAY_MISMATCH');
+    if (!same(finalizerController.snapshot(), snapshot.finalizerSnapshot, 'DELIVERY-FINALIZER-RECOVERY'))
+      return fail('FC-TRUST', 'DELIVERY_FINALIZER_REPLAY_MISMATCH');
   }
   const successful = (type: DeliveryOperationClass): DeliveryEffectFact | undefined =>
     [...effects.values()].find((fact) => fact.type === type && fact.outcome === 'success');
+  const validRemoteGate = (fact: DeliveryObservationFact): boolean => {
+    const requirement = carrier.remoteGate;
+    return (
+      requirement.required &&
+      fact.subject === 'gate' &&
+      fact.outcome === 'ready' &&
+      fact.correlationKey === requirement.correlationKey &&
+      fact.resolvesOperation === null &&
+      Object.keys(fact.result).sort().join('|') === 'attestationDigest|gateState|gateSubject' &&
+      fact.result.gateSubject === requirement.subject &&
+      fact.result.gateState === 'pass' &&
+      digest(fact.result.attestationDigest) &&
+      requirement.asOf !== null &&
+      requirement.maxAgeSeconds !== null &&
+      fact.observedAt <= requirement.asOf &&
+      requirement.asOf - fact.observedAt <= requirement.maxAgeSeconds
+    );
+  };
+  const currentRemoteGate = (): DeliveryObservationFact | undefined => {
+    const latest = [...journal]
+      .reverse()
+      .find((entry) => entry.record.kind === 'observation' && entry.record.fact.subject === 'gate');
+    if (latest?.record.kind !== 'observation' || !validRemoteGate(latest.record.fact)) return undefined;
+    return latest.record.fact;
+  };
+  const bridgeAnchorFact = (
+    input: Readonly<{ outcome: 'present' | 'conflict'; result: Readonly<Record<string, string>>; observedAt: number }>,
+  ): DeliveryResult<void> => {
+    const finalizerAuthority = finalizerController.projection().authority;
+    if (
+      !finalizerAuthority ||
+      finalizerAuthority.authority !== carrier.authority ||
+      finalizerAuthority.generation !== carrier.generation
+    )
+      return fail('FC-FENCE', 'GF043_AUTHORITY_CONTINUITY_MISMATCH');
+    const targetFact = {
+      schema: FINALIZER_EVENT_SCHEMA,
+      kind: 'EV-TARGET-FACT' as const,
+      operation: carrier.anchorOperation,
+      target: carrier.binding.target,
+      registry: carrier.binding.registry,
+      targetBasisDigest: carrier.targetBasisDigest,
+      anchorRegistry: input.result.anchorRegistry ?? null,
+      outcome: input.outcome,
+      observedAt: input.observedAt,
+    };
+    const recorded = finalizerController.recordTargetFact({ authority: finalizerAuthority, fact: targetFact });
+    return recorded.ok ? ok(undefined) : fail('FC-TRUST', 'GF043_CARRIER_CONTINUITY_REQUIRED');
+  };
   const authorize = (value: unknown): DeliveryResult<DeliveryIntent> => {
     const checked = validateOperation(value, carrier);
     if (!checked.ok) return checked;
@@ -926,6 +1114,14 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-FENCE', 'GF043_ANCHOR_OPERATION_MISMATCH');
     if (intent.type === 'OPC-DEL-OBSERVE' && intent.subject === 'effect' && !recovery)
       return fail('FC-RECOVERY', 'RECOVERY_OBSERVATION_REQUIRED');
+    if (intent.subject === 'gate' && !carrier.remoteGate.required)
+      return fail('FC-AUTHORITY', 'NO_REMOTE_GATE_REQUIRED');
+    if (
+      intent.subject === 'gate' &&
+      (intent.correlationKey !== carrier.remoteGate.correlationKey ||
+        intent.resourceIdentity !== carrier.remoteGate.resourceIdentity)
+    )
+      return fail('FC-FENCE', 'REMOTE_GATE_OPERATION_FENCE_MISMATCH');
     if (intent.type === 'OPC-DEL-OBSERVE' && intent.subject === 'target') {
       const merge =
         successful('OPC-DEL-MERGE') ??
@@ -943,6 +1139,8 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       return fail('FC-AUTHORITY', 'REQUEST_REQUIRED');
     if (intent.type === 'OPC-DEL-MERGE' && !successful('OPC-DEL-REQUEST'))
       return fail('FC-AUTHORITY', 'REQUEST_REQUIRED');
+    if (intent.type === 'OPC-DEL-MERGE' && carrier.remoteGate.required && !currentRemoteGate())
+      return fail('FC-EVIDENCE', 'REMOTE_GATE_REQUIRED');
     const priorAbsent = [...effects.values()].filter(
       (fact) => fact.type === intent.type && fact.outcome === 'absent' && fact.failurePhase === 'pre-dispatch',
     );
@@ -991,6 +1189,14 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       fact.value.resourceIdentity !== intent.resourceIdentity
     )
       return fail('FC-FENCE', 'EFFECT_FACT_FENCE_MISMATCH');
+    if (intent.type === 'OPC-DEL-ANCHOR' && (fact.value.outcome === 'success' || fact.value.outcome === 'conflict')) {
+      const bridged = bridgeAnchorFact({
+        outcome: fact.value.outcome === 'success' ? 'present' : 'conflict',
+        result: fact.value.result,
+        observedAt: fact.value.observedAt,
+      });
+      if (!bridged.ok) return bridged;
+    }
     const appended = append({ kind: 'effect', fact: fact.value });
     if (!appended.ok) return appended;
     if (fact.value.outcome === 'uncertain') {
@@ -1042,6 +1248,21 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       fact.value.correlationKey !== intent.correlationKey
     )
       return fail('FC-FENCE', 'OBSERVATION_FACT_FENCE_MISMATCH');
+    if (fact.value.subject === 'gate' && !validRemoteGate(fact.value))
+      return fail('FC-EVIDENCE', 'REMOTE_GATE_ATTESTATION_INVALID');
+    if (
+      recovery &&
+      recovery.operation === carrier.anchorOperation &&
+      fact.value.subject === 'effect' &&
+      fact.value.outcome === 'present'
+    ) {
+      const bridged = bridgeAnchorFact({
+        outcome: 'present',
+        result: fact.value.result,
+        observedAt: fact.value.observedAt,
+      });
+      if (!bridged.ok) return bridged;
+    }
     const appended = append({ kind: 'observation', fact: fact.value });
     if (!appended.ok) return appended;
     if (recovery && fact.value.subject === 'effect' && fact.value.resolvesOperation === recovery.operation) {
@@ -1114,6 +1335,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     )
       return fail('FC-INPUT', 'INVALID_LANDING_RECORD');
     if (landing || status === 'Landed') return fail('FC-AUTHORITY', 'LANDING_ALREADY_RECORDED');
+    if (status === 'Parked') return fail('FC-AUTHORITY', 'DELIVERY_TERMINAL');
     const merge = effects.get(rawValue.mergeOperation as string);
     const observation = observations.get(rawValue.targetObservationOperation as string);
     const mergeIntentEntry = journal.find(
@@ -1130,6 +1352,9 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       (entry) =>
         entry.record.kind === 'observation' && entry.record.fact.operation === rawValue.targetObservationOperation,
     );
+    const latestTargetObservationEntry = [...journal]
+      .reverse()
+      .find((entry) => entry.record.kind === 'observation' && entry.record.fact.subject === 'target');
     if (
       merge?.type !== 'OPC-DEL-MERGE' ||
       !(merge.outcome === 'success' || resolvedEffects.has(merge.operation)) ||
@@ -1138,6 +1363,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       !observation ||
       !observationIntentEntry ||
       !observationEntry ||
+      latestTargetObservationEntry?.position !== observationEntry.position ||
       mergeEffectEntry.position >= observationIntentEntry.position ||
       mergeEffectEntry.position >= observationEntry.position ||
       observation.subject !== 'target' ||
@@ -1146,6 +1372,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       observation.correlationKey !== merge.correlationKey
     )
       return fail('FC-EVIDENCE', 'AUTHORITATIVE_LANDING_OBSERVATION_REQUIRED');
+    if (carrier.remoteGate.required && !currentRemoteGate()) return fail('FC-EVIDENCE', 'REMOTE_GATE_REQUIRED');
     const anchor =
       successful('OPC-DEL-ANCHOR') ??
       [...effects.values()].find((fact) => fact.type === 'OPC-DEL-ANCHOR' && resolvedEffects.has(fact.operation));
@@ -1206,6 +1433,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
         status,
         records: Object.freeze([...journal]),
         projection: projection(),
+        finalizerSnapshot: finalizerController.snapshot(),
       }),
     records: () => Object.freeze([...journal]),
     reachability: () =>
