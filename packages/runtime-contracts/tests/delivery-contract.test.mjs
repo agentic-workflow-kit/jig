@@ -508,6 +508,7 @@ const makeController = (
   anchorObservationResolvesOperation = null,
   anchorObservationCorrelationKey = null,
   anchorObservationResourceIdentity = null,
+  anchorObservationOutcome = 'present',
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
@@ -567,9 +568,9 @@ const makeController = (
           data,
           nonAnchorOperation(7),
           'effect',
-          'present',
+          anchorObservationOutcome,
           anchorObservationResolvesOperation ?? data.anchorOperation,
-          { anchorRegistry: binding.registry },
+          anchorObservationOutcome === 'present' ? { anchorRegistry: binding.registry } : {},
           20,
           anchorObservationCorrelationKey ?? `corr/${data.anchorOperation.split('/').at(-4)}`,
           anchorObservationResourceIdentity ?? 'resource/opc-del-anchor',
@@ -1097,6 +1098,65 @@ test('GF044-MC-04/MC-07: anchor recovery bridges only the exact original operati
     assert.deepEqual(replayRejected.error, { family: 'FC-FENCE', code: 'GF043_ANCHOR_RECOVERY_FACT_MISMATCH' });
     assert.deepEqual(restored.value.projection().finalizer.pendingDeliveryOperations, [data.anchorOperation]);
   }
+});
+
+test('GF044-MC-04: exact anchor absence resolves recovery without mutating the finalizer and survives replay/restore', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-anchor-recovery-absent',
+    null,
+    390,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    undefined,
+    true,
+    null,
+    null,
+    null,
+    'absent',
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  const correlation = `corr/${data.anchorOperation.split('/').at(-4)}`;
+  assert.equal(
+    data.controller.authorize(
+      request(data, data.operations.observe, 'OPC-DEL-OBSERVE', 7, 'effect', correlation, 'resource/opc-del-anchor'),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'effect' }).ok, true);
+  assert.equal(data.controller.projection().status, 'Ready');
+  assert.equal(data.controller.projection().recovery, null);
+  assert.deepEqual(data.controller.projection().finalizer.pendingDeliveryOperations, [data.anchorOperation]);
+  assert.equal(
+    data.controller.snapshot().finalizerSnapshot.records.some((entry) => entry.record.kind === 'target-fact'),
+    false,
+  );
+
+  const restored = runtime.restoreScriptedDeliveryController(data.controller.snapshot(), {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: data.controller.snapshot().finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.projection(), data.controller.projection());
 });
 
 test('GF044 hosted correction: restore derives status from the authenticated journal and rejects a forged snapshot status', () => {

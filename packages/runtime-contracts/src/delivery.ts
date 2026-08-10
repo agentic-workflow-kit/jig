@@ -1147,7 +1147,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       recoveringEffect?.type !== 'OPC-DEL-ANCHOR' ||
       recoveringEffect.outcome !== 'uncertain' ||
       fact.subject !== 'effect' ||
-      fact.outcome !== 'present' ||
+      (fact.outcome !== 'present' && fact.outcome !== 'absent') ||
       fact.resolvesOperation !== recoveringEffect.operation ||
       fact.correlationKey !== recoveringEffect.correlationKey ||
       fact.resourceIdentity !== recoveringEffect.resourceIdentity ||
@@ -1160,6 +1160,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       fact.targetBasisDigest !== carrier.targetBasisDigest
     )
       return fail('FC-FENCE', 'GF043_ANCHOR_RECOVERY_FACT_MISMATCH');
+    if (fact.outcome === 'absent') return ok(undefined);
     const finalizerAuthority = finalizerController.projection().authority;
     if (
       !finalizerAuthority ||
