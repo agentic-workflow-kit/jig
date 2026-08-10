@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { platform } from 'node:os';
 import test from 'node:test';
 
@@ -161,10 +161,130 @@ test('local command provider package is unavailable before exact qualification',
 
 test('manifest and native posture are exact, local, no-shell, and no-credential', () => {
   assert.equal(manifestValue.manifestId.startsWith('provider/'), true);
-  assert.equal(new TextDecoder().decode(manifestValue.bytes).includes('"shell":false'), true);
+  const manifestBytes = new TextDecoder().decode(manifestValue.bytes);
+  assert.equal(manifestBytes.includes('"shell":false'), true);
+  assert.equal(manifestBytes.includes('"runtimeReadAuthority"'), true);
+  assert.equal(manifestBytes.includes('"sandboxPolicyAuthority"'), true);
+  assert.deepEqual(
+    manifestValue.runtimeReadAuthority.map(({ path, role }) => ({ path, role })),
+    [
+      { path: executable, role: 'executable' },
+      { path: '/usr/lib/dyld', role: 'dynamic-loader' },
+    ],
+  );
+  assert.deepEqual(manifestValue.sandboxPolicyAuthority.systemReadLiterals, [
+    '/',
+    '/private',
+    '/private/etc',
+    '/private/var',
+    '/private/tmp',
+    '/dev/null',
+    '/dev/zero',
+    '/dev/random',
+    '/dev/urandom',
+  ]);
   assert.equal(new TextDecoder().decode(manifestValue.bytes).includes('credentialAuthority'), true);
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue }).ok, platform() === 'darwin');
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue, network: 'allowed' }).ok, false);
+});
+
+test('qualification attests actual confinement and rejects reordered or wildcard policy descriptors', () => {
+  const proof = provider.runLocalCommandQualificationProbe({
+    candidateCommit,
+    candidateTree,
+    manifest: manifestValue,
+    admission: admission(),
+  });
+  assert.equal(proof.ok, platform() === 'darwin', JSON.stringify(proof));
+  if (!proof.ok) return;
+  assert.equal(proof.value.observations['actual-confinement'], true);
+  assert.equal(proof.value.observations['runtime-read-digest'], true);
+  assert.equal(proof.value.observations['sandbox-policy-digest'], true);
+  assert.equal(proof.value.confinementTestDigest.length, 64);
+  assert.equal(proof.value.runtimeReadDigest, proof.value.nativePosture.runtimeReadDigest);
+  assert.equal(proof.value.sandboxPolicyDigest, proof.value.nativePosture.sandboxPolicyDigest);
+  assert.equal(proof.value.result.outcome, 'pass');
+
+  const reordered = {
+    ...manifestValue,
+    value: {
+      ...manifestValue.value,
+      runtimeReadAuthority: [...manifestValue.value.runtimeReadAuthority].reverse(),
+    },
+  };
+  assert.equal(provider.attestLocalPosixPosture({ executable, manifest: reordered }).ok, false);
+  const wildcard = {
+    ...manifestValue,
+    value: {
+      ...manifestValue.value,
+      sandboxPolicyAuthority: {
+        ...manifestValue.value.sandboxPolicyAuthority,
+        systemReadLiterals: ['/usr/lib'],
+      },
+    },
+  };
+  assert.equal(provider.attestLocalPosixPosture({ executable, manifest: wildcard }).ok, false);
+});
+
+test('checkout resources reject nested symlinks and traversal-shaped roots before native execution', () => {
+  const root = realpathSync(mkdtempSync('/private/tmp/gf047-checkout-test-'));
+  try {
+    const repository = `${root}/repository`;
+    mkdirSync(repository, { recursive: true });
+    const git = (args) => execFileSync('/usr/bin/git', ['-C', repository, ...args], { encoding: 'utf8' }).trim();
+    git(['init', '-q']);
+    git(['config', 'user.email', 'gf047@example.invalid']);
+    git(['config', 'user.name', 'GF-047']);
+    writeFileSync(`${repository}/tracked.txt`, 'tracked\n');
+    git(['add', 'tracked.txt']);
+    git(['commit', '-q', '-m', 'fixture']);
+    const tempCommit = git(['rev-parse', 'HEAD']);
+    const tempTree = git(['rev-parse', 'HEAD^{tree}']);
+    const tempContentDigest = provider.deriveLocalCommandCheckoutContentDigest(tempTree);
+    const tempBasisDigest = provider.deriveLocalCommandTargetBasisDigest(tempCommit, tempTree);
+    const tempReceipt = runtime.deriveVerificationCleanReceiptDigest({
+      candidateContentDigest: tempContentDigest,
+      targetBasisDigest: tempBasisDigest,
+    });
+    assert.equal(tempReceipt.ok, true);
+    const tempRequest = request(1);
+    const boundRequest = {
+      ...tempRequest,
+      subject: { ...tempRequest.subject, candidateContentDigest: tempContentDigest },
+      fence: {
+        ...tempRequest.fence,
+        candidateContentDigest: tempContentDigest,
+        targetBasisDigest: tempBasisDigest,
+      },
+      cleanReceipt: {
+        ...tempRequest.cleanReceipt,
+        candidateContentDigest: tempContentDigest,
+        targetBasisDigest: tempBasisDigest,
+        receiptDigest: tempReceipt.value,
+      },
+    };
+    symlinkSync('/etc', `${repository}/nested-host-link`);
+    assert.deepEqual(
+      provider.createLocalCommandCheckoutResource({
+        checkoutPath: repository,
+        request: boundRequest,
+        targetBasisCommit: tempCommit,
+        targetBasisTree: tempTree,
+      }),
+      { ok: false, error: { family: 'FC-SUBJECT', code: 'CHECKOUT_SYMLINK_REJECTED' } },
+    );
+    assert.deepEqual(
+      provider.createLocalCommandCheckoutResource({
+        checkoutPath: '/private/tmp/../tmp',
+        request: request(1),
+        targetBasisCommit,
+        targetBasisTree,
+      }),
+      { ok: false, error: { family: 'FC-TRUST', code: 'CHECKOUT_UNTRUSTED' } },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('GF-022 admission is opaque and cannot be minted by caller-shaped data', () => {
