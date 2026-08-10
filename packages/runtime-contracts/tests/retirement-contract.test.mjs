@@ -701,9 +701,34 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
   );
   assert.equal(controller.snapshot().authorizations[0].status, 'confirmed-effect');
   const witnessAdvance = controller.snapshot().authorizations[0].witnessAdvance;
-  const restored = retirement.restoreRetirementController(controller.snapshot(), obligationOptions());
+  const unavailable = retirement.restoreRetirementController(controller.snapshot(), obligationOptions());
+  assert.deepEqual(unavailable, {
+    ok: false,
+    error: { family: 'FC-MECHANISM', code: 'RETIREMENT_LOOKUP_UNAVAILABLE' },
+  });
+  const restored = retirement.restoreRetirementController(controller.snapshot(), { ...obligationOptions(), mechanism });
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.snapshot(), controller.snapshot());
+  const forgedSnapshot = structuredClone(controller.snapshot());
+  const forgedAuthorization = forgedSnapshot.authorizations[0];
+  forgedAuthorization.lookupAttestation.newHead = digest('9');
+  forgedAuthorization.lookupAttestation.witnessAdvance.head = digest('9');
+  forgedAuthorization.witnessAdvance = forgedAuthorization.lookupAttestation.witnessAdvance;
+  const forgedAttestationDigest = stageDigest({
+    domain: 'GF046-RETIREMENT-LOOKUP',
+    excludePaths: ['digest'],
+    value: { ...forgedAuthorization.lookupAttestation, digest: '' },
+  });
+  assert.equal(forgedAttestationDigest.ok, true, JSON.stringify(forgedAttestationDigest));
+  forgedAuthorization.lookupAttestation.digest = forgedAttestationDigest.value.digest;
+  assert.deepEqual(retirement.restoreRetirementController(forgedSnapshot, { ...obligationOptions(), mechanism }), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'RETIREMENT_LOOKUP_JOURNAL_BINDING_INVALID' },
+  });
+  assert.equal(
+    forgedSnapshot.pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
+    'held',
+  );
   assert.equal(
     restored.value.adopt({
       operation: 'OPC-ART-DISPOSE',
@@ -871,6 +896,11 @@ test('GF046-MC-07: reconciliation is only legal for uncertain operations and ter
     error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
   });
   assert.deepEqual(absence.controller.snapshot(), absenceBefore);
+  const absenceRestored = retirement.restoreRetirementController(absence.controller.snapshot(), {
+    ...obligationOptions(),
+    mechanism: absence.mechanism,
+  });
+  assert.equal(absenceRestored.ok, true, JSON.stringify(absenceRestored));
   assert.equal(
     absence.controller.reauthorize({
       resourceIdentity: absence.artifactResource.resourceIdentity,

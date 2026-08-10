@@ -1549,6 +1549,11 @@ export function createRetirementController(
         operation: authorization.operation,
         resourceIdentity: authorization.resourceIdentity,
         certainty: typedCertainty,
+        lookupAttestation: JSON.parse(JSON.stringify(attestation)) as RetirementLookupAttestation,
+        lookupAttestationDigest: attestation.digest,
+        lookupHead: attestation.newHead,
+        lookupLineage: attestation.newLineage,
+        lookupWitnessAdvance: attestation.witnessAdvance ? Object.freeze({ ...attestation.witnessAdvance }) : null,
       }),
     );
     return ok({ certainty: typedCertainty });
@@ -1735,6 +1740,116 @@ export function restoreRetirementController(
       (value.witnessAdvance as AnyRecord)?.lineage,
     );
   };
+  const revalidateRecoveredLookups = (): RetirementResult<null> => {
+    const recovered = authorizationValues?.filter(
+      (authorization) => (authorization as AnyRecord).lookupAttestation !== null,
+    );
+    if (!recovered || recovered.length === 0) return ok(null);
+    if (!options?.mechanism?.lookup) return fail('FC-MECHANISM', 'RETIREMENT_LOOKUP_UNAVAILABLE');
+    for (const authorizationValue of recovered) {
+      const authorization = authorizationValue as RetirementAuthorization;
+      const persistedAttestation = authorization.lookupAttestation;
+      if (!persistedAttestation) return fail('FC-TRUST', 'RETIREMENT_LOOKUP_JOURNAL_BINDING_INVALID');
+      const resource = planValue?.resources.find(
+        (candidate) => candidate.resourceIdentity === authorization.resourceIdentity,
+      );
+      const preservation = receiptValues?.find(
+        (candidate) => (candidate as AnyRecord).resourceIdentity === authorization.resourceIdentity,
+      ) as PreservationReceipt | undefined;
+      const priorWitness = preservation?.witness ?? resource?.witness;
+      const records = journalValues?.filter((entry) => {
+        const value = entry as AnyRecord;
+        return (
+          value.kind === 'reconcile' &&
+          value.operation === authorization.operation &&
+          value.resourceIdentity === authorization.resourceIdentity
+        );
+      });
+      const record =
+        records?.length === 1
+          ? fields(records[0], [
+              'kind',
+              'operation',
+              'resourceIdentity',
+              'certainty',
+              'lookupAttestation',
+              'lookupAttestationDigest',
+              'lookupHead',
+              'lookupLineage',
+              'lookupWitnessAdvance',
+            ])
+          : undefined;
+      const recorded = record?.lookupAttestation;
+      if (
+        !resource ||
+        !priorWitness ||
+        !record ||
+        record.kind !== 'reconcile' ||
+        record.operation !== authorization.operation ||
+        record.resourceIdentity !== authorization.resourceIdentity ||
+        !validLookupAttestation(
+          recorded,
+          authorization,
+          resource,
+          priorWitness,
+          record.certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate',
+        ) ||
+        !equal(recorded, authorization.lookupAttestation) ||
+        record.lookupAttestationDigest !== persistedAttestation.digest ||
+        record.lookupHead !== persistedAttestation.newHead ||
+        record.lookupLineage !== persistedAttestation.newLineage ||
+        !equal(record.lookupWitnessAdvance, persistedAttestation.witnessAdvance)
+      )
+        return fail('FC-TRUST', 'RETIREMENT_LOOKUP_JOURNAL_BINDING_INVALID');
+      let lookedUp: RetirementResult<Readonly<Record<string, unknown>>>;
+      try {
+        lookedUp = options.mechanism.lookup(
+          Object.freeze({
+            resource: authorization.resource,
+            resourceIdentity: authorization.resourceIdentity,
+            operation: authorization.operation,
+            port: authorization.port,
+            mode: authorization.mode,
+            controller: RETIREMENT_CONTROLLER,
+            transition: authorization.transition,
+            holderTransition: authorization.holderTransition,
+            preservationReceipt: preservation,
+            preservationWitness: priorWitness,
+            priorStatus: 'uncertain',
+          }),
+        );
+      } catch {
+        return fail('FC-MECHANISM', 'RETIREMENT_LOOKUP_FAILURE');
+      }
+      if (!lookedUp.ok) return fail('FC-MECHANISM', 'RETIREMENT_LOOKUP_REVALIDATION_FAILED');
+      const attestation = fields(lookedUp.value, [
+        'schema',
+        'capability',
+        'resource',
+        'resourceIdentity',
+        'operation',
+        'port',
+        'mode',
+        'transition',
+        'holderTransition',
+        'preservationWitness',
+        'priorHead',
+        'priorLineage',
+        'newHead',
+        'newLineage',
+        'witnessAdvance',
+        'certainty',
+        'digest',
+      ]);
+      if (
+        !attestation ||
+        !validLookupAttestation(attestation, authorization, resource, priorWitness, persistedAttestation.certainty) ||
+        !equal(attestation, recorded)
+      )
+        return fail('FC-TRUST', 'RETIREMENT_LOOKUP_REVALIDATION_FAILED');
+    }
+    return ok(null);
+  };
   if (
     !raw ||
     raw.schema !== RETIREMENT_SCHEMA ||
@@ -1792,6 +1907,8 @@ export function restoreRetirementController(
     !unique(obligationValues, (obligation) => String((obligation as AnyRecord).resource))
   )
     return fail('FC-TRUST', 'RETIREMENT_SNAPSHOT_INVALID');
+  const revalidated = revalidateRecoveredLookups();
+  if (!revalidated.ok) return revalidated;
   const controller = createRetirementController({
     ...options,
     hydrate: {
