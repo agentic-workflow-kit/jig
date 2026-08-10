@@ -70,7 +70,7 @@ type AcceptanceDeliveryMetadata = Readonly<{
   workspaceCommit: string | null;
   session: string;
 }>;
-type AcceptanceCandidate = Readonly<{
+export type AcceptanceCandidate = Readonly<{
   schema: 'jig.sch-candidate.v1';
   id: string;
   run: string;
@@ -616,6 +616,10 @@ function validateCandidate(value: unknown): AcceptanceResult<AcceptanceCandidate
   return ok(value as AcceptanceCandidate);
 }
 
+export function validateAcceptanceCandidate(value: unknown): AcceptanceResult<AcceptanceCandidate> {
+  return validateCandidate(value);
+}
+
 function observationFor(
   candidate: AcceptanceCandidate,
   mode: string,
@@ -864,6 +868,10 @@ function validatePackage(value: unknown): AcceptanceResult<ReviewPackage> {
   if (!raw.contributorPrincipals.includes(raw.candidatePrincipal))
     return fail('FC-FENCE', 'CANDIDATE_PRINCIPAL_NOT_CONTRIBUTOR');
   return ok(raw);
+}
+
+export function validateAcceptancePackage(value: unknown): AcceptanceResult<ReviewPackage> {
+  return validatePackage(value);
 }
 
 function validateFindingPackageAdmission(

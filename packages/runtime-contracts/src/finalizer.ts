@@ -1,5 +1,19 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import {
+  type AcceptanceController,
+  type ReviewPackage,
+  validateAcceptanceCandidate,
+  validateAcceptancePackage,
+} from './acceptance.js';
 import { createScriptedRegistry, type RegistryRecord } from './registry.js';
+import {
+  type ScriptedVerificationFixture,
+  type VerificationObservation,
+  type VerificationRequest,
+  validateVerificationObservation,
+  validateVerificationRequest,
+} from './verification.js';
+import { validateWorkspaceFact, type WorkspaceController } from './workspace.js';
 
 export const FINALIZER_CONTRACT_VERSION = 'jig.finalizer-contract.v1';
 export const FINALIZER_SNAPSHOT_SCHEMA = 'jig.finalizer-snapshot.v1';
@@ -68,26 +82,15 @@ export type FinalizerAuthority = Readonly<{
   eligibilityBasis: string;
   generation: string;
 }>;
-export type FinalizerVerificationIntent = Readonly<{
+export type FinalizerVerificationIntent = VerificationRequest;
+export type FinalizerVerificationObservation = VerificationObservation;
+export type FinalizerDeliveryIntent = Readonly<{
   operation: string;
-  checkClass: string;
   candidate: string;
   candidateContentDigest: string;
   targetBasisDigest: string;
   generation: string;
   authority: string;
-}>;
-export type FinalizerVerificationObservation = Readonly<{
-  kind: 'EV-CHECK-OBSERVATION';
-  operation: string;
-  candidate: string;
-  candidateContentDigest: string;
-  targetBasisDigest: string;
-  generation: string;
-  checkClass: string;
-  outcome: 'pass' | 'fail';
-  evidenceDigest: string;
-  observedAt: number;
 }>;
 export type FinalizerEntry = Readonly<{
   operation: string;
@@ -170,8 +173,10 @@ type FinalizerRecord =
       operation: null;
       relatedOperation: string;
       event: 'EV-WAKE-AUTHORITY' | 'EV-WAKE-FINALIZATION';
+      story: string;
       elapsedSeconds: number;
       limitSeconds: number;
+      exhausted: boolean;
     }>;
 type JournalEntry = Readonly<{ position: number; previousDigest: string; digest: string; record: FinalizerRecord }>;
 export type FinalizerSnapshot = Readonly<{
@@ -180,6 +185,7 @@ export type FinalizerSnapshot = Readonly<{
   registryHead: RegistryState;
   records: readonly JournalEntry[];
   projection: FinalizerProjection;
+  verificationSnapshot: ReturnType<ScriptedVerificationFixture['snapshot']>;
 }>;
 
 export type ScriptedFinalizerController = Readonly<{
@@ -188,7 +194,7 @@ export type ScriptedFinalizerController = Readonly<{
   enterFinalizing(input: unknown): FinalizerResult<FinalizerEntry>;
   observeVerification(input: unknown): FinalizerResult<FinalizerProjection>;
   recordVerificationFailure(input: unknown): FinalizerResult<FinalizerProjection>;
-  authorizeAnchor(input: unknown): FinalizerResult<FinalizerVerificationIntent>;
+  authorizeAnchor(input: unknown): FinalizerResult<FinalizerDeliveryIntent>;
   recordTargetFact(input: unknown): FinalizerResult<FinalizerProjection>;
   refresh(input: unknown): FinalizerResult<FinalizerAuthority>;
   release(input: unknown): FinalizerResult<FinalizerProjection>;
@@ -298,8 +304,6 @@ export function createFinalizerPolicy(input: unknown): FinalizerResult<Finalizer
     return fail('FC-INPUT', 'UNSORTED_FINALIZER_CHECK_SET');
   if (raw.posture === 'none' && requiredClasses.length !== 0)
     return fail('FC-AUTHORITY', 'NONE_POSTURE_REQUIRES_EMPTY_CHECK_SET');
-  if (raw.posture === 'deterministic' && requiredClasses.length === 0)
-    return fail('FC-INPUT', 'EMPTY_DETERMINISTIC_CHECK_SET');
   if (
     !position(raw.waitCapacitySeconds) ||
     raw.waitCapacitySeconds < FINALIZER_WAIT_BOUNDS.capacitySeconds.minimum ||
@@ -474,13 +478,21 @@ function recordMatches(record: RegistryRecord | undefined, action: string, paylo
   const content = plain(record.content) ? record.content : {};
   if (action === 'enqueue')
     return record.variant === 'waiter' && same(content, { waiter: payload.waiter }, 'FINALIZER-REGISTRY-REPLAY');
-  if (action === 'grant') return record.variant === 'grant' && record.waiter?.contentDigest === payload.waiterDigest;
+  if (action === 'grant')
+    return (
+      record.variant === 'grant' &&
+      record.waiter?.contentDigest === payload.waiterDigest &&
+      field(content, 'targetBasisDigest') === payload.targetBasisDigest
+    );
   if (action === 'release') return record.variant === 'release' && record.authority === payload.authority;
   return (
     record.variant === 'atomic-rebind' &&
     plain(record.content) &&
     plain(record.content.oldAuthority) &&
-    field(record.content.oldAuthority, 'authority') === payload.authority
+    field(record.content.oldAuthority, 'authority') === payload.authority &&
+    plain(record.content.newAuthority) &&
+    field(record.content.newAuthority, 'candidate') === payload.candidate &&
+    field(record.content.newAuthority, 'targetBasisDigest') === payload.targetBasisDigest
   );
 }
 
@@ -504,8 +516,24 @@ function makeAuthority(
 ): FinalizerResult<FinalizerAuthority> {
   if (record.variant !== 'grant' && record.variant !== 'atomic-rebind') return fail('FC-TRUST', 'INVALID_GRANT_RECORD');
   const authority = record.authority;
-  if (!identity('ID-AUTH', authority) || !record.position || !plain(record.content))
+  if (!identity('ID-AUTH', authority) || !position(record.position) || !plain(record.content))
     return fail('FC-TRUST', 'INVALID_GRANT_RECORD');
+  const source = record.variant === 'atomic-rebind' ? field(record.content, 'newAuthority') : record.content;
+  const fence = plain(source) ? field(source, 'fence') : undefined;
+  if (
+    !plain(source) ||
+    (field(source, 'authority') !== undefined && field(source, 'authority') !== authority) ||
+    field(source, 'candidate') !== currentCandidate ||
+    field(source, 'candidateContentDigest') !== currentCandidateDigest ||
+    field(source, 'eligibilityBasis') !== waiter.eligibilityBasis ||
+    field(source, 'story') !== waiter.story ||
+    !plain(fence) ||
+    field(fence, 'registry') !== waiter.registry ||
+    field(fence, 'target') !== waiter.target ||
+    field(fence, 'generation') !== currentGeneration ||
+    field(source, 'targetBasisDigest') !== currentBasis
+  )
+    return fail('FC-FENCE', 'REGISTRY_AUTHORITY_WITNESS_MISMATCH');
   const authorityGeneration = record.position;
   return ok({
     authority,
@@ -518,53 +546,6 @@ function makeAuthority(
     targetBasisDigest: currentBasis,
     eligibilityBasis: waiter.eligibilityBasis,
     generation: currentGeneration,
-  });
-}
-
-function validateObservation(
-  input: unknown,
-  intent: FinalizerVerificationIntent,
-  authority: FinalizerAuthority,
-): FinalizerResult<FinalizerVerificationObservation> {
-  const raw = own(input, [
-    'candidate',
-    'candidateContentDigest',
-    'checkClass',
-    'evidenceDigest',
-    'generation',
-    'kind',
-    'observedAt',
-    'operation',
-    'outcome',
-    'targetBasisDigest',
-  ]);
-  if (
-    raw?.kind !== 'EV-CHECK-OBSERVATION' ||
-    raw.operation !== intent.operation ||
-    raw.checkClass !== intent.checkClass ||
-    !['pass', 'fail'].includes(raw.outcome as string)
-  )
-    return fail('FC-EVIDENCE', 'INVALID_CHECK_OBSERVATION');
-  if (
-    raw.candidate !== authority.candidate ||
-    raw.candidateContentDigest !== authority.candidateContentDigest ||
-    raw.targetBasisDigest !== authority.targetBasisDigest ||
-    raw.generation !== authority.generation
-  )
-    return fail('FC-FENCE', 'CHECK_OBSERVATION_FENCE_MISMATCH');
-  if (!digest(raw.evidenceDigest) || !nonNegative(raw.observedAt))
-    return fail('FC-EVIDENCE', 'INVALID_CHECK_OBSERVATION');
-  return ok({
-    kind: 'EV-CHECK-OBSERVATION',
-    operation: raw.operation as string,
-    candidate: raw.candidate as string,
-    candidateContentDigest: raw.candidateContentDigest as string,
-    targetBasisDigest: raw.targetBasisDigest as string,
-    generation: raw.generation as string,
-    checkClass: raw.checkClass as string,
-    outcome: raw.outcome as 'pass' | 'fail',
-    evidenceDigest: raw.evidenceDigest as string,
-    observedAt: raw.observedAt as number,
   });
 }
 
@@ -599,6 +580,7 @@ function validateTargetFact(input: unknown, binding: FinalizerBinding): Finalize
 function makeController(
   binding: FinalizerBinding,
   registry: RegistryAdapter,
+  verification: ScriptedVerificationFixture,
   initial?: FinalizerSnapshot,
 ): ScriptedFinalizerController {
   const journal: JournalEntry[] = [];
@@ -651,6 +633,8 @@ function makeController(
         record.fact.outcome === 'advanced'
       )
         status = 'TargetPark';
+    } else if (record.kind === 'wake') {
+      if (record.exhausted) status = record.event === 'EV-WAKE-AUTHORITY' ? 'Blocked' : 'TargetPark';
     } else if (record.kind === 'refresh') {
       waiters.set(record.waiter.story, record.waiter);
       authority = record.authority;
@@ -698,6 +682,116 @@ function makeController(
   const readCurrent = (state: RegistryState): RegistryRecord | undefined => {
     const result = registry.readback({ binding, position: state.position });
     return registryRecord(result);
+  };
+  const verifyRegistryWitnesses = (): boolean => {
+    const state = registryState(registry, binding);
+    if (!state.ok) return false;
+    const read = (at: number): RegistryRecord | undefined =>
+      registryRecord(registry.readback({ binding, position: at }));
+    for (const item of journal) {
+      const record = item.record;
+      if (record.kind === 'enqueue') {
+        const witness = read(record.waiter.handle.position);
+        const waiter = record.waiter;
+        if (
+          !recordMatches(witness, 'enqueue', {
+            waiter: {
+              run: waiter.run,
+              story: waiter.story,
+              generation: waiter.generation,
+              candidate: waiter.candidate,
+              candidateContentDigest: waiter.candidateContentDigest,
+              eligibilityBasis: waiter.eligibilityBasis,
+              comparator: waiter.comparator,
+              waitedAt: waiter.waitedAt,
+            },
+          }) ||
+          !witness?.handle ||
+          !same(witness.handle, waiter.handle, 'FINALIZER-WAITER-HANDLE-WITNESS')
+        )
+          return false;
+      } else if (record.kind === 'grant') {
+        const waiter = waiters.get(record.authority.story);
+        const witness = read(record.authority.authorityGeneration);
+        if (
+          !waiter ||
+          !recordMatches(witness, 'grant', {
+            waiterDigest: waiter.handle.contentDigest,
+            story: waiter.story,
+            targetBasisDigest: record.authority.targetBasisDigest,
+          }) ||
+          !makeAuthority(
+            witness as RegistryRecord,
+            waiter,
+            record.authority.candidate,
+            record.authority.candidateContentDigest,
+            record.authority.targetBasisDigest,
+            record.authority.generation,
+          ).ok
+        )
+          return false;
+      } else if (record.kind === 'refresh') {
+        const waiter = waiters.get(record.authority.story);
+        const witness = read(record.authority.authorityGeneration);
+        if (
+          !waiter ||
+          !recordMatches(witness, 'rebind', {
+            authority: record.authority.authority,
+            candidate: record.authority.candidate,
+            candidateContentDigest: record.authority.candidateContentDigest,
+            targetBasisDigest: record.authority.targetBasisDigest,
+          }) ||
+          !makeAuthority(
+            witness as RegistryRecord,
+            waiter,
+            record.authority.candidate,
+            record.authority.candidateContentDigest,
+            record.authority.targetBasisDigest,
+            record.authority.generation,
+          ).ok
+        )
+          return false;
+      } else if (record.kind === 'release') {
+        let found = false;
+        for (let at = 0; at <= state.value.position; at += 1) {
+          const witness = read(at);
+          if (recordMatches(witness, 'release', { authority: record.authority.authority })) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) return false;
+      }
+    }
+    return true;
+  };
+  const verifyVerificationWitnesses = (): boolean => {
+    const state = verification.snapshot();
+    for (const item of journal) {
+      if (item.record.kind === 'entry') {
+        for (const request of item.record.entry.verificationOperations) {
+          if (!state.requests.some((candidate) => same(candidate, request, 'FINALIZER-REQUEST-WITNESS'))) return false;
+        }
+      } else if (item.record.kind === 'observation') {
+        const observationRecord = item.record as Extract<FinalizerRecord, { kind: 'observation' }>;
+        if (
+          !state.observations.some((candidate) =>
+            same(candidate, observationRecord.observation, 'FINALIZER-OBS-WITNESS'),
+          )
+        )
+          return false;
+      } else if (item.record.kind === 'verification-failure') {
+        const failureRecord = item.record as Extract<FinalizerRecord, { kind: 'verification-failure' }>;
+        if (
+          !state.failures.some(
+            (failure) =>
+              failure.operation === failureRecord.relatedOperation && failure.reason === failureRecord.reason,
+          )
+        )
+          return false;
+      }
+    }
+    return true;
   };
   const operationIntent = (
     operation: string,
@@ -818,13 +912,18 @@ function makeController(
     const waiter = waiters.get(raw.story as string);
     if (!waiter) return fail('FC-SUBJECT', 'UNKNOWN_FINALIZER_WAITER');
     if (authority) return fail('FC-CAPACITY', 'FINALIZER_CAPACITY_HELD');
-    if (raw.waitedAt > waiter.policy.waitCapacitySeconds) return fail('FC-BOUND', 'FINALIZER_CAPACITY_WAIT_EXHAUSTED');
+    if (raw.waitedAt < waiter.waitedAt || raw.waitedAt - waiter.waitedAt > waiter.policy.waitCapacitySeconds)
+      return fail('FC-BOUND', 'FINALIZER_CAPACITY_WAIT_EXHAUSTED');
     const hadIntent = journal.some(
       (item) => item.record.kind === 'registry-intent' && item.record.operation === operation,
     );
     const before = head();
     if (!before.ok) return before;
-    const payload = { waiterDigest: waiter.handle.contentDigest, story: waiter.story };
+    const payload = {
+      waiterDigest: waiter.handle.contentDigest,
+      story: waiter.story,
+      targetBasisDigest: waiter.targetBasisDigest,
+    };
     const intent = operationIntent(operation, 'grant', payload);
     if (!intent.ok) return intent;
     const request = {
@@ -833,6 +932,7 @@ function makeController(
       expectedDigest: before.value.digest,
       waiter: waiter.handle,
       eligibilityBasis: waiter.eligibilityBasis,
+      targetBasisDigest: waiter.targetBasisDigest,
       ...(raw.fault ? { fault: raw.fault } : {}),
     };
     const result = registry.grant(request);
@@ -851,27 +951,30 @@ function makeController(
     return fact.ok ? ok(created.value) : fact;
   };
   const enterFinalizing = (input: unknown): FinalizerResult<FinalizerEntry> => {
-    const raw = own(input, ['operation', 'origin', 'verificationOperations']);
+    const raw = own(input, ['operation', 'origin', 'verificationRequests']);
     if (
       !raw ||
       !identity('ID-OP', raw.operation) ||
       !['Waiting', 'Accepted'].includes(raw.origin as string) ||
-      !Array.isArray(raw.verificationOperations)
+      !Array.isArray(raw.verificationRequests)
     )
       return fail('FC-INPUT', 'INVALID_FINALIZATION_ENTRY');
     const prior = journal.find((item) => item.record.kind === 'entry' && item.record.operation === raw.operation);
     if (prior && prior.record.kind === 'entry') {
-      const requested = raw.verificationOperations.map((value) => {
-        const item = own(value, ['checkClass', 'operation']);
-        return item ? { checkClass: item.checkClass, operation: item.operation } : value;
-      });
-      const existing = prior.record.entry.verificationOperations.map((value) => ({
-        checkClass: value.checkClass,
-        operation: value.operation,
-      }));
+      if (prior.record.entry.noOp) {
+        const request =
+          raw.verificationRequests.length === 1 ? validateVerificationRequest(raw.verificationRequests[0]) : undefined;
+        return request?.ok &&
+          verification
+            .snapshot()
+            .requests.some((candidate) => same(candidate, request.value, 'FINALIZER-NONE-REPLAY')) &&
+          raw.origin === prior.record.entry.origin
+          ? ok(prior.record.entry)
+          : fail('FC-SUBJECT', 'OPERATION_REUSE_MISMATCH');
+      }
       return same(
-        { origin: prior.record.entry.origin, verificationOperations: existing },
-        { origin: raw.origin, verificationOperations: requested },
+        { origin: prior.record.entry.origin, verificationRequests: prior.record.entry.verificationOperations },
+        { origin: raw.origin, verificationRequests: raw.verificationRequests },
         'FINALIZER-ENTRY-REPLAY',
       )
         ? ok(prior.record.entry)
@@ -884,31 +987,48 @@ function makeController(
     const waiter = waiters.get(authority.story);
     if (!waiter) return fail('FC-TRUST', 'FINALIZER_WAITER_MISSING');
     const operations: FinalizerVerificationIntent[] = [];
-    for (const value of raw.verificationOperations) {
-      const item = own(value, ['checkClass', 'operation']);
+    let noneRequest: FinalizerVerificationIntent | undefined;
+    for (const value of raw.verificationRequests) {
+      const request = validateVerificationRequest(value);
+      if (!request.ok) return fail('FC-EVIDENCE', 'GF042_REQUEST_REQUIRED');
       if (
-        !item ||
-        !identity('ID-OP', item.operation) ||
-        typeof item.checkClass !== 'string' ||
-        !waiter.policy.requiredClasses.includes(item.checkClass)
+        request.value.subject.candidate !== authority.candidate ||
+        request.value.subject.candidateContentDigest !== authority.candidateContentDigest ||
+        request.value.fence.targetBasisDigest !== authority.targetBasisDigest ||
+        request.value.fence.generation !== authority.generation ||
+        request.value.fence.basis !== waiter.eligibilityBasis ||
+        request.value.policy.posture !== waiter.policy.posture ||
+        request.value.subject.checkClasses.join('|') !== waiter.policy.requiredClasses.join('|')
       )
-        return fail('FC-AUTHORITY', 'INVALID_VERIFICATION_INTENT');
-      if (operations.some((entry) => entry.operation === item.operation || entry.checkClass === item.checkClass))
+        return fail('FC-FENCE', 'VERIFICATION_REQUEST_FENCE_MISMATCH');
+      if (waiter.policy.posture === 'deterministic' && request.value.checkClass === null)
+        return fail('FC-AUTHORITY', 'DETERMINISTIC_REQUEST_CLASS_REQUIRED');
+      if (waiter.policy.posture === 'none' && request.value.checkClass !== null)
+        return fail('FC-AUTHORITY', 'NONE_POSTURE_DISPATCH_FORBIDDEN');
+      if (waiter.policy.posture === 'none') {
+        if (noneRequest) return fail('FC-AUTHORITY', 'DUPLICATE_VERIFICATION_INTENT');
+        noneRequest = request.value;
+        continue;
+      }
+      if (
+        operations.some(
+          (item) => item.operation === request.value.operation || item.checkClass === request.value.checkClass,
+        )
+      )
         return fail('FC-AUTHORITY', 'DUPLICATE_VERIFICATION_INTENT');
-      operations.push({
-        operation: item.operation as string,
-        checkClass: item.checkClass,
-        candidate: authority.candidate,
-        candidateContentDigest: authority.candidateContentDigest,
-        targetBasisDigest: authority.targetBasisDigest,
-        generation: authority.generation,
-        authority: authority.authority,
-      });
+      operations.push(request.value);
     }
-    if (waiter.policy.posture === 'none' && operations.length !== 0)
+    if (waiter.policy.posture === 'none' && !noneRequest)
       return fail('FC-AUTHORITY', 'NONE_POSTURE_DISPATCH_FORBIDDEN');
     if (waiter.policy.posture === 'deterministic' && operations.length !== waiter.policy.requiredClasses.length)
       return fail('FC-AUTHORITY', 'INCOMPLETE_VERIFICATION_INTENTS');
+    if (waiter.policy.posture === 'deterministic' && operations.length > 0) {
+      const entered = verification.enterFinalizing({ origin: raw.origin, request: operations[0] });
+      if (!entered.ok) return fail('FC-AUTHORITY', 'VERIFICATION_ENTRY_REJECTED');
+    } else if (waiter.policy.posture === 'none' && noneRequest) {
+      const entered = verification.enterFinalizing({ origin: raw.origin, request: noneRequest });
+      if (!entered.ok) return fail('FC-AUTHORITY', 'VERIFICATION_ENTRY_REJECTED');
+    }
     const operation = raw.operation as string;
     const created: FinalizerEntry = freeze({
       operation,
@@ -919,7 +1039,7 @@ function makeController(
       verificationOperations: Object.freeze(operations),
       observations: Object.freeze([]),
       noOp: waiter.policy.posture === 'none',
-      readyForDelivery: waiter.policy.posture === 'none',
+      readyForDelivery: waiter.policy.posture === 'none' || operations.length === 0,
     });
     const result = append({ kind: 'entry', operation, entry: created });
     return result.ok ? ok(created) : result;
@@ -934,18 +1054,22 @@ function makeController(
       (item) => plain(raw.observation) && field(raw.observation, 'operation') === item.operation,
     );
     if (!intent) return fail('FC-SUBJECT', 'UNKNOWN_VERIFICATION_OPERATION');
-    const observation = validateObservation(raw.observation, intent, authority);
-    if (!observation.ok) return observation;
-    const prior = observations.get(observation.value.operation);
+    const checked = validateVerificationObservation(raw.observation, intent);
+    if (!checked.ok) return fail('FC-EVIDENCE', 'GF042_OBSERVATION_REQUIRED');
+    const prior = observations.get(checked.value.operation);
     if (prior)
-      return same(prior, observation.value, 'FINALIZER-OBSERVATION-REPLAY')
+      return same(prior, checked.value, 'FINALIZER-OBSERVATION-REPLAY')
         ? ok(projection())
         : fail('FC-SUBJECT', 'DUPLICATE_VERIFICATION_OPERATION');
+    const dispatched = verification.dispatch({ request: intent, attestation: checked.value });
+    if (!dispatched.ok) return fail('FC-AUTHORITY', 'GF042_VERIFICATION_REJECTED');
+    const consumed = verification.consume({ observation: dispatched.value });
+    if (!consumed.ok) return fail('FC-AUTHORITY', 'GF042_OBSERVATION_NOT_CONSUMED');
     const result = append({
       kind: 'observation',
       operation: null,
-      relatedOperation: observation.value.operation,
-      observation: observation.value,
+      relatedOperation: dispatched.value.operation,
+      observation: dispatched.value,
     });
     return result.ok ? ok(projection()) : result;
   };
@@ -960,6 +1084,8 @@ function makeController(
       return fail('FC-INPUT', 'INVALID_VERIFICATION_FAILURE');
     if (!entry?.verificationOperations.some((item) => item.operation === raw.operation))
       return fail('FC-SUBJECT', 'UNKNOWN_VERIFICATION_OPERATION');
+    const request = entry.verificationOperations.find((item) => item.operation === raw.operation);
+    if (!request) return fail('FC-SUBJECT', 'UNKNOWN_VERIFICATION_OPERATION');
     const record: FinalizerRecord = {
       kind: 'verification-failure',
       operation: null,
@@ -974,10 +1100,20 @@ function makeController(
       return same(prior.record, record, 'FINALIZER-FAILURE-REPLAY')
         ? ok(projection())
         : fail('FC-SUBJECT', 'DUPLICATE_VERIFICATION_FAILURE');
+    const dispatched = verification.dispatch({
+      request,
+      attestation: null,
+      fault: raw.reason as 'lost-response' | 'timeout',
+    });
+    if (
+      dispatched.ok ||
+      (dispatched.error.code !== 'RESULT_UNCERTAIN' && dispatched.error.code !== 'MECHANISM_TIMEOUT')
+    )
+      return fail('FC-MECHANISM', 'GF042_FAILURE_NOT_RECORDED');
     const result = append(record);
     return result.ok ? ok(projection()) : result;
   };
-  const authorizeAnchor = (input: unknown): FinalizerResult<FinalizerVerificationIntent> => {
+  const authorizeAnchor = (input: unknown): FinalizerResult<FinalizerDeliveryIntent> => {
     const raw = own(input, ['authority', 'operation']);
     if (!raw || !identity('ID-OP', raw.operation)) return fail('FC-INPUT', 'INVALID_ANCHOR_OPERATION');
     const prior = journal.find(
@@ -988,7 +1124,6 @@ function makeController(
         return fail('FC-SUBJECT', 'OPERATION_REUSE_MISMATCH');
       return ok({
         operation: prior.record.operation,
-        checkClass: 'anchor',
         candidate: prior.record.authority.candidate,
         candidateContentDigest: prior.record.authority.candidateContentDigest,
         targetBasisDigest: prior.record.authority.targetBasisDigest,
@@ -1002,9 +1137,8 @@ function makeController(
     if (!entry.readyForDelivery || status !== 'Finalizing') return fail('FC-AUTHORITY', 'VERIFICATION_GATE_INCOMPLETE');
     if ([...intents.values()].some((item) => item.kind === 'delivery-intent'))
       return fail('FC-AUTHORITY', 'ANCHOR_INTENT_PENDING');
-    const intent: FinalizerVerificationIntent = {
+    const intent: FinalizerDeliveryIntent = {
       operation: raw.operation as string,
-      checkClass: 'anchor',
       candidate: authority.candidate,
       candidateContentDigest: authority.candidateContentDigest,
       targetBasisDigest: authority.targetBasisDigest,
@@ -1054,57 +1188,70 @@ function makeController(
   };
   const refresh = (input: unknown): FinalizerResult<FinalizerAuthority> => {
     const raw = own(input, [
-      'acceptance',
+      'acceptanceController',
       'authority',
-      'candidate',
-      'candidateContentDigest',
-      'acceptedPackageDigest',
-      'generation',
+      'candidateCarrier',
       'operation',
-      'targetBasisDigest',
-      'workspaceFact',
+      'workspaceController',
     ]);
     if (!raw || !identity('ID-OP', raw.operation)) return fail('FC-INPUT', 'INVALID_REFRESH');
     const prior = journal.find((item) => item.record.kind === 'refresh' && item.record.operation === raw.operation);
     if (prior && prior.record.kind === 'refresh') return ok(prior.record.authority);
-    if (
-      !identity('ID-CAND', raw.candidate) ||
-      !identity('ID-GEN', raw.generation) ||
-      !authority ||
-      !plain(raw.authority) ||
-      !plain(raw.acceptance) ||
-      !plain(raw.workspaceFact)
-    )
-      return fail('FC-INPUT', 'INVALID_REFRESH');
+    if (!authority || !plain(raw.authority)) return fail('FC-INPUT', 'INVALID_REFRESH');
     if (status !== 'Finalizing' && status !== 'TargetPark') return fail('FC-AUTHORITY', 'REFRESH_NOT_ACTIVE');
     if (!same(raw.authority, authority, 'FINALIZER-AUTHORITY-COMPARE'))
       return fail('FC-FENCE', 'STALE_REFRESH_AUTHORITY');
     if (refreshCount >= (waiters.get(authority.story)?.policy.refreshLimit ?? 0))
       return fail('FC-BOUND', 'REFRESH_EXHAUSTED');
-    if (raw.candidate === authority.candidate || !digest(raw.candidateContentDigest) || !digest(raw.targetBasisDigest))
-      return fail('FC-AUTHORITY', 'CANDIDATE_REFRESH_REQUIRED');
-    if (!raw.candidate.startsWith(`${authority.story}/cand/`) || raw.generation !== authority.generation)
+    const candidateResult = validateAcceptanceCandidate(raw.candidateCarrier);
+    if (!candidateResult.ok) return fail('FC-EVIDENCE', 'DURABLE_CANDIDATE_REQUIRED');
+    const candidate = candidateResult.value;
+    if (candidate.id === authority.candidate) return fail('FC-AUTHORITY', 'CANDIDATE_REFRESH_REQUIRED');
+    if (!candidate.id.startsWith(`${authority.story}/cand/`) || candidate.generation !== authority.generation)
       return fail('FC-FENCE', 'REFRESH_CANDIDATE_SCOPE_MISMATCH');
-    const workspace = raw.workspaceFact;
+    const acceptanceController = raw.acceptanceController as AcceptanceController;
+    const workspaceController = raw.workspaceController as WorkspaceController;
     if (
-      field(workspace, 'kind') !== 'EV-WORKSPACE-FACT' ||
-      field(workspace, 'candidate') !== raw.candidate ||
-      field(workspace, 'candidateContentDigest') !== raw.candidateContentDigest ||
-      field(workspace, 'targetBasisDigest') !== raw.targetBasisDigest ||
-      !digest(field(workspace, 'contentDigest'))
+      !acceptanceController ||
+      typeof acceptanceController.projection !== 'function' ||
+      typeof acceptanceController.packages !== 'function' ||
+      !workspaceController ||
+      typeof workspaceController.facts !== 'function'
     )
-      return fail('FC-EVIDENCE', 'INVALID_REFRESH_WORKSPACE_FACT');
-    const acceptance = raw.acceptance;
+      return fail('FC-TRUST', 'DURABLE_PREDECESSOR_CARRIERS_REQUIRED');
+    let acceptanceProjection: ReturnType<AcceptanceController['projection']>;
+    let packages: readonly ReviewPackage[];
+    let facts: ReturnType<WorkspaceController['facts']>;
+    try {
+      acceptanceProjection = acceptanceController.projection();
+      packages = acceptanceController.packages();
+      facts = workspaceController.facts();
+    } catch {
+      return fail('FC-TRUST', 'DURABLE_PREDECESSOR_READBACK_FAILED');
+    }
     if (
-      field(acceptance, 'state') !== 'Accepted' ||
-      field(acceptance, 'candidate') !== raw.candidate ||
-      field(acceptance, 'candidateContentDigest') !== raw.candidateContentDigest ||
-      field(acceptance, 'targetBasisDigest') !== raw.targetBasisDigest ||
-      !digest(field(acceptance, 'packageDigest')) ||
-      field(acceptance, 'packageDigest') !== raw.acceptedPackageDigest ||
-      !digest(raw.acceptedPackageDigest)
+      acceptanceProjection.state !== 'Accepted' ||
+      acceptanceProjection.candidate !== candidate.id ||
+      !acceptanceProjection.acceptedPackageDigest
     )
       return fail('FC-AUTHORITY', 'REFRESH_ACCEPTANCE_REQUIRED');
+    const acceptedPackage = packages.find((item) => item.digest === acceptanceProjection.acceptedPackageDigest);
+    const packageResult = validateAcceptancePackage(acceptedPackage);
+    if (
+      !packageResult.ok ||
+      packageResult.value.candidate !== candidate.id ||
+      packageResult.value.candidateContentDigest !== candidate.candidateContentDigest ||
+      packageResult.value.targetBasisDigest !== candidate.targetBasisDigest ||
+      packageResult.value.digest !== acceptanceProjection.acceptedPackageDigest
+    )
+      return fail('FC-AUTHORITY', 'REFRESH_ACCEPTANCE_REQUIRED');
+    const durablePackage = packageResult.value;
+    const workspace = facts
+      .map((fact) => validateWorkspaceFact(fact))
+      .find((fact) => fact.ok && fact.value.contentDigest === candidate.workspaceFactDigest);
+    if (workspace?.ok !== true) return fail('FC-EVIDENCE', 'INVALID_REFRESH_WORKSPACE_FACT');
+    if (workspace.value.cleanliness !== 'clean' || workspace.value.binding.subject.story !== authority.story)
+      return fail('FC-EVIDENCE', 'INVALID_REFRESH_WORKSPACE_FACT');
     const operation = raw.operation as string;
     const hadIntent = journal.some(
       (item) => item.record.kind === 'registry-intent' && item.record.operation === operation,
@@ -1113,8 +1260,9 @@ function makeController(
     if (!before.ok) return before;
     const payload = {
       authority: authority.authority,
-      candidate: raw.candidate,
-      targetBasisDigest: raw.targetBasisDigest,
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
     };
     const intent = operationIntent(operation, 'rebind', payload);
     if (!intent.ok) return intent;
@@ -1132,17 +1280,18 @@ function makeController(
       expectedDigest: before.value.digest,
       authority: authority.authority,
       releaseProof: proof,
-      candidate: raw.candidate,
-      candidateContentDigest: raw.candidateContentDigest,
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
       eligibilityBasis: waiterFor(authority.story)?.eligibilityBasis,
-      generation: raw.generation,
+      generation: candidate.generation,
     });
     let record = plain(result) && field(result, 'ok') === true ? (field(result, 'value') as RegistryRecord) : undefined;
     if (!record) {
       const recovered = head();
       if (recovered.ok && (recovered.value.position > before.value.position || hadIntent)) {
-        const candidate = readCurrent(recovered.value);
-        if (recordMatches(candidate, 'rebind', payload)) record = candidate;
+        const candidateRecord = readCurrent(recovered.value);
+        if (recordMatches(candidateRecord, 'rebind', payload)) record = candidateRecord;
       }
     }
     if (!record) return fail('FC-TRUST', 'REFRESH_RECONCILIATION_REQUIRED');
@@ -1150,19 +1299,19 @@ function makeController(
     if (!waiter) return fail('FC-TRUST', 'REFRESH_WAITER_MISSING');
     const reboundWaiter = freeze({
       ...waiter,
-      candidate: raw.candidate as string,
-      candidateContentDigest: raw.candidateContentDigest as string,
-      targetBasisDigest: raw.targetBasisDigest as string,
-      acceptedPackageDigest: raw.acceptedPackageDigest as string,
+      candidate: candidate.id,
+      candidateContentDigest: candidate.candidateContentDigest,
+      targetBasisDigest: candidate.targetBasisDigest,
+      acceptedPackageDigest: durablePackage.digest,
       handle: waiter.handle,
     });
     const created = makeAuthority(
       record,
       reboundWaiter,
-      raw.candidate as string,
-      raw.candidateContentDigest as string,
-      raw.targetBasisDigest as string,
-      raw.generation as string,
+      candidate.id,
+      candidate.candidateContentDigest,
+      candidate.targetBasisDigest,
+      candidate.generation,
     );
     if (!created.ok) return created;
     const fact = append({
@@ -1189,6 +1338,8 @@ function makeController(
     if (!authority || !plain(raw.authority)) return fail('FC-INPUT', 'INVALID_FINALIZER_RELEASE');
     if (!same(raw.authority, authority, 'FINALIZER-AUTHORITY-COMPARE'))
       return fail('FC-FENCE', 'STALE_FINALIZER_RELEASE');
+    if (raw.reason === 'rework' && status !== 'Reworking') return fail('FC-AUTHORITY', 'RELEASE_PREREQUISITE_REQUIRED');
+    if (raw.reason === 'blocked' && status !== 'Blocked') return fail('FC-AUTHORITY', 'RELEASE_PREREQUISITE_REQUIRED');
     if ([...intents.values()].some((item) => item.kind === 'delivery-intent'))
       return fail('FC-AUTHORITY', 'RECONCILE_TARGET_OPERATION_FIRST');
     const operation = raw.operation as string;
@@ -1228,32 +1379,56 @@ function makeController(
     return fact.ok ? ok(projection()) : fact;
   };
   const wake = (input: unknown): FinalizerResult<Readonly<{ reread: true; projection: FinalizerProjection }>> => {
-    const raw = own(input, ['elapsedSeconds', 'event', 'operation']);
+    const raw = own(input, ['event', 'observedAt', 'operation', 'story']);
     if (
       !raw ||
       !identity('ID-OP', raw.operation) ||
+      !identity('ID-STORY', raw.story) ||
       !['EV-WAKE-AUTHORITY', 'EV-WAKE-FINALIZATION'].includes(raw.event as string) ||
-      !position(raw.elapsedSeconds)
+      !position(raw.observedAt)
     )
       return fail('FC-INPUT', 'INVALID_FINALIZER_WAKE');
+    const waiter = waiters.get(raw.story as string);
+    if (!waiter) return fail('FC-SUBJECT', 'UNKNOWN_FINALIZER_WAITER');
+    if (raw.observedAt < waiter.waitedAt) return fail('FC-BOUND', 'FINALIZER_WAKE_CLOCK_REGRESSION');
+    const elapsedSeconds = (raw.observedAt as number) - waiter.waitedAt;
     const limit =
-      raw.event === 'EV-WAKE-AUTHORITY'
-        ? Math.max(...projection().waiters.map((item) => item.policy.waitCapacitySeconds), 3_600)
-        : Math.max(...projection().waiters.map((item) => item.policy.waitTargetSeconds), 3_600);
-    if (raw.elapsedSeconds > limit) return fail('FC-BOUND', 'FINALIZER_WAKE_EXHAUSTED');
+      raw.event === 'EV-WAKE-AUTHORITY' ? waiter.policy.waitCapacitySeconds : waiter.policy.waitTargetSeconds;
     const reread = head();
     if (!reread.ok) return reread;
+    const exhausted = elapsedSeconds > limit;
+    const prior = journal.find((item) => item.record.kind === 'wake' && item.record.relatedOperation === raw.operation);
+    if (prior && prior.record.kind === 'wake')
+      return same(
+        prior.record,
+        {
+          kind: 'wake',
+          operation: null,
+          relatedOperation: raw.operation,
+          event: raw.event,
+          story: raw.story,
+          elapsedSeconds,
+          limitSeconds: limit,
+          exhausted,
+        },
+        'FINALIZER-WAKE-REPLAY',
+      )
+        ? ok({ reread: true, projection: projection() })
+        : fail('FC-SUBJECT', 'OPERATION_REUSE_MISMATCH');
     const result = append({
       kind: 'wake',
       operation: null,
       relatedOperation: raw.operation as string,
       event: raw.event as 'EV-WAKE-AUTHORITY' | 'EV-WAKE-FINALIZATION',
-      elapsedSeconds: raw.elapsedSeconds as number,
+      story: raw.story as string,
+      elapsedSeconds,
       limitSeconds: limit,
+      exhausted,
     });
     return result.ok ? ok({ reread: true, projection: projection() }) : result;
   };
   if (initial) {
+    if (!same(initial.binding, binding, 'FINALIZER-BINDING-INITIAL')) throw new Error('FINALIZER_BINDING_MISMATCH');
     for (const item of initial.records) {
       if (
         !item ||
@@ -1269,6 +1444,10 @@ function makeController(
     const currentHead = registryState(registry, binding);
     if (!currentHead.ok || !same(currentHead.value, initial.registryHead, 'FINALIZER-REGISTRY-HEAD'))
       throw new Error('FINALIZER_REGISTRY_HEAD_MISMATCH');
+    if (!same(verification.snapshot(), initial.verificationSnapshot, 'FINALIZER-VERIFICATION-RECOVERY'))
+      throw new Error('FINALIZER_VERIFICATION_SNAPSHOT_MISMATCH');
+    if (!verifyVerificationWitnesses()) throw new Error('FINALIZER_VERIFICATION_WITNESS_MISMATCH');
+    if (!verifyRegistryWitnesses()) throw new Error('FINALIZER_REGISTRY_WITNESS_MISMATCH');
     if (!same(projection(), initial.projection, 'FINALIZER-RECOVERY-PROJECTION'))
       throw new Error('FINALIZER_PROJECTION_DRIFT');
   }
@@ -1291,6 +1470,7 @@ function makeController(
         registryHead: headValue(),
         records: Object.freeze([...journal]),
         projection: projection(),
+        verificationSnapshot: verification.snapshot(),
       }),
     records: () => Object.freeze([...journal]),
     reachability: () =>
@@ -1325,10 +1505,26 @@ export function createScriptedFinalizerController(input: unknown = {}): Finalize
   const raw = plain(input) ? input : {};
   const binding = validateBinding(field(raw, 'binding'));
   if (!binding.ok) return binding;
+  const verification = field(raw, 'verification') as ScriptedVerificationFixture | undefined;
+  if (
+    !verification ||
+    typeof verification.dispatch !== 'function' ||
+    typeof verification.enterFinalizing !== 'function' ||
+    typeof verification.consume !== 'function' ||
+    typeof verification.snapshot !== 'function'
+  )
+    return fail('FC-TRUST', 'GF042_VERIFICATION_FIXTURE_REQUIRED');
   const registry =
     (field(raw, 'registry') as RegistryAdapter | undefined) ?? (createScriptedRegistry() as RegistryAdapter);
   try {
-    return ok(makeController(binding.value, registry, field(raw, 'initialSnapshot') as FinalizerSnapshot | undefined));
+    return ok(
+      makeController(
+        binding.value,
+        registry,
+        verification,
+        field(raw, 'initialSnapshot') as FinalizerSnapshot | undefined,
+      ),
+    );
   } catch (error) {
     return fail('FC-TRUST', error instanceof Error ? error.message : 'INVALID_FINALIZER_SNAPSHOT');
   }
@@ -1343,7 +1539,8 @@ export function restoreScriptedFinalizerController(
     field(snapshot, 'schema') !== FINALIZER_SNAPSHOT_SCHEMA ||
     !Array.isArray(field(snapshot, 'records')) ||
     !plain(field(snapshot, 'projection')) ||
-    !plain(field(snapshot, 'registryHead'))
+    !plain(field(snapshot, 'registryHead')) ||
+    !plain(field(snapshot, 'verificationSnapshot'))
   )
     return fail('FC-TRUST', 'INVALID_FINALIZER_SNAPSHOT');
   const binding = validateBinding(field(snapshot, 'binding'));
@@ -1355,6 +1552,7 @@ export function restoreScriptedFinalizerController(
   const created = createScriptedFinalizerController({
     binding: binding.value,
     registry: field(supplied, 'registry'),
+    verification: field(supplied, 'verification'),
     initialSnapshot: snapshot as FinalizerSnapshot,
   });
   return created;
