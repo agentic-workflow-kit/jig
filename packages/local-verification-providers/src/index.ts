@@ -507,9 +507,13 @@ function exactArgs(value: unknown): readonly string[] | undefined {
   return Object.freeze(args as string[]);
 }
 
-function canonicalRuntimeReadAuthority(value: unknown, executable: string, executableDigest: string): readonly RuntimeReadDescriptor[] | undefined {
+function canonicalRuntimeReadAuthority(
+  value: unknown,
+  executable: string,
+  executableDigest: string,
+): readonly RuntimeReadDescriptor[] | undefined {
   const entries = list(value, 2);
-  if (!entries || entries.length !== 2) return undefined;
+  if (entries?.length !== 2) return undefined;
   const first = fields(entries[0], ['digest', 'path', 'role']);
   const second = fields(entries[1], ['digest', 'path', 'role']);
   if (
@@ -527,7 +531,11 @@ function canonicalRuntimeReadAuthority(value: unknown, executable: string, execu
     return undefined;
   return Object.freeze([
     Object.freeze({ path: first.path as string, role: 'executable' as const, digest: first.digest as string }),
-    Object.freeze({ path: second.path as typeof DYNAMIC_LOADER, role: 'dynamic-loader' as const, digest: second.digest as string }),
+    Object.freeze({
+      path: second.path as typeof DYNAMIC_LOADER,
+      role: 'dynamic-loader' as const,
+      digest: second.digest as string,
+    }),
   ]);
 }
 
@@ -543,7 +551,8 @@ function canonicalSandboxPolicyAuthority(value: unknown): SandboxPolicyDescripto
     'traversalPolicy',
     'version',
   ]);
-  const probe = raw && fields(raw.confinementProbe, ['dynamicLoader', 'dynamicLoaderDigest', 'executable', 'executableDigest']);
+  const probe =
+    raw && fields(raw.confinementProbe, ['dynamicLoader', 'dynamicLoaderDigest', 'executable', 'executableDigest']);
   const literals = raw && list(raw.systemReadLiterals, SANDBOX_SYSTEM_READ_LITERALS.length);
   if (
     !raw ||
@@ -603,7 +612,13 @@ function canonicalManifest(value: unknown): LocalCommandManifestValue | undefine
       ? fields(subprocess[0], ['args', 'argumentPolicy', 'executable', 'executableDigest', 'shell'])
       : undefined;
   const args = command && exactArgs(command.args);
-  const runtimeRead = command && canonicalRuntimeReadAuthority(raw?.runtimeReadAuthority, command.executable as string, command.executableDigest as string);
+  const runtimeRead =
+    command &&
+    canonicalRuntimeReadAuthority(
+      raw?.runtimeReadAuthority,
+      command.executable as string,
+      command.executableDigest as string,
+    );
   const sandboxPolicy = raw && canonicalSandboxPolicyAuthority(raw.sandboxPolicyAuthority);
   const names = posture as string[] | undefined;
   if (
@@ -1007,7 +1022,13 @@ function sandboxProfile(
   const canonicalCheckout = canonicalDirectory(checkout);
   const canonicalScratch = canonicalDirectory(scratch);
   if (!canonicalCheckout || !canonicalScratch || pathWithin(canonicalCheckout, canonicalScratch)) return undefined;
-  const literals = [...new Set([...SANDBOX_SYSTEM_READ_LITERALS, ...pathAncestors(canonicalCheckout), ...runtime.map((entry) => entry.path)])];
+  const literals = [
+    ...new Set([
+      ...SANDBOX_SYSTEM_READ_LITERALS,
+      ...pathAncestors(canonicalCheckout),
+      ...runtime.map((entry) => entry.path),
+    ]),
+  ];
   const maps = [...new Set(runtime.map((entry) => entry.path))];
   if (policy.systemReadLiterals.some((entry, index) => entry !== SANDBOX_SYSTEM_READ_LITERALS[index])) return undefined;
   const readLiterals = literals.map((path) => `(literal ${JSON.stringify(path)})`).join(' ');
@@ -1046,19 +1067,15 @@ function executeCommand(
   );
   if (!profile) return fail('FC-SUBJECT', 'CHECKOUT_UNTRUSTED');
   try {
-    const stdout = execFileSync(
-      SANDBOX_EXECUTABLE,
-      ['-p', profile, command.executable, ...command.args],
-      {
-        cwd: checkout,
-        env: Object.freeze({}),
-        encoding: 'utf8',
-        maxBuffer: MAX_OUTPUT,
-        shell: false,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: waitMs,
-      },
-    );
+    const stdout = execFileSync(SANDBOX_EXECUTABLE, ['-p', profile, command.executable, ...command.args], {
+      cwd: checkout,
+      env: Object.freeze({}),
+      encoding: 'utf8',
+      maxBuffer: MAX_OUTPUT,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: waitMs,
+    });
     const safeStdout = output(stdout);
     const resultOutput = Object.freeze({
       stdoutDigest: sha256(redacted(stdout)),
@@ -1250,7 +1267,8 @@ export function runLocalCommandQualificationProbe(
       'declared-env-only': true,
       'no-credentials': manifest.value.value.credentialAuthority.length === 0,
       'native-read-only-no-network': native.value.network === 'denied',
-      'runtime-read-digest': native.value.runtimeReadDigest === runtimeReadDigest(manifest.value.value.runtimeReadAuthority),
+      'runtime-read-digest':
+        native.value.runtimeReadDigest === runtimeReadDigest(manifest.value.value.runtimeReadAuthority),
       'sandbox-policy-digest':
         native.value.sandboxPolicyDigest === sandboxPolicyDigest(manifest.value.value.sandboxPolicyAuthority),
       'actual-confinement': confinement.insideAllowed && confinement.outsideDenied,
