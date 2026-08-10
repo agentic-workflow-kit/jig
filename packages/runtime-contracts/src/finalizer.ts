@@ -26,7 +26,7 @@ export const FINALIZER_REGISTRY = 'RT-REGISTRY';
 export const FINALIZER_OPERATION = 'CP-FINALIZER';
 export const FINALIZER_WAIT_BOUNDS = Object.freeze({
   capacitySeconds: Object.freeze({ minimum: 3_600, maximum: 2_592_000 }),
-  targetSeconds: Object.freeze({ minimum: 3_600, maximum: 2_592_000 }),
+  targetSeconds: Object.freeze({ minimum: 60, maximum: 86_400 }),
   refreshLimit: Object.freeze({ minimum: 1, maximum: 5 }),
 });
 
