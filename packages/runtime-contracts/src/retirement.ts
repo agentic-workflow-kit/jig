@@ -1,4 +1,12 @@
 import { stageDigest } from '@agentic-workflow-kit/jig-codec';
+import {
+  OBLIGATION_BOUND,
+  OBLIGATION_CONTROLLER,
+  OBLIGATION_PORT,
+  OBLIGATION_SCHEMA,
+  type ObligationController,
+  type ResidualObligation,
+} from './obligation.js';
 
 /** Private GF-046 semantic retirement contract. No real provider or destructive cleanup path exists here. */
 export const RETIREMENT_CONTRACT_VERSION = 'jig.retirement-contract.v1';
@@ -138,8 +146,16 @@ export type PreservationReceipt = Readonly<{
   status: 'preserved';
   contentDigest: string;
   readbackDigest: string;
+  evidenceKey: string;
+  evidenceSubject: string;
+  evidenceClaim: string;
   witness: RetirementWitness;
   transition: RetirementTransition;
+}>;
+export type RetirementObligationEvidence = Readonly<{
+  key: string;
+  subject: string;
+  claim: string;
 }>;
 export type RetirementAuthorization = Readonly<{
   controller: typeof RETIREMENT_CONTROLLER;
@@ -157,9 +173,7 @@ export type RetirementAuthorization = Readonly<{
 export type RetirementMechanism = Readonly<{
   invoke(input: Readonly<Record<string, unknown>>): RetirementResult<Readonly<Record<string, unknown>>>;
 }>;
-export type RetirementObligationAllocator = Readonly<{
-  openAllocated(input: Readonly<Record<string, unknown>>): RetirementResult<Readonly<Record<string, unknown>>>;
-}>;
+export type RetirementObligationAllocator = ObligationController;
 export type RetirementPin = Readonly<{ resourceIdentity: string; status: 'held' | 'released' }>;
 export type RetirementSnapshot = Readonly<{
   schema: typeof RETIREMENT_SCHEMA;
@@ -167,7 +181,7 @@ export type RetirementSnapshot = Readonly<{
   receipts: readonly PreservationReceipt[];
   authorizations: readonly RetirementAuthorization[];
   pins: readonly RetirementPin[];
-  obligations: readonly Readonly<Record<string, unknown>>[];
+  obligations: readonly ResidualObligation[];
   dutyAttempts: readonly Readonly<{ resourceIdentity: string; attempts: number }>[];
   journal: readonly Readonly<Record<string, unknown>>[];
   dispatchFenced: boolean;
@@ -717,6 +731,9 @@ function validReceipt(value: unknown, plan: RetirementPlan): RetirementResult<Pr
     'status',
     'contentDigest',
     'readbackDigest',
+    'evidenceKey',
+    'evidenceSubject',
+    'evidenceClaim',
     'witness',
     'transition',
   ]);
@@ -740,6 +757,10 @@ function validReceipt(value: unknown, plan: RetirementPlan): RetirementResult<Pr
     raw.status !== 'preserved' ||
     !digest(raw.contentDigest) ||
     !digest(raw.readbackDigest) ||
+    !digest(raw.evidenceKey) ||
+    !identifier(raw.evidenceSubject) ||
+    typeof raw.evidenceClaim !== 'string' ||
+    raw.evidenceClaim.length === 0 ||
     raw.contentDigest !== raw.readbackDigest ||
     !validWitness(raw.witness) ||
     !equal(raw.witness, resource.witness) ||
@@ -753,6 +774,121 @@ function validReceipt(value: unknown, plan: RetirementPlan): RetirementResult<Pr
   return ok(raw as unknown as PreservationReceipt);
 }
 
+function validObligationEvidence(value: unknown): value is RetirementObligationEvidence {
+  const raw = fields(value, ['key', 'subject', 'claim']);
+  return !!raw && digest(raw.key) && identifier(raw.subject) && typeof raw.claim === 'string' && raw.claim.length > 0;
+}
+
+function retirementObligationOrigin(plan: RetirementPlan, resource: RetirementResource): string | undefined {
+  const ordinal = plan.resources.findIndex((candidate) => candidate.resourceIdentity === resource.resourceIdentity);
+  return ordinal < 0 ? undefined : `${plan.run}/event/${ordinal + 2}`;
+}
+
+function validAllocatedObligation(
+  value: unknown,
+  plan: RetirementPlan,
+  resource: RetirementResource,
+  evidence: RetirementObligationEvidence,
+): value is ResidualObligation {
+  const raw = fields(value, [
+    'schema',
+    'id',
+    'event',
+    'type',
+    'controller',
+    'port',
+    'run',
+    'generation',
+    'resource',
+    'duty',
+    'origin',
+    'reason',
+    'preservationEvidence',
+    'accountableOwner',
+    'criteria',
+    'bound',
+    'startedAt',
+    'deadline',
+    'policyDigest',
+    'boundDigest',
+    'status',
+    'exhaustionCount',
+    'lastExhaustionEvent',
+    'lastExhaustedAt',
+    'handoffEvent',
+    'handoffResponder',
+    'handoffCriteriaDigest',
+    'handoffReason',
+    'resolutionEvent',
+    'resolutionResponder',
+    'resolutionGrant',
+    'resolutionCriteriaDigest',
+    'resolutionEvidence',
+  ]);
+  const preservation =
+    raw &&
+    fields(raw.preservationEvidence, [
+      'schema',
+      'key',
+      'subject',
+      'claim',
+      'manifestDigest',
+      'artifactDigest',
+      'trustRoot',
+      'referenceDigest',
+    ]);
+  const criteria = raw && fields(raw.criteria, ['schema', 'subject', 'claim', 'digest']);
+  return (
+    !!raw &&
+    raw.schema === OBLIGATION_SCHEMA &&
+    identifier(raw.id) &&
+    identifier(raw.event) &&
+    raw.type === 'SCH-OBLIGATION' &&
+    raw.controller === OBLIGATION_CONTROLLER &&
+    raw.port === OBLIGATION_PORT &&
+    raw.run === plan.run &&
+    raw.generation === plan.generation &&
+    raw.resource === resource.resource &&
+    raw.duty === 'retirement' &&
+    raw.origin === retirementObligationOrigin(plan, resource) &&
+    typeof raw.reason === 'string' &&
+    raw.reason.length > 0 &&
+    !!preservation &&
+    preservation.schema === 'jig.obligation-evidence.v1' &&
+    preservation.key === evidence.key &&
+    preservation.subject === evidence.subject &&
+    preservation.claim === evidence.claim &&
+    digest(preservation.manifestDigest) &&
+    digest(preservation.artifactDigest) &&
+    digest(preservation.trustRoot) &&
+    digest(preservation.referenceDigest) &&
+    raw.accountableOwner === 'principal/arye' &&
+    !!criteria &&
+    criteria.schema === 'jig.obligation-criteria.v1' &&
+    criteria.subject === evidence.subject &&
+    criteria.claim === evidence.claim &&
+    digest(criteria.digest) &&
+    raw.bound === OBLIGATION_BOUND.name &&
+    raw.startedAt === plan.bound.startedAt &&
+    raw.deadline === plan.bound.deadline &&
+    digest(raw.policyDigest) &&
+    digest(raw.boundDigest) &&
+    raw.status === 'open' &&
+    raw.exhaustionCount === 0 &&
+    raw.lastExhaustionEvent === null &&
+    raw.lastExhaustedAt === null &&
+    raw.handoffEvent === null &&
+    raw.handoffResponder === null &&
+    raw.handoffCriteriaDigest === null &&
+    raw.handoffReason === null &&
+    raw.resolutionEvent === null &&
+    raw.resolutionResponder === null &&
+    raw.resolutionGrant === null &&
+    raw.resolutionCriteriaDigest === null &&
+    raw.resolutionEvidence === null
+  );
+}
+
 function freezeSnapshot(value: RetirementSnapshot): RetirementSnapshot {
   return freeze(value);
 }
@@ -761,6 +897,7 @@ export function createRetirementController(
   options?: Readonly<{
     mechanism?: RetirementMechanism;
     obligation?: RetirementObligationAllocator;
+    obligationEvidence?: RetirementObligationEvidence;
     hydrate?: RetirementSnapshot;
   }>,
 ): RetirementController {
@@ -833,6 +970,13 @@ export function createRetirementController(
       }
       return receipt;
     }
+    if (
+      options?.obligationEvidence &&
+      (receipt.value.evidenceKey !== options.obligationEvidence.key ||
+        receipt.value.evidenceSubject !== options.obligationEvidence.subject ||
+        receipt.value.evidenceClaim !== options.obligationEvidence.claim)
+    )
+      return fail('FC-EVIDENCE', 'PRESERVATION_EVIDENCE_REFERENCE_MISMATCH');
     const prior = receipts.get(receipt.value.resourceIdentity);
     if (prior) return equal(prior, receipt.value) ? ok(prior) : fail('FC-FENCE', 'PRESERVATION_RECEIPT_REUSE_MISMATCH');
     receipts.set(receipt.value.resourceIdentity, receipt.value);
@@ -918,47 +1062,44 @@ export function createRetirementController(
   const openResidualObligation = (
     resource: RetirementResource,
     reason: string,
-  ): RetirementResult<Readonly<Record<string, unknown>>> => {
+  ): RetirementResult<ResidualObligation> => {
     if (!planValue) return fail('FC-AUTHORITY', 'RETIREMENT_PLAN_REQUIRED');
-    const prior = obligations.find((obligation) => obligation.resourceIdentity === resource.resourceIdentity);
+    const prior = obligations.find((obligation) => obligation.resource === resource.resource);
     if (prior) return ok(prior);
     if (!options?.obligation) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
     const preservation = receipts.get(resource.resourceIdentity);
+    const evidence =
+      options.obligationEvidence ??
+      (preservation
+        ? {
+            key: preservation.evidenceKey,
+            subject: preservation.evidenceSubject,
+            claim: preservation.evidenceClaim,
+          }
+        : undefined);
+    if (!evidence || !validObligationEvidence(evidence))
+      return fail('FC-EVIDENCE', 'RETIREMENT_OBLIGATION_EVIDENCE_REQUIRED');
+    const origin = retirementObligationOrigin(planValue, resource);
+    if (!origin) return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ORIGIN_UNAVAILABLE');
     const inputValue = freeze({
       run: planValue.run,
       generation: planValue.generation,
       resource: resource.resource,
-      resourceIdentity: resource.resourceIdentity,
       duty: 'retirement',
-      origin: planValue.transition.event,
+      origin,
       reason,
-      preservationEvidence: freeze({
-        referenceDigest: preservation?.contentDigest ?? digest('0'),
-        status: preservation ? 'verified' : 'missing-or-unverified',
-      }),
+      preservationEvidence: freeze({ key: evidence.key }),
       accountableOwner: 'principal/arye',
-      criteria: freeze({
-        subject: resource.resource,
-        claim: 'preservation-safe-retirement',
-        digest: digest('1'),
-      }),
+      criteria: freeze({ subject: evidence.subject, claim: evidence.claim }),
       startedAt: planValue.bound.startedAt,
       deadline: planValue.bound.deadline,
-      policyDigest: digest('2'),
+      policyDigest: planValue.baseline.releaseDigest,
     });
     const allocated = options.obligation.openAllocated(inputValue);
-    if (
-      !allocated.ok ||
-      !safeRecord(allocated.value) ||
-      !identifier(allocated.value.id) ||
-      allocated.value.status !== 'open'
-    )
+    if (!allocated.ok) return fail(allocated.error.family, allocated.error.code);
+    if (!validAllocatedObligation(allocated.value, planValue, resource, evidence))
       return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
-    const obligation = freeze({
-      ...allocated.value,
-      resourceIdentity: resource.resourceIdentity,
-      status: 'open' as const,
-    });
+    const obligation = allocated.value;
     obligations.push(obligation);
     journal.push(freeze({ kind: 'obligation', obligation }));
     return ok(obligation);
@@ -1253,7 +1394,7 @@ export function createRetirementController(
     const resource = raw && resourceFor(raw.resourceIdentity);
     if (!raw || !resource?.ok || !safeInteger(raw.at)) return fail('FC-INPUT', 'INVALID_RETIREMENT_EXHAUSTION');
     if (raw.at < planValue.bound.deadline) return fail('FC-BOUND', 'BND_RETIRE_NOT_EXHAUSTED');
-    const prior = obligations.find((obligation) => obligation.resourceIdentity === resource.value.resourceIdentity);
+    const prior = obligations.find((obligation) => obligation.resource === resource.value.resource);
     if (prior) return ok(prior);
     const attempts = dutyAttempts.get(resource.value.resourceIdentity) ?? planValue.bound.attempts;
     if (attempts >= planValue.bound.maxAttempts) return fail('FC-BOUND', 'BND_RETIRE_EXHAUSTED');
@@ -1297,7 +1438,11 @@ export function createRetirementController(
 
 export function restoreRetirementController(
   snapshot: unknown,
-  options?: Readonly<{ mechanism?: RetirementMechanism; obligation?: RetirementObligationAllocator }>,
+  options?: Readonly<{
+    mechanism?: RetirementMechanism;
+    obligation?: RetirementObligationAllocator;
+    obligationEvidence?: RetirementObligationEvidence;
+  }>,
 ): RetirementResult<RetirementController> {
   const raw = fields(snapshot, [
     'schema',
@@ -1379,13 +1524,29 @@ export function restoreRetirementController(
     ) ||
     dutyAttemptValues.some((attempt) => !validDutyAttempts(attempt, planValue)) ||
     !unique(dutyAttemptValues, (attempt) => String((attempt as AnyRecord).resourceIdentity)) ||
-    obligationValues.some(
-      (obligation) =>
-        !safeRecord(obligation) ||
-        !identifier((obligation as AnyRecord).id) ||
-        !identifier((obligation as AnyRecord).resourceIdentity) ||
-        (obligation as AnyRecord).status !== 'open',
-    )
+    obligationValues.some((obligation) => {
+      const value = obligation as AnyRecord;
+      const resource = planValue?.resources.find((candidate) => candidate.resource === value.resource);
+      const receipt = receiptValues?.find((candidate) => (candidate as AnyRecord).resource === value.resource) as
+        | PreservationReceipt
+        | undefined;
+      const evidence =
+        options?.obligationEvidence ??
+        (receipt
+          ? {
+              key: receipt.evidenceKey,
+              subject: receipt.evidenceSubject,
+              claim: receipt.evidenceClaim,
+            }
+          : undefined);
+      return (
+        !resource ||
+        !evidence ||
+        !validObligationEvidence(evidence) ||
+        !validAllocatedObligation(value, planValue, resource, evidence)
+      );
+    }) ||
+    !unique(obligationValues, (obligation) => String((obligation as AnyRecord).resource))
   )
     return fail('FC-TRUST', 'RETIREMENT_SNAPSHOT_INVALID');
   const controller = createRetirementController({

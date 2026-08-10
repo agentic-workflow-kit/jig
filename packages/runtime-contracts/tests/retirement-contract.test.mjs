@@ -1,17 +1,127 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import test from 'node:test';
 
 const retirement = await import('../dist/retirement.js');
+const obligation = await import('../dist/obligation.js');
+const evidenceRuntime = await import('../dist/evidence.js');
+const artifactRuntime = await import('../dist/artifact.js');
+const ledgerRuntime = await import('../dist/ledger.js');
+const evidenceOracle = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, './fixtures/evidence-contract-oracle.json'), 'utf8'),
+);
 
 const digest = (character) => character.repeat(64);
 const run = 'run-000000000046-0123456789abcdef';
 const story = `${run}/story/gf046`;
 const generation = `${run}/gen/1|controller`;
+const retirementDeadline = 1000 + 72 * 60 * 60;
 const transition = `${run}/txn/1/${digest('a')}`;
 const fence = Object.freeze({
   generation,
   authority: `${run}/auth/1`,
   basis: digest('b'),
+});
+
+const hash = (value) => createHash('sha256').update(value).digest('hex');
+const admittedEvidence = (() => {
+  const scanBasis = { version: evidenceOracle.scanPolicyVersion, detectors: evidenceOracle.scanDetectors };
+  const secretScan = { ...scanBasis, digest: hash(JSON.stringify(scanBasis)) };
+  const policyBasis = {
+    kind: evidenceOracle.criticalEvidenceKind,
+    version: evidenceOracle.criticalPolicyVersion,
+    scanPolicyVersion: secretScan.version,
+    scanPolicyDigest: secretScan.digest,
+    maxBytes: evidenceOracle.defaultMaxBytes,
+    oversizeBehavior: 'reject',
+    completenessCritical: true,
+    contentType: 'text/plain',
+    redactionStatus: 'source-redacted',
+    retention: evidenceOracle.retention,
+  };
+  const evidenceConfig = {
+    subjects: [
+      { kind: evidenceOracle.subjectKind, identity: evidenceOracle.subjectIdentity, claims: [evidenceOracle.claim] },
+    ],
+    principals: [{ principal: evidenceOracle.principal, sessions: [evidenceOracle.session] }],
+    secretScan,
+    evidenceKinds: [{ ...policyBasis, digest: hash(JSON.stringify(policyBasis)) }],
+  };
+  const authority = evidenceRuntime.createScriptedEvidenceFixture(evidenceConfig);
+  const artifacts = artifactRuntime.createScriptedArtifactFixture();
+  const prepared = authority.prepare({
+    schemaVersion: evidenceOracle.evidenceSchemaVersion,
+    evidenceKind: evidenceOracle.criticalEvidenceKind,
+    policy: { version: evidenceOracle.criticalPolicyVersion, digest: evidenceConfig.evidenceKinds[0].digest },
+    subject: evidenceOracle.evidenceSubject,
+    producer: { kind: 'principal', principal: evidenceOracle.principal, session: evidenceOracle.session },
+    providerManifest: null,
+    contentDigest: evidenceOracle.digest,
+    bytes: new TextEncoder().encode(evidenceOracle.bytes),
+    artifact: {
+      resourceScope: evidenceOracle.resourceScope,
+      operation: evidenceOracle.operation,
+      fence: evidenceOracle.fence,
+      temporaryTuple: evidenceOracle.temporaryTuple,
+    },
+  });
+  assert.equal(prepared.ok, true, JSON.stringify(prepared));
+  const fact = artifacts.store.putDisposable(prepared.value.artifactRequest);
+  assert.equal(fact.ok, true, JSON.stringify(fact));
+  assert.equal(artifacts.witness.advance(fact.value).ok, true);
+  const request = prepared.value.artifactRequest;
+  const registration = JSON.stringify({
+    resourceScope: request.resourceScope,
+    subject: request.subject,
+    digest: request.digest,
+    fence: request.fence,
+    holder: request.holder,
+    putOperation: request.operation,
+    pins: request.pins,
+  });
+  const canonical = JSON.stringify({
+    transition: `transition/evidence/${prepared.value.key}/temporary`,
+    registration,
+    role: 'temporary',
+    holder: request.pins.temporary.holder,
+    tuple: request.pins.temporary.tuple,
+    subject: request.subject,
+    fence: request.fence,
+    fact: fact.value,
+  });
+  const proof = {
+    transition: `transition/evidence/${prepared.value.key}/temporary`,
+    registration,
+    role: 'temporary',
+    holder: request.pins.temporary.holder,
+    tuple: request.pins.temporary.tuple,
+    subject: request.subject,
+    fence: request.fence,
+    fact: fact.value,
+    digest: hash(canonical),
+  };
+  const { bytes: _bytes, ...putBasis } = request;
+  assert.equal(
+    artifacts.store.adopt({ ...putBasis, putOperation: request.operation, fact: fact.value, proof }).ok,
+    true,
+  );
+  const admitted = authority.admit({ key: prepared.value.key, fact: fact.value, proof }, artifacts.store);
+  assert.equal(admitted.ok, true, JSON.stringify(admitted));
+  return { authority, key: prepared.value.key, manifest: admitted.value.manifest };
+})();
+
+const obligationEvidence = Object.freeze({
+  key: admittedEvidence.key,
+  subject: admittedEvidence.manifest.subject,
+  claim: admittedEvidence.manifest.claim,
+});
+const obligationOptions = () => ({
+  obligation: obligation.createScriptedObligationController({
+    dependencies: { ledger: ledgerRuntime.createScriptedLedger(), evidence: admittedEvidence.authority },
+  }),
+  obligationEvidence,
 });
 
 const inventory = (kind, overrides = {}) => ({
@@ -54,7 +164,7 @@ const baseInput = (overrides = {}) => ({
   }),
   bound: Object.freeze({
     startedAt: 1000,
-    deadline: 1000 + 3,
+    deadline: retirementDeadline,
     attempts: 0,
   }),
   resources: Object.freeze([
@@ -72,27 +182,14 @@ const baseInput = (overrides = {}) => ({
 const holderTransition = (resource, operation) => ({
   controller: 'RT-CONTROLLER',
   writer: 'CP-TRANSITION',
-  transaction: transition + '/holder/' + resource.resourceIdentity,
-  event: run + '/event/holder-retirement/' + resource.kind,
+  transaction: `${transition}/holder/${resource.resourceIdentity}`,
+  event: `${run}/event/holder-retirement/${resource.kind}`,
   position: 2,
   fence,
   resource: resource.resource,
   resourceIdentity: resource.resourceIdentity,
   operation,
   committed: true,
-});
-
-const obligationAllocator = () => ({
-  openAllocated(input) {
-    return {
-      ok: true,
-      value: {
-        ...input,
-        id: input.resourceIdentity + '/obligation/1',
-        status: 'open',
-      },
-    };
-  },
 });
 
 const trustEvidence = (plan, resource) => ({
@@ -118,6 +215,9 @@ const receipt = (plan, resource, overrides = {}) => ({
   status: 'preserved',
   contentDigest: digest('f'),
   readbackDigest: digest('f'),
+  evidenceKey: obligationEvidence.key,
+  evidenceSubject: obligationEvidence.subject,
+  evidenceClaim: obligationEvidence.claim,
   witness: resource.witness,
   transition: plan.transition,
   ...overrides,
@@ -170,7 +270,7 @@ test('GF046-MC-01..05: plan freezes outcome baseline, inventory, bound, and cont
 });
 
 test('GF046-MC-01/05: every holder family requires its own preservation receipt before retirement or release-pin', () => {
-  const controller = retirement.createRetirementController({ obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController(obligationOptions());
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const operations = new Map([
@@ -199,7 +299,7 @@ test('GF046-MC-01/05: every holder family requires its own preservation receipt 
 });
 
 test('GF046-MC-04/07: preservation receipt requires exact readback and selects FC-EVIDENCE for ordinary gaps', () => {
-  const controller = retirement.createRetirementController({ obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController(obligationOptions());
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const workspace = planned.value.resources.find((resource) => resource.kind === 'workspace');
@@ -233,7 +333,7 @@ test('GF046-MC-04/07: preservation receipt requires exact readback and selects F
 
 test('GF046-MC-05: workspace preservation and retirement are separate exact controller operations', () => {
   const mechanism = script(true);
-  const controller = retirement.createRetirementController({ mechanism, obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const workspace = planned.value.resources.find((resource) => resource.kind === 'workspace');
@@ -275,7 +375,7 @@ test('GF046-MC-05: workspace preservation and retirement are separate exact cont
 
 test('GF046-MC-05/06: controller commits exact retirement before scripted dispatch and rejects dispose-bytes at every boundary', () => {
   const mechanism = script(true);
-  const controller = retirement.createRetirementController({ mechanism, obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const session = planned.value.resources.find((resource) => resource.kind === 'session');
@@ -331,7 +431,7 @@ test('GF046-MC-05/06: controller commits exact retirement before scripted dispat
 
 test('GF046-MC-06/08: release-pin is exact-mode, post-retirement, and uncertain effects retain the conservative pin', () => {
   const mechanism = script(true);
-  const controller = retirement.createRetirementController({ mechanism, obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
@@ -458,7 +558,7 @@ test('GF046-MC-06: release-pin adopts only the witnessed scripted result and nev
 
 test('GF046-MC-07/08: uncertain effects cannot retry before absence plus reauthorization, and bounds do not reset', () => {
   const mechanism = script(true);
-  const controller = retirement.createRetirementController({ mechanism, obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const session = planned.value.resources.find((resource) => resource.kind === 'session');
@@ -537,11 +637,11 @@ test('GF046-MC-07/08: uncertain effects cannot retry before absence plus reautho
     error: { family: 'FC-BOUND', code: 'BND_RETIRE_NOT_EXHAUSTED' },
   });
   assert.equal(controller.snapshot().plan.bound.startedAt, 1000);
-  assert.equal(controller.snapshot().plan.bound.deadline, 1003);
+  assert.equal(controller.snapshot().plan.bound.deadline, retirementDeadline);
 });
 
 test('GF046-MC-01/08: Stopped overlay is accepted without rewriting outcome, dependencies, or resource position', () => {
-  const controller = retirement.createRetirementController({ obligation: obligationAllocator() });
+  const controller = retirement.createRetirementController(obligationOptions());
   const planned = controller.plan(baseInput({ storyState: 'Stopped', runPhase: 'Stopped' }));
   assert.equal(planned.ok, true, JSON.stringify(planned));
   assert.equal(planned.value.storyState, 'Stopped');
@@ -561,7 +661,7 @@ test('GF046-MC-01/08: Stopped overlay is accepted without rewriting outcome, dep
   assert.equal(controller.snapshot().plan.baseline.outcome, 'Blocked');
   assert.equal(controller.snapshot().obligations.length, 1);
   assert.equal(controller.snapshot().obligations[0].status, 'open');
-  assert.equal(controller.snapshot().obligations[0].deadline, 1003);
+  assert.equal(controller.snapshot().obligations[0].deadline, retirementDeadline);
   assert.equal(
     controller.failure({
       phase: 'stopped',
@@ -576,7 +676,7 @@ test('GF046-MC-01/08: Stopped overlay is accepted without rewriting outcome, dep
 
 test('GF046-MC-09: hostile mechanism receipts are rejected and never adopted', () => {
   const controller = retirement.createRetirementController({
-    obligation: obligationAllocator(),
+    ...obligationOptions(),
     mechanism: {
       invoke() {
         return { ok: true, value: { head: 'https://provider.invalid/head', witness: digest('2') } };
@@ -672,28 +772,125 @@ test('GF046-MC-07/08/09: trust faults fence, preterminal evidence faults park/bl
 });
 
 test('GF046-MC-08: exhaustion opens one exact residual obligation without changing Retiring position', () => {
-  const opened = [];
-  const controller = retirement.createRetirementController({
-    obligation: {
-      openAllocated(input) {
-        opened.push(input);
-        return { ok: true, value: Object.freeze({ id: `${run}/obligation/1`, status: 'open', ...input }) };
-      },
-    },
-  });
+  const controller = retirement.createRetirementController(obligationOptions());
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
-  const first = controller.exhaust({ resourceIdentity: planned.value.resources[0].resourceIdentity, at: 2000 });
+  const first = controller.exhaust({
+    resourceIdentity: planned.value.resources[0].resourceIdentity,
+    at: retirementDeadline,
+  });
   assert.equal(first.ok, true, JSON.stringify(first));
   assert.equal(first.value.status, 'open');
-  assert.equal(opened.length, 1);
-  assert.equal(opened[0].duty, 'retirement');
-  assert.equal(opened[0].startedAt, 1000);
-  assert.equal(opened[0].deadline, 1003);
+  assert.equal(controller.snapshot().obligations.length, 1);
+  assert.equal(first.value.duty, 'retirement');
+  assert.equal(first.value.resource, planned.value.resources[0].resource);
+  assert.equal(first.value.startedAt, 1000);
+  assert.equal(first.value.deadline, retirementDeadline);
+  assert.equal('resourceIdentity' in first.value, false);
   assert.deepEqual(
-    controller.exhaust({ resourceIdentity: planned.value.resources[0].resourceIdentity, at: 3000 }),
+    controller.exhaust({ resourceIdentity: planned.value.resources[0].resourceIdentity, at: retirementDeadline + 1 }),
     first,
   );
+  const restored = retirement.restoreRetirementController(controller.snapshot(), obligationOptions());
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.snapshot(), controller.snapshot());
   assert.equal(controller.snapshot().plan.storyState, 'Retiring');
   assert.equal(controller.snapshot().plan.runPhase, 'Active');
+});
+
+test('GF038 integration: exact allocation carrier admits, replays, and rejects substituted duties', () => {
+  const resource = inventory('session').resource;
+  const exactInput = {
+    run,
+    generation,
+    resource,
+    duty: 'retirement',
+    origin: `${run}/event/2`,
+    reason: 'preservation-safe retirement duty failed after bounded attempts',
+    preservationEvidence: { key: obligationEvidence.key },
+    accountableOwner: 'principal/arye',
+    criteria: { subject: obligationEvidence.subject, claim: obligationEvidence.claim },
+    startedAt: 1000,
+    deadline: retirementDeadline,
+    policyDigest: digest('a'),
+  };
+  assert.deepEqual(Object.keys(exactInput).sort(), [
+    'accountableOwner',
+    'criteria',
+    'deadline',
+    'duty',
+    'generation',
+    'origin',
+    'policyDigest',
+    'preservationEvidence',
+    'reason',
+    'resource',
+    'run',
+    'startedAt',
+  ]);
+  const dependencies = {
+    ledger: ledgerRuntime.createScriptedLedger(),
+    evidence: admittedEvidence.authority,
+  };
+  const firstController = obligation.createScriptedObligationController({ dependencies });
+  const reconciled = admittedEvidence.authority.reconcile(obligationEvidence.key);
+  assert.equal(reconciled.ok, true, JSON.stringify(reconciled));
+  assert.deepEqual(
+    { subject: reconciled.value.manifest.subject, claim: reconciled.value.manifest.claim },
+    { subject: obligationEvidence.subject, claim: obligationEvidence.claim },
+  );
+  const first = firstController.openAllocated(exactInput);
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(first.value.resource, resource);
+  assert.equal(first.value.startedAt, 1000);
+  assert.equal(first.value.deadline, retirementDeadline);
+  assert.equal('resourceIdentity' in first.value, false);
+  assert.deepEqual(firstController.openAllocated(exactInput), first);
+  assert.equal(firstController.snapshot().obligations.length, 1);
+  const restored = obligation.restoreScriptedObligationController(firstController.snapshot(), dependencies);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.openAllocated(exactInput), first);
+
+  const extraField = obligationOptions().obligation.openAllocated({ ...exactInput, resourceIdentity: `${resource}/1` });
+  assert.deepEqual(extraField, {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_OBLIGATION_ALLOCATION_INPUT' },
+  });
+  const crossRun = obligationOptions().obligation.openAllocated({
+    ...exactInput,
+    run: 'run-000000000047-0123456789abcdef',
+  });
+  assert.deepEqual(crossRun, {
+    ok: false,
+    error: { family: 'FC-SUBJECT', code: 'INVALID_OBLIGATION_ALLOCATION_SCOPE' },
+  });
+  const crossGeneration = obligationOptions().obligation.openAllocated({
+    ...exactInput,
+    generation: 'run-000000000047-0123456789abcdef/gen/2|foreign',
+  });
+  assert.deepEqual(crossGeneration, {
+    ok: false,
+    error: { family: 'FC-SUBJECT', code: 'INVALID_OBLIGATION_ALLOCATION_SCOPE' },
+  });
+  const malformedCriteria = obligationOptions().obligation.openAllocated({
+    ...exactInput,
+    criteria: { subject: 'not-an-evidence-subject', claim: obligationEvidence.claim },
+  });
+  assert.deepEqual(malformedCriteria, {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_OBLIGATION_ALLOCATION_INPUT' },
+  });
+  const unadmittedEvidence = obligationOptions().obligation.openAllocated({
+    ...exactInput,
+    preservationEvidence: { key: digest('a') },
+  });
+  assert.deepEqual(unadmittedEvidence, {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_OBLIGATION_ALLOCATION_INPUT' },
+  });
+  const staleBound = obligationOptions().obligation.openAllocated({ ...exactInput, deadline: 1001 });
+  assert.deepEqual(staleBound, {
+    ok: false,
+    error: { family: 'FC-INPUT', code: 'INVALID_OBLIGATION_ALLOCATION_INPUT' },
+  });
 });
