@@ -294,7 +294,7 @@ test('checkout resources reject nested symlinks and traversal-shaped roots befor
     );
     assert.deepEqual(
       provider.createLocalCommandCheckoutResource({
-        checkoutPath: join(realpathSync(tmpdir()), '..', basename(realpathSync(tmpdir()))),
+        checkoutPath: `${realpathSync(tmpdir())}/../${basename(realpathSync(tmpdir()))}`,
         request: request(1),
         targetBasisCommit,
         targetBasisTree,
