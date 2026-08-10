@@ -1381,7 +1381,10 @@ export function createRetirementController(
       !digest(fact.head) ||
       !digest(fact.witness) ||
       !validWitnessAdvance(fact.witnessAdvance, priorWitness, fact.head, fact.witness) ||
-      !validLookupAttestation(fact.lookupAttestation, authorization, resource, priorWitness, 'confirmed-effect')
+      !validLookupAttestation(fact.lookupAttestation, authorization, resource, priorWitness, 'confirmed-effect') ||
+      !equal(fact.head, (fact.lookupAttestation as AnyRecord)?.newHead) ||
+      !equal(fact.witness, (fact.lookupAttestation as AnyRecord)?.newLineage) ||
+      !equal(fact.witnessAdvance, (fact.lookupAttestation as AnyRecord)?.witnessAdvance)
     ) {
       const obligation = requireResidualForDuty(authorization, 'retirement adapter receipt was invalid');
       if (!obligation.ok) return obligation;

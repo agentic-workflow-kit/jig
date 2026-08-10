@@ -872,6 +872,83 @@ test('GF046-ATTEST-02: direct dispatch recovery re-verifies the mechanism receip
   );
 });
 
+test('GF046-ATTEST-03: direct dispatch rejects a valid but effect-inconsistent lookup attestation', () => {
+  const scripted = script(true);
+  const mechanism = {
+    ...scripted,
+    invoke(input) {
+      const result = scripted.invoke(input);
+      assert.equal(result.ok, true, JSON.stringify(result));
+      return {
+        ...result,
+        value: {
+          ...result.value,
+          head: digest('7'),
+          witness: digest('8'),
+          witnessAdvance: {
+            ...result.value.witnessAdvance,
+            head: digest('7'),
+            lineage: digest('8'),
+          },
+        },
+      };
+    },
+  };
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
+  const planned = controller.plan(baseInput());
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(artifactResource);
+  assert.equal(controller.recordPreservation(receipt(planned.value, artifactResource)).ok, true);
+  assert.equal(
+    controller.authorize({
+      resource: artifactResource.resource,
+      resourceIdentity: artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(artifactResource, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  assert.deepEqual(
+    controller.dispatch({
+      resource: artifactResource.resource,
+      resourceIdentity: artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+    }),
+    { ok: false, error: { family: 'FC-MECHANISM', code: 'INVALID_ADAPTER_RECEIPT' } },
+  );
+  const snapshot = controller.snapshot();
+  assert.equal(snapshot.authorizations[0].status, 'committed');
+  assert.equal(snapshot.authorizations[0].lookupAttestation, null);
+  assert.equal(snapshot.pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status, 'held');
+  assert.deepEqual(
+    controller.adopt({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      head: digest('7'),
+      witness: digest('8'),
+      witnessAdvance: {
+        previousHead: artifactResource.witness.head,
+        previousLineage: artifactResource.witness.lineage,
+        head: digest('7'),
+        lineage: digest('8'),
+        currency: 'current',
+      },
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_RESULT_NOT_WITNESSED' } },
+  );
+  assert.equal(
+    controller.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
+    'held',
+  );
+});
+
 test('GF046-MC-07: reconciliation is only legal for uncertain operations and terminal calls are inert', () => {
   const prepare = (lookupCertainty = 'confirmed-effect') => {
     const mechanism = script(true, lookupCertainty);
