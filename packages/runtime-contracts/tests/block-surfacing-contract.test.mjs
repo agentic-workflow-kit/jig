@@ -540,6 +540,17 @@ const journal = (domain, records) => {
     }),
   );
 };
+const rehashBlockSnapshot = (snapshot) => {
+  let previousDigest = digest('0');
+  const records = snapshot.records.map((entry, index) => {
+    const basis = { position: index + 1, previousDigest, record: entry.record };
+    const staged = stageDigest({ domain: 'BLOCK-SURFACING-RECORD', excludePaths: [], value: basis });
+    assert.equal(staged.ok, true, JSON.stringify(staged));
+    previousDigest = staged.value.digest;
+    return { ...basis, digest: staged.value.digest };
+  });
+  return { ...snapshot, records };
+};
 const finalizerSnapshot = finalDeliverySnapshot.finalizerSnapshot;
 const finalizerProjection = finalizerSnapshot.projection;
 const finalizerEntry = finalizerProjection.entry;
@@ -677,6 +688,30 @@ function controller(options = {}) {
   });
   assert.equal(result.ok, true, JSON.stringify(result));
   return { controller: result.value, obligations };
+}
+
+function restoreBlock(snapshot, obligations, mechanism = runtime.createScriptedBlockSurfacingMechanism().value) {
+  return runtime.restoreScriptedBlockSurfacingController(snapshot, {
+    mechanism,
+    obligationController: obligations,
+    obligationBasis: {
+      run,
+      generation,
+      resource: obligation.resource,
+      duty: 'surfacing',
+      origin: obligation.origin,
+      reason: obligation.reason,
+      preservationEvidence: obligation.preservationEvidence,
+      accountableOwner: 'principal/arye',
+      criteria,
+      startedAt: subject.startedAt,
+      deadline: subject.deadline,
+      policyDigest: obligation.policyDigest,
+    },
+    subject,
+    marker,
+    scope: reviewScope,
+  });
 }
 
 const authorization = (overrides = {}, finalDelivery = false) => {
@@ -1050,4 +1085,75 @@ test('GF045 digest derivation fails closed on circular hostile input', () => {
     }),
     undefined,
   );
+});
+
+test('GF045 restore derives status from the journal before validating projection', () => {
+  const { controller: instance, obligations } = controller();
+  assert.equal(instance.authorize(authorization()).ok, true);
+  assert.equal(instance.dispatch(dispatch()).ok, true);
+  const snapshot = instance.snapshot();
+  const forged = {
+    ...snapshot,
+    status: 'parked',
+    projection: { ...snapshot.projection, status: 'parked' },
+  };
+  assert.deepEqual(restoreBlock(forged, obligations), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'BLOCK_STATUS_REPLAY_MISMATCH' },
+  });
+  assert.deepEqual(restoreBlock(rehashBlockSnapshot(forged), obligations), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'BLOCK_STATUS_REPLAY_MISMATCH' },
+  });
+
+  const rehashed = rehashBlockSnapshot(snapshot);
+  const replayed = restoreBlock(rehashed, obligations);
+  assert.equal(replayed.ok, true, JSON.stringify(replayed));
+  assert.deepEqual(replayed.value.projection(), instance.projection());
+});
+
+test('GF045 digest boundaries fail closed for circular, accessor, and proxy inputs', () => {
+  const circular = {};
+  circular.self = circular;
+  let circularDigest;
+  assert.doesNotThrow(() => {
+    circularDigest = runtime.deriveBlockSurfacingSubjectDigest(circular);
+  });
+  assert.equal(circularDigest, undefined);
+
+  const accessor = {};
+  Object.defineProperty(accessor, 'run', {
+    enumerable: true,
+    get() {
+      throw new Error('accessor');
+    },
+  });
+  let accessorDigest;
+  assert.doesNotThrow(() => {
+    accessorDigest = runtime.deriveBlockSurfacingSubjectDigest(accessor);
+  });
+  assert.equal(accessorDigest, undefined);
+
+  const proxy = new Proxy(
+    { run },
+    {
+      ownKeys: () => {
+        throw new Error('proxy');
+      },
+    },
+  );
+  let proxyDigest;
+  assert.doesNotThrow(() => {
+    proxyDigest = runtime.deriveBlockSurfacingSubjectDigest(proxy);
+  });
+  assert.equal(proxyDigest, undefined);
+
+  const { controller: instance, obligations } = controller();
+  const snapshot = instance.snapshot();
+  const hostileRecord = { ...snapshot.records[0], record: circular };
+  const hostileSnapshot = { ...snapshot, records: [hostileRecord, ...snapshot.records.slice(1)] };
+  assert.deepEqual(restoreBlock(hostileSnapshot, obligations), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'BLOCK_JOURNAL_DIGEST_MISMATCH' },
+  });
 });

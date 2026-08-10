@@ -1490,7 +1490,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       journal = [...journal, item as JournalEntry];
       applyRecord(item.record as BlockSurfacingRecord);
     }
-    status = snapshot.status as SurfaceStatus;
+    if (snapshot.status !== status) return fail('FC-TRUST', 'BLOCK_STATUS_REPLAY_MISMATCH');
     if (!same(snapshot.projection, projection())) return fail('FC-TRUST', 'BLOCK_PROJECTION_REPLAY_MISMATCH');
   } else {
     const basis = append({ kind: 'basis', source });
