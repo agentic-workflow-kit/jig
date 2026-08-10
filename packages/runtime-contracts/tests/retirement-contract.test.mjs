@@ -6,6 +6,7 @@ import test from 'node:test';
 
 const retirement = await import('../dist/retirement.js');
 const obligation = await import('../dist/obligation.js');
+const { stageDigest } = await import('@agentic-workflow-kit/jig-codec');
 const evidenceRuntime = await import('../dist/evidence.js');
 const artifactRuntime = await import('../dist/artifact.js');
 const ledgerRuntime = await import('../dist/ledger.js');
@@ -269,6 +270,26 @@ test('GF046-MC-01..05: plan freezes outcome baseline, inventory, bound, and cont
   assert.equal(Object.isFrozen(planned.value.resources[0]), true);
 });
 
+test('GF046-MC-08: accepted retirement attempts never exceed the assigned default bound', () => {
+  const controller = retirement.createRetirementController({});
+  assert.deepEqual(
+    controller.plan(
+      baseInput({ bound: Object.freeze({ startedAt: 1000, deadline: retirementDeadline, attempts: 4 }) }),
+    ),
+    { ok: false, error: { family: 'FC-INPUT', code: 'INVALID_RETIREMENT_PLAN' } },
+  );
+  const planned = controller.plan(
+    baseInput({ bound: Object.freeze({ startedAt: 1000, deadline: retirementDeadline, attempts: 3 }) }),
+  );
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const snapshot = controller.snapshot();
+  const restored = retirement.restoreRetirementController({
+    ...snapshot,
+    dutyAttempts: [{ resourceIdentity: planned.value.resources[0].resourceIdentity, attempts: 4 }],
+  });
+  assert.equal(restored.ok, false);
+});
+
 test('GF046-MC-01/05: every holder family requires its own preservation receipt before retirement or release-pin', () => {
   const controller = retirement.createRetirementController(obligationOptions());
   const planned = controller.plan(baseInput());
@@ -499,29 +520,29 @@ test('GF046-MC-06/08: release-pin is exact-mode, post-retirement, and uncertain 
     }).ok,
     true,
   );
+  const confirmed = controller.dispatch({
+    operation: 'OPC-ART-DISPOSE',
+    resourceIdentity: artifactResource.resourceIdentity,
+    resource: artifactResource.resource,
+    port: 'PORT-ARTIFACT',
+    mode: 'release-pin',
+  });
+  assert.equal(confirmed.ok, true, JSON.stringify(confirmed));
   assert.equal(
-    controller.dispatch({
-      operation: 'OPC-ART-DISPOSE',
-      resourceIdentity: artifactResource.resourceIdentity,
-      resource: artifactResource.resource,
-      port: 'PORT-ARTIFACT',
-      mode: 'release-pin',
-    }).ok,
-    true,
-  );
-  assert.deepEqual(
     controller.adopt({
       operation: 'OPC-ART-DISPOSE',
       resourceIdentity: artifactResource.resourceIdentity,
       mode: 'release-pin',
       certainty: 'confirmed-effect',
-      witnessAdvanced: true,
-    }),
-    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_RESULT_NOT_WITNESSED' } },
+      head: confirmed.value.head,
+      witness: confirmed.value.witness,
+      witnessAdvance: confirmed.value.witnessAdvance,
+    }).ok,
+    true,
   );
   assert.equal(
     controller.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
-    'held',
+    'released',
   );
 });
 
@@ -553,6 +574,16 @@ test('GF046-MC-06: release-pin adopts only the witnessed scripted result and nev
   });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.witnessAdvance.currency, 'current');
+  assert.deepEqual(
+    controller.adopt({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      witnessAdvanced: true,
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_RESULT_NOT_WITNESSED' } },
+  );
   assert.equal(
     controller.adopt({
       operation: 'OPC-ART-DISPOSE',
@@ -572,6 +603,217 @@ test('GF046-MC-06: release-pin adopts only the witnessed scripted result and nev
   assert.equal(
     mechanism.calls.some((call) => Object.values(call).includes('dispose-bytes')),
     false,
+  );
+});
+
+test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed release-pin across restart', () => {
+  const controller = retirement.createRetirementController(obligationOptions());
+  const planned = controller.plan(baseInput());
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(artifactResource);
+  assert.equal(controller.recordPreservation(receipt(planned.value, artifactResource)).ok, true);
+  assert.equal(
+    controller.authorize({
+      resource: artifactResource.resource,
+      resourceIdentity: artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(artifactResource, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  assert.deepEqual(
+    controller.dispatch({
+      resource: artifactResource.resource,
+      resourceIdentity: artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      fault: 'uncertain',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
+  );
+  const indeterminate = controller.reconcile({
+    operation: 'OPC-ART-DISPOSE',
+    resourceIdentity: artifactResource.resourceIdentity,
+    mode: 'release-pin',
+    certainty: 'indeterminate',
+  });
+  assert.deepEqual(indeterminate, {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_INDETERMINATE' },
+  });
+  assert.equal(controller.snapshot().authorizations[0].status, 'uncertain');
+  const witnessAdvance = {
+    previousHead: artifactResource.witness.head,
+    previousLineage: artifactResource.witness.lineage,
+    head: digest('1'),
+    lineage: digest('2'),
+    currency: 'current',
+  };
+  assert.equal(
+    controller.reconcile({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      head: digest('1'),
+      witness: digest('2'),
+      witnessAdvance,
+    }).ok,
+    true,
+  );
+  assert.equal(controller.snapshot().authorizations[0].status, 'confirmed-effect');
+  assert.deepEqual(controller.snapshot().authorizations[0].witnessAdvance, witnessAdvance);
+  const restored = retirement.restoreRetirementController(controller.snapshot(), obligationOptions());
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.snapshot(), controller.snapshot());
+  assert.equal(
+    restored.value.adopt({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      head: digest('1'),
+      witness: digest('2'),
+      witnessAdvance,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    restored.value.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
+    'released',
+  );
+});
+
+test('GF046-MC-07: reconciliation is only legal for uncertain operations and terminal calls are inert', () => {
+  const prepare = (withMechanism = false) => {
+    const controller = retirement.createRetirementController({
+      ...obligationOptions(),
+      ...(withMechanism ? { mechanism: script(true) } : {}),
+    });
+    const planned = controller.plan(baseInput());
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
+    assert.ok(artifactResource);
+    assert.equal(controller.recordPreservation(receipt(planned.value, artifactResource)).ok, true);
+    assert.equal(
+      controller.authorize({
+        resource: artifactResource.resource,
+        resourceIdentity: artifactResource.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        holderTransition: holderTransition(artifactResource, 'OPC-ART-DISPOSE'),
+      }).ok,
+      true,
+    );
+    assert.deepEqual(
+      controller.dispatch({
+        resource: artifactResource.resource,
+        resourceIdentity: artifactResource.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        fault: 'uncertain',
+      }),
+      { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
+    );
+    return { controller, artifactResource };
+  };
+  const effectInput = (artifactResource) => ({
+    operation: 'OPC-ART-DISPOSE',
+    resourceIdentity: artifactResource.resourceIdentity,
+    mode: 'release-pin',
+    certainty: 'confirmed-effect',
+    head: digest('1'),
+    witness: digest('2'),
+    witnessAdvance: {
+      previousHead: artifactResource.witness.head,
+      previousLineage: artifactResource.witness.lineage,
+      head: digest('1'),
+      lineage: digest('2'),
+      currency: 'current',
+    },
+  });
+
+  const committed = retirement.createRetirementController(obligationOptions());
+  const committedPlan = committed.plan(baseInput());
+  assert.equal(committedPlan.ok, true, JSON.stringify(committedPlan));
+  const committedArtifact = committedPlan.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(committedArtifact);
+  assert.equal(committed.recordPreservation(receipt(committedPlan.value, committedArtifact)).ok, true);
+  assert.equal(
+    committed.authorize({
+      resource: committedArtifact.resource,
+      resourceIdentity: committedArtifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(committedArtifact, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  const committedBefore = committed.snapshot();
+  assert.deepEqual(committed.reconcile(effectInput(committedArtifact)), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
+  });
+  assert.deepEqual(committed.snapshot(), committedBefore);
+
+  const effect = prepare();
+  assert.equal(effect.controller.reconcile(effectInput(effect.artifactResource)).ok, true);
+  const effectBefore = effect.controller.snapshot();
+  assert.deepEqual(
+    effect.controller.reconcile({
+      ...effectInput(effect.artifactResource),
+      certainty: 'confirmed-absence',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' } },
+  );
+  assert.deepEqual(effect.controller.snapshot(), effectBefore);
+  assert.equal(effect.controller.adopt(effectInput(effect.artifactResource)).ok, true);
+  assert.equal(
+    effect.controller.snapshot().pins.find((pin) => pin.resourceIdentity === effect.artifactResource.resourceIdentity)
+      .status,
+    'released',
+  );
+  assert.deepEqual(
+    effect.controller.dispatch({
+      resource: effect.artifactResource.resource,
+      resourceIdentity: effect.artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+    }),
+    { ok: false, error: { family: 'FC-EFFECT', code: 'SEMANTIC_EFFECT_ALREADY_CONFIRMED' } },
+  );
+
+  const absence = prepare();
+  assert.equal(
+    absence.controller.reconcile({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: absence.artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-absence',
+    }).ok,
+    true,
+  );
+  const absenceBefore = absence.controller.snapshot();
+  assert.deepEqual(absence.controller.reconcile(effectInput(absence.artifactResource)), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
+  });
+  assert.deepEqual(absence.controller.snapshot(), absenceBefore);
+  assert.equal(
+    absence.controller.reauthorize({
+      resourceIdentity: absence.artifactResource.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      mode: 'release-pin',
+    }).ok,
+    true,
   );
 });
 
@@ -815,6 +1057,67 @@ test('GF046-MC-08: exhaustion opens one exact residual obligation without changi
   assert.deepEqual(restored.value.snapshot(), controller.snapshot());
   assert.equal(controller.snapshot().plan.storyState, 'Retiring');
   assert.equal(controller.snapshot().plan.runPhase, 'Active');
+});
+
+test('GF046-MC-08: residual-obligation origins are resource-kind stable and accept legacy index facts', () => {
+  const expectedOrigin = new Map([
+    ['session', `${run}/event/2`],
+    ['workspace', `${run}/event/3`],
+    ['review-ref', `${run}/event/4`],
+    ['review-request', `${run}/event/5`],
+    ['review-status', `${run}/event/6`],
+    ['review-comment', `${run}/event/7`],
+    ['artifact', `${run}/event/8`],
+  ]);
+  const reversedResources = Object.freeze([...baseInput().resources].reverse());
+  for (const [kind, origin] of expectedOrigin) {
+    const controller = retirement.createRetirementController(obligationOptions());
+    const planned = controller.plan(baseInput({ resources: reversedResources }));
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    const resource = planned.value.resources.find((candidate) => candidate.kind === kind);
+    assert.ok(resource);
+    const failed = controller.failure({
+      phase: 'retiring',
+      resourceIdentity: resource.resourceIdentity,
+      reason: `preservation unavailable for ${kind}`,
+      ownerActionAvailable: false,
+    });
+    assert.equal(failed.ok, true, JSON.stringify(failed));
+    assert.equal(controller.snapshot().obligations[0].origin, origin);
+  }
+
+  const controller = retirement.createRetirementController(obligationOptions());
+  const planned = controller.plan(baseInput({ resources: reversedResources }));
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  const session = planned.value.resources.find((resource) => resource.kind === 'session');
+  assert.ok(session);
+  assert.equal(
+    controller.failure({
+      phase: 'retiring',
+      resourceIdentity: session.resourceIdentity,
+      reason: 'legacy durable index origin',
+      ownerActionAvailable: false,
+    }).ok,
+    true,
+  );
+  const snapshot = controller.snapshot();
+  const legacyObligation = { ...snapshot.obligations[0], origin: `${run}/event/8` };
+  const legacyJournal = snapshot.journal.map((entry) =>
+    entry.kind === 'obligation' ? { ...entry, obligation: legacyObligation } : entry,
+  );
+  const stagedJournal = stageDigest({ domain: 'GF046-RETIREMENT-JOURNAL', excludePaths: [], value: legacyJournal });
+  assert.equal(stagedJournal.ok, true, JSON.stringify(stagedJournal));
+  const restored = retirement.restoreRetirementController(
+    {
+      ...snapshot,
+      obligations: [legacyObligation],
+      journal: legacyJournal,
+      journalDigest: stagedJournal.value.digest,
+    },
+    obligationOptions(),
+  );
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(restored.value.snapshot().obligations[0].origin, `${run}/event/8`);
 });
 
 test('GF038 integration: exact allocation carrier admits, replays, and rejects substituted duties', () => {

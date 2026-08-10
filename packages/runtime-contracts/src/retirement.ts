@@ -217,6 +217,15 @@ const RESOURCE_KINDS: readonly RetirementResourceKind[] = Object.freeze([
   'review-comment',
   'artifact',
 ]);
+const RETIREMENT_ORIGIN_ORDINAL: Readonly<Record<RetirementResourceKind, number>> = Object.freeze({
+  session: 2,
+  workspace: 3,
+  'review-ref': 4,
+  'review-request': 5,
+  'review-status': 6,
+  'review-comment': 7,
+  artifact: 8,
+});
 const PORTS: Readonly<Record<RetirementOperationType, RetirementPort>> = Object.freeze({
   'OPC-SESSION-CLOSE': 'PORT-SESSION',
   'OPC-WS-PRESERVE': 'PORT-WORKSPACE',
@@ -616,7 +625,7 @@ function parsePlan(value: unknown): RetirementResult<RetirementPlan> {
     bound.deadline < bound.startedAt ||
     !safeInteger(bound.attempts) ||
     bound.attempts < 0 ||
-    bound.attempts > RETIREMENT_BOUND.maximumAttempts ||
+    bound.attempts > RETIREMENT_BOUND.defaultAttempts ||
     !resources ||
     resources.length !== RESOURCE_KINDS.length ||
     resources.some((resource) => !validResource(resource)) ||
@@ -780,8 +789,18 @@ function validObligationEvidence(value: unknown): value is RetirementObligationE
 }
 
 function retirementObligationOrigin(plan: RetirementPlan, resource: RetirementResource): string | undefined {
-  const ordinal = plan.resources.findIndex((candidate) => candidate.resourceIdentity === resource.resourceIdentity);
-  return ordinal < 0 ? undefined : `${plan.run}/event/${ordinal + 2}`;
+  const present = plan.resources.some((candidate) => candidate.resourceIdentity === resource.resourceIdentity);
+  const ordinal = RETIREMENT_ORIGIN_ORDINAL[resource.kind];
+  return present && ordinal ? `${plan.run}/event/${ordinal}` : undefined;
+}
+
+function retirementObligationOrigins(plan: RetirementPlan, resource: RetirementResource): readonly string[] {
+  const canonical = retirementObligationOrigin(plan, resource);
+  const legacyOrdinal = plan.resources.findIndex(
+    (candidate) => candidate.resourceIdentity === resource.resourceIdentity,
+  );
+  const legacy = legacyOrdinal < 0 ? undefined : `${plan.run}/event/${legacyOrdinal + 2}`;
+  return Object.freeze([...new Set([canonical, legacy].filter((origin): origin is string => !!origin))]);
 }
 
 function validAllocatedObligation(
@@ -850,7 +869,7 @@ function validAllocatedObligation(
     raw.generation === plan.generation &&
     raw.resource === resource.resource &&
     raw.duty === 'retirement' &&
-    raw.origin === retirementObligationOrigin(plan, resource) &&
+    retirementObligationOrigins(plan, resource).includes(String(raw.origin)) &&
     typeof raw.reason === 'string' &&
     raw.reason.length > 0 &&
     !!preservation &&
@@ -1302,7 +1321,11 @@ export function createRetirementController(
   const reconcile = (
     input: unknown,
   ): RetirementResult<Readonly<{ certainty: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate' }>> => {
-    const raw = fields(input, ['operation', 'resourceIdentity', 'mode', 'certainty']);
+    const baseFields = ['operation', 'resourceIdentity', 'mode', 'certainty'] as const;
+    const effectFields = [...baseFields, 'head', 'witness', 'witnessAdvance'] as const;
+    const rawBase = fields(input, baseFields);
+    const rawEffect = fields(input, effectFields);
+    const raw = rawEffect ?? rawBase;
     const operation = raw?.operation as RetirementOperationType;
     const authorization =
       raw && RETIREMENT_OPERATION_TYPES.includes(operation)
@@ -1317,15 +1340,41 @@ export function createRetirementController(
     )
       return fail('FC-SUBJECT', 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH');
     const certainty = raw.certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
+    if (authorization.status !== 'uncertain') return fail('FC-EFFECT', 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN');
     if (certainty === 'indeterminate') return fail('FC-EFFECT', 'RETIREMENT_EFFECT_INDETERMINATE');
-    authorizations.set(
-      authorizationKey(authorization.resourceIdentity, authorization.operation),
-      freeze({
-        ...authorization,
-        status: certainty,
-        witnessAdvance: null,
-      }),
-    );
+    if (certainty === 'confirmed-effect') {
+      const resource = planValue?.resources.find(
+        (candidate) => candidate.resourceIdentity === authorization.resourceIdentity,
+      );
+      const preservation = receipts.get(authorization.resourceIdentity);
+      const priorWitness = preservation?.witness ?? resource?.witness;
+      if (
+        !rawEffect ||
+        !priorWitness ||
+        !digest(rawEffect.head) ||
+        !digest(rawEffect.witness) ||
+        !validWitnessAdvance(rawEffect.witnessAdvance, priorWitness, rawEffect.head, rawEffect.witness)
+      )
+        return fail('FC-TRUST', 'RETIREMENT_RESULT_NOT_WITNESSED');
+      authorizations.set(
+        authorizationKey(authorization.resourceIdentity, authorization.operation),
+        freeze({
+          ...authorization,
+          status: 'confirmed-effect' as const,
+          witnessAdvance: rawEffect.witnessAdvance,
+        }),
+      );
+    } else {
+      if (!rawBase) return fail('FC-SUBJECT', 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH');
+      authorizations.set(
+        authorizationKey(authorization.resourceIdentity, authorization.operation),
+        freeze({
+          ...authorization,
+          status: 'confirmed-absence' as const,
+          witnessAdvance: null,
+        }),
+      );
+    }
     journal.push(
       freeze({
         kind: 'reconcile',
