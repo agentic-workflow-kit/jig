@@ -8,7 +8,7 @@ declare module 'node:child_process' {
       encoding: 'utf8';
       maxBuffer: number;
       shell: false;
-      stdio: readonly ['ignore', 'pipe', 'pipe'];
+      stdio: readonly ['ignore', 'pipe', 'pipe'] | readonly ['ignore', number, 'pipe'];
       timeout: number;
     },
   ): string;
@@ -21,14 +21,16 @@ declare module 'node:crypto' {
 }
 
 declare module 'node:fs' {
+  export function closeSync(fileDescriptor: number): void;
   export function existsSync(path: string): boolean;
   export function lstatSync(path: string): { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean };
   export function mkdtempSync(prefix: string): string;
   export function mkdirSync(path: string, options: { recursive: boolean }): void;
-  export function readdirSync(path: string): string[];
+  export function openSync(path: string, flags: string): number;
   export function readFileSync(path: string | URL): Uint8Array;
   export function realpathSync(path: string): string;
   export function rmSync(path: string, options: { force: boolean; recursive: boolean }): void;
+  export function symlinkSync(target: string, path: string): void;
   export function writeFileSync(path: string, data: string, options?: { encoding?: 'utf8'; flag?: string }): void;
 }
 

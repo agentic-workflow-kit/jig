@@ -193,6 +193,7 @@ test('manifest and native posture are exact, local, no-shell, and no-credential'
     '/dev/urandom',
   ]);
   assert.equal(new TextDecoder().decode(manifestValue.bytes).includes('credentialAuthority'), true);
+  assert.equal(manifestValue.value.sandboxPolicyAuthority.checkoutRead, 'canonical-tracked-tree-literals');
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue }).ok, platform() === 'darwin');
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue, network: 'allowed' }).ok, false);
 });
@@ -209,6 +210,9 @@ test('qualification attests actual confinement and rejects reordered or wildcard
   assert.equal(proof.value.observations['actual-confinement'], true);
   assert.equal(proof.value.observations['runtime-read-digest'], true);
   assert.equal(proof.value.observations['sandbox-policy-digest'], true);
+  assert.equal(proof.value.observations['ignored-symlink-denied'], true);
+  assert.equal(proof.value.observations['ignored-credential-denied'], true);
+  assert.equal(proof.value.observations['tracked-read-digest'], true);
   assert.equal(proof.value.confinementTestDigest.length, 64);
   assert.equal(proof.value.runtimeReadDigest, proof.value.nativePosture.runtimeReadDigest);
   assert.equal(proof.value.sandboxPolicyDigest, proof.value.nativePosture.sandboxPolicyDigest);
