@@ -70,6 +70,38 @@ export type RetirementTransition = Readonly<{
   position: number;
   fence: RetirementFence;
 }>;
+export type RetirementHolderTransition = Readonly<{
+  controller: typeof RETIREMENT_CONTROLLER;
+  writer: typeof RETIREMENT_TRANSITION_WRITER;
+  transaction: string;
+  event: string;
+  position: number;
+  fence: RetirementFence;
+  resource: string;
+  resourceIdentity: string;
+  operation: RetirementOperationType;
+  committed: true;
+}>;
+export type RetirementWitnessAdvance = Readonly<{
+  previousHead: string;
+  previousLineage: string;
+  head: string;
+  lineage: string;
+  currency: 'current';
+}>;
+export type RetirementTrustEvidence = Readonly<{
+  kind: 'witness-fork' | 'witness-rollback' | 'witness-currency' | 'trust-root-compromise';
+  expectedHead: string;
+  observedHead: string;
+  expectedLineage: string;
+  observedLineage: string;
+  expectedPosition: number;
+  observedPosition: number;
+  expectedRoot: string;
+  observedRoot: string;
+  observedCurrency: 'current' | 'stale';
+  proofDigest: string;
+}>;
 export type RetirementBound = Readonly<{
   name: typeof RETIREMENT_BOUND.name;
   startedAt: number;
@@ -118,8 +150,9 @@ export type RetirementAuthorization = Readonly<{
   port: RetirementPort;
   mode: 'retire' | 'release-pin';
   transition: RetirementTransition;
+  holderTransition: RetirementHolderTransition | null;
   status: 'committed' | 'uncertain' | 'confirmed-absence' | 'reauthorized' | 'confirmed-effect';
-  witnessAdvanced: boolean;
+  witnessAdvance: RetirementWitnessAdvance | null;
 }>;
 export type RetirementMechanism = Readonly<{
   invoke(input: Readonly<Record<string, unknown>>): RetirementResult<Readonly<Record<string, unknown>>>;
@@ -365,8 +398,9 @@ function validAuthorization(value: unknown, plan: RetirementPlan): value is Reti
     'port',
     'mode',
     'transition',
+    'holderTransition',
     'status',
-    'witnessAdvanced',
+    'witnessAdvance',
   ]);
   const resource = raw && plan.resources.find((candidate) => candidate.resourceIdentity === raw.resourceIdentity);
   const operation = raw?.operation as RetirementOperationType;
@@ -383,10 +417,13 @@ function validAuthorization(value: unknown, plan: RetirementPlan): value is Reti
     operationsForKind(resource.kind).includes(operation) &&
     validTransition(raw.transition) &&
     equal(raw.transition, plan.transition) &&
+    (operation === 'OPC-WS-PRESERVE'
+      ? raw.holderTransition === null
+      : validHolderTransition(raw.holderTransition, resource, operation, plan)) &&
     ((operation === 'OPC-ART-DISPOSE' && mode === 'release-pin') ||
       (operation !== 'OPC-ART-DISPOSE' && mode === 'retire')) &&
     ['committed', 'uncertain', 'confirmed-absence', 'reauthorized', 'confirmed-effect'].includes(String(raw.status)) &&
-    typeof raw.witnessAdvanced === 'boolean'
+    (raw.witnessAdvance === null || validWitnessAdvanceShape(raw.witnessAdvance))
   );
 }
 
@@ -416,6 +453,115 @@ function validTransition(value: unknown): value is RetirementTransition {
     raw.position >= 0 &&
     validFence(raw.fence)
   );
+}
+
+function validHolderTransition(
+  value: unknown,
+  resource: RetirementResource,
+  operation: RetirementOperationType,
+  plan: RetirementPlan,
+): value is RetirementHolderTransition {
+  const raw = fields(value, [
+    'controller',
+    'writer',
+    'transaction',
+    'event',
+    'position',
+    'fence',
+    'resource',
+    'resourceIdentity',
+    'operation',
+    'committed',
+  ]);
+  return (
+    !!raw &&
+    raw.controller === RETIREMENT_CONTROLLER &&
+    raw.writer === RETIREMENT_TRANSITION_WRITER &&
+    identifier(raw.transaction) &&
+    raw.transaction !== plan.transition.transaction &&
+    identifier(raw.event) &&
+    safeInteger(raw.position) &&
+    raw.position > plan.transition.position &&
+    equal(raw.fence, plan.transition.fence) &&
+    raw.resource === resource.resource &&
+    raw.resourceIdentity === resource.resourceIdentity &&
+    raw.operation === operation &&
+    raw.committed === true
+  );
+}
+
+function validWitnessAdvanceShape(value: unknown): value is RetirementWitnessAdvance {
+  const raw = fields(value, ['previousHead', 'previousLineage', 'head', 'lineage', 'currency']);
+  return (
+    !!raw &&
+    digest(raw.previousHead) &&
+    digest(raw.previousLineage) &&
+    digest(raw.head) &&
+    digest(raw.lineage) &&
+    raw.currency === 'current' &&
+    (raw.head !== raw.previousHead || raw.lineage !== raw.previousLineage)
+  );
+}
+
+function validWitnessAdvance(
+  value: unknown,
+  priorWitness: RetirementWitness,
+  head: unknown,
+  lineage: unknown,
+): value is RetirementWitnessAdvance {
+  const raw = fields(value, ['previousHead', 'previousLineage', 'head', 'lineage', 'currency']);
+  return (
+    validWitnessAdvanceShape(value) &&
+    !!raw &&
+    raw.previousHead === priorWitness.head &&
+    raw.previousLineage === priorWitness.lineage &&
+    raw.head === head &&
+    raw.lineage === lineage
+  );
+}
+
+function validTrustEvidence(
+  value: unknown,
+  resource: RetirementResource,
+  plan: RetirementPlan,
+): value is RetirementTrustEvidence {
+  const raw = fields(value, [
+    'kind',
+    'expectedHead',
+    'observedHead',
+    'expectedLineage',
+    'observedLineage',
+    'expectedPosition',
+    'observedPosition',
+    'expectedRoot',
+    'observedRoot',
+    'observedCurrency',
+    'proofDigest',
+  ]);
+  if (
+    !raw ||
+    !['witness-fork', 'witness-rollback', 'witness-currency', 'trust-root-compromise'].includes(String(raw.kind)) ||
+    !digest(raw.expectedHead) ||
+    !digest(raw.observedHead) ||
+    !digest(raw.expectedLineage) ||
+    !digest(raw.observedLineage) ||
+    !safeInteger(raw.expectedPosition) ||
+    !safeInteger(raw.observedPosition) ||
+    !digest(raw.expectedRoot) ||
+    !digest(raw.observedRoot) ||
+    !['current', 'stale'].includes(String(raw.observedCurrency)) ||
+    !digest(raw.proofDigest) ||
+    raw.expectedHead !== resource.witness.head ||
+    raw.expectedLineage !== resource.witness.lineage ||
+    raw.expectedPosition !== plan.transition.position ||
+    raw.expectedRoot !== plan.transition.fence.basis
+  )
+    return false;
+  if (raw.kind === 'witness-fork')
+    return raw.observedHead !== raw.expectedHead || raw.observedLineage !== raw.expectedLineage;
+  if (raw.kind === 'witness-rollback') return raw.observedPosition < raw.expectedPosition;
+  if (raw.kind === 'witness-currency') return raw.observedCurrency === 'stale';
+  return raw.observedRoot !== raw.expectedRoot;
 }
 
 function parsePlan(value: unknown): RetirementResult<RetirementPlan> {
@@ -662,7 +808,31 @@ export function createRetirementController(
   const recordPreservation = (input: unknown): RetirementResult<PreservationReceipt> => {
     if (!planValue) return fail('FC-AUTHORITY', 'RETIREMENT_PLAN_REQUIRED');
     const receipt = validReceipt(input, planValue);
-    if (!receipt.ok) return receipt;
+    if (!receipt.ok) {
+      const raw = fields(input, [
+        'schema',
+        'event',
+        'resource',
+        'resourceIdentity',
+        'kind',
+        'status',
+        'contentDigest',
+        'readbackDigest',
+        'witness',
+        'transition',
+      ]);
+      const resource = raw && resourceFor(raw.resourceIdentity);
+      if (receipt.error.family === 'FC-TRUST') {
+        dispatchFenced = true;
+        journal.push(
+          freeze({ kind: 'trust-stop', resourceIdentity: raw?.resourceIdentity, reason: receipt.error.code }),
+        );
+      } else if (receipt.error.family === 'FC-EVIDENCE' && resource?.ok) {
+        const obligation = openResidualObligation(resource.value, receipt.error.code);
+        if (!obligation.ok) return fail(obligation.error.family, obligation.error.code);
+      }
+      return receipt;
+    }
     const prior = receipts.get(receipt.value.resourceIdentity);
     if (prior) return equal(prior, receipt.value) ? ok(prior) : fail('FC-FENCE', 'PRESERVATION_RECEIPT_REUSE_MISMATCH');
     receipts.set(receipt.value.resourceIdentity, receipt.value);
@@ -678,7 +848,7 @@ export function createRetirementController(
 
   const authorize = (input: unknown): RetirementResult<RetirementAuthorization> => {
     if (!planValue) return fail('FC-AUTHORITY', 'RETIREMENT_PLAN_REQUIRED');
-    const raw = fields(input, ['resource', 'resourceIdentity', 'operation', 'port', 'mode']);
+    const raw = fields(input, ['resource', 'resourceIdentity', 'operation', 'port', 'mode', 'holderTransition']);
     const resource = raw && resourceFor(raw.resourceIdentity);
     if (
       !raw ||
@@ -700,8 +870,14 @@ export function createRetirementController(
       return fail('FC-AUTHORITY', 'RELEASE_PIN_OPERATION_MISMATCH');
     if (!operationsForKind(resource.value.kind).includes(operation))
       return fail('FC-SUBJECT', 'RETIREMENT_OPERATION_RESOURCE_MISMATCH');
-    if (operation === 'OPC-WS-RETIRE' && !receipts.has(resource.value.resourceIdentity))
+    if (operation !== 'OPC-WS-PRESERVE' && !receipts.has(resource.value.resourceIdentity))
       return fail('FC-EVIDENCE', 'PRESERVATION_REQUIRED_BEFORE_RETIREMENT');
+    if (
+      (operation === 'OPC-WS-PRESERVE' && raw.holderTransition !== null) ||
+      (operation !== 'OPC-WS-PRESERVE' &&
+        !validHolderTransition(raw.holderTransition, resource.value, operation, planValue))
+    )
+      return fail('FC-AUTHORITY', 'HOLDER_RETIREMENT_TRANSITION_REQUIRED');
     if (operation === 'OPC-ART-DISPOSE' && resource.value.pin !== 'held')
       return fail('FC-AUTHORITY', 'ARTIFACT_PIN_NOT_HELD');
     const key = authorizationKey(resource.value.resourceIdentity, operation);
@@ -719,8 +895,9 @@ export function createRetirementController(
       port,
       mode,
       transition: planValue.transition,
+      holderTransition: raw.holderTransition as RetirementHolderTransition | null,
       status: 'committed' as const,
-      witnessAdvanced: false,
+      witnessAdvance: null,
     });
     authorizations.set(key, authorization);
     journal.push(
@@ -735,8 +912,65 @@ export function createRetirementController(
     return ok(authorization);
   };
 
+  const openResidualObligation = (
+    resource: RetirementResource,
+    reason: string,
+  ): RetirementResult<Readonly<Record<string, unknown>>> => {
+    if (!planValue) return fail('FC-AUTHORITY', 'RETIREMENT_PLAN_REQUIRED');
+    const prior = obligations.find((obligation) => obligation.resourceIdentity === resource.resourceIdentity);
+    if (prior) return ok(prior);
+    if (!options?.obligation) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
+    const preservation = receipts.get(resource.resourceIdentity);
+    const inputValue = freeze({
+      run: planValue.run,
+      generation: planValue.generation,
+      resource: resource.resource,
+      resourceIdentity: resource.resourceIdentity,
+      duty: 'retirement',
+      origin: planValue.transition.event,
+      reason,
+      preservationEvidence: freeze({
+        referenceDigest: preservation?.contentDigest ?? digest('0'),
+        status: preservation ? 'verified' : 'missing-or-unverified',
+      }),
+      accountableOwner: 'principal/arye',
+      criteria: freeze({
+        subject: resource.resource,
+        claim: 'preservation-safe-retirement',
+        digest: digest('1'),
+      }),
+      startedAt: planValue.bound.startedAt,
+      deadline: planValue.bound.deadline,
+      policyDigest: digest('2'),
+    });
+    const allocated = options.obligation.openAllocated(inputValue);
+    if (
+      !allocated.ok ||
+      !safeRecord(allocated.value) ||
+      !identifier(allocated.value.id) ||
+      allocated.value.status !== 'open'
+    )
+      return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
+    const obligation = freeze({
+      ...allocated.value,
+      resourceIdentity: resource.resourceIdentity,
+      status: 'open' as const,
+    });
+    obligations.push(obligation);
+    journal.push(freeze({ kind: 'obligation', obligation }));
+    return ok(obligation);
+  };
+
+  const requireResidualForDuty = (authorization: RetirementAuthorization, reason: string): RetirementResult<null> => {
+    const resource = resourceFor(authorization.resourceIdentity);
+    if (!resource.ok) return resource;
+    const obligation = openResidualObligation(resource.value, reason);
+    return obligation.ok ? ok(null) : obligation;
+  };
+
   const dispatch = (input: unknown): RetirementResult<Readonly<Record<string, unknown>>> => {
     if (dispatchFenced) return fail('FC-TRUST', 'RETIREMENT_DISPATCH_FENCED');
+    if (!planValue) return fail('FC-AUTHORITY', 'RETIREMENT_PLAN_REQUIRED');
     const rawWithFault = fields(input, ['resource', 'resourceIdentity', 'operation', 'port', 'mode', 'fault']);
     const rawWithoutFault = fields(input, ['resource', 'resourceIdentity', 'operation', 'port', 'mode']);
     const raw = rawWithFault ?? (rawWithoutFault ? { ...rawWithoutFault, fault: undefined } : undefined);
@@ -760,6 +994,13 @@ export function createRetirementController(
       return fail('FC-EFFECT', 'RECONCILIATION_REQUIRED');
     if (authorization.status === 'confirmed-effect') return fail('FC-EFFECT', 'SEMANTIC_EFFECT_ALREADY_CONFIRMED');
     if (raw.fault === 'uncertain') {
+      const resource = resourceFor(authorization.resourceIdentity);
+      if (!resource.ok) return resource;
+      const obligation = openResidualObligation(
+        resource.value,
+        'retirement effect is uncertain and requires reconciliation',
+      );
+      if (!obligation.ok) return obligation;
       const uncertain = freeze({ ...authorization, status: 'uncertain' as const });
       authorizations.set(authorizationKey(authorization.resourceIdentity, authorization.operation), uncertain);
       journal.push(
@@ -771,7 +1012,11 @@ export function createRetirementController(
       );
       return fail('FC-EFFECT', 'RETIREMENT_EFFECT_UNCERTAIN');
     }
-    if (!options?.mechanism) return fail('FC-MECHANISM', 'SCRIPTED_ADAPTER_UNAVAILABLE');
+    if (!options?.mechanism) {
+      const obligation = requireResidualForDuty(authorization, 'scripted retirement adapter unavailable');
+      if (!obligation.ok) return obligation;
+      return fail('FC-MECHANISM', 'SCRIPTED_ADAPTER_UNAVAILABLE');
+    }
     let invoked: RetirementResult<Readonly<Record<string, unknown>>>;
     try {
       invoked = options.mechanism.invoke(
@@ -783,33 +1028,66 @@ export function createRetirementController(
           mode: authorization.mode,
           controller: RETIREMENT_CONTROLLER,
           transition: authorization.transition,
+          holderTransition: authorization.holderTransition,
+          preservationReceipt: receipts.get(authorization.resourceIdentity),
+          preservationWitness: planValue.resources.find(
+            (resource) => resource.resourceIdentity === authorization.resourceIdentity,
+          )?.witness,
         }),
       );
     } catch {
+      const obligation = requireResidualForDuty(authorization, 'scripted retirement adapter failed');
+      if (!obligation.ok) return obligation;
       return fail('FC-MECHANISM', 'SCRIPTED_ADAPTER_FAILURE');
     }
-    if (!invoked.ok) return invoked;
+    if (!invoked.ok) {
+      const obligation = requireResidualForDuty(authorization, 'scripted retirement adapter returned failure');
+      if (!obligation.ok) return obligation;
+      return invoked;
+    }
+    const fact = fields(invoked.value, [
+      'resource',
+      'resourceIdentity',
+      'operation',
+      'port',
+      'mode',
+      'certainty',
+      'head',
+      'witness',
+      'witnessAdvance',
+    ]);
+    const preservation = receipts.get(authorization.resourceIdentity);
+    const resource = planValue.resources.find(
+      (candidate) => candidate.resourceIdentity === authorization.resourceIdentity,
+    );
+    const priorWitness = preservation?.witness ?? resource?.witness;
     if (
-      (invoked.value.head !== undefined && !digest(invoked.value.head)) ||
-      (invoked.value.witness !== undefined && !digest(invoked.value.witness))
-    )
+      !fact ||
+      !priorWitness ||
+      fact.resource !== authorization.resource ||
+      fact.resourceIdentity !== authorization.resourceIdentity ||
+      fact.operation !== authorization.operation ||
+      fact.port !== authorization.port ||
+      fact.mode !== authorization.mode ||
+      fact.certainty !== 'confirmed-effect' ||
+      !digest(fact.head) ||
+      !digest(fact.witness) ||
+      !validWitnessAdvance(fact.witnessAdvance, priorWitness, fact.head, fact.witness)
+    ) {
+      const obligation = requireResidualForDuty(authorization, 'retirement adapter receipt was invalid');
+      if (!obligation.ok) return obligation;
       return fail('FC-MECHANISM', 'INVALID_ADAPTER_RECEIPT');
+    }
     const result = freeze({
-      operation: authorization.operation,
-      mode: authorization.mode,
-      resource: authorization.resource,
-      resourceIdentity: authorization.resourceIdentity,
-      certainty: 'confirmed-effect' as const,
-      head: digest(invoked.value.head) ? invoked.value.head : digest('0'),
-      witness: digest(invoked.value.witness) ? invoked.value.witness : digest('0'),
-      witnessAdvanced: invoked.value.witnessAdvanced === true,
+      ...fact,
+      holderTransition: authorization.holderTransition,
     });
     authorizations.set(
       authorizationKey(authorization.resourceIdentity, authorization.operation),
       freeze({
         ...authorization,
         status: 'confirmed-effect' as const,
-        witnessAdvanced: invoked.value.witnessAdvanced === true,
+        witnessAdvance: fact.witnessAdvance,
       }),
     );
     journal.push(freeze({ kind: 'dispatch-result', result }));
@@ -817,7 +1095,16 @@ export function createRetirementController(
   };
 
   const adopt = (input: unknown): RetirementResult<Readonly<Record<string, unknown>>> => {
-    const raw = fields(input, ['operation', 'resourceIdentity', 'mode', 'certainty', 'witnessAdvanced']);
+    if (dispatchFenced) return fail('FC-TRUST', 'RETIREMENT_ADOPTION_FENCED');
+    const raw = fields(input, [
+      'operation',
+      'resourceIdentity',
+      'mode',
+      'certainty',
+      'head',
+      'witness',
+      'witnessAdvance',
+    ]);
     const operation = raw?.operation as RetirementOperationType;
     const authorization =
       raw && RETIREMENT_OPERATION_TYPES.includes(operation)
@@ -829,8 +1116,13 @@ export function createRetirementController(
       raw.operation !== authorization.operation ||
       raw.mode !== authorization.mode ||
       raw.certainty !== 'confirmed-effect' ||
-      raw.witnessAdvanced !== true ||
-      authorization.witnessAdvanced !== true
+      !digest(raw.head) ||
+      !digest(raw.witness) ||
+      !authorization.witnessAdvance ||
+      !validWitnessAdvanceShape(raw.witnessAdvance) ||
+      !equal(raw.witnessAdvance, authorization.witnessAdvance) ||
+      raw.head !== authorization.witnessAdvance.head ||
+      raw.witness !== authorization.witnessAdvance.lineage
     )
       return fail('FC-TRUST', 'RETIREMENT_RESULT_NOT_WITNESSED');
     if (authorization.status !== 'confirmed-effect') return fail('FC-EFFECT', 'RETIREMENT_EFFECT_NOT_CONFIRMED');
@@ -852,6 +1144,8 @@ export function createRetirementController(
         operation: authorization.operation,
         resourceIdentity: authorization.resourceIdentity,
         status: 'adopted',
+        head: raw.head,
+        witness: raw.witness,
       }),
     );
   };
@@ -880,7 +1174,7 @@ export function createRetirementController(
       freeze({
         ...authorization,
         status: certainty,
-        witnessAdvanced: false,
+        witnessAdvance: null,
       }),
     );
     journal.push(
@@ -918,30 +1212,32 @@ export function createRetirementController(
   const failure = (
     input: unknown,
   ): RetirementResult<Readonly<{ containment: 'park' | 'block' | 'retain'; failure: 'FC-EVIDENCE' }>> => {
-    const rawWithTrust = fields(input, [
-      'phase',
-      'resourceIdentity',
-      'reason',
-      'ownerActionAvailable',
-      'trustCompromise',
-    ]);
-    const rawWithoutTrust = fields(input, ['phase', 'resourceIdentity', 'reason', 'ownerActionAvailable']);
-    const rawTrustOnly = fields(input, ['phase', 'resourceIdentity', 'reason', 'trustCompromise']);
-    const raw =
-      rawWithTrust ??
-      rawWithoutTrust ??
-      (rawTrustOnly ? { ...rawTrustOnly, ownerActionAvailable: undefined } : undefined);
-    if (!raw || !identifier(raw.resourceIdentity) || typeof raw.reason !== 'string' || raw.reason.length === 0)
+    const rawTrust = fields(input, ['phase', 'resourceIdentity', 'reason', 'ownerActionAvailable', 'trustEvidence']);
+    const rawOrdinary = fields(input, ['phase', 'resourceIdentity', 'reason', 'ownerActionAvailable']);
+    const raw = rawTrust ?? rawOrdinary;
+    if (
+      !raw ||
+      !['preterminal', 'retiring', 'stopped'].includes(String(raw.phase)) ||
+      !identifier(raw.resourceIdentity) ||
+      typeof raw.reason !== 'string' ||
+      raw.reason.length === 0
+    )
       return fail('FC-INPUT', 'INVALID_RETIREMENT_FAILURE');
     if (SECRET_OR_URL.test(raw.reason)) return fail('FC-EVIDENCE', 'HOSTILE_RETIREMENT_FAILURE');
     const resource = resourceFor(raw.resourceIdentity);
     if (!resource.ok) return resource;
-    if (raw.trustCompromise === true) {
+    if (rawTrust) {
+      if (!planValue || !validTrustEvidence(raw.trustEvidence, resource.value, planValue))
+        return fail('FC-INPUT', 'INVALID_TRUST_EVIDENCE');
       dispatchFenced = true;
       journal.push(freeze({ kind: 'trust-stop', resourceIdentity: raw.resourceIdentity, reason: raw.reason }));
       return fail('FC-TRUST', 'RETIREMENT_TRUST_COMPROMISED');
     }
     const containment = raw.phase === 'preterminal' ? (raw.ownerActionAvailable === true ? 'park' : 'block') : 'retain';
+    if (containment === 'retain') {
+      const obligation = openResidualObligation(resource.value, raw.reason);
+      if (!obligation.ok) return fail(obligation.error.family, obligation.error.code);
+    }
     journal.push(
       freeze({ kind: 'evidence-failure', resourceIdentity: raw.resourceIdentity, containment, reason: raw.reason }),
     );
@@ -958,39 +1254,10 @@ export function createRetirementController(
     if (prior) return ok(prior);
     const attempts = dutyAttempts.get(resource.value.resourceIdentity) ?? planValue.bound.attempts;
     if (attempts >= planValue.bound.maxAttempts) return fail('FC-BOUND', 'BND_RETIRE_EXHAUSTED');
-    if (!options?.obligation) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
-    const preservation = receipts.get(resource.value.resourceIdentity);
-    const inputValue = freeze({
-      run: planValue.run,
-      generation: planValue.generation,
-      resource: resource.value.resource,
-      resourceIdentity: resource.value.resourceIdentity,
-      duty: 'retirement',
-      origin: planValue.transition.event,
-      reason: 'BND-RETIRE exhausted before duty completion',
-      preservationEvidence: freeze({ referenceDigest: preservation?.contentDigest ?? digest('0') }),
-      accountableOwner: 'principal/arye',
-      criteria: freeze({
-        subject: resource.value.resource,
-        claim: 'preservation-safe-retirement',
-        digest: digest('1'),
-      }),
-      startedAt: planValue.bound.startedAt,
-      deadline: planValue.bound.deadline,
-      policyDigest: digest('2'),
-    });
-    const allocated = options.obligation.openAllocated(inputValue);
-    if (!allocated.ok || typeof allocated.value.id !== 'string' || allocated.value.status !== 'open')
-      return fail('FC-TRUST', 'RETIREMENT_OBLIGATION_ALLOCATION_FAILED');
+    const obligation = openResidualObligation(resource.value, 'BND-RETIRE exhausted before duty completion');
+    if (!obligation.ok) return obligation;
     dutyAttempts.set(resource.value.resourceIdentity, attempts + 1);
-    const obligation = freeze({
-      ...allocated.value,
-      resourceIdentity: resource.value.resourceIdentity,
-      status: 'open' as const,
-    });
-    obligations.push(obligation);
-    journal.push(freeze({ kind: 'obligation', obligation }));
-    return ok(obligation);
+    return obligation;
   };
 
   const snapshot = (): RetirementSnapshot =>
@@ -1059,6 +1326,24 @@ export function restoreRetirementController(
     const keys = values.map(key);
     return keys.every((value, index) => keys.indexOf(value) === index);
   };
+  const validAuthorizationEffects = (authorization: unknown): boolean => {
+    const value = authorization as AnyRecord;
+    const receipt = receiptValues?.find(
+      (candidate) => (candidate as AnyRecord).resourceIdentity === value.resourceIdentity,
+    );
+    if (value.status !== 'confirmed-effect') return value.witnessAdvance === null;
+    const resource = planValue?.resources.find((candidate) => candidate.resourceIdentity === value.resourceIdentity);
+    return (
+      !!(receipt || resource) &&
+      (!receipt || validReceipt(receipt, planValue as RetirementPlan).ok) &&
+      validWitnessAdvance(
+        value.witnessAdvance,
+        receipt ? (receipt as PreservationReceipt).witness : (resource as RetirementResource).witness,
+        (value.witnessAdvance as AnyRecord)?.head,
+        (value.witnessAdvance as AnyRecord)?.lineage,
+      )
+    );
+  };
   if (
     !raw ||
     raw.schema !== RETIREMENT_SCHEMA ||
@@ -1076,6 +1361,7 @@ export function restoreRetirementController(
     receiptValues.some((receipt) => !validReceipt(receipt, planValue).ok) ||
     !unique(receiptValues, (receipt) => String((receipt as AnyRecord).resourceIdentity)) ||
     authorizationValues.some((authorization) => !validAuthorization(authorization, planValue)) ||
+    authorizationValues.some((authorization) => !validAuthorizationEffects(authorization)) ||
     !unique(authorizationValues, (authorization) =>
       authorizationKey(
         String((authorization as AnyRecord).resourceIdentity),
