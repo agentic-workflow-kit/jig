@@ -208,6 +208,7 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
   try {
     mkdirSync(dist, { recursive: true });
     cpSync(new URL('../dist/index.js', import.meta.url), join(dist, 'index.js'));
+    cpSync(new URL('../dist/process-failure.js', import.meta.url), join(dist, 'process-failure.js'));
     writeFileSync(join(packageRoot, 'package.json'), '{"type":"module"}\n');
     writeFileSync(join(packageRoot, '.gitignore'), 'node_modules\nnode_modules/\n');
     symlinkSync(
@@ -219,9 +220,13 @@ test('candidate discovery decodes file URLs with spaces and percent signs', asyn
     execFileSync('/usr/bin/git', ['config', 'user.email', 'gf047@example.invalid'], { cwd: packageRoot });
     execFileSync('/usr/bin/git', ['config', 'user.name', 'GF-047'], { cwd: packageRoot });
     writeFileSync(join(packageRoot, 'tracked.txt'), 'tracked\n');
-    execFileSync('/usr/bin/git', ['add', '.gitignore', 'dist/index.js', 'package.json', 'tracked.txt'], {
-      cwd: packageRoot,
-    });
+    execFileSync(
+      '/usr/bin/git',
+      ['add', '.gitignore', 'dist/index.js', 'dist/process-failure.js', 'package.json', 'tracked.txt'],
+      {
+        cwd: packageRoot,
+      },
+    );
     execFileSync('/usr/bin/git', ['commit', '-q', '-m', 'fixture'], { cwd: packageRoot });
     const tempCommit = execFileSync('/usr/bin/git', ['rev-parse', 'HEAD'], {
       cwd: packageRoot,
