@@ -752,6 +752,15 @@ function validateFinalDeliveryProof(
         })
       : undefined
   ) as Record<string, unknown> | undefined;
+  const priorMarkerEffect = Boolean(
+    projection &&
+      array(projection.effects, 4_096)?.some((candidate) => {
+        const effect = fields(candidate, ['kind', 'operation', 'type']);
+        return (
+          effect?.kind === 'EV-EFFECT-CERTAINTY' && effect.operation === operation && effect.type === operationType
+        );
+      }),
+  );
   const carrierStrategy = fields(carrier.strategy, ['digest', 'mode']);
   const pendingDeliveryOperations = finalizerProjection
     ? array(finalizerProjection.pendingDeliveryOperations, 4_096)
@@ -879,6 +888,7 @@ function validateFinalDeliveryProof(
       entry.authority &&
       same(entry.authority, authority) &&
       exactIntent &&
+      !priorMarkerEffect &&
       exactRequestIntent &&
       requestEffect &&
       validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerTargetFact) &&

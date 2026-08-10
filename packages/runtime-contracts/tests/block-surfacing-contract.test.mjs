@@ -490,7 +490,6 @@ const realPredecessor = (() => {
     [request, 'OPC-DEL-ANCHOR'],
     [operationFor(7), 'OPC-DEL-PUBLISH'],
     [operationFor(8), 'OPC-DEL-REQUEST'],
-    [statusOperation, 'OPC-DEL-STATUS'],
   ]) {
     assert.equal(controller.value.authorize(intent(op, type)).ok, true);
     assert.equal(controller.value.dispatch({ operation: op }).ok, true);
@@ -510,9 +509,14 @@ const realPredecessor = (() => {
     mechanism,
   });
   assert.equal(restored.ok, true, JSON.stringify(restored));
-  return snapshot;
+  assert.equal(restored.value.authorize(intent(statusOperation, 'OPC-DEL-STATUS')).ok, true);
+  const statusAuthorizedSnapshot = restored.value.snapshot();
+  assert.equal(restored.value.dispatch({ operation: statusOperation }).ok, true);
+  return Object.freeze({ snapshot: statusAuthorizedSnapshot, appliedStatusSnapshot: restored.value.snapshot() });
 })();
-const finalCarrier = realPredecessor.carrier;
+const finalDeliverySnapshot = realPredecessor.snapshot;
+const appliedStatusSnapshot = realPredecessor.appliedStatusSnapshot;
+const finalCarrier = finalDeliverySnapshot.carrier;
 const finalSubject = Object.freeze({
   ...subject,
   run: finalCarrier.run,
@@ -536,7 +540,6 @@ const journal = (domain, records) => {
     }),
   );
 };
-const finalDeliverySnapshot = realPredecessor;
 const finalizerSnapshot = finalDeliverySnapshot.finalizerSnapshot;
 const finalizerProjection = finalizerSnapshot.projection;
 const finalizerEntry = finalizerProjection.entry;
@@ -793,6 +796,12 @@ test('GF045 uncertain effect remains fenced across restore until exact absence o
 });
 
 test('GF045 held integration is bounded, re-observed without merge re-request, and expires one obligation', () => {
+  assert.equal(
+    finalDeliverySnapshot.projection.effects.some(
+      (fact) => fact.operation === finalOperation && fact.type === 'OPC-DEL-STATUS',
+    ),
+    false,
+  );
   const { controller: instance, obligations } = controller({
     finalDelivery: true,
     effectOutcomes: ['held'],
@@ -800,6 +809,8 @@ test('GF045 held integration is bounded, re-observed without merge re-request, a
   });
   assert.equal(instance.authorize(authorization({}, true)).ok, true);
   assert.equal(instance.dispatch(dispatch(finalOperation)).value.status, 'target-wait');
+  assert.equal(instance.records().filter((entry) => entry.record.kind === 'intent').length, 1);
+  assert.equal(instance.records().filter((entry) => entry.record.kind === 'effect').length, 1);
   assert.equal(instance.wake(observation(finalOperation, operation(6), 1_050, true)).value.status, 'target-wait');
   const overdue = instance.wake(observation(finalOperation, operation(7), 1_061, true));
   assert.equal(overdue.ok, true, JSON.stringify(overdue));
@@ -848,6 +859,19 @@ test('GF045 rejects stale or cross-scope authority and wrong operation class', (
   assert.equal(instance.authorize(authorization({ type: 'OPC-DEL-COMMENT' })).ok, false);
   assert.equal(instance.authorize(authorization({ requestIdentity: operation(8) })).ok, false);
   assert.equal(instance.authorize(authorization({ scope: finalScope, type: 'OPC-DEL-STATUS' })).ok, false);
+
+  const { controller: heldWithPriorStatus } = controller({ finalDelivery: true });
+  assert.equal(
+    heldWithPriorStatus.authorize(
+      authorization(
+        {
+          scope: Object.freeze({ ...finalScope, deliverySnapshot: appliedStatusSnapshot }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
 
   const { controller: held } = controller({ finalDelivery: true });
   assert.equal(held.authorize(authorization({}, true)).ok, true);
