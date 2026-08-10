@@ -15,6 +15,7 @@ import {
 } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   type ProviderAdmissionClaims,
   readProviderAdmissionCertificateClaims,
@@ -70,7 +71,7 @@ type LocalCommandCheckoutResourceClaims = Readonly<{
   trackedReadDigest: string;
 }>;
 const checkoutResources = new WeakMap<object, LocalCommandCheckoutResourceClaims>();
-const PACKAGE_ROOT = new URL('..', import.meta.url).pathname;
+const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 type RuntimeReadDescriptor = Readonly<{
   path: string;
@@ -433,9 +434,13 @@ function canonical(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => codeUnitCompare(left, right))
     .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
     .join(',')}}`;
+}
+
+function codeUnitCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function digest(domain: string, value: unknown): string {
@@ -861,10 +866,7 @@ function trackedCheckoutReadAuthority(checkout: string): TrackedCheckoutReadAuth
         if (!stat.isDirectory()) break;
       }
     }
-    const paths = output
-      .split('\u0000')
-      .filter(Boolean)
-      .sort((left, right) => left.localeCompare(right));
+    const paths = output.split('\u0000').filter(Boolean).sort(codeUnitCompare);
     const entries: Array<{ path: string; digest: string }> = [];
     for (const path of paths) {
       const components = path.split('/');
@@ -1339,6 +1341,8 @@ export function runLocalCommandQualificationProbe(
   const native = attestLocalPosixPosture({ executable: command.executable, manifest: manifest.value });
   if (!native.ok) return native;
   let root: string | undefined;
+  let failure: LocalCommandFailure | undefined;
+  let evidence: Omit<LocalCommandQualificationEvidence, 'removedResources'> | undefined;
   try {
     root = realpathSync(mkdtempSync(join(tmpdir(), 'jig-gf047-')));
     const checkout = join(root, 'checkout');
@@ -1346,90 +1350,97 @@ export function runLocalCommandQualificationProbe(
     mkdirSync(checkout, { recursive: true });
     mkdirSync(scratch, { recursive: true });
     const confinement = runConfinementProbe(checkout, scratch, manifest.value.value.sandboxPolicyAuthority);
-    if (!confinement) {
-      rmSync(root, { recursive: true, force: true });
-      return fail('FC-AUTHORITY', 'CF_MECH_VERIFY_FAILED');
+    if (!confinement) failure = { family: 'FC-AUTHORITY', code: 'CF_MECH_VERIFY_FAILED' };
+    const run = confinement ? executeCommand(manifest.value, checkout, scratch, native.value, 15_000) : undefined;
+    if (!failure && (!run?.ok || run.value.outcome !== 'pass'))
+      failure = { family: 'FC-MECHANISM', code: 'CF_MECH_VERIFY_FAILED' };
+    if (!failure && confinement && run?.ok) {
+      const environmentDigest = digest('LOCAL-COMMAND-ENVIRONMENT', {
+        environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
+        names: [],
+      });
+      const observations = Object.freeze({
+        'exact-manifest': true,
+        'exact-executable-digest': sha256(readFileSync(command.executable)) === command.executableDigest,
+        'exact-args': command.args.length >= 0,
+        'no-shell': true,
+        'declared-env-only': true,
+        'no-credentials': manifest.value.value.credentialAuthority.length === 0,
+        'native-read-only-no-network': native.value.network === 'denied',
+        'runtime-read-digest':
+          native.value.runtimeReadDigest === runtimeReadDigest(manifest.value.value.runtimeReadAuthority),
+        'sandbox-policy-digest':
+          native.value.sandboxPolicyDigest === sandboxPolicyDigest(manifest.value.value.sandboxPolicyAuthority),
+        'actual-confinement': confinement.insideAllowed && confinement.outsideDenied,
+        'ignored-symlink-denied': confinement.ignoredSymlinkDenied,
+        'ignored-credential-denied': confinement.ignoredCredentialDenied,
+        'tracked-read-digest': trackedRead.digest === trackedCheckoutReadAuthority(candidateCheckout as string)?.digest,
+        'bounded-redacted-output':
+          run.value.output.stdoutPreview.length <= MAX_PREVIEW && run.value.output.stderrPreview.length <= MAX_PREVIEW,
+        'mechanism-observation': true,
+      });
+      if (!Object.values(observations).every(Boolean))
+        failure = { family: 'FC-AUTHORITY', code: 'CF_MECH_VERIFY_FAILED' };
+      else {
+        const requestDigest = digest('LOCAL-COMMAND-PROBE-REQUEST', {
+          manifest: manifest.value.manifestId,
+          command,
+          candidateCommit: input.candidateCommit,
+          candidateTree: input.candidateTree,
+        });
+        const resultDigest = digest('LOCAL-COMMAND-PROBE-RESULT', {
+          run: run.value,
+          native: native.value.digest,
+          confinement: confinement.digest,
+        });
+        evidence = Object.freeze({
+          kind: 'CF-GATE-PROVIDER' as const,
+          status: 'passed' as const,
+          suite: LOCAL_COMMAND_VERIFIER_SUITE_VERSION,
+          probe: LOCAL_COMMAND_VERIFIER_PROBE_VERSION,
+          provider: LOCAL_COMMAND_VERIFIER_PROVIDER,
+          providerBuildDigest: LOCAL_COMMAND_VERIFIER_BUILD_DIGEST,
+          manifestId: manifest.value.manifestId,
+          manifestDigest: manifest.value.manifestDigest,
+          environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
+          environmentDigest,
+          nativePosture: native.value,
+          nativePostureDigest: native.value.digest,
+          runtimeReadDigest: native.value.runtimeReadDigest,
+          sandboxPolicyDigest: native.value.sandboxPolicyDigest,
+          confinementTestDigest: confinement.digest,
+          trackedReadDigest: trackedRead.digest,
+          candidateCommit: input.candidateCommit,
+          candidateTree: input.candidateTree,
+          fixtureDigest: digest('LOCAL-COMMAND-FIXTURE', { command, scope: SCOPE }),
+          admissionProofDigest: admission.value.proofDigest,
+          mechanismGate: 'CF-MECH-VERIFY:passed' as const,
+          observations,
+          result: run.value,
+          requestDigest,
+          resultDigest,
+          probeDigest: digest('LOCAL-COMMAND-PROBE', { requestDigest, resultDigest, observations }),
+          resourceRoot: root,
+          recorder: 'recorder/jig-gf047-local-command/v1' as const,
+        });
+      }
     }
-    const run = executeCommand(manifest.value, checkout, scratch, native.value, 15_000);
-    if (!run.ok || run.value.outcome !== 'pass') {
-      rmSync(root, { recursive: true, force: true });
-      return fail('FC-MECHANISM', 'CF_MECH_VERIFY_FAILED');
-    }
-    const environmentDigest = digest('LOCAL-COMMAND-ENVIRONMENT', {
-      environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
-      names: [],
-    });
-    const observations = Object.freeze({
-      'exact-manifest': true,
-      'exact-executable-digest': sha256(readFileSync(command.executable)) === command.executableDigest,
-      'exact-args': command.args.length >= 0,
-      'no-shell': true,
-      'declared-env-only': true,
-      'no-credentials': manifest.value.value.credentialAuthority.length === 0,
-      'native-read-only-no-network': native.value.network === 'denied',
-      'runtime-read-digest':
-        native.value.runtimeReadDigest === runtimeReadDigest(manifest.value.value.runtimeReadAuthority),
-      'sandbox-policy-digest':
-        native.value.sandboxPolicyDigest === sandboxPolicyDigest(manifest.value.value.sandboxPolicyAuthority),
-      'actual-confinement': confinement.insideAllowed && confinement.outsideDenied,
-      'ignored-symlink-denied': confinement.ignoredSymlinkDenied,
-      'ignored-credential-denied': confinement.ignoredCredentialDenied,
-      'tracked-read-digest': trackedRead.digest === trackedCheckoutReadAuthority(candidateCheckout as string)?.digest,
-      'bounded-redacted-output':
-        run.value.output.stdoutPreview.length <= MAX_PREVIEW && run.value.output.stderrPreview.length <= MAX_PREVIEW,
-      'mechanism-observation': true,
-    });
-    if (!Object.values(observations).every(Boolean)) return fail('FC-AUTHORITY', 'CF_MECH_VERIFY_FAILED');
-    const requestDigest = digest('LOCAL-COMMAND-PROBE-REQUEST', {
-      manifest: manifest.value.manifestId,
-      command,
-      candidateCommit: input.candidateCommit,
-      candidateTree: input.candidateTree,
-    });
-    const resultDigest = digest('LOCAL-COMMAND-PROBE-RESULT', {
-      run: run.value,
-      native: native.value.digest,
-      confinement: confinement.digest,
-    });
-    const evidence = Object.freeze({
-      kind: 'CF-GATE-PROVIDER' as const,
-      status: 'passed' as const,
-      suite: LOCAL_COMMAND_VERIFIER_SUITE_VERSION,
-      probe: LOCAL_COMMAND_VERIFIER_PROBE_VERSION,
-      provider: LOCAL_COMMAND_VERIFIER_PROVIDER,
-      providerBuildDigest: LOCAL_COMMAND_VERIFIER_BUILD_DIGEST,
-      manifestId: manifest.value.manifestId,
-      manifestDigest: manifest.value.manifestDigest,
-      environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT,
-      environmentDigest,
-      nativePosture: native.value,
-      nativePostureDigest: native.value.digest,
-      runtimeReadDigest: native.value.runtimeReadDigest,
-      sandboxPolicyDigest: native.value.sandboxPolicyDigest,
-      confinementTestDigest: confinement.digest,
-      trackedReadDigest: trackedRead.digest,
-      candidateCommit: input.candidateCommit,
-      candidateTree: input.candidateTree,
-      fixtureDigest: digest('LOCAL-COMMAND-FIXTURE', { command, scope: SCOPE }),
-      admissionProofDigest: admission.value.proofDigest,
-      mechanismGate: 'CF-MECH-VERIFY:passed' as const,
-      observations,
-      result: run.value,
-      requestDigest,
-      resultDigest,
-      probeDigest: digest('LOCAL-COMMAND-PROBE', { requestDigest, resultDigest, observations }),
-      resourceRoot: root,
-      removedResources: [] as readonly string[],
-      recorder: 'recorder/jig-gf047-local-command/v1' as const,
-    });
-    rmSync(root, { recursive: true, force: true });
-    const certificate = Object.freeze({ ...evidence, removedResources: Object.freeze([root]) });
-    qualificationCertificates.set(certificate, certificate);
-    return ok(certificate);
   } catch {
-    if (root && existsSync(root) && !input.retainRoot) rmSync(root, { recursive: true, force: true });
-    return fail('FC-MECHANISM', 'QUALIFICATION_PROBE_FAILED');
+    failure = { family: 'FC-MECHANISM', code: 'QUALIFICATION_PROBE_FAILED' };
   }
+  if (root && existsSync(root)) {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {
+      failure = { family: 'FC-TRUST', code: 'SCRATCH_DISPOSAL_FAILED' };
+    }
+    if (existsSync(root)) failure = { family: 'FC-TRUST', code: 'SCRATCH_DISPOSAL_FAILED' };
+  }
+  if (failure) return fail(failure.family, failure.code);
+  if (!root || !evidence) return fail('FC-TRUST', 'SCRATCH_DISPOSAL_FAILED');
+  const certificate = Object.freeze({ ...evidence, removedResources: Object.freeze([root]) });
+  qualificationCertificates.set(certificate, certificate);
+  return ok(certificate);
 }
 
 function exactQualification(

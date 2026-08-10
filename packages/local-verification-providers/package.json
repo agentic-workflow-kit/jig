@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@agentic-workflow-kit/jig-authority-kernel": "workspace:*",
+    "@agentic-workflow-kit/jig-conformance": "workspace:*",
     "@biomejs/biome": "catalog:",
     "typescript": "catalog:"
   }

@@ -168,6 +168,16 @@ test('permits the qualification friend relative import only from exact conforman
   assert.deepEqual(errors, []);
 });
 
+test('rejects normalized qualification friend relative imports outside conformance', () => {
+  const errors = withPackages((root) =>
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "import '../../../packages/runtime-contracts/dist/../dist/qualification-certificate.js';\n",
+    ),
+  );
+  assert.ok(errors.some((error) => error.includes('imports restricted qualification friend')));
+});
+
 test('rejects qualification friend relative imports from local providers', () => {
   const errors = withPackages((root) =>
     writeFileSync(
@@ -206,7 +216,7 @@ test('permits provider admission qualification only from the local integration t
   const errors = withPackages((root) =>
     writeFileSync(
       join(root, 'packages', 'local-verification-providers', 'tests', 'local-command-provider.test.mjs'),
-      "import '../../conformance/dist/provider-admission-qualification.js';\n",
+      "import '@agentic-workflow-kit/jig-conformance/provider-admission-qualification';\n",
     ),
   );
   assert.deepEqual(errors, []);
@@ -277,6 +287,20 @@ test('rejects the protected runtime transition from providers, root, and sibling
     );
   });
   assert.equal(errors.filter((error) => error.includes('imports restricted runtime transition')).length, 3);
+});
+
+test('rejects namespace access and wildcard re-exports of the protected runtime transition', () => {
+  const errors = withPackages((root) => {
+    writeFileSync(
+      join(root, 'packages', 'local-verification-providers', 'src', 'index.ts'),
+      "import * as transition from '../../runtime-contracts/dist/provider.js'; export const value = transition;\n",
+    );
+    writeFileSync(
+      join(root, 'packages', 'codec', 'src', 'index.ts'),
+      "export * from '../../runtime-contracts/dist/provider.js';\n",
+    );
+  });
+  assert.equal(errors.filter((error) => error.includes('imports restricted runtime transition')).length, 2);
 });
 
 test('rejects filesystem deep imports of the private qualification registry', () => {

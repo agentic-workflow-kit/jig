@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -12,12 +13,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { platform, tmpdir } from 'node:os';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 const provider = await import('../dist/index.js');
 const runtime = await import('@agentic-workflow-kit/jig-runtime-contracts');
-const conformance = await import('../../conformance/dist/provider-admission-qualification.js');
+const conformance = await import('@agentic-workflow-kit/jig-conformance/provider-admission-qualification');
 const kernel = await import('@agentic-workflow-kit/jig-authority-kernel');
 
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -197,6 +199,83 @@ test('manifest and native posture are exact, local, no-shell, and no-credential'
   assert.equal(manifestValue.value.sandboxPolicyAuthority.checkoutRead, 'canonical-tracked-tree-literals');
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue }).ok, platform() === 'darwin');
   assert.equal(provider.attestLocalPosixPosture({ executable, manifest: manifestValue, network: 'allowed' }).ok, false);
+});
+
+test('candidate discovery decodes file URLs with spaces and percent signs', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'gf047 path '));
+  const packageRoot = join(root, 'provider % fixture');
+  const dist = join(packageRoot, 'dist');
+  try {
+    mkdirSync(dist, { recursive: true });
+    cpSync(new URL('../dist/index.js', import.meta.url), join(dist, 'index.js'));
+    writeFileSync(join(packageRoot, 'package.json'), '{"type":"module"}\n');
+    writeFileSync(join(packageRoot, '.gitignore'), 'node_modules\nnode_modules/\n');
+    symlinkSync(
+      join(checkoutPath, 'packages/local-verification-providers/node_modules'),
+      join(packageRoot, 'node_modules'),
+      'dir',
+    );
+    execFileSync('/usr/bin/git', ['init', '-q'], { cwd: packageRoot });
+    execFileSync('/usr/bin/git', ['config', 'user.email', 'gf047@example.invalid'], { cwd: packageRoot });
+    execFileSync('/usr/bin/git', ['config', 'user.name', 'GF-047'], { cwd: packageRoot });
+    writeFileSync(join(packageRoot, 'tracked.txt'), 'tracked\n');
+    execFileSync('/usr/bin/git', ['add', '.gitignore', 'dist/index.js', 'package.json', 'tracked.txt'], { cwd: packageRoot });
+    execFileSync('/usr/bin/git', ['commit', '-q', '-m', 'fixture'], { cwd: packageRoot });
+    const tempCommit = execFileSync('/usr/bin/git', ['rev-parse', 'HEAD'], {
+      cwd: packageRoot,
+      encoding: 'utf8',
+    }).trim();
+    const tempTree = execFileSync('/usr/bin/git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: packageRoot,
+      encoding: 'utf8',
+    }).trim();
+    const imported = await import(pathToFileURL(join(dist, 'index.js')).href);
+    const tempManifest = imported.createLocalCommandManifest({
+      executable,
+      executableDigest,
+      args: [],
+      environmentNames: [],
+    });
+    assert.equal(tempManifest.ok, true);
+    assert.deepEqual(
+      imported.runLocalCommandQualificationProbe({
+        candidateCommit: tempCommit,
+        candidateTree: tempTree,
+        manifest: tempManifest.value,
+        admission: { certificate: {} },
+      }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('canonical keys and tracked paths do not consult the host locale', () => {
+  const original = String.prototype.localeCompare;
+  String.prototype.localeCompare = () => {
+    throw new Error('locale-dependent ordering is forbidden');
+  };
+  try {
+    const exactManifest = provider.createLocalCommandManifest({
+      executable,
+      executableDigest,
+      args: [],
+      environmentNames: [],
+    });
+    assert.equal(exactManifest.ok, true);
+    assert.deepEqual(
+      provider.runLocalCommandQualificationProbe({
+        candidateCommit,
+        candidateTree,
+        manifest: exactManifest.value,
+        admission: { certificate: {} },
+      }),
+      { ok: false, error: { family: 'FC-AUTHORITY', code: 'GF022_ADMISSION_REQUIRED' } },
+    );
+  } finally {
+    String.prototype.localeCompare = original;
+  }
 });
 
 test('qualification attests actual confinement and rejects reordered or wildcard policy descriptors', () => {
