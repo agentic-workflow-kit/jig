@@ -871,10 +871,7 @@ export function createRetirementController(
     if (!operationsForKind(resource.value.kind).includes(operation))
       return fail('FC-SUBJECT', 'RETIREMENT_OPERATION_RESOURCE_MISMATCH');
     if (operation !== 'OPC-WS-PRESERVE' && !receipts.has(resource.value.resourceIdentity)) {
-      const obligation = openResidualObligation(
-        resource.value,
-        'PRESERVATION_REQUIRED_BEFORE_RETIREMENT',
-      );
+      const obligation = openResidualObligation(resource.value, 'PRESERVATION_REQUIRED_BEFORE_RETIREMENT');
       if (!obligation.ok) return fail(obligation.error.family, obligation.error.code);
       return fail('FC-EVIDENCE', 'PRESERVATION_REQUIRED_BEFORE_RETIREMENT');
     }
