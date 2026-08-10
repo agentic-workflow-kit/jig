@@ -1035,3 +1035,19 @@ test('GF045 snapshot replay retains durable intent, source, and effect state', (
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.projection(), instance.projection());
 });
+
+test('GF045 digest derivation fails closed on circular hostile input', () => {
+  const circular = {};
+  circular.self = circular;
+  assert.equal(runtime.deriveBlockSurfacingSubjectDigest(circular), undefined);
+  assert.equal(runtime.deriveBlockSurfacingScopeDigest(circular), undefined);
+  assert.equal(
+    runtime.deriveBlockSurfacingSourceDigest({
+      subject: circular,
+      operation: operation(8),
+      authority: null,
+      fence: null,
+    }),
+    undefined,
+  );
+});

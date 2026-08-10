@@ -907,3 +907,35 @@ test('MC-043-FENCE: configured non-default target is admitted and cross-target f
     false,
   );
 });
+
+test('MC-043-FENCE: finalizer stageDigest derivation fails closed on circular input', () => {
+  const circular = [];
+  circular.push(circular);
+  assert.equal(
+    runtime.deriveFinalizerPolicyDigest({
+      posture: 'none',
+      requiredClasses: circular,
+      waitCapacitySeconds: 3_600,
+      waitTargetSeconds: 3_600,
+      refreshLimit: 2,
+    }),
+    undefined,
+  );
+});
+
+test('MC-043-FENCE: finalizer stageDigest comparison fails closed during hostile restore', () => {
+  const waiter = makeWaiter('hostile-digest-restore', 1, nonePolicy);
+  const data = controllerFor(waiter);
+  const circular = {};
+  circular.self = circular;
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedFinalizerController(
+    { ...snapshot, projection: { ...snapshot.projection, hostile: circular } },
+    {
+      binding,
+      registry: data.registry,
+      verificationAuthorizer: data.verificationAuthorizer,
+    },
+  );
+  assert.deepEqual(restored.error, { family: 'FC-TRUST', code: 'FINALIZER_PROJECTION_DRIFT' });
+});

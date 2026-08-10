@@ -2155,3 +2155,65 @@ test('GF044-MC-07: GF-043 target wait bounds are corrected to 1 minute through 2
     false,
   );
 });
+
+test('GF044 hosted correction: append and verified replay preserve one mixed-transition projection', () => {
+  const data = makeController('merge-commit', 'delivery-reducer-equivalence', null, 300, false, true);
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
+  authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.projection(), data.controller.projection());
+});
+
+test('GF044 hosted correction: delivery stageDigest derive and same paths fail closed on circular input', () => {
+  const circular = {};
+  circular.self = circular;
+  assert.equal(runtime.deriveDeliveryChangeSetDigest({ targetBasisDigest: d('a'), changedPaths: circular }), undefined);
+  assert.equal(runtime.deriveDeliveryGateRequirementDigest(circular), undefined);
+  const data = makeController('merge-commit', 'delivery-hostile-digest', null, 340);
+  const snapshot = data.controller.snapshot();
+  const hostileCarrier = {};
+  hostileCarrier.self = hostileCarrier;
+  const restored = runtime.restoreScriptedDeliveryController(
+    { ...snapshot, carrier: hostileCarrier },
+    {
+      acceptanceSnapshot: data.acceptanceController.snapshot(),
+      binding,
+      candidateCarrier: data.candidate,
+      finalizerSnapshot: snapshot.finalizerSnapshot,
+      remoteGate: data.remoteGate,
+      registry: data.registry,
+      strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+      verificationAuthorizer: data.verificationAuthorizer,
+      mechanism: data.mechanism,
+    },
+  );
+  assert.deepEqual(restored.error, { family: 'FC-TRUST', code: 'INVALID_DELIVERY_SNAPSHOT' });
+});

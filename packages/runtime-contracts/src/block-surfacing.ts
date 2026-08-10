@@ -360,8 +360,12 @@ function same(left: unknown, right: unknown): boolean {
 }
 
 function digestValue(domain: string, value: unknown): string | undefined {
-  const result = stageDigest({ domain, excludePaths: [], value: value as never });
-  return result.ok ? result.value.digest : undefined;
+  try {
+    const result = stageDigest({ domain, excludePaths: [], value: value as never });
+    return result.ok ? result.value.digest : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function redactProviderText(value: unknown): Readonly<{ text: string; quarantined: boolean }> {

@@ -291,13 +291,21 @@ const identity = (kind: string, value: unknown): value is string =>
 const position = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const same = (left: unknown, right: unknown, domain = 'DELIVERY-COMPARE'): boolean => {
-  const a = stageDigest({ domain, excludePaths: [], value: left as never });
-  const b = stageDigest({ domain, excludePaths: [], value: right as never });
-  return a.ok && b.ok && a.value.digest === b.value.digest;
+  try {
+    const a = stageDigest({ domain, excludePaths: [], value: left as never });
+    const b = stageDigest({ domain, excludePaths: [], value: right as never });
+    return a.ok && b.ok && a.value.digest === b.value.digest;
+  } catch {
+    return false;
+  }
 };
 const derive = (domain: string, value: unknown): string | undefined => {
-  const result = stageDigest({ domain, excludePaths: [], value: value as never });
-  return result.ok ? result.value.digest : undefined;
+  try {
+    const result = stageDigest({ domain, excludePaths: [], value: value as never });
+    return result.ok ? result.value.digest : undefined;
+  } catch {
+    return undefined;
+  }
 };
 const operationTransition = (operation: string): string | undefined => {
   const marker = operation.lastIndexOf('/op/');
@@ -990,16 +998,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     const absence = exactAnchorAbsence(record.predecessor);
     return absence.ok ? ok(undefined) : absence;
   };
-  const append = (record: DeliveryRecord): DeliveryResult<void> => {
-    if (record.kind === 'retry-authorized') {
-      const validated = validateRetryAuthorization(record);
-      if (!validated.ok) return validated;
-    }
-    const previousDigest = journal.at(-1)?.digest ?? ZERO;
-    const positionValue = journal.length + 1;
-    const digestValue = journalDigest({ position: positionValue, previousDigest, record });
-    if (!digestValue) return fail('FC-TRUST', 'DELIVERY_RECORD_DIGEST_FAILED');
-    journal.push(freeze({ position: positionValue, previousDigest, digest: digestValue, record }));
+  const applyRecord = (record: DeliveryRecord): void => {
     if (record.kind === 'intent') intents.set(record.intent.operation, record.intent);
     if (record.kind === 'effect') effects.set(record.fact.operation, record.fact);
     if (record.kind === 'observation') observations.set(record.fact.operation, record.fact);
@@ -1077,6 +1076,18 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       targetWait = null;
       status = 'Parked';
     }
+  };
+  const append = (record: DeliveryRecord): DeliveryResult<void> => {
+    if (record.kind === 'retry-authorized') {
+      const validated = validateRetryAuthorization(record);
+      if (!validated.ok) return validated;
+    }
+    const previousDigest = journal.at(-1)?.digest ?? ZERO;
+    const positionValue = journal.length + 1;
+    const digestValue = journalDigest({ position: positionValue, previousDigest, record });
+    if (!digestValue) return fail('FC-TRUST', 'DELIVERY_RECORD_DIGEST_FAILED');
+    journal.push(freeze({ position: positionValue, previousDigest, digest: digestValue, record }));
+    applyRecord(record);
     return ok(undefined);
   };
   const replay = (entry: JournalEntry): DeliveryResult<void> => {
@@ -1098,84 +1109,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       if (!validated.ok) return validated;
     }
     journal.push(entry);
-    const record = entry.record;
-    if (record.kind === 'intent') intents.set(record.intent.operation, record.intent);
-    if (record.kind === 'effect') effects.set(record.fact.operation, record.fact);
-    if (record.kind === 'observation') observations.set(record.fact.operation, record.fact);
-    if (
-      record.kind === 'observation' &&
-      recovery &&
-      record.fact.subject === 'effect' &&
-      record.fact.resolvesOperation === recovery.operation
-    ) {
-      if (record.fact.outcome === 'absent' || record.fact.outcome === 'present') {
-        recovery = null;
-        if (record.fact.outcome === 'present') resolvedEffects.add(record.fact.resolvesOperation);
-        status = 'Ready';
-      } else {
-        const observationsSeen = recovery.observations + 1;
-        recovery = { ...recovery, observations: observationsSeen };
-        if (observationsSeen >= recovery.limit) status = 'Parked';
-      }
-    }
-    if (
-      record.kind === 'observation' &&
-      targetWait &&
-      record.fact.subject === 'target' &&
-      record.fact.resolvesOperation === targetWait.operation
-    ) {
-      if (record.fact.outcome === 'ready') {
-        targetWait = null;
-        status = 'Ready';
-      } else if (
-        record.fact.observedAt >= targetWait.deadline ||
-        record.fact.outcome === 'conflict' ||
-        record.fact.outcome === 'advanced'
-      ) {
-        targetWait = null;
-        status = 'Parked';
-      } else {
-        targetWait = { ...targetWait, observations: targetWait.observations + 1 };
-      }
-    }
-    if (record.kind === 'recovery-resolved') {
-      recovery = null;
-      if (record.outcome === 'success') resolvedEffects.add(record.operation);
-      status = 'Ready';
-    }
-    if (record.kind === 'wait-exhausted') {
-      targetWait = null;
-      status = 'Parked';
-    }
-    if (record.kind === 'landing') {
-      landing = record.proof;
-      status = 'Landed';
-    }
-    if (record.kind === 'release') released.add(record.story);
-    if (record.kind === 'effect' && record.fact.outcome === 'uncertain') {
-      recovery = { operation: record.fact.operation, observations: 0, limit: carrier.recoveryLimit };
-      status = 'Recovering';
-    }
-    if (record.kind === 'effect' && record.fact.outcome === 'held') {
-      targetWait = {
-        operation: record.fact.operation,
-        startedAt: record.fact.observedAt,
-        deadline: record.fact.observedAt + carrier.waitTargetSeconds,
-        observations: 0,
-      };
-      status = 'TargetWait';
-    }
-    if (record.kind === 'effect' && record.fact.type === 'OPC-DEL-ANCHOR' && record.fact.outcome === 'conflict') {
-      status = 'Parked';
-    }
-    if (
-      record.kind === 'observation' &&
-      record.fact.subject === 'target' &&
-      (record.fact.outcome === 'advanced' || record.fact.outcome === 'conflict')
-    ) {
-      targetWait = null;
-      status = 'Parked';
-    }
+    applyRecord(entry.record);
     return ok(undefined);
   };
   const projection = (): DeliveryProjection =>
