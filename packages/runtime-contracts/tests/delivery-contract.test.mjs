@@ -495,6 +495,8 @@ const makeController = (
   remoteGateObservedAt = 90,
   remoteGateState = 'pass',
   secondTargetOutcome = null,
+  recoveryObservationOutcome = 'absent',
+  retryLimit = undefined,
 ) => {
   const data = makeAdmission(key, workspaceCommit);
   data.strategy = mode;
@@ -546,7 +548,7 @@ const makeController = (
           data,
           nonAnchorOperation(7),
           'effect',
-          'absent',
+          recoveryObservationOutcome,
           nonAnchorOperation(6),
           {},
           20,
@@ -629,6 +631,7 @@ const makeController = (
     finalizerSnapshot: data.finalizer.snapshot(),
     registry: data.registry,
     remoteGate,
+    retryLimit,
     strategy: { mode, digest: digest },
     verificationAuthorizer: data.verificationAuthorizer,
     mechanism: mechanism.value,
@@ -953,6 +956,186 @@ test('GF044-MC-04: crash/replay reconciles an uncertain effect with an effect-fr
   assert.equal(recovered.value.authorize(request(data, replacement, 'OPC-DEL-MERGE', 9)).ok, true);
   assert.equal(recovered.value.authorize(request(data, data.operations.merge, 'OPC-DEL-MERGE', 6)).ok, true);
   assert.equal(recovered.value.dispatch({ operation: data.operations.merge }).ok, false);
+});
+
+test('GF044 hosted correction: restore derives status from the authenticated journal and rejects a forged snapshot status', () => {
+  const data = makeController();
+  const snapshot = { ...data.controller.snapshot(), status: 'Parked' };
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.deepEqual(restored.error, { family: 'FC-TRUST', code: 'DELIVERY_STATUS_REPLAY_MISMATCH' });
+});
+
+test('GF044 hosted correction: recovery observations increment once and restore replay is projection-equivalent', () => {
+  const data = makeController(
+    'merge-commit',
+    'delivery-recovery-once',
+    null,
+    220,
+    true,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    null,
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'uncertain',
+  );
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
+  authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'effect',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'effect' }).ok, true);
+  assert.equal(data.controller.projection().recovery?.observations, 1);
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.projection(), data.controller.projection());
+});
+
+test('GF044 hosted correction: target-wait observations increment once and restore replay is projection-equivalent', () => {
+  const data = makeController('merge-commit', 'delivery-target-wait-once', null, 240, false, true);
+  authorizeAndDispatch(data, 'OPC-DEL-ANCHOR', data.operations.anchor, 1);
+  authorizeAndDispatch(data, 'OPC-DEL-PUBLISH', data.operations.publish, 2);
+  authorizeAndDispatch(data, 'OPC-DEL-REQUEST', data.operations.request, 3);
+  authorizeAndDispatch(data, 'OPC-DEL-MERGE', data.operations.merge, 6);
+  assert.equal(
+    data.controller.authorize(
+      request(
+        data,
+        data.operations.observe,
+        'OPC-DEL-OBSERVE',
+        7,
+        'target',
+        `corr/${data.operations.merge.split('/').at(-4)}`,
+      ),
+    ).ok,
+    true,
+  );
+  assert.equal(data.controller.observe({ operation: data.operations.observe, subject: 'target' }).ok, true);
+  assert.equal(data.controller.projection().targetWait?.observations, 1);
+  const snapshot = data.controller.snapshot();
+  const restored = runtime.restoreScriptedDeliveryController(snapshot, {
+    acceptanceSnapshot: data.acceptanceController.snapshot(),
+    binding,
+    candidateCarrier: data.candidate,
+    finalizerSnapshot: snapshot.finalizerSnapshot,
+    remoteGate: data.remoteGate,
+    registry: data.registry,
+    retryLimit: data.controller.projection().carrier.retryLimit,
+    strategy: { mode: data.mode, digest: runtime.deriveDeliveryStrategyDigest(data.mode) },
+    verificationAuthorizer: data.verificationAuthorizer,
+    mechanism: data.mechanism,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.projection(), data.controller.projection());
+});
+
+test('GF044 hosted correction: retry defaults to 3, accepts only 1 through 5, and authorization uses the configured limit', () => {
+  const defaults = makeController();
+  assert.equal(defaults.controller.projection().carrier.retryLimit, 3);
+  const configured = makeController(
+    'merge-commit',
+    'delivery-retry-limit',
+    null,
+    260,
+    false,
+    false,
+    null,
+    null,
+    'ready',
+    false,
+    'OPC-DEL-PUBLISH',
+    false,
+    false,
+    90,
+    'pass',
+    null,
+    'absent',
+    1,
+  );
+  authorizeAndDispatch(configured, 'OPC-DEL-ANCHOR', configured.operations.anchor, 1);
+  assert.equal(
+    configured.controller.authorize(request(configured, configured.operations.publish, 'OPC-DEL-PUBLISH', 2)).ok,
+    true,
+  );
+  assert.equal(configured.controller.dispatch({ operation: configured.operations.publish }).ok, true);
+  assert.deepEqual(
+    configured.controller.authorize(
+      request(
+        configured,
+        operation(269),
+        'OPC-DEL-PUBLISH',
+        3,
+        'target',
+        `corr/${configured.operations.publish.split('/').at(-4)}`,
+        'resource/opc-del-publish',
+      ),
+    ).error,
+    { family: 'FC-BOUND', code: 'DELIVERY_RETRY_EXHAUSTED' },
+  );
+  const invalid = (limit) =>
+    makeController(
+      'merge-commit',
+      `delivery-invalid-retry-${limit}`,
+      null,
+      280 + limit,
+      false,
+      false,
+      null,
+      null,
+      'ready',
+      false,
+      null,
+      false,
+      false,
+      90,
+      'pass',
+      null,
+      'absent',
+      limit,
+    );
+  assert.throws(() => invalid(0), { message: /INVALID_DELIVERY_RETRY_LIMIT/ });
+  assert.throws(() => invalid(6), { message: /INVALID_DELIVERY_RETRY_LIMIT/ });
 });
 
 test('GF044-MC-05/MC-06/LP-EQUIV: all four frozen integration strategies require authoritative post-effect content proof', () => {

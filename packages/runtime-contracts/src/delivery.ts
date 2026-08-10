@@ -30,7 +30,7 @@ export const DELIVERY_OPERATION_CLASSES = Object.freeze([
 ] as const);
 export const DELIVERY_WAIT_BOUNDS = Object.freeze({
   mechanismSeconds: Object.freeze({ minimum: 5, maximum: 7_200 }),
-  retryLimit: Object.freeze({ minimum: 1, maximum: 5 }),
+  retryLimit: Object.freeze({ default: 3, minimum: 1, maximum: 5 }),
   recoveryLimit: Object.freeze({ minimum: 1, maximum: 5 }),
   targetSeconds: Object.freeze({ minimum: 60, maximum: 86_400 }),
 });
@@ -169,6 +169,7 @@ export type DeliveryCarrier = Readonly<{
   acceptedPackageDigest: string;
   strategy: DeliveryStrategyBinding;
   waitTargetSeconds: number;
+  retryLimit: number;
   recoveryLimit: number;
   changedPaths: readonly Readonly<{ path: string; contentDigest: string }>[];
   workspaceCommit: string | null;
@@ -575,17 +576,37 @@ function packageCandidate(input: ReviewPackage): DeliveryResult<DeliveryCarrier[
 }
 
 function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
-  const raw = own(input, [
-    'acceptanceSnapshot',
-    'binding',
-    'candidateCarrier',
-    'finalizerSnapshot',
-    'registry',
-    'remoteGate',
-    'strategy',
-    'verificationAuthorizer',
-  ]);
+  const raw =
+    own(input, [
+      'acceptanceSnapshot',
+      'binding',
+      'candidateCarrier',
+      'finalizerSnapshot',
+      'registry',
+      'remoteGate',
+      'retryLimit',
+      'strategy',
+      'verificationAuthorizer',
+    ]) ??
+    own(input, [
+      'acceptanceSnapshot',
+      'binding',
+      'candidateCarrier',
+      'finalizerSnapshot',
+      'registry',
+      'remoteGate',
+      'strategy',
+      'verificationAuthorizer',
+    ]);
   if (!raw) return fail('FC-INPUT', 'INVALID_DELIVERY_ADMISSION');
+  const retryLimit = raw.retryLimit === undefined ? DELIVERY_WAIT_BOUNDS.retryLimit.default : raw.retryLimit;
+  if (
+    typeof retryLimit !== 'number' ||
+    !Number.isSafeInteger(retryLimit) ||
+    retryLimit < DELIVERY_WAIT_BOUNDS.retryLimit.minimum ||
+    retryLimit > DELIVERY_WAIT_BOUNDS.retryLimit.maximum
+  )
+    return fail('FC-BOUND', 'INVALID_DELIVERY_RETRY_LIMIT');
   const binding = validateBinding(raw.binding);
   if (!binding.ok) return binding;
   const candidateCarrier = validateAcceptanceCandidate(raw.candidateCarrier);
@@ -704,6 +725,7 @@ function admitCarrier(input: unknown): DeliveryResult<DeliveryCarrier> {
     acceptedPackageDigest: candidate.digest,
     strategy: strategy.value,
     waitTargetSeconds: waiter.policy.waitTargetSeconds,
+    retryLimit,
     recoveryLimit: DELIVERY_WAIT_BOUNDS.recoveryLimit.minimum + 2,
     changedPaths: changedPaths.value,
     workspaceCommit: candidate.deliveryMetadata.workspaceCommit,
@@ -780,18 +802,32 @@ function journalDigest(
 }
 
 export function createScriptedDeliveryController(input: unknown): DeliveryResult<ScriptedDeliveryController> {
-  const raw = own(input, [
-    'acceptanceSnapshot',
-    'binding',
-    'candidateCarrier',
-    'finalizerSnapshot',
-    'mechanism',
-    'registry',
-    'remoteGate',
-    'strategy',
-    'verificationAuthorizer',
-    'initialSnapshot',
-  ]);
+  const raw =
+    own(input, [
+      'acceptanceSnapshot',
+      'binding',
+      'candidateCarrier',
+      'finalizerSnapshot',
+      'initialSnapshot',
+      'mechanism',
+      'registry',
+      'remoteGate',
+      'retryLimit',
+      'strategy',
+      'verificationAuthorizer',
+    ]) ??
+    own(input, [
+      'acceptanceSnapshot',
+      'binding',
+      'candidateCarrier',
+      'finalizerSnapshot',
+      'initialSnapshot',
+      'mechanism',
+      'registry',
+      'remoteGate',
+      'strategy',
+      'verificationAuthorizer',
+    ]);
   if (!raw) return fail('FC-INPUT', 'INVALID_DELIVERY_CONTROLLER');
   const mechanism = validateMechanism(raw.mechanism);
   if (!mechanism.ok) return mechanism;
@@ -810,6 +846,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     finalizerSnapshot,
     registry: raw.registry,
     remoteGate: raw.remoteGate,
+    retryLimit: raw.retryLimit,
     strategy: raw.strategy,
     verificationAuthorizer: raw.verificationAuthorizer,
   });
@@ -1038,7 +1075,9 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       const restored = replay(item);
       if (!restored.ok) return restored;
     }
-    status = snapshot.status;
+    if (!['Ready', 'Recovering', 'TargetWait', 'Parked', 'Landed'].includes(snapshot.status))
+      return fail('FC-TRUST', 'INVALID_DELIVERY_SNAPSHOT');
+    if (snapshot.status !== status) return fail('FC-TRUST', 'DELIVERY_STATUS_REPLAY_MISMATCH');
     if (!same(snapshot.projection, projection(), 'DELIVERY-SNAPSHOT-PROJECTION'))
       return fail('FC-TRUST', 'DELIVERY_PROJECTION_REPLAY_MISMATCH');
     if (!same(finalizerController.snapshot(), snapshot.finalizerSnapshot, 'DELIVERY-FINALIZER-RECOVERY'))
@@ -1150,7 +1189,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     if (priorAbsent.length > 0 && !previous) return fail('FC-FENCE', 'RETRY_RESOURCE_FENCE_MISMATCH');
     if (previous) {
       const ordinal = priorSameType.filter((fact) => fact.outcome === 'absent').length + 1;
-      if (ordinal > DELIVERY_WAIT_BOUNDS.retryLimit.maximum) return fail('FC-BOUND', 'DELIVERY_RETRY_EXHAUSTED');
+      if (ordinal > carrier.retryLimit) return fail('FC-BOUND', 'DELIVERY_RETRY_EXHAUSTED');
       const retry = append({
         kind: 'retry-authorized',
         operation: intent.operation,
@@ -1199,18 +1238,6 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     }
     const appended = append({ kind: 'effect', fact: fact.value });
     if (!appended.ok) return appended;
-    if (fact.value.outcome === 'uncertain') {
-      recovery = { operation: intent.operation, observations: 0, limit: carrier.recoveryLimit };
-      status = 'Recovering';
-    } else if (fact.value.outcome === 'held') {
-      targetWait = {
-        operation: intent.operation,
-        startedAt: fact.value.observedAt,
-        deadline: fact.value.observedAt + carrier.waitTargetSeconds,
-        observations: 0,
-      };
-      status = 'TargetWait';
-    }
     return ok(projection());
   };
   const observe = (value: unknown): DeliveryResult<DeliveryProjection> => {
@@ -1263,42 +1290,42 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       });
       if (!bridged.ok) return bridged;
     }
+    const recoveryBeforeObservation = recovery;
+    const targetWaitBeforeObservation = targetWait;
     const appended = append({ kind: 'observation', fact: fact.value });
     if (!appended.ok) return appended;
-    if (recovery && fact.value.subject === 'effect' && fact.value.resolvesOperation === recovery.operation) {
+    if (
+      recoveryBeforeObservation &&
+      fact.value.subject === 'effect' &&
+      fact.value.resolvesOperation === recoveryBeforeObservation.operation
+    ) {
       if (fact.value.outcome === 'absent' || fact.value.outcome === 'present') {
         const resolved = append({
           kind: 'recovery-resolved',
-          operation: recovery.operation,
+          operation: recoveryBeforeObservation.operation,
           observedOperation: fact.value.operation,
           outcome: fact.value.outcome === 'present' ? 'success' : 'absent',
         });
         if (!resolved.ok) return resolved;
-      } else {
-        const next = recovery.observations + 1;
-        recovery = { ...recovery, observations: next };
-        if (next >= recovery.limit) {
-          status = 'Parked';
-          recovery = { ...recovery, observations: next };
-        }
       }
     }
-    if (targetWait && fact.value.subject === 'target' && fact.value.resolvesOperation === targetWait.operation) {
-      if (fact.value.outcome === 'ready') {
-        targetWait = null;
-        status = 'Ready';
-      } else if (
-        fact.value.observedAt >= targetWait.deadline ||
+    if (
+      targetWaitBeforeObservation &&
+      fact.value.subject === 'target' &&
+      fact.value.resolvesOperation === targetWaitBeforeObservation.operation
+    ) {
+      if (
+        fact.value.observedAt >= targetWaitBeforeObservation.deadline ||
         fact.value.outcome === 'conflict' ||
         fact.value.outcome === 'advanced'
       ) {
         const exhausted = append({
           kind: 'wait-exhausted',
-          operation: targetWait.operation,
+          operation: targetWaitBeforeObservation.operation,
           observedOperation: fact.value.operation,
         });
         if (!exhausted.ok) return exhausted;
-      } else targetWait = { ...targetWait, observations: targetWait.observations + 1 };
+      }
     }
     return ok(projection());
   };
