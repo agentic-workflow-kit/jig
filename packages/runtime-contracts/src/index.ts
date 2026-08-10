@@ -10,6 +10,7 @@ export * from './acceptance.js';
 export * from './approval-repository.js';
 export * from './development-pre-run.js';
 export * from './envelope.js';
+export * from './finalizer.js';
 export * from './ledger.js';
 export * from './obligation.js';
 export type { ProviderAdmissionFailure, ProviderAdmissionResult, StructuredFileAdmission } from './provider.js';
@@ -23,6 +24,7 @@ export {
 export type { ProviderAdmissionClaims } from './qualification-registry.js';
 // Claims are readable at the runtime root; issuance remains inside the durable admission transition.
 export { readProviderAdmissionCertificateClaims } from './qualification-registry.js';
+export * from './registry.js';
 export * from './review-publication.js';
 export * from './session.js';
 export * from './source.js';
