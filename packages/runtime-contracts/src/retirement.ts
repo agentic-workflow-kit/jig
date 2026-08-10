@@ -1519,6 +1519,7 @@ function createRetirementControllerInternal(options?: HydratedRetirementControll
   const reconcile = (
     input: unknown,
   ): RetirementResult<Readonly<{ certainty: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate' }>> => {
+    if (dispatchFenced) return fail('FC-TRUST', 'RETIREMENT_RECONCILIATION_FENCED');
     const raw = fields(input, ['operation', 'resourceIdentity', 'mode']);
     const operation = raw?.operation as RetirementOperationType;
     const authorization =
@@ -1620,6 +1621,7 @@ function createRetirementControllerInternal(options?: HydratedRetirementControll
   };
 
   const reauthorize = (input: unknown): RetirementResult<RetirementAuthorization> => {
+    if (dispatchFenced) return fail('FC-TRUST', 'RETIREMENT_REAUTHORIZATION_FENCED');
     const raw = fields(input, ['resourceIdentity', 'operation', 'mode']);
     const operation = raw?.operation as RetirementOperationType;
     const prior =
@@ -2008,6 +2010,7 @@ export function restoreRetirementController(
     !unique(obligationValues, (obligation) => String((obligation as AnyRecord).resource))
   )
     return fail('FC-TRUST', 'RETIREMENT_SNAPSHOT_INVALID');
+  if (raw.dispatchFenced) return fail('FC-TRUST', 'RETIREMENT_RESTORE_FENCED');
   const revalidated = revalidateRecoveredLookups();
   if (!revalidated.ok) return revalidated;
   const controller = createRetirementControllerInternal({

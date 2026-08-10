@@ -1360,15 +1360,174 @@ test('GF046-MC-07/08/09: trust faults fence, preterminal evidence faults park/bl
     { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_TRUST_COMPROMISED' } },
   );
   assert.equal(controller.snapshot().dispatchFenced, true);
-  const restored = retirement.restoreRetirementController(controller.snapshot(), {});
-  assert.equal(restored.ok, true, JSON.stringify(restored));
-  assert.deepEqual(restored.value.snapshot(), controller.snapshot());
+  assert.deepEqual(retirement.restoreRetirementController(controller.snapshot(), {}), {
+    ok: false,
+    error: { family: 'FC-TRUST', code: 'RETIREMENT_RESTORE_FENCED' },
+  });
   const tampered = controller.snapshot();
   const tamperedJournal = [...tampered.journal, { kind: 'forged-dispose-bytes' }];
   assert.deepEqual(retirement.restoreRetirementController({ ...tampered, journal: tamperedJournal }), {
     ok: false,
     error: { family: 'FC-TRUST', code: 'RETIREMENT_SNAPSHOT_INVALID' },
   });
+});
+
+test('GF046-FENCE-01..05: trust fencing blocks reconcile, reauthorization, and recovered lookup', () => {
+  const prepare = (lookupCertainty = 'confirmed-effect') => {
+    const mechanism = script(true, lookupCertainty);
+    const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
+    const planned = controller.plan(baseInput());
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    const artifact = planned.value.resources.find((resource) => resource.kind === 'artifact');
+    assert.ok(artifact);
+    assert.equal(controller.recordPreservation(receipt(planned.value, artifact)).ok, true);
+    assert.equal(
+      controller.authorize({
+        resource: artifact.resource,
+        resourceIdentity: artifact.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        holderTransition: holderTransition(artifact, 'OPC-ART-DISPOSE'),
+      }).ok,
+      true,
+    );
+    assert.deepEqual(
+      controller.dispatch({
+        resource: artifact.resource,
+        resourceIdentity: artifact.resourceIdentity,
+        operation: 'OPC-ART-DISPOSE',
+        port: 'PORT-ARTIFACT',
+        mode: 'release-pin',
+        fault: 'uncertain',
+      }),
+      { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
+    );
+    return { controller, mechanism, planned: planned.value, artifact };
+  };
+
+  const uncertain = prepare();
+  assert.deepEqual(
+    uncertain.controller.failure({
+      phase: 'retiring',
+      resourceIdentity: uncertain.artifact.resourceIdentity,
+      reason: 'witness fork',
+      ownerActionAvailable: false,
+      trustEvidence: trustEvidence(uncertain.planned, uncertain.artifact),
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_TRUST_COMPROMISED' } },
+  );
+  const uncertainBeforeReconcile = uncertain.controller.snapshot();
+  const lookupCallsBeforeFence = uncertain.mechanism.calls.length;
+  assert.deepEqual(
+    uncertain.controller.reconcile({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: uncertain.artifact.resourceIdentity,
+      mode: 'release-pin',
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_RECONCILIATION_FENCED' } },
+  );
+  assert.equal(uncertain.mechanism.calls.length, lookupCallsBeforeFence);
+  assert.deepEqual(uncertain.controller.snapshot(), uncertainBeforeReconcile);
+  assert.equal(
+    uncertain.controller.snapshot().pins.find((pin) => pin.resourceIdentity === uncertain.artifact.resourceIdentity)
+      .status,
+    'held',
+  );
+
+  const absence = prepare('confirmed-absence');
+  assert.equal(
+    absence.controller.reconcile({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: absence.artifact.resourceIdentity,
+      mode: 'release-pin',
+    }).ok,
+    true,
+  );
+  assert.deepEqual(
+    absence.controller.failure({
+      phase: 'retiring',
+      resourceIdentity: absence.artifact.resourceIdentity,
+      reason: 'trust root compromise',
+      ownerActionAvailable: false,
+      trustEvidence: trustEvidence(absence.planned, absence.artifact),
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_TRUST_COMPROMISED' } },
+  );
+  const absenceBeforeReauthorize = absence.controller.snapshot();
+  assert.deepEqual(
+    absence.controller.reauthorize({
+      resourceIdentity: absence.artifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      mode: 'release-pin',
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_REAUTHORIZATION_FENCED' } },
+  );
+  assert.deepEqual(absence.controller.snapshot(), absenceBeforeReauthorize);
+  assert.equal(absence.controller.snapshot().authorizations[0].status, 'confirmed-absence');
+
+  const effectMechanism = script(true);
+  const effectController = retirement.createRetirementController({
+    ...obligationOptions(),
+    mechanism: effectMechanism,
+  });
+  const effectPlan = effectController.plan(baseInput());
+  assert.equal(effectPlan.ok, true, JSON.stringify(effectPlan));
+  const effectArtifact = effectPlan.value.resources.find((resource) => resource.kind === 'artifact');
+  assert.ok(effectArtifact);
+  assert.equal(effectController.recordPreservation(receipt(effectPlan.value, effectArtifact)).ok, true);
+  assert.equal(
+    effectController.authorize({
+      resource: effectArtifact.resource,
+      resourceIdentity: effectArtifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+      holderTransition: holderTransition(effectArtifact, 'OPC-ART-DISPOSE'),
+    }).ok,
+    true,
+  );
+  assert.equal(
+    effectController.dispatch({
+      resource: effectArtifact.resource,
+      resourceIdentity: effectArtifact.resourceIdentity,
+      operation: 'OPC-ART-DISPOSE',
+      port: 'PORT-ARTIFACT',
+      mode: 'release-pin',
+    }).ok,
+    true,
+  );
+  assert.deepEqual(
+    effectController.failure({
+      phase: 'retiring',
+      resourceIdentity: effectArtifact.resourceIdentity,
+      reason: 'witness rollback',
+      ownerActionAvailable: false,
+      trustEvidence: trustEvidence(effectPlan.value, effectArtifact),
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_TRUST_COMPROMISED' } },
+  );
+  const fencedEffectSnapshot = effectController.snapshot();
+  let recoveredLookupCalls = 0;
+  const unavailableMechanism = Object.freeze({
+    lookup() {
+      recoveredLookupCalls += 1;
+      throw new Error('recovery lookup must not run after trust stop');
+    },
+  });
+  assert.deepEqual(
+    retirement.restoreRetirementController(fencedEffectSnapshot, {
+      ...obligationOptions(),
+      mechanism: unavailableMechanism,
+    }),
+    { ok: false, error: { family: 'FC-TRUST', code: 'RETIREMENT_RESTORE_FENCED' } },
+  );
+  assert.equal(recoveredLookupCalls, 0);
+  assert.equal(
+    fencedEffectSnapshot.pins.find((pin) => pin.resourceIdentity === effectArtifact.resourceIdentity).status,
+    'held',
+  );
+  assert.equal(fencedEffectSnapshot.authorizations[0].status, 'confirmed-effect');
 });
 
 test('GF046-MC-08: exhaustion opens one exact residual obligation without changing Retiring position', () => {
