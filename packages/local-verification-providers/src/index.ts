@@ -1,8 +1,18 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { platform, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import {
   type ProviderAdmissionClaims,
   readProviderAdmissionCertificateClaims,
@@ -25,6 +35,19 @@ export const LOCAL_COMMAND_VERIFIER_MAX_PROOF_AGE_MS = 86_400_000;
 const MANIFEST_VERSION = 'provider-authority/v1';
 const SCOPE = Object.freeze({ phase: 4, purpose: 'local-command-verification', story: 'GF-047' });
 const SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
+const DYNAMIC_LOADER = '/usr/lib/dyld';
+const CONFINEMENT_PROBE_EXECUTABLE = '/bin/cat';
+const SANDBOX_SYSTEM_READ_LITERALS = Object.freeze([
+  '/',
+  '/private',
+  '/private/etc',
+  '/private/var',
+  '/private/tmp',
+  '/dev/null',
+  '/dev/zero',
+  '/dev/random',
+  '/dev/urandom',
+]);
 const DIGEST = /^[0-9a-f]{64}$/u;
 const GIT_OBJECT = /^[0-9a-f]{40}$/u;
 const SAFE_TEXT = /^[a-z0-9](?:[a-z0-9._/-]{0,127})$/u;
@@ -45,6 +68,29 @@ type LocalCommandCheckoutResourceClaims = Readonly<{
 }>;
 const checkoutResources = new WeakMap<object, LocalCommandCheckoutResourceClaims>();
 const PACKAGE_ROOT = new URL('..', import.meta.url).pathname;
+
+type RuntimeReadDescriptor = Readonly<{
+  path: string;
+  role: 'executable' | 'dynamic-loader';
+  digest: string;
+}>;
+
+type SandboxPolicyDescriptor = Readonly<{
+  version: 'canonical-macos-sandbox/v1';
+  checkoutRead: 'canonical-subpath';
+  runtimeRead: 'literal-digest-pinned';
+  scratchWrite: 'canonical-subpath';
+  systemReadLiterals: readonly string[];
+  network: 'denied';
+  symlinkPolicy: 'reject';
+  traversalPolicy: 'reject';
+  confinementProbe: Readonly<{
+    executable: typeof CONFINEMENT_PROBE_EXECUTABLE;
+    executableDigest: string;
+    dynamicLoader: typeof DYNAMIC_LOADER;
+    dynamicLoaderDigest: string;
+  }>;
+}>;
 
 export type LocalCommandFailureFamily = VerificationFailureFamily | 'FC-TRUST';
 export type LocalCommandFailure = Readonly<{ family: LocalCommandFailureFamily; code: string }>;
@@ -70,6 +116,8 @@ export type LocalCommandManifestValue = Readonly<{
       traversalPolicy: 'reject';
     }>,
   ];
+  runtimeReadAuthority: readonly [RuntimeReadDescriptor, RuntimeReadDescriptor];
+  sandboxPolicyAuthority: SandboxPolicyDescriptor;
   subprocessAuthority: readonly [
     Readonly<{
       executable: string;
@@ -103,6 +151,8 @@ export type LocalCommandNativePosture = Readonly<{
   scratch: 'discarded';
   network: 'denied';
   credentials: 'none';
+  runtimeReadDigest: string;
+  sandboxPolicyDigest: string;
   digest: string;
 }>;
 
@@ -156,6 +206,9 @@ export type LocalCommandQualificationEvidence = Readonly<{
   environmentDigest: string;
   nativePosture: LocalCommandNativePosture;
   nativePostureDigest: string;
+  runtimeReadDigest: string;
+  sandboxPolicyDigest: string;
+  confinementTestDigest: string;
   candidateCommit: string;
   candidateTree: string;
   fixtureDigest: string;
@@ -260,6 +313,83 @@ function fileDigest(path: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function regularFileDigest(path: string): string | undefined {
+  try {
+    if (!path.startsWith('/') || path.includes('\u0000') || path.split('/').includes('..')) return undefined;
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink() || realpathSync(path) !== path) return undefined;
+    return sha256(readFileSync(path));
+  } catch {
+    return undefined;
+  }
+}
+
+function runtimeDigest(path: string): string {
+  return regularFileDigest(path) ?? '0'.repeat(64);
+}
+
+const CURRENT_DYNAMIC_LOADER_DIGEST = runtimeDigest(DYNAMIC_LOADER);
+const CURRENT_CONFINEMENT_PROBE_DIGEST = runtimeDigest(CONFINEMENT_PROBE_EXECUTABLE);
+
+const runtimeReadAuthority = (executable: string, executableDigest: string): readonly RuntimeReadDescriptor[] =>
+  Object.freeze([
+    Object.freeze({ path: executable, role: 'executable' as const, digest: executableDigest }),
+    Object.freeze({ path: DYNAMIC_LOADER, role: 'dynamic-loader' as const, digest: CURRENT_DYNAMIC_LOADER_DIGEST }),
+  ]);
+
+const sandboxPolicyAuthority = (): SandboxPolicyDescriptor =>
+  Object.freeze({
+    version: 'canonical-macos-sandbox/v1' as const,
+    checkoutRead: 'canonical-subpath' as const,
+    runtimeRead: 'literal-digest-pinned' as const,
+    scratchWrite: 'canonical-subpath' as const,
+    systemReadLiterals: SANDBOX_SYSTEM_READ_LITERALS,
+    network: 'denied' as const,
+    symlinkPolicy: 'reject' as const,
+    traversalPolicy: 'reject' as const,
+    confinementProbe: Object.freeze({
+      executable: CONFINEMENT_PROBE_EXECUTABLE,
+      executableDigest: CURRENT_CONFINEMENT_PROBE_DIGEST,
+      dynamicLoader: DYNAMIC_LOADER,
+      dynamicLoaderDigest: CURRENT_DYNAMIC_LOADER_DIGEST,
+    }),
+  });
+
+function runtimeReadDigest(value: readonly RuntimeReadDescriptor[]): string {
+  return digest('LOCAL-COMMAND-RUNTIME-READ', value);
+}
+
+function sandboxPolicyDigest(value: SandboxPolicyDescriptor): string {
+  return digest('LOCAL-COMMAND-SANDBOX-POLICY', value);
+}
+
+function pathAncestors(path: string): readonly string[] {
+  const result: string[] = [];
+  let current = path;
+  while (true) {
+    result.push(current);
+    if (current === '/') return result;
+    current = dirname(current);
+  }
+}
+
+function canonicalDirectory(path: string): string | undefined {
+  try {
+    if (!path.startsWith('/') || path.includes('\u0000') || path.split('/').includes('..')) return undefined;
+    const stat = lstatSync(path);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return undefined;
+    const canonicalPath = realpathSync(path);
+    return canonicalPath === path ? canonicalPath : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function pathWithin(root: string, candidate: string): boolean {
+  const relativePath = relative(root, candidate);
+  return relativePath === '' || (relativePath !== '..' && !relativePath.startsWith(`..${'/'}`));
 }
 
 function currentBuildDigest(): string | undefined {
@@ -377,6 +507,67 @@ function exactArgs(value: unknown): readonly string[] | undefined {
   return Object.freeze(args as string[]);
 }
 
+function canonicalRuntimeReadAuthority(value: unknown, executable: string, executableDigest: string): readonly RuntimeReadDescriptor[] | undefined {
+  const entries = list(value, 2);
+  if (!entries || entries.length !== 2) return undefined;
+  const first = fields(entries[0], ['digest', 'path', 'role']);
+  const second = fields(entries[1], ['digest', 'path', 'role']);
+  if (
+    !first ||
+    !second ||
+    first.path !== executable ||
+    first.role !== 'executable' ||
+    first.digest !== executableDigest ||
+    second.path !== DYNAMIC_LOADER ||
+    second.role !== 'dynamic-loader' ||
+    second.digest !== CURRENT_DYNAMIC_LOADER_DIGEST ||
+    !DIGEST.test(String(first.digest)) ||
+    !DIGEST.test(String(second.digest))
+  )
+    return undefined;
+  return Object.freeze([
+    Object.freeze({ path: first.path as string, role: 'executable' as const, digest: first.digest as string }),
+    Object.freeze({ path: second.path as typeof DYNAMIC_LOADER, role: 'dynamic-loader' as const, digest: second.digest as string }),
+  ]);
+}
+
+function canonicalSandboxPolicyAuthority(value: unknown): SandboxPolicyDescriptor | undefined {
+  const raw = fields(value, [
+    'checkoutRead',
+    'confinementProbe',
+    'network',
+    'runtimeRead',
+    'scratchWrite',
+    'symlinkPolicy',
+    'systemReadLiterals',
+    'traversalPolicy',
+    'version',
+  ]);
+  const probe = raw && fields(raw.confinementProbe, ['dynamicLoader', 'dynamicLoaderDigest', 'executable', 'executableDigest']);
+  const literals = raw && list(raw.systemReadLiterals, SANDBOX_SYSTEM_READ_LITERALS.length);
+  if (
+    !raw ||
+    !probe ||
+    !literals ||
+    raw.version !== 'canonical-macos-sandbox/v1' ||
+    raw.checkoutRead !== 'canonical-subpath' ||
+    raw.runtimeRead !== 'literal-digest-pinned' ||
+    raw.scratchWrite !== 'canonical-subpath' ||
+    raw.network !== 'denied' ||
+    raw.symlinkPolicy !== 'reject' ||
+    raw.traversalPolicy !== 'reject' ||
+    probe.executable !== CONFINEMENT_PROBE_EXECUTABLE ||
+    probe.executableDigest !== CURRENT_CONFINEMENT_PROBE_DIGEST ||
+    probe.dynamicLoader !== DYNAMIC_LOADER ||
+    probe.dynamicLoaderDigest !== CURRENT_DYNAMIC_LOADER_DIGEST ||
+    literals.length !== SANDBOX_SYSTEM_READ_LITERALS.length ||
+    literals.some((literal, index) => literal !== SANDBOX_SYSTEM_READ_LITERALS[index]) ||
+    literals.some((literal) => typeof literal !== 'string' || !literal.startsWith('/') || literal.includes('..'))
+  )
+    return undefined;
+  return sandboxPolicyAuthority();
+}
+
 function canonicalManifest(value: unknown): LocalCommandManifestValue | undefined {
   const raw = fields(value, [
     'credentialAuthority',
@@ -389,6 +580,8 @@ function canonicalManifest(value: unknown): LocalCommandManifestValue | undefine
     'packageIdentity',
     'providerIdentity',
     'runtimeAuthority',
+    'runtimeReadAuthority',
+    'sandboxPolicyAuthority',
     'scope',
     'subprocessAuthority',
   ]);
@@ -410,6 +603,8 @@ function canonicalManifest(value: unknown): LocalCommandManifestValue | undefine
       ? fields(subprocess[0], ['args', 'argumentPolicy', 'executable', 'executableDigest', 'shell'])
       : undefined;
   const args = command && exactArgs(command.args);
+  const runtimeRead = command && canonicalRuntimeReadAuthority(raw?.runtimeReadAuthority, command.executable as string, command.executableDigest as string);
+  const sandboxPolicy = raw && canonicalSandboxPolicyAuthority(raw.sandboxPolicyAuthority);
   const names = posture as string[] | undefined;
   if (
     !raw ||
@@ -432,6 +627,8 @@ function canonicalManifest(value: unknown): LocalCommandManifestValue | undefine
     !lineage ||
     lineage.kind !== 'genesis' ||
     !file ||
+    !runtimeRead ||
+    !sandboxPolicy ||
     !args ||
     !Array.isArray(file.access) ||
     file.access.length !== 2 ||
@@ -485,6 +682,8 @@ function canonicalManifest(value: unknown): LocalCommandManifestValue | undefine
       kind: 'native-posix-sandbox-exec',
       package: 'packages/local-verification-providers',
     }),
+    runtimeReadAuthority: runtimeRead,
+    sandboxPolicyAuthority: sandboxPolicy,
     scope: SCOPE,
     lineage: Object.freeze({ kind: 'genesis' as const }),
   }) as LocalCommandManifestValue;
@@ -536,6 +735,8 @@ export function createLocalCommandManifest(
       kind: 'native-posix-sandbox-exec',
       package: 'packages/local-verification-providers',
     },
+    runtimeReadAuthority: runtimeReadAuthority(input.executable, input.executableDigest),
+    sandboxPolicyAuthority: sandboxPolicyAuthority(),
     scope: SCOPE,
     subprocessAuthority: [
       {
@@ -595,6 +796,40 @@ function gitOutput(cwd: string, args: readonly string[], maxBuffer = 4_096): str
   }
 }
 
+function rejectTrackedCheckoutSymlinks(checkout: string): boolean {
+  try {
+    const output = execFileSync('/usr/bin/git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
+      cwd: checkout,
+      env: Object.freeze({ PATH: '/usr/bin:/bin' }),
+      encoding: 'utf8',
+      maxBuffer: 1_048_576,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5_000,
+    });
+    const paths = output.split('\u0000').filter(Boolean);
+    const tracked = new Set(paths);
+    const walk = (current: string, prefix: string): boolean => {
+      for (const entry of readdirSync(current)) {
+        const relativePath = prefix ? `${prefix}/${entry}` : entry;
+        const relevant = [...tracked].some((path) => path === relativePath || path.startsWith(`${relativePath}/`));
+        if (!relevant) continue;
+        const entryPath = join(current, entry);
+        const stat = lstatSync(entryPath);
+        if (stat.isSymbolicLink()) return false;
+        if (stat.isDirectory() && !walk(entryPath, relativePath)) return false;
+      }
+      return true;
+    };
+    for (const path of paths) {
+      if (path.startsWith('/') || path.split('/').includes('..')) return false;
+    }
+    return walk(checkout, '');
+  } catch {
+    return false;
+  }
+}
+
 function authenticatedCheckout(
   path: unknown,
   request: VerificationRequest,
@@ -623,6 +858,7 @@ function authenticatedCheckout(
     targetDigest !== request.cleanReceipt.targetBasisDigest
   )
     return fail('FC-SUBJECT', 'CHECKOUT_CANDIDATE_MISMATCH');
+  if (!rejectTrackedCheckoutSymlinks(checkout)) return fail('FC-SUBJECT', 'CHECKOUT_SYMLINK_REJECTED');
   if (gitOutput(checkout, ['status', '--porcelain=v1', '--untracked-files=all'], 16_384) !== '')
     return fail('FC-SUBJECT', 'CHECKOUT_NOT_CLEAN');
   if (
@@ -697,12 +933,34 @@ function nativePostureDigest(value: LocalCommandNativePosture): string {
   return digest('LOCAL-COMMAND-NATIVE-POSTURE', posture);
 }
 
-function nativePostureCurrent(value: LocalCommandNativePosture): boolean {
+function runtimeReadAuthorityCurrent(manifest: LocalCommandManifest): boolean {
+  const command = manifest.value.subprocessAuthority[0];
+  const runtime = manifest.value.runtimeReadAuthority;
+  const policy = manifest.value.sandboxPolicyAuthority;
+  return (
+    runtime[0].path === command.executable &&
+    runtime[0].role === 'executable' &&
+    runtime[0].digest === command.executableDigest &&
+    regularFileDigest(runtime[0].path) === runtime[0].digest &&
+    runtime[1].path === DYNAMIC_LOADER &&
+    runtime[1].role === 'dynamic-loader' &&
+    regularFileDigest(runtime[1].path) === runtime[1].digest &&
+    policy.confinementProbe.executable === CONFINEMENT_PROBE_EXECUTABLE &&
+    regularFileDigest(policy.confinementProbe.executable) === policy.confinementProbe.executableDigest &&
+    policy.confinementProbe.dynamicLoader === DYNAMIC_LOADER &&
+    regularFileDigest(policy.confinementProbe.dynamicLoader) === policy.confinementProbe.dynamicLoaderDigest
+  );
+}
+
+function nativePostureCurrent(value: LocalCommandNativePosture, manifest: LocalCommandManifest): boolean {
   return (
     platform() === 'darwin' &&
     value.os === 'darwin' &&
     value.sandboxExecutable === SANDBOX_EXECUTABLE &&
-    value.sandboxExecutableDigest === fileDigest(SANDBOX_EXECUTABLE) &&
+    value.sandboxExecutableDigest === regularFileDigest(SANDBOX_EXECUTABLE) &&
+    runtimeReadAuthorityCurrent(manifest) &&
+    value.runtimeReadDigest === runtimeReadDigest(manifest.value.runtimeReadAuthority) &&
+    value.sandboxPolicyDigest === sandboxPolicyDigest(manifest.value.sandboxPolicyAuthority) &&
     value.digest === nativePostureDigest(value)
   );
 }
@@ -720,16 +978,18 @@ export function attestLocalPosixPosture(
   if (platform() !== 'darwin' || !existsSync(SANDBOX_EXECUTABLE))
     return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
   try {
-    if (lstatSync(SANDBOX_EXECUTABLE).isSymbolicLink() || realpathSync(SANDBOX_EXECUTABLE) !== SANDBOX_EXECUTABLE)
+    if (!runtimeReadAuthorityCurrent(parsed.value) || regularFileDigest(SANDBOX_EXECUTABLE) === undefined)
       return fail('FC-TRUST', 'NATIVE_POSTURE_UNTRUSTED');
     const posture = Object.freeze({
       os: 'darwin' as const,
       sandboxExecutable: SANDBOX_EXECUTABLE as typeof SANDBOX_EXECUTABLE,
-      sandboxExecutableDigest: sha256(readFileSync(SANDBOX_EXECUTABLE)),
+      sandboxExecutableDigest: regularFileDigest(SANDBOX_EXECUTABLE) as string,
       checkout: 'read-only' as const,
       scratch: 'discarded' as const,
       network: 'denied' as const,
       credentials: 'none' as const,
+      runtimeReadDigest: runtimeReadDigest(parsed.value.value.runtimeReadAuthority),
+      sandboxPolicyDigest: sandboxPolicyDigest(parsed.value.value.sandboxPolicyAuthority),
       digest: '',
     });
     return ok(Object.freeze({ ...posture, digest: nativePostureDigest(posture) }));
@@ -738,8 +998,33 @@ export function attestLocalPosixPosture(
   }
 }
 
-function sandboxProfile(_checkout: string, _executable: string, scratch: string): string {
-  return `(version 1)\n(deny default)\n(allow process-exec)\n(allow process-fork)\n(allow signal)\n(allow sysctl-read)\n(allow file-read*)\n(allow file-write* (subpath ${JSON.stringify(scratch)}))\n(deny network*)\n`;
+function sandboxProfile(
+  checkout: string,
+  scratch: string,
+  runtime: readonly RuntimeReadDescriptor[],
+  policy: SandboxPolicyDescriptor,
+): string | undefined {
+  const canonicalCheckout = canonicalDirectory(checkout);
+  const canonicalScratch = canonicalDirectory(scratch);
+  if (!canonicalCheckout || !canonicalScratch || !pathWithin(dirname(canonicalCheckout), canonicalScratch)) return undefined;
+  const literals = [...new Set([...SANDBOX_SYSTEM_READ_LITERALS, ...pathAncestors(canonicalCheckout), ...runtime.map((entry) => entry.path)])];
+  const maps = [...new Set(runtime.map((entry) => entry.path))];
+  if (policy.systemReadLiterals.some((entry, index) => entry !== SANDBOX_SYSTEM_READ_LITERALS[index])) return undefined;
+  const readLiterals = literals.map((path) => `(literal ${JSON.stringify(path)})`).join(' ');
+  const mapLiterals = maps.map((path) => `(literal ${JSON.stringify(path)})`).join(' ');
+  return [
+    '(version 1)',
+    '(deny default)',
+    '(allow process-exec)',
+    '(allow process-fork)',
+    '(allow signal)',
+    '(allow sysctl-read)',
+    `(allow file-read* (subpath ${JSON.stringify(canonicalCheckout)}) ${readLiterals})`,
+    `(allow file-map-executable ${mapLiterals})`,
+    `(allow file-write* (subpath ${JSON.stringify(canonicalScratch)}))`,
+    '(deny network*)',
+    '',
+  ].join('\n');
 }
 
 type CommandRun = Readonly<{ outcome: 'pass' | 'fail'; output: LocalCommandOutput }>;
@@ -752,11 +1037,18 @@ function executeCommand(
   waitMs: number,
 ): LocalCommandResult<CommandRun> {
   const command = manifest.value.subprocessAuthority[0];
-  if (!nativePostureCurrent(native)) return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
+  if (!nativePostureCurrent(native, manifest)) return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
+  const profile = sandboxProfile(
+    checkout,
+    scratch,
+    manifest.value.runtimeReadAuthority,
+    manifest.value.sandboxPolicyAuthority,
+  );
+  if (!profile) return fail('FC-SUBJECT', 'CHECKOUT_UNTRUSTED');
   try {
     const stdout = execFileSync(
       SANDBOX_EXECUTABLE,
-      ['-p', sandboxProfile(checkout, command.executable, scratch), command.executable, ...command.args],
+      ['-p', profile, command.executable, ...command.args],
       {
         cwd: checkout,
         env: Object.freeze({}),
@@ -795,6 +1087,81 @@ function executeCommand(
     });
   } finally {
     void native;
+  }
+}
+
+type ConfinementProbeResult = Readonly<{
+  insideAllowed: true;
+  outsideDenied: true;
+  digest: string;
+}>;
+
+function runConfinementProbe(
+  checkout: string,
+  scratch: string,
+  policy: SandboxPolicyDescriptor,
+): ConfinementProbeResult | undefined {
+  const runtime = Object.freeze([
+    Object.freeze({
+      path: policy.confinementProbe.executable,
+      role: 'executable' as const,
+      digest: policy.confinementProbe.executableDigest,
+    }),
+    Object.freeze({
+      path: policy.confinementProbe.dynamicLoader,
+      role: 'dynamic-loader' as const,
+      digest: policy.confinementProbe.dynamicLoaderDigest,
+    }),
+  ]);
+  const profile = sandboxProfile(checkout, scratch, runtime, policy);
+  if (!profile) return undefined;
+  const inside = join(checkout, 'gf047-confinement-inside.txt');
+  const outside = join(dirname(checkout), 'gf047-confinement-outside.txt');
+  const marker = 'gf047-confinement-inside\n';
+  try {
+    writeFileSync(inside, marker, { encoding: 'utf8', flag: 'wx' });
+    writeFileSync(outside, 'gf047-confinement-outside\n', { encoding: 'utf8', flag: 'wx' });
+    const observedInside = execFileSync(
+      SANDBOX_EXECUTABLE,
+      ['-p', profile, policy.confinementProbe.executable, inside],
+      {
+        cwd: checkout,
+        env: Object.freeze({}),
+        encoding: 'utf8',
+        maxBuffer: 1_024,
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 5_000,
+      },
+    );
+    if (observedInside !== marker) return undefined;
+    let outsideDenied = false;
+    try {
+      execFileSync(SANDBOX_EXECUTABLE, ['-p', profile, policy.confinementProbe.executable, outside], {
+        cwd: checkout,
+        env: Object.freeze({}),
+        encoding: 'utf8',
+        maxBuffer: 1_024,
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 5_000,
+      });
+    } catch {
+      outsideDenied = true;
+    }
+    if (!outsideDenied) return undefined;
+    return Object.freeze({
+      insideAllowed: true,
+      outsideDenied: true,
+      digest: digest('LOCAL-COMMAND-CONFINEMENT-TEST', {
+        insideAllowed: true,
+        outsideDenied: true,
+        profileDigest: digest('LOCAL-COMMAND-RENDERED-POLICY', profile),
+        runtimeReadDigest: runtimeReadDigest(runtime),
+      }),
+    });
+  } catch {
+    return undefined;
   }
 }
 
@@ -861,6 +1228,11 @@ export function runLocalCommandQualificationProbe(
     const scratch = join(root, 'scratch');
     mkdirSync(checkout, { recursive: true });
     mkdirSync(scratch, { recursive: true });
+    const confinement = runConfinementProbe(checkout, scratch, manifest.value.value.sandboxPolicyAuthority);
+    if (!confinement) {
+      rmSync(root, { recursive: true, force: true });
+      return fail('FC-AUTHORITY', 'CF_MECH_VERIFY_FAILED');
+    }
     const run = executeCommand(manifest.value, checkout, scratch, native.value, 15_000);
     if (!run.ok || run.value.outcome !== 'pass') {
       rmSync(root, { recursive: true, force: true });
@@ -878,6 +1250,10 @@ export function runLocalCommandQualificationProbe(
       'declared-env-only': true,
       'no-credentials': manifest.value.value.credentialAuthority.length === 0,
       'native-read-only-no-network': native.value.network === 'denied',
+      'runtime-read-digest': native.value.runtimeReadDigest === runtimeReadDigest(manifest.value.value.runtimeReadAuthority),
+      'sandbox-policy-digest':
+        native.value.sandboxPolicyDigest === sandboxPolicyDigest(manifest.value.value.sandboxPolicyAuthority),
+      'actual-confinement': confinement.insideAllowed && confinement.outsideDenied,
       'bounded-redacted-output':
         run.value.output.stdoutPreview.length <= MAX_PREVIEW && run.value.output.stderrPreview.length <= MAX_PREVIEW,
       'mechanism-observation': true,
@@ -889,7 +1265,11 @@ export function runLocalCommandQualificationProbe(
       candidateCommit: input.candidateCommit,
       candidateTree: input.candidateTree,
     });
-    const resultDigest = digest('LOCAL-COMMAND-PROBE-RESULT', { run: run.value, native: native.value.digest });
+    const resultDigest = digest('LOCAL-COMMAND-PROBE-RESULT', {
+      run: run.value,
+      native: native.value.digest,
+      confinement: confinement.digest,
+    });
     const evidence = Object.freeze({
       kind: 'CF-GATE-PROVIDER' as const,
       status: 'passed' as const,
@@ -903,6 +1283,9 @@ export function runLocalCommandQualificationProbe(
       environmentDigest,
       nativePosture: native.value,
       nativePostureDigest: native.value.digest,
+      runtimeReadDigest: native.value.runtimeReadDigest,
+      sandboxPolicyDigest: native.value.sandboxPolicyDigest,
+      confinementTestDigest: confinement.digest,
       candidateCommit: input.candidateCommit,
       candidateTree: input.candidateTree,
       fixtureDigest: digest('LOCAL-COMMAND-FIXTURE', { command, scope: SCOPE }),
@@ -959,8 +1342,11 @@ function exactQualification(
     'requestDigest',
     'resourceRoot',
     'resultDigest',
+    'runtimeReadDigest',
+    'sandboxPolicyDigest',
     'status',
     'suite',
+    'confinementTestDigest',
   ]);
   const command = manifest.value.subprocessAuthority[0];
   const native =
@@ -971,8 +1357,10 @@ function exactQualification(
       'digest',
       'network',
       'os',
+      'runtimeReadDigest',
       'sandboxExecutable',
       'sandboxExecutableDigest',
+      'sandboxPolicyDigest',
       'scratch',
     ]);
   const observations = raw && plain(raw.observations) ? raw.observations : undefined;
@@ -989,6 +1377,9 @@ function exactQualification(
     'native-read-only-no-network',
     'no-credentials',
     'no-shell',
+    'runtime-read-digest',
+    'sandbox-policy-digest',
+    'actual-confinement',
   ] as const;
   const expectedRequestDigest =
     raw &&
@@ -1024,6 +1415,9 @@ function exactQualification(
     !DIGEST.test(String(raw.requestDigest)) ||
     !DIGEST.test(String(raw.resultDigest)) ||
     !DIGEST.test(String(raw.probeDigest)) ||
+    !DIGEST.test(String(raw.runtimeReadDigest)) ||
+    !DIGEST.test(String(raw.sandboxPolicyDigest)) ||
+    !DIGEST.test(String(raw.confinementTestDigest)) ||
     !result ||
     result.outcome !== 'pass' ||
     !resultOutput ||
@@ -1036,7 +1430,12 @@ function exactQualification(
     typeof resultOutput.truncated !== 'boolean' ||
     resultOutput.stdoutPreview.includes('secret=') ||
     resultOutput.stderrPreview.includes('secret=') ||
-    raw.resultDigest !== digest('LOCAL-COMMAND-PROBE-RESULT', { run: result, native: raw.nativePostureDigest }) ||
+    raw.resultDigest !==
+      digest('LOCAL-COMMAND-PROBE-RESULT', {
+        run: result,
+        native: raw.nativePostureDigest,
+        confinement: raw.confinementTestDigest,
+      }) ||
     !native ||
     native.os !== 'darwin' ||
     native.sandboxExecutable !== SANDBOX_EXECUTABLE ||
@@ -1045,7 +1444,12 @@ function exactQualification(
     native.scratch !== 'discarded' ||
     native.network !== 'denied' ||
     native.credentials !== 'none' ||
+    native.runtimeReadDigest !== raw.runtimeReadDigest ||
+    native.sandboxPolicyDigest !== raw.sandboxPolicyDigest ||
     native.digest !== raw.nativePostureDigest ||
+    raw.runtimeReadDigest !== runtimeReadDigest(manifest.value.runtimeReadAuthority) ||
+    raw.sandboxPolicyDigest !== sandboxPolicyDigest(manifest.value.sandboxPolicyAuthority) ||
+    !runtimeReadAuthorityCurrent(manifest) ||
     nativePostureDigest(native as unknown as LocalCommandNativePosture) !== raw.nativePostureDigest ||
     raw.environmentDigest !==
       digest('LOCAL-COMMAND-ENVIRONMENT', { environment: LOCAL_COMMAND_VERIFIER_ENVIRONMENT, names: [] }) ||
@@ -1359,7 +1763,7 @@ function createProvider(
     if (!raw || !requestResult?.ok) return fail('FC-INPUT', 'INVALID_DISPATCH');
     const request = requestResult.value;
     if (request.policy.posture === 'none') return fail('FC-INPUT', 'VERIFICATION_NOT_DISPATCHABLE');
-    if (currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST || !nativePostureCurrent(native))
+    if (currentBuildDigest() !== LOCAL_COMMAND_VERIFIER_BUILD_DIGEST || !nativePostureCurrent(native, manifest))
       return fail('FC-AUTHORITY', 'NATIVE_POSTURE_UNAVAILABLE');
     const currentAdmission = validateAdmission(admissionCertificate, manifest);
     if (!currentAdmission.ok) return currentAdmission;

@@ -22,12 +22,14 @@ declare module 'node:crypto' {
 
 declare module 'node:fs' {
   export function existsSync(path: string): boolean;
-  export function lstatSync(path: string): { isDirectory(): boolean; isSymbolicLink(): boolean };
+  export function lstatSync(path: string): { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean };
   export function mkdtempSync(prefix: string): string;
   export function mkdirSync(path: string, options: { recursive: boolean }): void;
+  export function readdirSync(path: string): string[];
   export function readFileSync(path: string | URL): Uint8Array;
   export function realpathSync(path: string): string;
   export function rmSync(path: string, options: { force: boolean; recursive: boolean }): void;
+  export function writeFileSync(path: string, data: string, options?: { encoding?: 'utf8'; flag?: string }): void;
 }
 
 declare module 'node:os' {
