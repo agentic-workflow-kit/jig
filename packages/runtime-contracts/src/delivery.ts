@@ -884,6 +884,9 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     [...effects.values()].filter((fact) => fact.type === 'OPC-DEL-ANCHOR');
   const exactAnchorAbsence = (predecessor: string): DeliveryResult<DeliveryEffectFact> => {
     const effect = effects.get(predecessor);
+    const effectEntry = [...journal].find(
+      (entry) => entry.record.kind === 'effect' && entry.record.fact.operation === predecessor,
+    );
     const resolution = [...journal]
       .reverse()
       .find(
@@ -896,12 +899,34 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
       resolution?.record.kind === 'recovery-resolved'
         ? observations.get(resolution.record.observedOperation)
         : undefined;
+    const observationIntentEntry = observation
+      ? [...journal].find(
+          (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === observation.operation,
+        )
+      : undefined;
+    const observationEntry = observation
+      ? [...journal].find(
+          (entry) => entry.record.kind === 'observation' && entry.record.fact.operation === observation.operation,
+        )
+      : undefined;
     if (
       effect?.type !== 'OPC-DEL-ANCHOR' ||
       effect?.outcome !== 'uncertain' ||
       !resolution ||
       resolution.record.kind !== 'recovery-resolved' ||
       !observation ||
+      !effectEntry ||
+      !observationIntentEntry ||
+      observationIntentEntry.record.kind !== 'intent' ||
+      observationIntentEntry.record.intent.type !== 'OPC-DEL-OBSERVE' ||
+      observationIntentEntry.record.intent.subject !== 'effect' ||
+      observationIntentEntry.record.intent.operation !== observation.operation ||
+      observationIntentEntry.record.intent.correlationKey !== effect.correlationKey ||
+      observationIntentEntry.record.intent.resourceIdentity !== effect.resourceIdentity ||
+      !observationEntry ||
+      effectEntry.position >= observationIntentEntry.position ||
+      observationIntentEntry.position >= observationEntry.position ||
+      observationEntry.position >= resolution.position ||
       observation.subject !== 'effect' ||
       observation.outcome !== 'absent' ||
       observation.resolvesOperation !== predecessor ||
@@ -1171,6 +1196,26 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
   }
   const successful = (type: DeliveryOperationClass): DeliveryEffectFact | undefined =>
     [...effects.values()].find((fact) => fact.type === type && fact.outcome === 'success');
+  const anchorRootsAtCarrier = (anchor: DeliveryEffectFact): boolean => {
+    const seen = new Set<string>();
+    let current = anchor.operation;
+    while (current !== carrier.anchorOperation) {
+      if (seen.has(current)) return false;
+      seen.add(current);
+      const retry = [...journal]
+        .reverse()
+        .find((entry) => entry.record.kind === 'retry-authorized' && entry.record.operation === current);
+      if (
+        retry?.record.kind !== 'retry-authorized' ||
+        retry.record.predecessor === current ||
+        retry.record.correlationKey !== anchor.correlationKey ||
+        retry.record.resourceIdentity !== anchor.resourceIdentity
+      )
+        return false;
+      current = retry.record.predecessor;
+    }
+    return true;
+  };
   const validRemoteGate = (fact: DeliveryObservationFact): boolean => {
     const requirement = carrier.remoteGate;
     return (
@@ -1549,11 +1594,7 @@ export function createScriptedDeliveryController(input: unknown): DeliveryResult
     const anchor =
       successful('OPC-DEL-ANCHOR') ??
       [...effects.values()].find((fact) => fact.type === 'OPC-DEL-ANCHOR' && resolvedEffects.has(fact.operation));
-    if (
-      !anchor ||
-      anchor.operation !== carrier.anchorOperation ||
-      anchor.result.anchorRegistry !== carrier.binding.registry
-    )
+    if (!anchor || !anchorRootsAtCarrier(anchor) || anchor.result.anchorRegistry !== carrier.binding.registry)
       return fail('FC-FENCE', 'REGISTRY_ANCHOR_REQUIRED');
     const changedPathsDigest = derive('DELIVERY-CHANGE-SET', {
       targetBasisDigest: carrier.targetBasisDigest,
