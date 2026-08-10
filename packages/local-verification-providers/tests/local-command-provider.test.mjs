@@ -324,53 +324,41 @@ test('restore rejects failure history that is not bound to the exact request, in
   const qualified = created.value;
   const first = request(1);
   assert.equal(qualified.enterFinalizing({ origin: 'Accepted', request: first }).ok, true);
-  const base = qualified.snapshot();
-  const failure = {
-    schema: 'jig.ev-check-failure.v1',
-    version: 'jig.verification-contract.v1',
-    kind: 'failure',
-    operation: first.operation,
-    retryOrdinal: first.retryOrdinal,
-    reason: 'timeout',
-    family: 'FC-MECHANISM',
-    code: 'MECHANISM_TIMEOUT',
-    subject: first.subject,
-    fence: first.fence,
-    supersededBy: null,
-  };
-  const invocation = {
-    operation: first.operation,
-    checkClass: first.checkClass,
-    retryOrdinal: first.retryOrdinal,
-    result: 'timeout',
-    effect: 'observation',
-  };
-  const valid = {
-    ...base,
-    verification: {
-      ...base.verification,
-      failures: [failure],
-      invocations: [invocation],
-    },
-  };
-  const restore = (verification) =>
+  const firstResource = checkoutResource(first);
+  assert.equal(firstResource.ok, true, JSON.stringify(firstResource));
+  assert.deepEqual(
+    qualified.dispatch({
+      checkoutResource: firstResource.value,
+      request: first,
+      permit: permit(1),
+      fault: 'timeout',
+    }),
+    { ok: false, error: { family: 'FC-MECHANISM', code: 'MECHANISM_TIMEOUT' } },
+  );
+  const second = request(2, first.operation);
+  const secondResource = checkoutResource(second);
+  assert.equal(secondResource.ok, true, JSON.stringify(secondResource));
+  const secondObserved = qualified.dispatch({
+    checkoutResource: secondResource.value,
+    request: second,
+    permit: permit(2, first.operation),
+  });
+  assert.equal(secondObserved.ok, true, JSON.stringify(secondObserved));
+  const valid = qualified.snapshot();
+  const failure = valid.verification.failures[0];
+  const invocation = valid.verification.invocations.find((entry) => entry.operation === first.operation);
+  const secondObservation = valid.observations.find((entry) => entry.operation === second.operation);
+  assert.ok(failure);
+  assert.ok(invocation);
+  assert.ok(secondObservation);
+  const restore = (verification, observations = valid.observations) =>
     provider.restoreQualifiedLocalCommandProvider({
       manifest: manifestValue,
       admission: auth,
       qualification: proof.value,
-      snapshot: { ...valid, verification },
+      snapshot: { ...valid, observations, verification },
     });
-  const second = request(2, first.operation);
-  assert.equal(
-    restore({
-      ...valid.verification,
-      requests: [first, second],
-      failures: [{ ...failure, supersededBy: second.operation }],
-      invocations: [invocation, { ...invocation, operation: second.operation, retryOrdinal: 2, result: 'returned' }],
-    }).ok,
-    true,
-    'genuine restored supersession chain remains retryable',
-  );
+  assert.equal(restore(valid.verification).ok, true, 'genuine restored supersession chain remains retryable');
   const invalid = { family: 'FC-TRUST', code: 'INVALID_LOCAL_COMMAND_SNAPSHOT' };
   const cases = [
     {
@@ -395,20 +383,40 @@ test('restore rejects failure history that is not bound to the exact request, in
     },
     {
       name: 'wrong invocation result',
-      invocations: [{ ...invocation, result: 'returned' }],
+      invocations: valid.verification.invocations.map((entry) =>
+        entry.operation === first.operation ? { ...entry, result: 'returned' } : entry,
+      ),
     },
     {
       name: 'orphan supersession',
-      failures: [{ ...failure, supersededBy: operation(2) }],
+      failures: [{ ...failure, supersededBy: operation(99) }, ...valid.verification.failures.slice(1)],
+    },
+    {
+      name: 'missing returned observation',
+      observations: [],
+      verificationObservations: [],
+    },
+    {
+      name: 'duplicate returned observation',
+      observations: [...valid.observations, secondObservation],
+      verificationObservations: [...valid.verification.observations, secondObservation],
+    },
+    {
+      name: 'divergent mirrored observation',
+      verificationObservations: valid.verification.observations.map((entry) =>
+        entry.operation === second.operation ? { ...entry, observedAt: entry.observedAt + 1 } : entry,
+      ),
     },
   ];
   for (const testCase of cases) {
+    const verification = {
+      ...valid.verification,
+      failures: testCase.failures ?? valid.verification.failures,
+      invocations: testCase.invocations ?? valid.verification.invocations,
+      observations: testCase.verificationObservations ?? valid.verification.observations,
+    };
     assert.deepEqual(
-      restore({
-        ...valid.verification,
-        failures: testCase.failures ?? valid.verification.failures,
-        invocations: testCase.invocations ?? valid.verification.invocations,
-      }),
+      restore(verification, testCase.observations ?? valid.observations),
       { ok: false, error: invalid },
       testCase.name,
     );

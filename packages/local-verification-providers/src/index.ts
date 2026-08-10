@@ -1733,6 +1733,7 @@ function validRestoredFailureHistory(
   requests: readonly VerificationRequest[],
   failures: readonly LocalCommandFailureRecord[],
   invocations: readonly LocalCommandInvocation[],
+  observations: readonly LocalCommandObservation[],
 ): boolean {
   try {
     const requestsByOperation = new Map<string, VerificationRequest>();
@@ -1792,16 +1793,36 @@ function validRestoredFailureHistory(
     const invocationsByOperation = new Map<string, LocalCommandInvocation>();
     for (const invocation of invocations) {
       const request = requestsByOperation.get(invocation.operation);
+      const matchingObservations = observations.filter((entry) => entry.operation === invocation.operation);
       if (
         !request ||
         invocationsByOperation.has(invocation.operation) ||
         invocation.checkClass !== request.checkClass ||
         invocation.retryOrdinal !== request.retryOrdinal ||
         (invocation.result !== 'returned' && !failuresByOperation.has(invocation.operation)) ||
-        (invocation.result === 'returned' && failuresByOperation.has(invocation.operation))
+        (invocation.result === 'returned' &&
+          (failuresByOperation.has(invocation.operation) ||
+            matchingObservations.length !== 1 ||
+            matchingObservations[0]?.checkClass !== invocation.checkClass))
       )
         return false;
       invocationsByOperation.set(invocation.operation, invocation);
+    }
+
+    const observationsByOperation = new Map<string, LocalCommandObservation>();
+    for (const observation of observations) {
+      const request = requestsByOperation.get(observation.operation);
+      const invocation = invocationsByOperation.get(observation.operation);
+      if (
+        !request ||
+        observationsByOperation.has(observation.operation) ||
+        !invocation ||
+        invocation.result !== 'returned' ||
+        invocation.checkClass !== observation.checkClass ||
+        invocation.retryOrdinal !== request.retryOrdinal
+      )
+        return false;
+      observationsByOperation.set(observation.operation, observation);
     }
 
     for (const request of requests) {
@@ -1852,7 +1873,21 @@ function parseLocalSnapshot(
     );
     return request ? validateObservation(entry, request, manifest, native) : undefined;
   });
-  if (observations.some((entry) => !entry) || verification.observations.length !== raw.observations.length)
+  const verificationObservations = verification.observations.map((entry) => {
+    const request = parsedRequests.find(
+      (candidate: VerificationRequest) => plain(entry) && candidate.operation === entry.operation,
+    );
+    return request ? validateObservation(entry, request, manifest, native) : undefined;
+  });
+  if (
+    observations.some((entry) => !entry) ||
+    verificationObservations.some((entry) => !entry) ||
+    verificationObservations.length !== observations.length ||
+    observations.some((entry, index) => !same(entry, verificationObservations[index])) ||
+    observations.some(
+      (entry, index) => observations.findIndex((candidate) => candidate?.operation === entry?.operation) !== index,
+    )
+  )
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   const failures = verification.failures.map((entry) => {
     const item = fields(entry, [
@@ -1896,7 +1931,8 @@ function parseLocalSnapshot(
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   const parsedFailures = failures as LocalCommandFailureRecord[];
   const parsedInvocations = invocations as LocalCommandInvocation[];
-  if (!validRestoredFailureHistory(parsedRequests, parsedFailures, parsedInvocations))
+  const parsedObservations = Object.freeze(observations as LocalCommandObservation[]);
+  if (!validRestoredFailureHistory(parsedRequests, parsedFailures, parsedInvocations, parsedObservations))
     return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   if (verification.finalization !== null) {
     const final = fields(verification.finalization, [
@@ -1937,7 +1973,6 @@ function parseLocalSnapshot(
     )
       return fail('FC-TRUST', 'INVALID_LOCAL_COMMAND_SNAPSHOT');
   }
-  const parsedObservations = Object.freeze(observations as LocalCommandObservation[]);
   return ok(
     Object.freeze({
       version: 'jig.local-command-verifier.v1' as const,
