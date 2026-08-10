@@ -147,34 +147,6 @@ const createController = (fixture, options = {}) =>
     obligationController: options.obligationController ?? obligationController(),
   });
 
-const fixtureWithResourceState = (resourceState) => {
-  const fixture = runtime.createScriptedReviewPublicationFixture();
-  return Object.freeze({
-    ...fixture,
-    lookup(input) {
-      const result = fixture.lookup(input);
-      if (!result.ok) return result;
-      const value = { ...result.value, resourceState };
-      return {
-        ...result,
-        value: {
-          ...value,
-          observationDigest: stageDigest({
-            domain: 'REVIEW-PUBLICATION-LOOKUP',
-            excludePaths: [],
-            value: {
-              operation: value.operation,
-              binding: value.binding,
-              outcome: value.outcome,
-              resourceState,
-            },
-          }).value.digest,
-        },
-      };
-    },
-  });
-};
-
 const retirementObligationInput = () => ({
   run,
   generation,
@@ -520,7 +492,7 @@ test('retirement repeated confirmed absence exhausts BND-RETIRE and preserves on
 });
 
 test('authoritative exact-resource absence completes retirement without reauthorization', () => {
-  const fixture = fixtureWithResourceState('absent');
+  const fixture = runtime.createScriptedReviewPublicationFixture({ retirementResourceState: 'absent' });
   const controller = createController(fixture);
   const result = controller.retire({
     bindings: retireBindings(),
@@ -530,6 +502,37 @@ test('authoritative exact-resource absence completes retirement without reauthor
   });
   assert.deepEqual(result, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
   assert.equal(controller.snapshot().reauthorizations.length, 0);
+});
+
+test('retirement rejects recomputed resource-state lookup forgeries', () => {
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  const forgedFixture = Object.freeze({
+    ...fixture,
+    lookup(input) {
+      const result = fixture.lookup(input);
+      if (!result.ok) return result;
+      const value = { ...result.value, resourceState: 'absent' };
+      return {
+        ...result,
+        value: {
+          ...value,
+          observationDigest: stageDigest({
+            domain: 'REVIEW-PUBLICATION-LOOKUP',
+            excludePaths: [],
+            value,
+          }).value.digest,
+        },
+      };
+    },
+  });
+  const result = createController(forgedFixture).retire({
+    bindings: retireBindings(),
+    faults: ['mechanism-absence', 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.value.status, 'obligation');
 });
 
 test('retirement rejects every binding mismatch before allocation', () => {

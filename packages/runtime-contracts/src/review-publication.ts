@@ -224,6 +224,9 @@ export type ReviewPublicationLookup = Readonly<{
   observationDigest: string;
   providerRevision: string | null;
 }>;
+export type ScriptedReviewPublicationFixtureOptions = Readonly<{
+  retirementResourceState?: 'present' | 'absent';
+}>;
 export type ScriptedReviewPublicationFixture = Readonly<{
   dispatch(input: unknown): ReviewPublicationResult<ReviewPublicationAttestation>;
   lookup(input: unknown): ReviewPublicationResult<ReviewPublicationLookup>;
@@ -262,29 +265,40 @@ const safeDigest = (value: unknown): value is string => typeof value === 'string
 const safeRef = (value: unknown): value is string => safeText(value) && value.startsWith('refs/');
 const identity = (kind: string, value: unknown): value is string =>
   typeof value === 'string' && parseIdentity(kind, value).ok;
+const lookupAttestations = new WeakMap<object, ReviewPublicationLookup>();
 const validReviewPublicationLookup = (
   value: ReviewPublicationLookup,
   operation: string,
   binding: ReviewPublicationBinding,
 ): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  const attestation = lookupAttestations.get(value);
+  if (!attestation) return false;
   const expectedDigest = digest('REVIEW-PUBLICATION-LOOKUP', {
-    operation: value.operation,
-    binding: value.binding,
-    outcome: value.outcome,
-    resourceState: value.resourceState,
+    operation: attestation.operation,
+    binding: attestation.binding,
+    outcome: attestation.outcome,
+    resourceState: attestation.resourceState,
+    providerRevision: attestation.providerRevision,
   });
   return (
-    value.operation === operation &&
-    same(value.binding, binding) &&
-    (value.outcome === 'confirmed-effect' ||
-      value.outcome === 'confirmed-absence' ||
-      value.outcome === 'indeterminate') &&
-    (value.resourceState === 'present' || value.resourceState === 'absent') &&
-    (value.providerRevision === null || safeDigest(value.providerRevision)) &&
-    safeDigest(value.observationDigest) &&
+    attestation === value &&
+    attestation.operation === operation &&
+    same(attestation.binding, binding) &&
+    (attestation.outcome === 'confirmed-effect' ||
+      attestation.outcome === 'confirmed-absence' ||
+      attestation.outcome === 'indeterminate') &&
+    (attestation.resourceState === 'present' || attestation.resourceState === 'absent') &&
+    (attestation.providerRevision === null || safeDigest(attestation.providerRevision)) &&
+    safeDigest(attestation.observationDigest) &&
     expectedDigest !== undefined &&
-    value.observationDigest === expectedDigest
+    attestation.observationDigest === expectedDigest
   );
+};
+const issueReviewPublicationLookup = (value: ReviewPublicationLookup): ReviewPublicationLookup => {
+  const issued = Object.freeze(value);
+  lookupAttestations.set(issued, issued);
+  return issued;
 };
 const exactFields = (value: unknown, names: readonly string[]): Record<string, unknown> | undefined => {
   try {
@@ -704,11 +718,14 @@ const publicationCapabilityDigest = (value: {
 const publicationCapabilityDigestForBinding = (binding: ReviewPublicationBinding): string | undefined =>
   publicationCapabilityDigest(binding);
 
-export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicationFixture {
+export function createScriptedReviewPublicationFixture(
+  options: ScriptedReviewPublicationFixtureOptions = {},
+): ScriptedReviewPublicationFixture {
   const invocations: ReviewPublicationInvocation[] = [];
   const dispatched = new Set<string>();
   const outcomes = new Map<string, 'confirmed-effect' | 'confirmed-absence' | 'indeterminate'>();
   const resourceStates = new Map<string, 'present' | 'absent'>();
+  const retirementResourceState = options.retirementResourceState ?? 'present';
   const bindings = new Map<string, ReviewPublicationBinding>();
   const providerRevisions = new Map<string, string>();
   const dispatch = (input: unknown): ReviewPublicationResult<ReviewPublicationAttestation> => {
@@ -768,7 +785,10 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     });
     if (fault === 'mechanism-absence') {
       outcomes.set(intent.value.operation, 'confirmed-absence');
-      resourceStates.set(intent.value.operation, 'present');
+      resourceStates.set(
+        intent.value.operation,
+        isRetirement(intent.value.operationType) ? retirementResourceState : 'present',
+      );
       return fail('FC-MECHANISM', 'CONFIRMED_MECHANISM_ABSENCE');
     }
     if (
@@ -842,6 +862,7 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     if (!same(binding.value, bindings.get(raw.operation))) return fail('FC-FENCE', 'REVIEW_LOOKUP_BINDING_MISMATCH');
     const outcome = outcomes.get(raw.operation);
     const resourceState = resourceStates.get(raw.operation);
+    const providerRevision = providerRevisions.get(raw.operation) ?? null;
     const observationDigest =
       outcome &&
       resourceState &&
@@ -850,16 +871,17 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
         binding: binding.value,
         outcome,
         resourceState,
+        providerRevision,
       });
     return outcome && observationDigest
       ? ok(
-          Object.freeze({
+          issueReviewPublicationLookup({
             operation: raw.operation,
             binding: binding.value,
             outcome,
             resourceState,
             observationDigest,
-            providerRevision: providerRevisions.get(raw.operation) ?? null,
+            providerRevision,
           }),
         )
       : fail('FC-TRUST', 'REVIEW_LOOKUP_UNAVAILABLE');
