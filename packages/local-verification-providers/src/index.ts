@@ -1869,7 +1869,7 @@ function createProvider(
     try {
       if (fileDigest(executable.executable) !== executable.executableDigest)
         return fail('FC-AUTHORITY', 'STALE_EXECUTABLE_DIGEST');
-      const root = mkdtempSync(join(tmpdir(), 'jig-gf047-'));
+      const root = realpathSync(mkdtempSync(join(tmpdir(), 'jig-gf047-')));
       const scratch = join(root, 'scratch');
       mkdirSync(scratch, { recursive: true });
       supersedePrior();
