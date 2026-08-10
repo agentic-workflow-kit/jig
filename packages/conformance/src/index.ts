@@ -1,5 +1,10 @@
 import { decodeFrame } from '@agentic-workflow-kit/jig-codec';
-import { TOPOLOGY_VERSION } from '@agentic-workflow-kit/jig-runtime-contracts';
+import {
+  RETIREMENT_CONTROLLER,
+  RETIREMENT_OPERATION_TYPES,
+  RETIREMENT_TRANSITION_WRITER,
+  TOPOLOGY_VERSION,
+} from '@agentic-workflow-kit/jig-runtime-contracts';
 
 function freezeCatalog<T>(catalog: T): T {
   if (typeof catalog === 'object' && catalog !== null && !Object.isFrozen(catalog)) {
@@ -54,6 +59,31 @@ export const SUITES = Object.freeze([
   'CF-MECH-DELIVERY',
 ] as const);
 export type SuiteId = (typeof SUITES)[number];
+export const RETIREMENT_CONFORMANCE = freezeCatalog({
+  story: 'GF-046',
+  controller: RETIREMENT_CONTROLLER,
+  transitionWriter: RETIREMENT_TRANSITION_WRITER,
+  suites: ['CF-SEPARATION', 'CF-PRESERVATION', 'CF-EVIDENCE-LIFECYCLE'] as const,
+  operations: RETIREMENT_OPERATION_TYPES,
+  ports: Object.freeze({
+    'PORT-LEDGER': 'record-only',
+    'PORT-SESSION': 'dispatch',
+    'PORT-WORKSPACE': 'dispatch',
+    'PORT-DELIVERY': 'dispatch',
+    'PORT-ARTIFACT': 'release-pin-only',
+  }),
+  exclusions: Object.freeze([
+    'outcome-decision',
+    'acceptance',
+    'landing',
+    'release',
+    'GF-050-settlement',
+    'dispose-bytes',
+    'provider-admission',
+    'external-destructive-cleanup',
+  ]),
+  providerPosture: 'scripted-unavailable',
+});
 export type PortId =
   | 'PORT-LEDGER'
   | 'PORT-ARTIFACT'

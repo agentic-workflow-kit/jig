@@ -51,8 +51,6 @@ const operationEffect = (type) =>
     'OPC-SESSION-COLLECT',
     'OPC-WS-OBSERVE',
     'OPC-VERIFY-EXECUTE',
-    'OPC-REV-STATUS',
-    'OPC-REV-RETIRE-STATUS',
     'OPC-DEL-STATUS',
     'OPC-DEL-OBSERVE',
     'OPC-ART-GET',

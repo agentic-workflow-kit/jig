@@ -1,0 +1,63 @@
+declare module 'node:child_process' {
+  export function execFileSync(
+    file: string,
+    args: readonly string[],
+    options: {
+      cwd: string;
+      env: Readonly<Record<string, string>>;
+      encoding: 'utf8';
+      maxBuffer: number;
+      shell: false;
+      stdio: readonly ['ignore', 'pipe', 'pipe'] | readonly ['ignore', number, 'pipe'];
+      timeout: number;
+    },
+  ): string;
+}
+
+declare module 'node:crypto' {
+  export function createHash(algorithm: 'sha256'): {
+    update(input: string | Uint8Array): { digest(encoding: 'hex'): string };
+  };
+}
+
+declare module 'node:fs' {
+  export function closeSync(fileDescriptor: number): void;
+  export function existsSync(path: string): boolean;
+  export function lstatSync(path: string): { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean };
+  export function mkdtempSync(prefix: string): string;
+  export function mkdirSync(path: string, options: { recursive: boolean }): void;
+  export function openSync(path: string, flags: string): number;
+  export function readFileSync(path: string | URL): Uint8Array;
+  export function realpathSync(path: string): string;
+  export function rmSync(path: string, options: { force: boolean; recursive: boolean }): void;
+  export function symlinkSync(target: string, path: string): void;
+  export function writeFileSync(path: string, data: string, options?: { encoding?: 'utf8'; flag?: string }): void;
+}
+
+declare module 'node:os' {
+  export function platform(): 'darwin' | 'linux' | 'win32' | string;
+  export function tmpdir(): string;
+}
+
+declare module 'node:path' {
+  export function dirname(path: string): string;
+  export function join(...paths: string[]): string;
+  export function relative(from: string, to: string): string;
+  export function resolve(...paths: string[]): string;
+}
+
+declare module 'node:url' {
+  export function fileURLToPath(url: string | URL): string;
+}
+
+declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
+declare class URL {
+  constructor(value: string, base?: string | URL);
+  readonly pathname: string;
+}
+interface ImportMeta {
+  url: string;
+}
+declare const TextDecoder: {
+  new (label?: string, options?: { fatal?: boolean }): { decode(input?: Uint8Array): string };
+};

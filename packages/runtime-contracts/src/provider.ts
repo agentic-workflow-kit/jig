@@ -1,6 +1,11 @@
 import { type CanonicalJson, encodeFrame, formatIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
-import { isScriptedLedger } from './ledger.js';
-import { readCertificateClaims, snapshotQualificationClaims } from './qualification-registry.js';
+import { createScriptedLedger, isScriptedLedger } from './ledger.js';
+import {
+  type ProviderAdmissionClaims,
+  readCertificateClaims,
+  snapshotProviderAdmissionClaims,
+  snapshotQualificationClaims,
+} from './qualification-registry.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };
 
@@ -48,9 +53,13 @@ type Fixture = Readonly<{
   approve(input: unknown): ProviderAdmissionResult<Readonly<{ kind: 'approved'; manifestId: string }>>;
   start(input: unknown): ProviderAdmissionResult<Attempt>;
   result(input: unknown): ProviderAdmissionResult<Attempt>;
-  admit(
-    input: unknown,
-  ): ProviderAdmissionResult<Readonly<{ kind: 'eligible'; manifestId: string; providerEnabled: false }>>;
+  admit(input: unknown): ProviderAdmissionResult<
+    Readonly<{
+      kind: 'eligible';
+      manifestId: string;
+      providerEnabled: false;
+    }>
+  >;
   readback(input: unknown): ProviderAdmissionResult<Attempt>;
   reachability(): ProviderAdmissionResult<Readonly<{ kind: 'unavailable'; providerEnabled: false }>>;
 }>;
@@ -64,6 +73,12 @@ const LOCAL_GIT_WORKTREE_MANIFEST_DIGEST = '8def77b5bbcbd257d1aedf7b279a839dc0ab
 const LOCAL_GIT_WORKTREE_PROVIDER_DIGEST = 'baa6e132e39a58e4617adfe1088830df9cd8bd8df7e08abe36f37cfe57908409';
 const LOCAL_GIT_WORKTREE_MANIFEST_BYTES = new TextEncoder().encode(
   '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read","create","remove-worktree"],"discovery":"binding-only","locator":{"kind":"explicit-disposable-root","scope":"resource/local-mktemp-root/v1"},"regularFileOnly":false,"symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-git-worktree-no-network-no-credentials/v1"],"networkAuthority":[],"providerIdentity":"local-git-worktree-provider/v1","runtimeAuthority":{"environment":"local-posix-git/v1","kind":"fixed-git-worktree-provider","package":"packages/local-workspace-providers"},"scope":{"phase":3,"purpose":"qualified-local-git-worktree","story":"GF-039"},"subprocessAuthority":[{"executable":"git","argumentPolicy":"fixed-subcommands-only","shell":false}],"vcs":"git"}\n',
+);
+const LOCAL_COMMAND_VERIFIER_MANIFEST_DIGEST = 'bffe725bfefd14666e15dffaf6df04577025c7afd1e1dd2e5bd84547625054c3';
+const LOCAL_COMMAND_VERIFIER_PROVIDER_DIGEST = 'b467043e3e2f097f5f94e485bef22307661e18d2332be9c532e04125e6e12474';
+const LOCAL_COMMAND_VERIFIER_BUILD_DIGEST = 'de4b70f88f668089d20ce230d31c2e7ec4a04b8a0fd7ea100ac08781bde1f5ed';
+const LOCAL_COMMAND_VERIFIER_MANIFEST_BYTES = new TextEncoder().encode(
+  '{"credentialAuthority":[],"externalServiceAuthority":[],"filesystemAuthority":[{"access":["read-checkout","write-disposable-scratch"],"checkout":"read-only","discovery":"binding-only","scratch":"discarded","symlinkPolicy":"reject","traversalPolicy":"reject"}],"lineage":{"kind":"genesis"},"manifestVersion":"provider-authority/v1","nativePermissionPostures":["local-posix-command-verifier/v1"],"networkAuthority":[],"packageIdentity":"packages/local-verification-providers","providerIdentity":"local-posix-command-verifier/v1","runtimeAuthority":{"environment":"local-posix-command/v1","kind":"native-posix-sandbox-exec","package":"packages/local-verification-providers"},"runtimeReadAuthority":[{"digest":"a73efca930c2adb1f52eef0d1d3b17d375ee40290fc796653c91c33abf381938","path":"/usr/bin/true","role":"executable"},{"digest":"6da2d109f72330d031450f3c0ebea14bfc10f42f844a958858e16a4092c38f12","path":"/usr/lib/dyld","role":"dynamic-loader"}],"sandboxPolicyAuthority":{"checkoutRead":"canonical-tracked-tree-literals","confinementProbe":{"dynamicLoader":"/usr/lib/dyld","dynamicLoaderDigest":"6da2d109f72330d031450f3c0ebea14bfc10f42f844a958858e16a4092c38f12","executable":"/bin/cat","executableDigest":"9e4bb13f36ffcc1ff2152738e185637f5b7c97977044bb88a3708cbba2c351ec"},"network":"denied","runtimeRead":"literal-digest-pinned","scratchWrite":"canonical-subpath","symlinkPolicy":"reject","systemReadLiterals":["/","/private","/private/etc","/private/var","/private/tmp","/dev/null","/dev/zero","/dev/random","/dev/urandom"],"traversalPolicy":"reject","version":"canonical-macos-sandbox/v1"},"scope":{"phase":4,"purpose":"local-command-verification","story":"GF-047"},"subprocessAuthority":[{"args":[],"argumentPolicy":"exact","executable":"/usr/bin/true","executableDigest":"a73efca930c2adb1f52eef0d1d3b17d375ee40290fc796653c91c33abf381938","shell":false}]}\n',
 );
 const CAPABILITY_PROOF_CATALOGUE: readonly CapabilityProofCatalogueEntry[] = Object.freeze([
   Object.freeze({
@@ -81,6 +96,14 @@ const CAPABILITY_PROOF_CATALOGUE: readonly CapabilityProofCatalogueEntry[] = Obj
     providerIdentity: 'local-git-worktree-provider/v1',
     principal: 'principal/arye',
     scope: Object.freeze({ phase: 3, purpose: 'qualified-local-git-worktree', story: 'GF-039' }),
+  }),
+  Object.freeze({
+    manifestBytes: LOCAL_COMMAND_VERIFIER_MANIFEST_BYTES,
+    providerDigest: LOCAL_COMMAND_VERIFIER_PROVIDER_DIGEST,
+    manifestDigest: LOCAL_COMMAND_VERIFIER_MANIFEST_DIGEST,
+    providerIdentity: 'local-posix-command-verifier/v1',
+    principal: 'principal/arye',
+    scope: Object.freeze({ phase: 4, purpose: 'local-command-verification', story: 'GF-047' }),
   }),
 ]);
 /** Private immutable catalogue; callers can select no entry and cannot register one. */
@@ -151,6 +174,7 @@ const safeText = (value: unknown): value is string =>
 const safeDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST.test(value);
 const safeTime = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const PROVIDER_ADMISSION_MAX_AGE_MS = 86_400_000;
 const scope = (value: unknown, entry: CapabilityProofCatalogueEntry): Scope | undefined => {
   const data = fields(value, ['phase', 'purpose', 'story']);
   return data &&
@@ -243,7 +267,7 @@ const basis = (value: unknown, entry: CapabilityProofCatalogueEntry): Basis | un
   });
 };
 
-export function createProviderAdmissionFixture(input: unknown): Fixture {
+function createProviderAdmissionFixtureInternal(input: unknown): Fixture {
   const config = fields(input, ['approval', 'ledger', 'manifestBytes']);
   const ledger = config?.ledger && isScriptedLedger(config.ledger) ? config.ledger : undefined;
   const entry = config && ledger ? catalogueEntry(config.manifestBytes) : undefined;
@@ -388,7 +412,8 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     start: (input) => write(input, 'start'),
     result: (input) => write(input, 'result'),
     admit(input) {
-      const data = fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
+      const data =
+        fields(input, ['basis', 'maxAgeMs', 'proof']) ?? fields(input, ['basis', 'maxAgeMs', 'observedAt', 'proof']);
       const bound = data && entry && basis(data.basis, entry);
       const proofData =
         data &&
@@ -404,14 +429,7 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
           'predecessor',
           'retryLimit',
         ]);
-      if (
-        !data ||
-        !bound ||
-        !safeTime(data.maxAgeMs) ||
-        !safeTime(data.observedAt) ||
-        !proofData ||
-        !Number.isSafeInteger(proofData.ordinal)
-      )
+      if (!data || !bound || !safeTime(data.maxAgeMs) || !proofData || !Number.isSafeInteger(proofData.ordinal))
         return fail('FC-INPUT', 'INVALID_ADMISSION');
       const basisDigest = digest('CAPABILITY-PROOF-BASIS', bound);
       const proof = proofData as Attempt;
@@ -424,7 +442,17 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
         proof.basisDigest !== basisDigest
       )
         return fail('FC-AUTHORITY', 'POSITIVE_EXACT_PROOF_REQUIRED');
-      if (data.observedAt < stored.observedAt || data.observedAt - stored.observedAt > data.maxAgeMs)
+      const localCommand = bound.capability === 'PORT-VERIFY/local-command';
+      const now = Date.now();
+      const observedAt = localCommand ? now : data.observedAt;
+      const maxAgeMs = localCommand ? PROVIDER_ADMISSION_MAX_AGE_MS : data.maxAgeMs;
+      if (
+        !safeTime(observedAt) ||
+        !safeTime(maxAgeMs) ||
+        observedAt < stored.observedAt ||
+        observedAt - stored.observedAt > maxAgeMs ||
+        (localCommand && data.maxAgeMs !== PROVIDER_ADMISSION_MAX_AGE_MS)
+      )
         return fail('FC-AUTHORITY', 'STALE_OR_MISMATCHED_PROOF');
       return ok({ kind: 'eligible', manifestId: bound.manifestId, providerEnabled: false as const });
     },
@@ -445,6 +473,99 @@ export function createProviderAdmissionFixture(input: unknown): Fixture {
     },
     reachability: () => ok({ kind: 'unavailable', providerEnabled: false as const }),
   });
+}
+
+export function createProviderAdmissionFixture(input: unknown): Fixture {
+  return createProviderAdmissionFixtureInternal(input);
+}
+
+const providerAdmissionTransitionClaims = new WeakMap<object, ProviderAdmissionClaims>();
+
+/** Runtime-owned GF-022 transition; no caller data or authority claims are accepted. */
+export function createExactLocalCommandAdmissionTransition(): object | undefined {
+  const entry = CAPABILITY_PROOF_CATALOGUE.find(
+    (candidate) => candidate.manifestDigest === LOCAL_COMMAND_VERIFIER_MANIFEST_DIGEST,
+  );
+  const ledger = createScriptedLedger();
+  const manifestIdValue = entry && manifestId(entry);
+  const approvalValue =
+    entry && manifestIdValue
+      ? {
+          principal: 'principal/arye',
+          manifestId: manifestIdValue,
+          manifestDigest: entry.manifestDigest,
+          scope: entry.scope,
+        }
+      : undefined;
+  const basisValue =
+    entry && manifestIdValue
+      ? {
+          providerIdentity: entry.providerIdentity,
+          providerBuild: LOCAL_COMMAND_VERIFIER_BUILD_DIGEST,
+          environment: 'local-posix-command/v1',
+          capability: 'PORT-VERIFY/local-command',
+          policyMinimum: 'policy/local-posix-command-verifier/v1',
+          manifestId: manifestIdValue,
+          manifestDigest: entry.manifestDigest,
+          scope: entry.scope,
+        }
+      : undefined;
+  const fixture =
+    entry && approvalValue && basisValue
+      ? createProviderAdmissionFixtureInternal({
+          manifestBytes: entry.manifestBytes,
+          approval: approvalValue,
+          ledger,
+        })
+      : undefined;
+  if (!entry || !basisValue || !fixture) return undefined;
+  const now = Date.now();
+  const start = fixture.start({
+    basis: basisValue,
+    ordinal: 1,
+    deadline: now + 2_000,
+    observedAt: now,
+    retryLimit: 2,
+    predecessor: null,
+  });
+  if (!start.ok) return undefined;
+  const proof = fixture.result({
+    basis: basisValue,
+    ordinal: 1,
+    deadline: now + 2_000,
+    observedAt: now,
+    retryLimit: 2,
+    predecessor: start.value.digest,
+    outcome: 'positive',
+  });
+  if (!proof.ok) return undefined;
+  const admitted = fixture.admit({ basis: basisValue, proof: proof.value, maxAgeMs: PROVIDER_ADMISSION_MAX_AGE_MS });
+  if (!admitted.ok) return undefined;
+  const claims = snapshotProviderAdmissionClaims({
+    principal: 'principal/arye',
+    providerIdentity: basisValue.providerIdentity,
+    providerBuild: basisValue.providerBuild,
+    environment: basisValue.environment,
+    capability: basisValue.capability,
+    policyMinimum: basisValue.policyMinimum,
+    manifestId: admitted.value.manifestId,
+    manifestDigest: basisValue.manifestDigest,
+    scope: basisValue.scope,
+    proofDigest: proof.value.digest,
+    observedAt: Date.now(),
+    maxAgeMs: PROVIDER_ADMISSION_MAX_AGE_MS,
+  });
+  if (!claims) return undefined;
+  const receipt = Object.freeze({});
+  providerAdmissionTransitionClaims.set(receipt, claims);
+  return receipt;
+}
+
+export function consumeExactLocalCommandAdmissionTransition(receipt: unknown): ProviderAdmissionClaims | undefined {
+  if (typeof receipt !== 'object' || receipt === null) return undefined;
+  const claims = providerAdmissionTransitionClaims.get(receipt);
+  if (claims) providerAdmissionTransitionClaims.delete(receipt);
+  return claims;
 }
 
 function approval(value: unknown, entry: CapabilityProofCatalogueEntry): Approval | undefined {

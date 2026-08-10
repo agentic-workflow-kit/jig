@@ -6,14 +6,32 @@ import {
   FRAME_VERSION,
 } from '@agentic-workflow-kit/jig-codec';
 
+export * from './acceptance.js';
 export * from './approval-repository.js';
+export * from './block-surfacing.js';
+export * from './delivery.js';
 export * from './development-pre-run.js';
 export * from './envelope.js';
+export * from './finalizer.js';
 export * from './ledger.js';
 export * from './obligation.js';
-export * from './provider.js';
+export type { ProviderAdmissionFailure, ProviderAdmissionResult, StructuredFileAdmission } from './provider.js';
+export {
+  createProviderAdmissionFixture,
+  createStructuredFileAdmission,
+  PROVIDER_ADMISSION_VERSION,
+  structuredFileProviderGate,
+  structuredFileQualificationGate,
+} from './provider.js';
+export type { ProviderAdmissionClaims } from './qualification-registry.js';
+// Claims are readable at the runtime root; issuance remains inside the durable admission transition.
+export { readProviderAdmissionCertificateClaims } from './qualification-registry.js';
+export * from './registry.js';
+export * from './retirement.js';
+export * from './review-publication.js';
 export * from './session.js';
 export * from './source.js';
+export * from './verification.js';
 export * from './workspace.js';
 
 declare const TextEncoder: { new (): { encode(input?: string): Uint8Array } };

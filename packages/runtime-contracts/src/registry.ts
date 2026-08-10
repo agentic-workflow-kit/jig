@@ -506,9 +506,12 @@ export function createScriptedRegistry() {
       const records = state(raw.value);
       const selected = find(records, plain(input) ? data(input, 'waiter') : undefined);
       const basis = plain(input) ? data(input, 'eligibilityBasis') : undefined;
+      const targetBasisDigest = plain(input) ? data(input, 'targetBasisDigest') : undefined;
       if (!selected.ok) return selected;
       if (currentAuthority(records)) return fail('FC-AUTHORITY', 'AUTHORITY_ALREADY_HELD');
       if (selected.value.variant !== 'waiter') return fail('FC-AUTHORITY', 'INVALID_WAITER');
+      if (targetBasisDigest !== undefined && !isDigest(targetBasisDigest))
+        return fail('FC-AUTHORITY', 'INVALID_TARGET_BASIS');
       if (
         records.some(
           (entry) =>
@@ -554,6 +557,7 @@ export function createScriptedRegistry() {
         candidateContentDigest: parsed.value.candidateContentDigest,
         fence: { registry: raw.value.registry, target: raw.value.target, generation: parsed.value.generation },
         story: parsed.value.story,
+        ...(targetBasisDigest !== undefined ? { targetBasisDigest } : {}),
       });
       return content
         ? append(
@@ -594,6 +598,7 @@ export function createScriptedRegistry() {
       const proof = plain(input) ? data(input, 'releaseProof') : undefined;
       const newCandidate = plain(input) ? data(input, 'candidate') : undefined;
       const candidateContentDigest = plain(input) ? data(input, 'candidateContentDigest') : undefined;
+      const targetBasisDigest = plain(input) ? data(input, 'targetBasisDigest') : undefined;
       const eligibilityBasis = plain(input) ? data(input, 'eligibilityBasis') : undefined;
       const generation = plain(input) ? data(input, 'generation') : undefined;
       if (!held || authority !== held.authority) return fail('FC-FENCE', 'STALE_AUTHORITY');
@@ -606,6 +611,7 @@ export function createScriptedRegistry() {
         typeof newCandidate !== 'string' ||
         !parseIdentity('ID-CAND', newCandidate).ok ||
         !isDigest(candidateContentDigest) ||
+        (targetBasisDigest !== undefined && !isDigest(targetBasisDigest)) ||
         !isDigest(eligibilityBasis) ||
         typeof generation !== 'string' ||
         !parseIdentity('ID-GEN', generation).ok ||
@@ -624,6 +630,7 @@ export function createScriptedRegistry() {
         target: raw.value.target,
         story: facts.value.story,
         fence: { registry: raw.value.registry, target: raw.value.target, generation },
+        ...(targetBasisDigest !== undefined ? { targetBasisDigest } : {}),
       };
       const content = canonical({
         oldAuthority: facts.value,

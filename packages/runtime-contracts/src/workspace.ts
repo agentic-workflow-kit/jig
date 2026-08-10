@@ -472,6 +472,11 @@ const parseFact = (value: unknown): WorkspaceFact | undefined => {
   });
 };
 
+export function validateWorkspaceFact(value: unknown): WorkspaceResult<WorkspaceFact> {
+  const parsed = parseFact(value);
+  return parsed ? ok(parsed) : fail('FC-TRUST', 'INVALID_WORKSPACE_FACT');
+}
+
 const parseSnapshot = (value: unknown): WorkspaceSnapshot | undefined => {
   const raw = exactFields(value, ['version', 'intents', 'facts', 'setupIntentKeys', 'uncertainOperations']);
   if (!raw || raw.version !== WORKSPACE_CONTRACT_VERSION) return undefined;
