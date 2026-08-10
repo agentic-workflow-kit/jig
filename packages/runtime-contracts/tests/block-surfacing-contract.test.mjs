@@ -872,6 +872,26 @@ test('GF045 rejects stale or cross-scope authority and wrong operation class', (
     ).ok,
     false,
   );
+  assert.equal(
+    heldWithPriorStatus.authorize(
+      authorization(
+        {
+          scope: Object.freeze({
+            ...finalScope,
+            deliverySnapshot: Object.freeze({
+              ...appliedStatusSnapshot,
+              projection: Object.freeze({
+                ...appliedStatusSnapshot.projection,
+                effects: finalDeliverySnapshot.projection.effects,
+              }),
+            }),
+          }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
 
   const { controller: held } = controller({ finalDelivery: true });
   assert.equal(held.authorize(authorization({}, true)).ok, true);

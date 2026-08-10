@@ -859,6 +859,17 @@ function validateFinalDeliveryProof(
     const candidate = fields(record, ['intent', 'kind']);
     return Boolean(candidate && candidate.kind === 'intent' && same(candidate.intent, requestIntent));
   };
+  const priorMarkerEffectRecord = (record: unknown): boolean => {
+    const candidate = fields(record, ['fact', 'kind']);
+    const fact = candidate ? fields(candidate.fact, ['kind', 'operation', 'type']) : undefined;
+    return Boolean(
+      candidate &&
+        candidate.kind === 'effect' &&
+        fact?.kind === 'EV-EFFECT-CERTAINTY' &&
+        fact.operation === operation &&
+        fact.type === operationType,
+    );
+  };
   const proofResult = Boolean(
     snapshot &&
       snapshot.schema === 'jig.delivery-snapshot.v1' &&
@@ -891,6 +902,7 @@ function validateFinalDeliveryProof(
       !priorMarkerEffect &&
       exactRequestIntent &&
       requestEffect &&
+      !validateProofJournal(snapshot.records, 'DELIVERY-RECORD', priorMarkerEffectRecord) &&
       validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerTargetFact) &&
       validateProofJournal(finalizerSnapshot.records, 'FINALIZER-RECORD', finalizerRecord) &&
       validateProofJournal(snapshot.records, 'DELIVERY-RECORD', requestEffectRecord) &&
