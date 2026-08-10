@@ -27,6 +27,7 @@ export const REVIEW_PUBLICATION_OPERATION_EFFECT = 'effectful' as const;
 export const REVIEW_PUBLICATION_REVIEW_OPERATIONS = Object.freeze(REVIEW_PUBLICATION_OPERATION_TYPES.slice(0, 4));
 export const REVIEW_PUBLICATION_RETIRE_OPERATIONS = Object.freeze(REVIEW_PUBLICATION_OPERATION_TYPES.slice(4));
 export const REVIEW_PUBLICATION_BOUNDS = Object.freeze({ waitMs: 900_000, retryLimit: 3, recoveryLimit: 3 });
+const RETIREMENT_ATTEMPT_BOUND = REVIEW_PUBLICATION_BOUNDS.retryLimit;
 
 export type ReviewPublicationFailureFamily =
   | 'FC-INPUT'
@@ -219,6 +220,7 @@ export type ReviewPublicationLookup = Readonly<{
   operation: string;
   binding: ReviewPublicationBinding;
   outcome: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
+  resourceState: 'present' | 'absent';
   observationDigest: string;
   providerRevision: string | null;
 }>;
@@ -260,6 +262,30 @@ const safeDigest = (value: unknown): value is string => typeof value === 'string
 const safeRef = (value: unknown): value is string => safeText(value) && value.startsWith('refs/');
 const identity = (kind: string, value: unknown): value is string =>
   typeof value === 'string' && parseIdentity(kind, value).ok;
+const validReviewPublicationLookup = (
+  value: ReviewPublicationLookup,
+  operation: string,
+  binding: ReviewPublicationBinding,
+): boolean => {
+  const expectedDigest = digest('REVIEW-PUBLICATION-LOOKUP', {
+    operation: value.operation,
+    binding: value.binding,
+    outcome: value.outcome,
+    resourceState: value.resourceState,
+  });
+  return (
+    value.operation === operation &&
+    same(value.binding, binding) &&
+    (value.outcome === 'confirmed-effect' ||
+      value.outcome === 'confirmed-absence' ||
+      value.outcome === 'indeterminate') &&
+    (value.resourceState === 'present' || value.resourceState === 'absent') &&
+    (value.providerRevision === null || safeDigest(value.providerRevision)) &&
+    safeDigest(value.observationDigest) &&
+    expectedDigest !== undefined &&
+    value.observationDigest === expectedDigest
+  );
+};
 const exactFields = (value: unknown, names: readonly string[]): Record<string, unknown> | undefined => {
   try {
     if (
@@ -682,6 +708,7 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
   const invocations: ReviewPublicationInvocation[] = [];
   const dispatched = new Set<string>();
   const outcomes = new Map<string, 'confirmed-effect' | 'confirmed-absence' | 'indeterminate'>();
+  const resourceStates = new Map<string, 'present' | 'absent'>();
   const bindings = new Map<string, ReviewPublicationBinding>();
   const providerRevisions = new Map<string, string>();
   const dispatch = (input: unknown): ReviewPublicationResult<ReviewPublicationAttestation> => {
@@ -741,6 +768,7 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     });
     if (fault === 'mechanism-absence') {
       outcomes.set(intent.value.operation, 'confirmed-absence');
+      resourceStates.set(intent.value.operation, 'present');
       return fail('FC-MECHANISM', 'CONFIRMED_MECHANISM_ABSENCE');
     }
     if (
@@ -759,6 +787,12 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
       );
       if (providerRevision && fault === 'lost-response-confirmed-effect')
         providerRevisions.set(intent.value.operation, providerRevision);
+      resourceStates.set(
+        intent.value.operation,
+        fault === 'lost-response-confirmed-absence'
+          ? 'present'
+          : (resourceStates.get(intent.value.operation) ?? 'present'),
+      );
       return fail('FC-EFFECT', 'UNCERTAIN_REVIEW_EFFECT');
     }
     if (fault === 'invalid-attestation') return fail('FC-MECHANISM', 'INVALID_REVIEW_PUBLICATION_ATTESTATION');
@@ -769,6 +803,7 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
     });
     if (!providerRevision || !effectDigest) return fail('FC-MECHANISM', 'SCRIPTED_REVIEW_FACT_UNAVAILABLE');
     outcomes.set(intent.value.operation, 'confirmed-effect');
+    resourceStates.set(intent.value.operation, isRetirement(intent.value.operationType) ? 'absent' : 'present');
     return ok(
       Object.freeze({
         version: REVIEW_PUBLICATION_CONTRACT_VERSION,
@@ -806,14 +841,23 @@ export function createScriptedReviewPublicationFixture(): ScriptedReviewPublicat
       return fail('FC-INPUT', 'INVALID_REVIEW_LOOKUP');
     if (!same(binding.value, bindings.get(raw.operation))) return fail('FC-FENCE', 'REVIEW_LOOKUP_BINDING_MISMATCH');
     const outcome = outcomes.get(raw.operation);
+    const resourceState = resourceStates.get(raw.operation);
     const observationDigest =
-      outcome && digest('REVIEW-PUBLICATION-LOOKUP', { operation: raw.operation, binding: binding.value, outcome });
+      outcome &&
+      resourceState &&
+      digest('REVIEW-PUBLICATION-LOOKUP', {
+        operation: raw.operation,
+        binding: binding.value,
+        outcome,
+        resourceState,
+      });
     return outcome && observationDigest
       ? ok(
           Object.freeze({
             operation: raw.operation,
             binding: binding.value,
             outcome,
+            resourceState,
             observationDigest,
             providerRevision: providerRevisions.get(raw.operation) ?? null,
           }),
@@ -1498,8 +1542,9 @@ export function createReviewPublicationController(
           return fail('FC-MECHANISM', dispatched.error.code);
         if (dispatched.error.family === 'FC-MECHANISM') {
           const lookup = fixture.lookup({ operation: activeBinding.operation, binding: activeBinding });
-          if (!lookup.ok || lookup.value.outcome !== 'confirmed-absence')
+          if (!lookup.ok || !validReviewPublicationLookup(lookup.value, activeBinding.operation, activeBinding))
             return fail('FC-EFFECT', 'MECHANISM_ABSENCE_NOT_CONFIRMED');
+          if (lookup.value.outcome !== 'confirmed-absence') return fail('FC-EFFECT', 'MECHANISM_ABSENCE_NOT_CONFIRMED');
           if (attempt >= REVIEW_PUBLICATION_BOUNDS.retryLimit)
             return fail('FC-BOUND', 'REVIEW_RETRY_EXHAUSTED_BLOCKED');
           attempt += 1;
@@ -1527,7 +1572,11 @@ export function createReviewPublicationController(
         while (recoveryAttempt < REVIEW_PUBLICATION_BOUNDS.recoveryLimit) {
           recoveryAttempt += 1;
           const recovery = fixture.lookup({ operation: activeBinding.operation, binding: activeBinding });
-          if (recovery.ok && recovery.value.outcome === 'confirmed-effect') {
+          if (
+            recovery.ok &&
+            validReviewPublicationLookup(recovery.value, activeBinding.operation, activeBinding) &&
+            recovery.value.outcome === 'confirmed-effect'
+          ) {
             if (!recovery.value.providerRevision) return fail('FC-EFFECT', 'RECOVERY_PROVIDER_REVISION_MISSING');
             const operationCapabilityDigest = publicationCapabilityDigestForBinding(activeBinding);
             if (!operationCapabilityDigest) return fail('FC-TRUST', 'CAPABILITY_DIGEST_FAILED');
@@ -1544,7 +1593,11 @@ export function createReviewPublicationController(
             completed = true;
             break;
           }
-          if (recovery.ok && recovery.value.outcome === 'confirmed-absence') {
+          if (
+            recovery.ok &&
+            validReviewPublicationLookup(recovery.value, activeBinding.operation, activeBinding) &&
+            recovery.value.outcome === 'confirmed-absence'
+          ) {
             return fail('FC-EFFECT', 'REVIEW_EFFECT_RECONCILED_ABSENCE_REQUIRES_REAUTHORIZATION');
           }
         }
@@ -1598,12 +1651,44 @@ export function createReviewPublicationController(
         }
     >
   > => {
-    const raw = exactFields(value, ['bindings', 'faults', 'preservation', 'obligation']);
+    const raw =
+      exactFields(value, ['bindings', 'faults', 'preservation', 'obligation', 'retryBindings']) ??
+      exactFields(value, ['bindings', 'faults', 'preservation', 'obligation']);
     if (!raw || !Array.isArray(raw.bindings) || raw.bindings.length !== 4 || !Array.isArray(raw.faults))
       return fail('FC-INPUT', 'RETIREMENT_REQUIRES_PRESERVATION');
     const bindings = raw.bindings.map((entry) => validateReviewPublicationBinding(entry));
     if (bindings.some((entry) => !entry.ok)) return fail('FC-SUBJECT', 'RETIREMENT_BINDING_MISMATCH');
     const typed = bindings.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value);
+    const retryBindingsResult =
+      raw.retryBindings === undefined
+        ? typed.map(() => [])
+        : Array.isArray(raw.retryBindings) && raw.retryBindings.length === typed.length
+          ? raw.retryBindings.map((entry) => {
+              const candidates = Array.isArray(entry) ? entry : [entry];
+              return candidates.map((candidate) => validateReviewPublicationBinding(candidate));
+            })
+          : undefined;
+    if (
+      !retryBindingsResult ||
+      retryBindingsResult.some(
+        (entries) => entries.some((entry) => !entry.ok) || entries.length > RETIREMENT_ATTEMPT_BOUND - 1,
+      )
+    )
+      return fail('FC-SUBJECT', 'RETIREMENT_RETRY_BINDING_MISMATCH');
+    const retirementRetryTyped = retryBindingsResult.map((entries) =>
+      entries.map((entry) => (entry as Extract<typeof entry, { ok: true }>).value),
+    );
+    if (
+      retirementRetryTyped.some((entries, index) => {
+        let predecessor = typed[index];
+        return entries.some((entry) => {
+          const valid = predecessor !== undefined && bindingsShareRetryIdentity(predecessor, entry);
+          predecessor = entry;
+          return !valid;
+        });
+      })
+    )
+      return fail('FC-FENCE', 'RETIREMENT_RETRY_BINDING_NOT_FRESH');
     if (!bindingsSharePublicationIdentity(typed, REVIEW_PUBLICATION_RETIRE_OPERATIONS))
       return fail('FC-AUTHORITY', 'RETIREMENT_OPERATION_REQUIRED');
     const preservationRaw = exactFields(raw.preservation, ['kind', 'status', 'venueDigest', 'evidenceDigest']);
@@ -1640,7 +1725,7 @@ export function createReviewPublicationController(
       const authorized = transition.authorize({ binding, retirement: true });
       if (!authorized.ok) return authorized;
       const proof = authorized.value;
-      const intent: ReviewPublicationOperationIntent = Object.freeze({
+      let intent: ReviewPublicationOperationIntent = Object.freeze({
         version: REVIEW_PUBLICATION_CONTRACT_VERSION,
         operation: binding.operation,
         operationType: binding.operationType,
@@ -1655,18 +1740,56 @@ export function createReviewPublicationController(
       });
       const recorded = transition.recordIntent(intent);
       if (!recorded.ok) return recorded;
-      const selectedFault = faults[index];
-      const fault = Array.isArray(selectedFault) ? (selectedFault[0] ?? 'none') : (selectedFault ?? 'none');
-      const dispatched = fixture.dispatch({ intent, attempt: 1, fault });
-      if (dispatched.ok) {
-        const attestation = validateReviewPublicationAttestation(dispatched.value, intent);
-        if (!attestation.ok) return attestation;
-        continue;
+      let attempt = 1;
+      let completed = false;
+      while (!completed) {
+        const activeBinding = intent.binding;
+        const selectedFault = faults[index];
+        const fault = Array.isArray(selectedFault) ? (selectedFault[attempt - 1] ?? 'none') : (selectedFault ?? 'none');
+        const dispatched = fixture.dispatch({ intent, attempt, fault });
+        if (dispatched.ok) {
+          const attestation = validateReviewPublicationAttestation(dispatched.value, intent);
+          if (!attestation.ok) return attestation;
+          completed = true;
+          continue;
+        }
+        if (dispatched.error.family === 'FC-MECHANISM') {
+          const lookup = fixture.lookup({ operation: activeBinding.operation, binding: activeBinding });
+          const validLookup =
+            lookup.ok && validReviewPublicationLookup(lookup.value, activeBinding.operation, activeBinding);
+          if (validLookup && lookup.value.outcome === 'confirmed-absence' && lookup.value.resourceState === 'absent') {
+            completed = true;
+            continue;
+          }
+          if (validLookup && lookup.value.outcome === 'confirmed-absence' && attempt < RETIREMENT_ATTEMPT_BOUND) {
+            const nextBinding = retirementRetryTyped[index]?.[attempt - 1];
+            if (!nextBinding) break;
+            const nextAttempt = attempt + 1;
+            const reauthProof = transition.authorize({ binding: nextBinding, retirement: true });
+            if (!reauthProof.ok) return reauthProof;
+            const capabilityDigest = publicationCapabilityDigestForBinding(nextBinding);
+            if (!capabilityDigest) return fail('FC-TRUST', 'CAPABILITY_DIGEST_FAILED');
+            const reauth = transition.recordReauthorization({
+              version: REVIEW_PUBLICATION_CONTRACT_VERSION,
+              operation: activeBinding.operation,
+              previousAttempt: attempt,
+              attempt: nextAttempt,
+              confirmedAbsenceDigest: lookup.value.observationDigest,
+              binding: nextBinding,
+              capabilityDigest,
+              generation: nextBinding.generation,
+              fence: nextBinding.fence,
+              proof: reauthProof.value,
+            });
+            if (!reauth.ok) return reauth;
+            attempt = nextAttempt;
+            intent = Object.freeze({ ...intent, binding: nextBinding, proof: reauth.value });
+            continue;
+          }
+        }
+        break;
       }
-      if (dispatched.error.family === 'FC-MECHANISM') {
-        const lookup = fixture.lookup({ operation: binding.operation, binding });
-        if (lookup.ok && lookup.value.outcome === 'confirmed-absence') continue;
-      }
+      if (completed) continue;
       if (!obligationController) return fail('FC-AUTHORITY', 'RETIREMENT_OBLIGATION_ALLOCATOR_REQUIRED');
       const obligationInput = exactFields(raw.obligation, [
         'run',

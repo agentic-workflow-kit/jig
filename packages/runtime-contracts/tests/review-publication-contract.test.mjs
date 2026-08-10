@@ -107,6 +107,11 @@ const retireBindings = () => [
   binding(7, 'OPC-REV-RETIRE-STATUS', generation, 'Settled'),
   binding(8, 'OPC-REV-RETIRE-COMMENT', generation, 'Settled'),
 ];
+const retireRetryBindingSequences = () =>
+  retireBindings().map((entry, index) => [
+    binding(index + 5, entry.operationType, retryGeneration, 'Settled', generation),
+    binding(index + 5, entry.operationType, retryGeneration2, 'Settled', generation),
+  ]);
 const venueDigest = () => {
   const first = retireBindings()[0];
   return stageDigest({
@@ -141,6 +146,34 @@ const createController = (fixture, options = {}) =>
     },
     obligationController: options.obligationController ?? obligationController(),
   });
+
+const fixtureWithResourceState = (resourceState) => {
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  return Object.freeze({
+    ...fixture,
+    lookup(input) {
+      const result = fixture.lookup(input);
+      if (!result.ok) return result;
+      const value = { ...result.value, resourceState };
+      return {
+        ...result,
+        value: {
+          ...value,
+          observationDigest: stageDigest({
+            domain: 'REVIEW-PUBLICATION-LOOKUP',
+            excludePaths: [],
+            value: {
+              operation: value.operation,
+              binding: value.binding,
+              outcome: value.outcome,
+              resourceState,
+            },
+          }).value.digest,
+        },
+      };
+    },
+  });
+};
 
 const retirementObligationInput = () => ({
   run,
@@ -427,6 +460,76 @@ test('retirement delegates uncertain duty identity to the existing obligation co
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.status, 'obligation');
   assert.equal(result.value.obligation, `${run}/obligation/17`);
+});
+
+test('retirement confirmed effect absence with a present resource preserves the duty', () => {
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  const result = createController(fixture).retire({
+    bindings: retireBindings(),
+    faults: ['mechanism-absence', 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.value.status, 'obligation');
+  assert.equal(fixture.invocations()[0].result, 'mechanism-absent');
+});
+
+test('retirement confirmed absence reauthorizes the same operation before a bounded successful retry', () => {
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  const controller = createController(fixture);
+  const result = controller.retire({
+    bindings: retireBindings(),
+    retryBindings: retireRetryBindingSequences(),
+    faults: [['mechanism-absence', 'none'], 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.deepEqual(result, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
+  assert.equal(controller.snapshot().reauthorizations.length, 1);
+  assert.equal(controller.snapshot().reauthorizations[0].binding.generation, retryGeneration);
+  assert.deepEqual(
+    fixture
+      .invocations()
+      .slice(0, 2)
+      .map((entry) => entry.attempt),
+    [1, 2],
+  );
+});
+
+test('retirement repeated confirmed absence exhausts BND-RETIRE and preserves one residual duty', () => {
+  const fixture = runtime.createScriptedReviewPublicationFixture();
+  const controller = createController(fixture);
+  const result = controller.retire({
+    bindings: retireBindings(),
+    retryBindings: retireRetryBindingSequences(),
+    faults: [['mechanism-absence', 'mechanism-absence', 'mechanism-absence'], 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.value.status, 'obligation');
+  assert.equal(controller.snapshot().reauthorizations.length, 2);
+  assert.deepEqual(
+    fixture
+      .invocations()
+      .slice(0, 3)
+      .map((entry) => entry.attempt),
+    [1, 2, 3],
+  );
+});
+
+test('authoritative exact-resource absence completes retirement without reauthorization', () => {
+  const fixture = fixtureWithResourceState('absent');
+  const controller = createController(fixture);
+  const result = controller.retire({
+    bindings: retireBindings(),
+    faults: ['mechanism-absence', 'none', 'none', 'none'],
+    preservation: preservation(),
+    obligation: retirementObligationInput(),
+  });
+  assert.deepEqual(result, { ok: true, value: { status: 'retired', operation: retireBindings().at(-1).operation } });
+  assert.equal(controller.snapshot().reauthorizations.length, 0);
 });
 
 test('retirement rejects every binding mismatch before allocation', () => {
