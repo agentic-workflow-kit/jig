@@ -12,6 +12,8 @@ import {
 export const RETIREMENT_CONTRACT_VERSION = 'jig.retirement-contract.v1';
 export const RETIREMENT_SCHEMA = 'jig.sch-retirement.v1';
 export const PRESERVATION_RECEIPT_SCHEMA = 'jig.ev-preservation-receipt.v1';
+export const RETIREMENT_LOOKUP_ATTESTATION_SCHEMA = 'jig.cap-retirement-lookup.v1';
+export const RETIREMENT_LOOKUP_CAPABILITY = 'CAP-RETIREMENT-LOOKUP';
 export const RETIREMENT_CONTROLLER = 'RT-CONTROLLER';
 export const RETIREMENT_TRANSITION_WRITER = 'CP-TRANSITION';
 export const RETIREMENT_BOUND = Object.freeze({
@@ -97,6 +99,25 @@ export type RetirementWitnessAdvance = Readonly<{
   lineage: string;
   currency: 'current';
 }>;
+export type RetirementLookupAttestation = Readonly<{
+  schema: typeof RETIREMENT_LOOKUP_ATTESTATION_SCHEMA;
+  capability: typeof RETIREMENT_LOOKUP_CAPABILITY;
+  resource: string;
+  resourceIdentity: string;
+  operation: RetirementOperationType;
+  port: RetirementPort;
+  mode: 'retire' | 'release-pin';
+  transition: RetirementTransition;
+  holderTransition: RetirementHolderTransition | null;
+  preservationWitness: RetirementWitness;
+  priorHead: string;
+  priorLineage: string;
+  newHead: string | null;
+  newLineage: string | null;
+  witnessAdvance: RetirementWitnessAdvance | null;
+  certainty: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
+  digest: string;
+}>;
 export type RetirementTrustEvidence = Readonly<{
   kind: 'witness-fork' | 'witness-rollback' | 'witness-currency' | 'trust-root-compromise';
   expectedHead: string;
@@ -169,9 +190,11 @@ export type RetirementAuthorization = Readonly<{
   holderTransition: RetirementHolderTransition | null;
   status: 'committed' | 'uncertain' | 'confirmed-absence' | 'reauthorized' | 'confirmed-effect';
   witnessAdvance: RetirementWitnessAdvance | null;
+  lookupAttestation: RetirementLookupAttestation | null;
 }>;
 export type RetirementMechanism = Readonly<{
   invoke(input: Readonly<Record<string, unknown>>): RetirementResult<Readonly<Record<string, unknown>>>;
+  lookup?: (input: Readonly<Record<string, unknown>>) => RetirementResult<Readonly<Record<string, unknown>>>;
 }>;
 export type RetirementObligationAllocator = ObligationController;
 export type RetirementPin = Readonly<{ resourceIdentity: string; status: 'held' | 'released' }>;
@@ -327,6 +350,14 @@ function journalDigest(journal: readonly Readonly<Record<string, unknown>>[]): s
   const staged = stageDigest({ domain: 'GF046-RETIREMENT-JOURNAL', excludePaths: [], value: journal as never });
   return staged.ok ? staged.value.digest : '';
 }
+function lookupAttestationDigest(value: AnyRecord): string {
+  const staged = stageDigest({
+    domain: 'GF046-RETIREMENT-LOOKUP',
+    excludePaths: ['digest'],
+    value: { ...value, digest: '' } as never,
+  });
+  return staged.ok ? staged.value.digest : '';
+}
 
 function validFence(value: unknown): value is RetirementFence {
   const raw = fields(value, ['generation', 'authority', 'basis']);
@@ -424,6 +455,7 @@ function validAuthorization(value: unknown, plan: RetirementPlan): value is Reti
     'holderTransition',
     'status',
     'witnessAdvance',
+    'lookupAttestation',
   ]);
   const resource = raw && plan.resources.find((candidate) => candidate.resourceIdentity === raw.resourceIdentity);
   const operation = raw?.operation as RetirementOperationType;
@@ -446,7 +478,8 @@ function validAuthorization(value: unknown, plan: RetirementPlan): value is Reti
     ((operation === 'OPC-ART-DISPOSE' && mode === 'release-pin') ||
       (operation !== 'OPC-ART-DISPOSE' && mode === 'retire')) &&
     ['committed', 'uncertain', 'confirmed-absence', 'reauthorized', 'confirmed-effect'].includes(String(raw.status)) &&
-    (raw.witnessAdvance === null || validWitnessAdvanceShape(raw.witnessAdvance))
+    (raw.witnessAdvance === null || validWitnessAdvanceShape(raw.witnessAdvance)) &&
+    (raw.lookupAttestation === null || validLookupAttestationShape(raw.lookupAttestation))
   );
 }
 
@@ -513,6 +546,38 @@ function validHolderTransition(
   );
 }
 
+function validLookupAttestation(
+  value: unknown,
+  authorization: RetirementAuthorization,
+  resource: RetirementResource,
+  priorWitness: RetirementWitness,
+  certainty: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate',
+): value is RetirementLookupAttestation {
+  if (!validLookupAttestationShape(value)) return false;
+  const raw = value as RetirementLookupAttestation;
+  if (
+    raw.resource !== resource.resource ||
+    raw.resourceIdentity !== resource.resourceIdentity ||
+    raw.operation !== authorization.operation ||
+    raw.port !== authorization.port ||
+    raw.mode !== authorization.mode ||
+    !equal(raw.transition, authorization.transition) ||
+    !equal(raw.holderTransition, authorization.holderTransition) ||
+    !equal(raw.preservationWitness, priorWitness) ||
+    raw.priorHead !== priorWitness.head ||
+    raw.priorLineage !== priorWitness.lineage ||
+    raw.certainty !== certainty
+  )
+    return false;
+  if (certainty === 'confirmed-effect')
+    return (
+      digest(raw.newHead) &&
+      digest(raw.newLineage) &&
+      validWitnessAdvance(raw.witnessAdvance, priorWitness, raw.newHead, raw.newLineage)
+    );
+  return raw.newHead === null && raw.newLineage === null && raw.witnessAdvance === null;
+}
+
 function validWitnessAdvanceShape(value: unknown): value is RetirementWitnessAdvance {
   const raw = fields(value, ['previousHead', 'previousLineage', 'head', 'lineage', 'currency']);
   return (
@@ -540,6 +605,78 @@ function validWitnessAdvance(
     raw.previousLineage === priorWitness.lineage &&
     raw.head === head &&
     raw.lineage === lineage
+  );
+}
+
+function validLookupAttestationShape(value: unknown): value is RetirementLookupAttestation {
+  const raw = fields(value, [
+    'schema',
+    'capability',
+    'resource',
+    'resourceIdentity',
+    'operation',
+    'port',
+    'mode',
+    'transition',
+    'holderTransition',
+    'preservationWitness',
+    'priorHead',
+    'priorLineage',
+    'newHead',
+    'newLineage',
+    'witnessAdvance',
+    'certainty',
+    'digest',
+  ]);
+  return (
+    !!raw &&
+    raw.schema === RETIREMENT_LOOKUP_ATTESTATION_SCHEMA &&
+    raw.capability === RETIREMENT_LOOKUP_CAPABILITY &&
+    identifier(raw.resource) &&
+    identifier(raw.resourceIdentity) &&
+    RETIREMENT_OPERATION_TYPES.includes(raw.operation as RetirementOperationType) &&
+    ['PORT-SESSION', 'PORT-WORKSPACE', 'PORT-DELIVERY', 'PORT-ARTIFACT'].includes(String(raw.port)) &&
+    (raw.mode === 'retire' || raw.mode === 'release-pin') &&
+    validTransition(raw.transition) &&
+    (raw.holderTransition === null || validHolderTransitionShape(raw.holderTransition)) &&
+    validWitness(raw.preservationWitness) &&
+    digest(raw.priorHead) &&
+    digest(raw.priorLineage) &&
+    (raw.newHead === null || digest(raw.newHead)) &&
+    (raw.newLineage === null || digest(raw.newLineage)) &&
+    (raw.witnessAdvance === null || validWitnessAdvanceShape(raw.witnessAdvance)) &&
+    ['confirmed-effect', 'confirmed-absence', 'indeterminate'].includes(String(raw.certainty)) &&
+    digest(raw.digest) &&
+    raw.digest === lookupAttestationDigest(raw)
+  );
+}
+
+function validHolderTransitionShape(value: unknown): value is RetirementHolderTransition {
+  const raw = fields(value, [
+    'controller',
+    'writer',
+    'transaction',
+    'event',
+    'position',
+    'fence',
+    'resource',
+    'resourceIdentity',
+    'operation',
+    'committed',
+  ]);
+  return (
+    !!raw &&
+    raw.controller === RETIREMENT_CONTROLLER &&
+    raw.writer === RETIREMENT_TRANSITION_WRITER &&
+    identifier(raw.transaction) &&
+    identifier(raw.event) &&
+    safeInteger(raw.position) &&
+    raw.position >= 0 &&
+    validFence(raw.fence) &&
+    identifier(raw.resource) &&
+    identifier(raw.resourceIdentity) &&
+    RETIREMENT_OPERATION_TYPES.includes(raw.operation as RetirementOperationType) &&
+    raw.committed === true
   );
 }
 
@@ -1069,6 +1206,7 @@ export function createRetirementController(
       holderTransition: raw.holderTransition as RetirementHolderTransition | null,
       status: 'committed' as const,
       witnessAdvance: null,
+      lookupAttestation: null,
     });
     authorizations.set(key, authorization);
     journal.push(
@@ -1321,57 +1459,87 @@ export function createRetirementController(
   const reconcile = (
     input: unknown,
   ): RetirementResult<Readonly<{ certainty: 'confirmed-effect' | 'confirmed-absence' | 'indeterminate' }>> => {
-    const baseFields = ['operation', 'resourceIdentity', 'mode', 'certainty'] as const;
-    const effectFields = [...baseFields, 'head', 'witness', 'witnessAdvance'] as const;
-    const rawBase = fields(input, baseFields);
-    const rawEffect = fields(input, effectFields);
-    const raw = rawEffect ?? rawBase;
+    const raw = fields(input, ['operation', 'resourceIdentity', 'mode']);
     const operation = raw?.operation as RetirementOperationType;
     const authorization =
       raw && RETIREMENT_OPERATION_TYPES.includes(operation)
         ? authorizations.get(authorizationKey(String(raw.resourceIdentity), operation))
         : undefined;
-    if (
-      !raw ||
-      !authorization ||
-      raw.operation !== authorization.operation ||
-      raw.mode !== authorization.mode ||
-      !['confirmed-effect', 'confirmed-absence', 'indeterminate'].includes(String(raw.certainty))
-    )
+    if (!raw || !authorization || raw.operation !== authorization.operation || raw.mode !== authorization.mode)
       return fail('FC-SUBJECT', 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH');
-    const certainty = raw.certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
     if (authorization.status !== 'uncertain') return fail('FC-EFFECT', 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN');
-    if (certainty === 'indeterminate') return fail('FC-EFFECT', 'RETIREMENT_EFFECT_INDETERMINATE');
-    if (certainty === 'confirmed-effect') {
-      const resource = planValue?.resources.find(
-        (candidate) => candidate.resourceIdentity === authorization.resourceIdentity,
+    if (!options?.mechanism?.lookup) return fail('FC-MECHANISM', 'RETIREMENT_LOOKUP_UNAVAILABLE');
+    const resource = planValue?.resources.find(
+      (candidate) => candidate.resourceIdentity === authorization.resourceIdentity,
+    );
+    const preservation = receipts.get(authorization.resourceIdentity);
+    const priorWitness = preservation?.witness ?? resource?.witness;
+    if (!resource || !priorWitness) return fail('FC-TRUST', 'RETIREMENT_LOOKUP_BINDING_INVALID');
+    let lookedUp: RetirementResult<Readonly<Record<string, unknown>>>;
+    try {
+      lookedUp = options.mechanism.lookup(
+        Object.freeze({
+          resource: authorization.resource,
+          resourceIdentity: authorization.resourceIdentity,
+          operation: authorization.operation,
+          port: authorization.port,
+          mode: authorization.mode,
+          controller: RETIREMENT_CONTROLLER,
+          transition: authorization.transition,
+          holderTransition: authorization.holderTransition,
+          preservationReceipt: preservation,
+          preservationWitness: priorWitness,
+          priorStatus: authorization.status,
+        }),
       );
-      const preservation = receipts.get(authorization.resourceIdentity);
-      const priorWitness = preservation?.witness ?? resource?.witness;
-      if (
-        !rawEffect ||
-        !priorWitness ||
-        !digest(rawEffect.head) ||
-        !digest(rawEffect.witness) ||
-        !validWitnessAdvance(rawEffect.witnessAdvance, priorWitness, rawEffect.head, rawEffect.witness)
-      )
-        return fail('FC-TRUST', 'RETIREMENT_RESULT_NOT_WITNESSED');
+    } catch {
+      return fail('FC-MECHANISM', 'RETIREMENT_LOOKUP_FAILURE');
+    }
+    if (!lookedUp.ok) return lookedUp;
+    const attestation = fields(lookedUp.value, [
+      'schema',
+      'capability',
+      'resource',
+      'resourceIdentity',
+      'operation',
+      'port',
+      'mode',
+      'transition',
+      'holderTransition',
+      'preservationWitness',
+      'priorHead',
+      'priorLineage',
+      'newHead',
+      'newLineage',
+      'witnessAdvance',
+      'certainty',
+      'digest',
+    ]);
+    const certainty = attestation?.certainty;
+    if (!['confirmed-effect', 'confirmed-absence', 'indeterminate'].includes(String(certainty)))
+      return fail('FC-TRUST', 'INVALID_RETIREMENT_LOOKUP_ATTESTATION');
+    const typedCertainty = certainty as 'confirmed-effect' | 'confirmed-absence' | 'indeterminate';
+    if (!validLookupAttestation(attestation, authorization, resource, priorWitness, typedCertainty))
+      return fail('FC-TRUST', 'INVALID_RETIREMENT_LOOKUP_ATTESTATION');
+    if (typedCertainty === 'indeterminate') return fail('FC-EFFECT', 'RETIREMENT_EFFECT_INDETERMINATE');
+    if (typedCertainty === 'confirmed-effect') {
       authorizations.set(
         authorizationKey(authorization.resourceIdentity, authorization.operation),
         freeze({
           ...authorization,
           status: 'confirmed-effect' as const,
-          witnessAdvance: rawEffect.witnessAdvance,
+          witnessAdvance: attestation.witnessAdvance,
+          lookupAttestation: attestation,
         }),
       );
     } else {
-      if (!rawBase) return fail('FC-SUBJECT', 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH');
       authorizations.set(
         authorizationKey(authorization.resourceIdentity, authorization.operation),
         freeze({
           ...authorization,
           status: 'confirmed-absence' as const,
           witnessAdvance: null,
+          lookupAttestation: attestation,
         }),
       );
     }
@@ -1380,10 +1548,10 @@ export function createRetirementController(
         kind: 'reconcile',
         operation: authorization.operation,
         resourceIdentity: authorization.resourceIdentity,
-        certainty,
+        certainty: typedCertainty,
       }),
     );
-    return ok({ certainty });
+    return ok({ certainty: typedCertainty });
   };
 
   const reauthorize = (input: unknown): RetirementResult<RetirementAuthorization> => {
@@ -1533,17 +1701,38 @@ export function restoreRetirementController(
     const receipt = receiptValues?.find(
       (candidate) => (candidate as AnyRecord).resourceIdentity === value.resourceIdentity,
     );
-    if (value.status !== 'confirmed-effect') return value.witnessAdvance === null;
     const resource = planValue?.resources.find((candidate) => candidate.resourceIdentity === value.resourceIdentity);
-    return (
-      !!(receipt || resource) &&
-      (!receipt || validReceipt(receipt, planValue as RetirementPlan).ok) &&
-      validWitnessAdvance(
-        value.witnessAdvance,
-        receipt ? (receipt as PreservationReceipt).witness : (resource as RetirementResource).witness,
-        (value.witnessAdvance as AnyRecord)?.head,
-        (value.witnessAdvance as AnyRecord)?.lineage,
-      )
+    const priorWitness = receipt
+      ? (receipt as PreservationReceipt).witness
+      : (resource as RetirementResource | undefined)?.witness;
+    if (!resource || !priorWitness || (receipt && !validReceipt(receipt, planValue as RetirementPlan).ok)) return false;
+    if (value.status === 'confirmed-absence' || value.status === 'reauthorized')
+      return (
+        value.witnessAdvance === null &&
+        validLookupAttestation(
+          value.lookupAttestation,
+          value as RetirementAuthorization,
+          resource,
+          priorWitness,
+          'confirmed-absence',
+        )
+      );
+    if (value.status !== 'confirmed-effect') return value.witnessAdvance === null && value.lookupAttestation === null;
+    if (value.lookupAttestation !== null)
+      return (
+        validLookupAttestation(
+          value.lookupAttestation,
+          value as RetirementAuthorization,
+          resource,
+          priorWitness,
+          'confirmed-effect',
+        ) && equal(value.witnessAdvance, (value.lookupAttestation as RetirementLookupAttestation).witnessAdvance)
+      );
+    return validWitnessAdvance(
+      value.witnessAdvance,
+      priorWitness,
+      (value.witnessAdvance as AnyRecord)?.head,
+      (value.witnessAdvance as AnyRecord)?.lineage,
     );
   };
   if (

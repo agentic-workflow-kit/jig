@@ -224,8 +224,43 @@ const receipt = (plan, resource, overrides = {}) => ({
   ...overrides,
 });
 
-const script = (witnessAdvanced = false) => {
+const script = (witnessAdvanced = false, lookupCertainty = 'confirmed-effect') => {
   const calls = [];
+  let nextLookupCertainty = lookupCertainty;
+  const lookupAttestation = (input, certainty = lookupCertainty) => {
+    const priorWitness = input.preservationReceipt?.witness ?? input.preservationWitness;
+    const attestation = {
+      schema: retirement.RETIREMENT_LOOKUP_ATTESTATION_SCHEMA,
+      capability: retirement.RETIREMENT_LOOKUP_CAPABILITY,
+      resource: input.resource,
+      resourceIdentity: input.resourceIdentity,
+      operation: input.operation,
+      port: input.port,
+      mode: input.mode,
+      transition: input.transition,
+      holderTransition: input.holderTransition,
+      preservationWitness: priorWitness,
+      priorHead: priorWitness.head,
+      priorLineage: priorWitness.lineage,
+      newHead: certainty === 'confirmed-effect' ? digest('1') : null,
+      newLineage: certainty === 'confirmed-effect' ? digest('2') : null,
+      witnessAdvance:
+        certainty === 'confirmed-effect'
+          ? {
+              previousHead: priorWitness.head,
+              previousLineage: priorWitness.lineage,
+              head: digest('1'),
+              lineage: digest('2'),
+              currency: 'current',
+            }
+          : null,
+      certainty,
+      digest: '',
+    };
+    const staged = stageDigest({ domain: 'GF046-RETIREMENT-LOOKUP', excludePaths: ['digest'], value: attestation });
+    assert.equal(staged.ok, true, JSON.stringify(staged));
+    return Object.freeze({ ...attestation, digest: staged.value.digest });
+  };
   return {
     calls,
     invoke(input) {
@@ -251,6 +286,16 @@ const script = (witnessAdvanced = false) => {
           certainty: 'confirmed-effect',
         }),
       };
+    },
+    setLookupCertainty(certainty) {
+      nextLookupCertainty = certainty;
+    },
+    attestLookup(input, certainty = nextLookupCertainty) {
+      return lookupAttestation(input, certainty);
+    },
+    lookup(input) {
+      calls.push(Object.freeze({ ...input, lookup: true }));
+      return { ok: true, value: lookupAttestation(input, nextLookupCertainty) };
     },
   };
 };
@@ -503,15 +548,13 @@ test('GF046-MC-06/08: release-pin is exact-mode, post-retirement, and uncertain 
     controller.snapshot().pins.find((pin) => pin.resourceIdentity === artifactResource.resourceIdentity).status,
     'held',
   );
-  assert.equal(
-    controller.reconcile({
-      operation: 'OPC-ART-DISPOSE',
-      resourceIdentity: artifactResource.resourceIdentity,
-      mode: 'release-pin',
-      certainty: 'confirmed-absence',
-    }).ok,
-    true,
-  );
+  mechanism.setLookupCertainty('confirmed-absence');
+  const absenceReconcile = controller.reconcile({
+    operation: 'OPC-ART-DISPOSE',
+    resourceIdentity: artifactResource.resourceIdentity,
+    mode: 'release-pin',
+  });
+  assert.equal(absenceReconcile.ok, true, JSON.stringify(absenceReconcile));
   assert.equal(
     controller.reauthorize({
       resourceIdentity: artifactResource.resourceIdentity,
@@ -607,7 +650,8 @@ test('GF046-MC-06: release-pin adopts only the witnessed scripted result and nev
 });
 
 test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed release-pin across restart', () => {
-  const controller = retirement.createRetirementController(obligationOptions());
+  const mechanism = script(true);
+  const controller = retirement.createRetirementController({ ...obligationOptions(), mechanism });
   const planned = controller.plan(baseInput());
   assert.equal(planned.ok, true, JSON.stringify(planned));
   const artifactResource = planned.value.resources.find((resource) => resource.kind === 'artifact');
@@ -635,38 +679,28 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
     }),
     { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
   );
+  mechanism.setLookupCertainty('indeterminate');
   const indeterminate = controller.reconcile({
     operation: 'OPC-ART-DISPOSE',
     resourceIdentity: artifactResource.resourceIdentity,
     mode: 'release-pin',
-    certainty: 'indeterminate',
   });
   assert.deepEqual(indeterminate, {
     ok: false,
     error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_INDETERMINATE' },
   });
   assert.equal(controller.snapshot().authorizations[0].status, 'uncertain');
-  const witnessAdvance = {
-    previousHead: artifactResource.witness.head,
-    previousLineage: artifactResource.witness.lineage,
-    head: digest('1'),
-    lineage: digest('2'),
-    currency: 'current',
-  };
+  mechanism.setLookupCertainty('confirmed-effect');
   assert.equal(
     controller.reconcile({
       operation: 'OPC-ART-DISPOSE',
       resourceIdentity: artifactResource.resourceIdentity,
       mode: 'release-pin',
-      certainty: 'confirmed-effect',
-      head: digest('1'),
-      witness: digest('2'),
-      witnessAdvance,
     }).ok,
     true,
   );
   assert.equal(controller.snapshot().authorizations[0].status, 'confirmed-effect');
-  assert.deepEqual(controller.snapshot().authorizations[0].witnessAdvance, witnessAdvance);
+  const witnessAdvance = controller.snapshot().authorizations[0].witnessAdvance;
   const restored = retirement.restoreRetirementController(controller.snapshot(), obligationOptions());
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.snapshot(), controller.snapshot());
@@ -676,8 +710,8 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
       resourceIdentity: artifactResource.resourceIdentity,
       mode: 'release-pin',
       certainty: 'confirmed-effect',
-      head: digest('1'),
-      witness: digest('2'),
+      head: witnessAdvance.head,
+      witness: witnessAdvance.lineage,
       witnessAdvance,
     }).ok,
     true,
@@ -689,10 +723,11 @@ test('GF046-MC-07/08: confirmed-effect reconciliation restores the witnessed rel
 });
 
 test('GF046-MC-07: reconciliation is only legal for uncertain operations and terminal calls are inert', () => {
-  const prepare = (withMechanism = false) => {
+  const prepare = (lookupCertainty = 'confirmed-effect') => {
+    const mechanism = script(true, lookupCertainty);
     const controller = retirement.createRetirementController({
       ...obligationOptions(),
-      ...(withMechanism ? { mechanism: script(true) } : {}),
+      mechanism,
     });
     const planned = controller.plan(baseInput());
     assert.equal(planned.ok, true, JSON.stringify(planned));
@@ -721,22 +756,12 @@ test('GF046-MC-07: reconciliation is only legal for uncertain operations and ter
       }),
       { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_EFFECT_UNCERTAIN' } },
     );
-    return { controller, artifactResource };
+    return { controller, artifactResource, mechanism };
   };
-  const effectInput = (artifactResource) => ({
+  const reconcileInput = (artifactResource) => ({
     operation: 'OPC-ART-DISPOSE',
     resourceIdentity: artifactResource.resourceIdentity,
     mode: 'release-pin',
-    certainty: 'confirmed-effect',
-    head: digest('1'),
-    witness: digest('2'),
-    witnessAdvance: {
-      previousHead: artifactResource.witness.head,
-      previousLineage: artifactResource.witness.lineage,
-      head: digest('1'),
-      lineage: digest('2'),
-      currency: 'current',
-    },
   });
 
   const committed = retirement.createRetirementController(obligationOptions());
@@ -757,24 +782,71 @@ test('GF046-MC-07: reconciliation is only legal for uncertain operations and ter
     true,
   );
   const committedBefore = committed.snapshot();
-  assert.deepEqual(committed.reconcile(effectInput(committedArtifact)), {
+  assert.deepEqual(committed.reconcile(reconcileInput(committedArtifact)), {
     ok: false,
     error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
   });
   assert.deepEqual(committed.snapshot(), committedBefore);
 
   const effect = prepare();
-  assert.equal(effect.controller.reconcile(effectInput(effect.artifactResource)).ok, true);
-  const effectBefore = effect.controller.snapshot();
+  const forgedBefore = effect.controller.snapshot();
+  const forgedLookupInput = {
+    resource: effect.artifactResource.resource,
+    resourceIdentity: effect.artifactResource.resourceIdentity,
+    operation: 'OPC-ART-DISPOSE',
+    port: 'PORT-ARTIFACT',
+    mode: 'release-pin',
+    transition: forgedBefore.plan.transition,
+    holderTransition: holderTransition(effect.artifactResource, 'OPC-ART-DISPOSE'),
+    preservationWitness: effect.artifactResource.witness,
+  };
+  const forgedBasis = effect.mechanism.attestLookup(forgedLookupInput);
+  const forgedAdvance = { ...forgedBasis.witnessAdvance, head: digest('9') };
+  const forgedWithDigest = { ...forgedBasis, newHead: digest('9'), witnessAdvance: forgedAdvance, digest: '' };
+  const forgedDigest = stageDigest({
+    domain: 'GF046-RETIREMENT-LOOKUP',
+    excludePaths: ['digest'],
+    value: forgedWithDigest,
+  });
+  assert.equal(forgedDigest.ok, true, JSON.stringify(forgedDigest));
+  const structurallyValidForgedAttestation = { ...forgedWithDigest, digest: forgedDigest.value.digest };
   assert.deepEqual(
     effect.controller.reconcile({
-      ...effectInput(effect.artifactResource),
-      certainty: 'confirmed-absence',
+      ...reconcileInput(effect.artifactResource),
+      certainty: 'confirmed-effect',
+      head: digest('1'),
+      witness: digest('2'),
+      witnessAdvance: {
+        previousHead: effect.artifactResource.witness.head,
+        previousLineage: effect.artifactResource.witness.lineage,
+        head: digest('1'),
+        lineage: digest('2'),
+        currency: 'current',
+      },
+      lookupAttestation: structurallyValidForgedAttestation,
     }),
-    { ok: false, error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' } },
+    { ok: false, error: { family: 'FC-SUBJECT', code: 'RETIREMENT_RECONCILIATION_BINDING_MISMATCH' } },
   );
+  assert.deepEqual(effect.controller.snapshot(), forgedBefore);
+  assert.equal(effect.controller.reconcile(reconcileInput(effect.artifactResource)).ok, true);
+  const effectBefore = effect.controller.snapshot();
+  assert.deepEqual(effect.controller.reconcile(reconcileInput(effect.artifactResource)), {
+    ok: false,
+    error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
+  });
   assert.deepEqual(effect.controller.snapshot(), effectBefore);
-  assert.equal(effect.controller.adopt(effectInput(effect.artifactResource)).ok, true);
+  assert.equal(
+    effect.controller.adopt({
+      operation: 'OPC-ART-DISPOSE',
+      resourceIdentity: effect.artifactResource.resourceIdentity,
+      mode: 'release-pin',
+      certainty: 'confirmed-effect',
+      head: digest('1'),
+      witness: digest('2'),
+      witnessAdvance: effect.controller.snapshot().authorizations[0].witnessAdvance,
+    }).ok,
+    true,
+  );
   assert.equal(
     effect.controller.snapshot().pins.find((pin) => pin.resourceIdentity === effect.artifactResource.resourceIdentity)
       .status,
@@ -791,18 +863,10 @@ test('GF046-MC-07: reconciliation is only legal for uncertain operations and ter
     { ok: false, error: { family: 'FC-EFFECT', code: 'SEMANTIC_EFFECT_ALREADY_CONFIRMED' } },
   );
 
-  const absence = prepare();
-  assert.equal(
-    absence.controller.reconcile({
-      operation: 'OPC-ART-DISPOSE',
-      resourceIdentity: absence.artifactResource.resourceIdentity,
-      mode: 'release-pin',
-      certainty: 'confirmed-absence',
-    }).ok,
-    true,
-  );
+  const absence = prepare('confirmed-absence');
+  assert.equal(absence.controller.reconcile(reconcileInput(absence.artifactResource)).ok, true);
   const absenceBefore = absence.controller.snapshot();
-  assert.deepEqual(absence.controller.reconcile(effectInput(absence.artifactResource)), {
+  assert.deepEqual(absence.controller.reconcile(reconcileInput(absence.artifactResource)), {
     ok: false,
     error: { family: 'FC-EFFECT', code: 'RETIREMENT_RECONCILIATION_NOT_UNCERTAIN' },
   });
@@ -865,12 +929,12 @@ test('GF046-MC-07/08: uncertain effects cannot retry before absence plus reautho
       error: { family: 'FC-EFFECT', code: 'RECONCILIATION_REQUIRED' },
     },
   );
+  mechanism.setLookupCertainty('confirmed-absence');
   assert.equal(
     controller.reconcile({
       operation: 'OPC-SESSION-CLOSE',
       resourceIdentity: session.resourceIdentity,
       mode: 'retire',
-      certainty: 'confirmed-absence',
     }).ok,
     true,
   );
@@ -892,7 +956,7 @@ test('GF046-MC-07/08: uncertain effects cannot retry before absence plus reautho
     }).ok,
     true,
   );
-  assert.equal(mechanism.calls.length, 1);
+  assert.equal(mechanism.calls.length, 2);
   assert.deepEqual(controller.exhaust({ resourceIdentity: session.resourceIdentity, at: 1001 }), {
     ok: false,
     error: { family: 'FC-BOUND', code: 'BND_RETIRE_NOT_EXHAUSTED' },
