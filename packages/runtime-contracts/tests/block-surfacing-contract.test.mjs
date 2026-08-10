@@ -10,26 +10,138 @@ const generation = `${run}/gen/1|controller`;
 const candidate = `${story}/cand/1|${digest('b')}`;
 const transaction = (ordinal) => `${run}/txn/${ordinal}/${run}/gen/1|controller|${digest('a')}`;
 const operation = (ordinal) => `${transaction(ordinal)}/op/1`;
-const authority = 'target/finalizer/auth/1';
-const fence = authority;
 const request = operation(2);
-const transition = transaction(3);
 const marker = Object.freeze({ kind: 'status', identity: 'marker/block/gf045', context: 'jig-blocked-v1' });
 const subject = Object.freeze({
   run,
   story,
   generation,
   outcome: 'Blocked',
+  scope: 'review-publication',
   candidate,
   request,
   ref: 'refs/heads/feature',
-  authority,
-  fence,
+  authority: null,
+  fence: null,
   dependencyStories: Object.freeze([]),
   owner: 'principal/arye',
   reason: 'dependency remains blocked after bounded delivery attempts',
   startedAt: 1_000,
   deadline: 2_000,
+});
+const reviewBindingOperation = operation(5);
+const reviewBindingTransition = transaction(5);
+const reviewBinding = Object.freeze({
+  operation: reviewBindingOperation,
+  operationType: 'OPC-REV-STATUS',
+  mode: 'required-venue',
+  subject: Object.freeze({
+    run,
+    story,
+    basis: digest('c'),
+    repository: 'repository/fixture-main',
+    candidate,
+    candidateContentDigest: digest('b'),
+    targetBasisDigest: digest('d'),
+  }),
+  repository: 'repository/fixture-main',
+  candidate,
+  candidateContentDigest: digest('b'),
+  targetBasisDigest: digest('d'),
+  providerIdentity: 'fixture-provider/v1',
+  sourceRef: 'refs/heads/feature',
+  targetRef: 'refs/heads/main',
+  reviewRef: 'refs/jig/review/gf045',
+  request: { identity: request, marker: 'jig-review-request-gf045', draft: true, mergeable: false },
+  markers: { status: marker.context, comment: 'jig-blocked-comment' },
+  explanationDigest: digest('e'),
+  fence: {
+    generation,
+    basis: digest('c'),
+    candidateContentDigest: digest('b'),
+    targetBasisDigest: digest('d'),
+  },
+  generation,
+  manifest: `provider/${digest('f')}/authority/${digest('e')}`,
+  transition: {
+    kind: 'review-publication-transition',
+    authorizer: 'CP-TRANSITION',
+    controller: 'RT-CONTROLLER',
+    lifecycle: 'Blocked',
+    operation: reviewBindingOperation,
+    proof: {
+      kind: 'committed-witnessed',
+      position: 4,
+      event: `${run}/event/5`,
+      transaction: reviewBindingTransition,
+      operation: reviewBindingOperation,
+      recordDigest: digest('a'),
+      witnessDigest: digest('a'),
+    },
+  },
+  authority: null,
+});
+const reviewScope = Object.freeze({ kind: 'review-publication', binding: reviewBinding });
+const finalAuthority = 'target/finalizer/auth/1';
+const finalOperation = `${transaction(2)}/op/2`;
+const finalBindingDescriptor = digest('a');
+const finalBindingRegistry = `registry/${finalBindingDescriptor}`;
+const finalBindingTarget = 'target/finalizer';
+const finalAcceptedPackageDigest = digest('e');
+const finalRemoteGateBasis = {
+  schema: 'jig.delivery-gate-requirement.v1',
+  required: false,
+  subject: null,
+  correlationKey: null,
+  resourceIdentity: null,
+  maxAgeSeconds: null,
+  asOf: null,
+  acceptedPackageDigest: finalAcceptedPackageDigest,
+  candidate,
+  targetBasisDigest: digest('d'),
+  generation,
+  authority: finalAuthority,
+  registry: finalBindingRegistry,
+  target: finalBindingTarget,
+};
+const finalSubject = Object.freeze({
+  ...subject,
+  outcome: 'held',
+  scope: 'final-delivery',
+  authority: finalAuthority,
+  fence: finalAuthority,
+});
+const finalCarrier = Object.freeze({
+  binding: { descriptor: finalBindingDescriptor, registry: finalBindingRegistry, target: finalBindingTarget },
+  run,
+  story,
+  candidate,
+  candidatePrincipal: 'principal/arye',
+  candidateContentDigest: digest('b'),
+  targetBasisDigest: digest('d'),
+  generation,
+  authority: finalAuthority,
+  anchorOperation: request,
+  anchorTransition: transaction(2),
+  remoteGate: {
+    ...finalRemoteGateBasis,
+    digest: runtime.deriveDeliveryGateRequirementDigest(finalRemoteGateBasis),
+  },
+  acceptedPackageDigest: finalAcceptedPackageDigest,
+  strategy: { mode: 'squash', digest: runtime.deriveDeliveryStrategyDigest('squash') },
+  waitTargetSeconds: 60,
+  recoveryLimit: 3,
+  changedPaths: [],
+  workspaceCommit: null,
+  treeDigest: digest('a'),
+});
+const finalScope = Object.freeze({
+  kind: 'final-delivery',
+  carrier: finalCarrier,
+  operation: finalOperation,
+  operationType: 'OPC-DEL-STATUS',
+  requestIdentity: request,
+  transition: transaction(2),
 });
 const obligationId = `${run}/obligation/1`;
 const criteria = Object.freeze({
@@ -115,11 +227,16 @@ function fakeObligationController() {
 }
 
 function controller(options = {}) {
+  const finalDelivery = options.finalDelivery === true;
+  const mechanismOptions = { ...options };
+  delete mechanismOptions.finalDelivery;
+  const activeSubject = finalDelivery ? finalSubject : subject;
+  const activeScope = finalDelivery ? finalScope : reviewScope;
   const mechanism = runtime.createScriptedBlockSurfacingMechanism({
     effectOutcomes: [],
     observationOutcomes: [],
     unavailable: false,
-    ...options,
+    ...mechanismOptions,
   });
   assert.equal(mechanism.ok, true, JSON.stringify(mechanism));
   const obligations = fakeObligationController();
@@ -136,12 +253,13 @@ function controller(options = {}) {
       preservationEvidence: obligation.preservationEvidence,
       accountableOwner: 'principal/arye',
       criteria,
-      startedAt: subject.startedAt,
-      deadline: subject.deadline,
+      startedAt: activeSubject.startedAt,
+      deadline: activeSubject.deadline,
       policyDigest: obligation.policyDigest,
     },
-    subject,
+    subject: activeSubject,
     marker,
+    scope: activeScope,
     waitTargetSeconds: 60,
     observationLimit: 2,
   });
@@ -149,26 +267,36 @@ function controller(options = {}) {
   return { controller: result.value, obligations };
 }
 
-const authorization = (overrides = {}) => ({
-  authority,
-  fence,
-  explanation: 'blocked: dependency remains held',
-  marker,
-  operation: operation(5),
-  requestIdentity: request,
-  subject,
-  transition,
-  type: 'OPC-DEL-STATUS',
-  ...overrides,
-});
-const dispatch = (operationId = operation(5), observedAt = 1_001, overrides = {}) => ({
+const authorization = (overrides = {}, finalDelivery = false) => {
+  const activeSubject = finalDelivery ? finalSubject : subject;
+  const activeScope = finalDelivery ? finalScope : reviewScope;
+  return {
+    authority: activeSubject.authority,
+    fence: activeSubject.fence,
+    explanation: 'blocked: dependency remains held',
+    marker,
+    operation: finalDelivery ? finalScope.operation : reviewBindingOperation,
+    requestIdentity: request,
+    scope: activeScope,
+    subject: activeSubject,
+    transition: finalDelivery ? finalScope.transition : reviewBindingTransition,
+    type: finalDelivery ? 'OPC-DEL-STATUS' : 'OPC-REV-STATUS',
+    ...overrides,
+  };
+};
+const dispatch = (operationId = reviewBindingOperation, observedAt = 1_001, overrides = {}) => ({
   operation: operationId,
   observedAt,
   ...overrides,
 });
-const observation = (operationId = operation(5), observationOperation = operation(6), observedAt = 1_010) => ({
-  authority,
-  fence,
+const observation = (
+  operationId = reviewBindingOperation,
+  observationOperation = operation(6),
+  observedAt = 1_010,
+  finalDelivery = false,
+) => ({
+  authority: finalDelivery ? finalSubject.authority : subject.authority,
+  fence: finalDelivery ? finalSubject.fence : subject.fence,
   observedAt,
   observationOperation,
   operation: operationId,
@@ -206,14 +334,15 @@ test('GF045 uncertain effect re-observes by correlation, then retries only after
   });
   assert.equal(instance.authorize(authorization()).ok, true);
   assert.equal(instance.dispatch(dispatch()).value.status, 'reconciling');
+  assert.equal(instance.dispatch(dispatch()).ok, false);
   const absent = instance.observe(observation());
   assert.equal(absent.ok, true, JSON.stringify(absent));
   assert.equal(absent.value.status, 'pending');
   const retried = instance.dispatch(
     dispatch(operation(5), 1_020, {
       reauthorization: {
-        authority,
-        fence,
+        authority: subject.authority,
+        fence: subject.fence,
         reason: 'confirmed marker absence by exact request lookup',
         requestIdentity: request,
       },
@@ -225,20 +354,67 @@ test('GF045 uncertain effect re-observes by correlation, then retries only after
   assert.equal(instance.dispatch(dispatch(operation(5), 1_021)).ok, true);
 });
 
+test('GF045 uncertain effect remains fenced across restore until exact absence observation', () => {
+  const { controller: instance, obligations } = controller({ effectOutcomes: ['uncertain'] });
+  assert.equal(instance.authorize(authorization()).ok, true);
+  assert.equal(instance.dispatch(dispatch()).value.status, 'reconciling');
+  const restored = runtime.restoreScriptedBlockSurfacingController(instance.snapshot(), {
+    mechanism: runtime.createScriptedBlockSurfacingMechanism().value,
+    obligationController: obligations,
+    obligationBasis: {
+      run,
+      generation,
+      resource: obligation.resource,
+      duty: 'surfacing',
+      origin: obligation.origin,
+      reason: obligation.reason,
+      preservationEvidence: obligation.preservationEvidence,
+      accountableOwner: 'principal/arye',
+      criteria,
+      startedAt: subject.startedAt,
+      deadline: subject.deadline,
+      policyDigest: obligation.policyDigest,
+    },
+    subject,
+    marker,
+    scope: reviewScope,
+  });
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(restored.value.dispatch(dispatch()).ok, false);
+});
+
 test('GF045 held integration is bounded, re-observed without merge re-request, and expires one obligation', () => {
   const { controller: instance, obligations } = controller({
+    finalDelivery: true,
     effectOutcomes: ['held'],
     observationOutcomes: ['held', 'held'],
   });
-  assert.equal(instance.authorize(authorization()).ok, true);
-  assert.equal(instance.dispatch(dispatch()).value.status, 'target-wait');
-  assert.equal(instance.wake(observation(operation(5), operation(6), 1_050)).value.status, 'target-wait');
-  const overdue = instance.wake(observation(operation(5), operation(7), 1_061));
+  assert.equal(instance.authorize(authorization({}, true)).ok, true);
+  assert.equal(instance.dispatch(dispatch(finalOperation)).value.status, 'target-wait');
+  assert.equal(instance.wake(observation(finalOperation, operation(6), 1_050, true)).value.status, 'target-wait');
+  const overdue = instance.wake(observation(finalOperation, operation(7), 1_061, true));
   assert.equal(overdue.ok, true, JSON.stringify(overdue));
   assert.equal(overdue.value.status, 'parked');
   assert.equal(obligations.snapshot().obligations[0].exhaustionCount, 1);
   assert.equal(instance.records().filter((entry) => entry.record.kind === 'exhausted').length, 1);
   assert.equal(instance.records().filter((entry) => entry.record.kind === 'intent').length, 1);
+});
+
+test('GF045 confirmed present retires the held wait without exhausting the obligation', () => {
+  const { controller: instance, obligations } = controller({
+    finalDelivery: true,
+    effectOutcomes: ['held'],
+    observationOutcomes: ['present'],
+  });
+  assert.equal(instance.authorize(authorization({}, true)).ok, true);
+  assert.equal(instance.dispatch(dispatch(finalOperation)).value.status, 'target-wait');
+  const present = instance.wake(observation(finalOperation, operation(6), 1_010, true));
+  assert.equal(present.ok, true, JSON.stringify(present));
+  assert.equal(present.value.status, 'surfaced');
+  assert.equal(present.value.wait, null);
+  assert.equal(instance.wake(observation(finalOperation, operation(7), 9_999, true)).ok, false);
+  assert.equal(instance.records().filter((entry) => entry.record.kind === 'exhausted').length, 0);
+  assert.equal(obligations.snapshot().obligations[0].exhaustionCount, 0);
 });
 
 test('GF045 scripted unavailable posture records no publication claim and redacts hostile explanation text', () => {
@@ -262,6 +438,28 @@ test('GF045 rejects stale or cross-scope authority and wrong operation class', (
   assert.equal(instance.authorize(authorization({ authority: 'target/other/auth/1' })).ok, false);
   assert.equal(instance.authorize(authorization({ type: 'OPC-DEL-COMMENT' })).ok, false);
   assert.equal(instance.authorize(authorization({ requestIdentity: operation(8) })).ok, false);
+  assert.equal(instance.authorize(authorization({ scope: finalScope, type: 'OPC-DEL-STATUS' })).ok, false);
+
+  const { controller: held } = controller({ finalDelivery: true });
+  assert.equal(held.authorize(authorization({}, true)).ok, true);
+  assert.equal(held.authorize(authorization({ scope: reviewScope, type: 'OPC-REV-STATUS' }, true)).ok, false);
+  assert.equal(
+    held.authorize(
+      authorization(
+        {
+          scope: Object.freeze({
+            ...finalScope,
+            carrier: Object.freeze({
+              ...finalCarrier,
+              binding: Object.freeze({ ...finalCarrier.binding, target: 'target/other' }),
+            }),
+          }),
+        },
+        true,
+      ),
+    ).ok,
+    false,
+  );
 });
 
 test('GF045 surface boundary rejects hostile nested dispatch containers before reading them', () => {
@@ -300,6 +498,7 @@ test('GF045 snapshot replay retains durable intent, source, and effect state', (
     },
     subject,
     marker,
+    scope: reviewScope,
   });
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.projection(), instance.projection());

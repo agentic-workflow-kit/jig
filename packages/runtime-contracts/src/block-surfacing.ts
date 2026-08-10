@@ -1,5 +1,7 @@
 import { parseIdentity, stageDigest } from '@agentic-workflow-kit/jig-codec';
+import { type DeliveryCarrier, deriveDeliveryGateRequirementDigest, deriveDeliveryStrategyDigest } from './delivery.js';
 import type { ObligationController, ObligationSnapshot, ResidualObligation } from './obligation.js';
+import { type ReviewPublicationBinding, validateReviewPublicationBinding } from './review-publication.js';
 
 export const BLOCK_SURFACING_CONTRACT_VERSION = 'jig.block-surfacing-contract.v1';
 export const BLOCK_SURFACING_SNAPSHOT_SCHEMA = 'jig.block-surfacing-snapshot.v1';
@@ -7,7 +9,12 @@ export const BLOCK_SURFACING_EVENT_SCHEMA = 'jig.block-surfacing-event.v1';
 export const BLOCK_SURFACING_PORT = 'PORT-DELIVERY';
 export const BLOCK_SURFACING_CONTROLLER = 'RT-CONTROLLER';
 export const BLOCK_SURFACING_OPERATION = 'CP-BLOCK-SURFACING';
-export const BLOCK_SURFACING_OPERATION_CLASSES = Object.freeze(['OPC-DEL-STATUS', 'OPC-DEL-COMMENT'] as const);
+export const BLOCK_SURFACING_OPERATION_CLASSES = Object.freeze([
+  'OPC-REV-STATUS',
+  'OPC-REV-COMMENT',
+  'OPC-DEL-STATUS',
+  'OPC-DEL-COMMENT',
+] as const);
 export const BLOCK_SURFACING_WAIT_BOUNDS = Object.freeze({
   targetSeconds: Object.freeze({ minimum: 60, maximum: 86_400 }),
   observations: Object.freeze({ minimum: 1, maximum: 5 }),
@@ -38,16 +45,31 @@ export type BlockSurfacingResult<T> =
   | Readonly<{ ok: true; value: T }>
   | Readonly<{ ok: false; error: BlockSurfacingFailure }>;
 
+export type BlockSurfacingReviewScope = Readonly<{
+  kind: 'review-publication';
+  binding: ReviewPublicationBinding;
+}>;
+export type BlockSurfacingFinalDeliveryScope = Readonly<{
+  kind: 'final-delivery';
+  carrier: DeliveryCarrier;
+  operation: string;
+  operationType: 'OPC-DEL-STATUS' | 'OPC-DEL-COMMENT';
+  requestIdentity: string;
+  transition: string;
+}>;
+export type BlockSurfacingScope = BlockSurfacingReviewScope | BlockSurfacingFinalDeliveryScope;
+
 export type BlockSurfacingSubject = Readonly<{
   run: string;
   story: string;
   generation: string;
+  scope: BlockSurfacingScope['kind'];
   outcome: BlockOutcome;
   candidate: string | null;
   request: string | null;
   ref: string | null;
-  authority: string;
-  fence: string;
+  authority: string | null;
+  fence: string | null;
   dependencyStories: readonly string[];
   owner: 'principal/arye';
   reason: string;
@@ -85,9 +107,10 @@ export type BlockSurfacingIntent = Readonly<{
   port: typeof BLOCK_SURFACING_PORT;
   subject: BlockSurfacingSubject;
   subjectDigest: string;
+  scopeDigest: string;
   marker: BlockMarker;
-  authority: string;
-  fence: string;
+  authority: string | null;
+  fence: string | null;
   requestIdentity: string;
   transition: string;
   explanation: string;
@@ -99,9 +122,10 @@ export type BlockMarkerEffect = Readonly<{
   operation: string;
   marker: BlockMarker;
   subjectDigest: string;
+  scopeDigest: string;
   requestIdentity: string;
-  authority: string;
-  fence: string;
+  authority: string | null;
+  fence: string | null;
   outcome: MarkerEffectOutcome;
   observedAt: number;
   providerText: string;
@@ -115,6 +139,7 @@ export type BlockMarkerObservation = Readonly<{
   resolvesOperation: string;
   marker: BlockMarker;
   subjectDigest: string;
+  scopeDigest: string;
   requestIdentity: string;
   authority: string;
   fence: string;
@@ -129,6 +154,7 @@ export type BlockSurfacingSourceFact = Readonly<{
   kind: 'EV-BLOCK-SOURCE-FACT';
   subject: BlockSurfacingSubject;
   subjectDigest: string;
+  scopeDigest: string;
   marker: BlockMarker;
   obligation: string;
   notice: string;
@@ -201,9 +227,10 @@ export type ScriptedBlockSurfacingMechanism = Readonly<{
       operation: string;
       marker: BlockMarker;
       subjectDigest: string;
+      scopeDigest: string;
       requestIdentity: string;
-      authority: string;
-      fence: string;
+      authority: string | null;
+      fence: string | null;
       observedAt: number;
     }>,
   ): BlockSurfacingResult<BlockMarkerEffect>;
@@ -213,9 +240,10 @@ export type ScriptedBlockSurfacingMechanism = Readonly<{
       resolvesOperation: string;
       marker: BlockMarker;
       subjectDigest: string;
+      scopeDigest: string;
       requestIdentity: string;
-      authority: string;
-      fence: string;
+      authority: string | null;
+      fence: string | null;
       observedAt: number;
     }>,
   ): BlockSurfacingResult<BlockMarkerObservation>;
@@ -337,8 +365,8 @@ function redactProviderText(value: unknown): Readonly<{ text: string; quarantine
 
 function validateMarker(value: unknown): BlockSurfacingResult<BlockMarker> {
   const raw = fields(value, ['context', 'identity', 'kind']);
+  if (!raw) return fail('FC-INPUT', 'INVALID_BLOCK_MARKER');
   if (
-    !raw ||
     !['status', 'comment'].includes(String(raw.kind)) ||
     !boundedText(raw.identity, 128) ||
     !boundedText(raw.context, 256)
@@ -361,6 +389,7 @@ function validateSubject(value: unknown): BlockSurfacingResult<BlockSurfacingSub
     'ref',
     'request',
     'run',
+    'scope',
     'startedAt',
     'story',
   ]);
@@ -373,11 +402,20 @@ function validateSubject(value: unknown): BlockSurfacingResult<BlockSurfacingSub
     !raw.story.startsWith(`${raw.run}/story/`) ||
     !raw.generation.startsWith(`${raw.run}/gen/`) ||
     !['Blocked', 'held'].includes(String(raw.outcome)) ||
+    !['review-publication', 'final-delivery'].includes(String(raw.scope)) ||
     (raw.candidate !== null && !identity('ID-CAND', raw.candidate)) ||
     (raw.request !== null && !identity('ID-OP', raw.request)) ||
     (raw.ref !== null && !boundedText(raw.ref, 256)) ||
-    !identity('ID-AUTH', raw.authority) ||
-    !identity('ID-AUTH', raw.fence) ||
+    !(
+      (raw.scope === 'review-publication' &&
+        raw.outcome === 'Blocked' &&
+        raw.authority === null &&
+        raw.fence === null) ||
+      (raw.scope === 'final-delivery' &&
+        raw.outcome === 'held' &&
+        identity('ID-AUTH', raw.authority) &&
+        identity('ID-AUTH', raw.fence))
+    ) ||
     !dependencies ||
     dependencies.some((item) => !identity('ID-STORY', item) || !String(item).startsWith(`${raw.run}/story/`)) ||
     raw.owner !== 'principal/arye' ||
@@ -391,12 +429,13 @@ function validateSubject(value: unknown): BlockSurfacingResult<BlockSurfacingSub
     run: raw.run as string,
     story: raw.story as string,
     generation: raw.generation as string,
+    scope: raw.scope as BlockSurfacingScope['kind'],
     outcome: raw.outcome as BlockOutcome,
     candidate: raw.candidate as string | null,
     request: raw.request as string | null,
     ref: raw.ref as string | null,
-    authority: raw.authority as string,
-    fence: raw.fence as string,
+    authority: raw.authority as string | null,
+    fence: raw.fence as string | null,
     dependencyStories: dependencies as readonly string[],
     owner: 'principal/arye',
     reason: raw.reason as string,
@@ -418,6 +457,7 @@ function validateEffect(value: unknown): BlockSurfacingResult<BlockMarkerEffect>
     'quarantinedProviderText',
     'requestIdentity',
     'schema',
+    'scopeDigest',
     'subjectDigest',
   ]);
   const marker = raw ? validateMarker(raw.marker) : undefined;
@@ -426,10 +466,11 @@ function validateEffect(value: unknown): BlockSurfacingResult<BlockMarkerEffect>
     raw.schema !== BLOCK_SURFACING_EVENT_SCHEMA ||
     raw.kind !== 'EV-MARKER-FACT' ||
     !identity('ID-OP', raw.operation) ||
-    !identity('ID-AUTH', raw.authority) ||
-    !identity('ID-AUTH', raw.fence) ||
+    !(raw.authority === null || identity('ID-AUTH', raw.authority)) ||
+    !(raw.fence === null || identity('ID-AUTH', raw.fence)) ||
     !identity('ID-OP', raw.requestIdentity) ||
     !digest(raw.subjectDigest) ||
+    !digest(raw.scopeDigest) ||
     !marker?.ok ||
     !['created', 'updated', 'uncertain', 'held', 'absent', 'unavailable'].includes(String(raw.outcome)) ||
     !integer(raw.observedAt) ||
@@ -454,6 +495,7 @@ function validateObservation(value: unknown): BlockSurfacingResult<BlockMarkerOb
     'requestIdentity',
     'resolvesOperation',
     'schema',
+    'scopeDigest',
     'subjectDigest',
   ]);
   const marker = raw ? validateMarker(raw.marker) : undefined;
@@ -463,10 +505,11 @@ function validateObservation(value: unknown): BlockSurfacingResult<BlockMarkerOb
     raw.kind !== 'EV-MARKER-OBSERVATION' ||
     !identity('ID-OP', raw.operation) ||
     !identity('ID-OP', raw.resolvesOperation) ||
-    !identity('ID-AUTH', raw.authority) ||
-    !identity('ID-AUTH', raw.fence) ||
+    !(raw.authority === null || identity('ID-AUTH', raw.authority)) ||
+    !(raw.fence === null || identity('ID-AUTH', raw.fence)) ||
     !identity('ID-OP', raw.requestIdentity) ||
     !digest(raw.subjectDigest) ||
+    !digest(raw.scopeDigest) ||
     !marker?.ok ||
     !['present', 'absent', 'held', 'conflict', 'uncertain'].includes(String(raw.outcome)) ||
     !integer(raw.observedAt) ||
@@ -514,13 +557,208 @@ function validateMechanism(value: unknown): BlockSurfacingResult<ScriptedBlockSu
   return ok(value as ScriptedBlockSurfacingMechanism);
 }
 
+function validateFinalDeliveryScope(
+  value: unknown,
+  subject: BlockSurfacingSubject,
+  marker: BlockMarker,
+): BlockSurfacingResult<BlockSurfacingFinalDeliveryScope> {
+  const raw = fields(value, ['carrier', 'kind', 'operation', 'operationType', 'requestIdentity', 'transition']);
+  const carrier = raw
+    ? fields(raw.carrier, [
+        'acceptedPackageDigest',
+        'anchorOperation',
+        'anchorTransition',
+        'authority',
+        'binding',
+        'candidate',
+        'candidateContentDigest',
+        'candidatePrincipal',
+        'changedPaths',
+        'generation',
+        'recoveryLimit',
+        'remoteGate',
+        'run',
+        'story',
+        'strategy',
+        'targetBasisDigest',
+        'treeDigest',
+        'waitTargetSeconds',
+        'workspaceCommit',
+      ])
+    : undefined;
+  const binding = carrier ? fields(carrier.binding, ['descriptor', 'registry', 'target']) : undefined;
+  const remoteGate = carrier
+    ? fields(carrier.remoteGate, [
+        'acceptedPackageDigest',
+        'asOf',
+        'authority',
+        'candidate',
+        'correlationKey',
+        'digest',
+        'generation',
+        'maxAgeSeconds',
+        'registry',
+        'required',
+        'resourceIdentity',
+        'schema',
+        'subject',
+        'target',
+        'targetBasisDigest',
+      ])
+    : undefined;
+  const strategy = carrier ? fields(carrier.strategy, ['digest', 'mode']) : undefined;
+  const changedPaths = carrier ? array(carrier.changedPaths, 1_024) : undefined;
+  const operationTransaction =
+    raw && typeof raw.operation === 'string' ? raw.operation.slice(0, raw.operation.lastIndexOf('/op/')) : '';
+  const anchorTransaction =
+    carrier && typeof carrier.anchorOperation === 'string'
+      ? carrier.anchorOperation.slice(0, carrier.anchorOperation.lastIndexOf('/op/'))
+      : '';
+  const checkedPaths = changedPaths?.every((entry) => {
+    const path = fields(entry, ['contentDigest', 'path']);
+    return Boolean(path && boundedText(path.path, 512) && digest(path.contentDigest));
+  });
+  if (!raw) return fail('FC-AUTHORITY', 'INVALID_FINAL_DELIVERY_SCOPE');
+  if (
+    raw.kind !== 'final-delivery' ||
+    raw.operationType !== `OPC-DEL-${marker.kind === 'status' ? 'STATUS' : 'COMMENT'}` ||
+    !identity('ID-OP', raw.operation) ||
+    !identity('ID-OP', raw.requestIdentity) ||
+    !identity('ID-TXN', raw.transition) ||
+    operationTransaction !== raw.transition ||
+    !carrier ||
+    !binding ||
+    !digest(binding.descriptor) ||
+    !identity('ID-REGISTRY', binding.registry) ||
+    binding.registry !== `registry/${binding.descriptor}` ||
+    !identity('ID-TARGET', binding.target) ||
+    !remoteGate ||
+    !identity('ID-RUN', carrier.run) ||
+    !identity('ID-STORY', carrier.story) ||
+    carrier.story !== subject.story ||
+    carrier.run !== subject.run ||
+    !identity('ID-CAND', carrier.candidate) ||
+    !carrier.candidate.startsWith(`${carrier.story}/cand/`) ||
+    carrier.candidate !== subject.candidate ||
+    !digest(carrier.candidateContentDigest) ||
+    !carrier.candidate.endsWith(`|${carrier.candidateContentDigest}`) ||
+    !digest(carrier.targetBasisDigest) ||
+    !identity('ID-PRINCIPAL', carrier.candidatePrincipal) ||
+    !identity('ID-GEN', carrier.generation) ||
+    carrier.generation !== subject.generation ||
+    !identity('ID-AUTH', carrier.authority) ||
+    carrier.authority !== subject.authority ||
+    carrier.authority !== subject.fence ||
+    !identity('ID-OP', carrier.anchorOperation) ||
+    !identity('ID-TXN', carrier.anchorTransition) ||
+    anchorTransaction !== carrier.anchorTransition ||
+    raw.requestIdentity !== carrier.anchorOperation ||
+    raw.transition !== carrier.anchorTransition ||
+    !digest(carrier.acceptedPackageDigest) ||
+    remoteGate.schema !== 'jig.delivery-gate-requirement.v1' ||
+    typeof remoteGate.required !== 'boolean' ||
+    !digest(remoteGate.acceptedPackageDigest) ||
+    remoteGate.acceptedPackageDigest !== carrier.acceptedPackageDigest ||
+    remoteGate.candidate !== carrier.candidate ||
+    !digest(remoteGate.targetBasisDigest) ||
+    remoteGate.targetBasisDigest !== carrier.targetBasisDigest ||
+    remoteGate.generation !== carrier.generation ||
+    remoteGate.authority !== carrier.authority ||
+    remoteGate.registry !== binding.registry ||
+    remoteGate.target !== binding.target ||
+    (remoteGate.required
+      ? !boundedText(remoteGate.subject) ||
+        !boundedText(remoteGate.correlationKey) ||
+        !boundedText(remoteGate.resourceIdentity) ||
+        !integer(remoteGate.asOf) ||
+        !integer(remoteGate.maxAgeSeconds) ||
+        remoteGate.maxAgeSeconds < 1 ||
+        remoteGate.maxAgeSeconds > 86_400
+      : remoteGate.subject !== null ||
+        remoteGate.correlationKey !== null ||
+        remoteGate.resourceIdentity !== null ||
+        remoteGate.asOf !== null ||
+        remoteGate.maxAgeSeconds !== null) ||
+    deriveDeliveryGateRequirementDigest(
+      Object.fromEntries(Object.entries(remoteGate).filter(([key]) => key !== 'digest')) as never,
+    ) !== remoteGate.digest ||
+    !strategy ||
+    !['direct-fast-forward', 'merge-commit', 'squash', 'merge-queue'].includes(String(strategy.mode)) ||
+    deriveDeliveryStrategyDigest(strategy.mode as never) !== strategy.digest ||
+    !digest(carrier.treeDigest) ||
+    !Number.isSafeInteger(carrier.waitTargetSeconds as number) ||
+    (carrier.waitTargetSeconds as number) < BLOCK_SURFACING_WAIT_BOUNDS.targetSeconds.minimum ||
+    (carrier.waitTargetSeconds as number) > BLOCK_SURFACING_WAIT_BOUNDS.targetSeconds.maximum ||
+    !Number.isSafeInteger(carrier.recoveryLimit as number) ||
+    (carrier.recoveryLimit as number) < 1 ||
+    (carrier.recoveryLimit as number) > 5 ||
+    !changedPaths ||
+    !checkedPaths ||
+    (carrier.workspaceCommit !== null && !boundedText(carrier.workspaceCommit, 256))
+  )
+    return fail('FC-AUTHORITY', 'INVALID_FINAL_DELIVERY_SCOPE');
+  return ok({
+    kind: 'final-delivery',
+    carrier: carrier as unknown as DeliveryCarrier,
+    operation: raw.operation as string,
+    operationType: raw.operationType as BlockSurfacingFinalDeliveryScope['operationType'],
+    requestIdentity: raw.requestIdentity as string,
+    transition: raw.transition as string,
+  });
+}
+
+function validateSurfacingScope(
+  value: unknown,
+  subject: BlockSurfacingSubject,
+  marker: BlockMarker,
+): BlockSurfacingResult<BlockSurfacingScope> {
+  const raw = fields(
+    value,
+    ['kind'],
+    ['binding', 'carrier', 'operation', 'operationType', 'requestIdentity', 'transition'],
+  );
+  if (!raw) return fail('FC-AUTHORITY', 'BLOCK_SCOPE_REQUIRED');
+  if (raw.kind === 'review-publication') {
+    const binding = validateReviewPublicationBinding(raw.binding);
+    const expectedType = `OPC-REV-${marker.kind === 'status' ? 'STATUS' : 'COMMENT'}`;
+    if (
+      !binding.ok ||
+      subject.scope !== 'review-publication' ||
+      subject.outcome !== 'Blocked' ||
+      subject.candidate === null ||
+      binding.value.operationType !== expectedType ||
+      binding.value.subject.run !== subject.run ||
+      binding.value.subject.story !== subject.story ||
+      binding.value.subject.candidate !== subject.candidate ||
+      binding.value.request.identity !== subject.request ||
+      binding.value.request.draft !== true ||
+      binding.value.request.mergeable !== false ||
+      binding.value.markers[marker.kind] !== marker.context ||
+      binding.value.transition.lifecycle !== 'Blocked' ||
+      binding.value.transition.authorizer !== 'CP-TRANSITION' ||
+      binding.value.transition.controller !== BLOCK_SURFACING_CONTROLLER ||
+      binding.value.fence.generation !== subject.generation ||
+      binding.value.authority !== null
+    )
+      return fail('FC-AUTHORITY', 'INVALID_REVIEW_PUBLICATION_SCOPE');
+    return ok({ kind: 'review-publication', binding: binding.value });
+  }
+  if (raw.kind === 'final-delivery') return validateFinalDeliveryScope(value, subject, marker);
+  return fail('FC-AUTHORITY', 'UNKNOWN_BLOCK_SCOPE');
+}
+
 export function deriveBlockSurfacingSubjectDigest(subject: BlockSurfacingSubject): string | undefined {
   return digestValue('BLOCK-SURFACING-SUBJECT', subject);
+}
+
+export function deriveBlockSurfacingScopeDigest(scope: BlockSurfacingScope): string | undefined {
+  return digestValue('BLOCK-SURFACING-SCOPE', scope);
 }
 
 export function deriveBlockSurfacingSourceDigest(
   input: Readonly<{
     subject: BlockSurfacingSubject;
+    scopeDigest: string;
     marker: BlockMarker;
     obligation: string;
     notice: string;
@@ -570,6 +808,7 @@ export function createScriptedBlockSurfacingMechanism(
         operation: inputValue.operation,
         marker: inputValue.marker,
         subjectDigest: inputValue.subjectDigest,
+        scopeDigest: inputValue.scopeDigest,
         requestIdentity: inputValue.requestIdentity,
         authority: inputValue.authority,
         fence: inputValue.fence,
@@ -590,6 +829,7 @@ export function createScriptedBlockSurfacingMechanism(
         resolvesOperation: inputValue.resolvesOperation,
         marker: inputValue.marker,
         subjectDigest: inputValue.subjectDigest,
+        scopeDigest: inputValue.scopeDigest,
         requestIdentity: inputValue.requestIdentity,
         authority: inputValue.authority,
         fence: inputValue.fence,
@@ -597,7 +837,7 @@ export function createScriptedBlockSurfacingMechanism(
         observedAt: inputValue.observedAt,
         providerText: text.text,
         quarantinedProviderText: text.quarantined,
-      });
+      } as BlockMarkerObservation);
     },
     reachability: () => reachability,
   });
@@ -606,7 +846,7 @@ export function createScriptedBlockSurfacingMechanism(
 export function createScriptedBlockSurfacingController(input: unknown): BlockSurfacingResult<BlockSurfacingController> {
   const raw = fields(
     input,
-    ['mechanism', 'obligationBasis', 'obligationController', 'subject', 'marker'],
+    ['mechanism', 'obligationBasis', 'obligationController', 'subject', 'marker', 'scope'],
     ['initialSnapshot', 'waitTargetSeconds', 'observationLimit'],
   );
   if (!raw) return fail('FC-INPUT', 'INVALID_BLOCK_CONTROLLER');
@@ -618,6 +858,9 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
   if (!subject.ok) return subject;
   if (!marker.ok || (marker.value.kind === 'status' && marker.value.identity.length === 0))
     return fail('FC-INPUT', 'INVALID_BLOCK_MARKER');
+  const scope = validateSurfacingScope(raw.scope, subject.value, marker.value);
+  if (!scope.ok) return scope;
+  if (scope.value.kind !== subject.value.scope) return fail('FC-AUTHORITY', 'BLOCK_SCOPE_SUBJECT_MISMATCH');
   if (subject.value.request === null) return fail('FC-SUBJECT', 'BLOCK_REQUEST_REQUIRED');
   if (marker.value.kind === 'status' && subject.value.outcome !== 'Blocked' && subject.value.outcome !== 'held')
     return fail('FC-SUBJECT', 'INVALID_BLOCK_OUTCOME');
@@ -687,6 +930,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
   )
     return fail('FC-SUBJECT', 'OBLIGATION_BINDING_MISMATCH');
   const subjectDigest = deriveBlockSurfacingSubjectDigest(subject.value);
+  const scopeDigest = deriveBlockSurfacingScopeDigest(scope.value);
   const criteriaDigest = obligationCriteriaDigest;
   const boundDigest = digest(obligation.boundDigest) ? obligation.boundDigest : undefined;
   const noticeDigest = digestValue('BLOCK-SURFACING-NOTICE', subject.value);
@@ -696,19 +940,21 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
     boundDigest &&
     deriveBlockSurfacingSourceDigest({
       subject: subject.value,
+      scopeDigest: scopeDigest as string,
       marker: marker.value,
       obligation: obligation.id,
       notice,
       criteriaDigest,
       boundDigest,
     });
-  if (!subjectDigest || !criteriaDigest || !boundDigest || !sourceDigest)
+  if (!subjectDigest || !scopeDigest || !criteriaDigest || !boundDigest || !sourceDigest)
     return fail('FC-TRUST', 'BLOCK_SOURCE_DIGEST_UNAVAILABLE');
   const source: BlockSurfacingSourceFact = deepFreeze({
     schema: BLOCK_SURFACING_EVENT_SCHEMA,
     kind: 'EV-BLOCK-SOURCE-FACT',
     subject: subject.value,
     subjectDigest,
+    scopeDigest,
     marker: marker.value,
     obligation: obligation.id,
     notice,
@@ -763,6 +1009,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
             providerText: record.fact.providerText,
             quarantinedProviderText: record.fact.quarantinedProviderText,
           };
+        wait = null;
         status = 'surfaced';
       } else if (record.fact.outcome === 'absent') {
         if (effect)
@@ -875,27 +1122,39 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       'marker',
       'operation',
       'requestIdentity',
+      'scope',
       'subject',
       'transition',
       'type',
     ]);
     const checkedMarker = rawInput ? validateMarker(rawInput.marker) : undefined;
     const checkedSubject = rawInput ? validateSubject(rawInput.subject) : undefined;
+    const checkedScope = rawInput ? validateSurfacingScope(rawInput.scope, subject.value, marker.value) : undefined;
+    const expectedOperation =
+      scope.value.kind === 'review-publication' ? scope.value.binding.operation : scope.value.operation;
+    const expectedTransition =
+      scope.value.kind === 'review-publication'
+        ? scope.value.binding.transition.proof.transaction
+        : scope.value.transition;
+    const expectedType = `OPC-${scope.value.kind === 'review-publication' ? 'REV' : 'DEL'}-${marker.value.kind === 'status' ? 'STATUS' : 'COMMENT'}`;
     if (
       !rawInput ||
       !identity('ID-OP', rawInput.operation) ||
       !identity('ID-TXN', rawInput.transition) ||
-      !identity('ID-AUTH', rawInput.authority) ||
-      !identity('ID-AUTH', rawInput.fence) ||
       !identity('ID-OP', rawInput.requestIdentity) ||
       !checkedMarker?.ok ||
       !checkedSubject?.ok ||
+      !checkedScope?.ok ||
+      checkedScope.value.kind !== scope.value.kind ||
       !same(checkedMarker.value, marker.value) ||
       !same(checkedSubject.value, subject.value) ||
+      !same(checkedScope.value, scope.value) ||
       rawInput.authority !== subject.value.authority ||
       rawInput.fence !== subject.value.fence ||
       rawInput.requestIdentity !== subject.value.request ||
-      rawInput.type !== `OPC-DEL-${marker.value.kind === 'status' ? 'STATUS' : 'COMMENT'}` ||
+      rawInput.operation !== expectedOperation ||
+      rawInput.transition !== expectedTransition ||
+      rawInput.type !== expectedType ||
       !boundedText(rawInput.explanation)
     )
       return fail('FC-AUTHORITY', 'INVALID_BLOCK_AUTHORIZATION');
@@ -912,6 +1171,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       port: BLOCK_SURFACING_PORT,
       subject: subject.value,
       subjectDigest: subjectDigestValue,
+      scopeDigest,
       marker: marker.value,
       authority: subject.value.authority,
       fence: subject.value.fence,
@@ -934,7 +1194,8 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       (entry) => entry.record.kind === 'intent' && entry.record.intent.operation === rawInput.operation,
     );
     if (intentEntry?.record.kind !== 'intent') return fail('FC-AUTHORITY', 'BLOCK_INTENT_REQUIRED');
-    if (effect && effect.outcome !== 'uncertain' && effect.outcome !== 'absent') return ok(projection());
+    if (effect?.outcome === 'uncertain') return fail('FC-EFFECT', 'BLOCK_UNCERTAIN_REQUIRES_OBSERVATION');
+    if (effect && effect.outcome !== 'absent') return ok(projection());
     if (effect?.outcome === 'absent') {
       const reauth = fields(rawInput.reauthorization, ['authority', 'fence', 'reason', 'requestIdentity']);
       if (
@@ -957,6 +1218,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       operation: intentEntry.record.intent.operation,
       marker: marker.value,
       subjectDigest,
+      scopeDigest,
       requestIdentity: intentEntry.record.intent.requestIdentity,
       authority: subject.value.authority,
       fence: subject.value.fence,
@@ -965,6 +1227,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
     if (!fact.ok) return fail(fact.error.family, fact.error.code);
     const checked = validateEffect(fact.value);
     if (!checked.ok) return checked;
+    if (checked.value.scopeDigest !== scopeDigest) return fail('FC-FENCE', 'BLOCK_SCOPE_DIGEST_MISMATCH');
     const redacted = redactProviderText(checked.value.providerText);
     const normalized = {
       ...checked.value,
@@ -991,8 +1254,8 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       !identity('ID-OP', rawInput.operation) ||
       !identity('ID-OP', rawInput.observationOperation) ||
       rawInput.operation === rawInput.observationOperation ||
-      !identity('ID-AUTH', rawInput.authority) ||
-      !identity('ID-AUTH', rawInput.fence) ||
+      !(rawInput.authority === null || identity('ID-AUTH', rawInput.authority)) ||
+      !(rawInput.fence === null || identity('ID-AUTH', rawInput.fence)) ||
       rawInput.authority !== subject.value.authority ||
       rawInput.fence !== subject.value.fence ||
       rawInput.requestIdentity !== subject.value.request ||
@@ -1006,6 +1269,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       resolvesOperation: rawInput.operation as string,
       marker: marker.value,
       subjectDigest,
+      scopeDigest,
       requestIdentity: subject.value.request as string,
       authority: subject.value.authority,
       fence: subject.value.fence,
@@ -1014,6 +1278,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
     if (!fact.ok) return fail(fact.error.family, fact.error.code);
     const checked = validateObservation(fact.value);
     if (!checked.ok) return checked;
+    if (checked.value.scopeDigest !== scopeDigest) return fail('FC-FENCE', 'BLOCK_SCOPE_DIGEST_MISMATCH');
     const redacted = redactProviderText(checked.value.providerText);
     const normalized = deepFreeze({
       ...checked.value,
@@ -1022,7 +1287,7 @@ export function createScriptedBlockSurfacingController(input: unknown): BlockSur
       fence: subject.value.fence,
       providerText: redacted.text,
       quarantinedProviderText: checked.value.quarantinedProviderText || redacted.quarantined,
-    });
+    }) as BlockMarkerObservation;
     const appended = append({ kind: 'observation', fact: normalized });
     return appended.ok ? ok(projection()) : appended;
   };
@@ -1097,6 +1362,7 @@ export function restoreScriptedBlockSurfacingController(
     obligationBasis: BlockSurfacingObligationBasis;
     subject: BlockSurfacingSubject;
     marker: BlockMarker;
+    scope: BlockSurfacingScope;
   }>,
 ): BlockSurfacingResult<BlockSurfacingController> {
   const raw = fields(input, [
