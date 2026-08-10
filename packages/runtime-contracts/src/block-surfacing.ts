@@ -940,6 +940,7 @@ function validateFinalDeliveryScope(
         'generation',
         'recoveryLimit',
         'remoteGate',
+        'retryLimit',
         'run',
         'story',
         'strategy',
@@ -1055,6 +1056,9 @@ function validateFinalDeliveryScope(
     !Number.isSafeInteger(carrier.recoveryLimit as number) ||
     (carrier.recoveryLimit as number) < 1 ||
     (carrier.recoveryLimit as number) > 5 ||
+    !Number.isSafeInteger(carrier.retryLimit as number) ||
+    (carrier.retryLimit as number) < 1 ||
+    (carrier.retryLimit as number) > 5 ||
     !changedPaths ||
     !checkedPaths ||
     (carrier.workspaceCommit !== null && !boundedText(carrier.workspaceCommit, 256))
